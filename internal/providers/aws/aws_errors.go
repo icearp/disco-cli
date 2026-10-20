@@ -461,6 +461,11 @@ func isTransientNetworkError(err error) bool {
 		// DefaultThrottleErrorCodes, and 429 is not a retryable status), so a Chime
 		// throttle reaches us on its first attempt.
 		"ThrottledClientException", "ServiceFailureException",
+		// License Manager's HTTP 429 throttle (the only model with it). The SDK
+		// retryer neither lists it among its throttle codes nor retries a 429 by
+		// status; scanLicenseManager's client adds it, so it reaches us only once
+		// those retries are spent.
+		"RateLimitExceededException",
 		// A throttle code in the SDK retryer's DefaultThrottleErrorCodes (e.g.
 		// modeled by rekognition:ListProjectPolicies).
 		"ProvisionedThroughputExceededException")

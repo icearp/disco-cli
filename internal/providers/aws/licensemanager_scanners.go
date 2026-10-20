@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	"github.com/aws/aws-sdk-go-v2/service/licensemanager"
 	lmtypes "github.com/aws/aws-sdk-go-v2/service/licensemanager/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -56,7 +57,15 @@ const lmPageSize = 100
 // scans across regions.
 func scanLicenseManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-east-1"
-	client := licensemanager.NewFromConfig(acct.cfg, func(o *licensemanager.Options) { o.Region = region })
+	// The SDK neither lists RateLimitExceededException, License Manager's HTTP
+	// 429 throttle, among its throttle codes nor retries a 429 by status, so
+	// without this a single throttle fails the call unretried. It gets standard
+	// backoff only: adaptive mode's client-side rate limiting does not learn
+	// from a code added this way.
+	client := licensemanager.NewFromConfig(acct.cfg, func(o *licensemanager.Options) {
+		o.Region = region
+		o.Retryer = retry.AddWithErrorCodes(o.Retryer, "RateLimitExceededException")
+	})
 
 	t, i, ferr := scanLMLicenses(ctx, client, acct, region, st, scanID)
 	if ferr != nil {

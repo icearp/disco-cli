@@ -5,10 +5,16 @@ import (
 	"encoding/json"
 	"slices"
 	"testing"
+	"time"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	awsmw "github.com/aws/aws-sdk-go-v2/aws/middleware"
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/licensemanager"
 	lmtypes "github.com/aws/aws-sdk-go-v2/service/licensemanager/types"
 	"github.com/aws/smithy-go"
+	smithymw "github.com/aws/smithy-go/middleware"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -386,6 +392,86 @@ func TestScanLicenseManager_TransientDoesNotMaskHardError(t *testing.T) {
 	}
 	if *warnings != 1 {
 		t.Errorf("warnings = %d, want 1 for the throttled ListReceivedLicenses", *warnings)
+	}
+}
+
+// License Manager throttles with RateLimitExceededException (HTTP 429), which
+// the SDK retryer does not retry, so the first throttle reaches the scanner.
+func TestScanLicenseManager_RateLimitExceededWarnsAndKeepsRows(t *testing.T) {
+	st := newTestStore(t)
+	warnings := countOpWarnings(st, "license-manager:ListTokens")
+	rateLimited := &lmtypes.RateLimitExceededException{Message: ptrStr("Too many requests have been submitted. Try again after a brief wait.")}
+	total, err := scanLicenseManagerForTest(t, st,
+		func(any) (any, error) {
+			return &licensemanager.ListReceivedLicensesOutput{Licenses: []lmtypes.GrantedLicense{lmGranted(lmTestLicenseArn, "self", lmtypes.LicenseStatusAvailable)}}, nil
+		},
+		func(any) (any, error) { return nil, rateLimited })
+	if err != nil || total != 2 {
+		t.Fatalf("total, err = %d, %v; want 2 (license, received license), nil", total, err)
+	}
+	if *warnings != 1 {
+		t.Errorf("warnings = %d, want 1 for the rate-limited ListTokens", *warnings)
+	}
+	if len(rowsByNativeID(t, st, TypeLicenseManagerLicense)) != 1 || len(rowsByNativeID(t, st, TypeLicenseManagerReceivedLicense)) != 1 {
+		t.Error("a row listed before the throttle is missing")
+	}
+}
+
+// lmRetryingConfig answers each op from handlers below the SDK's Retry
+// middleware, so the client's real retryer sees every error; opStubConfig
+// answers at Initialize, above Retry, and allows one attempt. Handlers get a
+// nil input. Backoff is zero to keep the test fast.
+func lmRetryingConfig(handlers map[string]func(any) (any, error)) sdkaws.Config {
+	stub := func(s *smithymw.Stack) error {
+		return s.Finalize.Insert(smithymw.FinalizeMiddlewareFunc("discoLMStub",
+			func(ctx context.Context, _ smithymw.FinalizeInput, _ smithymw.FinalizeHandler) (smithymw.FinalizeOutput, smithymw.Metadata, error) {
+				h, ok := handlers[awsmw.GetOperationName(ctx)]
+				if !ok {
+					return smithymw.FinalizeOutput{}, smithymw.Metadata{}, lmDenied
+				}
+				out, err := h(nil)
+				return smithymw.FinalizeOutput{Result: out}, smithymw.Metadata{}, err
+			}), "Retry", smithymw.After)
+	}
+	return sdkaws.Config{
+		Region:      testRegion,
+		Credentials: credentials.NewStaticCredentialsProvider("AKID", "SECRET", ""),
+		Retryer: func() sdkaws.Retryer {
+			return retry.NewStandard(func(o *retry.StandardOptions) {
+				o.MaxAttempts = 3
+				o.Backoff = retry.BackoffDelayerFunc(func(int, error) (time.Duration, error) { return 0, nil })
+			})
+		},
+		APIOptions: []func(*smithymw.Stack) error{stub},
+	}
+}
+
+// A single throttle is retried by the client scanLicenseManager builds, so the
+// retried call's rows are stored and no warning is recorded.
+func TestScanLicenseManager_RateLimitExceededOnceIsRetried(t *testing.T) {
+	st := newTestStore(t)
+	warnings := countOpWarnings(st, "license-manager:ListTokens")
+	var calls int
+	handlers := lmTopLevelHandlers(
+		func(any) (any, error) { return &licensemanager.ListReceivedLicensesOutput{}, nil },
+		func(any) (any, error) {
+			calls++
+			if calls == 1 {
+				return nil, &lmtypes.RateLimitExceededException{Message: ptrStr("Too many requests have been submitted. Try again after a brief wait.")}
+			}
+			return &licensemanager.ListTokensOutput{Tokens: []lmtypes.TokenData{lmToken("t1", lmTestLicenseArn, "AVAILABLE")}}, nil
+		})
+	acct := newTestAccount(testAccountID)
+	acct.cfg = lmRetryingConfig(handlers)
+	total, _, err := scanLicenseManager(context.Background(), acct, "", st, testScanID)
+	if err != nil || total != 2 || calls != 2 {
+		t.Fatalf("total, ListTokens calls, err = %d, %d, %v; want 2 (license, token), 2, nil", total, calls, err)
+	}
+	if _, ok := rowsByNativeID(t, st, TypeLicenseManagerToken)[lmTestLicenseArn+"/token/t1"]; !ok {
+		t.Error("token row from the retried ListTokens is missing")
+	}
+	if *warnings != 0 {
+		t.Errorf("warnings = %d, want 0", *warnings)
 	}
 }
 
