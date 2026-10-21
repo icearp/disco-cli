@@ -90,13 +90,17 @@ func HasRules(resourceType string) bool {
 }
 
 // Apply walks attributesJSON under every rule registered for resourceType.
-// Returns the input unchanged when no rules exist or JSON parse fails.
-func Apply(resourceType, attributesJSON string) string {
+// With no rules for the type there is nothing to redact, so the input comes
+// back unchanged, parseable or not. With rules, input that does not parse as
+// JSON comes back as UnparseableAttributes with an error wrapping
+// ErrUnparseable; the raw value, which may hold a secret a rule names, is
+// never returned. The caller keeps the row and reports the error.
+func Apply(resourceType, attributesJSON string) (string, error) {
 	regMu.RLock()
 	rules := registry[resourceType]
 	regMu.RUnlock()
 	if len(rules) == 0 {
-		return attributesJSON
+		return attributesJSON, nil
 	}
 	return applyJSON(attributesJSON, rules)
 }

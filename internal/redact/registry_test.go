@@ -2,8 +2,18 @@ package redact
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 )
+
+func mustApply(t *testing.T, resourceType, in string) string {
+	t.Helper()
+	out, err := Apply(resourceType, in)
+	if err != nil {
+		t.Fatalf("Apply(%q, %s): %v", resourceType, in, err)
+	}
+	return out
+}
 
 func mustJSON(t *testing.T, v any) string {
 	t.Helper()
@@ -21,7 +31,7 @@ func TestApply_ScalarLiteralPath(t *testing.T) {
 		Attributes: []Rule{{Path: "MasterUserPassword", Mode: RedactScalar}},
 	})
 	in := `{"MasterUsername":"admin","MasterUserPassword":"hunter2"}`
-	out := Apply("x:y", in)
+	out := mustApply(t, "x:y", in)
 	var got map[string]any
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("unmarshal: %v", err)
@@ -45,7 +55,7 @@ func TestApply_MapWildcard(t *testing.T) {
 			"Variables": map[string]any{"DB_PASS": "s3cret", "DEBUG": "1"},
 		},
 	})
-	out := Apply("lambda", in)
+	out := mustApply(t, "lambda", in)
 	var got map[string]any
 	_ = json.Unmarshal([]byte(out), &got)
 	vars := got["Environment"].(map[string]any)["Variables"].(map[string]any)
@@ -72,7 +82,7 @@ func TestApply_ArrayWildcard(t *testing.T) {
 			},
 		},
 	})
-	out := Apply("ecs", in)
+	out := mustApply(t, "ecs", in)
 	var got map[string]any
 	_ = json.Unmarshal([]byte(out), &got)
 	secrets := got["ContainerDefinitions"].([]any)[0].(map[string]any)["Secrets"].([]any)
@@ -92,7 +102,7 @@ func TestApply_SubtreeMode(t *testing.T) {
 		Attributes: []Rule{{Path: "ClientAuthentication.Sasl", Mode: RedactSubtree}},
 	})
 	in := `{"ClientAuthentication":{"Sasl":{"Scram":{"Enabled":true,"Inner":"x"}},"Tls":{"Enabled":true}}}`
-	out := Apply("kafka", in)
+	out := mustApply(t, "kafka", in)
 	var got map[string]any
 	_ = json.Unmarshal([]byte(out), &got)
 	scram := got["ClientAuthentication"].(map[string]any)["Sasl"].(map[string]any)["Scram"].(map[string]any)
@@ -107,17 +117,39 @@ func TestApply_SubtreeMode(t *testing.T) {
 func TestApply_NoRulesPassthrough(t *testing.T) {
 	resetForTest()
 	in := `{"x":1}`
-	if Apply("nope", in) != in {
+	if mustApply(t, "nope", in) != in {
 		t.Errorf("expected passthrough")
 	}
 }
 
-func TestApply_MalformedJSONPassthrough(t *testing.T) {
+func TestApply_MalformedJSONFailsClosed(t *testing.T) {
 	resetForTest()
 	Register(TypeRules{Type: "t", Attributes: []Rule{{Path: "x", Mode: RedactScalar}}})
-	in := `{not json`
-	if Apply("t", in) != in {
-		t.Errorf("expected passthrough on malformed")
+	// Parsing stops on the secret's first byte. Two inputs differing only in
+	// the secret must give identical errors, or the error carries part of it.
+	in, other := `{"x":hunter2}`, `{"x":zzzzzzz}`
+	out, err := Apply("t", in)
+	if !errors.Is(err, ErrUnparseable) {
+		t.Fatalf("Apply(%q) err = %v; want ErrUnparseable", in, err)
+	}
+	if out != UnparseableAttributes {
+		t.Errorf("Apply(%q) = %q; want %q", in, out, UnparseableAttributes)
+	}
+	if !json.Valid([]byte(out)) {
+		t.Errorf("placeholder %q is not valid JSON", out)
+	}
+	_, otherErr := Apply("t", other)
+	if otherErr == nil || err.Error() != otherErr.Error() {
+		t.Errorf("Apply errors differ by secret: %q vs %v", err, otherErr)
+	}
+}
+
+func TestApply_MalformedJSONNoRulesPassthrough(t *testing.T) {
+	resetForTest()
+	in := `{"x":hunter2}`
+	out, err := Apply("nope", in)
+	if err != nil || out != in {
+		t.Errorf("Apply(%q) = %q, %v; want input unchanged, nil", in, out, err)
 	}
 }
 
@@ -125,7 +157,7 @@ func TestApply_MissingPathSilent(t *testing.T) {
 	resetForTest()
 	Register(TypeRules{Type: "t", Attributes: []Rule{{Path: "Missing.Path", Mode: RedactScalar}}})
 	in := `{"x":1}`
-	out := Apply("t", in)
+	out := mustApply(t, "t", in)
 	if out != in {
 		t.Errorf("expected unchanged: %s", out)
 	}
@@ -135,7 +167,7 @@ func TestApply_ScalarModeOnObjectLeavesAlone(t *testing.T) {
 	resetForTest()
 	Register(TypeRules{Type: "t", Attributes: []Rule{{Path: "Obj", Mode: RedactScalar}}})
 	in := `{"Obj":{"k":"v"}}`
-	out := Apply("t", in)
+	out := mustApply(t, "t", in)
 	var got map[string]any
 	_ = json.Unmarshal([]byte(out), &got)
 	obj := got["Obj"].(map[string]any)
@@ -160,7 +192,7 @@ func TestRegister_AppendsSameType(t *testing.T) {
 	Register(TypeRules{Type: "z", Attributes: []Rule{{Path: "A", Mode: RedactScalar}}})
 	Register(TypeRules{Type: "z", Attributes: []Rule{{Path: "B", Mode: RedactScalar}}})
 	in := `{"A":"1","B":"2","C":"3"}`
-	out := Apply("z", in)
+	out := mustApply(t, "z", in)
 	var got map[string]any
 	_ = json.Unmarshal([]byte(out), &got)
 	if got["A"] != Placeholder || got["B"] != Placeholder || got["C"] != "3" {

@@ -260,7 +260,7 @@ func TestApply_RedactUnlessSafeKeyName(t *testing.T) {
 		{"literal", `{"Auth":{"Password":"hunter2"}}`, func(m map[string]any) any { return m["Auth"].(map[string]any)["Password"] }, PlaceholderKeyName},
 	} {
 		var got map[string]any
-		if err := json.Unmarshal([]byte(Apply(tc.typ, tc.in)), &got); err != nil {
+		if err := json.Unmarshal([]byte(mustApply(t, tc.typ, tc.in)), &got); err != nil {
 			t.Fatalf("unmarshal: %v", err)
 		}
 		if v := tc.path(got); v != tc.want {
@@ -279,7 +279,7 @@ func TestApply_RedactUnlessSafeKeepsSiblings(t *testing.T) {
 	resetForTest()
 	Register(TypeRules{Type: "t", Attributes: []Rule{{Path: "Settings[*].Value", Mode: RedactUnlessSafe, KeyField: "Name"}}})
 	var got map[string]any
-	if err := json.Unmarshal([]byte(Apply("t", `{"Settings":[{"Name":"DB_PASSWORD","Ns":"aws:rds","Value":"x"}]}`)), &got); err != nil {
+	if err := json.Unmarshal([]byte(mustApply(t, "t", `{"Settings":[{"Name":"DB_PASSWORD","Ns":"aws:rds","Value":"x"}]}`)), &got); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	s := got["Settings"].([]any)[0].(map[string]any)
@@ -294,7 +294,7 @@ func TestApply_RedactUnlessSafeKeyIsSensitive(t *testing.T) {
 	resetForTest()
 	Register(TypeRules{Type: "t", Attributes: []Rule{{Path: "Auth[*].Value", Mode: RedactUnlessSafe, KeyIsSensitive: true}}})
 	var got map[string]any
-	if err := json.Unmarshal([]byte(Apply("t", `{"Auth":[{"Value":"hunter2"},{"Value":"`+testARN+`"}]}`)), &got); err != nil {
+	if err := json.Unmarshal([]byte(mustApply(t, "t", `{"Auth":[{"Value":"hunter2"},{"Value":"`+testARN+`"}]}`)), &got); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
 	auth := got["Auth"].([]any)
@@ -330,7 +330,7 @@ func TestApply_RedactUnlessSafeReviewLeaks(t *testing.T) {
 		{`{"Name":"X","Value":"arn:aws:a:::ghp_abcdefghijklmnopqrstuvwxyz0123456789"}`, "arn:aws:a:::ghp_abcdefghijklmnopqrstuvwxyz0123456789"},
 	} {
 		var got map[string]any
-		if err := json.Unmarshal([]byte(Apply("t", `{"Settings":[`+tc.setting+`]}`)), &got); err != nil {
+		if err := json.Unmarshal([]byte(mustApply(t, "t", `{"Settings":[`+tc.setting+`]}`)), &got); err != nil {
 			t.Fatalf("unmarshal: %v", err)
 		}
 		if v := settingValue(got); v != tc.want {

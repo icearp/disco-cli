@@ -2,7 +2,6 @@ package aws
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	amplifytypes "github.com/aws/aws-sdk-go-v2/service/amplify/types"
@@ -30,7 +29,10 @@ func applyAndDecode(t *testing.T, resourceType string, v any) map[string]any {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	out := redact.Apply(resourceType, string(raw))
+	out, err := redact.Apply(resourceType, string(raw))
+	if err != nil {
+		t.Fatalf("redact.Apply(%q): %v", resourceType, err)
+	}
 	var got map[string]any
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("unmarshal redacted: %v\n%s", err, out)
@@ -314,16 +316,14 @@ func TestRedact_CloudHSMCluster_PreCoPassword(t *testing.T) {
 	}
 }
 
-// TestRedact_FallbackStillCatchesUnruledTypes confirms the migration phase:
-// types without explicit rules still go through scrubAttributes. (Store-level
-// TestUpsertResources_ScrubsAttributes already covers the wired path; this
-// exercises the AWS-side expectation that previously-covered substring keys
-// keep redacting until each type gets explicit rules.)
-func TestRedact_FallbackStillCatchesUnruledTypes(t *testing.T) {
-	// Synthetic type with no rule registered.
-	out := redact.Apply("aws:fake:type", `{"Password":"x"}`)
-	if !strings.Contains(out, "Password") {
-		t.Errorf("redact.Apply should pass through unrules; got %s", out)
+// TestRedact_UnruledTypePassesThrough pins that rules are never inferred: a
+// type with no registered rule comes back unchanged, even a key named
+// Password.
+func TestRedact_UnruledTypePassesThrough(t *testing.T) {
+	in := `{"Password":"x"}`
+	out, err := redact.Apply("aws:fake:type", in)
+	if err != nil || out != in {
+		t.Errorf("redact.Apply(unruled, %s) = %s, %v; want input unchanged, nil", in, out, err)
 	}
 }
 

@@ -43,7 +43,10 @@ func applyAndDecode(t *testing.T, resourceType string, v any) map[string]any {
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
-	out := redact.Apply(resourceType, string(raw))
+	out, err := redact.Apply(resourceType, string(raw))
+	if err != nil {
+		t.Fatalf("redact.Apply(%q): %v", resourceType, err)
+	}
 	var got map[string]any
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("unmarshal redacted: %v", err)

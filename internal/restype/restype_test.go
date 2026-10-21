@@ -41,8 +41,8 @@ func TestEmitForwardsFieldRules(t *testing.T) {
 	if !untaggable.Is("test:svc:rules") {
 		t.Error("Untaggable:true not forwarded to untaggable registry")
 	}
-	if got := redact.Apply("test:svc:rules", `{"Secret":"hunter2"}`); strings.Contains(got, "hunter2") {
-		t.Errorf("redact rule not forwarded: %s", got)
+	if got, err := redact.Apply("test:svc:rules", `{"Secret":"hunter2"}`); err != nil || strings.Contains(got, "hunter2") {
+		t.Errorf("redact rule not forwarded: %s, %v", got, err)
 	}
 	if got := volatile.Apply("test:svc:rules", `{"Token":"abc","Keep":"y"}`); strings.Contains(got, "Token") {
 		t.Errorf("volatile rule not forwarded: %s", got)
@@ -58,7 +58,7 @@ func TestEmitNoRulesRegistersNothing(t *testing.T) {
 	if untaggable.Is("test:svc:bare") {
 		t.Error("bare descriptor registered as untaggable")
 	}
-	if got := redact.Apply("test:svc:bare", `{"Secret":"x"}`); !strings.Contains(got, "x") {
-		t.Errorf("bare descriptor redacted a field: %s", got)
+	if got, err := redact.Apply("test:svc:bare", `{"Secret":"x"}`); err != nil || !strings.Contains(got, "x") {
+		t.Errorf("bare descriptor redacted a field: %s, %v", got, err)
 	}
 }

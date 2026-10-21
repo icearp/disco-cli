@@ -69,6 +69,27 @@ func (s *Store) noteNativeIDType(r *Resource) {
 	s.nativeIDSeen.Store(r.ID, nativeIDSighting{scanID: r.DiscoveredBy, typ: r.Type})
 }
 
+// redactAttributes applies the type's redaction rules to r.AttributesJSON.
+// Attributes the rules could not be applied to are replaced by
+// redact.UnparseableAttributes, and the row is still written: the resource
+// exists, only its attributes are lost. The loss is a scan error, not a
+// warning, because the stored row no longer says what the cloud returned.
+// Service and Scope follow noteNativeIDType: the type and the account, so the
+// entry names the row without repeating its attributes.
+func (s *Store) redactAttributes(r *Resource) {
+	out, err := redact.Apply(r.Type, r.AttributesJSON)
+	r.AttributesJSON = out
+	if err != nil {
+		s.ReportError(ScanError{
+			Provider: r.Provider,
+			Service:  r.Type,
+			Scope:    r.AccountID,
+			Message: fmt.Sprintf("native_id %q: attributes replaced with %s: %v; the code that built this row needs fixing",
+				r.NativeID, redact.UnparseableAttributes, err),
+		})
+	}
+}
+
 func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 
@@ -76,7 +97,7 @@ func (s *Store) UpsertResources(resources []*Resource) (inserted int, err error)
 		if r.ID == "" {
 			r.ID = ResourceID(r.Provider, r.AccountID, r.NativeID)
 		}
-		r.AttributesJSON = redact.Apply(r.Type, r.AttributesJSON)
+		s.redactAttributes(r)
 		// Drop volatile fields (e.g. CloudWatch Logs UploadSequenceToken) that AWS
 		// rotates every read — left in, they'd version-split an unchanged resource
 		// every scan. Runs before the jsonEqual comparison below.
@@ -305,7 +326,7 @@ func (s *Store) InsertResourcesIfAbsent(resources []*Resource) (inserted int, er
 		if r.ID == "" {
 			r.ID = ResourceID(r.Provider, r.AccountID, r.NativeID)
 		}
-		r.AttributesJSON = redact.Apply(r.Type, r.AttributesJSON)
+		s.redactAttributes(r)
 		r.AttributesJSON = volatile.Apply(r.Type, r.AttributesJSON)
 		if managed.Is(r.Type) {
 			r.ManagedByProvider = true

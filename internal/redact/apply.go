@@ -1,9 +1,28 @@
 package redact
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+)
 
 // Placeholder replaces redacted scalar values.
 const Placeholder = "[REDACTED]"
+
+// PlaceholderUnparseable marks attributes that a type's rules could not be
+// applied to: they did not parse as JSON, or the redacted result did not
+// re-marshal.
+const PlaceholderUnparseable = "[REDACTED:unparseable]"
+
+// UnparseableAttributes replaces the whole AttributesJSON of a row whose
+// attributes could not be redacted. It is a JSON object because readers expect one:
+// Postgres stores attributes as JSONB, and Resource.MarshalJSON and the Rego
+// input render attributes as an object.
+const UnparseableAttributes = `{"redacted":"` + PlaceholderUnparseable + `"}`
+
+// ErrUnparseable is wrapped by the error Apply returns when attributes could
+// not be redacted and were replaced with UnparseableAttributes.
+var ErrUnparseable = errors.New("attributes could not be redacted")
 
 // apply walks v under segs[0:] and redacts values that land at a terminal
 // segment. sensitive says whether the key name of the value reached so far
@@ -103,23 +122,38 @@ func redactAllScalarsWith(v any, placeholder string) any {
 	}
 }
 
-// applyJSON parses raw, walks every compiled rule, re-marshals.
-// Returns raw unchanged on parse/marshal failure — callers never want a
-// silently dropped row.
-func applyJSON(raw string, rules []compiledRule) string {
+// applyJSON parses raw, walks every compiled rule, re-marshals. When raw does
+// not parse, or the result does not re-marshal, it fails closed: it returns
+// UnparseableAttributes and an error wrapping ErrUnparseable, never raw,
+// because raw may hold the very value a rule names.
+func applyJSON(raw string, rules []compiledRule) (string, error) {
 	if raw == "" || len(rules) == 0 {
-		return raw
+		return raw, nil
 	}
 	var v any
 	if err := json.Unmarshal([]byte(raw), &v); err != nil {
-		return raw
+		return UnparseableAttributes, parseError(err)
 	}
 	for _, r := range rules {
 		v = apply(v, r.segs, r, false)
 	}
 	out, err := json.Marshal(v)
+	// Unreachable today: v came from Unmarshal and rules only keep its values
+	// or replace them with placeholder strings. Kept so that a future rule
+	// writing an unmarshalable value still fails closed.
 	if err != nil {
-		return raw
+		return UnparseableAttributes, fmt.Errorf("%w: re-marshal after redaction: %w", ErrUnparseable, err)
 	}
-	return string(out)
+	return string(out), nil
+}
+
+// parseError says where raw stopped parsing without quoting it: a
+// json.SyntaxError's message names the offending character, which may be
+// part of the secret a rule exists to hide.
+func parseError(err error) error {
+	var se *json.SyntaxError
+	if errors.As(err, &se) {
+		return fmt.Errorf("%w: invalid JSON at byte offset %d", ErrUnparseable, se.Offset)
+	}
+	return fmt.Errorf("%w: %w", ErrUnparseable, err)
 }
