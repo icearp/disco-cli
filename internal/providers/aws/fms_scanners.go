@@ -125,18 +125,6 @@ func warnFMSListingOnly(st *store.Store, op string, acct *account, region string
 	_ = skipIfTransient(st, op, acct.ID, region, fmt.Errorf("%d stored from the listing only, first %s: %w", t.count, t.first, t.err))
 }
 
-// warnFMSNotStored warns once for the listed items of a phase that carry no
-// identifier to store them under; why says which one is missing.
-func warnFMSNotStored(st *store.Store, op string, acct *account, region string, t *skipTally, why string) {
-	if t.count == 0 {
-		return
-	}
-	st.ReportWarning(store.ScanWarning{
-		Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
-		Message: fmt.Sprintf("%d listed %s, so they were not stored; first %s", t.count, why, t.first),
-	})
-}
-
 // fmsPolicyRow is a policy's row under its ARN; attrs is its GetPolicy body,
 // or its listed summary when GetPolicy could not be read.
 func fmsPolicyRow(acct *account, p fmstypes.PolicySummary, arn, attrs, scanID string) *store.Resource {
@@ -229,7 +217,7 @@ func scanFMSPolicies(ctx context.Context, client fmsAPI, acct *account, region s
 		return total, inserted, err
 	}
 	warnFMSListingOnly(st, "fms:GetPolicy", acct, region, &transient)
-	warnFMSNotStored(st, "fms:ListPolicies", acct, region, &unnamed, "policies have no PolicyArn in the listing or from GetPolicy")
+	warnNotStored(st, "fms:ListPolicies", acct, region, &unnamed, "policies have no PolicyArn in the listing or from GetPolicy")
 	if len(noID) > 0 {
 		st.ReportWarning(store.ScanWarning{
 			Provider: "aws", Service: "fms:ListPolicies", Scope: acct.ID + "/" + region,
@@ -324,7 +312,7 @@ func scanFMSResourceSets(ctx context.Context, client fmsAPI, acct *account, regi
 		return total, inserted, err
 	}
 	warnFMSListingOnly(st, "fms:ListResourceSetResources", acct, region, &transient)
-	warnFMSNotStored(st, "fms:ListResourceSets", acct, region, &unnamed, "resource sets have no Id")
+	warnNotStored(st, "fms:ListResourceSets", acct, region, &unnamed, "resource sets have no Id")
 	return total, inserted, nil
 }
 

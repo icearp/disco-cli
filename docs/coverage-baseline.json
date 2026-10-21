@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 61.091127098321344,
-    "covered": 2038,
-    "uncovered": 1298,
+    "percent": 61.121103117505996,
+    "covered": 2039,
+    "uncovered": 1297,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -621,6 +621,7 @@
       "ec2/ipam",
       "ec2/ipambyoasn",
       "ec2/ipamexternalresourceverificationtoken",
+      "ec2/ipaminternetregistryassociation",
       "ec2/ipampolicy",
       "ec2/ipampolicyallocationrule",
       "ec2/ipampool",
@@ -2522,7 +2523,6 @@
       "ec2/ipamdiscoveredaccount",
       "ec2/ipamdiscoveredresourcecidr",
       "ec2/ipamdiscoveredroute",
-      "ec2/ipaminternetregistryassociation",
       "ec2/ipampolicyorganizationtarget",
       "ec2/ipamresourcecidr",
       "ec2/ipamrouteprotectionfinding",

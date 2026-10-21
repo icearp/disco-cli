@@ -40,6 +40,7 @@ type ec2API interface {
 	DescribeApplicationStatusChecks(context.Context, *ec2.DescribeApplicationStatusChecksInput, ...func(*ec2.Options)) (*ec2.DescribeApplicationStatusChecksOutput, error)
 	GetRouteServerAssociations(context.Context, *ec2.GetRouteServerAssociationsInput, ...func(*ec2.Options)) (*ec2.GetRouteServerAssociationsOutput, error)
 	GetRouteServerPropagations(context.Context, *ec2.GetRouteServerPropagationsInput, ...func(*ec2.Options)) (*ec2.GetRouteServerPropagationsOutput, error)
+	DescribeIpamInternetRegistryAssociations(context.Context, *ec2.DescribeIpamInternetRegistryAssociationsInput, ...func(*ec2.Options)) (*ec2.DescribeIpamInternetRegistryAssociationsOutput, error)
 	// Paginator-backed ops. NewListXxxPaginator(client, ...) only requires the
 	// matching DescribeXxx / GetXxx / SearchXxx method on `client`, so listing
 	// the underlying op suffices.

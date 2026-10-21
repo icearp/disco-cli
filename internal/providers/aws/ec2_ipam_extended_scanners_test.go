@@ -29,6 +29,8 @@ const (
 	ipxLocale   = "us-east-1"
 	ipxLocale2  = "None"
 	ipxPageNext = "p2"
+	ipxIrAssoc1 = "ipam-ira-0001"
+	ipxIrAssoc2 = "ipam-ira-0002"
 )
 
 var (
@@ -42,6 +44,10 @@ func ipxByoipID(cidr string) string { return ec2ARN(testRegion, testAccountID, "
 
 func ipxByoasnID(asn string) string {
 	return ec2ARN(testRegion, testAccountID, "ipam-byoasn", ipxIpamID+"/"+asn)
+}
+
+func ipxIrAssocARN(id string) string {
+	return "arn:aws:ec2::123456789012:ipam-internet-registry-association/" + id
 }
 
 func ipxRuleID(policyID, resourceType, locale string) string {
@@ -110,6 +116,33 @@ func ipxByoasnHandler(in any) (any, error) {
 		{Asn: ptrStr("64514"), IpamId: ptrStr(ipxIpamID), State: ec2types.AsnStateDeprovisioned},
 		{Asn: ptrStr("64515"), State: ec2types.AsnStateProvisioned},
 		{IpamId: ptrStr(ipxIpamID), State: ec2types.AsnStateProvisioned},
+	}}, nil
+}
+
+// ipxIrAssocHandler serves two live associations over two pages, plus a
+// delete-complete one and one listed without its ARN.
+func ipxIrAssocHandler(in any) (any, error) {
+	p := in.(*ec2.DescribeIpamInternetRegistryAssociationsInput)
+	if sv32(p.MaxResults) != ec2IpamInternetRegistryPageLimit {
+		return nil, apiErr("InvalidParameterValue", "MaxResults must be set to the page cap")
+	}
+	if p.NextToken == nil {
+		return &ec2.DescribeIpamInternetRegistryAssociationsOutput{NextToken: ptrStr(ipxPageNext), IpamInternetRegistryAssociations: []ec2types.IpamInternetRegistryAssociation{{
+			IpamInternetRegistryAssociationId: ptrStr(ipxIrAssoc1), IpamInternetRegistryAssociationArn: ptrStr(ipxIrAssocARN(ipxIrAssoc1)),
+			IpamId: ptrStr(ipxIpamID), Rir: ec2types.RirArin, OrganizationHandle: ptrStr("EXAMPLE-ORG"), Description: ptrStr("arin delegation"),
+			State: ec2types.IpamInternetRegistryAssociationStateEnableComplete, Tags: []ec2types.Tag{{Key: ptrStr("env"), Value: ptrStr("prod")}},
+		}}}, nil
+	}
+	return &ec2.DescribeIpamInternetRegistryAssociationsOutput{IpamInternetRegistryAssociations: []ec2types.IpamInternetRegistryAssociation{
+		{
+			IpamInternetRegistryAssociationId: ptrStr(ipxIrAssoc2), IpamInternetRegistryAssociationArn: ptrStr(ipxIrAssocARN(ipxIrAssoc2)),
+			IpamId: ptrStr(ipxIpamID), Rir: ec2types.RirRipe, State: ec2types.IpamInternetRegistryAssociationStateDeleteInProgress,
+		},
+		{
+			IpamInternetRegistryAssociationId: ptrStr("ipam-ira-0003"), IpamInternetRegistryAssociationArn: ptrStr(ipxIrAssocARN("ipam-ira-0003")),
+			IpamId: ptrStr(ipxIpamID), State: ec2types.IpamInternetRegistryAssociationStateDeleteComplete,
+		},
+		{IpamInternetRegistryAssociationId: ptrStr("ipam-ira-0004"), IpamId: ptrStr(ipxIpamID), State: ec2types.IpamInternetRegistryAssociationStateEnableComplete},
 	}}, nil
 }
 
@@ -269,6 +302,15 @@ func TestScanEC2RegionWideIpamPhases_Errors(t *testing.T) {
 			empty: &ec2.DescribeIpamByoasnOutput{}, firstPage: ipxByoasnHandler, wantFirstPageID: ipxByoasnID(ipxAsn1),
 			lateGapIsError: true,
 		},
+		{
+			name: "internet registry associations", op: ec2IpamInternetRegistryAssocsOp,
+			sdkOp: "DescribeIpamInternetRegistryAssociations", typ: TypeEC2IpamInternetRegistryAssociation,
+			run: func(c ec2API, st *store.Store) (int, int, error) {
+				return scanEC2IpamInternetRegistryAssociations(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
+			},
+			empty: &ec2.DescribeIpamInternetRegistryAssociationsOutput{}, firstPage: ipxIrAssocHandler, wantFirstPageID: ipxIrAssocARN(ipxIrAssoc1),
+			lateGapIsError: true,
+		},
 	}
 	for _, ph := range phases {
 		t.Run(ph.name+"/empty", func(t *testing.T) {
@@ -361,6 +403,8 @@ func isFirstPage(in any) bool {
 	case *ec2.DescribeByoipCidrsInput:
 		return p.NextToken == nil
 	case *ec2.DescribeIpamByoasnInput:
+		return p.NextToken == nil
+	case *ec2.DescribeIpamInternetRegistryAssociationsInput:
 		return p.NextToken == nil
 	}
 	return false
@@ -507,9 +551,10 @@ func ipxTopLevelHandlers(calls *parentCalls) map[string]func(in any) (any, error
 				{IpamPolicyId: ptrStr(ipxPolicy3), IpamPolicyArn: ptrStr(ipxPolicyARN(ipxPolicy3)), State: ec2types.IpamPolicyStateDeleteComplete},
 			}}, nil
 		},
-		"GetIpamPolicyAllocationRules": ipxAllocationHandler(calls),
-		"DescribeByoipCidrs":           ipxByoipHandler,
-		"DescribeIpamByoasn":           ipxByoasnHandler,
+		"GetIpamPolicyAllocationRules":             ipxAllocationHandler(calls),
+		"DescribeByoipCidrs":                       ipxByoipHandler,
+		"DescribeIpamByoasn":                       ipxByoasnHandler,
+		"DescribeIpamInternetRegistryAssociations": ipxIrAssocHandler,
 	}
 }
 
@@ -528,14 +573,17 @@ func TestScanEC2_StoresIpamExtendedRows(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scanEC2: %v", err)
 	}
-	// 1 IPAM + 2 policies + 2 BYOIP + 2 BYOASN + 2 allocation documents of policy 1
-	if total != 9 {
-		t.Errorf("total = %d, want 9", total)
+	// 1 IPAM + 2 policies + 2 BYOIP + 2 BYOASN + 2 allocation documents of
+	// policy 1 + 2 internet registry associations
+	if total != 11 {
+		t.Errorf("total = %d, want 11", total)
 	}
 	if got := calls.distinct(); !slices.Equal(got, []string{ipxPolicy1}) {
 		t.Errorf("policies queried = %v, want only the live %s", got, ipxPolicy1)
 	}
-	for typ, want := range map[string]int{TypeEC2ByoipCidr: 2, TypeEC2IpamByoasn: 2, TypeEC2IpamPolicyAllocationRule: 2} {
+	for typ, want := range map[string]int{
+		TypeEC2ByoipCidr: 2, TypeEC2IpamByoasn: 2, TypeEC2IpamPolicyAllocationRule: 2, TypeEC2IpamInternetRegistryAssociation: 2,
+	} {
 		if n := len(rowsByNativeID(t, st, typ)); n != want {
 			t.Errorf("%s rows = %d, want %d", typ, n, want)
 		}
@@ -547,7 +595,9 @@ func TestScanEC2_StoresIpamExtendedRows(t *testing.T) {
 // either one leaves an older category's slow call uncancelled, and an older
 // category's failure does not skip them.
 func TestScanEC2_IpamExtendedPhasesAfterOlderCategories(t *testing.T) {
-	for _, failOp := range []string{"DescribeByoipCidrs", "DescribeIpamByoasn", "GetIpamPolicyAllocationRules"} {
+	for _, failOp := range []string{
+		"DescribeByoipCidrs", "DescribeIpamByoasn", "GetIpamPolicyAllocationRules", "DescribeIpamInternetRegistryAssociations",
+	} {
 		t.Run(failOp+" fails", func(t *testing.T) {
 			st := newTestStore(t)
 			var calls parentCalls
@@ -605,6 +655,8 @@ func TestScanEC2_TransientSideDoesNotMaskHardError(t *testing.T) {
 		{"transient byoip", "DescribeByoipCidrs", "DescribeIpams", ec2ByoipCidrsOp},
 		{"transient byoasn", "DescribeIpamByoasn", "DescribeByoipCidrs", ec2IpamByoasnOp},
 		{"transient allocation rules", "GetIpamPolicyAllocationRules", "DescribeByoipCidrs", ec2IpamPolicyAllocationRulesOp},
+		{"transient internet registry associations", "DescribeIpamInternetRegistryAssociations", "DescribeByoipCidrs", ec2IpamInternetRegistryAssocsOp},
+		{"hard internet registry associations", "DescribeByoipCidrs", "DescribeIpamInternetRegistryAssociations", ec2ByoipCidrsOp},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -628,9 +680,9 @@ func TestScanEC2_TransientSideDoesNotMaskHardError(t *testing.T) {
 	}
 }
 
-// DescribeIpamByoasn is called only in a Region that is home to an IPAM this
-// scan stored.
-func TestScanEC2_ByoasnOnlyInIpamHomeRegion(t *testing.T) {
+// DescribeIpamByoasn and DescribeIpamInternetRegistryAssociations are called
+// only in a Region that is home to an IPAM this scan stored.
+func TestScanEC2_IpamHomeRegionPhasesOnlyInIpamHomeRegion(t *testing.T) {
 	cases := []struct {
 		name     string
 		ipams    []ec2types.Ipam
@@ -648,8 +700,12 @@ func TestScanEC2_ByoasnOnlyInIpamHomeRegion(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
-			var calls, byoasnCalls parentCalls
+			var calls, byoasnCalls, assocCalls parentCalls
 			h := ipxTopLevelHandlers(&calls)
+			h["DescribeIpamInternetRegistryAssociations"] = func(in any) (any, error) {
+				assocCalls.add("call")
+				return ipxIrAssocHandler(in)
+			}
 			h["DescribeIpams"] = func(any) (any, error) { return &ec2.DescribeIpamsOutput{Ipams: c.ipams}, nil }
 			h["DescribeIpamByoasn"] = func(in any) (any, error) {
 				byoasnCalls.add("call")
@@ -667,6 +723,12 @@ func TestScanEC2_ByoasnOnlyInIpamHomeRegion(t *testing.T) {
 			}
 			if n := len(rowsByNativeID(t, st, TypeEC2IpamByoasn)); n != wantRows {
 				t.Errorf("BYOASN rows = %d, want %d", n, wantRows)
+			}
+			if called := len(assocCalls.distinct()) > 0; called != c.wantCall {
+				t.Errorf("DescribeIpamInternetRegistryAssociations called = %v, want %v", called, c.wantCall)
+			}
+			if n := len(rowsByNativeID(t, st, TypeEC2IpamInternetRegistryAssociation)); n != wantRows {
+				t.Errorf("internet registry association rows = %d, want %d", n, wantRows)
 			}
 		})
 	}
@@ -690,6 +752,94 @@ func TestScanEC2IpamPolicyAllocationRules_RepeatedTokenStops(t *testing.T) {
 	}), newTestAccount(testAccountID), testRegion, st, testScanID, ipxParents(ipxPolicy1))
 	if err != nil {
 		t.Fatalf("scanEC2IpamPolicyAllocationRules: %v", err)
+	}
+	if calls != 2 {
+		t.Errorf("calls = %d, want 2 (stop when the token repeats)", calls)
+	}
+}
+
+func TestScanEC2IpamInternetRegistryAssociations_StoresLiveAssociationsAcrossPages(t *testing.T) {
+	st := newTestStore(t)
+	warnings := countOpWarnings(st, ec2IpamInternetRegistryAssocsOp)
+	total, inserted, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){
+		"DescribeIpamInternetRegistryAssociations": ipxIrAssocHandler,
+	}), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if err != nil {
+		t.Fatalf("scanEC2IpamInternetRegistryAssociations: %v", err)
+	}
+	if total != 2 || inserted != 2 {
+		t.Errorf("total, inserted = %d, %d; want 2, 2", total, inserted)
+	}
+	rows := rowsByNativeID(t, st, TypeEC2IpamInternetRegistryAssociation)
+	if got, want := nativeIDs(rows), []string{ipxIrAssocARN(ipxIrAssoc1), ipxIrAssocARN(ipxIrAssoc2)}; !slices.Equal(got, want) {
+		t.Fatalf("rows = %v, want %v (delete-complete and ARN-less associations dropped)", got, want)
+	}
+	// Only the ARN-less association is warned; the delete-complete one is
+	// dropped silently.
+	if *warnings != 1 {
+		t.Errorf("%s warnings = %d, want 1", ec2IpamInternetRegistryAssocsOp, *warnings)
+	}
+	r := rows[ipxIrAssocARN(ipxIrAssoc1)]
+	if sv(r.Name) != "arin delegation" || sv(r.Status) != "enable-complete" || sv(r.Region) != testRegion {
+		t.Errorf("name/status/region = %q/%q/%q, want arin delegation/enable-complete/%s", sv(r.Name), sv(r.Status), sv(r.Region), testRegion)
+	}
+	if r2 := rows[ipxIrAssocARN(ipxIrAssoc2)]; r2.Name != nil {
+		t.Errorf("association 2 name = %q, want unset (no Description)", sv(r2.Name))
+	}
+	if got := sv(r.TagsJSON); got != `{"env":"prod"}` {
+		t.Errorf("tags = %s, want {\"env\":\"prod\"}", got)
+	}
+	attrs := ipxAttrs(t, r)
+	if attrs["OrganizationHandle"] != "EXAMPLE-ORG" || attrs["IpamId"] != ipxIpamID || attrs["Rir"] != "arin" {
+		t.Errorf("attrs OrganizationHandle/IpamId/Rir = %v/%v/%v, want EXAMPLE-ORG/%s/arin",
+			attrs["OrganizationHandle"], attrs["IpamId"], attrs["Rir"], ipxIpamID)
+	}
+	if got := sv(rows[ipxIrAssocARN(ipxIrAssoc2)].Status); got != "delete-in-progress" {
+		t.Errorf("association 2 status = %q, want delete-in-progress", got)
+	}
+}
+
+// A denial after a good page keeps that page's rows and warns once.
+func TestScanEC2IpamInternetRegistryAssociations_DeniedAfterPageKeepsRows(t *testing.T) {
+	st := newTestStore(t)
+	warnings := countOpWarnings(st, ec2IpamInternetRegistryAssocsOp)
+	total, _, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){
+		"DescribeIpamInternetRegistryAssociations": func(in any) (any, error) {
+			if !isFirstPage(in) {
+				return nil, ipxDenied
+			}
+			return ipxIrAssocHandler(in)
+		},
+	}), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if total != 1 {
+		t.Errorf("total = %d, want 1", total)
+	}
+	if _, ok := rowsByNativeID(t, st, TypeEC2IpamInternetRegistryAssociation)[ipxIrAssocARN(ipxIrAssoc1)]; !ok {
+		t.Errorf("first-page row missing after a second-page denial")
+	}
+	if *warnings != 1 {
+		t.Errorf("%s warnings = %d, want 1", ec2IpamInternetRegistryAssocsOp, *warnings)
+	}
+}
+
+// A repeated NextToken ends the loop instead of spinning.
+func TestScanEC2IpamInternetRegistryAssociations_RepeatedTokenStops(t *testing.T) {
+	st := newTestStore(t)
+	calls := 0
+	_, _, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){
+		"DescribeIpamInternetRegistryAssociations": func(any) (any, error) {
+			calls++
+			if calls > 3 {
+				return nil, errIpxTest
+			}
+			return &ec2.DescribeIpamInternetRegistryAssociationsOutput{NextToken: ptrStr(ipxPageNext)}, nil
+		},
+	}), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if err != nil {
+		t.Fatalf("scanEC2IpamInternetRegistryAssociations: %v", err)
 	}
 	if calls != 2 {
 		t.Errorf("calls = %d, want 2 (stop when the token repeats)", calls)

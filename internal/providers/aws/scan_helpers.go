@@ -584,3 +584,15 @@ func upsertContained(st *store.Store, op string, children []containedChild) (int
 	}
 	return total, inserted, nil
 }
+
+// warnNotStored warns once for the listed items of a phase that carry no
+// identifier to store them under; why says which one is missing.
+func warnNotStored(st *store.Store, op string, acct *account, region string, t *skipTally, why string) {
+	if t.count == 0 {
+		return
+	}
+	st.ReportWarning(store.ScanWarning{
+		Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
+		Message: fmt.Sprintf("%d listed %s, so they were not stored; first %s", t.count, why, t.first),
+	})
+}

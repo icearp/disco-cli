@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 
@@ -16,6 +17,7 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeEC2ByoipCidr, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2IpamByoasn, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2IpamPolicyAllocationRule, Service: "ec2"})
+	registerType(restype.Descriptor{Type: TypeEC2IpamInternetRegistryAssociation, Service: "ec2"})
 }
 
 const (
@@ -25,19 +27,23 @@ const (
 	ec2ByoipCidrsPageLimit           = 100  // DescribeByoipCidrsMaxResults maximum
 	ec2IpamByoasnPageLimit           = 100  // DescribeIpamByoasnMaxResults maximum
 	ec2IpamPolicyAllocationPageLimit = 1000 // IpamMaxResults maximum
+	ec2IpamInternetRegistryAssocsOp  = "ec2:DescribeIpamInternetRegistryAssociations"
+	ec2IpamInternetRegistryPageLimit = 1000 // IpamMaxResults maximum
 	// ec2IpamPolicyNotFound is the code EC2 is expected to return for a policy
 	// deleted between its listing and its allocation-rule call. Not observed
 	// live, so a skip on it warns rather than passing silently.
 	ec2IpamPolicyNotFound = "InvalidIpamPolicyId.NotFound"
 )
 
-// scanEC2IPAMExtended runs the BYOIP, BYOASN, IPAM policy allocation-rule
-// and IPAM prefix list resolver phases. They are independent: each runs
-// whatever the others return, has its transient error demoted to a warning
-// (one transient member would make the dispatcher read the whole join as
-// transient) and the rest are joined. The resolver phase is here, not among
-// scanEC2's categories, because a failed rules read fails it, and there it
-// would cancel every other category.
+// scanEC2IPAMExtended runs the BYOIP, BYOASN, IPAM policy allocation-rule,
+// IPAM prefix list resolver and IPAM internet registry association phases.
+// They are independent: each runs whatever the others return, has its
+// transient error demoted to a warning (one transient member would make the
+// dispatcher read the whole join as transient) and the rest are joined. The
+// prefix list resolver phase is here, not among scanEC2's categories, because
+// a failed rules read fails it, and there it would cancel every other
+// category.
+//
 // homeIPAM reports whether scanIPAMs stored this scan an IPAM whose home
 // Region is region; policies are the stored policies whose allocation rules
 // can still be read.
@@ -65,6 +71,16 @@ func scanEC2IPAMExtended(ctx context.Context, client ec2API, acct *account, regi
 		}},
 		{ec2IPAMPrefixListResolversOp, func() (int, int, error) {
 			return scanIPAMPrefixListResolvers(ctx, client, acct, region, st, scanID)
+		}},
+		{ec2IpamInternetRegistryAssocsOp, func() (int, int, error) {
+			// An association belongs to an IPAM (IpamId) and its ARN carries
+			// no Region. Whether Regions other than the IPAM's home Region
+			// list it too, or reject the call, is unverified; listing only in
+			// a home Region keeps one row per association.
+			if !homeIPAM {
+				return 0, 0, nil
+			}
+			return scanEC2IpamInternetRegistryAssociations(ctx, client, acct, region, st, scanID)
 		}},
 	} {
 		t, i, perr := phase.run()
@@ -215,4 +231,74 @@ func listIpamPolicyAllocationRules(ctx context.Context, client ec2API, acct *acc
 		}
 		token = page.NextToken
 	}
+}
+
+// scanEC2IpamInternetRegistryAssociations stores the links between IPAMs and
+// the organizations they hold at a Regional Internet Registry. NativeID is the
+// returned ARN; an association listed without one is not stored and is
+// warned. Delete-complete associations are dropped. A denial is warned and
+// keeps the rows of the pages before it; a feature gap on the first page means
+// the Region has none; any other error is returned after those rows are
+// stored. DescribeIpamInternetRegistryAssociations has no SDK paginator.
+// scanEC2IPAMExtended calls it only in a Region that is home to an IPAM
+// stored this scan.
+func scanEC2IpamInternetRegistryAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var (
+		batch   []*store.Resource
+		noARN   skipTally
+		token   *string
+		listErr error
+	)
+	for {
+		page, err := client.DescribeIpamInternetRegistryAssociations(ctx, &ec2.DescribeIpamInternetRegistryAssociationsInput{
+			MaxResults: sdkaws.Int32(ec2IpamInternetRegistryPageLimit),
+			NextToken:  token,
+		})
+		if err != nil {
+			if token == nil && isEC2RegionFeatureGap(err) {
+				return 0, 0, nil
+			}
+			listErr = err
+			break
+		}
+		for _, a := range page.IpamInternetRegistryAssociations {
+			if a.State == ec2types.IpamInternetRegistryAssociationStateDeleteComplete {
+				continue
+			}
+			arn := sv(a.IpamInternetRegistryAssociationArn)
+			if arn == "" {
+				noARN.skipped(sv(a.IpamInternetRegistryAssociationId), nil)
+				continue
+			}
+			batch = append(batch, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeEC2IpamInternetRegistryAssociation,
+				NativeID:       arn,
+				Name:           a.Description,
+				Region:         &region,
+				Status:         nonEmptyPtr(string(a.State)),
+				TagsJSON:       awsTagsJSON(a.Tags),
+				AttributesJSON: mustJSON(a),
+				DiscoveredBy:   scanID,
+			})
+		}
+		next := sv(page.NextToken)
+		if next == "" || next == sv(token) {
+			break
+		}
+		token = page.NextToken
+	}
+	warnNotStored(st, ec2IpamInternetRegistryAssocsOp, acct, region, &noARN,
+		"IPAM internet registry associations without IpamInternetRegistryAssociationArn, the NativeID")
+	if listErr != nil && isAccessDenied(listErr) {
+		_ = skipIfAccessDenied(st, ec2IpamInternetRegistryAssocsOp, acct.ID, region, listErr)
+		listErr = nil
+	}
+	total, inserted, uerr := upsertBatch(st, batch, ec2IpamInternetRegistryAssocsOp)
+	if listErr != nil {
+		return total, inserted, errors.Join(fmt.Errorf("%s: %w", ec2IpamInternetRegistryAssocsOp, listErr), uerr)
+	}
+	return total, inserted, uerr
 }

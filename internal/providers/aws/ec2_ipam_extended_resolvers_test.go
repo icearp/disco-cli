@@ -82,3 +82,67 @@ func TestResolveIpamByoasnRelationships_NoRows(t *testing.T) {
 		t.Fatalf("resolveIpamByoasnRelationships: %v", err)
 	}
 }
+
+func ipxIrAssocAttrs(t *testing.T, ipamID string) string {
+	t.Helper()
+	b, err := json.Marshal(ec2types.IpamInternetRegistryAssociation{
+		IpamInternetRegistryAssociationId: ptrStr(ipxIrAssoc1), IpamId: ptrStr(ipamID),
+		State: ec2types.IpamInternetRegistryAssociationStateEnableComplete,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(b)
+}
+
+func TestResolveIpamInternetRegistryAssociationRelationships_LinksToScannedIpam(t *testing.T) {
+	st := newTestStore(t)
+	ipamID := upsertTestResource(t, st, "aws", testAccountID, TypeEC2IPAM, ipxIpamARN, testRegion, "{}")
+	linked := upsertTestResource(t, st, "aws", testAccountID, TypeEC2IpamInternetRegistryAssociation,
+		ipxIrAssocARN(ipxIrAssoc1), testRegion, ipxIrAssocAttrs(t, ipxIpamID))
+	unscanned := upsertTestResource(t, st, "aws", testAccountID, TypeEC2IpamInternetRegistryAssociation,
+		ipxIrAssocARN(ipxIrAssoc2), testRegion, ipxIrAssocAttrs(t, "ipam-0zzz"))
+	noAttrs := upsertTestResource(t, st, "aws", testAccountID, TypeEC2IpamInternetRegistryAssociation,
+		ipxIrAssocARN("ipam-ira-0009"), testRegion, "{}")
+	// A BYOASN naming the same IPAM is not this resolver's row.
+	byoasn := upsertTestResource(t, st, "aws", testAccountID, TypeEC2IpamByoasn, ipxByoasnID(ipxAsn1), testRegion, ipxByoasnAttrs(t, ipxIpamID))
+
+	if err := resolveIpamInternetRegistryAssociationRelationships(newTestAccount(testAccountID), st); err != nil {
+		t.Fatalf("resolveIpamInternetRegistryAssociationRelationships: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(linked, store.RelAttachedTo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRelationship(t, rels, linked, ipamID, store.RelAttachedTo)
+	for name, id := range map[string]string{"unscanned IPAM": unscanned, "no attributes": noAttrs, "byoasn row": byoasn} {
+		rels, err := st.RelationshipsFrom(id, store.RelAttachedTo)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rels) != 0 {
+			t.Errorf("%s: edges = %v, want none", name, rels)
+		}
+	}
+}
+
+func TestResolveIpamInternetRegistryAssociationRelationships_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	st := newTestStore(t)
+	ipamID := upsertTestResource(t, st, "aws", testAccountID, TypeEC2IPAM, ipxIpamARN, testRegion, "{}")
+	upsertTestResource(t, st, "aws", testAccountID, TypeEC2IpamInternetRegistryAssociation,
+		ipxIrAssocARN("ipam-ira-0009"), testRegion, `{"IpamId":7}`)
+	// Named, so ListResources returns it after the unnamed bad row.
+	after := upsertTestResourceNamed(t, st, TypeEC2IpamInternetRegistryAssociation,
+		ipxIrAssocARN(ipxIrAssoc1), testRegion, ipxIrAssocAttrs(t, ipxIpamID), "zz-after")
+
+	var typeErr *json.UnmarshalTypeError
+	err := resolveIpamInternetRegistryAssociationRelationships(newTestAccount(testAccountID), st)
+	if !errors.As(err, &typeErr) {
+		t.Fatalf("err = %v, want the attribute decode error", err)
+	}
+	rels, rerr := st.RelationshipsFrom(after, store.RelAttachedTo)
+	if rerr != nil {
+		t.Fatal(rerr)
+	}
+	assertRelationship(t, rels, after, ipamID, store.RelAttachedTo)
+}

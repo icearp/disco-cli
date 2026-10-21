@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 61.1% (2038/3336 listable) · depth0 72.8% · depth1 44.2% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 61.1% (2039/3336 listable) · depth0 72.8% · depth1 44.2% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1052 | 169 | 86.2 |
+| sr-resource | 1053 | 168 | 86.2 |
 | child-uncatalogued | 308 | 709 | 30.3 |
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 204 | 212 | 49.0 |
@@ -17,7 +17,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
-| ec2 | 129 | 67 | 65.8 |
+| ec2 | 130 | 66 | 66.3 |
 | sagemaker | 56 | 31 | 64.4 |
 | resiliencehub | 12 | 28 | 30.0 |
 | ssm | 12 | 26 | 31.6 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1298)
+### Uncovered (listable, no scanner) (1297)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -833,7 +833,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ec2 | ec2/ipamdiscoveredaccount | 1 |  | child-uncatalogued | ec2:GetIpamDiscoveredAccounts |
 | ec2 | ec2/ipamdiscoveredresourcecidr | 1 |  | child-uncatalogued | ec2:GetIpamDiscoveredResourceCidrs |
 | ec2 | ec2/ipamdiscoveredroute | 1 |  | child-uncatalogued | ec2:GetIpamDiscoveredRoutes |
-| ec2 | ec2/ipaminternetregistryassociation | 0 |  | sr-resource | ec2:DescribeIpamInternetRegistryAssociations |
 | ec2 | ec2/ipampolicyorganizationtarget | 1 |  | child-uncatalogued | ec2:GetIpamPolicyOrganizationTargets |
 | ec2 | ec2/ipamresourcecidr | 1 |  | child-uncatalogued | ec2:GetIpamResourceCidrs |
 | ec2 | ec2/ipamrouteprotectionfinding | 1 |  | child-uncatalogued | ec2:GetIpamRouteProtectionFindings |

@@ -2708,4 +2708,6 @@ const (
 	TypeMachineLearningMLModel         = "aws:machinelearning:ml-model"
 	TypeMachineLearningEvaluation      = "aws:machinelearning:evaluation"
 	TypeMachineLearningBatchPrediction = "aws:machinelearning:batch-prediction"
+	// EC2 — IPAM internet registry association (ec2_ipam_extended_scanners.go).
+	TypeEC2IpamInternetRegistryAssociation = "aws:ec2:ipam-internet-registry-association"
 )
