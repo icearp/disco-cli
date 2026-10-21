@@ -49,8 +49,9 @@ type fmsPolicyAttrs struct {
 }
 
 // resolveFMSPolicyResourceSets emits policy -> resource set `uses` for every
-// resource set a policy scopes itself with, when that set is stored. A row
-// whose attributes do not decode is reported and costs no other row its edges.
+// resource set a policy scopes itself with, when that set is stored in the
+// policy's region. A row whose attributes do not decode is reported and costs
+// no other row its edges.
 func resolveFMSPolicyResourceSets(acct *account, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeFMSPolicy}, Limit: util.AllResources,
@@ -73,7 +74,7 @@ func resolveFMSPolicyResourceSets(acct *account, st *store.Store) error {
 			continue
 		}
 		for _, id := range attrs.ResourceSetIDs {
-			to := store.ResourceID("aws", acct.ID, fmsResourceSetARN(acct.ID, id))
+			to := store.ResourceID("aws", acct.ID, fmsResourceSetARN(sv(p.Region), acct.ID, id))
 			if _, ok := sets[to]; !ok {
 				continue
 			}

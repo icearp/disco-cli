@@ -35,35 +35,47 @@ func edgeSources(t *testing.T, st *store.Store, toID, kind string) []string {
 	return out
 }
 
+// A policy's resource-set ARNs are rebuilt with the policy row's region: the
+// eu-west-1 policy reaches its own region's rs1, never us-east-1's rs1 or rs2.
 func TestResolveFMSPolicyResourceSets(t *testing.T) {
+	const region = "eu-west-1"
 	st := newTestStore(t)
-	rs1 := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testAccountID, "rs1"), "global", fmsSetAttrs())
-	p1 := upsertTestResource(t, st, "aws", testAccountID, TypeFMSPolicy, fmsPolicyARN("p1"), "global", fmsPolicyAttrsJSON("rs1", "rs-unscanned"))
-	upsertTestResource(t, st, "aws", testAccountID, TypeFMSPolicy, fmsPolicyARN("p2"), "global", "{}")
-	broken := upsertTestResource(t, st, "aws", testAccountID, TypeFMSPolicy, fmsPolicyARN("p3"), "global", `{"ResourceSetIds":"rs1"}`)
+	rs1 := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(region, testAccountID, "rs1"), region, fmsSetAttrs())
+	otherRS1 := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN("us-east-1", testAccountID, "rs1"), "us-east-1", fmsSetAttrs())
+	otherRS2 := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN("us-east-1", testAccountID, "rs2"), "us-east-1", fmsSetAttrs())
+	p1 := upsertTestResource(t, st, "aws", testAccountID, TypeFMSPolicy, fmsPolicyARNIn(region, "p1"), region, fmsPolicyAttrsJSON("rs1", "rs2", "rs-unscanned"))
+	noAttrs := upsertTestResource(t, st, "aws", testAccountID, TypeFMSPolicy, fmsPolicyARNIn(region, "p2"), region, "{}")
+	broken := upsertTestResource(t, st, "aws", testAccountID, TypeFMSPolicy, fmsPolicyARNIn(region, "p3"), region, `{"ResourceSetIds":"rs1"}`)
 
 	err := resolveFMSPolicyResourceSets(newTestAccount(testAccountID), st)
 	if err == nil {
 		t.Error("err = nil; want p3's decode error")
 	}
 	if got := edgeSources(t, st, rs1, store.RelUses); !reflect.DeepEqual(got, []string{p1}) {
-		t.Errorf("uses edges into rs1 from %v; want [%s] only (p2 has no ids, p3 does not decode)", got, p1)
+		t.Errorf("uses edges into %s rs1 from %v; want [%s] only (p2 has no ids, p3 does not decode)", region, got, p1)
+	}
+	for _, other := range []string{otherRS1, otherRS2} {
+		if got := edgeSources(t, st, other, store.RelUses); len(got) != 0 {
+			t.Errorf("uses edges into us-east-1 set %s from %v; want none (the policy is in %s)", other, got, region)
+		}
 	}
 	rels, err := st.RelationshipsFrom(p1, store.RelUses)
 	if err != nil {
 		t.Fatalf("RelationshipsFrom: %v", err)
 	}
 	if len(rels) != 1 {
-		t.Errorf("p1 uses edges = %d; want 1 (rs-unscanned is not stored)", len(rels))
+		t.Errorf("p1 uses edges = %d; want 1 (rs2 and rs-unscanned are not stored in %s)", len(rels), region)
 	}
-	if rels, _ := st.RelationshipsFrom(broken); len(rels) != 0 {
-		t.Errorf("p3 edges = %v; want none", rels)
+	for _, p := range []string{noAttrs, broken} {
+		if rels, _ := st.RelationshipsFrom(p); len(rels) != 0 {
+			t.Errorf("%s edges = %v; want none", p, rels)
+		}
 	}
 }
 
 func TestResolveFMSPolicyResourceSets_NoPolicies(t *testing.T) {
 	st := newTestStore(t)
-	upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testAccountID, "rs1"), "global", fmsSetAttrs())
+	upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testRegion, testAccountID, "rs1"), testRegion, fmsSetAttrs())
 	if err := resolveFMSPolicyResourceSets(newTestAccount(testAccountID), st); err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -83,7 +95,7 @@ func TestResolveFMSResourceSetMembers(t *testing.T) {
 	stage := upsertTestResource(t, st, "aws", fmsOtherAccount, TypeAPIGatewayStage, stageARN, "us-east-1", "{}")
 	upsertTestResource(t, st, "aws", testAccountID, TypeLambdaFunction, lambdaARN, "us-east-1", "{}")
 
-	rs1 := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testAccountID, "rs1"), "global", fmsSetAttrs(
+	rs1 := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testRegion, testAccountID, "rs1"), testRegion, fmsSetAttrs(
 		fmsMember(vpcARN),
 		fmstypes.Resource{URI: sdkaws.String(sgARN), AccountId: sdkaws.String(fmsOtherAccount)},
 		fmstypes.Resource{URI: sdkaws.String(subnetARN)},
@@ -93,7 +105,7 @@ func TestResolveFMSResourceSetMembers(t *testing.T) {
 		fmsMember(ec2ARN("us-east-1", testAccountID, "instance", "i-unscanned")),
 		fmsMember(lambdaARN),
 	))
-	empty := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testAccountID, "rs2"), "global", fmsSetAttrs())
+	empty := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testRegion, testAccountID, "rs2"), testRegion, fmsSetAttrs())
 
 	if err := resolveFMSResourceSetMembers(newTestAccount(testAccountID), st); err != nil {
 		t.Fatalf("err = %v", err)
@@ -114,9 +126,9 @@ func TestResolveFMSResourceSetMembers_BadAndEmptyAttrs(t *testing.T) {
 	st := newTestStore(t)
 	vpcARN := ec2ARN("us-east-1", testAccountID, "vpc", "vpc-1")
 	vpc := upsertTestResource(t, st, "aws", testAccountID, TypeEC2VPC, vpcARN, "us-east-1", "{}")
-	upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testAccountID, "bad"), "global", `{"Resources":{}}`)
-	noAttrs := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testAccountID, "none"), "global", "{}")
-	good := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testAccountID, "good"), "global", fmsSetAttrs(fmsMember(vpcARN)))
+	upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testRegion, testAccountID, "bad"), testRegion, `{"Resources":{}}`)
+	noAttrs := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testRegion, testAccountID, "none"), testRegion, "{}")
+	good := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN(testRegion, testAccountID, "good"), testRegion, fmsSetAttrs(fmsMember(vpcARN)))
 
 	if err := resolveFMSResourceSetMembers(newTestAccount(testAccountID), st); err == nil {
 		t.Error("err = nil; want the bad set's decode error")

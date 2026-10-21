@@ -8,10 +8,12 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	awsmw "github.com/aws/aws-sdk-go-v2/aws/middleware"
 	"github.com/aws/aws-sdk-go-v2/service/fms"
 	fmstypes "github.com/aws/aws-sdk-go-v2/service/fms/types"
 	"github.com/icearp/disco-cli/store"
@@ -22,7 +24,11 @@ var fmsThrottled = apiErr("ThrottlingException", "slow down")
 var fmsDenied = apiErr("AccessDeniedException", "User: arn:aws:iam::123:user/x is not authorized to perform: fms:List")
 
 func fmsPolicyARN(id string) string {
-	return fmt.Sprintf("arn:aws:fms:%s:%s:policy/%s", fmsHomeRegion, testAccountID, id)
+	return fmsPolicyARNIn(testRegion, id)
+}
+
+func fmsPolicyARNIn(region, id string) string {
+	return fmt.Sprintf("arn:aws:fms:%s:%s:policy/%s", region, testAccountID, id)
 }
 
 func fmsMember(uri string) fmstypes.Resource {
@@ -162,7 +168,7 @@ func TestScanFMS_StoresPolicyBodiesAndResourceSetMembers(t *testing.T) {
 	st := newTestStore(t)
 	warns := fmsWarningsByOp(st)
 	var calls parentCalls
-	total, inserted, err := scanFMS(context.Background(), fmsTestAccount(fmsHandlers(&calls)), "", st, testScanID)
+	total, inserted, err := scanFMS(context.Background(), fmsTestAccount(fmsHandlers(&calls)), testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scanFMS: %v", err)
 	}
@@ -203,7 +209,7 @@ func TestScanFMS_StoresPolicyBodiesAndResourceSetMembers(t *testing.T) {
 	if !reflect.DeepEqual(body.ResourceSetIds, []string{"rs1"}) || sdkaws.ToString(body.PolicyName) != "from-get-p1" {
 		t.Errorf("policy attrs = %s; want the GetPolicy body", p1.AttributesJSON)
 	}
-	if sdkaws.ToString(p1.Name) != "waf-all" || sdkaws.ToString(p1.Status) != "ACTIVE" || sdkaws.ToString(p1.Region) != "global" {
+	if sdkaws.ToString(p1.Name) != "waf-all" || sdkaws.ToString(p1.Status) != "ACTIVE" || sdkaws.ToString(p1.Region) != testRegion {
 		t.Errorf("policy name, status, region = %q, %q, %q", sdkaws.ToString(p1.Name), sdkaws.ToString(p1.Status), sdkaws.ToString(p1.Region))
 	}
 	if p2 := policies[fmsPolicyARN("p2")]; p2.Status != nil {
@@ -214,7 +220,7 @@ func TestScanFMS_StoresPolicyBodiesAndResourceSetMembers(t *testing.T) {
 	if len(sets) != 2 {
 		t.Fatalf("resource set rows = %d; want 2 (the id-less summary skipped)", len(sets))
 	}
-	rs1 := sets[fmsResourceSetARN(testAccountID, "rs1")]
+	rs1 := sets[fmsResourceSetARN(testRegion, testAccountID, "rs1")]
 	want := []string{
 		"arn:aws:ec2:us-east-1:123456789012:vpc/vpc-a",
 		"arn:aws:ec2:us-east-1:123456789012:vpc/vpc-b",
@@ -226,7 +232,7 @@ func TestScanFMS_StoresPolicyBodiesAndResourceSetMembers(t *testing.T) {
 	if sdkaws.ToString(rs1.Name) != "prod-vpcs" || sdkaws.ToString(rs1.Status) != "ACTIVE" {
 		t.Errorf("rs1 name, status = %q, %q", sdkaws.ToString(rs1.Name), sdkaws.ToString(rs1.Status))
 	}
-	if got := fmsStoredMembers(t, sets[fmsResourceSetARN(testAccountID, "rs2")]); len(got) != 0 {
+	if got := fmsStoredMembers(t, sets[fmsResourceSetARN(testRegion, testAccountID, "rs2")]); len(got) != 0 {
 		t.Errorf("rs2 members = %v; want an empty list", got)
 	}
 }
@@ -273,7 +279,7 @@ func TestScanFMS_MemberReadFailure(t *testing.T) {
 				}
 				return list(in)
 			}
-			_, _, err := scanFMS(context.Background(), fmsTestAccount(h), "", st, testScanID)
+			_, _, err := scanFMS(context.Background(), fmsTestAccount(h), testRegion, st, testScanID)
 			if tc.wantErr == "" && err != nil || tc.wantErr != "" && !isAPIErrorCode(err, tc.wantErr) {
 				t.Fatalf("err = %v; want code %q", err, tc.wantErr)
 			}
@@ -286,7 +292,7 @@ func TestScanFMS_MemberReadFailure(t *testing.T) {
 			var got []string
 			sets := rowsByNativeID(t, st, TypeFMSResourceSet)
 			for _, id := range []string{"rs1", "rs2"} {
-				r, ok := sets[fmsResourceSetARN(testAccountID, id)]
+				r, ok := sets[fmsResourceSetARN(testRegion, testAccountID, id)]
 				if !ok {
 					continue
 				}
@@ -318,7 +324,7 @@ func TestScanFMS_MemberRepeatedTokenFails(t *testing.T) {
 	h["ListResourceSetResources"] = func(any) (any, error) {
 		return &fms.ListResourceSetResourcesOutput{Items: []fmstypes.Resource{fmsMember("arn:aws:ec2:us-east-1:123456789012:vpc/vpc-a")}, NextToken: sdkaws.String("same")}, nil
 	}
-	_, _, err := scanFMS(context.Background(), fmsTestAccount(h), "", st, testScanID)
+	_, _, err := scanFMS(context.Background(), fmsTestAccount(h), testRegion, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -336,7 +342,7 @@ func TestScanFMS_ResourceSetRepeatedTokenFails(t *testing.T) {
 	h["ListResourceSets"] = func(any) (any, error) {
 		return &fms.ListResourceSetsOutput{ResourceSets: []fmstypes.ResourceSetSummary{{Id: sdkaws.String("rs1")}}, NextToken: sdkaws.String("same")}, nil
 	}
-	_, _, err := scanFMS(context.Background(), fmsTestAccount(h), "", st, testScanID)
+	_, _, err := scanFMS(context.Background(), fmsTestAccount(h), testRegion, st, testScanID)
 	if !errors.Is(err, errRepeatedNextToken) {
 		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
@@ -378,7 +384,7 @@ func TestScanFMS_GetPolicyFailure(t *testing.T) {
 				}
 				return get(in)
 			}
-			_, _, err := scanFMS(context.Background(), fmsTestAccount(h), "", st, testScanID)
+			_, _, err := scanFMS(context.Background(), fmsTestAccount(h), testRegion, st, testScanID)
 			if !errors.Is(err, tc.wantErr) {
 				t.Fatalf("err = %v; want %v", err, tc.wantErr)
 			}
@@ -422,7 +428,7 @@ func TestScanFMS_TransientDoesNotMaskMemberError(t *testing.T) {
 	h["ListPolicies"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }
 	h["ListResourceSetResources"] = func(any) (any, error) { return nil, apiErr("InvalidOperationException", "no") }
 
-	total, _, err := scanFMS(context.Background(), fmsTestAccount(h), "", st, testScanID)
+	total, _, err := scanFMS(context.Background(), fmsTestAccount(h), testRegion, st, testScanID)
 	if !isAPIErrorCode(err, "InvalidOperationException") {
 		t.Errorf("err = %v; want the resource-set phase's InvalidOperationException", err)
 	}
@@ -476,7 +482,7 @@ func TestScanFMS_ARNlessPolicyWithoutARNFromGetPolicy(t *testing.T) {
 				}
 				return get(in)
 			}
-			if _, _, err := scanFMS(context.Background(), fmsTestAccount(h), "", st, testScanID); err != nil {
+			if _, _, err := scanFMS(context.Background(), fmsTestAccount(h), testRegion, st, testScanID); err != nil {
 				t.Fatalf("scanFMS: %v", err)
 			}
 			policies := rowsByNativeID(t, st, TypeFMSPolicy)
@@ -513,7 +519,7 @@ func TestScanFMS_TransientKeyWithHardKeyFails(t *testing.T) {
 				}
 				return nil, apiErr("InvalidOperationException", "no")
 			}
-			_, _, err := scanFMS(context.Background(), fmsTestAccount(h), "", st, testScanID)
+			_, _, err := scanFMS(context.Background(), fmsTestAccount(h), testRegion, st, testScanID)
 			if !isAPIErrorCode(err, "InvalidOperationException") || classifyServiceError(err) != outcomeError {
 				t.Errorf("err = %v (outcome %v); want the hard InvalidOperationException as outcomeError", err, classifyServiceError(err))
 			}
@@ -547,7 +553,7 @@ func TestScanFMS_DisabledAfterEarlierPhase(t *testing.T) {
 				h["ListPolicies"] = tc.listPolicies
 			}
 			h["ListResourceSets"] = notOnboarded
-			total, _, err := scanFMS(context.Background(), fmsTestAccount(h), "", st, testScanID)
+			total, _, err := scanFMS(context.Background(), fmsTestAccount(h), testRegion, st, testScanID)
 			if errors.Is(err, errServiceDisabled) {
 				t.Fatalf("err = %v; want no disabled sentinel", err)
 			}
@@ -573,11 +579,303 @@ func TestScanFMS_NotEnabled(t *testing.T) {
 	h["ListPolicies"] = func(any) (any, error) {
 		return nil, apiErr("AccessDeniedException", "No default admin could be found")
 	}
-	total, _, err := scanFMS(context.Background(), fmsTestAccount(h), "", st, testScanID)
+	total, _, err := scanFMS(context.Background(), fmsTestAccount(h), testRegion, st, testScanID)
 	if !errors.Is(err, errServiceDisabled) || total != 0 {
 		t.Fatalf("total, err = %d, %v; want 0, errServiceDisabled", total, err)
 	}
 	if got := calls.distinct(); len(got) != 0 {
 		t.Errorf("member listings after a disabled service = %v; want none", got)
+	}
+}
+
+// fmsRegionalOps are the ops scanFMS sends in a region where the account is
+// the Firewall Manager administrator.
+var fmsRegionalOps = []string{
+	"GetNotificationChannel", "GetPolicy", "ListAppsLists", "ListPolicies",
+	"ListProtocolsLists", "ListResourceSetResources", "ListResourceSets",
+}
+
+const (
+	fmsAdmin        = "admin"
+	fmsMemberAcct   = "member"
+	fmsNotOnboarded = "not-onboarded"
+)
+
+// fmsRegionalHandlers answers each region by its mode: an administrator
+// region holds one policy using resource set rs1, one applications list, one
+// protocols list and a notification channel, every ARN in that region; a
+// member region answers the admin-only denial; a not-onboarded region answers
+// that no default admin exists. Each call goes into seen as op@region.
+func fmsRegionalHandlers(mode map[string]string, seen *parentCalls) map[string]func(context.Context, any) (any, error) {
+	h := map[string]func(context.Context, any) (any, error){}
+	for _, op := range fmsRegionalOps {
+		h[op] = func(ctx context.Context, in any) (any, error) {
+			region := awsmw.GetRegion(ctx)
+			seen.add(op + "@" + region)
+			switch mode[region] {
+			case fmsMemberAcct:
+				return nil, apiErr("AccessDeniedException", "This operation is only available to AWS Firewall Manager Administrators")
+			case fmsNotOnboarded:
+				return nil, apiErr("AccessDeniedException", "No default admin could be found")
+			}
+			arn := func(kind, id string) *string {
+				return sdkaws.String(fmt.Sprintf("arn:aws:fms:%s:%s:%s/%s", region, testAccountID, kind, id))
+			}
+			switch op {
+			case "ListPolicies":
+				return &fms.ListPoliciesOutput{PolicyList: []fmstypes.PolicySummary{{PolicyId: sdkaws.String("p1"), PolicyArn: arn("policy", "p1")}}}, nil
+			case "GetPolicy":
+				return &fms.GetPolicyOutput{PolicyArn: arn("policy", "p1"), Policy: &fmstypes.Policy{PolicyId: sdkaws.String("p1"), ResourceSetIds: []string{"rs1"}}}, nil
+			case "ListResourceSets":
+				return &fms.ListResourceSetsOutput{ResourceSets: []fmstypes.ResourceSetSummary{{Id: sdkaws.String("rs1")}}}, nil
+			case "ListResourceSetResources":
+				return &fms.ListResourceSetResourcesOutput{}, nil
+			case "GetNotificationChannel":
+				return &fms.GetNotificationChannelOutput{SnsTopicArn: sdkaws.String("arn:aws:sns:" + region + ":" + testAccountID + ":fms")}, nil
+			case "ListAppsLists":
+				return &fms.ListAppsListsOutput{AppsLists: []fmstypes.AppsListDataSummary{{ListArn: arn("applications-list", "a1")}}}, nil
+			default:
+				return &fms.ListProtocolsListsOutput{ProtocolsLists: []fmstypes.ProtocolsListDataSummary{{ListArn: arn("protocols-list", "l1")}}}, nil
+			}
+		}
+	}
+	return h
+}
+
+func fmsServiceEntry(t *testing.T) serviceEntry {
+	t.Helper()
+	idx := slices.IndexFunc(registeredServices, func(e serviceEntry) bool { return e.name == "aws:fms" })
+	if idx < 0 {
+		t.Fatal("aws:fms not registered")
+	}
+	return registeredServices[idx]
+}
+
+// Firewall Manager objects are regional: each dispatched region's calls go to
+// that region, its rows carry it, and the same ids in two regions (rs1, the
+// notification channel singleton) are two rows, each policy using its own
+// region's resource set.
+func TestScanFMS_RegionalRowsPerRegion(t *testing.T) {
+	entry := fmsServiceEntry(t)
+	if entry.global {
+		t.Fatal("aws:fms is global; want regional (one scan per region)")
+	}
+	regions := []string{"eu-west-1", "ap-southeast-2"}
+	st := newTestStore(t)
+	warns := fmsWarningsByOp(st)
+	var seen parentCalls
+	h := fmsRegionalHandlers(map[string]string{regions[0]: fmsAdmin, regions[1]: fmsAdmin}, &seen)
+	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfigCtx(h, fmsDenied)}
+	for _, region := range regions {
+		total, inserted, err := entry.fn(context.Background(), acct, region, st, testScanID)
+		if err != nil || total != 5 || inserted != 5 {
+			t.Fatalf("fn(%s) = %d, %d, %v; want 5, 5, nil (policy, resource set, channel, apps list, protocols list)", region, total, inserted, err)
+		}
+	}
+	var wantCalls []string
+	for _, op := range fmsRegionalOps {
+		for _, region := range regions {
+			wantCalls = append(wantCalls, op+"@"+region)
+		}
+	}
+	slices.Sort(wantCalls)
+	gotCalls := seen.distinct()
+	slices.Sort(gotCalls)
+	if !reflect.DeepEqual(gotCalls, wantCalls) {
+		t.Errorf("calls = %v; want %v", gotCalls, wantCalls)
+	}
+	if got := warns(); len(got) != 0 {
+		t.Errorf("warnings by op = %v; want none", got)
+	}
+
+	for typ, nativeID := range map[string]func(region string) string{
+		TypeFMSPolicy:              func(r string) string { return fmsPolicyARNIn(r, "p1") },
+		TypeFMSResourceSet:         func(r string) string { return fmsResourceSetARN(r, testAccountID, "rs1") },
+		TypeFMSNotificationChannel: func(r string) string { return "arn:aws:fms:" + r + ":" + testAccountID + ":notification-channel" },
+		TypeFMSAppsList:            func(r string) string { return "arn:aws:fms:" + r + ":" + testAccountID + ":applications-list/a1" },
+		TypeFMSProtocolsList:       func(r string) string { return "arn:aws:fms:" + r + ":" + testAccountID + ":protocols-list/l1" },
+	} {
+		rows := rowsByNativeID(t, st, typ)
+		if len(rows) != len(regions) {
+			t.Errorf("%s rows = %v; want one per region", typ, slices.Sorted(maps.Keys(rows)))
+		}
+		for _, region := range regions {
+			r, ok := rows[nativeID(region)]
+			if !ok {
+				t.Errorf("%s: no row %s", typ, nativeID(region))
+				continue
+			}
+			if got := sdkaws.ToString(r.Region); got != region {
+				t.Errorf("%s %s region = %q; want %q", typ, r.NativeID, got, region)
+			}
+		}
+	}
+
+	if err := resolveFMSPolicyResourceSets(acct, st); err != nil {
+		t.Fatalf("resolveFMSPolicyResourceSets: %v", err)
+	}
+	for _, region := range regions {
+		set := store.ResourceID("aws", testAccountID, fmsResourceSetARN(region, testAccountID, "rs1"))
+		want := []string{store.ResourceID("aws", testAccountID, fmsPolicyARNIn(region, "p1"))}
+		if got := edgeSources(t, st, set, store.RelUses); !reflect.DeepEqual(got, want) {
+			t.Errorf("uses edges into %s rs1 from %v; want %v", region, got, want)
+		}
+	}
+}
+
+// Whether the account administers Firewall Manager is answered per region: a
+// member region stores nothing and warns nothing, and a not-onboarded region
+// reports the service disabled even after another region stored rows.
+func TestScanFMS_NonAdminPerRegion(t *testing.T) {
+	const adminRegion = "eu-west-1"
+	cases := []struct {
+		mode         string
+		wantDisabled bool
+		wantCalls    []string // ops sent in the non-admin region
+	}{
+		{fmsMemberAcct, false, []string{"GetNotificationChannel", "ListAppsLists", "ListPolicies", "ListProtocolsLists", "ListResourceSets"}},
+		{fmsNotOnboarded, true, []string{"ListPolicies"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.mode, func(t *testing.T) {
+			const region = "ap-southeast-2"
+			entry := fmsServiceEntry(t)
+			st := newTestStore(t)
+			warns := fmsWarningsByOp(st)
+			var seen parentCalls
+			h := fmsRegionalHandlers(map[string]string{adminRegion: fmsAdmin, region: tc.mode}, &seen)
+			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfigCtx(h, fmsDenied)}
+			if total, _, err := entry.fn(context.Background(), acct, adminRegion, st, testScanID); err != nil || total != 5 {
+				t.Fatalf("fn(%s) = %d, %v; want 5, nil", adminRegion, total, err)
+			}
+			total, inserted, err := entry.fn(context.Background(), acct, region, st, testScanID)
+			if errors.Is(err, errServiceDisabled) != tc.wantDisabled || !tc.wantDisabled && err != nil {
+				t.Errorf("fn(%s) err = %v; want disabled sentinel %v", region, err, tc.wantDisabled)
+			}
+			if total != 0 || inserted != 0 {
+				t.Errorf("fn(%s) total, inserted = %d, %d; want 0, 0", region, total, inserted)
+			}
+			if got := warns(); len(got) != 0 {
+				t.Errorf("warnings by op = %v; want none", got)
+			}
+			var got []string
+			for _, c := range seen.distinct() {
+				if op, ok := strings.CutSuffix(c, "@"+region); ok {
+					got = append(got, op)
+				}
+			}
+			slices.Sort(got)
+			if !reflect.DeepEqual(got, tc.wantCalls) {
+				t.Errorf("ops sent in %s = %v; want %v", region, got, tc.wantCalls)
+			}
+			for _, typ := range []string{TypeFMSPolicy, TypeFMSResourceSet, TypeFMSNotificationChannel, TypeFMSAppsList, TypeFMSProtocolsList} {
+				for _, r := range rowsByNativeID(t, st, typ) {
+					if sdkaws.ToString(r.Region) != adminRegion {
+						t.Errorf("%s row %s in region %q; want only %s rows", typ, r.NativeID, sdkaws.ToString(r.Region), adminRegion)
+					}
+				}
+			}
+		})
+	}
+}
+
+// GetNotificationChannel's expected states (no channel set, FMS not
+// onboarded, not the administrator) store nothing silently; a real IAM denial
+// warns once; any other error fails the scan. The rows of the phases that run
+// before it (policies, resource sets) are kept in every case; the fixture
+// lists nothing for the phases after it.
+func TestScanFMS_NotificationChannelErrors(t *testing.T) {
+	cases := []struct {
+		name      string
+		err       error
+		wantWarns int
+		wantCode  string // "" for a nil error
+	}{
+		{"real deny", fmsDenied, 1, ""},
+		{"no channel set", apiErr("ResourceNotFoundException", "no channel"), 0, ""},
+		{"not onboarded", apiErr("AccessDeniedException", "No default admin could be found"), 0, ""},
+		{"not the administrator", apiErr("AccessDeniedException", "This operation is only available to AWS Firewall Manager Administrators"), 0, ""},
+		{"other error", apiErr("InternalErrorException", "boom"), 0, "InternalErrorException"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := fmsWarningsByOp(st)
+			var calls parentCalls
+			h := fmsHandlers(&calls)
+			h["GetNotificationChannel"] = func(any) (any, error) { return nil, tc.err }
+			total, _, err := scanFMS(context.Background(), fmsTestAccount(h), testRegion, st, testScanID)
+			if tc.wantCode == "" && err != nil || tc.wantCode != "" && !isAPIErrorCode(err, tc.wantCode) {
+				t.Errorf("err = %v; want code %q", err, tc.wantCode)
+			}
+			if got := warns()["fms:GetNotificationChannel"]; got != tc.wantWarns {
+				t.Errorf("fms:GetNotificationChannel warnings = %d; want %d", got, tc.wantWarns)
+			}
+			if total != 6 {
+				t.Errorf("total = %d; want 6 (4 policies, 2 resource sets, no channel)", total)
+			}
+			if rows := rowsByNativeID(t, st, TypeFMSNotificationChannel); len(rows) != 0 {
+				t.Errorf("channel rows = %v; want none", slices.Sorted(maps.Keys(rows)))
+			}
+		})
+	}
+}
+
+// Applications and protocols lists are read over every page; a summary with
+// no ListArn cannot be named, so it is not stored and is warned about once
+// per op.
+func TestScanFMS_ListsWithoutARN(t *testing.T) {
+	appsARN := func(id string) string {
+		return "arn:aws:fms:" + testRegion + ":" + testAccountID + ":applications-list/" + id
+	}
+	protoARN := func(id string) string {
+		return "arn:aws:fms:" + testRegion + ":" + testAccountID + ":protocols-list/" + id
+	}
+	st := newTestStore(t)
+	warns := fmsWarningsByOp(st)
+	var calls parentCalls
+	h := fmsHandlers(&calls)
+	h["ListAppsLists"] = func(in any) (any, error) {
+		if in.(*fms.ListAppsListsInput).NextToken == nil {
+			return &fms.ListAppsListsOutput{AppsLists: []fmstypes.AppsListDataSummary{
+				{ListArn: sdkaws.String(appsARN("a1")), ListName: sdkaws.String("apps-1")},
+				{ListName: sdkaws.String("arnless-apps")},
+			}, NextToken: sdkaws.String("a-2")}, nil
+		}
+		return &fms.ListAppsListsOutput{AppsLists: []fmstypes.AppsListDataSummary{{ListArn: sdkaws.String(appsARN("a2"))}}}, nil
+	}
+	h["ListProtocolsLists"] = func(in any) (any, error) {
+		if in.(*fms.ListProtocolsListsInput).NextToken == nil {
+			return &fms.ListProtocolsListsOutput{ProtocolsLists: []fmstypes.ProtocolsListDataSummary{
+				{ListArn: sdkaws.String(protoARN("l1")), ListName: sdkaws.String("proto-1")},
+				{ListName: sdkaws.String("arnless-proto")},
+			}, NextToken: sdkaws.String("l-2")}, nil
+		}
+		return &fms.ListProtocolsListsOutput{ProtocolsLists: []fmstypes.ProtocolsListDataSummary{{ListArn: sdkaws.String(protoARN("l2"))}}}, nil
+	}
+	total, inserted, err := scanFMS(context.Background(), fmsTestAccount(h), testRegion, st, testScanID)
+	if err != nil {
+		t.Fatalf("scanFMS: %v", err)
+	}
+	if total != 11 || inserted != 11 {
+		t.Errorf("total, inserted = %d, %d; want 11, 11 (7 from the fixture, 2 apps lists, 2 protocols lists)", total, inserted)
+	}
+	got := warns()
+	for _, op := range []string{"fms:ListAppsLists", "fms:ListProtocolsLists"} {
+		if got[op] != 1 {
+			t.Errorf("%s warnings = %d; want 1 for the ARN-less summary", op, got[op])
+		}
+	}
+	for typ, want := range map[string][]string{
+		TypeFMSAppsList:      {appsARN("a1"), appsARN("a2")},
+		TypeFMSProtocolsList: {protoARN("l1"), protoARN("l2")},
+	} {
+		rows := rowsByNativeID(t, st, typ)
+		if ids := slices.Sorted(maps.Keys(rows)); !reflect.DeepEqual(ids, want) {
+			t.Errorf("%s rows = %v; want %v (both pages, the ARN-less summary skipped)", typ, ids, want)
+		}
+	}
+	if a1 := rowsByNativeID(t, st, TypeFMSAppsList)[appsARN("a1")]; sdkaws.ToString(a1.Name) != "apps-1" || sdkaws.ToString(a1.Region) != testRegion {
+		t.Errorf("a1 name, region = %q, %q; want apps-1, %s", sdkaws.ToString(a1.Name), sdkaws.ToString(a1.Region), testRegion)
 	}
 }

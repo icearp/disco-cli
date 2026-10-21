@@ -35,17 +35,24 @@ func isFMSResourceNotFound(err error) bool {
 	return isAPIErrorCode(err, "ResourceNotFoundException")
 }
 
-// fmsHomeRegion is the one region scanFMS calls. Resource-set ARNs carry it,
-// so the resolver rebuilds them from a policy's ResourceSetIds with it.
-const fmsHomeRegion = "us-east-1"
-
 // fmsPageSize is the model's MaxResults cap (PaginationMaxResults, 1-100).
 const fmsPageSize int32 = 100
 
 var errFMSPolicyMissing = errors.New("GetPolicy answered without a policy body; rescan, and report it if it recurs")
 
-func fmsResourceSetARN(accountID, id string) string {
-	return fmt.Sprintf("arn:aws:fms:%s:%s:resource-set/%s", fmsHomeRegion, accountID, id)
+// fmsResourceSetARN builds a resource set's ARN; ResourceSetSummary carries
+// none. The resolver rebuilds it from a policy's ResourceSetIds with the
+// policy row's region: resource sets are regional, and whether a policy
+// can name a set of another region is unverified (such a set gets no edge).
+func fmsResourceSetARN(region, accountID, id string) string {
+	return fmt.Sprintf("arn:aws:fms:%s:%s:resource-set/%s", region, accountID, id)
+}
+
+// fmsNotificationChannelNativeID names the notification channel row. The API
+// returns no ARN, so the id is synthesized in the fms ARN shape. It carries
+// the region so two regions' channels never share one row.
+func fmsNotificationChannelNativeID(region, accountID string) string {
+	return fmt.Sprintf("arn:aws:fms:%s:%s:notification-channel", region, accountID)
 }
 
 func init() {
@@ -55,9 +62,8 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeFMSAppsList, Service: "fms"})
 	registerType(restype.Descriptor{Type: TypeFMSProtocolsList, Service: "fms"})
 	registerService(serviceEntry{
-		name:   "aws:fms",
-		global: true,
-		fn:     scanFMS,
+		name: "aws:fms",
+		fn:   scanFMS,
 	})
 }
 
@@ -71,19 +77,26 @@ type fmsAPI interface {
 	ListProtocolsLists(context.Context, *fms.ListProtocolsListsInput, ...func(*fms.Options)) (*fms.ListProtocolsListsOutput, error)
 }
 
-// scanFMS discovers Firewall Manager policies, resource sets, and the
-// per-org notification channel, calling only fmsHomeRegion. Every phase runs
-// whatever the others returned, and the counts are summed. Each phase's error
-// passes through demoteTransient, so one transient failure cannot make the
-// dispatcher read the whole join as transient and hide another phase's hard
-// error. An account FMS never onboarded reports it on ListPolicies, the first
-// call, before anything is stored, and the scan returns the disabled sentinel.
-// A disabled answer after an earlier phase stored rows or failed hard becomes
-// a warning instead: the dispatcher reads the sentinel through any join and
-// would report the service disabled, discarding those rows' counts and hiding
-// the hard error.
-func scanFMS(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := fmsHomeRegion
+// scanFMS discovers one region's Firewall Manager policies, resource sets,
+// applications and protocols lists, and notification channel. It runs per
+// region because the SDK endpoint table serves fms per region and the API
+// returns region-bearing policy and list ARNs; that each region holds its own
+// objects, the notification channel included, is the premise of that choice,
+// not a verified fact. Every row carries its region either way. An
+// administrator whose admin scope is limited to some regions may be denied in
+// the others with a message that is unverified; if it matches neither the
+// not-enabled nor the admin-only matcher, each such region warns once per op.
+// Every phase runs whatever the others
+// returned, and the counts are summed. Each phase's error passes through
+// demoteTransient, so one transient failure cannot make the dispatcher read
+// the whole join as transient and hide another phase's hard error. An account
+// FMS never onboarded reports it on ListPolicies, the first call, before
+// anything is stored in this region, and the scan returns the disabled
+// sentinel for this region. A disabled answer after an earlier phase stored
+// rows or failed hard becomes a warning instead: the dispatcher reads the
+// sentinel through any join and would report the service disabled,
+// discarding those rows' counts and hiding the hard error.
+func scanFMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := fms.NewFromConfig(acct.cfg, func(o *fms.Options) { o.Region = region })
 	var errs []error
 	for _, phase := range []struct {
@@ -127,11 +140,11 @@ func warnFMSListingOnly(st *store.Store, op string, acct *account, region string
 
 // fmsPolicyRow is a policy's row under its ARN; attrs is its GetPolicy body,
 // or its listed summary when GetPolicy could not be read.
-func fmsPolicyRow(acct *account, p fmstypes.PolicySummary, arn, attrs, scanID string) *store.Resource {
+func fmsPolicyRow(acct *account, region string, p fmstypes.PolicySummary, arn, attrs, scanID string) *store.Resource {
 	return &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeFMSPolicy, NativeID: arn,
-		Name: p.PolicyName, Region: regionGlobal, Status: nonEmptyPtr(string(p.PolicyStatus)),
+		Name: p.PolicyName, Region: &region, Status: nonEmptyPtr(string(p.PolicyStatus)),
 		AttributesJSON: attrs, DiscoveredBy: scanID,
 	}
 }
@@ -204,13 +217,13 @@ func scanFMSPolicies(ctx context.Context, client fmsAPI, acct *account, region s
 				unnamed.skipped(id, nil)
 				return nil, nil
 			}
-			return fmsPolicyRow(acct, p, arn, attrs, scanID), nil
+			return fmsPolicyRow(acct, region, p, arn, attrs, scanID), nil
 		})
 	if err != nil {
 		return 0, 0, err
 	}
 	for _, p := range noID {
-		rows = append(rows, fmsPolicyRow(acct, p, sv(p.PolicyArn), mustJSON(p), scanID))
+		rows = append(rows, fmsPolicyRow(acct, region, p, sv(p.PolicyArn), mustJSON(p), scanID))
 	}
 	total, inserted, err := upsertBatch(st, rows, "fms policies")
 	if err != nil {
@@ -299,8 +312,8 @@ func scanFMSResourceSets(ctx context.Context, client fmsAPI, acct *account, regi
 			r := summaries[id]
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFMSResourceSet, NativeID: fmsResourceSetARN(acct.ID, id),
-				Name: r.Name, Region: regionGlobal, Status: nonEmptyPtr(string(r.ResourceSetStatus)),
+				Type: TypeFMSResourceSet, NativeID: fmsResourceSetARN(region, acct.ID, id),
+				Name: r.Name, Region: &region, Status: nonEmptyPtr(string(r.ResourceSetStatus)),
 				AttributesJSON: mustJSON(fmsResourceSetAttrs{ResourceSet: r, Resources: members}), DiscoveredBy: scanID,
 			}, nil
 		})
@@ -343,26 +356,30 @@ func listFMSResourceSetMembers(ctx context.Context, client fmsAPI, id string) ([
 	return members, nil
 }
 
-// scanFMSNotificationChannel captures the per-account notification channel
-// (singleton). Synth ARN keyed on the SNS topic ARN.
+// scanFMSNotificationChannel stores the region's notification channel, a
+// singleton named by fmsNotificationChannelNativeID. ResourceNotFoundException,
+// which the op models, is read as no channel set; a not-enabled or admin-only
+// answer is the same expected state ListPolicies already reports, and any
+// other denial warns.
 func scanFMSNotificationChannel(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.GetNotificationChannel(ctx, &fms.GetNotificationChannelInput{})
-	if err != nil {
-		if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException") {
-			return 0, 0, nil
-		}
+	switch {
+	case err == nil:
+	case isFMSNotEnabled(err), isFMSAdminOnlyDenial(err), isFMSResourceNotFound(err):
+		return 0, 0, nil
+	case isAccessDenied(err):
+		return 0, 0, skipIfAccessDenied(st, "fms:GetNotificationChannel", acct.ID, region, err)
+	default:
 		return 0, 0, fmt.Errorf("fms:GetNotificationChannel: %w", err)
 	}
 	topic := sv(out.SnsTopicArn)
 	if topic == "" {
 		return 0, 0, nil
 	}
-	arn := fmt.Sprintf("arn:aws:fms::%s:notification-channel", acct.ID)
-	label := topic
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-		Type: TypeFMSNotificationChannel, NativeID: arn,
-		Name: &label, Region: regionGlobal,
+		Type: TypeFMSNotificationChannel, NativeID: fmsNotificationChannelNativeID(region, acct.ID),
+		Name: &topic, Region: &region,
 		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}
 	return upsertBatch(st, []*store.Resource{r}, "fms notification-channel")
