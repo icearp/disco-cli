@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -261,8 +262,52 @@ func TestScanSubnetCidrReservations(t *testing.T) {
 		if want := []string{"subnet-a", "subnet-b", "subnet-gone"}; !slices.Equal(stub.resvQueried, want) {
 			t.Errorf("subnets queried = %v; want %v (owned subnets only)", stub.resvQueried, want)
 		}
-		if len(warns) != 0 {
-			t.Errorf("warns = %v; want none (a vanished subnet is not a warning)", warns)
+		if len(warns) != 1 {
+			t.Fatalf("warns = %v; want exactly one, for the vanished subnet", warns)
+		}
+		if !isSubnetGoneWarning(warns[0]) {
+			t.Errorf("warning = %+v; want op %s naming %s and subnet-gone",
+				warns[0], ec2SubnetCidrReservationsOp, ec2SubnetNotFound)
+		}
+	})
+	// A vanished subnet's warning must survive a sibling failing in the same fan-out.
+	t.Run("VanishedSubnetWarnsBesideDeniedSibling", func(t *testing.T) {
+		stub := &netExtraStub{
+			subnetPages: subnets,
+			resvErr: map[string]error{
+				"subnet-gone": apiErr(ec2SubnetNotFound, "gone"),
+				"subnet-b":    apiErr("UnauthorizedOperation", "denied"),
+			},
+		}
+		_, _, warns := runNetExtra(t, scanSubnetCidrReservations, stub, TypeEC2SubnetCidrReservation)
+		if len(warns) != 2 || countSubnetGoneWarnings(warns) != 1 {
+			t.Errorf("warns = %+v; want 2: one %s for subnet-gone, one access denial", warns, ec2SubnetNotFound)
+		}
+	})
+	t.Run("VanishedSubnetWarnsBesideFailingSibling", func(t *testing.T) {
+		stub := &netExtraStub{
+			subnetPages: subnets,
+			resvErr: map[string]error{
+				"subnet-gone": apiErr(ec2SubnetNotFound, "gone"),
+				"subnet-b":    apiErr("InvalidParameterValue", "bad"),
+			},
+		}
+		st := newTestStore(t)
+		var (
+			mu    sync.Mutex
+			warns []store.ScanWarning
+		)
+		st.OnWarn = func(w store.ScanWarning) {
+			mu.Lock()
+			warns = append(warns, w)
+			mu.Unlock()
+		}
+		_, _, err := scanSubnetCidrReservations(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
+		if !isAPIErrorCode(err, "InvalidParameterValue") {
+			t.Errorf("err = %v; want the InvalidParameterValue API error", err)
+		}
+		if len(warns) != 1 || countSubnetGoneWarnings(warns) != 1 {
+			t.Errorf("warns = %+v; want exactly one %s warning for subnet-gone", warns, ec2SubnetNotFound)
 		}
 	})
 	t.Run("NoSubnets", func(t *testing.T) {
@@ -318,6 +363,23 @@ func TestScanSubnetCidrReservations(t *testing.T) {
 			t.Errorf("err = %v; want the InvalidParameterValue API error", err)
 		}
 	})
+}
+
+// isSubnetGoneWarning reports whether w is the GetSubnetCidrReservations skip
+// warning for the vanished subnet-gone.
+func isSubnetGoneWarning(w store.ScanWarning) bool {
+	return w.Service == ec2SubnetCidrReservationsOp &&
+		strings.Contains(w.Message, ec2SubnetNotFound) && strings.Contains(w.Message, "subnet-gone")
+}
+
+func countSubnetGoneWarnings(warns []store.ScanWarning) int {
+	n := 0
+	for _, w := range warns {
+		if isSubnetGoneWarning(w) {
+			n++
+		}
+	}
+	return n
 }
 
 func TestScanVPCEndpointConnections(t *testing.T) {

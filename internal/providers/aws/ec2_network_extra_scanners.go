@@ -12,6 +12,13 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+const (
+	ec2SubnetCidrReservationsOp = "ec2:GetSubnetCidrReservations"
+	// ec2SubnetNotFound is on AWS's EC2 error-codes reference, not in the op's
+	// model, so a skip on it warns.
+	ec2SubnetNotFound = "InvalidSubnetID.NotFound"
+)
+
 func init() {
 	registerType(restype.Descriptor{Type: TypeEC2SecurityGroupRule, Service: "ec2"})
 	registerType(restype.Descriptor{Type: TypeEC2SubnetCidrReservation, Service: "ec2"})
@@ -82,12 +89,16 @@ func scanSubnetCidrReservations(ctx context.Context, client ec2API, acct *accoun
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource
+		gone  skipTally
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(fanoutMed)
 	for _, subnetID := range subnetIDs {
 		g.Go(func() error {
 			reservations, err := getSubnetCidrReservations(gctx, client, subnetID)
+			if gone.dropCode(ec2SubnetNotFound, subnetID, err) {
+				return nil
+			}
 			if err != nil {
 				return err
 			}
@@ -116,11 +127,14 @@ func scanSubnetCidrReservations(ctx context.Context, client ec2API, acct *accoun
 			return nil
 		})
 	}
-	if err := g.Wait(); err != nil {
+	err = g.Wait()
+	gone.warnCode(st, ec2SubnetCidrReservationsOp, acct, region, ec2SubnetNotFound,
+		"subnet(s)", "a subnet deleted since it was listed, or one not yet visible to this API")
+	if err != nil {
 		// A denial is IAM-wide for the op, not per subnet: warn once instead of
 		// once per subnet.
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "ec2:GetSubnetCidrReservations", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, ec2SubnetCidrReservationsOp, acct.ID, region, err)
 		}
 		if isEC2RegionFeatureGap(err) {
 			return 0, 0, nil
@@ -131,8 +145,7 @@ func scanSubnetCidrReservations(ctx context.Context, client ec2API, acct *accoun
 }
 
 // getSubnetCidrReservations returns the IPv4 and IPv6 reservations of one
-// subnet. GetSubnetCidrReservations has no SDK paginator. A subnet deleted
-// since it was listed yields no reservations.
+// subnet. GetSubnetCidrReservations has no SDK paginator.
 func getSubnetCidrReservations(ctx context.Context, client ec2API, subnetID string) ([]ec2types.SubnetCidrReservation, error) {
 	var out []ec2types.SubnetCidrReservation
 	var token *string
@@ -142,10 +155,7 @@ func getSubnetCidrReservations(ctx context.Context, client ec2API, subnetID stri
 			NextToken: token,
 		})
 		if err != nil {
-			if isAPIErrorCode(err, "InvalidSubnetID.NotFound") {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("ec2:GetSubnetCidrReservations %s: %w", subnetID, err)
+			return nil, fmt.Errorf("%s %s: %w", ec2SubnetCidrReservationsOp, subnetID, err)
 		}
 		out = append(out, page.SubnetIpv4CidrReservations...)
 		out = append(out, page.SubnetIpv6CidrReservations...)
