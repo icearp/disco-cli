@@ -321,7 +321,6 @@ var expectedAWSServices = []string{
 	"aws:transcribe",
 	"aws:translate",
 	"aws:trustedadvisor",
-	"aws:mturk",
 	"aws:machinelearning",
 }
 
@@ -398,14 +397,21 @@ func TestFilteredServices_DefaultExcludesOptIn(t *testing.T) {
 // only the quotas-tagged opt-in services to the default set, and that explicit
 // selection by name works for any opt-in service.
 func TestFilteredServices_IncludeOptIn(t *testing.T) {
+	// No registered opt-in service lacks the quotas tag, so add one to prove the
+	// flag leaves such a service out. Swapping the package global means this
+	// test must never run in parallel with another that reads registeredServices.
+	saved := registeredServices
+	registeredServices = append(slices.Clone(registeredServices), serviceEntry{name: "aws:test-opt-in-only", optIn: true})
+	t.Cleanup(func() { registeredServices = saved })
+
 	got := filteredServiceNames(nil, true)
+	if slices.Contains(got, "aws:test-opt-in-only") {
+		t.Error("filteredServices(nil, true) must exclude an opt-in service without the quotas tag")
+	}
 	for _, name := range []string{"aws:servicequotas", "aws:servicequotas-template"} {
 		if !slices.Contains(got, name) {
 			t.Errorf("filteredServices(nil, true) must include %s", name)
 		}
-	}
-	if slices.Contains(got, "aws:mturk") {
-		t.Error("filteredServices(nil, true) must exclude aws:mturk: --include-service-quotas adds only quota services")
 	}
 	if want := len(registeredServices) - optInCount() + 2; len(got) != want {
 		t.Errorf("filteredServices(nil, true): got %d, want %d (non-opt-in plus the two quota services)", len(got), want)
@@ -422,7 +428,7 @@ func TestFilteredServices_IncludeOptIn(t *testing.T) {
 // service is listed here, so a new opt-in service forces a decision.
 func TestRegisteredServices_QuotasTags(t *testing.T) {
 	quotaServices := []string{"aws:servicequotas", "aws:servicequotas-template"}
-	optInOnly := []string{"aws:mturk"}
+	var optInOnly []string
 	for _, s := range registeredServices {
 		wantQuotas := slices.Contains(quotaServices, s.name)
 		if s.quotas != wantQuotas {

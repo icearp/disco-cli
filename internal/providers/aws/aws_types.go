@@ -2700,9 +2700,6 @@ const (
 	TypeAccountAccessApplication = "aws:account-access:application"
 	TypeAccountAccessEntitlement = "aws:account-access:entitlement"
 
-	// Mechanical Turk requester (mturk_scanners.go).
-	TypeMTurkQualificationType = "aws:mturk:qualification-type"
-
 	// Amazon Machine Learning (machinelearning_scanners.go).
 	TypeMachineLearningDataSource      = "aws:machinelearning:data-source"
 	TypeMachineLearningMLModel         = "aws:machinelearning:ml-model"

@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 61.121103117505996,
-    "covered": 2039,
-    "uncovered": 1297,
+    "percent": 61.091127098321344,
+    "covered": 2038,
+    "uncovered": 1298,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1325,7 +1325,6 @@
       "mq/broker",
       "mq/configuration",
       "mq/sharedresource",
-      "mturk-requester/qualificationtype",
       "neptune-graph/graph",
       "neptune-graph/graphsnapshot",
       "neptune-graph/privategraphendpoint",
@@ -2913,6 +2912,7 @@
       "mpa/session",
       "mturk-requester/assignment",
       "mturk-requester/hit",
+      "mturk-requester/qualificationtype",
       "neptune-graph/exporttask",
       "neptune-graph/importtask",
       "network-firewall/analysisreport",
