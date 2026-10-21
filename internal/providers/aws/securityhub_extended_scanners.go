@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	awsarn "github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub"
 	"github.com/icearp/disco-cli/store"
 )
@@ -351,10 +352,16 @@ func scanSHSecurityControls(ctx context.Context, client securityhubAPI, acct *ac
 }
 
 // scanSHStandards — DescribeStandards returns the AWS-managed standards
-// catalogue. Mark ManagedByProvider=true.
+// catalogue. Mark ManagedByProvider=true. Every region lists a standard whose
+// ARN carries no region (arn:aws:securityhub:::ruleset/...) under the same
+// NativeID, so Region comes from the ARN and is left unset when it names none;
+// the scanned region would flip the row's Region to whichever region ran last.
 func scanSHStandards(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := securityhub.NewDescribeStandardsPaginator(client, &securityhub.DescribeStandardsInput{})
-	var batch []*store.Resource
+	var (
+		batch []*store.Resource
+		noARN skipTally
+	)
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
@@ -366,6 +373,7 @@ func scanSHStandards(ctx context.Context, client securityhubAPI, acct *account, 
 		for _, s := range out.Standards {
 			arn := sv(s.StandardsArn)
 			if arn == "" {
+				noARN.skipped(fmt.Sprintf("%q", sv(s.Name)), nil)
 				continue
 			}
 			label := sv(s.Name)
@@ -375,9 +383,20 @@ func scanSHStandards(ctx context.Context, client securityhubAPI, acct *account, 
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSecurityHubStandard, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+				Name: &label, Region: arnRegion(arn), AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 			})
 		}
 	}
+	warnNotStored(st, "securityhub:DescribeStandards", acct, region, &noARN, "standards have no StandardsArn")
 	return upsertBatch(st, batch, "securityhub standards")
+}
+
+// arnRegion is the region segment of arn, or nil when it names none. An ARN
+// that does not parse names no region either; its row is still stored.
+func arnRegion(arn string) *string {
+	parsed, err := awsarn.Parse(arn)
+	if err != nil {
+		return nil
+	}
+	return nonEmptyPtr(parsed.Region)
 }
