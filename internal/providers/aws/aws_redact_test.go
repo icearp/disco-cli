@@ -15,6 +15,7 @@ import (
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	lightsailtypes "github.com/aws/aws-sdk-go-v2/service/lightsail/types"
+	mltypes "github.com/aws/aws-sdk-go-v2/service/machinelearning/types"
 	mttypes "github.com/aws/aws-sdk-go-v2/service/mediatailor/types"
 	mturktypes "github.com/aws/aws-sdk-go-v2/service/mturk/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
@@ -397,5 +398,32 @@ func TestRedact_MTurkQualificationType_AnswerKey(t *testing.T) {
 		if got[k] != want {
 			t.Errorf("%s = %v, want %q kept", k, got[k], want)
 		}
+	}
+}
+
+// An Amazon ML data source element carries no password (that exists only on
+// the Create inputs); the database user name, query and IAM user are not
+// credentials and are kept.
+func TestRedact_MachineLearningDataSource_KeepsNonCredentials(t *testing.T) {
+	d := mltypes.DataSource{
+		DataSourceId:     ptrStr("ds-1"),
+		CreatedByIamUser: ptrStr("arn:aws:iam::123456789012:user/alice"),
+		RDSMetadata: &mltypes.RDSMetadata{
+			DatabaseUserName: ptrStr("ml_reader"),
+			SelectSqlQuery:   ptrStr("SELECT * FROM sales"),
+		},
+		RedshiftMetadata: &mltypes.RedshiftMetadata{DatabaseUserName: ptrStr("rs_reader")},
+	}
+	got := applyAndDecode(t, TypeMachineLearningDataSource, d)
+	if got["CreatedByIamUser"] != "arn:aws:iam::123456789012:user/alice" {
+		t.Errorf("CreatedByIamUser = %v, want kept", got["CreatedByIamUser"])
+	}
+	rds, _ := got["RDSMetadata"].(map[string]any)
+	if rds["DatabaseUserName"] != "ml_reader" || rds["SelectSqlQuery"] != "SELECT * FROM sales" {
+		t.Errorf("RDSMetadata = %v, want user name and query kept", rds)
+	}
+	rs, _ := got["RedshiftMetadata"].(map[string]any)
+	if rs["DatabaseUserName"] != "rs_reader" {
+		t.Errorf("RedshiftMetadata = %v, want user name kept", rs)
 	}
 }

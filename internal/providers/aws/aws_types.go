@@ -2702,4 +2702,10 @@ const (
 
 	// Mechanical Turk requester (mturk_scanners.go).
 	TypeMTurkQualificationType = "aws:mturk:qualification-type"
+
+	// Amazon Machine Learning (machinelearning_scanners.go).
+	TypeMachineLearningDataSource      = "aws:machinelearning:data-source"
+	TypeMachineLearningMLModel         = "aws:machinelearning:ml-model"
+	TypeMachineLearningEvaluation      = "aws:machinelearning:evaluation"
+	TypeMachineLearningBatchPrediction = "aws:machinelearning:batch-prediction"
 )

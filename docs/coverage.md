@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 61.0% (2034/3336 listable) · depth0 72.6% · depth1 44.2% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 61.1% (2038/3336 listable) · depth0 72.8% · depth1 44.2% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1048 | 173 | 85.8 |
+| sr-resource | 1052 | 169 | 86.2 |
 | child-uncatalogued | 308 | 709 | 30.3 |
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 204 | 212 | 49.0 |
@@ -126,7 +126,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | iotwireless | 12 | 4 | 75.0 |
 | launchwizard | 1 | 4 | 20.0 |
 | lightsail | 17 | 4 | 81.0 |
-| machinelearning | 0 | 4 | 0.0 |
 | notifications | 7 | 4 | 63.6 |
 | nova-act | 1 | 4 | 20.0 |
 | partnercentral | 0 | 4 | 0.0 |
@@ -322,6 +321,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | kendra-ranking | 1 | 0 | 100.0 |
 | license-manager-linux-subscriptions | 1 | 0 | 100.0 |
 | license-manager-user-subscriptions | 5 | 0 | 100.0 |
+| machinelearning | 4 | 0 | 100.0 |
 | mediapackage-vod | 3 | 0 | 100.0 |
 | migrationhub-orchestrator | 7 | 0 | 100.0 |
 | mq | 3 | 0 | 100.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1302)
+### Uncovered (listable, no scanner) (1298)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1163,10 +1163,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | m2 | m2/batch | 1 |  | child-uncatalogued | m2:GetBatchJobExecution, m2:ListBatchJobExecutions |
 | m2 | m2/datasetexporthistory | 1 |  | child-uncatalogued | m2:ListDataSetExportHistory |
 | m2 | m2/datasetimporthistory | 1 |  | child-uncatalogued | m2:ListDataSetImportHistory |
-| machinelearning | machinelearning/batchprediction | 0 |  | sr-resource | machinelearning:DescribeBatchPredictions, machinelearning:GetBatchPrediction |
-| machinelearning | machinelearning/datasource | 0 |  | sr-resource | machinelearning:DescribeDataSources, machinelearning:GetDataSource |
-| machinelearning | machinelearning/evaluation | 0 |  | sr-resource | machinelearning:DescribeEvaluations, machinelearning:GetEvaluation |
-| machinelearning | machinelearning/mlmodel | 0 |  | sr-resource | machinelearning:DescribeMLModels, machinelearning:GetMLModel |
 | macie2 | macie2/bucket | 0 |  | element-arn | macie2:DescribeBuckets |
 | macie2 | macie2/resourceprofileartifact | 1 |  | child-uncatalogued | macie2:ListResourceProfileArtifacts |
 | macie2 | macie2/resourceprofiledetection | 1 |  | child-uncatalogued | macie2:ListResourceProfileDetections |

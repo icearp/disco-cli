@@ -3528,6 +3528,10 @@ var ServiceRegions = map[string][]string{
 		"us-west-1",
 		"us-west-2",
 	},
+	"aws:machinelearning": {
+		"eu-west-1",
+		"us-east-1",
+	},
 	"aws:macie": {
 		"af-south-1",
 		"ap-east-1",

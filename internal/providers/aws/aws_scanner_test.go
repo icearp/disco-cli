@@ -322,6 +322,7 @@ var expectedAWSServices = []string{
 	"aws:translate",
 	"aws:trustedadvisor",
 	"aws:mturk",
+	"aws:machinelearning",
 }
 
 // TestRegisteredServices_NoDuplicates verifies no two services share a name.

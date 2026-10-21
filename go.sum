@@ -762,6 +762,8 @@ github.com/aws/aws-sdk-go-v2/service/lookoutequipment v1.39.3 h1:ivFQ7KmMoOKr9E/
 github.com/aws/aws-sdk-go-v2/service/lookoutequipment v1.39.3/go.mod h1:lNgf9JlnJo5Y1RZsmY1+xTHZkwEj5fODNvaqQ+xSgEg=
 github.com/aws/aws-sdk-go-v2/service/m2 v1.29.3 h1:2+XP+yPTUM8gKFFZHcXI5WZ7aWVmiih+B9syTy1eFUQ=
 github.com/aws/aws-sdk-go-v2/service/m2 v1.29.3/go.mod h1:q78sw0JOjbeA4rcMg2QnikT8I0eKKGkbXe1Tug3/GF4=
+github.com/aws/aws-sdk-go-v2/service/machinelearning v1.43.0 h1:bDvTTfwLebXXesZVYL/9mT2C2fM23ilQERIc22WWy1o=
+github.com/aws/aws-sdk-go-v2/service/machinelearning v1.43.0/go.mod h1:0ILrgVOjc1eOXX904EmJa4p9IjG3w4TUeV4W57cKpMM=
 github.com/aws/aws-sdk-go-v2/service/macie2 v1.54.3 h1:ng+vW3SonTz06aRBPjWxe+YWFsP8qgLrgrOAH4jaEhk=
 github.com/aws/aws-sdk-go-v2/service/macie2 v1.54.3/go.mod h1:Txrzi7QLOTcn5Cjm1bHwfKcZPzL9vtEeK/s31mjM7rI=
 github.com/aws/aws-sdk-go-v2/service/mailmanager v1.21.3 h1:Bc+UWk46cpFrilsPmy16hk5Hc6M+XRpZ00SxzYGpkRM=
