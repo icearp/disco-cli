@@ -13,7 +13,16 @@ import (
 
 func init() {
 	registerResolver(
+		noopOrgHierarchy,
+		EdgeDecl{TypeOrganization, TypeOrganizationsRoot, store.RelContains},
+		EdgeDecl{TypeOrganizationsRoot, TypeOrganizationsOU, store.RelContains},
+		EdgeDecl{TypeOrganizationsRoot, TypeOrganizationsAccount, store.RelContains},
+		EdgeDecl{TypeOrganizationsOU, TypeOrganizationsOU, store.RelContains},
+		EdgeDecl{TypeOrganizationsOU, TypeOrganizationsAccount, store.RelContains},
+	)
+	registerResolver(
 		resolveOrganizationsSCPTargets,
+		EdgeDecl{TypeOrganizationsSCP, TypeOrganizationsRoot, store.RelAttachedTo},
 		EdgeDecl{TypeOrganizationsSCP, TypeOrganizationsOU, store.RelAttachedTo},
 		EdgeDecl{TypeOrganizationsSCP, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
@@ -26,6 +35,12 @@ func init() {
 		EdgeDecl{TypeOrganization, TypeOrganizationsAccount, store.RelAttachedTo},
 		EdgeDecl{TypeOrganization, TypeIAMAccount, store.RelAttachedTo},
 	)
+}
+
+// noopOrgHierarchy only declares the org tree's contains edges;
+// scanOrganizations records them through RecordHierarchyBatch.
+func noopOrgHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // resolveOrganizationsSCPTargets attaches each SCP to the roots, OUs, and
@@ -90,7 +105,7 @@ func resolveOrganizationsSCPTargets(acct *account, st *store.Store) error {
 func loadOrgTargetIndex(acct *account, st *store.Store) (arnByID, typeByID map[string]string, err error) {
 	arnByID = map[string]string{}
 	typeByID = map[string]string{}
-	for _, t := range []string{TypeOrganizationsOU, TypeOrganizationsAccount} {
+	for _, t := range []string{TypeOrganizationsRoot, TypeOrganizationsOU, TypeOrganizationsAccount} {
 		rs, err := st.ListResources(store.ResourceFilter{
 			Providers: []string{"aws"},
 			AccountID: acct.ID,

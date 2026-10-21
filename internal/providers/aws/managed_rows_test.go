@@ -165,7 +165,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 			},
 		},
 		{
-			name: "organizations root as OU container", typ: TypeOrganizationsOU,
+			name: "organizations root", typ: TypeOrganizationsRoot,
 			handlers: handlers{"ListRoots": ret(&organizations.ListRootsOutput{Roots: []organizationstypes.Root{{
 				Id: sdkaws.String("r-ab12"), Arn: sdkaws.String("arn:aws:organizations::" + acctID + ":root/o-abc/r-ab12"), Name: sdkaws.String("Root"),
 			}}})},

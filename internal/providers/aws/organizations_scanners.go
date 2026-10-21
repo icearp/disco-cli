@@ -95,49 +95,10 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	if ferr != nil {
 		return total, inserted, ferr
 	}
-	// Management-only resources — safe here, past the member-account short-circuit.
-	t, i, ferr = scanOrgRootResources(ctx, client, acct, st, scanID)
-	total += t
-	inserted += i
-	if ferr != nil {
-		return total, inserted, ferr
-	}
 	t, i, ferr = scanOrgResponsibilityTransfers(ctx, client, acct, st, scanID)
 	total += t
 	inserted += i
 	return total, inserted, ferr
-}
-
-// scanOrgRootResources lists organization roots as standalone
-// aws:organizations:root resources. Auto-created with the org and
-// undeletable while it exists, but not provider-managed: EnablePolicyType and
-// DisablePolicyType set which policy types apply at it. (The org hierarchy walk
-// already records roots as OU containers; this phase surfaces the dedicated
-// root type for coverage.)
-func scanOrgRootResources(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
-	pager := organizations.NewListRootsPaginator(client, &organizations.ListRootsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "organizations:ListRoots", acct.ID, "", err)
-			}
-			return 0, 0, fmt.Errorf("organizations:ListRoots: %w", err)
-		}
-		for _, root := range page.Roots {
-			arn := sv(root.Arn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Region: regionGlobal, Type: TypeOrganizationsRoot, NativeID: arn,
-				Name: root.Name, AttributesJSON: mustJSON(root), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "organizations roots")
 }
 
 // scanOrgResponsibilityTransfers captures billing responsibility transfers
@@ -247,13 +208,22 @@ func scanOrgRoot(ctx context.Context, client *organizations.Client, acct *accoun
 	return org, 1, n, nil
 }
 
-// scanOrgRoots upserts the org's top-level Root containers, returning native
-// ids + an ARN-by-id map populated for roots only; later phases extend it
-// with deeper OUs.
-func scanOrgRoots(ctx context.Context, client *organizations.Client, acct *account, st *store.Store, scanID, orgID string, closurePairs *[][2]string) ([]string, map[string]string, int, int, error) {
+// scanOrgRoots upserts each org root once, typed aws:organizations:root, as
+// the hierarchy parent of top-level OUs and accounts. Returns the stored roots'
+// native ids + an ARN-by-id map populated for roots only; later phases extend
+// it with deeper OUs. A root is created with the org and undeletable while it
+// exists, but not provider-managed: EnablePolicyType and DisablePolicyType set
+// which policy types apply at it.
+func scanOrgRoots(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID, orgID string, closurePairs *[][2]string) ([]string, map[string]string, int, int, error) {
 	var rootIDs []string
 	ouARNByNativeID := map[string]string{}
-	var total, inserted int
+	var (
+		total, inserted int
+		noARN           skipTally
+	)
+	defer func() {
+		warnNotStored(st, "organizations:ListRoots", acct, "global", &noARN, "roots without Arn, the NativeID")
+	}()
 	pager := organizations.NewListRootsPaginator(client, &organizations.ListRootsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -267,12 +237,21 @@ func scanOrgRoots(ctx context.Context, client *organizations.Client, acct *accou
 		for _, root := range page.Roots {
 			arn := sv(root.Arn)
 			id := sv(root.Id)
+			// No ARN means no row, but the root's OUs and accounts carry
+			// their own ARNs: keep its Id so the walk still lists them.
+			if arn == "" {
+				noARN.skipped(id, nil)
+				if id != "" {
+					rootIDs = append(rootIDs, id)
+				}
+				continue
+			}
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Region:         regionGlobal,
-				Type:           TypeOrganizationsOU,
+				Type:           TypeOrganizationsRoot,
 				NativeID:       arn,
 				Name:           root.Name,
 				AttributesJSON: mustJSON(root),
