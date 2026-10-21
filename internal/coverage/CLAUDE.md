@@ -42,6 +42,8 @@ headline number. Never recompute percentages from filtered rows.
   number `--check-strict` exits on. `other-op` and `sdk-skew` explanations still name-match.
   A `sidecar` pairing with no types is still covered (reason `sidecar`): the scanner lists it.
   `label` pairings prove nothing (no SDK call) and never cover.
+  A membership op (lists the members of a set, e.g. FMS `ListResourceSetResources`) is covered with reason
+  `membership-edge` when a resolver declares its edges via `registerMembershipResolver`; it names no disco type.
 - `uncovered` — resource candidate no scanner lists. The only actionable gap. There is no skip list:
   ephemeral, retired or catalog rows the SDK still lists stay honest `uncovered` rows.
 - `attribute` — `ClassAttribute` (Get + id, no collection). Not in `%`.

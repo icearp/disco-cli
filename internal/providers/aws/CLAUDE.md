@@ -280,7 +280,7 @@ AWS IAM throttles around 10–20 sustained TPS per account. `fanoutMed` (10) is 
 
 **Both adjustable and non-adjustable limits are recorded**, and non-adjustable is the more interesting class: a hard ceiling moves only when AWS moves it, with no customer request and no notification, so its version chain is the only record that it happened. `quotaRow` used to open with `if !q.Adjustable { return nil, false }`, silently discarding all of them. Identity is `(provider, account, region, service code, quota code)` — **not** the ARN, which now lives in the attributes remainder alongside everything else AWS reported. `listQuotaDefaultsForCode` pairs each limit with `ListAWSDefaultServiceQuotas`, which is what makes applied-versus-default answerable; it **doubles the API calls** and degrades to a NULL `default_value` on failure rather than costing us the applied limit.
 
-**Opt-in.** `aws:servicequotas` registers with `serviceEntry.optIn=true`, so a default `disco scan aws` skips it — it reads account *quota limits* (metadata, not resources) and is ~4× the slowest resource scan. `filteredServices(filter, includeOptIn)` excludes opt-in services from the default set; they run only when (a) selected by name (`--services aws:servicequotas`) or (b) `--include-service-quotas` is passed (config `aws.include_service_quotas`, plumbed via the `ServiceQuotasIncluder` capability → `Scanner.includeServiceQuotas` → stamped onto `account.includeServiceQuotas`, mirroring `--scope-regions`). `optIn` is the generic registry knob for "default-off service"; reuse it for any future slow/peripheral scanner.
+**Opt-in.** `aws:servicequotas` registers with `serviceEntry.optIn=true`, so a default `disco scan aws` skips it — it reads account *quota limits* (metadata, not resources) and is ~4× the slowest resource scan. `filteredServices(filter, includeOptIn)` excludes opt-in services from the default set; they run only when (a) selected by name (`--services aws:servicequotas`) or (b) `--include-service-quotas` is passed (config `aws.include_service_quotas`, plumbed via the `ServiceQuotasIncluder` capability → `Scanner.includeServiceQuotas` → stamped onto `account.includeServiceQuotas`, mirroring `--scope-regions`). `optIn` is the generic registry knob for "default-off service"; reuse it for any future slow/peripheral scanner. `--include-service-quotas` adds only entries also tagged `serviceEntry.quotas` (`aws:servicequotas`, `aws:servicequotas-template`); any other `optIn` service runs only when named in `--services`.
 
 **Rate.** `ListServices`, `ListServiceQuotas` and `ListAWSDefaultServiceQuotas` are each **10 req/s steady + 10 burst, per region per account**, under a 50 req/s account-wide cap (https://docs.aws.amazon.com/servicequotas/latest/userguide/reference_limits.html). Each is paced by its own per-region `pacer` (`sqReqPerSec`=10, `sqBurst`=10; see "Rate-paced fan-out" below). **The limiter, not the worker count, holds the ceiling:** `sqWorkers`=30 sits comfortably above `rate × worst-case-latency` (~1.5–2.5s control-plane latency), so concurrency keeps the limiter fed; don't lower it toward 10, which re-couples throughput to latency. Always pass `MaxResults: sdkaws.Int32(100)` (the API max). `maxConcurrentRegions`=5 × 10 req/s = exactly the 50 req/s account cap, with no headroom; a sustained `--regions all --include-service-quotas` run leans on adaptive retry. `DISCO_SCAN_RATE_DEBUG=1` prints an `N calls in Ts = R req/s` saturation line per region.
 
@@ -456,6 +456,22 @@ It exists because rpc-v2-cbor deserializers do not sanitize. Their switch matche
 
 When a service signals "not enabled / not subscribed" with a code that is in `accessDeniedCodes` (Comprehend's `NotAuthorizedException`, Macie's `AccessDeniedException`), its message-disambiguated predicate MUST run **before** the `isAccessDenied` branch. `isAccessDenied` matches on code alone, so it swallows the error first and records an IAM-style warning that no policy change could ever fix. Precedent: `isComprehendNotEnabled` sits above `isAccessDenied` in all four comprehend phases.
 
+### Skip only error codes the op's Smithy model lists
+
+A not-found or validation skip is allowed only for a code the operation models (its deserializer's error switch); any other code fails the phase. Exception: EC2 models no errors at all, so codes on AWS's EC2 error-codes reference may skip a vanished or pending parent, always with a warning, never silently.
+
+### Joining phase errors: demote each side first
+
+The dispatcher classifies an `errors.Join` as transient (or disabled) if ANY member is, which hides a sibling's hard error and discards every phase's counts. Pass each phase's error through `demoteTransient` (`scan_helpers.go`) before the join. Never join a sentinel (`errServiceDisabled`, …) with another error: return the sentinel only when nothing was stored and nothing failed. Tests for "a later page fails" need a non-transient code; `InternalServerException` and throttles are demoted to warnings and pass vacuously.
+
+### Repeated NextToken
+
+SDK paginators default `StopOnDuplicateToken=false` (they loop until the service timeout), and `true` ends the loop as success with a partial list. When a partial list must not be stored, use a manual loop that returns the shared `errRepeatedNextToken` (`scan_helpers.go`).
+
+### EC2: fallible per-parent reads run after the categories
+
+`scanEC2`'s `runScanners` errgroup cancels every category on its first error, so a child read that can fail per parent belongs in `scanEC2IPAMExtended` or `scanEC2Late`, which run after the categories whatever they return.
+
 ### `skipIfAccessDenied` always returns nil
 
 Single-phase scanners `return 0, 0, skipIfAccessDenied(...)`. Multi-phase scanners (e.g. `scanEventBridge` running buses + rules + connections + api-destinations in one call) cannot early-return — use `_ = skipIfAccessDenied(...); break` to skip denied phase while preserving totals from prior phases. Precedent: `scanEventBridge` phases 3/4.
@@ -470,7 +486,7 @@ Singleton-config Get/List ops return distinct error codes when the config has no
 
 ### Empty-message AccessDeniedException = closed-to-new-customers signal
 
-When AWS retires a service to new customers (existing customers keep access), list ops on unregistered accounts return `AccessDeniedException` with an *empty message body* — distinct from real per-op IAM denials which always carry an action-identifying message. Detect via `isClosedToNewCustomers(err)` (`aws_errors.go`). Closure state is **non-uniform across ops on the same account** (`ListCampaigns` may succeed while `ListDecoderManifests` fails). Wire two layers: phase-0 gate for the common case (one cheap probe → `markServiceNotEntitled` if empty-msg — the account can't self-enable a closed service, so this is not-entitled, not disabled) AND per-phase silent return `(0,0,nil)` for the partial-uniformity case. Real IAM denials with messages still warn via `skipIfAccessDenied`. Precedent: `gateIoTFleetWise` + `gateFraudDetector` (per-service gate fns) calling shared `isClosedToNewCustomers`. Whole-service closed detections (kendra `isKendraClosedToAccount`, interconnect `isInterconnectClosedToAccount`, timestream `isTimestreamLiveAnalyticsClosed`, voiceid `isVoiceIDNotEnabled`, cloud9, datapipeline) likewise return `markServiceNotEntitled`. See "Dispatch states" above.
+When AWS retires a service to new customers (existing customers keep access), list ops on unregistered accounts return `AccessDeniedException` with an *empty message body* — distinct from real per-op IAM denials which always carry an action-identifying message. Detect via `isClosedToNewCustomers(err)` (`aws_errors.go`). Closure state is **non-uniform across ops on the same account** (`ListCampaigns` may succeed while `ListDecoderManifests` fails). Wire two layers: phase-0 gate for the common case (one cheap probe → `markServiceNotEntitled` if empty-msg — the account can't self-enable a closed service, so this is not-entitled, not disabled) AND per-phase silent return `(0,0,nil)` for the partial-uniformity case. Real IAM denials with messages still warn via `skipIfAccessDenied`. Precedent: `gateIoTFleetWise` + `gateFraudDetector` (per-service gate fns) calling shared `isClosedToNewCustomers`. Whole-service closed detections (kendra `isKendraClosedToAccount`, interconnect `isInterconnectClosedToAccount`, timestream `isTimestreamLiveAnalyticsClosed` (LiveAnalytics only: the same entry still scans InfluxDB and returns the sentinel only when nothing was found), voiceid `isVoiceIDNotEnabled`, cloud9, datapipeline) likewise return `markServiceNotEntitled`. See "Dispatch states" above.
 
 ### AccessDenied disambiguation — canned doc URL = per-region feature gap
 
@@ -502,7 +518,7 @@ The string passed to `disco scan aws --services X` must match the `name:` field 
 
 ### Adding new AWS SDK service module
 
-`go get github.com/aws/aws-sdk-go-v2/service/<svc>@latest` then `go mod tidy`. Service modules version-independent of base SDK; no pin needed.
+`go get github.com/aws/aws-sdk-go-v2/service/<svc>@latest` then `go mod tidy`. Service modules version-independent of base SDK; no pin needed. A bump may move shared indirect modules (ec2 from v1.321.0 needs newer `service/internal/accept-encoding` and `presigned-url`): accept that only after `diff -rq` of the old and new module dirs shows no code change, and never let a bump move core or smithy-go.
 
 ### CFN type ≠ SDK op
 

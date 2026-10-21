@@ -24,9 +24,9 @@ Resources owned by the cloud (Azure built-in policy/role definitions, AWS-manage
 
 Go evaluates return-list expressions left-to-right. `return total, inserted, g.Wait()` reads `total`/`inserted` *before* `Wait()` blocks, so any counters mutated inside the goroutines come back as their pre-fan-out value. Same hazard for `return int(t.Load()), int(n.Load()), g.Wait()` with `atomic.Int64`. Always bind `err := g.Wait()` first, then return the counters. Precedents fixed: `aws/ec2_scanners.go::runScanners`, `azure/sql_scanners.go::scanSQL` (phase-3 return), `azure/sql_managed_scanners.go::scanSQLManaged` (phase-3 return).
 
-## Per-(acct, region) singleton config rows are provider-managed
+## Singleton config rows are `Untaggable`, not managed
 
-Account-level / region-level singleton config types (e.g. data-lake-settings, account-audit-configuration, encryption-configuration, replication-configuration, resolver-config) represent cloud state, not user-created resources. Set `ManagedByProvider: true` at upsert time so they hide from default `disco resources` / `disco graph`. Precedents under `internal/providers/aws/`: ECR replication-configuration, ECR registry-scanning-configuration, IoT encryption-configuration, IoT account-audit-configuration, LakeFormation data-lake-settings, Route53Resolver resolver-config.
+`Managed` is only for AWS-published catalogs and AWS-created objects with no customer setting. A per-(acct, region) singleton config (data-lake-settings, replication-configuration, resolver-config, …) carries customer posture, so it stays visible to `check` and `graph`. Mark it `Untaggable: true` on its descriptor instead: `tag-coverage` drops untaggable types by default (`--include-untaggable` adds them). `TestUntaggableMatchesServiceReference` (`aws/aws_pairing_test.go`) fails when the flag disagrees with the Service Reference. Precedents: ECR replication-configuration, LakeFormation data-lake-settings.
 
 ## `store.ErrStoreWrite` is the first rung of every dispatcher
 
@@ -80,6 +80,7 @@ Tests under `internal/providers/all` derive expected provider lists from `provid
 Both are fields on the type's `registerType` descriptor: `Redact: []redact.Rule{{Path: "Bar.Baz", Mode: redact.RedactScalar}}` and `Volatile: []string{"Bar.Baz"}`. `restype` forwards them to the engines; nothing calls `redact.Register` / `volatile.Register` directly.
 
 - **Redact** replaces a secret with `[REDACTED]`. Path syntax: dotted literals, `*` map-key wildcard, `[*]` array wildcard. Modes: `RedactScalar` (leaf only) or `RedactSubtree` (every scalar descendant). Rules are NOT inferred — a new type whose SDK response carries credentials, tokens, init-script payload, plaintext env vars or connection strings ships unredacted without one. Pointer-shape fields (ARNs, KeyVault reference URIs) are preserved by **omission**: don't add a rule and then a shape-allowlist escape.
+- `RedactUnlessSafe` keeps a value only when its shape is safe (bool, ARN, resource id, reference); anything else becomes a reason-tagged placeholder. `KeyField` names the sibling that holds the key name (`OptionName`); `KeyIsSensitive` treats every value as secret-keyed. Numbers are not safe (PINs, card numbers).
 - **Volatile** removes a key the API changes on every read regardless of real change (CloudWatch Logs `UploadSequenceToken`), so it cannot version-split an unchanged resource. Paths are dot-separated literal keys (no wildcards). `Store.UpsertResources` runs `volatile.Apply` right after `redact.Apply`. Never mark a field that changes on real activity (IAM `RoleLastUsed.LastUsedDate`, log-group `StoredBytes`) — that is a legitimate version trigger.
 
 Tests: `<p>_redact_test.go` and `aws_volatile_test.go` build payloads from real SDK types (`json.Marshal`), so an SDK field rename breaks them on `go mod tidy`.

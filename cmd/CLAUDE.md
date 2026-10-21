@@ -244,7 +244,7 @@ New column-anchored time filters follow the same half-open `{*-since, *-before}`
 
 ## `--exclude-types` plumbs through `ResourceFilter.ExcludeTypes`
 
-`resources`, `summary`, `tag-coverage`, and `check` all expose `--exclude-types` (StringSlice → comma-separated). All forward to `store.ResourceFilter.ExcludeTypes` (SQL `NOT IN`), so the filter is applied at the SQL layer: so denominators (tag-coverage rate, summary `total`) drop along with the displayed rows — not just display masking. Compatible with `--type` (include); both clauses AND together. Default-hide of noisy types (e.g. `aws:logs:log-stream`) deliberately rejected — security work cares about log-stream coverage; the flag is the user-driven escape hatch.
+`resources`, `summary`, `tag-coverage`, and `check` all expose `--exclude-types` (StringSlice → comma-separated). All forward to `store.ResourceFilter.ExcludeTypes` (SQL `NOT IN`), so the filter is applied at the SQL layer: so denominators (tag-coverage rate, summary `total`) drop along with the displayed rows — not just display masking. Compatible with `--type` (include); both clauses AND together. Default-hide of noisy types (e.g. `aws:logs:log-stream`) deliberately rejected — security work cares about log-stream coverage; the flag is the user-driven escape hatch. Sole exception: `tag-coverage` drops `Untaggable` types by default (`--include-untaggable`).
 
 ## DOT `dir=back` requires endpoint swap, not just attribute
 

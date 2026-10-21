@@ -130,6 +130,9 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   gate: label-no-op / label-no-anchor / label-malformed / unresolved-receiver fail; sdk-skew and sdk-module-absent are
   logged. `TestEveryEmittedTypePaired` prints `Result.StoredBy[type]` with the failure, which is
   the only thing that names which scanner the walker could not reach.
+- Methods are keyed by bare name: two receivers sharing a method name make it ambiguous and the walker
+  follows neither (a new `report` method collided with `defaultsOutcome.report`). An op label sitting beside
+  a function value in a phase table is not anchored to that function; call each phase directly.
 - An unaliased import binds the last path segment the importing file uses as a selector root
   (`admin/directory/v1` binds `admin`); the imported package clause is not read.
 - Before replacing a pairing heuristic, dump live `Result.Pairings` for every provider (a
