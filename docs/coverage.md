@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 61.1% (2038/3336 listable) · depth0 72.8% · depth1 44.2% · depth2 36.6% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.9% (2030/3336 listable) · depth0 72.7% · depth1 43.8% · depth2 35.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1053 | 168 | 86.2 |
+| sr-resource | 1045 | 176 | 85.6 |
 | child-uncatalogued | 308 | 709 | 30.3 |
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 203 | 213 | 48.8 |
@@ -50,6 +50,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | devicefarm | 8 | 11 | 42.1 |
 | clouddirectory | 2 | 10 | 16.7 |
 | codecatalyst | 0 | 10 | 0.0 |
+| finspace | 0 | 10 | 0.0 |
 | imagebuilder | 9 | 10 | 47.4 |
 | securityagent | 15 | 10 | 60.0 |
 | auditmanager | 3 | 9 | 25.0 |
@@ -181,7 +182,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ds | 9 | 2 | 81.8 |
 | elasticache | 12 | 2 | 85.7 |
 | entityresolution | 4 | 2 | 66.7 |
-| finspace | 8 | 2 | 80.0 |
 | fms | 5 | 2 | 71.4 |
 | fsx | 8 | 2 | 80.0 |
 | glacier | 1 | 2 | 33.3 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1298)
+### Uncovered (listable, no scanner) (1306)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -903,8 +903,16 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | events | events/rulename | 3 |  | child-uncatalogued | events:ListRuleNamesByTarget |
 | evs | evs/accountsetting | 0 |  | element-written | evs:GetAccountSettings |
 | execute-api | execute-api/transcript | 0 |  | element-written | execute-api:GetTranscript |
+| finspace | finspace/environment | 0 |  | sr-resource | finspace:GetEnvironment, finspace:ListEnvironments |
 | finspace | finspace/kxchangeset | 2 |  | child-uncatalogued | finspace:GetKxChangeset, finspace:ListKxChangesets |
+| finspace | finspace/kxcluster | 1 |  | sr-resource | finspace:GetKxCluster, finspace:ListKxClusters |
 | finspace | finspace/kxclusternode | 2 |  | child-uncatalogued | finspace:ListKxClusterNodes |
+| finspace | finspace/kxdatabase | 1 |  | sr-resource | finspace:GetKxDatabase, finspace:ListKxDatabases |
+| finspace | finspace/kxdataview | 2 |  | sr-resource | finspace:GetKxDataview, finspace:ListKxDataviews |
+| finspace | finspace/kxenvironment | 0 |  | sr-resource | finspace:GetKxEnvironment, finspace:ListKxEnvironments |
+| finspace | finspace/kxscalinggroup | 1 |  | sr-resource | finspace:GetKxScalingGroup, finspace:ListKxScalingGroups |
+| finspace | finspace/kxuser | 1 |  | sr-resource | finspace:GetKxUser, finspace:ListKxUsers |
+| finspace | finspace/kxvolume | 1 |  | sr-resource | finspace:GetKxVolume, finspace:ListKxVolumes |
 | finspace-api | finspace-api/changeset | 1 |  | child-uncatalogued | finspace-api:GetChangeset, finspace-api:ListChangesets |
 | finspace-api | finspace-api/dataset | 0 |  | element-written | finspace-api:GetDataset, finspace-api:ListDatasets |
 | finspace-api | finspace-api/dataview | 1 |  | child-uncatalogued | finspace-api:GetDataView, finspace-api:ListDataViews |

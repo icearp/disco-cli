@@ -301,7 +301,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/entityresolution v1.30.3
 	github.com/aws/aws-sdk-go-v2/service/eventbridge v1.48.3
 	github.com/aws/aws-sdk-go-v2/service/evs v1.13.3
-	github.com/aws/aws-sdk-go-v2/service/finspace v1.36.3
 	github.com/aws/aws-sdk-go-v2/service/firehose v1.46.3
 	github.com/aws/aws-sdk-go-v2/service/fis v1.40.3
 	github.com/aws/aws-sdk-go-v2/service/fms v1.47.3

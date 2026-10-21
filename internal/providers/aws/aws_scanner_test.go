@@ -161,8 +161,6 @@ var expectedAWSServices = []string{
 	"aws:health-agent",
 	"aws:health-imaging",
 	"aws:grafana",
-	"aws:fin-space",
-	"aws:finspace",
 	"aws:evs",
 	"aws:emr-serverless",
 	"aws:elemental-inference",
