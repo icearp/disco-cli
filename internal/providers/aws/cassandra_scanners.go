@@ -281,7 +281,10 @@ func scanCassandraStreams(ctx context.Context, client cassandraStreamsAPI, table
 			// dual-stack domain (api.aws in the aws partition), which egress
 			// filtering can block. Returned, a network error joined with the
 			// other phases' errors would make the dispatcher reclassify the
-			// whole service and zero the counts of the rows already stored.
+			// whole service: NXDOMAIN as region-unavailable, which zeroes the
+			// counts of the rows already stored, and any other network error
+			// as transient, which reports the other phases' hard errors as
+			// transient ones.
 			case isTransientNetworkError(perr):
 				_ = skipIfTransient(st, op, acct.ID, region, fmt.Errorf("dual-stack endpoint cassandra-streams.%s unreachable: %w", region, perr))
 			case !listed && isOpNotDeployed(perr):

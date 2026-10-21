@@ -91,8 +91,9 @@ func scanCognito(ctx context.Context, acct *account, region string, st *store.St
 // pools and clients the pool phase stored, so an identity-pool or extended
 // phase failure does not skip them and their failure costs no older phase its
 // rows. The older phases' transient error is demoted to a warning, since one
-// transient member would make the dispatcher read the whole join as transient
-// and drop every phase's counts; the errors are joined and the counts summed.
+// transient member would make the dispatcher read the whole join as transient,
+// reporting a newer phase's hard error as a transient one; the errors are
+// joined and the counts summed.
 func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pools, ferr := listCognitoUserPoolIDs(ctx, idpClient, acct, region, st)
 	if ferr != nil {

@@ -67,7 +67,8 @@ func scanDirectoryService(ctx context.Context, acct *account, region string, st 
 // is warned about here rather than returned, unless it carries a store write
 // failure (isDemotableTransient): the dispatcher classifies a
 // joined error by any member, so one throttled phase would make the whole
-// service a transient skip and discard the other phases' counts.
+// service's result transient and report the other phases' hard errors as
+// transient ones.
 func scanDirectoryServiceIn(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
 		dirs []dsDirectory

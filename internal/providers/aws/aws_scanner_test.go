@@ -1,12 +1,21 @@
 package aws
 
 import (
+	"context"
+	"errors"
+	"fmt"
+	"io"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/drs"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/icearp/disco-cli/internal/providers"
+	"github.com/icearp/disco-cli/internal/scanrun"
+	"github.com/icearp/disco-cli/store"
 )
 
 // expectedAWSServices is the authoritative list of service names that must be
@@ -524,6 +533,156 @@ func TestMustJSON_ResultMetadata(t *testing.T) {
 				if got := mustJSON(c.v); got != c.want {
 					t.Errorf("call %d: mustJSON = %s, want %s", call+1, got, c.want)
 				}
+			}
+		})
+	}
+}
+
+// dispatchScanner runs scanAccount for one test account, so a test reaches the
+// dispatcher through scanrun's real collection and finalisation.
+type dispatchScanner struct {
+	acct     *account
+	services []string
+}
+
+func (dispatchScanner) Name() string { return "aws" }
+
+func (d dispatchScanner) Scan(ctx context.Context, st *store.Store, scanID string) error {
+	scanAccount(ctx, d.acct, d.services, false, st, scanID)
+	return nil
+}
+
+// serviceReport is one OnServiceComplete call.
+type serviceReport struct {
+	scope                          string
+	total, newCount, changed, errs int
+	status                         store.ServiceStatus
+}
+
+// dispatchOutcome is what one dispatched service left behind.
+type dispatchOutcome struct {
+	reports  []serviceReport
+	errors   []store.ScanError
+	warnings []store.ScanWarning
+	partial  bool
+}
+
+// runDispatched registers a service named name whose scan stores one new row
+// and one changed row and then returns err, runs it through scanrun, and
+// returns its reports, errors and warnings plus whether the scan finalised
+// partial. Swapping registeredServices means no test calling this may run in
+// parallel with another that reads it.
+func runDispatched(t *testing.T, name string, global bool, err error) dispatchOutcome {
+	t.Helper()
+	const region = "us-east-1"
+	st := newTestStore(t)
+	changedNID := "arn:aws:sqs:us-east-1:123456789012:changed"
+	upsertTestResource(t, st, "aws", testAccountID, TypeSQSQueue, changedNID, region, `{"v":1}`)
+	fn := func(_ context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
+		var rows []*store.Resource
+		for _, nid := range []string{"arn:aws:sqs:us-east-1:123456789012:new", changedNID} {
+			rows = append(rows, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, Type: TypeSQSQueue, NativeID: nid,
+				Region: ptrStr(region), AttributesJSON: `{"v":2}`, DiscoveredBy: scanID,
+			})
+		}
+		n, uerr := st.UpsertResources(rows)
+		if uerr != nil {
+			return 0, 0, uerr
+		}
+		return len(rows), n, err
+	}
+	saved := registeredServices
+	registeredServices = append(slices.Clone(registeredServices), serviceEntry{name: name, global: global, fn: fn})
+	t.Cleanup(func() { registeredServices = saved })
+
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(map[string]func(any) (any, error){
+		"DescribeRegions": func(any) (any, error) {
+			return &ec2.DescribeRegionsOutput{Regions: []ec2types.Region{{RegionName: ptrStr(region)}}}, nil
+		},
+	}, nil)
+
+	var (
+		mu  sync.Mutex
+		out dispatchOutcome
+	)
+	st.OnServiceComplete = func(service, scope string, total, newCount, changed, errCount int, status store.ServiceStatus) {
+		if service != name {
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		out.reports = append(out.reports, serviceReport{scope, total, newCount, changed, errCount, status})
+	}
+	_, warnings, scanErrors, _, _ := scanrun.RunScanners(context.Background(), st, testScanID, []providers.Scanner{dispatchScanner{acct, []string{name}}})
+	for _, w := range warnings {
+		if w.Service == name || w.ServiceName == name {
+			out.warnings = append(out.warnings, w)
+		}
+	}
+	for _, e := range scanErrors {
+		if e.Service == name {
+			out.errors = append(out.errors, e)
+		}
+	}
+	res, ferr := scanrun.Finalize(st, testScanID, scanErrors, warnings, false)
+	if ferr != nil {
+		t.Fatalf("Finalize: %v", ferr)
+	}
+	if len(scanErrors) != len(out.errors) {
+		t.Fatalf("scan errors from other services make Partial meaningless: %+v", scanErrors)
+	}
+	out.partial = res.Partial
+	return out
+}
+
+// A service that stored rows and then failed transiently keeps its counts, is
+// recorded as one scan error (not also a warning), and marks the scan partial,
+// in both dispatcher lanes. A clean run in each lane stays complete, and a
+// disabled sentinel reports zero counts and the disabled status without an
+// error.
+func TestDispatch_TransientAfterRows(t *testing.T) {
+	transient := fmt.Errorf("list page 2: %w", io.ErrUnexpectedEOF)
+	disabled := markServiceDisabled(errors.New("not subscribed"))
+	cases := []struct {
+		name      string
+		global    bool
+		err       error
+		outcome   serviceOutcome // checked only when err != nil
+		want      serviceReport
+		wantErrAt string // ScanError scope; "" means no error
+	}{
+		{"global transient", true, transient, outcomeTransient, serviceReport{"global", 2, 1, 1, 1, store.ServiceOK}, testAccountID},
+		{"regional transient", false, transient, outcomeTransient, serviceReport{"us-east-1", 2, 1, 1, 1, store.ServiceOK}, testAccountID + "/us-east-1"},
+		{"global success", true, nil, 0, serviceReport{"global", 2, 1, 1, 0, store.ServiceOK}, ""},
+		{"regional success", false, nil, 0, serviceReport{"us-east-1", 2, 1, 1, 0, store.ServiceOK}, ""},
+		{"regional disabled", false, disabled, outcomeDisabled, serviceReport{"us-east-1", 0, 0, 0, 0, store.ServiceDisabled}, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if c.err != nil && classifyServiceError(c.err) != c.outcome {
+				t.Fatalf("fixture error %v classifies as %v, want %v", c.err, classifyServiceError(c.err), c.outcome)
+			}
+			got := runDispatched(t, "aws:test-dispatch", c.global, c.err)
+			if want := []serviceReport{c.want}; !slices.Equal(got.reports, want) {
+				t.Errorf("ReportService calls = %+v, want %+v", got.reports, want)
+			}
+			wantErrs := 0
+			if c.wantErrAt != "" {
+				wantErrs = 1
+			}
+			if len(got.errors) != wantErrs {
+				t.Fatalf("scan errors = %+v, want %d", got.errors, wantErrs)
+			}
+			if wantErrs == 1 && got.errors[0].Scope != c.wantErrAt {
+				t.Errorf("scan error scope = %q, want %q", got.errors[0].Scope, c.wantErrAt)
+			}
+			if len(got.warnings) != 0 {
+				t.Errorf("warnings = %+v, want none: a failure is reported once, as an error", got.warnings)
+			}
+			if got.partial != (wantErrs == 1) {
+				t.Errorf("Partial = %v, want %v", got.partial, wantErrs == 1)
 			}
 		})
 	}

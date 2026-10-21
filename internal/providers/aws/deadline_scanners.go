@@ -65,9 +65,9 @@ func deadlineFarmARN(region, acct, farmID string) string {
 // fleets and queues the older phases stored before any failure, so a member
 // phase's failure costs the older phases no rows, and an older phase's failure
 // costs the member phases only the members of parents it never stored. The
-// older side's demotable transient
-// error is demoted to a warning, since one transient member would make the
-// dispatcher read the whole join as transient and drop every phase's counts.
+// older side's demotable transient error is demoted to a warning, since one
+// transient member would make the dispatcher read the whole join as transient,
+// reporting a member phase's hard error as a transient one.
 // The member phases skip a parent still transient after the SDK's retries
 // (childFanOutSkipTransient), so no transient error leaves them. The errors are
 // joined and the counts summed.

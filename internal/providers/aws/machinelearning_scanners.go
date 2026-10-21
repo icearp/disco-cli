@@ -58,7 +58,7 @@ func scanMachineLearning(ctx context.Context, acct *account, region string, st *
 // scanMachineLearningAll runs every phase even when one fails, and passes each
 // phase's error through demoteTransient before joining, so a throttle on one
 // phase cannot make the dispatcher classify the whole service transient and
-// discard the other phases' counts or hide their hard errors.
+// report the other phases' hard errors as transient ones.
 func scanMachineLearningAll(ctx context.Context, client machineLearningAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	if err := gateMachineLearning(ctx, client); err != nil {
 		return 0, 0, err

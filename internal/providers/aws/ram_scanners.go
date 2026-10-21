@@ -49,7 +49,7 @@ func scanRAM(ctx context.Context, acct *account, region string, st *store.Store,
 // covers. The phases are independent: each runs whatever another returns, and
 // every error passes through demoteTransient before the join, so a throttle on
 // one phase cannot make the dispatcher read another phase's hard error as
-// transient and discard every phase's counts.
+// transient.
 func scanRAMAll(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	shares, t1, i1, serr := scanRAMResourceShares(ctx, client, acct, region, st, scanID)
 	t2, i2, perr := scanRAMPermissions(ctx, client, acct, region, st, scanID)

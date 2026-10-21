@@ -45,8 +45,8 @@ func scanBackupGateway(ctx context.Context, acct *account, region string, st *st
 // hard error, then the per-parent configuration phases over the parents stored
 // before that error, so a failure on either side costs the other no rows. The
 // resource side's transient error is demoted to a warning: one transient
-// member would make the dispatcher read the whole join as transient, hiding a
-// configuration phase's hard error and discarding every phase's counts.
+// member would make the dispatcher read the whole join as transient,
+// reporting a configuration phase's hard error as a transient one.
 func scanBackupGatewayAll(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, parents, err := scanBackupGatewayResources(ctx, client, acct, region, st, scanID)
 	t1, i1, serr := scanBackupGatewayBandwidthSchedules(ctx, client, acct, region, st, scanID, parents.gateways)

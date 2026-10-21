@@ -65,8 +65,8 @@ func scanGameLift(ctx context.Context, acct *account, region string, st *store.S
 // classify it (NXDOMAIN in a region without GameLift is region-unavailable).
 // A later phase's transient error is warned about here rather than returned:
 // the dispatcher classifies a joined error by any member, so one throttled
-// phase would make the whole service a transient skip, discarding the other
-// phases' counts and downgrading their hard errors.
+// phase would make the whole service's result transient, downgrading the
+// other phases' hard errors to transient ones.
 func scanGameLiftIn(ctx context.Context, client gameLiftAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
 		fleets []gltypes.FleetAttributes

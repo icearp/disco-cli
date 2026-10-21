@@ -61,7 +61,7 @@ type opensearchAPI interface {
 // and their errors are joined. A transient network
 // error from a later phase warns instead of being joined, because one
 // transient member makes the dispatcher classify the whole joined error as
-// transient, which drops the counts and hides every hard error beside it.
+// transient, which reports every hard error beside it as a transient one.
 // Attachments fan out over the applications listed earlier in the same scan.
 func scanOpenSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := opensearch.NewFromConfig(acct.cfg, func(o *opensearch.Options) { o.Region = region })

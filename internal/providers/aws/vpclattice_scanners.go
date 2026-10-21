@@ -58,7 +58,8 @@ type vpcLatticeAPI interface {
 // older phases stored before any failure, so a child phase's failure costs the
 // older phases no rows. The older side's demotable transient error is demoted
 // to a warning, since one transient member would make the dispatcher read the
-// whole join as transient and drop every phase's counts. The child phases skip
+// whole join as transient, reporting a child phase's hard error as a transient
+// one. The child phases skip
 // a parent still transient after the SDK's retries, so no transient error
 // leaves them. The errors are joined and the counts summed.
 func scanVpcLattice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

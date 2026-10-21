@@ -43,8 +43,8 @@ func scanEFS(ctx context.Context, acct *account, region string, st *store.Store,
 
 // scanEFSAll holds the testable scan body. Replication configurations run
 // after the file system phases whatever they returned. Both sides demote a
-// transient error to a warning, so it cannot mask the other side's hard error
-// or discard its counts.
+// transient error to a warning, so it cannot make the dispatcher report the
+// other side's hard error as a transient one.
 func scanEFSAll(ctx context.Context, client efsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, fileSystems, err := scanEFSFileSystemsAndChildren(ctx, client, acct, region, st, scanID)
 	t, i, rerr := scanEFSReplicationConfigurations(ctx, client, acct, region, st, scanID, fileSystems)

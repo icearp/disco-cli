@@ -391,14 +391,14 @@ func isEndpointUnreachable(err error) bool {
 // isTransientNetworkError reports whether err looks like a momentary network
 // or service-side glitch rather than a permanent failure. The SDK v2 retryer
 // already handles throttling and 5xx within its budget; anything that reaches
-// us is post-retry. A one-off DNS blip or endpoint flap should warn-skip and
-// let sibling services continue, matching the AccessDenied policy — otherwise
-// a single hiccup aborts the whole scan.
+// us is post-retry. The transient rung exists to label such an error as
+// momentary (a DNS blip, an endpoint flap), so its scan error says a rescan,
+// not a permission or config change, is the fix.
 //
 // Context cancellation (Ctrl-C, parent timeout) is deliberately NOT treated
 // as transient: those indicate the scan should stop. Nor is a deadline: the
 // only deadline in play is the per-service budget (serviceTimeout), and
-// exhausting it means the scanner produced nothing at all — see outcomeDeadline.
+// exhausting it means the scanner did not finish — see outcomeDeadline.
 // Without this exclusion it would satisfy the net.Error.Timeout() rung below
 // and be reported as a momentary glitch.
 func isTransientNetworkError(err error) bool {
@@ -425,7 +425,7 @@ func isTransientNetworkError(err error) bool {
 	// a bare io.EOF ("request send failed, Post ...: EOF") — neither a net.* type
 	// nor an APIError, so none of the checks above or below match it. Observed
 	// post-retry on transcribe:ListCallAnalyticsCategories; a dropped connection
-	// is a momentary glitch, so warn-skip like any other transient.
+	// is a momentary glitch, so it is transient like the rest.
 	var sendErr *smithyhttp.RequestSendError
 	if errors.As(err, &sendErr) {
 		return true
@@ -630,14 +630,15 @@ const (
 	// outcomeBlocked: AWS refuses every operation on the service, for everyone,
 	// regardless of IAM. Silent — no permission change or retry would help.
 	outcomeBlocked
-	// outcomeTransient: momentary cloud-side glitch. Warn and continue.
+	// outcomeTransient: momentary cloud-side glitch. Still an error: the rows
+	// the service would have listed after it are missing from this scan.
 	outcomeTransient
 	// outcomeDeadline: the service burned its whole per-service budget
-	// (serviceTimeout) and returned nothing. Hard error, deliberately: it is not
+	// (serviceTimeout) before it finished. Hard error, deliberately: it is not
 	// a cloud-side glitch but a defect on our side — a scanner dispatched
 	// somewhere the service is not offered, or one whose paging does not
 	// terminate. The scan finishing "completed" while a service silently
-	// contributed zero rows is exactly the failure this classification exists to
+	// stopped short is exactly the failure this classification exists to
 	// make visible.
 	outcomeDeadline
 	// outcomeError: anything else. Hard error.
@@ -649,7 +650,14 @@ const (
 // "canceled, context deadline exceeded" reads like a cloud-side failure when it
 // is in fact our own dispatcher giving up on a call that never came back.
 func serviceDeadlineMessage(err error) string {
-	return fmt.Sprintf("returned no data: exceeded the %s per-service time budget (%v)", serviceTimeout, err)
+	return fmt.Sprintf("did not finish within the %s per-service time budget, so its results for this scope may be incomplete (%v)", serviceTimeout, err)
+}
+
+// serviceTransientMessage renders the scan-error text for outcomeTransient. It
+// says the cause is momentary, so the reader knows a rescan, not a permission or
+// config change, is the fix.
+func serviceTransientMessage(err error) string {
+	return fmt.Sprintf("transient: %v (this service's results for this scope may be incomplete; a rescan may succeed)", err)
 }
 
 // classifyServiceError walks the dispatch ladder for err.
@@ -658,9 +666,9 @@ func serviceDeadlineMessage(err error) string {
 // reason: a store-write failure would otherwise match rungs below it. pgconn
 // reports a dropped Postgres connection as an EOF and a dial timeout as a
 // net.Error, both of which isTransientNetworkError treats as a momentary cloud
-// glitch — so a database outage would be reported as a benign per-service
-// warning while every row it should have persisted vanished, and the scan would
-// still report success. Do not reorder.
+// glitch — so a database outage would be reported as a cloud-side hiccup that a
+// rescan fixes, hiding that the rows it should have persisted vanished. Do not
+// reorder.
 func classifyServiceError(err error) serviceOutcome {
 	switch {
 	case errors.Is(err, store.ErrStoreWrite):
@@ -683,9 +691,10 @@ func classifyServiceError(err error) serviceOutcome {
 	case isServiceBlocked(err):
 		return outcomeBlocked
 	// Must precede the transient rung: a deadline satisfies net.Error.Timeout(),
-	// so isTransientNetworkError would otherwise downgrade budget exhaustion to
-	// a warning. The only deadline in the scan is the per-service budget — there
-	// is no scan-wide one — so this cannot fire for an unrelated timeout.
+	// so isTransientNetworkError would otherwise report budget exhaustion as a
+	// momentary glitch instead of naming the budget. The only deadline in the
+	// scan is the per-service budget — there is no scan-wide one — so this
+	// cannot fire for an unrelated timeout.
 	case errors.Is(err, context.DeadlineExceeded):
 		return outcomeDeadline
 	case isTransientNetworkError(err):

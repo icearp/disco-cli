@@ -42,8 +42,8 @@ func scanAppIntegrations(ctx context.Context, acct *account, region string, st *
 // error, then the association phases over the parents stored before that
 // error, so a failure on either side costs the other no rows. The parent
 // side's transient error is demoted to a warning: one transient member would
-// make the dispatcher read the whole join as transient, hiding an association
-// phase's hard error and discarding every phase's counts.
+// make the dispatcher read the whole join as transient, reporting an
+// association phase's hard error as a transient one.
 func scanAppIntegrationsAll(ctx context.Context, client appintegrationsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, parents, err := scanAppIntegrationsParents(ctx, client, acct, region, st, scanID)
 	t, i, aerr := scanAppIntegrationsAssociations(ctx, client, acct, region, st, scanID, parents)

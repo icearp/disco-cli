@@ -218,33 +218,7 @@ func scanAccount(ctx context.Context, acct *account, services []string, skipGlob
 			defer cancel()
 			var newC, changedC atomic.Int64
 			total, _, err := svc.fn(svcCtx, acct, "", st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
-			if err != nil {
-				switch classifyServiceError(err) {
-				case outcomeDisabled:
-					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceDisabled)
-				case outcomeNotEntitled:
-					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceNotEntitled)
-				case outcomeUnavailable:
-					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceUnavailable)
-				case outcomeBlocked:
-					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceBlocked)
-				case outcomeTransient:
-					_ = skipIfTransient(st, svc.name, acct.ID, "", err)
-					st.ReportService(svc.name, "global", 0, 0, 0, 0, store.ServiceOK)
-				case outcomeDeadline:
-					st.ReportError(store.ScanError{
-						Provider: "aws", Service: svc.name, Scope: acct.ID, Message: serviceDeadlineMessage(err),
-					})
-					st.ReportService(svc.name, "global", total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
-				case outcomeStoreWrite, outcomeError:
-					st.ReportError(store.ScanError{
-						Provider: "aws", Service: svc.name, Scope: acct.ID, Message: err.Error(),
-					})
-					st.ReportService(svc.name, "global", total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
-				}
-				return
-			}
-			st.ReportService(svc.name, "global", total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
+			reportServiceOutcome(st, svc.name, "global", acct.ID, total, int(newC.Load()), int(changedC.Load()), err)
 		})
 	}
 
@@ -382,36 +356,51 @@ func scanRegion(ctx context.Context, acct *account, region string, services []st
 			defer cancel()
 			var newC, changedC atomic.Int64
 			total, _, err := svc.fn(svcCtx, acct, region, st.WithUpsertCounters(&newC, &changedC).WithWarningService(svc.name), scanID)
-			if err != nil {
-				switch classifyServiceError(err) {
-				case outcomeDisabled:
-					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceDisabled)
-				case outcomeNotEntitled:
-					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceNotEntitled)
-				case outcomeUnavailable:
-					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceUnavailable)
-				case outcomeBlocked:
-					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceBlocked)
-				case outcomeTransient:
-					_ = skipIfTransient(st, svc.name, acct.ID, region, err)
-					st.ReportService(svc.name, region, 0, 0, 0, 0, store.ServiceOK)
-				case outcomeDeadline:
-					st.ReportError(store.ScanError{
-						Provider: "aws", Service: svc.name, Scope: acct.ID + "/" + region, Message: serviceDeadlineMessage(err),
-					})
-					st.ReportService(svc.name, region, total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
-				case outcomeStoreWrite, outcomeError:
-					st.ReportError(store.ScanError{
-						Provider: "aws", Service: svc.name, Scope: acct.ID + "/" + region, Message: err.Error(),
-					})
-					st.ReportService(svc.name, region, total, int(newC.Load()), int(changedC.Load()), 1, store.ServiceOK)
-				}
-				return
-			}
-			st.ReportService(svc.name, region, total, int(newC.Load()), int(changedC.Load()), 0, store.ServiceOK)
+			reportServiceOutcome(st, svc.name, region, acct.ID+"/"+region, total, int(newC.Load()), int(changedC.Load()), err)
 		})
 	}
 	wg.Wait()
+}
+
+// reportServiceOutcome reports one dispatched service's result: to the progress
+// line under label ("global" or the region) and, for a failure, as a scan error
+// under errScope. The skip outcomes report zero counts: each says the service is
+// absent or refused in this scope, and a scanner returns a skip sentinel only
+// when it stored nothing (aws/CLAUDE.md "Dispatch states"). Every failure
+// outcome reports the counts the service did store and records an error, which
+// marks the scan partial. That includes a transient failure that reaches the
+// dispatcher: it is momentary, but this scan's rows for the service are still
+// incomplete. A transient failure a scanner demotes inside a phase
+// (demoteTransient, skipIfTransient) never reaches here: it stays a warning,
+// and the scan can finalise completed with those rows missing.
+func reportServiceOutcome(st *store.Store, service, label, errScope string, total, newCount, changed int, err error) {
+	if err == nil {
+		st.ReportService(service, label, total, newCount, changed, 0, store.ServiceOK)
+		return
+	}
+	var msg string
+	switch classifyServiceError(err) {
+	case outcomeDisabled:
+		st.ReportService(service, label, 0, 0, 0, 0, store.ServiceDisabled)
+		return
+	case outcomeNotEntitled:
+		st.ReportService(service, label, 0, 0, 0, 0, store.ServiceNotEntitled)
+		return
+	case outcomeUnavailable:
+		st.ReportService(service, label, 0, 0, 0, 0, store.ServiceUnavailable)
+		return
+	case outcomeBlocked:
+		st.ReportService(service, label, 0, 0, 0, 0, store.ServiceBlocked)
+		return
+	case outcomeTransient:
+		msg = serviceTransientMessage(err)
+	case outcomeDeadline:
+		msg = serviceDeadlineMessage(err)
+	case outcomeStoreWrite, outcomeError:
+		msg = err.Error()
+	}
+	st.ReportError(store.ScanError{Provider: "aws", Service: service, Scope: errScope, Message: msg})
+	st.ReportService(service, label, total, newCount, changed, 1, store.ServiceOK)
 }
 
 // dispatchesTo reports whether scanRegion dispatches the regional service name

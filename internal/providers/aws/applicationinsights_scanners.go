@@ -87,8 +87,8 @@ func appInsightsLogPatternNativeID(setNativeID, pattern string) string {
 // The two child families are independent, so they run concurrently, and
 // neither cancels the other; all errors are joined. The applications phase's
 // transient error is demoted to a warning, because one transient member would
-// make the dispatcher read the whole join as transient, hiding a child phase's
-// hard error and discarding every phase's counts.
+// make the dispatcher read the whole join as transient, reporting a child
+// phase's hard error as a transient one.
 func scanApplicationInsights(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := applicationinsights.NewFromConfig(acct.cfg, func(o *applicationinsights.Options) { o.Region = region })
 	total, inserted, apps, err := scanApplicationInsightsApplications(ctx, client, acct, region, st, scanID)

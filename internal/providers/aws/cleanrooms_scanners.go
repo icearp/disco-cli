@@ -134,7 +134,8 @@ func scanCleanRoomsIn(ctx context.Context, client cleanRoomsAPI, acct *account, 
 		total += t
 		inserted += i
 		// A joined transient error would make the dispatcher classify the
-		// whole service transient and drop the other phases' errors.
+		// whole service transient and report the other phases' hard errors
+		// as transient ones.
 		if isTransientNetworkError(perr) {
 			_ = skipIfTransient(st, phase.name, acct.ID, region, perr)
 			continue

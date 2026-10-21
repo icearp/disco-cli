@@ -56,9 +56,11 @@ func scanDirectoryServiceData(ctx context.Context, acct *account, region string,
 // A Directory Service Data host that does not resolve is returned while
 // nothing is stored, so the dispatcher reports the region unavailable without
 // a warning: the service may be offered in fewer regions than Directory
-// Service, and its SDK ships no endpoint table to skip them up front. After rows are
-// stored, a transient error (that one included) is warned about rather than
-// returned, because the dispatcher would discard the stored rows' counts.
+// Service, and its SDK ships no endpoint table to skip them up front. After
+// rows are stored, a transient error (that one included) is warned about
+// rather than returned. Returned, that unresolvable host would make the
+// dispatcher report the region unavailable and discard the stored rows'
+// counts; any other transient error would become a transient scan error.
 func scanDirectoryServiceDataIn(ctx context.Context, dirs dsDataDirectoriesAPI, data directoryServiceDataAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	parents, err := dsDataParents(ctx, dirs, acct, region, st)
 	if err != nil || len(parents) == 0 {

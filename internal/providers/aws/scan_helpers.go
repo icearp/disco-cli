@@ -526,8 +526,8 @@ func isDemotableTransient(err error) bool {
 // demoteTransient reports a phase's transient error as a warning and drops it,
 // for scanners that join the errors of independent phases. The dispatcher
 // classifies a join as transient when any member is a network error or its
-// first API error is a throttle or 5xx, so a joined transient error would hide
-// another phase's hard error and discard the counts of every phase.
+// first API error is a throttle or 5xx, so a joined transient error would
+// report another phase's hard error as a transient one that a rescan fixes.
 // NXDOMAIN is returned unchanged: the dispatcher reads it as a silent
 // (region: unavailable) before its transient rung, so demoting it would turn
 // a region gap into a warning.

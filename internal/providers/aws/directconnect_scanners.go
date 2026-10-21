@@ -56,8 +56,7 @@ func scanDirectConnect(ctx context.Context, acct *account, region string, st *st
 // error, then the interconnect and resiliency-group phases, so a failure in
 // one costs the others no rows. Each side's transient error is demoted to a
 // warning: one transient member would make the dispatcher read the whole join
-// as transient, hiding another phase's hard error and discarding every phase's
-// counts.
+// as transient, reporting another phase's hard error as a transient one.
 func scanDirectConnectAll(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, err := scanDXOlderPhases(ctx, client, acct, region, st, scanID)
 	ti, ii, ierr := scanDXInterconnects(ctx, client, acct, region, st, scanID)

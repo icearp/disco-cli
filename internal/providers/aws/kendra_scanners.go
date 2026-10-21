@@ -60,8 +60,7 @@ func scanKendra(ctx context.Context, acct *account, region string, st *store.Sto
 // than an access denial (a transient one included), then the experience entity
 // and persona phases over the experiences stored before that error. The older side's transient error is demoted to a
 // warning: one transient member would make the dispatcher read the whole join
-// as transient, hiding a newer phase's hard error and discarding every phase's
-// counts.
+// as transient, reporting a newer phase's hard error as a transient one.
 func scanKendraAll(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, experiences, err := scanKendraOlderPhases(ctx, client, acct, region, st, scanID)
 	te, ie, eerr := scanKendraExperienceEntities(ctx, client, acct, region, st, scanID, experiences)

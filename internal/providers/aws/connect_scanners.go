@@ -39,8 +39,8 @@ func scanConnect(ctx context.Context, acct *account, region string, st *store.St
 // other no rows. Analytics reads no stored parents, so it need not wait for
 // the older side. Both sides demote their own transient errors to warnings
 // before returning: one transient member would make the dispatcher read the
-// whole join as transient, hiding the other side's hard error and discarding
-// every family's counts.
+// whole join as transient, reporting the other side's hard error as a
+// transient one.
 func scanConnectAll(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var (
 		wg                    sync.WaitGroup

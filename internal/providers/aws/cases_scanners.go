@@ -45,8 +45,8 @@ func scanCases(ctx context.Context, acct *account, region string, st *store.Stor
 // then the field-option phase over the single-select fields stored before that
 // error, so a failure on either side costs the other no rows. The older side's
 // transient error is demoted to a warning: one transient member would make the
-// dispatcher read the whole join as transient, hiding the option phase's hard
-// error and discarding every phase's counts.
+// dispatcher read the whole join as transient, reporting the option phase's
+// hard error as a transient one.
 func scanCasesAll(ctx context.Context, client casesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, selectFields, err := scanCasesOlderPhases(ctx, client, acct, region, st, scanID)
 	t, i, oerr := scanCasesFieldOptions(ctx, client, acct, region, st, scanID, selectFields)

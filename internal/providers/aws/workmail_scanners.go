@@ -189,10 +189,10 @@ func (s *workMailScan) rejectOrg(op string, org childParent, err error) {
 //
 // A transient network error is warned about here rather than returned:
 // scanWorkMailIn joins the phase errors, and the dispatcher classifies a join
-// by any member, so one throttled phase would make the whole service a
-// transient skip, discarding the other phases' counts and downgrading their
-// hard errors. A store write error is never transient (store formats the
-// cause with %s), and childFanOut returns one error, never a join.
+// by any member, so one throttled phase would make the whole service's result
+// transient, downgrading the other phases' hard errors to transient ones. A
+// store write error is never transient (store formats the cause with %s), and
+// childFanOut returns one error, never a join.
 func (s *workMailScan) fanOut(ctx context.Context, op string, list func(context.Context, childParent) ([]*store.Resource, error)) (int, int, error) {
 	return s.fanOutThen(ctx, op, list, nil)
 }

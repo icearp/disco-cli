@@ -52,9 +52,8 @@ func scanElasticBeanstalk(ctx context.Context, acct *account, region string, st 
 // stored before that error, so a failure on either side costs the other no
 // rows. The older side's transient error is demoted to a warning: one
 // transient member would make the dispatcher read the whole join as
-// transient, hiding the template phase's hard error and discarding every
-// phase's counts. The template phase tallies its own transient errors per
-// template.
+// transient, reporting the template phase's hard error as a transient one.
+// The template phase tallies its own transient errors per template.
 func scanElasticBeanstalkAll(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, apps, err := scanBeanstalkOlderPhases(ctx, client, acct, region, st, scanID)
 	t, i, terr := scanBeanstalkConfigurationTemplates(ctx, client, acct, region, st, scanID, apps)

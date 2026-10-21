@@ -52,8 +52,8 @@ func scanLakeFormation(ctx context.Context, acct *account, region string, st *st
 // scanLakeFormationAll runs the catalog phases, which stop at their first hard
 // error, then the opt-in phase, so a failure on either side costs the other no
 // rows. Each side's transient error is demoted to a warning: one transient
-// member would make the dispatcher read the whole join as transient, hiding the
-// other side's hard error and discarding every phase's counts.
+// member would make the dispatcher read the whole join as transient, reporting
+// the other side's hard error as a transient one.
 func scanLakeFormationAll(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, err := scanLakeFormationCatalog(ctx, client, acct, region, st, scanID)
 	t, i, oerr := scanLFOptIns(ctx, client, acct, region, st, scanID)

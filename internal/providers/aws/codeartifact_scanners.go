@@ -44,8 +44,7 @@ func scanCodeArtifact(ctx context.Context, acct *account, region string, st *sto
 // repositories stored before that error, so a failure on either side costs
 // the other no rows. The first side's transient error is demoted to a
 // warning: one transient member would make the dispatcher read the whole join
-// as transient, hiding a package phase's hard error and discarding every
-// phase's counts.
+// as transient, reporting a package phase's hard error as a transient one.
 func scanCodeArtifactAll(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, repos, err := scanCAParents(ctx, client, acct, region, st, scanID)
 	t, i, perr := scanCAPackages(ctx, client, acct, region, st, scanID, repos)

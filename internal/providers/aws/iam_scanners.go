@@ -102,7 +102,7 @@ type iamAPI interface {
 // Every error that is joined with another phase's, phase 1's included, is
 // demoted when transient before the join: the
 // dispatcher reads a join holding any transient member as transient, which
-// would hide another phase's hard error and discard every phase's counts.
+// would report another phase's hard error as a transient one.
 //
 // IAM is a global service scanned once per account.
 func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {

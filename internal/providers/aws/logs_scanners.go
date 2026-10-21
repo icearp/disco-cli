@@ -1247,7 +1247,7 @@ func scanLogsS3TableSources(ctx context.Context, client cwlogsAPI, obs logsS3Tab
 // cannot be waited for. The call goes to observabilityadmin's endpoint, so it
 // is skipped where the dispatcher would skip that service, and a network error
 // is warned about here: joined into the logs errors, it would make the
-// dispatcher classify the whole logs scan by it and discard its counts.
+// dispatcher classify the whole logs scan as transient by it.
 func listLogsS3TableIntegrations(ctx context.Context, client logsS3TableIntegrationLister, acct *account, region string, st *store.Store) ([]string, error) {
 	const op = "observabilityadmin:ListS3TableIntegrations"
 	const svc = "aws:observabilityadmin"

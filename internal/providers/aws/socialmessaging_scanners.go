@@ -84,8 +84,8 @@ func socialMessagingClientOptions(region string) func(*socialmessaging.Options) 
 // error, then the flow and message-template phases over the WABAs stored
 // before that error, so a failure on either side costs the other no rows. The
 // older side's transient error is demoted to a warning: one transient member
-// would make the dispatcher read the whole join as transient, hiding a new
-// phase's hard error and discarding every phase's counts.
+// would make the dispatcher read the whole join as transient, reporting a new
+// phase's hard error as a transient one.
 func scanSocialMessagingAll(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, wabas, err := scanSocialMessagingOlderPhases(ctx, client, acct, region, st, scanID)
 	ft, fi, ferr := scanSocialMessagingFlows(ctx, client, acct, region, st, scanID, wabas)

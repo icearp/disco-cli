@@ -63,8 +63,8 @@ func scanRekognition(ctx context.Context, acct *account, region string, st *stor
 // error, then the project-policy phase over the projects stored before that
 // error, so a failure on either side costs the other no rows. The older
 // side's transient error is demoted to a warning: one transient member would
-// make the dispatcher read the whole join as transient, hiding the policy
-// phase's hard error and discarding every phase's counts.
+// make the dispatcher read the whole join as transient, reporting the policy
+// phase's hard error as a transient one.
 func scanRekognitionAll(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, projectARNs, err := scanRekOlderPhases(ctx, client, acct, region, st, scanID)
 	t, i, perr := scanRekProjectPolicies(ctx, client, acct, region, st, scanID, projectARNs)

@@ -955,8 +955,8 @@ func TestBedrockDAListErr(t *testing.T) {
 
 // A real store-write failure must carry store.ErrStoreWrite (so the dispatcher's
 // first rung can identify it) and must satisfy none of the ladder's skip
-// predicates below that rung — each of which would suppress or downgrade the
-// error and let the scan report success having persisted nothing.
+// predicates below that rung — each of which would suppress the error or
+// report a database failure as a cloud-side one.
 //
 // Goes through the real write path rather than a hand-built sentinel, so it
 // still holds if store's wrapping changes shape. It does NOT prove the
@@ -986,7 +986,7 @@ func TestStoreWriteErrorMatchesNoAWSSkipPredicate(t *testing.T) {
 	}
 
 	if isTransientNetworkError(err) {
-		t.Error("classified as a transient AWS network error: the dispatcher would warn-and-continue and the scan would report success having stored nothing")
+		t.Error("classified as a transient AWS network error: the dispatcher would report a database failure as a cloud-side glitch a rescan fixes")
 	}
 	if isDNSNotFound(err) {
 		t.Error("classified as NXDOMAIN: the dispatcher would silently mark the service region-unavailable")
@@ -1012,8 +1012,8 @@ func TestStoreWriteErrorMatchesNoAWSSkipPredicate(t *testing.T) {
 // dangerous case is an error that matches MORE than one rung: a store-write
 // failure whose cause looks transient. pgconn reports a dropped Postgres
 // connection as an EOF, so if outcomeStoreWrite were not checked first, a dead
-// database would be classified transient — warn, continue, and report success
-// having stored nothing.
+// database would be classified transient and reported as a cloud-side glitch
+// that a rescan fixes.
 func TestClassifyServiceError_StoreWriteBeatsEveryOtherRung(t *testing.T) {
 	// Each cause independently matches a lower rung; carrying the sentinel must
 	// override all of them.

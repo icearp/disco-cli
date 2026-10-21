@@ -38,8 +38,8 @@ func scanAgentRegistry(ctx context.Context, acct *account, region string, st *st
 // scanAgentRegistryAll lists the registries, then the records of every
 // registry it stored. Both errors pass through demoteTransient before they
 // are joined, so a throttle on one phase cannot make the dispatcher classify
-// the whole service transient and discard the other phase's counts or hide
-// its hard error. NXDOMAIN is left as is and reports the region unavailable.
+// the whole service transient and report the other phase's hard error as a
+// transient one. NXDOMAIN is left as is and reports the region unavailable.
 func scanAgentRegistryAll(ctx context.Context, client agentRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	registries, total, inserted, rerr := scanAgentRegistryRegistries(ctx, client, acct, region, st, scanID)
 	t, i, cerr := scanAgentRegistryRecords(ctx, client, acct, region, st, scanID, registries)

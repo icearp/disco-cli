@@ -41,8 +41,8 @@ type ecsAPI interface {
 // they take a couple of calls, while the cluster phases fan out per cluster and
 // can run into the service deadline. Both sides' transient errors are demoted
 // to warnings: one transient member would make the dispatcher read the whole
-// join as transient, hiding the other side's hard error and discarding every
-// phase's counts.
+// join as transient, reporting the other side's hard error as a transient
+// one.
 func scanECS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := ecs.NewFromConfig(acct.cfg, func(o *ecs.Options) { o.Region = region })
 	total, inserted, serr := scanECSAccountSettings(ctx, client, acct, region, st, scanID)

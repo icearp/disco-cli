@@ -442,7 +442,7 @@ func qbChatControlsNativeID(appARN string) string {
 // was deleted after it was listed. Applications still failing transiently
 // (throttling, 5xx, network) after the SDK's retries are skipped and reported
 // in one warning, so one such application cannot cost the others' rows or turn
-// the whole service's result into a transient warning.
+// the whole service's result into a transient error.
 func scanQBChatControlsConfigurations(ctx context.Context, client qbusinessAPI, acct *account, region string, st *store.Store, scanID string, apps []qbAppRef) (int, int, error) {
 	const op = "qbusiness:GetChatControlsConfiguration"
 	appARNs := make(map[string]string, len(apps))

@@ -44,8 +44,8 @@ func scanSnowball(ctx context.Context, acct *account, region string, st *store.S
 // call (scanSnowballAddressesOnce), and that wait must not spend the clusters'
 // time budget. Both errors pass through demoteTransient before they are
 // joined, so a throttle on one phase cannot make the dispatcher classify the
-// whole service transient and discard the other phase's counts or hide its
-// hard error.
+// whole service transient and report the other phase's hard error as a
+// transient one.
 func scanSnowballAll(ctx context.Context, client snowballAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, cerr := scanSnowballClusters(ctx, client, acct, region, st, scanID)
 	t, i, aerr := scanSnowballAddressesOnce(ctx, client, acct, region, st, scanID)
