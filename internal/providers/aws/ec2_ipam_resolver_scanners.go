@@ -30,17 +30,25 @@ const (
 // ipamPrefixListResolverAttrs is a resolver as DescribeIpamPrefixListResolvers
 // returns it, with its rules beside the SDK fields. Embedding keeps the SDK
 // fields at the top level, where they were before Rules was added.
+//
+// omitzero drops only a nil Rules: a resolver whose rules were not read has
+// no Rules key, while one read with no rules stores [], because
+// listIPAMPrefixListResolverRules never returns nil on success.
 type ipamPrefixListResolverAttrs struct {
 	ec2types.IpamPrefixListResolver
-	Rules []ec2types.IpamPrefixListResolverRule
+	Rules []ec2types.IpamPrefixListResolverRule `json:",omitzero"`
 }
 
 // scanIPAMPrefixListResolvers stores the IPAM prefix list resolvers, each
 // with its CIDR selection rules embedded under Rules. A resolver whose rules
-// cannot be read is never stored with an empty or missing Rules, which would
-// read as "has no rules" and flip on every scan the read fails:
-//   - denied or still transient after retries: the resolver is not stored,
-//     with one warning per cause counting the resolvers skipped;
+// cannot be read is never stored with an empty Rules, which would read as
+// "has no rules":
+//   - denied or still transient after retries: the resolver is stored
+//     without the Rules key, so a role that cannot read rules keeps the row
+//     and the edges to it, with one warning per cause counting the resolvers
+//     and naming the first, unless the denial is a region-entitlement gap,
+//     which skipIfAccessDenied leaves silent. Against a scan that read the
+//     rules, the missing key shows as a change;
 //   - any other error: the resolver is not stored and the phase fails, after
 //     the other resolvers are stored. EC2's Smithy model lists no error for
 //     the op, so a not-found for a resolver deleted since it was listed is not
@@ -90,8 +98,6 @@ func scanIPAMPrefixListResolvers(ctx context.Context, client ec2API, acct *accou
 			rules, err := listIPAMPrefixListResolverRules(ctx, client, id)
 			switch {
 			case err == nil:
-				attrs := ipamPrefixListResolverAttrs{IpamPrefixListResolver: byID[id], Rules: rules}
-				return ipamPrefixListResolverRow(acct, region, scanID, byID[id], mustJSON(attrs)), nil
 			case transient.drop(id, err):
 			case isAccessDenied(err):
 				denied.skipped(id, err)
@@ -99,13 +105,19 @@ func scanIPAMPrefixListResolvers(ctx context.Context, client ec2API, acct *accou
 				mu.Lock()
 				failed[id] = err
 				mu.Unlock()
+				return nil, nil
 			}
-			return nil, nil
+			attrs := ipamPrefixListResolverAttrs{IpamPrefixListResolver: byID[id], Rules: rules}
+			return ipamPrefixListResolverRow(acct, region, scanID, byID[id], mustJSON(attrs)), nil
 		})
-	transient.warnSkipped(st, ec2IPAMPrefixListResolverRulesOp, acct, region)
+	const unread = "%d IPAM prefix list resolver(s) stored without Rules, first %s: %w"
+	if transient.count > 0 {
+		_ = skipIfTransient(st, ec2IPAMPrefixListResolverRulesOp, acct.ID, region,
+			fmt.Errorf(unread, transient.count, transient.first, transient.err))
+	}
 	if denied.count > 0 {
 		_ = skipIfAccessDenied(st, ec2IPAMPrefixListResolverRulesOp, acct.ID, region,
-			fmt.Errorf("%d IPAM prefix list resolver(s) not stored, first %s: %w", denied.count, denied.first, denied.err))
+			fmt.Errorf(unread, denied.count, denied.first, denied.err))
 	}
 	errs := []error{err}
 	for _, id := range slices.Sorted(maps.Keys(failed)) {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -206,35 +207,89 @@ func TestScanIPAMPrefixListResolvers_EmbedsSortedRules(t *testing.T) {
 	}
 }
 
-// A resolver whose rules read fails is never stored with an empty or missing
-// Rules. A denial or a transient failure skips it with one warning however
-// many fail; anything else fails the phase. The delete-complete resolver,
-// never read, is stored either way.
-func TestScanIPAMPrefixListResolvers_FailedRulesRead(t *testing.T) {
+// A denied or still-transient rules read keeps the resolver row, without a
+// Rules key (never an empty list, which would read as "has no rules"), and
+// warns once per cause however many resolvers fail, through that cause's
+// sink: skipIfTransient marks its warnings "transient:", skipIfAccessDenied
+// does not.
+func TestScanIPAMPrefixListResolvers_UnreadRulesKeepRow(t *testing.T) {
+	cases := []struct {
+		name                      string
+		errA, errB                error
+		wantTransient, wantDenied int
+	}{
+		// Both live resolvers fail alike, so a warning per resolver would show as 2.
+		{"denied", ipxDenied, ipxDenied, 0, 1},
+		{"transient", io.EOF, io.EOF, 1, 0},
+		{"denied and transient", ipxDenied, io.EOF, 1, 1},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			var calls parentCalls
+			var transient, denied int
+			st.OnWarn = func(w store.ScanWarning) {
+				switch {
+				case w.Service != ec2IPAMPrefixListResolverRulesOp:
+				case strings.HasPrefix(w.Message, "transient:"):
+					transient++
+				default:
+					denied++
+				}
+			}
+			total, inserted, err := plrScan(t, st, plrHandlers(&calls, map[string]error{plrA: c.errA, plrB: c.errB}))
+			if err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			if transient != c.wantTransient || denied != c.wantDenied {
+				t.Errorf("%s warnings: transient %d, denied %d; want %d, %d",
+					ec2IPAMPrefixListResolverRulesOp, transient, denied, c.wantTransient, c.wantDenied)
+			}
+			if total != 3 || inserted != 3 {
+				t.Errorf("total, inserted = %d, %d, want 3, 3 (A, B and the delete-complete resolver)", total, inserted)
+			}
+			rows := rowsByNativeID(t, st, TypeEC2IPAMPrefixListResolver)
+			for _, id := range []string{plrA, plrB} {
+				r, ok := rows[plrARN(id)]
+				if !ok {
+					t.Errorf("%s not stored", id)
+					continue
+				}
+				if got := ipxAttrs(t, r)["IpamPrefixListResolverId"]; got != id {
+					t.Errorf("%s attrs IpamPrefixListResolverId = %v, want %s", id, got, id)
+				}
+				if got, ok := plrRules(t, r); ok {
+					t.Errorf("%s Rules = %#v, want the key absent", id, got)
+				}
+			}
+		})
+	}
+}
+
+// Any other rules read error, including a not-found the op does not model,
+// leaves the resolver unstored and fails the phase without a warning. The
+// delete-complete resolver, never read, is still stored.
+func TestScanIPAMPrefixListResolvers_HardRulesReadError(t *testing.T) {
 	notFound := apiErr(plrNotFnd, "The resolver does not exist")
 	cases := []struct {
-		name      string
-		err       error
-		isWant    func(error) bool // nil: the scan succeeds
-		wantWarns int
+		name   string
+		err    error
+		isWant func(error) bool
 	}{
-		{"denied", ipxDenied, nil, 1},
-		{"transient", io.EOF, nil, 1},
-		{"not found is not modelled", notFound, func(err error) bool { return isAPIErrorCode(err, plrNotFnd) }, 0},
-		{"other", errIpxTest, func(err error) bool { return errors.Is(err, errIpxTest) }, 0},
+		{"not found is not modelled", notFound, func(err error) bool { return isAPIErrorCode(err, plrNotFnd) }},
+		{"other", errIpxTest, func(err error) bool { return errors.Is(err, errIpxTest) }},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
 			var calls parentCalls
 			warnings := countOpWarnings(st, ec2IPAMPrefixListResolverRulesOp)
-			// Both live resolvers fail, so a warning per resolver would show as 2.
 			total, _, err := plrScan(t, st, plrHandlers(&calls, map[string]error{plrA: c.err, plrB: c.err}))
-			if c.isWant == nil && err != nil || c.isWant != nil && !c.isWant(err) {
+			if !c.isWant(err) {
 				t.Fatalf("err = %v, want %v", err, c.err)
 			}
-			if *warnings != c.wantWarns {
-				t.Errorf("%s warnings = %d, want %d", ec2IPAMPrefixListResolverRulesOp, *warnings, c.wantWarns)
+			if *warnings != 0 {
+				t.Errorf("%s warnings = %d, want 0", ec2IPAMPrefixListResolverRulesOp, *warnings)
 			}
 			rows := rowsByNativeID(t, st, TypeEC2IPAMPrefixListResolver)
 			if _, ok := rows[plrARN(plrDeleted)]; !ok || total != 1 || len(rows) != 1 {
@@ -244,18 +299,20 @@ func TestScanIPAMPrefixListResolvers_FailedRulesRead(t *testing.T) {
 	}
 }
 
-// One failed resolver costs only its own row: the other resolver's read is
-// neither cancelled nor discarded, whatever the cause, and a hard error is
-// still returned.
+// One failed resolver costs at most its own rules: the other resolver's read
+// is neither cancelled nor discarded, whatever the cause. A hard error is
+// returned and costs the failed resolver its row; a denial or a transient
+// failure keeps the row without Rules.
 func TestScanIPAMPrefixListResolvers_FailureKeepsSiblings(t *testing.T) {
 	cases := []struct {
-		name    string
-		err     error
-		wantErr bool
+		name      string
+		err       error
+		wantErr   bool
+		wantTotal int
 	}{
-		{"denied", ipxDenied, false},
-		{"transient", io.EOF, false},
-		{"hard", errIpxTest, true},
+		{"denied", ipxDenied, false, 3},
+		{"transient", io.EOF, false, 3},
+		{"hard", errIpxTest, true, 2},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -267,14 +324,14 @@ func TestScanIPAMPrefixListResolvers_FailureKeepsSiblings(t *testing.T) {
 			}
 			rows := rowsByNativeID(t, st, TypeEC2IPAMPrefixListResolver)
 			a, ok := rows[plrARN(plrA)]
-			if !ok || total != 2 {
-				t.Fatalf("total = %d, A stored %v; want 2 and A stored", total, ok)
+			if !ok || total != c.wantTotal {
+				t.Fatalf("total = %d, A stored %v; want %d and A stored", total, ok, c.wantTotal)
 			}
 			if got, ok := plrRules(t, a); !ok || len(got) != len(plrRulesSorted) {
 				t.Errorf("A Rules = %+v (present %v), want %d rules", got, ok, len(plrRulesSorted))
 			}
-			if _, ok := rows[plrARN(plrB)]; ok {
-				t.Error("failed resolver B stored")
+			if _, ok := rows[plrARN(plrB)]; ok != !c.wantErr {
+				t.Errorf("failed resolver B stored = %v, want %v", ok, !c.wantErr)
 			}
 		})
 	}
