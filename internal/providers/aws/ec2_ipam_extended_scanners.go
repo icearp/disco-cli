@@ -31,10 +31,13 @@ const (
 	ec2IpamPolicyNotFound = "InvalidIpamPolicyId.NotFound"
 )
 
-// scanEC2IPAMExtended runs the BYOIP, BYOASN and IPAM policy allocation-rule
-// phases. They are independent: each runs whatever the others return, has its
-// transient error demoted to a warning (one transient member would make the
-// dispatcher read the whole join as transient) and the rest are joined.
+// scanEC2IPAMExtended runs the BYOIP, BYOASN, IPAM policy allocation-rule
+// and IPAM prefix list resolver phases. They are independent: each runs
+// whatever the others return, has its transient error demoted to a warning
+// (one transient member would make the dispatcher read the whole join as
+// transient) and the rest are joined. The resolver phase is here, not among
+// scanEC2's categories, because a failed rules read fails it, and there it
+// would cancel every other category.
 // homeIPAM reports whether scanIPAMs stored this scan an IPAM whose home
 // Region is region; policies are the stored policies whose allocation rules
 // can still be read.
@@ -59,6 +62,9 @@ func scanEC2IPAMExtended(ctx context.Context, client ec2API, acct *account, regi
 		}},
 		{ec2IpamPolicyAllocationRulesOp, func() (int, int, error) {
 			return scanEC2IpamPolicyAllocationRules(ctx, client, acct, region, st, scanID, policies)
+		}},
+		{ec2IPAMPrefixListResolversOp, func() (int, int, error) {
+			return scanIPAMPrefixListResolvers(ctx, client, acct, region, st, scanID)
 		}},
 	} {
 		t, i, perr := phase.run()

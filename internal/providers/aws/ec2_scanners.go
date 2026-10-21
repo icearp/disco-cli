@@ -69,7 +69,7 @@ func scanEC2(ctx context.Context, acct *account, region string, st *store.Store,
 			return scanEC2RouteServer(ctx, client, acct, region, st, scanID)
 		},
 		func(ctx context.Context) (int, int, error) {
-			return scanEC2IPAMResolver(ctx, client, acct, region, st, scanID)
+			return scanIPAMPrefixListResolverTargets(ctx, client, acct, region, st, scanID)
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanEC2MiscExtra(ctx, client, acct, region, st, scanID)

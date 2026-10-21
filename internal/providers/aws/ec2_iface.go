@@ -100,6 +100,7 @@ type ec2API interface {
 	DescribeRouteServerPeers(context.Context, *ec2.DescribeRouteServerPeersInput, ...func(*ec2.Options)) (*ec2.DescribeRouteServerPeersOutput, error)
 	DescribeIpamPrefixListResolvers(context.Context, *ec2.DescribeIpamPrefixListResolversInput, ...func(*ec2.Options)) (*ec2.DescribeIpamPrefixListResolversOutput, error)
 	DescribeIpamPrefixListResolverTargets(context.Context, *ec2.DescribeIpamPrefixListResolverTargetsInput, ...func(*ec2.Options)) (*ec2.DescribeIpamPrefixListResolverTargetsOutput, error)
+	GetIpamPrefixListResolverRules(context.Context, *ec2.GetIpamPrefixListResolverRulesInput, ...func(*ec2.Options)) (*ec2.GetIpamPrefixListResolverRulesOutput, error)
 	DescribeCapacityManagerDataExports(context.Context, *ec2.DescribeCapacityManagerDataExportsInput, ...func(*ec2.Options)) (*ec2.DescribeCapacityManagerDataExportsOutput, error)
 	DescribeAwsNetworkPerformanceMetricSubscriptions(context.Context, *ec2.DescribeAwsNetworkPerformanceMetricSubscriptionsInput, ...func(*ec2.Options)) (*ec2.DescribeAwsNetworkPerformanceMetricSubscriptionsOutput, error)
 	DescribeTransitGatewayMeteringPolicies(context.Context, *ec2.DescribeTransitGatewayMeteringPoliciesInput, ...func(*ec2.Options)) (*ec2.DescribeTransitGatewayMeteringPoliciesOutput, error)
