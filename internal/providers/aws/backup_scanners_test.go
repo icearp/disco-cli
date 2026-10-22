@@ -517,3 +517,22 @@ func TestScanBackup_PhaseErrorJoin(t *testing.T) {
 		})
 	}
 }
+
+// A failed closure write leaves the plans and selections stored before it
+// counted.
+func TestScanBackup_ClosureFailureKeepsCounts(t *testing.T) {
+	st := newTestStore(t)
+	refuseClosureWrites(t, st)
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(bkPlanHandlers(nil, nil), bkDenied)
+	total, _, err := scanBackup(context.Background(), acct, testRegion, st, testScanID)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Errorf("err = %v; want the closure's store write failure", err)
+	}
+	if n := len(rowsByNativeID(t, st, TypeBackupPlan)); n != 3 {
+		t.Fatalf("plan rows = %d; want 3 stored", n)
+	}
+	if n := countStoredRows(t, st); total != n {
+		t.Errorf("total = %d; want %d, every row stored", total, n)
+	}
+}

@@ -43,14 +43,14 @@ func scanM2(ctx context.Context, acct *account, region string, st *store.Store, 
 
 // scanM2All runs the older phases, then the data set phase over the
 // applications they stored. When an older phase after the application phase
-// fails, the data set phase still runs over every stored application; when
-// the data set phase fails, the older phases' rows and counts are kept. The
-// data set phase tallies its transient errors per application, so only the
-// older phases' error needs demoting before the join.
+// fails, the data set phase still runs over every stored application; when the
+// data set phase fails, the older phases' rows and counts are kept. The data
+// set phase tallies its transient errors per application, so only the older
+// phases' error is demoted, and only beside a hard error.
 func scanM2All(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, apps, err := scanM2OlderPhases(ctx, client, acct, region, st, scanID)
 	td, id, derr := scanM2Datasets(ctx, client, acct, region, st, scanID, apps)
-	return total + td, inserted + id, errors.Join(demoteTransient(st, "m2", acct, region, err), derr)
+	return total + td, inserted + id, demoteBeside(st, "m2", acct, region, err, derr)
 }
 
 // scanM2OlderPhases runs the phases that predate the data set phase, stopping

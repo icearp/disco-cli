@@ -300,8 +300,8 @@ func TestScanWorkSpaces_NoDirectoriesOrLinks(t *testing.T) {
 // ListAccountLinks failures never cost the other phases: the older phases'
 // rows and the add-ins are stored whatever it returns. A denial on any page
 // warns once and keeps the links already listed; an op the endpoint does not
-// serve is silent on the first page only; a transient error warns; anything
-// else fails the scan.
+// serve is silent on the first page only; anything else, a transient error
+// included, fails the scan.
 func TestScanWorkSpaces_FailedAccountLinksPage(t *testing.T) {
 	notDeployed := apiErr("UnknownOperationException", "unknown operation")
 	unavailable := apiErr("ServiceUnavailableException", "try later")
@@ -318,7 +318,7 @@ func TestScanWorkSpaces_FailedAccountLinksPage(t *testing.T) {
 		{"denied second page", true, wsDenied, "", []string{wsTestLink1}, 1, 7},
 		{"not deployed first page", false, notDeployed, "", nil, 0, 6},
 		{"not deployed second page", true, notDeployed, "UnknownOperationException", nil, 0, 6},
-		{"transient", false, unavailable, "", nil, 1, 6},
+		{"transient", false, unavailable, "ServiceUnavailableException", nil, 0, 6},
 		{"other error first page", false, wsBadInput, "ValidationException", nil, 0, 6},
 		{"other error second page", true, wsBadInput, "ValidationException", nil, 0, 6},
 	} {

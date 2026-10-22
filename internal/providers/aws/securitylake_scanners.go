@@ -81,38 +81,41 @@ func scanSecurityLake(ctx context.Context, acct *account, region string, st *sto
 }
 
 // scanSecurityLakeWith runs the data lake phase, then the subscriber phase
-// unless the data lake listing failed hard (a throttle is only a warning, so
-// it does not skip subscribers), then the data lake source phase whatever they
-// returned, unless the data lake listing showed Security Lake is not enabled. Each
-// error passes through demoteTransient under its own op before the join,
-// because demoteTransient reads a joined error as transient when any member
-// is: a transient error on one side would then hide another side's hard error.
+// unless the data lake listing failed hard (a throttle does not skip
+// subscribers), then the data lake source phase whatever they
+// returned, unless the data lake listing showed Security Lake is not enabled. The
+// errors are joined by phaseErrs under their own ops: a transient one alone, or
+// beside transient ones only, marks the scan partial; beside a hard one it is
+// demoted to a warning under the op that failed.
 func scanSecurityLakeWith(ctx context.Context, client securityLakeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, storedLakes, err := scanSLDataLakes(ctx, client, acct, region, st, scanID)
 	if errors.Is(err, errServiceDisabled) {
 		return total, inserted, err
 	}
-	lakesErr := demoteTransient(st, slDataLakesOp, acct, region, err)
 	var subsErr error
-	if lakesErr == nil {
-		t, i, serr := scanSLSubscribers(ctx, client, acct, region, st, scanID)
-		total, inserted, subsErr = total+t, inserted+i, demoteTransient(st, slSubscribersOp, acct, region, serr)
+	if err == nil || isDemotableTransient(err) {
+		var t, i int
+		t, i, subsErr = scanSLSubscribers(ctx, client, acct, region, st, scanID)
+		total, inserted = total+t, inserted+i
 	}
 	t, i, derr, lerr := scanSLDataLakeSources(ctx, client, acct, region, st, scanID, storedLakes)
 	total, inserted = total+t, inserted+i
-	derr = demoteTransient(st, slDataLakeSourcesOp, acct, region, derr)
-	lerr = demoteTransient(st, slLogSourcesOp, acct, region, lerr)
 	// The dispatcher reads the not-enabled sentinel ahead of a hard error and
 	// discards every count with it, so it stands only when no other phase
 	// stored a row or failed; otherwise the subscribers' answer is a warning.
-	if errors.Is(subsErr, errServiceDisabled) && (total > 0 || derr != nil || lerr != nil) {
+	if errors.Is(subsErr, errServiceDisabled) && (total > 0 || err != nil || derr != nil || lerr != nil) {
 		st.ReportWarning(store.ScanWarning{
 			Provider: "aws", Service: slSubscribersOp, Scope: acct.ID + "/" + region,
 			Message: "subscribers not listed: " + subsErr.Error(),
 		})
 		subsErr = nil
 	}
-	return total, inserted, errors.Join(lakesErr, subsErr, derr, lerr)
+	var errs phaseErrs
+	errs.add(slDataLakesOp, err)
+	errs.add(slSubscribersOp, subsErr)
+	errs.add(slDataLakeSourcesOp, derr)
+	errs.add(slLogSourcesOp, lerr)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // scanSLDataLakes stores the region's data lakes and returns the ARNs it

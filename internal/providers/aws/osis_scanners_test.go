@@ -294,8 +294,8 @@ func TestScanOSIS_ConnectionsRepeatedTokenStops(t *testing.T) {
 	}
 }
 
-// A side's transient error is demoted to a warning, so it cannot make the
-// dispatcher read the other side's hard error as transient.
+// A side's transient error is demoted to a warning under its op instead of
+// buried in the other side's hard error.
 func TestScanOSIS_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	cases := []struct {

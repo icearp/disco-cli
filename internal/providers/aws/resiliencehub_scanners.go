@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -33,13 +32,13 @@ type resilienceHubAPI interface {
 	ListAppInputSources(context.Context, *resiliencehub.ListAppInputSourcesInput, ...func(*resiliencehub.Options)) (*resiliencehub.ListAppInputSourcesOutput, error)
 }
 
-// scanResilienceHub discovers Resilience Hub resources from the v1 (app) and
-// v2 (service/system) APIs, then the input sources of every app and the
-// functions and input sources of every service those phases stored. The
-// fan-outs run whatever the earlier phases returned, so their failure costs
-// those phases nothing. Every side's transient error is demoted to a warning, since one
-// transient member would make the dispatcher read the whole join as
-// transient; the counts are summed.
+// scanResilienceHub discovers Resilience Hub resources from the v1 (app) and v2
+// (service/system) APIs, then the input sources of every app and the functions
+// and input sources of every service those phases stored. The fan-outs run
+// whatever the earlier phases returned, so their failure costs those phases
+// nothing. Every side's transient error is demoted to a warning only beside a
+// hard error: joined, it would be buried in the hard error instead of reported
+// under its op; the counts are summed.
 func scanResilienceHub(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := resiliencehub.NewFromConfig(acct.cfg, func(o *resiliencehub.Options) { o.Region = region })
 	v2 := resiliencehubv2.NewFromConfig(acct.cfg, func(o *resiliencehubv2.Options) { o.Region = region })
@@ -47,12 +46,12 @@ func scanResilienceHub(ctx context.Context, acct *account, region string, st *st
 	t1, i1, serr := scanRHAppInputSources(ctx, client, acct, region, st, scanID, parents.appARNs)
 	t2, i2, ferr := scanRHServiceFunctions(ctx, v2, acct, region, st, scanID, parents.serviceARNs)
 	t3, i3, ierr := scanRHInputSources(ctx, v2, acct, region, st, scanID, parents.serviceARNs)
-	return total + t1 + t2 + t3, inserted + i1 + i2 + i3, errors.Join(
-		demoteTransient(st, "resilience-hub", acct, region, err),
-		demoteTransient(st, rhListAppInputSourcesOp, acct, region, serr),
-		demoteTransient(st, rhListServiceFunctionsOp, acct, region, ferr),
-		demoteTransient(st, rhListInputSourcesOp, acct, region, ierr),
-	)
+	var errs phaseErrs
+	errs.add("resilience-hub", err)
+	errs.add(rhListAppInputSourcesOp, serr)
+	errs.add(rhListServiceFunctionsOp, ferr)
+	errs.add(rhListInputSourcesOp, ierr)
+	return total + t1 + t2 + t3, inserted + i1 + i2 + i3, errs.join(st, acct, region)
 }
 
 // rhStoredParents holds the apps and v2 services scanRHPhases upserted this

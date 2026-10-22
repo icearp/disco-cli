@@ -111,14 +111,15 @@ func qsSoftSkip(err error) bool {
 // folder-member and group-membership phases after every older phase, so a
 // failure on either side costs the other no rows; the member phases list the
 // children of the folders and groups the older phases stored before any
-// failure. No side's demotable transient error reaches the join: one transient member
-// would make the dispatcher read the whole join as transient and drop every
-// phase's counts. The errors are joined and the counts summed.
+// failure. A transient error is demoted to a warning only beside a hard one:
+// joined, it would be buried in the hard error instead of reported under its
+// op. The errors are joined and the counts summed.
 func scanQuickSight(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := quicksight.NewFromConfig(acct.cfg, func(o *quicksight.Options) { o.Region = region })
 
 	parents, total, inserted, err := scanQSOlderPhases(ctx, client, acct, region, st, scanID)
-	errs := []error{demoteTransient(st, "quicksight", acct, region, err)}
+	var errs phaseErrs
+	errs.add("quicksight", err)
 	for _, phase := range []struct {
 		op  string
 		run func() (int, int, error)
@@ -131,11 +132,11 @@ func scanQuickSight(ctx context.Context, acct *account, region string, st *store
 		t, i, perr := phase.run()
 		total += t
 		inserted += i
-		errs = append(errs, demoteTransient(st, phase.op, acct, region, perr))
+		errs.add(phase.op, perr)
 	}
 	// The member phases skip a parent whose call is still transient after the
 	// SDK's retries (childFanOutSkipTransient), so no transient error leaves
-	// them for demoteTransient to catch.
+	// them.
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) {
 			return scanQSFolderMembers(ctx, client, acct, region, st, scanID, parents.folders)
@@ -147,9 +148,9 @@ func scanQuickSight(ctx context.Context, acct *account, region string, st *store
 		t, i, perr := phase()
 		total += t
 		inserted += i
-		errs = append(errs, perr)
+		errs.add("quicksight", perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // qsParents are the folders and groups the older phases stored, handed to the

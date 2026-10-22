@@ -53,18 +53,19 @@ func scanDirectConnect(ctx context.Context, acct *account, region string, st *st
 }
 
 // scanDirectConnectAll runs the older phases, which stop at their first hard
-// error, then the interconnect and resiliency-group phases, so a failure in
-// one costs the others no rows. Each side's transient error is demoted to a
-// warning: one transient member would make the dispatcher read the whole join
-// as transient, reporting another phase's hard error as a transient one.
+// error, then the interconnect and resiliency-group phases, so a failure in one
+// costs the others no rows. Each side's transient error is demoted to a warning
+// only beside a hard error: joined, it would be buried in the hard error
+// instead of reported under its op.
 func scanDirectConnectAll(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, err := scanDXOlderPhases(ctx, client, acct, region, st, scanID)
 	ti, ii, ierr := scanDXInterconnects(ctx, client, acct, region, st, scanID)
 	tr, ir, rerr := scanDXResiliencyGroups(ctx, client, acct, region, st, scanID)
-	return total + ti + tr, inserted + ii + ir, errors.Join(
-		demoteTransient(st, "directconnect", acct, region, err),
-		demoteTransient(st, dxDescribeInterconnectsOp, acct, region, ierr),
-		demoteTransient(st, dxListResiliencyGroupsOp, acct, region, rerr))
+	var errs phaseErrs
+	errs.add("directconnect", err)
+	errs.add(dxDescribeInterconnectsOp, ierr)
+	errs.add(dxListResiliencyGroupsOp, rerr)
+	return total + ti + tr, inserted + ii + ir, errs.join(st, acct, region)
 }
 
 // scanDXOlderPhases runs the phases that predate interconnects and resiliency

@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/agentregistrycontrol"
@@ -35,18 +34,18 @@ func scanAgentRegistry(ctx context.Context, acct *account, region string, st *st
 	return scanAgentRegistryAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanAgentRegistryAll lists the registries, then the records of every
-// registry it stored. Both errors pass through demoteTransient before they
-// are joined, so a throttle on one phase cannot make the dispatcher classify
-// the whole service transient and report the other phase's hard error as a
-// transient one. NXDOMAIN is left as is and reports the region unavailable.
+// scanAgentRegistryAll lists the registries, then the records of every registry
+// it stored. Both errors are joined by phaseErrs, which demote a transient one
+// to a warning only beside a hard one, so a throttle on one phase is reported
+// under its op instead of buried in the other's hard error. NXDOMAIN is left as
+// is and reports the region unavailable.
 func scanAgentRegistryAll(ctx context.Context, client agentRegistryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	registries, total, inserted, rerr := scanAgentRegistryRegistries(ctx, client, acct, region, st, scanID)
 	t, i, cerr := scanAgentRegistryRecords(ctx, client, acct, region, st, scanID, registries)
-	return total + t, inserted + i, errors.Join(
-		demoteTransient(st, agentRegistryListRegistriesOp, acct, region, rerr),
-		demoteTransient(st, agentRegistryListRecordsOp, acct, region, cerr),
-	)
+	var errs phaseErrs
+	errs.add(agentRegistryListRegistriesOp, rerr)
+	errs.add(agentRegistryListRecordsOp, cerr)
+	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
 // scanAgentRegistryRegistries lists the account's registries in the region.

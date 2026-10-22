@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/qbusiness"
@@ -106,7 +105,7 @@ func scanQBusiness(ctx context.Context, acct *account, region string, st *store.
 	// so a transient child error is reported under the service name. ccErr is
 	// never transient: the chat-controls fan-out warns and skips those per
 	// application.
-	return total, inserted, errors.Join(demoteTransient(st, "aws:qbusiness", acct, region, childErr), ccErr)
+	return total, inserted, demoteBeside(st, "aws:qbusiness", acct, region, childErr, ccErr)
 }
 
 type qbAppRef struct {

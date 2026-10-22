@@ -86,19 +86,19 @@ type fmsAPI interface {
 // administrator whose admin scope is limited to some regions may be denied in
 // the others with a message that is unverified; if it matches neither the
 // not-enabled nor the admin-only matcher, each such region warns once per op.
-// Every phase runs whatever the others
-// returned, and the counts are summed. Each phase's error passes through
-// demoteTransient, so one transient failure cannot make the dispatcher read
-// the whole join as transient and hide another phase's hard error. An account
-// FMS never onboarded reports it on ListPolicies, the first call, before
-// anything is stored in this region, and the scan returns the disabled
-// sentinel for this region. A disabled answer after an earlier phase stored
-// rows or failed hard becomes a warning instead: the dispatcher reads the
-// sentinel through any join and would report the service disabled,
-// discarding those rows' counts and hiding the hard error.
+// Every phase runs whatever the others returned, and the counts are summed. The
+// phases' errors are joined by phaseErrs: a transient one alone, or beside
+// transient ones only, marks the scan partial; beside a hard one it is demoted
+// to a warning under its op instead of buried in the hard error. An account FMS
+// never onboarded reports it on ListPolicies, the first call, before anything
+// is stored in this region, and the scan returns the disabled sentinel for this
+// region. A disabled answer after an earlier phase stored rows or failed
+// becomes a warning instead: the dispatcher reads the sentinel through any join
+// and would report the service disabled, discarding those rows' counts and
+// hiding the earlier failure.
 func scanFMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := fms.NewFromConfig(acct.cfg, func(o *fms.Options) { o.Region = region })
-	var errs []error
+	var errs phaseErrs
 	for _, phase := range []struct {
 		op  string
 		run func() (int, int, error)
@@ -121,12 +121,10 @@ func scanFMS(ctx context.Context, acct *account, region string, st *store.Store,
 				Message: "not reported as disabled because earlier FMS phases stored rows or failed: " + perr.Error(),
 			})
 		case perr != nil:
-			if herr := demoteTransient(st, phase.op, acct, region, perr); herr != nil {
-				errs = append(errs, herr)
-			}
+			errs.add(phase.op, perr)
 		}
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // warnFMSListingOnly warns once for the keys of a fan-out whose read failed

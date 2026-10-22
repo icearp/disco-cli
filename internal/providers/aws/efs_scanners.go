@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -41,17 +40,17 @@ func scanEFS(ctx context.Context, acct *account, region string, st *store.Store,
 	return scanEFSAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanEFSAll holds the testable scan body. Replication configurations run
-// after the file system phases whatever they returned. Both sides demote a
-// transient error to a warning, so it cannot make the dispatcher report the
-// other side's hard error as a transient one.
+// scanEFSAll holds the testable scan body. Replication configurations run after
+// the file system phases whatever they returned. A transient error on either
+// side is demoted to a warning only beside a hard error, so it cannot make the
+// dispatcher report the other side's hard error as a transient one.
 func scanEFSAll(ctx context.Context, client efsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, fileSystems, err := scanEFSFileSystemsAndChildren(ctx, client, acct, region, st, scanID)
 	t, i, rerr := scanEFSReplicationConfigurations(ctx, client, acct, region, st, scanID, fileSystems)
-	return total + t, inserted + i, errors.Join(
-		demoteTransient(st, "elasticfilesystem", acct, region, err),
-		demoteTransient(st, efsReplicationConfigurationsOp, acct, region, rerr),
-	)
+	var errs phaseErrs
+	errs.add("elasticfilesystem", err)
+	errs.add(efsReplicationConfigurationsOp, rerr)
+	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
 // scanEFSFileSystemsAndChildren runs the file system, mount target and access point

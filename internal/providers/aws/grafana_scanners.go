@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -48,18 +47,18 @@ type grafanaServiceAccount struct{ workspaceID, id, nativeID string }
 // returns a token's key) and the workspaces' role grants.
 //
 // The workspace, service account and token phases stop at their first hard
-// error. The permission phase runs whatever they returned, over the
-// workspaces stored before a failure, so its failure costs them no rows and a
-// service account or token failure does not skip it. The older phases'
-// transient error is demoted to a warning, since one transient member would
-// make the dispatcher read the whole join as transient; the permission
-// phase's error is joined as is, because its fan-out already drops each
-// workspace's transient error. The counts are summed.
+// error. The permission phase runs whatever they returned, over the workspaces
+// stored before a failure, so its failure costs them no rows and a service
+// account or token failure does not skip it. The older phases' transient error
+// is demoted to a warning only beside a hard error: joined, it would be buried
+// in the hard error instead of reported under its op; the permission phase's
+// error is joined as is, because its fan-out already drops each workspace's
+// transient error. The counts are summed.
 func scanGrafana(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := grafana.NewFromConfig(acct.cfg, func(o *grafana.Options) { o.Region = region })
 	total, inserted, permWorkspaces, err := scanGrafanaOlderPhases(ctx, client, acct, region, st, scanID)
 	t, i, perr := scanGrafanaPermissions(ctx, client, acct, region, st, scanID, permWorkspaces)
-	return total + t, inserted + i, errors.Join(demoteTransient(st, "grafana", acct, region, err), perr)
+	return total + t, inserted + i, demoteBeside(st, "grafana", acct, region, err, perr)
 }
 
 // grafanaParents are the workspaces the workspace phase stored, split by the

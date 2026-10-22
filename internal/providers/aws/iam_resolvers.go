@@ -1346,7 +1346,9 @@ func resolveIAMDelegationRequestBoundaries(acct *account, st *store.Store) error
 // partner account is usually outside scan scope, so its self-node is inserted
 // as a placeholder first; insert-if-absent leaves a scanned account's row
 // untouched, whichever of scanner and resolver runs first. A request naming
-// the scanned account itself gets its edge but no placeholder.
+// the scanned account itself is handled the same way: scanIAMAccount withholds
+// that row when its read fails, and aws:iam may not be scanned at all, so the
+// placeholder keeps the edge from naming a row that does not exist.
 //
 // `attached-to` with {"role": "requestor"} mirrors the organization →
 // management-account edge. `cross-account-trust` would claim the partner can
@@ -1381,11 +1383,7 @@ func resolveIAMDelegationRequestRequestors(acct *account, st *store.Store) error
 		if requestor == "" {
 			continue
 		}
-		// The scanned account's self-node is scanIAMAccount's row; a {}
-		// reference-only placeholder there would make it look unscanned.
-		if requestor != acct.ID {
-			requestors[requestor] = struct{}{}
-		}
+		requestors[requestor] = struct{}{}
 		edges = append(edges, pending{fromID: r.ID, requestor: requestor})
 	}
 	if len(edges) == 0 {

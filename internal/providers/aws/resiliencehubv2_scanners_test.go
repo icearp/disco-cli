@@ -695,10 +695,10 @@ func TestScanResilienceHub_StoresEveryPhase(t *testing.T) {
 	}
 }
 
-// The input-source and service-function fan-outs run whatever an earlier
-// phase returned, and every side's error reaches the dispatcher: a transient
-// one demoted to one warning, so it cannot make the dispatcher read another
-// side's hard error as transient.
+// The input-source and service-function fan-outs run whatever an earlier phase
+// returned, and every side's error reaches the dispatcher: a transient one
+// demoted to one warning under its op instead of buried in another side's hard
+// error.
 func TestScanResilienceHub_FanOutPhaseErrors(t *testing.T) {
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	hard := apiErr("ConflictException", "bad")

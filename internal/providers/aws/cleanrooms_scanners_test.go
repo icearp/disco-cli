@@ -332,9 +332,9 @@ func TestScanCleanRoomsIn_NewPhaseErrorsKeepEarlierRows(t *testing.T) {
 	}
 }
 
-// A later phase's transient error is warned about on its own, so it cannot
-// make the dispatcher classify the whole service transient or stop the
-// phases after it.
+// Beside another phase's hard error, a later phase's transient error is
+// reported as a warning under its phase instead of inside the hard error, and
+// the phases after it still run.
 func TestScanCleanRoomsIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "cleanrooms:ListMembers")
@@ -344,7 +344,7 @@ func TestScanCleanRoomsIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 		"ListConfiguredTables": func(any) (any, error) { return nil, tableErr },
 	})
 	total, _, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
-	if got := classifyServiceError(err); got != outcomeError {
+	if got := classifyServiceError(err); err == nil || got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}
 	if !errors.Is(err, tableErr) {
@@ -382,5 +382,43 @@ func TestScanCleanRoomsIn_UnreachableEndpointStopsTheScan(t *testing.T) {
 	}
 	if total != 0 || len(warnings) != 0 {
 		t.Errorf("total, warnings = %d, %v; want 0, none", total, warnings)
+	}
+}
+
+// A later phase's transient error alone is returned, so the scan is marked
+// partial rather than complete, with the other phases' rows counted.
+func TestScanCleanRoomsIn_LoneTransientPhaseMarksPartial(t *testing.T) {
+	st := newTestStore(t)
+	warned := countOpWarnings(st, "cleanrooms:ListMembers")
+	handlers := crTopLevelHandlers(map[string]func(any) (any, error){
+		"ListMembers": func(any) (any, error) { return nil, crThrottled },
+	})
+	total, _, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if got := classifyServiceError(err); got != outcomeTransient {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
+	}
+	if *warned != 0 {
+		t.Errorf("ListMembers transient warnings = %d, want 0", *warned)
+	}
+	if stored := countStoredRows(t, st); total == 0 || total != stored {
+		t.Errorf("total = %d, stored rows = %d; want the other phases' rows counted", total, stored)
+	}
+}
+
+// A later phase's NXDOMAIN is flattened to a plain error, so the dispatcher
+// does not report the region unavailable and drop the rows already stored.
+func TestScanCleanRoomsIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	st := newTestStore(t)
+	handlers := crTopLevelHandlers(map[string]func(any) (any, error){
+		"ListMembers": func(any) (any, error) {
+			return nil, &net.DNSError{Err: "no such host", Name: "cleanrooms.us-east-1.amazonaws.com", IsNotFound: true}
+		},
+	})
+	total, _, err := scanCleanRoomsIn(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if got := classifyServiceError(err); err == nil || got != outcomeError {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
+	}
+	if stored := countStoredRows(t, st); total == 0 || total != stored {
+		t.Errorf("total = %d, stored rows = %d; want the other phases' rows counted", total, stored)
 	}
 }

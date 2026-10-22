@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/deadline"
@@ -65,17 +64,17 @@ func deadlineFarmARN(region, acct, farmID string) string {
 // fleets and queues the older phases stored before any failure, so a member
 // phase's failure costs the older phases no rows, and an older phase's failure
 // costs the member phases only the members of parents it never stored. The
-// older side's demotable transient error is demoted to a warning, since one
-// transient member would make the dispatcher read the whole join as transient,
-// reporting a member phase's hard error as a transient one.
-// The member phases skip a parent still transient after the SDK's retries
-// (childFanOutSkipTransient), so no transient error leaves them. The errors are
-// joined and the counts summed.
+// older side's transient error is demoted to a warning only beside a hard
+// error: joined, it would be buried in the hard error instead of reported under
+// its op. The member phases skip a parent still transient after the SDK's
+// retries (childFanOutSkipTransient), so no transient error leaves them. The
+// errors are joined and the counts summed.
 func scanDeadline(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := deadline.NewFromConfig(acct.cfg, func(o *deadline.Options) { o.Region = region })
 
 	farms, total, inserted, err := scanDeadlineOlderPhases(ctx, client, acct, region, st, scanID)
-	errs := []error{demoteTransient(st, "deadline", acct, region, err)}
+	var errs phaseErrs
+	errs.add("deadline", err)
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanDeadlineFarmMembers(ctx, client, acct, region, st, scanID, farms) },
 		func() (int, int, error) {
@@ -88,9 +87,9 @@ func scanDeadline(ctx context.Context, acct *account, region string, st *store.S
 		t, i, perr := phase()
 		total += t
 		inserted += i
-		errs = append(errs, perr)
+		errs.add("deadline", perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // scanDeadlineOlderPhases runs the phases that predate the member phases,

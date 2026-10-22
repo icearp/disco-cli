@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
@@ -102,8 +101,9 @@ const (
 // set: one row per AWS managed policy and one per customer managed policy
 // reference, contained by the permission set. They are rows of their own, not
 // permission-set attributes, so attaching or detaching a policy changes that
-// one row instead of version-splitting the permission set. Both lists run;
-// a transient failure in one is demoted so it cannot hide the other's error.
+// one row instead of version-splitting the permission set. Both lists run; a
+// transient failure in one is demoted to a warning only beside a hard error in
+// the other, so it cannot hide that error.
 func scanSSOPermissionSetPolicies(ctx context.Context, client ssoadminAPI, acct *account, region string, sets []ssoPermissionSet, st *store.Store, scanID string) (int, int, error) {
 	parents := make([]childParent, 0, len(sets))
 	instanceOf := make(map[string]string, len(sets))
@@ -113,10 +113,10 @@ func scanSSOPermissionSetPolicies(ctx context.Context, client ssoadminAPI, acct 
 	}
 	mt, mi, merr := scanSSOManagedPolicies(ctx, client, acct, region, st, scanID, parents, instanceOf)
 	ct, ci, cerr := scanSSOCustomerManagedPolicyReferences(ctx, client, acct, region, st, scanID, parents, instanceOf)
-	return mt + ct, mi + ci, errors.Join(
-		demoteTransient(st, ssoListManagedPoliciesOp, acct, region, merr),
-		demoteTransient(st, ssoListCustomerManagedPolicyRefOp, acct, region, cerr),
-	)
+	var errs phaseErrs
+	errs.add(ssoListManagedPoliciesOp, merr)
+	errs.add(ssoListCustomerManagedPolicyRefOp, cerr)
+	return mt + ct, mi + ci, errs.join(st, acct, region)
 }
 
 // ssoPolicyPageSize is the documented MaxResults cap of both policy list ops.

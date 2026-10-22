@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -37,10 +36,9 @@ const (
 // because runScanners cancels every category on the first error, and because
 // the child phases read the parents those categories stored. The phases are
 // independent and run concurrently under a WaitGroup, not an errgroup, so one
-// failure cancels no sibling. Each has its transient error demoted to a
-// warning (one transient member would make the dispatcher read the whole join
-// as transient), and the errors are joined in phase order.
-func scanEC2Late(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// failure cancels no sibling. Each phase's error is added to errs under its
+// own op, in phase order, for scanEC2 to join.
+func scanEC2Late(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string, errs *phaseErrs) (total, inserted int) {
 	phases := []struct {
 		op  string
 		run func(context.Context, ec2API, *account, string, *store.Store, string) (int, int, error)
@@ -69,17 +67,16 @@ func scanEC2Late(ctx context.Context, client ec2API, acct *account, region strin
 	for i, phase := range phases {
 		wg.Go(func() {
 			t, n, perr := phase.run(ctx, client, acct, region, st, scanID)
-			results[i] = result{t, n, demoteTransient(st, phase.op, acct, region, perr)}
+			results[i] = result{t, n, perr}
 		})
 	}
 	wg.Wait()
-	errs := make([]error, len(results))
 	for i, r := range results {
 		total += r.total
 		inserted += r.inserted
-		errs[i] = r.err
+		errs.add(phases[i].op, r.err)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted
 }
 
 // fastSnapshotRestoreNativeID builds the NativeID of fast snapshot restore on

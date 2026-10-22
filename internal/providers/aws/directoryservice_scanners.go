@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -63,16 +62,13 @@ func scanDirectoryService(ctx context.Context, acct *account, region string, st 
 // directory phase, over the directories it stored (none when it failed).
 //
 // Every phase calls the same endpoint, so a first phase that cannot reach it
-// (isEndpointUnreachable) is returned alone. A later phase's transient error
-// is warned about here rather than returned, unless it carries a store write
-// failure (isDemotableTransient): the dispatcher classifies a
-// joined error by any member, so one throttled phase would make the whole
-// service's result transient and report the other phases' hard errors as
-// transient ones.
+// (isEndpointUnreachable) is returned alone. The later phases' errors are
+// joined by phaseErrs, so a lone or all-transient failure still marks the
+// scan partial; a later NXDOMAIN is a plain error (lateNXDOMAIN).
 func scanDirectoryServiceIn(ctx context.Context, client directoryServiceAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
 		dirs []dsDirectory
-		errs []error
+		errs phaseErrs
 	)
 	for n, phase := range []struct {
 		name string
@@ -105,13 +101,9 @@ func scanDirectoryServiceIn(ctx context.Context, client directoryServiceAPI, acc
 		}
 		total += t
 		inserted += i
-		if isDemotableTransient(perr) {
-			_ = skipIfTransient(st, phase.name, acct.ID, region, perr)
-			continue
-		}
-		errs = append(errs, perr)
+		errs.add(phase.name, lateNXDOMAIN(phase.name, perr))
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // dsDirectory is a directory stored this scan; arn is its row's NativeID.

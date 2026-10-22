@@ -337,9 +337,10 @@ func TestScanApplicationAutoScaling_ScheduledActionErrors(t *testing.T) {
 			wantCode: "InternalServiceException", wantRows: []string{aasTestActionWeb}, wantCalls: 2,
 		},
 		{
-			name:      "transient error is a warning",
-			fail:      every(apiErr("ServiceUnavailable", "try later")),
-			wantWarns: 1, wantCalls: 1,
+			// Alone, the transient error is returned, so the scan is partial.
+			name:     "transient error alone is returned",
+			fail:     every(apiErr("ServiceUnavailable", "try later")),
+			wantCode: "ServiceUnavailable", wantCalls: 1,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

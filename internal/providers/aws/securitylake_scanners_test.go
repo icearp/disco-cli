@@ -602,8 +602,8 @@ func TestScanSecurityLake_DataLakeSourcesPhaseIndependent(t *testing.T) {
 	}
 }
 
-// A phase's transient error is demoted to a warning, so it cannot make the
-// dispatcher read the other side's hard error as transient.
+// A phase's transient error is demoted to a warning under its op instead of
+// buried in the other side's hard error.
 func TestScanSecurityLake_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	cases := []struct {
@@ -637,21 +637,23 @@ func TestScanSecurityLake_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 	}
 }
 
-// A throttled ListDataLakes is only a warning, so it does not skip the
-// subscribers: they are listed and stored as after an access denial.
+// A throttled ListDataLakes does not skip the subscribers: they are listed and
+// stored as after an access denial. Alone, the throttle is returned as
+// transient, so the scan is partial.
 func TestScanSecurityLake_ThrottledDataLakesStillListsSubscribers(t *testing.T) {
 	st := newTestStore(t)
 	h := slHandlers(&slCalls{})
 	h["ListDataLakes"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "Rate exceeded") }
 	warnings := countOpWarnings(st, slDataLakesOp)
-	if _, _, err := scanSecurityLakeTopLevel(st, h); err != nil {
-		t.Fatalf("scanSecurityLake: %v", err)
+	_, _, err := scanSecurityLakeTopLevel(st, h)
+	if got := classifyServiceError(err); got != outcomeTransient {
+		t.Fatalf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
 	}
 	if _, ok := rowsByNativeID(t, st, TypeSecurityLakeSubscriber)[slTestSubscriberARN]; !ok {
 		t.Errorf("no subscriber row %q after a throttled ListDataLakes", slTestSubscriberARN)
 	}
-	if *warnings != 1 {
-		t.Errorf("%s warnings = %d, want 1", slDataLakesOp, *warnings)
+	if *warnings != 0 {
+		t.Errorf("%s warnings = %d, want 0", slDataLakesOp, *warnings)
 	}
 }
 
@@ -1000,8 +1002,8 @@ func TestScanSecurityLake_CutShortListingReportsLogSources(t *testing.T) {
 }
 
 // The subscribers' not-enabled answer is the service's state only when no
-// other phase stored a row or failed; otherwise it is a warning, and a hard
-// error elsewhere stays a hard error.
+// other phase stored a row or failed; otherwise it is a warning, and another
+// phase's error is returned as it is.
 func TestScanSecurityLake_SubscribersNotEnabled(t *testing.T) {
 	notEnabled := apiErr("AccessDeniedException", "You must be a delegated Security Lake administrator account")
 	empty := map[string]func(any) (any, error){
@@ -1020,6 +1022,9 @@ func TestScanSecurityLake_SubscribersNotEnabled(t *testing.T) {
 		{"rows stored elsewhere", map[string]func(any) (any, error){}, true, 0, 1},
 		{"hard sources error", withSL(empty, "GetDataLakeSources", apiErr("BadRequestException", "bad")), false, outcomeError, 1},
 		{"hard log sources error", withSL(empty, "ListLogSources", errSLTest), false, outcomeError, 1},
+		// The data lakes' throttle alone reaches the dispatcher: the scan is
+		// partial, not reported disabled with the throttle discarded.
+		{"throttled data lakes", withSL(empty, "ListDataLakes", apiErr("ThrottlingException", "slow down")), false, outcomeTransient, 1},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -1049,4 +1054,25 @@ func withSL(handlers map[string]func(any) (any, error), op string, err error) ma
 	out := maps.Clone(handlers)
 	out[op] = func(any) (any, error) { return nil, err }
 	return out
+}
+
+// An NXDOMAIN from ListDataLakes is no transient the subscribers are listed
+// past: the endpoint is absent, so ListSubscribers is not called.
+func TestScanSecurityLake_DataLakesNXDOMAINSkipsSubscribers(t *testing.T) {
+	st := newTestStore(t)
+	h := slHandlers(&slCalls{})
+	h["ListDataLakes"] = func(any) (any, error) {
+		return nil, &net.DNSError{Err: "no such host", Name: "securitylake.us-east-1.amazonaws.com", IsNotFound: true}
+	}
+	called := false
+	h["ListSubscribers"] = func(any) (any, error) {
+		called = true
+		return &securitylake.ListSubscribersOutput{}, nil
+	}
+	if _, _, err := scanSecurityLakeTopLevel(st, h); err == nil {
+		t.Fatal("err = nil, want the NXDOMAIN")
+	}
+	if called {
+		t.Error("ListSubscribers called after ListDataLakes' NXDOMAIN")
+	}
 }

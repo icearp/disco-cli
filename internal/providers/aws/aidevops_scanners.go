@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
@@ -55,12 +54,12 @@ func scanAidevops(ctx context.Context, acct *account, region string, st *store.S
 // scanAidevopsAll runs every phase even when an earlier one fails. Assets,
 // triggers and goals are served by the data-plane host (dp.), the rest by the control
 // plane (cp.), so only the first phase's unreachable endpoint speaks for the
-// whole service; a later phase's transient error is warned about on its own.
+// whole service. The later phases' errors are joined by phaseErrs.
 func scanAidevopsAll(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
 		spaces       []childParent
 		associations []aidevopsAssociation
-		errs         []error
+		errs         phaseErrs
 	)
 	for n, phase := range []struct {
 		name string
@@ -100,13 +99,16 @@ func scanAidevopsAll(ctx context.Context, client aidevopsAPI, acct *account, reg
 		}
 		total += t
 		inserted += i
-		if isTransientNetworkError(perr) {
-			_ = skipIfTransient(st, phase.name, acct.ID, region, perr)
-			continue
+		// The assets phase is the first call to the data-plane host, so
+		// lateNXDOMAIN's "earlier calls to it succeeded" would be false. The
+		// NXDOMAIN is still flattened, or the dispatcher would read the join
+		// as (region: unavailable) and drop the rows already stored.
+		if isDNSNotFound(perr) {
+			perr = fmt.Errorf("%s: endpoint does not resolve: %v", phase.name, perr)
 		}
-		errs = append(errs, perr)
+		errs.add(phase.name, perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 func scanAidevopsAgentSpaces(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string) (spaceIDs []string, total, inserted int, err error) {

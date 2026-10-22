@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -51,16 +50,16 @@ func scanLakeFormation(ctx context.Context, acct *account, region string, st *st
 
 // scanLakeFormationAll runs the catalog phases, which stop at their first hard
 // error, then the opt-in phase, so a failure on either side costs the other no
-// rows. Each side's transient error is demoted to a warning: one transient
-// member would make the dispatcher read the whole join as transient, reporting
-// the other side's hard error as a transient one.
+// rows. Each side's transient error is demoted to a warning only beside a hard
+// error: joined, it would be buried in the hard error instead of reported under
+// its op.
 func scanLakeFormationAll(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, err := scanLakeFormationCatalog(ctx, client, acct, region, st, scanID)
 	t, i, oerr := scanLFOptIns(ctx, client, acct, region, st, scanID)
-	return total + t, inserted + i, errors.Join(
-		demoteTransient(st, "lakeformation", acct, region, err),
-		demoteTransient(st, lfOptInOp, acct, region, oerr),
-	)
+	var errs phaseErrs
+	errs.add("lakeformation", err)
+	errs.add(lfOptInOp, oerr)
+	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
 func scanLakeFormationCatalog(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

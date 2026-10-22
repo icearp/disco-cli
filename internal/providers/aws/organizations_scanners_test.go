@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -167,6 +168,11 @@ func TestScanOrganizations_ARNlessRootSubtreeStillStored(t *testing.T) {
 	if n := warns["store/hierarchy"]; n != 1 {
 		t.Errorf("store hierarchy warnings = %d, want 1", n)
 	}
+	// Account 333333333333's parent is the rowless root: it is stored
+	// unlinked and warned about, not dropped from the hierarchy silently.
+	if n := warns["aws/organizations:ListParents"]; n != 1 {
+		t.Errorf("organizations:ListParents warnings = %d, want 1 for the account under the ARN-less root", n)
+	}
 	if _, ok := rowsByNativeID(t, st, TypeOrganizationsOU)[orgTestNoARNOU]; !ok {
 		t.Errorf("OU under the ARN-less root not stored")
 	}
@@ -186,7 +192,9 @@ func TestScanOrganizations_ARNlessRootSubtreeStillStored(t *testing.T) {
 
 // A denied ListParents keeps every account, unlinked, and warns once; an
 // account that left the organization (ChildNotFoundException) is stored
-// unlinked and warned about once; any other error fails the scan.
+// unlinked and warned about once; any other error fails the scan. Where
+// ListParents answers, account 333333333333 (under the ARN-less root, which
+// is not stored) adds one more warning.
 func TestScanOrganizations_ListParentsErrors(t *testing.T) {
 	t.Run("denied", func(t *testing.T) {
 		st := newTestStore(t)
@@ -231,8 +239,8 @@ func TestScanOrganizations_ListParentsErrors(t *testing.T) {
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(h, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"})
 		total, _, err := scanOrganizations(context.Background(), acct, "", st, testScanID)
-		if err != nil || *warns != 1 || total != 8 {
-			t.Fatalf("total = %d, warnings = %d, err = %v; want 8 rows, 1 warning for the unlinked account, nil", total, *warns, err)
+		if err != nil || *warns != 2 || total != 8 {
+			t.Fatalf("total = %d, warnings = %d, err = %v; want 8 rows, 2 warnings (gone account, ARN-less root's account), nil", total, *warns, err)
 		}
 		assertContainsNative(t, st, orgTestOUARN, orgTestAcct2ARN)
 		rels, err := st.RelationshipsFrom(store.ResourceID("aws", testAccountID, orgTestRootARN))
@@ -265,8 +273,8 @@ func TestScanOrganizations_ListParentsErrors(t *testing.T) {
 		wantWarns int
 		wantCode  string
 	}{
-		{"throttled", &smithy.GenericAPIError{Code: "TooManyRequestsException", Message: "slow down"}, 1, ""},
-		{"other error", &smithy.GenericAPIError{Code: "InvalidInputException", Message: "bad"}, 0, "InvalidInputException"},
+		{"throttled", &smithy.GenericAPIError{Code: "TooManyRequestsException", Message: "slow down"}, 2, ""},
+		{"other error", &smithy.GenericAPIError{Code: "InvalidInputException", Message: "bad"}, 1, "InvalidInputException"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -285,11 +293,8 @@ func TestScanOrganizations_ListParentsErrors(t *testing.T) {
 			if n := len(rowsByNativeID(t, st, TypeOrganizationsAccount)); n != 4 {
 				t.Errorf("account rows = %d, want the 4 listed", n)
 			}
-			// scanOrganizations records the closure only when every phase
-			// before it succeeded, so the links are checked on success only.
-			if tc.wantCode == "" {
-				assertContainsNative(t, st, orgTestOUARN, orgTestAcct2ARN)
-			}
+			// The closure is recorded whatever the account phase returned.
+			assertContainsNative(t, st, orgTestOUARN, orgTestAcct2ARN)
 		})
 	}
 	// The "stored without their parent" warning counts only accounts stored:
@@ -347,6 +352,171 @@ func TestScanOrganizations_DescribeResourcePolicyErrors(t *testing.T) {
 			if rows := rowsByNativeID(t, st, TypeOrganizationsResourcePolicy); len(rows) != 0 {
 				t.Errorf("resource policy rows = %v, want none", nativeIDs(rows))
 			}
+		})
+	}
+}
+
+func orgTestTransfer(id string) organizationstypes.ResponsibilityTransfer {
+	return organizationstypes.ResponsibilityTransfer{
+		Id: sdkaws.String(id), Arn: sdkaws.String("arn:aws:organizations::" + testAccountID + ":responsibilitytransfer/" + id),
+	}
+}
+
+// A failed phase costs no other phase its rows: the later phases still run,
+// and the closure links what the tree phases stored.
+func TestScanOrganizations_PhaseFailureKeepsOtherPhases(t *testing.T) {
+	for _, op := range []string{"ListOrganizationalUnitsForParent", "ListAccounts", "ListPolicies"} {
+		t.Run(op, func(t *testing.T) {
+			st := newTestStore(t)
+			h := orgTreeHandlers()
+			h[op] = func(any) (any, error) {
+				return nil, &smithy.GenericAPIError{Code: "InvalidInputException", Message: "bad"}
+			}
+			h["ListInboundResponsibilityTransfers"] = func(any) (any, error) {
+				return &organizations.ListInboundResponsibilityTransfersOutput{ResponsibilityTransfers: []organizationstypes.ResponsibilityTransfer{orgTestTransfer("rt-1")}}, nil
+			}
+			acct := newTestAccount(testAccountID)
+			acct.cfg = opStubConfig(h, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"})
+			_, _, err := scanOrganizations(context.Background(), acct, "", st, testScanID)
+			assertAPICode(t, err, "InvalidInputException")
+			if n := len(rowsByNativeID(t, st, TypeOrganizationsResponsibilityTransfer)); n != 1 {
+				t.Errorf("responsibility transfer rows = %d; want 1 despite %s failing", n, op)
+			}
+			assertContainsNative(t, st, orgTestOrgARN, orgTestRootARN)
+			if op != "ListAccounts" {
+				assertContainsNative(t, st, orgTestRootARN, orgTestAcct1ARN)
+			}
+		})
+	}
+}
+
+// A list that repeats its token keeps the transfers read, the other list
+// still runs, and the listing fails as incomplete.
+func TestScanOrgResponsibilityTransfers_RepeatedTokenKeepsRows(t *testing.T) {
+	st := newTestStore(t)
+	var inCalls int
+	client := organizations.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
+		"ListInboundResponsibilityTransfers": func(any) (any, error) {
+			inCalls++
+			if inCalls > 2 {
+				return nil, &smithy.GenericAPIError{Code: "ServiceException", Message: "called past the repeated token"}
+			}
+			return &organizations.ListInboundResponsibilityTransfersOutput{
+				ResponsibilityTransfers: []organizationstypes.ResponsibilityTransfer{orgTestTransfer([]string{"rt-in-1", "rt-in-2"}[inCalls-1])},
+				NextToken:               sdkaws.String("same"),
+			}, nil
+		},
+		"ListOutboundResponsibilityTransfers": func(any) (any, error) {
+			return &organizations.ListOutboundResponsibilityTransfersOutput{ResponsibilityTransfers: []organizationstypes.ResponsibilityTransfer{orgTestTransfer("rt-out")}}, nil
+		},
+	}, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"}))
+	var errs phaseErrs
+	acct := newTestAccount(testAccountID)
+	total, _ := scanOrgResponsibilityTransfers(context.Background(), client, acct, st, testScanID, &errs)
+	err := errs.join(st, acct, "")
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Errorf("err = %v; want errRepeatedNextToken", err)
+	}
+	if total != 3 || inCalls != 2 {
+		t.Errorf("total = %d, inbound calls = %d; want 3 rows (2 inbound, 1 outbound) from 2 inbound calls", total, inCalls)
+	}
+	if n := len(rowsByNativeID(t, st, TypeOrganizationsResponsibilityTransfer)); n != 3 {
+		t.Errorf("rows = %d; want 3", n)
+	}
+}
+
+// A list that fails keeps the other list's transfers, and the failure is
+// returned after they are stored.
+func TestScanOrgResponsibilityTransfers_FailedListKeepsOtherList(t *testing.T) {
+	st := newTestStore(t)
+	client := organizations.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
+		"ListInboundResponsibilityTransfers": func(any) (any, error) {
+			return nil, &smithy.GenericAPIError{Code: "ServiceException", Message: "boom"}
+		},
+		"ListOutboundResponsibilityTransfers": func(any) (any, error) {
+			return &organizations.ListOutboundResponsibilityTransfersOutput{ResponsibilityTransfers: []organizationstypes.ResponsibilityTransfer{orgTestTransfer("rt-out")}}, nil
+		},
+	}, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"}))
+	var errs phaseErrs
+	acct := newTestAccount(testAccountID)
+	total, _ := scanOrgResponsibilityTransfers(context.Background(), client, acct, st, testScanID, &errs)
+	err := errs.join(st, acct, "")
+	assertAPICode(t, err, "ServiceException")
+	if total != 1 {
+		t.Errorf("total = %d; want 1 outbound transfer", total)
+	}
+	if n := len(rowsByNativeID(t, st, TypeOrganizationsResponsibilityTransfer)); n != 1 {
+		t.Errorf("rows = %d; want 1", n)
+	}
+}
+
+// A root or OU whose write fails is not linked: no closure row names it, the
+// accounts under it are stored unlinked under one parent-not-stored warning
+// rather than linked to a missing row (which the store would refuse with a
+// hierarchy-missing warning), and the other parents still link theirs.
+func TestScanOrganizations_UnstoredParentIsNotLinked(t *testing.T) {
+	for _, tc := range []struct {
+		name, refusedType string
+		refused           []string
+		// firstUnlinked is the first listed account whose parent is not
+		// stored; linked is an account whose parent was stored.
+		firstUnlinked string
+		linked        [2]string
+	}{
+		{
+			name: "OU write fails", refusedType: TypeOrganizationsOU,
+			refused:       []string{orgTestOUARN, orgTestNoARNOU},
+			firstUnlinked: orgTestAcct2ARN, linked: [2]string{orgTestRootARN, orgTestAcct1ARN},
+		},
+		{
+			name: "root write fails", refusedType: TypeOrganizationsRoot,
+			refused:       []string{orgTestRootARN},
+			firstUnlinked: orgTestAcct1ARN, linked: [2]string{orgTestNoARNOU, orgTestAcct4ARN},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			// The abort is a constraint error, which the store does not retry.
+			if _, err := st.DB().Exec(`CREATE TRIGGER refuse_parent BEFORE INSERT ON resources
+				WHEN NEW.type = '` + tc.refusedType + `'
+				BEGIN SELECT RAISE(ABORT, 'test: parent write refused'); END`); err != nil {
+				t.Fatalf("create trigger: %v", err)
+			}
+			warns := recordWarnings(st)
+			acct := newTestAccount(testAccountID)
+			acct.cfg = opStubConfig(orgTreeHandlers(), &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"})
+			_, _, err := scanOrganizations(context.Background(), acct, "", st, testScanID)
+			if !errors.Is(err, store.ErrStoreWrite) {
+				t.Errorf("err = %v; want the parent write failure", err)
+			}
+			for _, arn := range tc.refused {
+				id := store.ResourceID("aws", testAccountID, arn)
+				var n int
+				if err := st.DB().Get(&n, `SELECT COUNT(*) FROM hierarchy_closure WHERE ancestor_id = ? OR descendant_id = ?`, id, id); err != nil {
+					t.Fatal(err)
+				}
+				if n != 0 {
+					t.Errorf("closure rows naming unstored %s = %d; want 0", arn, n)
+				}
+			}
+			var notStored []store.ScanWarning
+			for _, w := range *warns {
+				// The OU under the ARN-less root draws one such warning by
+				// design (TestScanOrganizations_ARNlessRootSubtreeStillStored);
+				// none may name a refused row.
+				for _, arn := range tc.refused {
+					if w.Provider == "store" && w.Service == "hierarchy" && strings.Contains(w.Scope, store.ResourceID("aws", testAccountID, arn)) {
+						t.Errorf("store warning %+v; want no link to the unstored %s attempted", w, arn)
+					}
+				}
+				if w.Service == "organizations:ListParents" && strings.Contains(w.Message, errParentNotStored.Error()) {
+					notStored = append(notStored, w)
+				}
+			}
+			if len(notStored) != 1 || !strings.Contains(notStored[0].Message, tc.firstUnlinked) {
+				t.Errorf("parent-not-stored warnings = %+v; want one naming %s first", notStored, tc.firstUnlinked)
+			}
+			assertContainsNative(t, st, tc.linked[0], tc.linked[1])
 		})
 	}
 }

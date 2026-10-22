@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -59,7 +58,7 @@ func scanCodeCommit(ctx context.Context, acct *account, region string, st *store
 func scanCodeCommitIn(ctx context.Context, client codeCommitAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
 		repos []childParent
-		errs  []error
+		errs  phaseErrs
 	)
 	for n, phase := range []struct {
 		name string
@@ -86,13 +85,9 @@ func scanCodeCommitIn(ctx context.Context, client codeCommitAPI, acct *account, 
 		}
 		total += t
 		inserted += i
-		if isTransientNetworkError(perr) {
-			_ = skipIfTransient(st, phase.name, acct.ID, region, perr)
-			continue
-		}
-		errs = append(errs, perr)
+		errs.add(phase.name, lateNXDOMAIN(phase.name, perr))
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // scanCCRepositories returns the stored repositories as trigger parents (id is

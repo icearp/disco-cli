@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/gamelift"
@@ -63,14 +62,13 @@ func scanGameLift(ctx context.Context, acct *account, region string, st *store.S
 // (isEndpointUnreachable) is returned alone and no later phase runs: they
 // would fail the same way, and the dispatcher must see the bare error to
 // classify it (NXDOMAIN in a region without GameLift is region-unavailable).
-// A later phase's transient error is warned about here rather than returned:
-// the dispatcher classifies a joined error by any member, so one throttled
-// phase would make the whole service's result transient, downgrading the
-// other phases' hard errors to transient ones.
+// The later phases' errors are joined by phaseErrs, so a lone or
+// all-transient failure still marks the scan partial; a later NXDOMAIN is a
+// plain error (lateNXDOMAIN).
 func scanGameLiftIn(ctx context.Context, client gameLiftAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
 		fleets []gltypes.FleetAttributes
-		errs   []error
+		errs   phaseErrs
 	)
 	for n, phase := range []struct {
 		name string
@@ -116,13 +114,9 @@ func scanGameLiftIn(ctx context.Context, client gameLiftAPI, acct *account, regi
 		}
 		total += t
 		inserted += i
-		if isTransientNetworkError(perr) {
-			_ = skipIfTransient(st, phase.name, acct.ID, region, perr)
-			continue
-		}
-		errs = append(errs, perr)
+		errs.add(phase.name, lateNXDOMAIN(phase.name, perr))
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 func scanGLAliases(ctx context.Context, client gameLiftAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

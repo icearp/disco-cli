@@ -52,16 +52,16 @@ type apprunnerAPI interface {
 }
 
 // scanAppRunner discovers App Runner resources in one region, then the custom
-// domains of every service it stored. The custom-domain phase runs whatever
-// the earlier phases returned, so its failure costs them nothing. The earlier
-// phases' transient error is demoted to a warning, since one transient member
-// would make the dispatcher read the whole join as transient; the counts are
-// summed.
+// domains of every service it stored. The custom-domain phase runs whatever the
+// earlier phases returned, so its failure costs them nothing. The earlier
+// phases' transient error is demoted to a warning only beside a hard error:
+// joined, it would be buried in the hard error instead of reported under its
+// op; the counts are summed.
 func scanAppRunner(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := apprunner.NewFromConfig(acct.cfg, func(o *apprunner.Options) { o.Region = region })
 	total, inserted, services, err := scanAppRunnerPhases(ctx, client, acct, region, st, scanID)
 	t, i, derr := scanAppRunnerCustomDomains(ctx, client, acct, region, st, scanID, services)
-	return total + t, inserted + i, errors.Join(demoteTransient(st, "apprunner", acct, region, err), derr)
+	return total + t, inserted + i, demoteBeside(st, "apprunner", acct, region, err, derr)
 }
 
 // scanAppRunnerPhases runs, stopping at the first error: ListServices

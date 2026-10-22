@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -58,10 +57,9 @@ type opensearchAPI interface {
 // included, is joined like a later phase's, and the later phases still run;
 // the data-source phase fans out over whatever domain names were listed.
 // The phases are independent: a failed phase does not stop the ones after it,
-// and their errors are joined. A transient network
-// error from a later phase warns instead of being joined, because one
-// transient member makes the dispatcher classify the whole joined error as
-// transient, which reports every hard error beside it as a transient one.
+// and their errors are joined by phaseErrs, so a lone or all-transient
+// failure marks the scan partial; a later NXDOMAIN is a plain error
+// (lateNXDOMAIN).
 // Attachments fan out over the applications listed earlier in the same scan.
 func scanOpenSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := opensearch.NewFromConfig(acct.cfg, func(o *opensearch.Options) { o.Region = region })
@@ -69,7 +67,8 @@ func scanOpenSearch(ctx context.Context, acct *account, region string, st *store
 	if isEndpointUnreachable(derr) {
 		return total, inserted, derr
 	}
-	errs := []error{derr}
+	var errs phaseErrs
+	errs.add("opensearch:ListDomainNames", derr)
 	var apps []childParent
 	for _, phase := range []struct {
 		name string
@@ -111,13 +110,9 @@ func scanOpenSearch(ctx context.Context, acct *account, region string, st *store
 		t, i, perr := phase.run()
 		total += t
 		inserted += i
-		if isDemotableTransient(perr) {
-			_ = skipIfTransient(st, phase.name, acct.ID, region, perr)
-			continue
-		}
-		errs = append(errs, perr)
+		errs.add(phase.name, lateNXDOMAIN(phase.name, perr))
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // openSearchARN builds an es-namespace ARN-shaped NativeID,

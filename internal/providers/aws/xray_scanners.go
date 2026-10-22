@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/xray"
@@ -40,18 +39,20 @@ const xrayGetIndexingRulesOp = "xray:GetIndexingRules"
 // GetTraceSegmentDestination is the singleton that backs it (controls whether
 // segments index to CloudWatch Logs for Transaction Search).
 //
-// The older phases stop at their first hard error. The indexing-rule phase
-// runs whatever they returned, so its failure costs no other phase its rows
-// and theirs does not skip it. Each result has its transient error demoted to
-// a warning, since one transient member would make the dispatcher read the
-// whole join as transient; the rest are joined and the counts summed.
+// The older phases stop at their first hard error. The indexing-rule phase runs
+// whatever they returned, so its failure costs no other phase its rows and
+// theirs does not skip it. Each result has its transient error demoted to a
+// warning only beside a hard error: joined, it would be buried in the hard
+// error instead of reported under its op; the rest are joined and the counts
+// summed.
 func scanXRay(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := xray.NewFromConfig(acct.cfg, func(o *xray.Options) { o.Region = region })
 	total, inserted, err := scanXRayOlderPhases(ctx, client, acct, region, st, scanID)
 	t, i, ierr := scanXRayIndexingRules(ctx, client, acct, region, st, scanID)
-	return total + t, inserted + i, errors.Join(
-		demoteTransient(st, "xray", acct, region, err),
-		demoteTransient(st, xrayGetIndexingRulesOp, acct, region, ierr))
+	var errs phaseErrs
+	errs.add("xray", err)
+	errs.add(xrayGetIndexingRulesOp, ierr)
+	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
 // scanXRayOlderPhases runs the phases that predate indexing rules, stopping at

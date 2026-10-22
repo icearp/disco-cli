@@ -602,9 +602,9 @@ func TestScanEC2_TGWExtendedPhasesAfterOlderCategories(t *testing.T) {
 	}
 }
 
-// A transient older category is demoted to one warning, so it cannot make the
-// dispatcher read a new phase's hard error as transient, and a transient new
-// phase does not mask an older category's hard error.
+// A transient older category is demoted to one warning under its op instead of
+// buried in a new phase's hard error, and a transient new phase does not mask
+// an older category's hard error.
 func TestScanEC2_TGWExtendedTransientDoesNotMaskHardError(t *testing.T) {
 	type tc struct{ name, transientOp, hardOp, warnOp string }
 	var cases []tc

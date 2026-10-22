@@ -485,20 +485,41 @@ func TestScanCodeCommitIn_RepositoryErrorKeepsTemplates(t *testing.T) {
 	}
 }
 
-// A later phase's transient error is warned about on its own, so it cannot
-// make the dispatcher classify the whole service transient.
-func TestScanCodeCommitIn_TransientPhaseWarns(t *testing.T) {
+// A later phase's transient error alone is returned, so the scan is marked
+// partial rather than complete, with the earlier phase's rows counted.
+func TestScanCodeCommitIn_LoneTransientPhaseMarksPartial(t *testing.T) {
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "codecommit:ListApprovalRuleTemplates")
 	handlers := ccTopLevelHandlers(map[string]func(any) (any, error){
 		"ListApprovalRuleTemplates": func(any) (any, error) { return nil, ccThrottled },
 	})
 	total, _, err := scanCodeCommitIn(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
-	if err != nil || total != 2 {
-		t.Errorf("total, err = %d, %v; want 2, nil", total, err)
+	if got := classifyServiceError(err); got != outcomeTransient {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
 	}
-	if *warned != 1 {
-		t.Errorf("transient warnings = %d, want 1", *warned)
+	if total != 2 {
+		t.Errorf("total = %d, want 2", total)
+	}
+	if *warned != 0 {
+		t.Errorf("transient warnings = %d, want 0", *warned)
+	}
+}
+
+// A later phase's NXDOMAIN is flattened to a plain error, so the dispatcher
+// does not report the region unavailable and drop the rows already stored.
+func TestScanCodeCommitIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	st := newTestStore(t)
+	handlers := ccTopLevelHandlers(map[string]func(any) (any, error){
+		"ListApprovalRuleTemplates": func(any) (any, error) {
+			return nil, &net.DNSError{Err: "no such host", Name: "codecommit.us-east-1.amazonaws.com", IsNotFound: true}
+		},
+	})
+	total, _, err := scanCodeCommitIn(context.Background(), ccClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if got := classifyServiceError(err); err == nil || got != outcomeError {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
+	}
+	if total != 2 {
+		t.Errorf("total = %d, want 2", total)
 	}
 }
 

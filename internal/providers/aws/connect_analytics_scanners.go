@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/connect"
@@ -42,9 +41,9 @@ type connectAnalyticsAPI interface {
 }
 
 // scanConnectAnalytics runs both phases concurrently; neither depends on the
-// other. Each error passes through demoteTransient before the join, so a
-// throttle on one cannot make the dispatcher classify the service transient
-// and hide the other's hard error.
+// other. Each error is joined by phaseErrs, which demotes a transient one to a
+// warning only beside a hard one, so a throttle on one phase is reported under
+// its op instead of buried in the other's hard error.
 func scanConnectAnalytics(ctx context.Context, client connectAnalyticsAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var (
 		wg             sync.WaitGroup
@@ -56,10 +55,10 @@ func scanConnectAnalytics(ctx context.Context, client connectAnalyticsAPI, insta
 	})
 	wg.Go(func() { t2, i2, merr = scanConnectMetrics(ctx, client, instances, acct, region, st, scanID) })
 	wg.Wait()
-	return t1 + t2, i1 + i2, errors.Join(
-		demoteTransient(st, connectListExtractionDefinitionsOp, acct, region, eerr),
-		demoteTransient(st, connectListMetricsOp, acct, region, merr),
-	)
+	var errs phaseErrs
+	errs.add(connectListExtractionDefinitionsOp, eerr)
+	errs.add(connectListMetricsOp, merr)
+	return t1 + t2, i1 + i2, errs.join(st, acct, region)
 }
 
 // connectListDescribe is the per-instance list-then-describe skeleton: list

@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/backupgateway"
@@ -41,17 +40,17 @@ func scanBackupGateway(ctx context.Context, acct *account, region string, st *st
 	return scanBackupGatewayAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanBackupGatewayAll runs the resource phases, which stop at their first
-// hard error, then the per-parent configuration phases over the parents stored
+// scanBackupGatewayAll runs the resource phases, which stop at their first hard
+// error, then the per-parent configuration phases over the parents stored
 // before that error, so a failure on either side costs the other no rows. The
-// resource side's transient error is demoted to a warning: one transient
-// member would make the dispatcher read the whole join as transient,
-// reporting a configuration phase's hard error as a transient one.
+// resource side's transient error is demoted to a warning only beside a hard
+// error: joined, it would be buried in the hard error instead of reported under
+// its op.
 func scanBackupGatewayAll(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, parents, err := scanBackupGatewayResources(ctx, client, acct, region, st, scanID)
 	t1, i1, serr := scanBackupGatewayBandwidthSchedules(ctx, client, acct, region, st, scanID, parents.gateways)
 	t2, i2, merr := scanBackupGatewayPropertyMappings(ctx, client, acct, region, st, scanID, parents.hypervisors)
-	return total + t1 + t2, inserted + i1 + i2, errors.Join(demoteTransient(st, "backupgateway", acct, region, err), serr, merr)
+	return total + t1 + t2, inserted + i1 + i2, demoteBeside(st, "backupgateway", acct, region, err, serr, merr)
 }
 
 // backupGatewayParents holds the hypervisors and gateways stored this scan.

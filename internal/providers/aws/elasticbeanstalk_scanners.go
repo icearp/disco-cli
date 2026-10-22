@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk"
@@ -47,17 +46,16 @@ func scanElasticBeanstalk(ctx context.Context, acct *account, region string, st 
 	return scanElasticBeanstalkAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanElasticBeanstalkAll runs the older phases, which stop at their first
-// hard error, then the configuration-template phase over the applications
-// stored before that error, so a failure on either side costs the other no
-// rows. The older side's transient error is demoted to a warning: one
-// transient member would make the dispatcher read the whole join as
-// transient, reporting the template phase's hard error as a transient one.
-// The template phase tallies its own transient errors per template.
+// scanElasticBeanstalkAll runs the older phases, which stop at their first hard
+// error, then the configuration-template phase over the applications stored
+// before that error, so a failure on either side costs the other no rows. The
+// older side's transient error is demoted to a warning only beside a hard
+// error: joined, it would be buried in the hard error instead of reported under
+// its op. The template phase tallies its own transient errors per template.
 func scanElasticBeanstalkAll(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, apps, err := scanBeanstalkOlderPhases(ctx, client, acct, region, st, scanID)
 	t, i, terr := scanBeanstalkConfigurationTemplates(ctx, client, acct, region, st, scanID, apps)
-	return total + t, inserted + i, errors.Join(demoteTransient(st, "elasticbeanstalk", acct, region, err), terr)
+	return total + t, inserted + i, demoteBeside(st, "elasticbeanstalk", acct, region, err, terr)
 }
 
 // scanBeanstalkOlderPhases runs the phases that predate configuration

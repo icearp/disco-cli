@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -69,16 +68,17 @@ func autoScalingNotificationConfigurationARN(region, accountID, asgName, topicAR
 // The older phases stop at their first hard error. The notification
 // configuration phase runs after them whatever they returned, so its failure
 // costs no older phase its rows and theirs does not skip it. Each side's
-// transient error is demoted to a warning, since one transient member would
-// make the dispatcher read the whole join as transient; the counts are summed.
+// transient error is demoted to a warning only beside a hard error: joined, it
+// would be buried in the hard error instead of reported under its op; the
+// counts are summed.
 func scanAutoScaling(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := autoscaling.NewFromConfig(acct.cfg, func(o *autoscaling.Options) { o.Region = region })
 	total, inserted, groupIDs, err := scanAutoScalingOlderPhases(ctx, client, acct, region, st, scanID)
 	t, i, nerr := scanAutoScalingNotificationConfigurations(ctx, client, acct, region, st, scanID, groupIDs)
-	return total + t, inserted + i, errors.Join(
-		demoteTransient(st, "autoscaling", acct, region, err),
-		demoteTransient(st, "autoscaling:DescribeNotificationConfigurations", acct, region, nerr),
-	)
+	var errs phaseErrs
+	errs.add("autoscaling", err)
+	errs.add("autoscaling:DescribeNotificationConfigurations", nerr)
+	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
 // scanAutoScalingOlderPhases runs the phases that predate notification

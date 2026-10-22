@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -55,10 +54,10 @@ func scanMachineLearning(ctx context.Context, acct *account, region string, st *
 	return scanMachineLearningAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanMachineLearningAll runs every phase even when one fails, and passes each
-// phase's error through demoteTransient before joining, so a throttle on one
-// phase cannot make the dispatcher classify the whole service transient and
-// report the other phases' hard errors as transient ones.
+// scanMachineLearningAll runs every phase even when one fails, and joins the
+// phases' errors by phaseErrs, which demotes a transient one to a warning only
+// beside a hard one, so a throttle on one phase is reported under its op
+// instead of buried in the other's hard error.
 func scanMachineLearningAll(ctx context.Context, client machineLearningAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	if err := gateMachineLearning(ctx, client); err != nil {
 		return 0, 0, err
@@ -74,15 +73,15 @@ func scanMachineLearningAll(ctx context.Context, client machineLearningAPI, acct
 	}
 	var (
 		total, inserted int
-		errs            []error
+		errs            phaseErrs
 	)
 	for _, p := range phases {
 		t, i, err := p.fn(ctx, client, acct, region, st, scanID)
 		total += t
 		inserted += i
-		errs = append(errs, demoteTransient(st, p.op, acct, region, err))
+		errs.add(p.op, err)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // isMachineLearningClosed matches the two answers taken to mean the account

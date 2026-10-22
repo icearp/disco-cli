@@ -134,20 +134,22 @@ func TestScanCassandraStreams_Empty(t *testing.T) {
 }
 
 // On the first call, the unserved-endpoint shapes are a silent feature gap, and
-// a network failure or a denial warns once; any other error is returned.
+// an NXDOMAIN or a denial warns once; any other error, a refused connection
+// included, is returned.
 func TestScanCassandraStreams_FirstPageError(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		err       error
-		wantCode  string
-		wantWarns int
+		name          string
+		err           error
+		wantCode      string
+		wantTransient bool
+		wantWarns     int
 	}{
 		{name: "unknown operation", err: apiErr("UnknownOperationException", "")},
 		{name: "unrouted gateway", err: apiErr("NotFoundException", "Unable to determine service/operation name to be authorized")},
 		{name: "unrouted gateway denial", err: apiErr("AccessDeniedException", "Unable to determine service/operation name to be authorized")},
 		{name: "http 404", err: respErrCode(404)},
 		{name: "nxdomain", err: &net.DNSError{Err: "no such host", Name: "cassandra-streams.us-east-1.api.aws", IsNotFound: true}, wantWarns: 1},
-		{name: "connection refused", err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}, wantWarns: 1},
+		{name: "connection refused", err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}, wantTransient: true},
 		{name: "denied", err: ksDenied, wantWarns: 1},
 		{name: "other", err: ksValidation, wantCode: "ValidationException"},
 	} {
@@ -155,9 +157,14 @@ func TestScanCassandraStreams_FirstPageError(t *testing.T) {
 			st := newTestStore(t)
 			warns := countOpWarnings(st, "cassandra:ListStreams")
 			total, err := scanKSStreamsWith(st, nil, func(any) (any, error) { return nil, tc.err })
-			if tc.wantCode != "" {
+			switch {
+			case tc.wantCode != "":
 				assertAPICode(t, err, tc.wantCode)
-			} else if err != nil {
+			case tc.wantTransient:
+				if got := classifyServiceError(err); got != outcomeTransient {
+					t.Fatalf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
+				}
+			case err != nil:
 				t.Fatalf("err = %v, want nil", err)
 			}
 			if total != 0 || *warns != tc.wantWarns {
@@ -167,22 +174,25 @@ func TestScanCassandraStreams_FirstPageError(t *testing.T) {
 	}
 }
 
-// After a page has succeeded, a denial or a network failure warns once and keeps
-// page one's row; every other error, the not-deployed shapes included, is
-// returned with page one's row stored and contained by its table.
+// After a page has succeeded, a denial warns once and keeps page one's row;
+// every other error, the not-deployed shapes, a throttle and an NXDOMAIN
+// included, is returned with page one's row stored and contained by its
+// table. The NXDOMAIN is returned as a plain error, so the dispatcher does not
+// report the region unavailable and drop the counts.
 func TestScanCassandraStreams_PageTwoError(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		err       error
-		wantCode  string
-		wantHTTP  int
-		wantWarns int
+		name        string
+		err         error
+		wantCode    string
+		wantHTTP    int
+		wantOutcome serviceOutcome
+		wantWarns   int
 	}{
 		{name: "denied", err: ksDenied, wantWarns: 1},
 		{name: "unknown operation", err: apiErr("UnknownOperationException", ""), wantCode: "UnknownOperationException"},
 		{name: "http 404", err: respErrCode(404), wantHTTP: 404},
-		{name: "nxdomain", err: &net.DNSError{Err: "no such host", IsNotFound: true}, wantWarns: 1},
-		{name: "throttled", err: apiErr("ThrottlingException", "slow down"), wantWarns: 1},
+		{name: "nxdomain", err: &net.DNSError{Err: "no such host", IsNotFound: true}, wantOutcome: outcomeError},
+		{name: "throttled", err: apiErr("ThrottlingException", "slow down"), wantOutcome: outcomeTransient},
 		{name: "other", err: ksValidation, wantCode: "ValidationException"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -197,6 +207,10 @@ func TestScanCassandraStreams_PageTwoError(t *testing.T) {
 			case tc.wantHTTP != 0:
 				if c, ok := httpStatusCode(err); !ok || c != tc.wantHTTP {
 					t.Fatalf("err = %v, want HTTP %d", err, tc.wantHTTP)
+				}
+			case tc.wantOutcome != outcomeStoreWrite:
+				if got := classifyServiceError(err); err == nil || got != tc.wantOutcome {
+					t.Fatalf("classifyServiceError(%v) = %v, want %v", err, got, tc.wantOutcome)
 				}
 			case err != nil:
 				t.Fatalf("err = %v, want nil", err)
@@ -327,9 +341,9 @@ func TestScanCassandra_PhaseErrorKeepsOtherPhases(t *testing.T) {
 	}
 }
 
-// An unreachable streams endpoint warns once and returns nil, so the keyspace
-// phases' rows and counts survive dispatch instead of the whole service being
-// reclassified by the network error.
+// A streams endpoint that does not resolve warns once and returns nil, so the
+// keyspace phases' rows and counts survive dispatch instead of the whole
+// service being reported unavailable in the region.
 func TestScanCassandra_StreamsNXDOMAINKeepsOtherPhases(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "cassandra:ListStreams")
@@ -381,4 +395,77 @@ func TestScanCassandra_SummaryOnlyTableParentsStream(t *testing.T) {
 		t.Errorf("table attributes = %s, want the summary only", r.AttributesJSON)
 	}
 	assertContainsNative(t, st, ksTable1ARN, ksStream1ARN)
+}
+
+// A throttled streams listing beside no other error is returned, so the scan
+// is marked partial with the keyspace phases' rows counted.
+func TestScanCassandra_LoneStreamsThrottleMarksPartial(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "cassandra streams")
+	acct := newTestAccount(testAccountID)
+	var streams ksStreamPages
+	acct.cfg = opStubConfig(cassandraScanHandlers(&streams, map[string]func(any) (any, error){
+		"ListStreams": func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") },
+	}), ksDenied)
+
+	total, _, err := scanCassandra(context.Background(), acct, testRegion, st, testScanID)
+	if got := classifyServiceError(err); got != outcomeTransient {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
+	}
+	if total != 4 || *warns != 0 {
+		t.Errorf("total = %d, warnings = %d; want 4 (1 keyspace, 2 tables, 1 type), 0", total, *warns)
+	}
+}
+
+// A per-keyspace phase's NXDOMAIN, after ListKeyspaces reached the same host,
+// is a plain error, so the dispatcher does not report the region unavailable
+// and drop the counts of the rows already stored.
+func TestScanCassandra_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	for _, op := range []string{"ListTables", "ListTypes"} {
+		t.Run(op, func(t *testing.T) {
+			st := newTestStore(t)
+			acct := newTestAccount(testAccountID)
+			var streams ksStreamPages
+			acct.cfg = opStubConfig(cassandraScanHandlers(&streams, map[string]func(any) (any, error){
+				op: func(any) (any, error) {
+					return nil, &net.DNSError{Err: "no such host", Name: "cassandra.us-east-1.amazonaws.com", IsNotFound: true}
+				},
+			}), ksDenied)
+
+			total, _, err := scanCassandra(context.Background(), acct, testRegion, st, testScanID)
+			if got := classifyServiceError(err); err == nil || got != outcomeError {
+				t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
+			}
+			if stored := countStoredRows(t, st); total == 0 || total != stored {
+				t.Errorf("total = %d, stored rows = %d; want the other phases' rows counted", total, stored)
+			}
+		})
+	}
+}
+
+// A region whose Keyspaces endpoint does not resolve has no Keyspaces, so the
+// streams endpoint is not probed and warns nothing.
+func TestScanCassandra_KeyspacesNXDOMAINSkipsStreams(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "cassandra:ListStreams")
+	acct := newTestAccount(testAccountID)
+	var streams ksStreamPages
+	streamCalls := 0
+	acct.cfg = opStubConfig(cassandraScanHandlers(&streams, map[string]func(any) (any, error){
+		"ListKeyspaces": func(any) (any, error) {
+			return nil, &net.DNSError{Err: "no such host", Name: "cassandra.us-east-1.amazonaws.com", IsNotFound: true}
+		},
+		"ListStreams": func(any) (any, error) {
+			streamCalls++
+			return nil, &net.DNSError{Err: "no such host", Name: "cassandra-streams.us-east-1.api.aws", IsNotFound: true}
+		},
+	}), ksDenied)
+
+	_, _, err := scanCassandra(context.Background(), acct, testRegion, st, testScanID)
+	if got := classifyServiceError(err); got != outcomeUnavailable {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeUnavailable", err, got)
+	}
+	if streamCalls != 0 || *warns != 0 {
+		t.Errorf("ListStreams calls = %d, warnings = %d; want 0, 0", streamCalls, *warns)
+	}
 }

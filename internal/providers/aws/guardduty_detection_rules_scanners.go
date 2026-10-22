@@ -19,24 +19,24 @@ const (
 )
 
 // scanGDCustomDetectionRules stores this account's custom detection rule
-// associations and the delegated administrator's organization configurations
-// of those rules. The rules themselves are an AWS-owned catalog and are not
+// associations and the delegated administrator's organization configurations of
+// those rules. The rules themselves are an AWS-owned catalog and are not
 // scanned. orgConfigRefused is scanGDOrganizationConfigurations' report that
 // the region refused the account its organization configuration; the
 // organization-level list is skipped there, since the same delegated
 // administrator role is needed for both. The phases are independent, so each
-// runs whatever the other returns, and a transient error is demoted to a
-// warning before the join so it cannot hide the other's hard error.
-func scanGDCustomDetectionRules(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string, orgConfigRefused bool) (total, inserted int, err error) {
-	total, inserted, err = scanGDCustomRuleAssociations(ctx, client, acct, region, st, scanID)
-	errs := []error{demoteTransient(st, gdListCustomRuleAssocsOp, acct, region, err)}
+// runs whatever the other returns, and each adds its error to errs under its
+// own op for the caller to join.
+func scanGDCustomDetectionRules(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string, orgConfigRefused bool, errs *phaseErrs) (total, inserted int) {
+	total, inserted, err := scanGDCustomRuleAssociations(ctx, client, acct, region, st, scanID)
+	errs.add(gdListCustomRuleAssocsOp, err)
 	if !orgConfigRefused {
 		t, i, oerr := scanGDCustomRuleOrgConfigurations(ctx, client, acct, region, st, scanID)
 		total += t
 		inserted += i
-		errs = append(errs, demoteTransient(st, gdListCustomRuleOrgOp, acct, region, oerr))
+		errs.add(gdListCustomRuleOrgOp, oerr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted
 }
 
 // gdListPhase lists one region-wide custom-detection-rule collection page by

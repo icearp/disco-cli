@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -54,19 +53,19 @@ const wsPageLimit = 25
 // synth an ARN from their id; WorkspacesPool exposes PoolArn natively.
 //
 // The older phases (workspaces through applications) stop at their first hard
-// error. The account-link, add-in and alias-permission phases run whatever
-// any other phase returned, so their failure costs no other phase its rows
-// and an older phase's failure does not skip them. Each result has its
-// transient error demoted to a warning, since one transient member would make
-// the dispatcher read the whole join as transient, and the rest are joined;
-// the counts of all of them are summed. The add-in and alias-permission
-// phases fan out over the directories and aliases stored this scan, so they
-// list none when the older phases stopped before or at the phase that lists
-// their parents.
+// error. The account-link, add-in and alias-permission phases run whatever any
+// other phase returned, so their failure costs no other phase its rows and an
+// older phase's failure does not skip them. Each result has its transient error
+// demoted to a warning only beside a hard error: joined, it would be buried in
+// the hard error instead of reported under its op, and the rest are joined; the
+// counts of all of them are summed. The add-in and alias-permission phases fan
+// out over the directories and aliases stored this scan, so they list none when
+// the older phases stopped before or at the phase that lists their parents.
 func scanWorkSpaces(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := workspaces.NewFromConfig(acct.cfg, func(o *workspaces.Options) { o.Region = region })
 	total, inserted, parents, err := scanWSOlderPhases(ctx, client, acct, region, st, scanID)
-	errs := []error{demoteTransient(st, "workspaces", acct, region, err)}
+	var errs phaseErrs
+	errs.add("workspaces", err)
 	for _, phase := range []struct {
 		op  string
 		run func() (int, int, error)
@@ -82,9 +81,9 @@ func scanWorkSpaces(ctx context.Context, acct *account, region string, st *store
 		t, i, perr := phase.run()
 		total += t
 		inserted += i
-		errs = append(errs, demoteTransient(st, phase.op, acct, region, perr))
+		errs.add(phase.op, perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // wsParents are the parents the older phases stored, for the child phases

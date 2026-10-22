@@ -3,7 +3,6 @@ package aws
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -64,14 +63,15 @@ type r53rParents struct{ ruleGroups, endpoints []childParent }
 // scanRoute53Resolver runs the region-wide phases, which stop at their first
 // error other than a denial, then the phases that list the rules and IP
 // addresses of the rule groups and endpoints stored before that error, so a
-// failure on either side costs the other no rows.
-// Each result has its transient error demoted to a warning unless it carries
-// a store write failure, since one transient member would make the dispatcher
-// read the whole join as transient; the rest are joined and the counts summed.
+// failure on either side costs the other no rows. Each result has its transient
+// error demoted to a warning only beside a hard error: joined, it would be
+// buried in the hard error instead of reported under its op; the rest are
+// joined and the counts summed.
 func scanRoute53Resolver(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := route53resolver.NewFromConfig(acct.cfg, func(o *route53resolver.Options) { o.Region = region })
 	total, inserted, parents, err := scanR53RRegionPhases(ctx, client, acct, region, st, scanID)
-	errs := []error{demoteTransient(st, "route53resolver", acct, region, err)}
+	var errs phaseErrs
+	errs.add("route53resolver", err)
 	for _, phase := range []struct {
 		op  string
 		run func() (int, int, error)
@@ -86,9 +86,9 @@ func scanRoute53Resolver(ctx context.Context, acct *account, region string, st *
 		t, i, perr := phase.run()
 		total += t
 		inserted += i
-		errs = append(errs, demoteTransient(st, phase.op, acct, region, perr))
+		errs.add(phase.op, perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // scanR53RRegionPhases runs the region-wide list phases in order, stopping at

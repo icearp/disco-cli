@@ -99,10 +99,10 @@ func bcmPCListErr(st *store.Store, op, acctID, region string, perr error) error 
 // first hard error. The three child phases run whatever those returned, over
 // the scenarios and workload estimates stored before a failure, so their
 // failure costs no other phase its rows and an older phase's failure does not
-// skip them. The older phases' transient error is demoted to a warning, since
-// one transient member would make the dispatcher read the whole join as
-// transient; the child phases never return one (bcmPCChildFanOut tallies
-// them). The errors are joined and the counts of all phases summed.
+// skip them. The older phases' transient error is demoted to a warning only
+// beside a hard error: joined, it would be buried in the hard error instead of
+// reported under its op; the child phases never return one (bcmPCChildFanOut
+// tallies them). The errors are joined and the counts of all phases summed.
 //
 // An older phase's disabled / not-entitled sentinel is returned alone when
 // nothing was stored. After rows were stored it becomes a warning instead,
@@ -118,7 +118,8 @@ func scanBcmPricingCalculator(ctx context.Context, client bcmPricingCalculatorAP
 		warnBcmPCOlderPhasesGated(st, acct.ID, region, err)
 		err = nil
 	}
-	errs := []error{demoteTransient(st, "bcmpricingcalculator", acct, region, err)}
+	var errs phaseErrs
+	errs.add("bcmpricingcalculator", err)
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) {
 			return scanBcmPCCommitmentModifications(ctx, client, acct, region, st, scanID, scenarios)
@@ -133,9 +134,9 @@ func scanBcmPricingCalculator(ctx context.Context, client bcmPricingCalculatorAP
 		t, i, perr := phase()
 		total += t
 		inserted += i
-		errs = append(errs, perr)
+		errs.add("bcmpricingcalculator", perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // warnBcmPCOlderPhasesGated records that an older phase was refused as

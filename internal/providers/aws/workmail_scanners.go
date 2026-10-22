@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -66,25 +65,41 @@ func scanWorkMail(ctx context.Context, acct *account, region string, st *store.S
 // scanWorkMailIn lists the organizations, then runs every child phase over
 // them even when one fails, so one phase's error costs no other phase its
 // rows. The mailbox permission phase runs last, because it fans out over the
-// users and resources the earlier phases stored.
+// users and resources the earlier phases stored. The phases' errors are
+// joined by phaseErrs: a transient one alone, or beside transient ones only,
+// is returned, so the scan is marked partial; beside a hard one it is reported
+// as a warning under its phase instead of inside the hard error.
 func scanWorkMailIn(ctx context.Context, client workMailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	orgs, total, inserted, err := scanWorkMailOrganizations(ctx, client, acct, region, st, scanID)
 	if err != nil {
 		return total, inserted, err
 	}
 	s := &workMailScan{client: client, acct: acct, region: region, st: st, scanID: scanID, orgs: orgs, rejected: map[string]bool{}}
-	var errs []error
-	for _, phase := range []func(context.Context) (int, int, error){
-		s.users, s.groups, s.resources, s.mailDomains, s.accessControlRules, s.availabilityConfigurations,
-		s.impersonationRoles, s.mobileDeviceAccessRules, s.mobileDeviceAccessOverrides, s.personalAccessTokens,
-		s.mailboxPermissions,
+	var errs phaseErrs
+	for _, phase := range []struct {
+		name string
+		run  func(context.Context) (int, int, error)
+	}{
+		{"workmail users", s.users},
+		{"workmail groups", s.groups},
+		{"workmail resources", s.resources},
+		{"workmail mail domains", s.mailDomains},
+		{"workmail access control rules", s.accessControlRules},
+		{"workmail availability configurations", s.availabilityConfigurations},
+		{"workmail impersonation roles", s.impersonationRoles},
+		{"workmail mobile device access rules", s.mobileDeviceAccessRules},
+		{"workmail mobile device access overrides", s.mobileDeviceAccessOverrides},
+		{"workmail personal access tokens", s.personalAccessTokens},
+		{"workmail mailbox permissions", s.mailboxPermissions},
 	} {
-		t, i, perr := phase(ctx)
+		t, i, perr := phase.run(ctx)
 		total += t
 		inserted += i
-		errs = append(errs, perr)
+		// The organizations listing returned on its own NXDOMAIN, so the
+		// endpoint resolved: a later one is a failure of this scan.
+		errs.add(phase.name, lateNXDOMAIN(phase.name, perr))
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // scanWorkMailOrganizations stores every organization, keyed by the
@@ -185,14 +200,8 @@ func (s *workMailScan) rejectOrg(op string, org childParent, err error) {
 
 // fanOut runs list for every listable organization through childFanOut. An
 // organization deleted since it was listed is skipped silently; one whose
-// state refuses the call is warned about and rejected.
-//
-// A transient network error is warned about here rather than returned:
-// scanWorkMailIn joins the phase errors, and the dispatcher classifies a join
-// by any member, so one throttled phase would make the whole service's result
-// transient, downgrading the other phases' hard errors to transient ones. A
-// store write error is never transient (store formats the cause with %s), and
-// childFanOut returns one error, never a join.
+// state refuses the call is warned about and rejected. Any other error is
+// returned for scanWorkMailIn to join.
 func (s *workMailScan) fanOut(ctx context.Context, op string, list func(context.Context, childParent) ([]*store.Resource, error)) (int, int, error) {
 	return s.fanOutThen(ctx, op, list, nil)
 }
@@ -214,9 +223,6 @@ func (s *workMailScan) fanOutThen(ctx context.Context, op string, list func(cont
 	// returned no rows.
 	if err == nil && stored != nil {
 		stored()
-	}
-	if isTransientNetworkError(err) {
-		return total, inserted, skipIfTransient(s.st, op, s.acct.ID, s.region, err)
 	}
 	return total, inserted, err
 }

@@ -632,7 +632,8 @@ func TestScanKafka_OlderPhaseErrorKeepsChildren(t *testing.T) {
 		wantCode string
 	}{
 		{"hard", kafkaUnexpected, "ConflictException"},
-		{"transient", kafkaThrottled, ""},
+		// A lone throttle is not demoted: the scan reads partial, not complete.
+		{"transient", kafkaThrottled, "TooManyRequestsException"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -640,13 +641,7 @@ func TestScanKafka_OlderPhaseErrorKeepsChildren(t *testing.T) {
 			h := kafkaHandlers(calls)
 			h["ListReplicators"] = func(any) (any, error) { return nil, tc.err }
 			_, err := scanKafkaTopLevel(t, st, h)
-			if tc.wantCode == "" {
-				if err != nil {
-					t.Fatalf("err = %v, want nil", err)
-				}
-			} else {
-				assertAPICode(t, err, tc.wantCode)
-			}
+			assertAPICode(t, err, tc.wantCode)
 			assertKafkaChildRows(t, st, kafkaAllChildRows)
 			if n := len(calls["GetClusterPolicy"].ids); n != 0 {
 				t.Errorf("GetClusterPolicy called %d times after the replicator phase failed", n)

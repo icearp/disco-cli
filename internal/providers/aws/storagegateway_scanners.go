@@ -68,8 +68,9 @@ func scanStorageGatewayWith(ctx context.Context, client storageGatewayAPI, acct 
 	}
 
 	// The phases list independently, so one failing must not cost the others
-	// their rows; each is joined, a transient one demoted to a warning.
-	var errs []error
+	// their rows; each is joined by phaseErrs, a transient one demoted to a
+	// warning only beside a hard one.
+	var errs phaseErrs
 	for _, phase := range []struct {
 		op string
 		fn func() (int, int, error)
@@ -92,9 +93,9 @@ func scanStorageGatewayWith(ctx context.Context, client storageGatewayAPI, acct 
 		pt, pi, perr := phase.fn()
 		total += pt
 		inserted += pi
-		errs = append(errs, demoteTransient(st, phase.op, acct, region, perr))
+		errs.add(phase.op, perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 func scanSGWGateways(ctx context.Context, client storageGatewayAPI, acct *account, region string, st *store.Store, scanID string) ([]sgwtypes.GatewayInfo, int, int, error) {
@@ -386,8 +387,9 @@ func scanSGWTapes(ctx context.Context, client storageGatewayAPI, acct *account, 
 // DescribeTapeArchives element. A denial, a gateway-state refusal
 // (isSGWGatewayUnavailable; not observed live) or a transient error is warned
 // about under this op, and any other error is returned; each keeps the
-// elements read before it. The transient warning is raised here because the
-// caller's phase would otherwise demote it under storagegateway:ListTapes.
+// elements read before it. A transient error costs only the archive attributes
+// of shelved tapes, which are stored from ListTapes either way, so it is warned
+// about under this op like a per-item enrichment failure, not returned.
 func describeSGWTapeArchives(ctx context.Context, client storageGatewayAPI, acct *account, region string, st *store.Store) (map[string]sgwtypes.TapeArchive, error) {
 	const op = "storagegateway:DescribeTapeArchives"
 	archives := map[string]sgwtypes.TapeArchive{}

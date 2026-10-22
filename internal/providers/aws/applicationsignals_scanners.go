@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -69,10 +68,10 @@ func applicationSignalsGroupingConfigurationNativeID(region, acct string) string
 
 // scanApplicationSignals runs the SLO, grouping-configuration and services
 // phases, then lists the instrumentation configurations of every instrumented
-// service the services phase stored, whatever that phase returned. The
-// services phase's transient error is demoted to a warning, since one
-// transient member would make the dispatcher read the whole join as
-// transient; the counts are summed.
+// service the services phase stored, whatever that phase returned. The services
+// phase's transient error is demoted to a warning only beside a hard error:
+// joined, it would be buried in the hard error instead of reported under its
+// op; the counts are summed.
 func scanApplicationSignals(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := applicationsignals.NewFromConfig(acct.cfg, func(o *applicationsignals.Options) { o.Region = region })
 	sloTotal, sloInserted, err := scanApplicationSignalsSLOs(ctx, client, acct, region, st, scanID)
@@ -87,7 +86,7 @@ func scanApplicationSignals(ctx context.Context, acct *account, region string, s
 	t, i, services, serr := scanApplicationSignalsServices(ctx, client, acct, region, st, scanID, time.Now())
 	total, inserted = total+t, inserted+i
 	t, i, ierr := scanApplicationSignalsInstrumentationConfigurations(ctx, client, acct, region, st, scanID, services)
-	return total + t, inserted + i, errors.Join(demoteTransient(st, appSignalsListServicesOp, acct, region, serr), ierr)
+	return total + t, inserted + i, demoteBeside(st, appSignalsListServicesOp, acct, region, serr, ierr)
 }
 
 // scanApplicationSignalsServices lists Application Signals services seen in

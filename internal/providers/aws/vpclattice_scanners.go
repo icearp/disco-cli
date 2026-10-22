@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/vpclattice"
@@ -56,17 +55,17 @@ type vpcLatticeAPI interface {
 // scanVpcLattice runs the child phases (VPC endpoint associations, targets)
 // after every older phase, over the service networks and target groups the
 // older phases stored before any failure, so a child phase's failure costs the
-// older phases no rows. The older side's demotable transient error is demoted
-// to a warning, since one transient member would make the dispatcher read the
-// whole join as transient, reporting a child phase's hard error as a transient
-// one. The child phases skip
-// a parent still transient after the SDK's retries, so no transient error
-// leaves them. The errors are joined and the counts summed.
+// older phases no rows. The older side's transient error is demoted to a
+// warning only beside a hard error: joined, it would be buried in the hard
+// error instead of reported under its op. The child phases skip a parent still
+// transient after the SDK's retries, so no transient error leaves them. The
+// errors are joined and the counts summed.
 func scanVpcLattice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := vpclattice.NewFromConfig(acct.cfg, func(o *vpclattice.Options) { o.Region = region })
 
 	parents, total, inserted, err := scanVpcLatticeOlderPhases(ctx, client, acct, region, st, scanID)
-	errs := []error{demoteTransient(st, "vpclattice", acct, region, err)}
+	var errs phaseErrs
+	errs.add("vpclattice", err)
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) {
 			return scanVLServiceNetworkVpcEndpointAssocs(ctx, client, acct, region, st, scanID, parents.networks)
@@ -78,9 +77,9 @@ func scanVpcLattice(ctx context.Context, acct *account, region string, st *store
 		t, i, perr := phase()
 		total += t
 		inserted += i
-		errs = append(errs, perr)
+		errs.add("vpclattice", perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // vlChildParents are the parents of the child phases that the older phases

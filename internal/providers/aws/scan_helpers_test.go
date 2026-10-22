@@ -4,7 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io"
 	"net"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -397,9 +402,6 @@ func TestDemoteTransient_KeepsIncompleteListingJoin(t *testing.T) {
 			st := newTestStore(t)
 			warns := recordWarnings(st)
 			joined := errors.Join(fmt.Errorf("op: %w", incomplete), apiErr("ThrottlingException", "slow down"))
-			if !isTransientNetworkError(joined) {
-				t.Fatalf("precondition: %v is not transient, so the test proves nothing", joined)
-			}
 			got := demoteTransient(st, "op", newTestAccount(testAccountID), testRegion, joined)
 			if !errors.Is(got, incomplete) {
 				t.Errorf("demoteTransient = %v; want the join returned", got)
@@ -456,21 +458,208 @@ func TestChildFanOut_IncompleteListingWithStoreWriteFails(t *testing.T) {
 	}
 }
 
-// NXDOMAIN is never demoted (the dispatcher reads it as a region gap), so it
-// counts as the hard member: the throttle beside it is demoted to one warning
-// and the NXDOMAIN reaches the dispatcher.
-func TestPhaseErrsJoin_NXDOMAINBesideThrottle(t *testing.T) {
-	st := newTestStore(t)
-	warns := countOpWarnings(st, "svc:Throttled")
-	nxdomain := &net.DNSError{Err: "no such host", Name: "svc.us-east-1.amazonaws.com", IsNotFound: true}
-	var errs phaseErrs
-	errs.add("svc:Unreachable", nxdomain)
-	errs.add("svc:Throttled", apiErr("ThrottlingException", "Rate exceeded"))
-	err := errs.join(st, newTestAccount(testAccountID), testRegion)
-	if !isDNSNotFound(err) {
-		t.Errorf("err = %v, want the NXDOMAIN", err)
+// A silent dispatch sentinel is not a hard member: the throttle beside it is
+// kept, so the join is not read as the sentinel, which would discard the
+// stored rows' counts and hide the throttle, and no warning is recorded.
+func TestPhaseErrsJoin_SilentSentinelBesideThrottle(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		sentinel error
+	}{
+		{"nxdomain", &net.DNSError{Err: "no such host", Name: "svc.us-east-1.amazonaws.com", IsNotFound: true}},
+		{"disabled", markServiceDisabled(apiErr("AccessDeniedException", "not enabled"))},
+		{"not entitled", markServiceNotEntitled(apiErr("AccessDeniedException", "not eligible"))},
+		{"unavailable", markServiceUnavailable(apiErr("UnsupportedRegionException", "not here"))},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "svc:Throttled")
+			var errs phaseErrs
+			errs.add("svc:Silent", tc.sentinel)
+			errs.add("svc:Throttled", apiErr("ThrottlingException", "Rate exceeded"))
+			err := errs.join(st, newTestAccount(testAccountID), testRegion)
+			switch got := classifyServiceError(err); got {
+			case outcomeError, outcomeTransient:
+			default:
+				t.Errorf("classifyServiceError(%v) = %v, want outcomeError or outcomeTransient", err, got)
+			}
+			if *warns != 0 {
+				t.Errorf("svc:Throttled warnings = %d, want 0", *warns)
+			}
+		})
 	}
-	if *warns != 1 {
-		t.Errorf("svc:Throttled warnings = %d, want 1 for the demoted throttle", *warns)
+}
+
+// A transient error joined with a hard one stays an error, whichever side
+// comes first: demoting the join would drop the hard error with it.
+func TestDemoteTransient_KeepsHardErrorJoin(t *testing.T) {
+	hard := apiErr("ValidationException", "bad")
+	for name, joined := range map[string]error{
+		"transient first": errors.Join(apiErr("ThrottlingException", "slow down"), hard),
+		"hard first":      errors.Join(hard, apiErr("ThrottlingException", "slow down")),
+	} {
+		t.Run(name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := recordWarnings(st)
+			got := demoteTransient(st, "op", newTestAccount(testAccountID), testRegion, joined)
+			if !errors.Is(got, hard) {
+				t.Errorf("demoteTransient(%v) = %v; want the join returned", joined, got)
+			}
+			if len(*warns) != 0 {
+				t.Errorf("warnings = %+v; want none", *warns)
+			}
+		})
+	}
+}
+
+// A closure write that fails after the children were stored returns their
+// counts with the error, so the dispatcher reports the rows that exist.
+func TestUpsertContained_ClosureFailureKeepsCounts(t *testing.T) {
+	st := newTestStore(t)
+	refuseClosureWrites(t, st)
+	parent := skipFanOutParents[0]
+	child := skipFanOutChild(parent)
+	total, inserted, err := upsertContained(st, "op", []containedChild{{row: child, parentID: store.ResourceID("aws", testAccountID, parent.arn)}})
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Errorf("err = %v; want the closure's store write failure", err)
+	}
+	if total != 1 || inserted != 1 {
+		t.Errorf("total, inserted = %d, %d; want 1, 1 for the stored child", total, inserted)
+	}
+	if n := len(rowsByNativeID(t, st, child.Type)); n != 1 {
+		t.Errorf("child rows = %d; want 1", n)
+	}
+}
+
+// A failed store read is a hard error even when the driver's cause looks like
+// a network glitch, as a dropped Postgres connection does.
+func TestStoreReadError_NeverTransient(t *testing.T) {
+	for _, cause := range []error{io.ErrUnexpectedEOF, &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset")}} {
+		err := storeReadError("list rows", cause)
+		if !errors.Is(err, errStoreRead) {
+			t.Errorf("storeReadError(%v) = %v; want errStoreRead", cause, err)
+		}
+		if got := classifyServiceError(err); got != outcomeError {
+			t.Errorf("classifyServiceError(storeReadError(%v)) = %v; want outcomeError", cause, got)
+		}
+		// The cause is severed from the chain, so no errors.Is/As predicate
+		// (isEndpointUnreachable, skip tallies) reads it as a cloud glitch.
+		if errors.Is(err, cause) || isEndpointUnreachable(err) {
+			t.Errorf("storeReadError(%v) = %v; want the cause out of the error chain", cause, err)
+		}
+	}
+}
+
+// demoteBeside demotes err only beside a hard error in rest: alone, or beside
+// transient errors only, it is returned, so the scan is marked partial.
+func TestDemoteBeside_DemotesOnlyBesideHardError(t *testing.T) {
+	throttle := apiErr("ThrottlingException", "slow down")
+	hard := apiErr("ValidationException", "bad")
+	for _, tc := range []struct {
+		name     string
+		rest     []error
+		want     serviceOutcome
+		wantWarn int
+	}{
+		{"alone", nil, outcomeTransient, 0},
+		{"beside nil", []error{nil}, outcomeTransient, 0},
+		{"beside a transient", []error{apiErr("RequestLimitExceeded", "slow")}, outcomeTransient, 0},
+		{"beside a hard error", []error{hard}, outcomeError, 1},
+		{"beside a disabled sentinel", []error{markServiceDisabled(apiErr("AccessDeniedException", "not enabled"))}, outcomeError, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "op")
+			got := demoteBeside(st, "op", newTestAccount(testAccountID), testRegion, throttle, tc.rest...)
+			if classifyServiceError(got) != tc.want {
+				t.Errorf("demoteBeside(..., %v) = %v (outcome %v); want outcome %v", tc.rest, got, classifyServiceError(got), tc.want)
+			}
+			if *warns != tc.wantWarn {
+				t.Errorf("warnings = %d; want %d", *warns, tc.wantWarn)
+			}
+		})
+	}
+}
+
+// TestTransientDemotersAreKnown guards the H1 class of bug: a scanner that
+// calls demoteTransient or skipIfTransient on a phase's error turns it into a
+// warning even when it is the only failure, so a throttled scan reads as
+// complete. Phase errors are joined through phaseErrs or demoteBeside, which
+// demote only beside a hard error. Each function still calling either directly
+// is listed with its reason, keyed file:function; a new caller fails, and so
+// does a listed one that no longer calls it.
+func TestTransientDemotersAreKnown(t *testing.T) {
+	known := map[string]map[string]bool{
+		"demoteTransient": {
+			// Enrichment only: the tapes are stored from ListTapes either way.
+			"storagegateway_scanners.go:describeSGWTapeArchives": true,
+		},
+		// Per-item tallies: one warning names every item whose read was
+		// still throttled after the SDK's retries. Most keep the listed row
+		// unenriched; backup selections, Security Hub associations and
+		// subnet CIDR reservations instead skip that parent's children.
+		// Either way the scan is not marked partial: whether a per-item
+		// throttle should be is an open question for the user.
+		"skipIfTransient": {
+			"backup_scanners.go:warn":                                   true,
+			"cloudtrail_scanners.go:scanCloudTrailEventDataStores":      true,
+			"cloudtrail_scanners.go:warn":                               true,
+			"cloudtrail_extended_scanners.go:settle":                    true,
+			"ec2_network_extra_scanners.go:scanSubnetCidrReservations":  true,
+			"kafka_children_scanners.go:scanKafkaChannels":              true,
+			"ec2_ipam_resolver_scanners.go:scanIPAMPrefixListResolvers": true,
+			"fms_scanners.go:warnFMSListingOnly":                        true,
+			"organizations_scanners.go:scanOrgAccounts":                 true,
+			"securityhub_scanners.go:warn":                              true,
+			"wafv2_scanners.go:scanWAFv2WebACLs":                        true,
+		},
+	}
+	names, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+	found := map[string]map[string]bool{}
+	for _, name := range names {
+		if strings.HasSuffix(name, "_test.go") || name == "scan_helpers.go" {
+			continue
+		}
+		f, err := parser.ParseFile(fset, name, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+		for _, d := range f.Decls {
+			fn, ok := d.(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				call, ok := n.(*ast.CallExpr)
+				if !ok {
+					return true
+				}
+				if id, ok := call.Fun.(*ast.Ident); ok && known[id.Name] != nil {
+					if found[id.Name] == nil {
+						found[id.Name] = map[string]bool{}
+					}
+					found[id.Name][name+":"+fn.Name.Name] = true
+				}
+				return true
+			})
+		}
+	}
+	for callee, callers := range found {
+		for caller := range callers {
+			if !known[callee][caller] {
+				t.Errorf("%s calls %s; join phase errors through phaseErrs or demoteBeside", caller, callee)
+			}
+		}
+	}
+	for callee, callers := range known {
+		for caller := range callers {
+			if !found[callee][caller] {
+				t.Errorf("%s is listed but no longer calls %s; drop it from the list", caller, callee)
+			}
+		}
 	}
 }

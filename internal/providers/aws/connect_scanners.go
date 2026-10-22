@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -34,13 +33,12 @@ func scanConnect(ctx context.Context, acct *account, region string, st *store.St
 }
 
 // scanConnectAll runs the older families (scanConnectOlderFamilies) and the
-// analytics family concurrently, on a WaitGroup rather than an
-// errgroup so that a failure on either side cancels nothing and costs the
-// other no rows. Analytics reads no stored parents, so it need not wait for
-// the older side. Both sides demote their own transient errors to warnings
-// before returning: one transient member would make the dispatcher read the
-// whole join as transient, reporting the other side's hard error as a
-// transient one.
+// analytics family concurrently, on a WaitGroup rather than an errgroup so that
+// a failure on either side cancels nothing and costs the other no rows.
+// Analytics reads no stored parents, so it need not wait for the older side.
+// The two sides' errors are joined by phaseErrs, so a transient one is demoted
+// to a warning only beside a hard one: joined, it would be buried in the hard
+// error instead of reported under its op.
 func scanConnectAll(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var (
 		wg                    sync.WaitGroup
@@ -52,19 +50,22 @@ func scanConnectAll(ctx context.Context, client *connect.Client, instances []ctt
 	})
 	wg.Go(func() { t, i, aerr = scanConnectAnalytics(ctx, client, instances, acct, region, st, scanID) })
 	wg.Wait()
-	return total + t, inserted + i, errors.Join(err, aerr)
+	var errs phaseErrs
+	errs.add("connect", err)
+	errs.add("connect analytics", aerr)
+	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
 // scanConnectOlderFamilies runs the families that predate analytics, then the
 // children and the access family concurrently. Both read parent rows those
-// families stored this scan (the children read hours of operation,
-// integration associations, evaluation forms and workspaces; the access family
-// reads instances, security profiles and routing profiles), never each
-// other's rows. Both run whatever the families returned, so after a family
-// failure they list the children of only the parents stored before it. On a
-// WaitGroup, a failure on one side cancels nothing on the other. The family
-// and children errors have their transients demoted to warnings before the
-// join; scanConnectAccess demotes its own.
+// families stored this scan (the children read hours of operation, integration
+// associations, evaluation forms and workspaces; the access family reads
+// instances, security profiles and routing profiles), never each other's rows.
+// Both run whatever the families returned, so after a family failure they list
+// the children of only the parents stored before it. On a WaitGroup, a failure
+// on one side cancels nothing on the other. The family, children and access
+// errors are joined by phaseErrs, which demotes a transient one to a warning
+// only beside a hard one.
 func scanConnectOlderFamilies(ctx context.Context, client *connect.Client, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, err := scanConnectFamilies(ctx, client, instances, acct, region, st, scanID)
 	var (
@@ -75,11 +76,11 @@ func scanConnectOlderFamilies(ctx context.Context, client *connect.Client, insta
 	wg.Go(func() { ct, ci, childErr = scanConnectChildren(ctx, client, instances, acct, region, st, scanID) })
 	wg.Go(func() { at, ai, accessErr = scanConnectAccess(ctx, client, acct, region, st, scanID) })
 	wg.Wait()
-	return total + ct + at, inserted + ci + ai, errors.Join(
-		demoteTransient(st, "connect", acct, region, err),
-		demoteTransient(st, "connect", acct, region, childErr),
-		accessErr,
-	)
+	var errs phaseErrs
+	errs.add("connect", err)
+	errs.add("connect", childErr)
+	errs.add("connect access", accessErr)
+	return total + ct + at, inserted + ci + ai, errs.join(st, acct, region)
 }
 
 // scanConnectFamilies runs the families that predate analytics, stopping at

@@ -340,8 +340,8 @@ func TestScanXRay_PhasesIndependent(t *testing.T) {
 	}
 }
 
-// A phase's transient error is demoted to one warning, so it cannot make the
-// dispatcher read the other phase's hard error as transient.
+// A phase's transient error is demoted to one warning under its op instead of
+// buried in the other phase's hard error.
 func TestScanXRay_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 	cases := []struct {
 		name, transientOp, hardOp, warnOp string

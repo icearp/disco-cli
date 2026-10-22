@@ -124,12 +124,6 @@ func scanWickrNetworks(ctx context.Context, client wickrAPI, acct *account, regi
 			if isWickrDenied(err) {
 				return 0, 0, nil, skipIfAccessDenied(st, wickrListNetworksOp, acct.ID, region, err)
 			}
-			// The dispatcher's transient rung does not know Wickr's throttle
-			// code, so one still failing after the retries warns here like
-			// any other service's throttle.
-			if isAPIErrorCode(err, wickrRateLimitCode) {
-				return 0, 0, nil, skipIfTransient(st, wickrListNetworksOp, acct.ID, region, err)
-			}
 			return 0, 0, nil, fmt.Errorf("%s: %w", wickrListNetworksOp, err)
 		}
 		for _, n := range out.Networks {

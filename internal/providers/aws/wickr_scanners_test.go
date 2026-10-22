@@ -451,8 +451,8 @@ func TestScanWickr_ChildPhaseErrorsJoined(t *testing.T) {
 }
 
 // A failed network listing stores nothing and queries no network; a denial
-// (AccessDenied-coded or ForbiddenError) or a RateLimitError still failing
-// after the retries warns and returns nil, anything else is returned, also
+// (AccessDenied-coded or ForbiddenError) warns and returns nil, anything else,
+// a RateLimitError still failing after the retries included, is returned, also
 // when only the second page fails.
 func TestScanWickr_NetworkListErrors(t *testing.T) {
 	for _, tc := range []struct {
@@ -464,7 +464,7 @@ func TestScanWickr_NetworkListErrors(t *testing.T) {
 	}{
 		{"denied", wkDenied, false, "", 1},
 		{"forbidden", wkForbidden, false, "", 1},
-		{"rate limited", wkRateLimit, false, "", 1},
+		{"rate limited", wkRateLimit, false, "RateLimitError", 0},
 		{"other", wkValidation, false, "ValidationError", 0},
 		{"other on page two", wkValidation, true, "ValidationError", 0},
 	} {

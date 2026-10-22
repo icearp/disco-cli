@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"maps"
+	"net"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -556,12 +557,12 @@ func wmTopLevelHandlers(override map[string]func(any) (any, error)) map[string]f
 
 var wmThrottled = &smithy.GenericAPIError{Code: "ThrottlingException", Message: "rate exceeded"}
 
-// A throttled phase is warned about on its own, so it cannot make the
-// dispatcher classify the whole service transient: the other phases' rows
-// are counted and another phase's hard error stays a hard error.
+// Beside another phase's hard error, a throttled phase is reported as a
+// warning under its phase: the other phases' rows are counted and the hard
+// error stays a hard error.
 func TestScanWorkMailIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 	st := newTestStore(t)
-	throttled := countOpWarnings(st, "workmail:ListUsers")
+	throttled := countOpWarnings(st, "workmail users")
 	handlers := wmTopLevelHandlers(map[string]func(any) (any, error){
 		"ListUsers":  func(any) (any, error) { return nil, wmThrottled },
 		"ListGroups": func(any) (any, error) { return nil, wmBadInput },
@@ -805,8 +806,9 @@ func TestWorkMailMailboxPermissions_PerMailboxErrors(t *testing.T) {
 
 // The users and resources phases hand on their ENABLED and DISABLED entities
 // as mailboxes, not DELETED ones and none from an organization whose listing
-// was refused, and only once the phase stored its rows: a hard or demoted
-// transient error, after which childFanOut stores nothing, hands on none.
+// was refused, and only once the phase stored its rows: a hard or transient
+// error, after which childFanOut stores nothing, hands on none and is
+// returned.
 func TestWorkMailEntities_RecordStoredMailboxes(t *testing.T) {
 	for _, tc := range []struct {
 		op, kind string
@@ -835,7 +837,7 @@ func TestWorkMailEntities_RecordStoredMailboxes(t *testing.T) {
 				{org: wmOrgs[0], entity: childParent{id: "off", arn: wmOrgA + "/" + tc.kind + "/off"}},
 			}},
 			{"HardError", wmBadInput, true, nil},
-			{"Transient", wmThrottled, false, nil},
+			{"Transient", wmThrottled, true, nil},
 		} {
 			t.Run(tc.op+"/"+mb.name, func(t *testing.T) {
 				st := newTestStore(t)
@@ -974,5 +976,44 @@ func TestScanWorkMailIn_EntityStateMailboxes(t *testing.T) {
 				t.Errorf("grant %s stored = %v, want %v", off, ok, tc.fail == nil)
 			}
 		})
+	}
+}
+
+// A throttled phase alone is returned as transient, so the scan is marked
+// partial rather than complete, with the other phases' rows counted.
+func TestScanWorkMailIn_LoneTransientPhaseMarksPartial(t *testing.T) {
+	st := newTestStore(t)
+	warned := countOpWarnings(st, "workmail users")
+	handlers := wmTopLevelHandlers(map[string]func(any) (any, error){
+		"ListUsers": func(any) (any, error) { return nil, wmThrottled },
+	})
+	total, _, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if got := classifyServiceError(err); got != outcomeTransient {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
+	}
+	if *warned != 0 {
+		t.Errorf("warnings = %d, want 0", *warned)
+	}
+	if stored := countStoredRows(t, st); total == 0 || total != stored {
+		t.Errorf("total = %d, stored rows = %d; want the other phases' rows counted", total, stored)
+	}
+}
+
+// A child phase's NXDOMAIN after the organizations listing resolved is a
+// failure of this scan: the stored rows keep their counts and the scan is not
+// reported region-unavailable.
+func TestScanWorkMailIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	st := newTestStore(t)
+	handlers := wmTopLevelHandlers(map[string]func(any) (any, error){
+		"ListUsers": func(any) (any, error) {
+			return nil, &net.DNSError{Err: "no such host", Name: "workmail." + testRegion + ".amazonaws.com", IsNotFound: true}
+		},
+	})
+	total, _, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if err == nil || classifyServiceError(err) != outcomeError {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, classifyServiceError(err))
+	}
+	if stored := countStoredRows(t, st); total == 0 || total != stored {
+		t.Errorf("total = %d, stored rows = %d; want the other phases' rows counted", total, stored)
 	}
 }

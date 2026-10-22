@@ -579,9 +579,10 @@ func TestScanAidevopsAll_NewPhaseErrorsKeepEarlierRows(t *testing.T) {
 	}
 }
 
-// A later phase's transient error (assets, triggers and goals are on the
-// data-plane host) is warned about on its own, so it cannot make the dispatcher classify
-// the whole service transient or stop the phases after it.
+// Beside another phase's hard error, a later phase's transient error (assets,
+// triggers and goals are on the data-plane host) is reported as a warning
+// under its phase instead of inside the hard error, and the phases after it
+// still run.
 func TestScanAidevopsAll_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "aidevops:ListAssets")
@@ -590,7 +591,7 @@ func TestScanAidevopsAll_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 		"ListServices": func(any) (any, error) { return nil, adoBadInput },
 	})
 	total, _, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
-	if got := classifyServiceError(err); got != outcomeError {
+	if got := classifyServiceError(err); err == nil || got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}
 	if !errors.Is(err, adoBadInput) {
@@ -643,7 +644,7 @@ func TestScanAidevopsAll_AgentSpaceErrorKeepsIndependentPhases(t *testing.T) {
 	if !errors.Is(err, adoBadInput) {
 		t.Errorf("err = %v, want the ListAgentSpaces error", err)
 	}
-	if got := classifyServiceError(err); got != outcomeError {
+	if got := classifyServiceError(err); err == nil || got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}
 	if total != 2 {
@@ -653,5 +654,44 @@ func TestScanAidevopsAll_AgentSpaceErrorKeepsIndependentPhases(t *testing.T) {
 		if n := len(rowsByNativeID(t, st, typ)); n != want {
 			t.Errorf("%s rows = %d, want %d", typ, n, want)
 		}
+	}
+}
+
+// A data-plane phase's transient error alone is returned, so the scan is
+// marked partial rather than complete, with the other phases' rows counted.
+func TestScanAidevopsAll_LoneTransientPhaseMarksPartial(t *testing.T) {
+	st := newTestStore(t)
+	warned := countOpWarnings(st, "aidevops:ListAssets")
+	handlers := adoTopLevelHandlers(map[string]func(any) (any, error){
+		"ListAssets": func(any) (any, error) { return nil, adoThrottled },
+	})
+	total, _, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if got := classifyServiceError(err); got != outcomeTransient {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
+	}
+	if *warned != 0 {
+		t.Errorf("ListAssets transient warnings = %d, want 0", *warned)
+	}
+	if stored := countStoredRows(t, st); total == 0 || total != stored {
+		t.Errorf("total = %d, stored rows = %d; want the other phases' rows counted", total, stored)
+	}
+}
+
+// A data-plane host that does not resolve after the control plane answered is
+// a plain error, so the dispatcher does not report the region unavailable and
+// drop the control-plane rows already stored.
+func TestScanAidevopsAll_DataPlaneNXDOMAINKeepsCounts(t *testing.T) {
+	st := newTestStore(t)
+	handlers := adoTopLevelHandlers(map[string]func(any) (any, error){
+		"ListAssets": func(any) (any, error) {
+			return nil, &net.DNSError{Err: "no such host", Name: "dp.aidevops.us-east-1.api.aws", IsNotFound: true}
+		},
+	})
+	total, _, err := scanAidevopsAll(context.Background(), adoClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if got := classifyServiceError(err); err == nil || got != outcomeError {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
+	}
+	if stored := countStoredRows(t, st); total == 0 || total != stored {
+		t.Errorf("total = %d, stored rows = %d; want the other phases' rows counted", total, stored)
 	}
 }

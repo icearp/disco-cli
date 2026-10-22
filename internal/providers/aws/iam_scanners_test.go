@@ -238,8 +238,9 @@ func TestScanIAMUserCredentials_PerUserErrors(t *testing.T) {
 }
 
 // ListServiceSpecificCredentials has no SDK paginator: a page that repeats the
-// marker it was sent ends the loop instead of spinning.
-func TestScanIAMServiceSpecificCredentials_RepeatedMarkerStops(t *testing.T) {
+// marker it was sent ends the loop instead of spinning, keeps the rows read
+// and fails the listing as incomplete.
+func TestScanIAMServiceSpecificCredentials_RepeatedMarkerKeepsRowsAndFails(t *testing.T) {
 	st := newTestStore(t)
 	c := iamCredCases[0]
 	var calls atomic.Int32
@@ -250,8 +251,8 @@ func TestScanIAMServiceSpecificCredentials_RepeatedMarkerStops(t *testing.T) {
 		}
 		return c.page("alice", ptrStr("same"), "alice-"+strconv.Itoa(int(n))), nil
 	})
-	if err != nil || total != 2 || calls.Load() != 2 {
-		t.Errorf("total = %d, calls = %d, err = %v; want 2 rows from 2 calls, nil", total, calls.Load(), err)
+	if !errors.Is(err, errRepeatedNextToken) || total != 2 || calls.Load() != 2 {
+		t.Errorf("total = %d, calls = %d, err = %v; want 2 rows from 2 calls, errRepeatedNextToken", total, calls.Load(), err)
 	}
 }
 
@@ -287,6 +288,9 @@ func iamTopLevelHandlers(fail map[string]error) map[string]func(in any) (any, er
 		},
 		"ListAccessKeys": func(in any) (any, error) {
 			user := sv(in.(*iam.ListAccessKeysInput).UserName)
+			if user == "stale" {
+				return nil, iamStaleUserQueried
+			}
 			return &iam.ListAccessKeysOutput{AccessKeyMetadata: []iamtypes.AccessKeyMetadata{{AccessKeyId: ptrStr("AKIA" + user), UserName: &user}}}, nil
 		},
 	}
@@ -544,8 +548,7 @@ func TestScanIAM_TransientPhaseDoesNotMaskHardFailure(t *testing.T) {
 	for _, c := range []struct{ transientOp, hardOp, warnedAs string }{
 		{"ListAccessKeys", "ListDelegationRequests", "iam:ListAccessKeys"},
 		{"ListDelegationRequests", "ListSSHPublicKeys", "iam:ListDelegationRequests"},
-		// A phase-1 error names no member op, so it warns under the service.
-		{"GetAccountAuthorizationDetails", "ListDelegationRequests", "iam"},
+		{"GetAccountAuthorizationDetails", "ListDelegationRequests", "iam:GetAccountAuthorizationDetails"},
 	} {
 		t.Run(c.transientOp, func(t *testing.T) {
 			st := newTestStore(t)
@@ -562,5 +565,167 @@ func TestScanIAM_TransientPhaseDoesNotMaskHardFailure(t *testing.T) {
 				t.Errorf("%s transient warnings = %d, want 1", c.transientOp, *warned)
 			}
 		})
+	}
+}
+
+// A lone transient phase failure reaches the dispatcher as transient, so the
+// scan is marked partial instead of reading as complete.
+func TestScanIAM_LoneTransientPhaseMarksPartial(t *testing.T) {
+	for _, op := range []string{"ListInstanceProfiles", "ListSSHPublicKeys", "ListDelegationRequests"} {
+		t.Run(op, func(t *testing.T) {
+			st := newTestStore(t)
+			err := scanIAMTopLevel(t, st, iamTopLevelHandlers(map[string]error{
+				op: &smithy.GenericAPIError{Code: "Throttling", Message: "Rate exceeded"},
+			}))
+			if got := classifyServiceError(err); got != outcomeTransient {
+				t.Errorf("classifyServiceError(%v) = %v; want outcomeTransient", err, got)
+			}
+		})
+	}
+}
+
+// A phase-1 failure costs the per-user phases nothing: they run over the
+// users phase 1 stored, and the failure is still returned.
+func TestScanIAM_PhaseOneFailureKeepsPerUserPhases(t *testing.T) {
+	st := newTestStore(t)
+	err := scanIAMTopLevel(t, st, iamTopLevelHandlers(map[string]error{"ListInstanceProfiles": iamFailure}))
+	assertAPICode(t, err, "ServiceFailure")
+	keys := rowsByNativeID(t, st, TypeIAMAccessKey)
+	for _, u := range []string{"alice", "bob"} {
+		if _, ok := keys[iamTestUserARN(u)+"/access-key/AKIA"+u]; !ok {
+			t.Errorf("%s's access key missing despite ListInstanceProfiles failing", u)
+		}
+	}
+	for _, c := range iamCredCases {
+		if n := len(rowsByNativeID(t, st, c.typ)); n != 4 {
+			t.Errorf("%s rows = %d; want 4 despite ListInstanceProfiles failing", c.typ, n)
+		}
+	}
+}
+
+// A phase-1 failure does not cancel its siblings: GAAD, still in flight when
+// ListInstanceProfiles fails, stores its users.
+func TestScanIAM_PhaseOneFailureDoesNotCancelSiblings(t *testing.T) {
+	st := newTestStore(t)
+	failed := make(chan struct{})
+	handlers := iamTopLevelHandlers(nil)
+	gaad := handlers["GetAccountAuthorizationDetails"]
+	withCtx := ignoreCtx(handlers)
+	withCtx["ListInstanceProfiles"] = func(context.Context, any) (any, error) {
+		defer close(failed)
+		return nil, iamFailure
+	}
+	withCtx["GetAccountAuthorizationDetails"] = func(ctx context.Context, in any) (any, error) {
+		<-failed
+		// A cancelling fan-out cancels ctx as soon as the failed phase
+		// returns; a non-cancelling one never does.
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(200 * time.Millisecond):
+			return gaad(in)
+		}
+	}
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfigCtx(withCtx, iamDenied)
+	_, _, err := scanIAM(context.Background(), acct, st, testScanID)
+	assertAPICode(t, err, "ServiceFailure")
+	if n := len(rowsByNativeID(t, st, TypeIAMUser)); n != 2 {
+		t.Errorf("user rows = %d; want 2: GAAD must not be cancelled by its sibling's failure", n)
+	}
+}
+
+// One user's failure costs no other user its keys: every key read, every
+// page of it, is stored before the hard error is returned. A user gone since
+// GAAD is skipped silently; a throttled or denied user warns.
+func TestScanIAMAccessKeys_PerUserOutcomes(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "iam:ListAccessKeys")
+	client := iam.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
+		"ListAccessKeys": func(in any) (any, error) {
+			i := in.(*iam.ListAccessKeysInput)
+			user := sv(i.UserName)
+			switch user {
+			case "bob":
+				return nil, iamFailure
+			case "carol":
+				return nil, &smithy.GenericAPIError{Code: "NoSuchEntity", Message: "gone"}
+			case "dave":
+				return nil, &smithy.GenericAPIError{Code: "Throttling", Message: "Rate exceeded"}
+			case "erin":
+				return nil, &smithy.GenericAPIError{Code: "AccessDenied", Message: "is not authorized to perform: iam:ListAccessKeys"}
+			}
+			if i.Marker == nil {
+				return &iam.ListAccessKeysOutput{AccessKeyMetadata: []iamtypes.AccessKeyMetadata{{AccessKeyId: ptrStr("AKIA1")}}, IsTruncated: true, Marker: ptrStr("m2")}, nil
+			}
+			return &iam.ListAccessKeysOutput{AccessKeyMetadata: []iamtypes.AccessKeyMetadata{{AccessKeyId: ptrStr("AKIA2")}}}, nil
+		},
+	}, iamDenied))
+	total, _, err := scanIAMAccessKeys(context.Background(), client, iamTestUsers("alice", "bob", "carol", "dave", "erin"), newTestAccount(testAccountID), st, testScanID)
+	assertAPICode(t, err, "ServiceFailure")
+	if total != 2 {
+		t.Errorf("total = %d; want alice's 2 keys", total)
+	}
+	keys := rowsByNativeID(t, st, TypeIAMAccessKey)
+	for _, id := range []string{"AKIA1", "AKIA2"} {
+		if _, ok := keys[iamTestUserARN("alice")+"/access-key/"+id]; !ok {
+			t.Errorf("alice's key %s missing; keys = %v", id, nativeIDs(keys))
+		}
+	}
+	if *warns != 2 {
+		t.Errorf("iam:ListAccessKeys warnings = %d; want 2 (throttled, denied)", *warns)
+	}
+	// A user deleted since GAAD is no error.
+	if _, _, err := scanIAMAccessKeys(context.Background(), client, iamTestUsers("alice", "carol"), newTestAccount(testAccountID), st, testScanID); err != nil {
+		t.Errorf("err = %v; want nil when the only failure is a deleted user", err)
+	}
+}
+
+// A user's keys read before a later page failed are stored, and the failure
+// is returned.
+func TestScanIAMAccessKeys_KeepsKeysReadBeforeFailedPage(t *testing.T) {
+	st := newTestStore(t)
+	client := iam.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
+		"ListAccessKeys": func(in any) (any, error) {
+			if in.(*iam.ListAccessKeysInput).Marker == nil {
+				return &iam.ListAccessKeysOutput{AccessKeyMetadata: []iamtypes.AccessKeyMetadata{{AccessKeyId: ptrStr("AKIA1")}}, IsTruncated: true, Marker: ptrStr("m2")}, nil
+			}
+			return nil, iamFailure
+		},
+	}, iamDenied))
+	total, _, err := scanIAMAccessKeys(context.Background(), client, iamTestUsers("alice"), newTestAccount(testAccountID), st, testScanID)
+	assertAPICode(t, err, "ServiceFailure")
+	if total != 1 {
+		t.Errorf("total = %d; want the first page's key", total)
+	}
+	if _, ok := rowsByNativeID(t, st, TypeIAMAccessKey)[iamTestUserARN("alice")+"/access-key/AKIA1"]; !ok {
+		t.Error("key read before the failed page not stored")
+	}
+}
+
+// A listed key without an AccessKeyId has no NativeID: it is not stored under
+// a keyless NativeID but warned about once, naming its user, while the user's
+// other keys are stored.
+func TestScanIAMAccessKeys_KeyWithoutIDNotStored(t *testing.T) {
+	st := newTestStore(t)
+	warned := recordWarnings(st)
+	client := iam.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
+		"ListAccessKeys": func(any) (any, error) {
+			return &iam.ListAccessKeysOutput{AccessKeyMetadata: []iamtypes.AccessKeyMetadata{{UserName: ptrStr("alice")}, {AccessKeyId: ptrStr("AKIA1")}}}, nil
+		},
+	}, iamDenied))
+	total, _, err := scanIAMAccessKeys(context.Background(), client, iamTestUsers("alice"), newTestAccount(testAccountID), st, testScanID)
+	if err != nil {
+		t.Fatalf("err = %v; want nil", err)
+	}
+	keys := rowsByNativeID(t, st, TypeIAMAccessKey)
+	if total != 1 || len(keys) != 1 {
+		t.Errorf("total = %d, keys = %v; want only AKIA1", total, nativeIDs(keys))
+	}
+	if _, ok := keys[iamTestUserARN("alice")+"/access-key/"]; ok {
+		t.Error("key stored under a keyless NativeID")
+	}
+	if len(*warned) != 1 || (*warned)[0].Service != "iam:ListAccessKeys" || !strings.Contains((*warned)[0].Message, "alice") {
+		t.Errorf("warnings = %+v; want one iam:ListAccessKeys warning naming alice", *warned)
 	}
 }

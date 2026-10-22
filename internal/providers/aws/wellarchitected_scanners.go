@@ -74,12 +74,11 @@ type waParents struct {
 // scanWellArchitected discovers the Well-Architected Tool resources, then the
 // Well-Architected Agent's profiles and the contexts and goals of each. Every
 // phase runs whatever the phases before it returned, so one phase's error
-// cannot cost another's rows, and the errors are joined. The tool and profile
-// errors are demoted when transient: a transient member would make the
-// dispatcher read the whole join as transient and drop the other side's hard
-// error and every side's counts. The context and goal phases need no
-// demotion: they skip a transient parent themselves, so their errors are
-// never transient.
+// cannot cost another's rows, and the errors are joined by phaseErrs. A
+// transient tool or profile error alone marks the scan partial; beside a hard
+// error it is demoted to a warning: joined, it would be buried in the hard
+// error instead of reported under its op. The context and goal phases skip a
+// transient parent themselves, so their errors are never transient.
 //
 // Not scanned: answers, check details/summaries, lens-review improvements and
 // consolidated reports (computed from the review), milestones (point-in-time
@@ -91,11 +90,12 @@ func scanWellArchitected(ctx context.Context, acct *account, region string, st *
 	pt, pi, profiles, perr := scanWAAgentProfiles(ctx, client, acct, region, st, scanID)
 	ct, ci, cerr := scanWAAgentContexts(ctx, client, profiles, acct, region, st, scanID)
 	gt, gi, gerr := scanWAAgentGoals(ctx, client, profiles, acct, region, st, scanID)
-	return total + pt + ct + gt, inserted + pi + ci + gi, errors.Join(
-		demoteTransient(st, "wellarchitected", acct, region, err),
-		demoteTransient(st, "wellarchitected:ListAgentProfiles", acct, region, perr),
-		cerr, gerr,
-	)
+	var errs phaseErrs
+	errs.add("wellarchitected", err)
+	errs.add("wellarchitected:ListAgentProfiles", perr)
+	errs.add("wellarchitected agent contexts", cerr)
+	errs.add("wellarchitected agent goals", gerr)
+	return total + pt + ct + gt, inserted + pi + ci + gi, errs.join(st, acct, region)
 }
 
 // scanWAToolPhases discovers workloads, lenses, profiles and review templates,

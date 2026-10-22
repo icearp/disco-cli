@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -33,16 +32,16 @@ const (
 // destinations of every app monitor it stored, then the metric definitions of
 // every destination it stored. The child phases run whatever the app monitor
 // phase returned, so a child failure costs the app monitors nothing. The app
-// monitor phase's transient error is demoted to a warning, since one transient
-// member would make the dispatcher read the whole join as transient; the
-// counts are summed.
+// monitor phase's transient error is demoted to a warning only beside a hard
+// error: joined, it would be buried in the hard error instead of reported under
+// its op; the counts are summed.
 func scanRUM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := rum.NewFromConfig(acct.cfg, func(o *rum.Options) { o.Region = region })
 	total, inserted, monitors, err := scanRUMAppMonitors(ctx, client, acct, region, st, scanID)
 	t, i, dests, derr := scanRUMMetricsDestinations(ctx, client, acct, region, st, scanID, monitors)
 	total, inserted = total+t, inserted+i
 	t, i, merr := scanRUMMetricDefinitions(ctx, client, acct, region, st, scanID, dests)
-	return total + t, inserted + i, errors.Join(demoteTransient(st, rumListAppMonitorsOp, acct, region, err), derr, merr)
+	return total + t, inserted + i, demoteBeside(st, rumListAppMonitorsOp, acct, region, err, derr, merr)
 }
 
 // rumAppMonitorARN is the app monitor ARN (Service Reference format

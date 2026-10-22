@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws/retry"
 	ci "github.com/aws/aws-sdk-go-v2/service/chimesdkidentity"
 	cp "github.com/aws/aws-sdk-go-v2/service/chimesdkmediapipelines"
 	cm "github.com/aws/aws-sdk-go-v2/service/chimesdkmessaging"
@@ -49,10 +50,28 @@ type chimeChannelFlowAttrs struct {
 // meetings (ephemeral, no list API) aren't scanned. Per-region; unsupported
 // regions surface as endpoint/access errors, dispatcher-tolerated.
 func scanChime(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	idClient := ci.NewFromConfig(acct.cfg, func(o *ci.Options) { o.Region = region })
-	msgClient := cm.NewFromConfig(acct.cfg, func(o *cm.Options) { o.Region = region })
-	mpClient := cp.NewFromConfig(acct.cfg, func(o *cp.Options) { o.Region = region })
-	vClient := cv.NewFromConfig(acct.cfg, func(o *cv.Options) { o.Region = region })
+	// The SDK neither lists ThrottledClientException, the Chime SDK models'
+	// HTTP 429 throttle, among its throttle codes nor retries a 429 by status,
+	// so without this a single throttle fails the call unretried. It gets
+	// standard backoff only: adaptive mode's client-side rate limiting does not
+	// learn from a code added this way.
+	const throttled = "ThrottledClientException"
+	idClient := ci.NewFromConfig(acct.cfg, func(o *ci.Options) {
+		o.Region = region
+		o.Retryer = retry.AddWithErrorCodes(o.Retryer, throttled)
+	})
+	msgClient := cm.NewFromConfig(acct.cfg, func(o *cm.Options) {
+		o.Region = region
+		o.Retryer = retry.AddWithErrorCodes(o.Retryer, throttled)
+	})
+	mpClient := cp.NewFromConfig(acct.cfg, func(o *cp.Options) {
+		o.Region = region
+		o.Retryer = retry.AddWithErrorCodes(o.Retryer, throttled)
+	})
+	vClient := cv.NewFromConfig(acct.cfg, func(o *cv.Options) {
+		o.Region = region
+		o.Retryer = retry.AddWithErrorCodes(o.Retryer, throttled)
+	})
 
 	var batch []*store.Resource
 
@@ -380,6 +399,11 @@ func chimeVoiceProfileDomains(ctx context.Context, client *cv.Client, acct *acco
 // ListSipRules and ListVoiceConnectorGroups.
 const chimeVoicePageLimit = 100
 
+const (
+	chimeListSipRulesOp             = "chime:ListSipRules"
+	chimeListVoiceConnectorGroupsOp = "chime:ListVoiceConnectorGroups"
+)
+
 // chimeVoiceRoutingAPI is the Chime SDK Voice surface the SIP-rule and
 // voice-connector-group phases call.
 type chimeVoiceRoutingAPI interface {
@@ -391,9 +415,10 @@ type chimeVoiceRoutingAPI interface {
 // Unlike the older chime phases it returns unexpected errors, so it runs after
 // all of them; the two phases are independent and both always run.
 func chimeVoiceRouting(ctx context.Context, client chimeVoiceRoutingAPI, acct *account, region string, st *store.Store, scanID string, batch *[]*store.Resource) error {
-	sipErr := chimeSipRules(ctx, client, acct, region, st, scanID, batch)
-	groupErr := chimeVoiceConnectorGroups(ctx, client, acct, region, st, scanID, batch)
-	return errors.Join(sipErr, groupErr)
+	var errs phaseErrs
+	errs.add(chimeListSipRulesOp, chimeSipRules(ctx, client, acct, region, st, scanID, batch))
+	errs.add(chimeListVoiceConnectorGroupsOp, chimeVoiceConnectorGroups(ctx, client, acct, region, st, scanID, batch))
+	return errs.join(st, acct, region)
 }
 
 // chimeSipRuleNativeID builds a SIP rule's NativeID. AWS issues no SIP-rule ARN
@@ -404,7 +429,7 @@ func chimeSipRuleNativeID(region, accountID, sipRuleID string) string {
 }
 
 func chimeSipRules(ctx context.Context, client chimeVoiceRoutingAPI, acct *account, region string, st *store.Store, scanID string, batch *[]*store.Resource) error {
-	const op = "chime:ListSipRules"
+	const op = chimeListSipRulesOp
 	p := cv.NewListSipRulesPaginator(client, &cv.ListSipRulesInput{},
 		func(o *cv.ListSipRulesPaginatorOptions) { o.Limit = chimeVoicePageLimit })
 	for firstPage := true; p.HasMorePages(); firstPage = false {
@@ -432,7 +457,7 @@ func chimeSipRules(ctx context.Context, client chimeVoiceRoutingAPI, acct *accou
 // VoiceConnectorGroupArn the API returns. The model marks that ARN optional, so
 // groups without one are skipped under one warning naming the count.
 func chimeVoiceConnectorGroups(ctx context.Context, client chimeVoiceRoutingAPI, acct *account, region string, st *store.Store, scanID string, batch *[]*store.Resource) error {
-	const op = "chime:ListVoiceConnectorGroups"
+	const op = chimeListVoiceConnectorGroupsOp
 	var noARN skipTally
 	defer func() {
 		if noARN.count > 0 {
@@ -473,9 +498,9 @@ func chimeVoiceConnectorGroups(ctx context.Context, client chimeVoiceRoutingAPI,
 // Chime SDK Voice has its own endpoint host, and returning the gap would make
 // the dispatcher report the whole chime service unavailable in this region
 // while it stored rows from the other Chime endpoints. For the same reason an
-// NXDOMAIN after a page succeeded is never returned: it warns and keeps the
-// rows. A transient error is reported as a warning so it cannot hide the other
-// phase's error.
+// NXDOMAIN after a page succeeded is returned as a plain error, which keeps
+// the rows and their counts. A transient error is returned; chimeVoiceRouting
+// demotes it only beside the other phase's hard error.
 func chimeVoicePhaseErr(st *store.Store, op string, acct *account, region string, firstPage bool, err error) error {
 	if isAccessDenied(err) {
 		chimeListErr(st, op, acct.ID, region, err)
@@ -485,7 +510,7 @@ func chimeVoicePhaseErr(st *store.Store, op string, acct *account, region string
 		return nil
 	}
 	if isDNSNotFound(err) {
-		return skipIfTransient(st, op, acct.ID, region, err)
+		return lateNXDOMAIN(op, err)
 	}
-	return demoteTransient(st, op, acct, region, fmt.Errorf("%s: %w", op, err))
+	return fmt.Errorf("%s: %w", op, err)
 }

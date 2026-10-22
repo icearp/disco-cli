@@ -64,8 +64,8 @@ func scanKafka(ctx context.Context, acct *account, region string, st *store.Stor
 // after the cluster phase costs the child phases nothing, and theirs cost it
 // nothing; a failed cluster phase leaves the child phases only the clusters
 // stored before it failed (see scanKafkaClusters). The child phases tally
-// their transient errors per cluster, so only the older phases' error needs
-// demoting before the join.
+// their transient errors per cluster, so only the older phases' error can be
+// demoted, and only beside a hard error from another phase (demoteBeside).
 func scanKafkaAll(ctx context.Context, client kafkaAllAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, clusters, err := scanKafkaOlderPhases(ctx, client, acct, region, st, scanID)
 	tt, it, terr := scanKafkaTopics(ctx, client, acct, region, st, scanID, clusters)
@@ -73,7 +73,7 @@ func scanKafkaAll(ctx context.Context, client kafkaAllAPI, acct *account, region
 	tv, iv, verr := scanKafkaClientVpcConnections(ctx, client, acct, region, st, scanID, clusters)
 	tn, in, nerr := scanKafkaNodes(ctx, client, acct, region, st, scanID, clusters)
 	return total + tt + tc + tv + tn, inserted + it + ic + iv + in,
-		errors.Join(demoteTransient(st, "kafka", acct, region, err), terr, cerr, verr, nerr)
+		demoteBeside(st, "kafka", acct, region, err, terr, cerr, verr, nerr)
 }
 
 // scanKafkaOlderPhases runs the phases that predate the cluster child phases,

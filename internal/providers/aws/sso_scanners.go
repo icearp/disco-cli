@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -103,14 +102,14 @@ func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.S
 
 	// Phases 2-6 each run even when an earlier one failed, and keep their
 	// counts when they fail themselves; phase 6 lists only what phase 2 stored.
-	// Their errors are joined, each demoted first: a transient member would
-	// make the dispatcher read the whole join as transient and drop the other
-	// phases' hard errors and counts.
-	var errs []error
+	// Their errors are joined by phaseErrs, a transient one demoted only beside
+	// a hard one: joined, it would be buried in the hard error instead of
+	// reported under its op.
+	var errs phaseErrs
 	add := func(service string, t, i int, err error) {
 		total += t
 		inserted += i
-		errs = append(errs, demoteTransient(st, service, acct, region, err))
+		errs.add(service, err)
 	}
 
 	permissionSets, t, i, ferr := scanSSOPermissionSets(ctx, ssoClient, acct, region, instances, st, scanID)
@@ -126,13 +125,14 @@ func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.S
 	t, i, ferr = scanSSOExtended(ctx, ssoClient, acct, region, instances, st, scanID)
 	add("sso-admin", t, i, ferr)
 
-	// Already demoted per list inside scanSSOPermissionSetPolicies.
+	// scanSSOPermissionSetPolicies joins its two lists through phaseErrs
+	// itself.
 	t, i, ferr = scanSSOPermissionSetPolicies(ctx, ssoClient, acct, region, permissionSets, st, scanID)
 	total += t
 	inserted += i
-	errs = append(errs, ferr)
+	errs.add("sso-admin", ferr)
 
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 func scanSSOInstances(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string) (instances []ssotypes.InstanceMetadata, total, inserted int, err error) {

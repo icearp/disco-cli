@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"sync"
 	"testing"
@@ -544,5 +545,86 @@ func TestScanApplicationInsights_FamiliesRunConcurrently(t *testing.T) {
 	}
 	if n := len(rowsByNativeID(t, st, TypeApplicationInsightsComponent)); n != 3 {
 		t.Errorf("component rows = %d, want 3", n)
+	}
+}
+
+// A failed closure write leaves the rows stored before it counted, and the
+// children of the stored parents still listed.
+func TestScanApplicationInsights_ClosureFailureKeepsCounts(t *testing.T) {
+	st := newTestStore(t)
+	refuseClosureWrites(t, st)
+	total, err := scanAITopLevel(t, st, aiHandlers(newAICalls()))
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Errorf("err = %v; want the closure's store write failure", err)
+	}
+	// Every row is stored; only the links fail.
+	if total != 14 {
+		t.Errorf("total = %d; want 14, every row stored", total)
+	}
+	if n := countStoredRows(t, st); n != 14 {
+		t.Errorf("stored rows = %d; want 14", n)
+	}
+}
+
+// A parent row whose write fails is not listed under: the workloads of
+// unstored components and the patterns of unstored pattern sets are never
+// asked for, so no child is stored under a missing parent, and the other
+// family still stores its rows.
+func TestScanApplicationInsights_UnstoredParentListsNoChildren(t *testing.T) {
+	for _, tc := range []struct {
+		refusedType, childOp, childType, otherType string
+	}{
+		{TypeApplicationInsightsComponent, "ListWorkloads", TypeApplicationInsightsWorkload, TypeApplicationInsightsLogPattern},
+		{TypeApplicationInsightsLogPatternSet, "ListLogPatterns", TypeApplicationInsightsLogPattern, TypeApplicationInsightsWorkload},
+	} {
+		t.Run(tc.refusedType, func(t *testing.T) {
+			st := newTestStore(t)
+			// The abort is a constraint error, which the store does not retry.
+			if _, err := st.DB().Exec(`CREATE TRIGGER refuse_parent BEFORE INSERT ON resources
+				WHEN NEW.type = '` + tc.refusedType + `'
+				BEGIN SELECT RAISE(ABORT, 'test: parent write refused'); END`); err != nil {
+				t.Fatalf("create trigger: %v", err)
+			}
+			calls := newAICalls()
+			_, err := scanAITopLevel(t, st, aiHandlers(calls))
+			if !errors.Is(err, store.ErrStoreWrite) {
+				t.Errorf("err = %v; want the parent write failure", err)
+			}
+			if got := calls[tc.childOp].distinct(); len(got) != 0 {
+				t.Errorf("%s asked for %v; want no parent asked", tc.childOp, got)
+			}
+			if n := len(rowsByNativeID(t, st, tc.childType)); n != 0 {
+				t.Errorf("%s rows = %d; want 0", tc.childType, n)
+			}
+			if n := len(rowsByNativeID(t, st, tc.otherType)); n == 0 {
+				t.Errorf("%s rows = 0; want the other family's rows stored", tc.otherType)
+			}
+		})
+	}
+}
+
+// A throttle on a later ListApplications page, with no child phase failing,
+// is returned as transient, so the scan is partial; the first page's
+// applications and their children are kept.
+func TestScanApplicationInsights_LoneApplicationsThrottleMarksPartial(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "applicationinsights:ListApplications")
+	h := aiHandlers(newAICalls())
+	next := h["ListApplications"]
+	h["ListApplications"] = func(in any) (any, error) {
+		if in.(*applicationinsights.ListApplicationsInput).NextToken != nil {
+			return nil, apiErr("ThrottlingException", "Rate exceeded")
+		}
+		return next(in)
+	}
+	total, err := scanAITopLevel(t, st, h)
+	if got := classifyServiceError(err); got != outcomeTransient {
+		t.Errorf("classifyServiceError(%v) = %v; want outcomeTransient", err, got)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0", *warns)
+	}
+	if stored := countStoredRows(t, st); total == 0 || total != stored {
+		t.Errorf("total = %d, stored rows = %d; want the first page's rows counted", total, stored)
 	}
 }

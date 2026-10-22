@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -58,9 +57,10 @@ type mqAPI interface {
 // shared-resource phases need its brokers; a broker-phase error returns at
 // once. The later phases are independent, so each runs whatever the others
 // return and their errors are joined. Only the configurations phase can return
-// a transient error, so only it is demoted to a warning, which keeps it from
-// hiding another phase's hard error. The association phase fails only on store
-// writes, and the shared-resource phase already skips transient brokers.
+// a transient error, so only it can be demoted to a warning, and only beside a
+// hard error, which keeps it from hiding another phase's hard error. The association
+// phase fails only on store writes, and the shared-resource phase already skips
+// transient brokers.
 func scanMQ(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := mq.NewFromConfig(acct.cfg, func(o *mq.Options) { o.Region = region })
 	bTotal, bInserted, brokers, assocs, err := scanMQBrokers(ctx, client, acct, region, st, scanID)
@@ -70,11 +70,11 @@ func scanMQ(ctx context.Context, acct *account, region string, st *store.Store, 
 	cTotal, cInserted, cErr := scanMQConfigurations(ctx, client, acct, region, st, scanID)
 	aTotal, aInserted, aErr := scanMQConfigurationAssociations(acct, region, st, scanID, assocs)
 	sTotal, sInserted, sErr := scanMQSharedResources(ctx, client, acct, region, st, scanID, brokers)
-	return bTotal + cTotal + aTotal + sTotal, bInserted + cInserted + aInserted + sInserted, errors.Join(
-		demoteTransient(st, "mq:ListConfigurations", acct, region, cErr),
-		aErr,
-		sErr,
-	)
+	var errs phaseErrs
+	errs.add("mq:ListConfigurations", cErr)
+	errs.add("mq configuration associations", aErr)
+	errs.add("mq shared resources", sErr)
+	return bTotal + cTotal + aTotal + sTotal, bInserted + cInserted + aInserted + sInserted, errs.join(st, acct, region)
 }
 
 // mqBrokerAssoc captures the (brokerARN, configId) pair surfaced by

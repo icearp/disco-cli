@@ -384,9 +384,9 @@ func TestScanGameLiftIn_FleetChildPhaseErrorsKeepEarlierRows(t *testing.T) {
 	}
 }
 
-// A later phase's transient error, a throttle or a dropped connection, is
-// warned about on its own, so it cannot make the dispatcher classify the whole
-// service transient or stop the phases after it.
+// Beside a hard error, a later phase's transient error, a throttle or a dropped
+// connection, is reported as a warning under its op instead of buried in the
+// hard error, and does not stop the phases after it.
 func TestScanGameLiftIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 	for name, transient := range map[string]error{"throttle": glThrottled, "dropped connection": io.ErrUnexpectedEOF} {
 		t.Run(name, func(t *testing.T) {
@@ -444,5 +444,40 @@ func TestScanGameLiftIn_UnreachableEndpointStopsTheScan(t *testing.T) {
 	}
 	if total != 0 || len(warnings) != 0 {
 		t.Errorf("total, warnings = %d, %v; want 0, none", total, warnings)
+	}
+}
+
+// A later phase's lone transient error reaches the dispatcher as transient,
+// with the other phases' counts, so the scan is marked partial.
+func TestScanGameLiftIn_LoneTransientPhaseMarksPartial(t *testing.T) {
+	st := newTestStore(t)
+	handlers := glTopLevelHandlers(map[string]func(any) (any, error){
+		"ListCompute": func(any) (any, error) { return nil, glThrottled },
+	})
+	total, _, err := scanGameLiftIn(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if got := classifyServiceError(err); got != outcomeTransient {
+		t.Errorf("classifyServiceError(%v) = %v; want outcomeTransient", err, got)
+	}
+	if total == 0 {
+		t.Error("total = 0; want the other phases' rows counted")
+	}
+}
+
+// A later phase's NXDOMAIN, after earlier phases reached the endpoint and
+// stored rows, is a failure of this scan, not a region gap: it is returned as
+// an error with the stored rows' counts.
+func TestScanGameLiftIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	st := newTestStore(t)
+	handlers := glTopLevelHandlers(map[string]func(any) (any, error){
+		"ListCompute": func(any) (any, error) {
+			return nil, &net.DNSError{Err: "no such host", Name: "gamelift.us-east-1.amazonaws.com", IsNotFound: true}
+		},
+	})
+	total, _, err := scanGameLiftIn(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if got := classifyServiceError(err); got != outcomeError {
+		t.Errorf("classifyServiceError(%v) = %v; want outcomeError", err, got)
+	}
+	if stored := countStoredRows(t, st); total == 0 || total != stored {
+		t.Errorf("total = %d, stored rows = %d; want the stored rows counted", total, stored)
 	}
 }

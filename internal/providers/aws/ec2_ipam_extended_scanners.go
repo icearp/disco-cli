@@ -37,9 +37,8 @@ const (
 
 // scanEC2IPAMExtended runs the BYOIP, BYOASN, IPAM policy allocation-rule,
 // IPAM prefix list resolver and IPAM internet registry association phases.
-// They are independent: each runs whatever the others return, has its
-// transient error demoted to a warning (one transient member would make the
-// dispatcher read the whole join as transient) and the rest are joined. The
+// They are independent: each runs whatever the others return, and adds its
+// error to errs under its own op for scanEC2 to join. The
 // prefix list resolver phase is here, not among scanEC2's categories, because
 // a failed rules read fails it, and there it would cancel every other
 // category.
@@ -47,8 +46,7 @@ const (
 // homeIPAM reports whether scanIPAMs stored this scan an IPAM whose home
 // Region is region; policies are the stored policies whose allocation rules
 // can still be read.
-func scanEC2IPAMExtended(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string, homeIPAM bool, policies []childParent) (total, inserted int, err error) {
-	var errs []error
+func scanEC2IPAMExtended(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string, homeIPAM bool, policies []childParent, errs *phaseErrs) (total, inserted int) {
 	for _, phase := range []struct {
 		op  string
 		run func() (int, int, error)
@@ -86,9 +84,9 @@ func scanEC2IPAMExtended(ctx context.Context, client ec2API, acct *account, regi
 		t, i, perr := phase.run()
 		total += t
 		inserted += i
-		errs = append(errs, demoteTransient(st, phase.op, acct, region, perr))
+		errs.add(phase.op, perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted
 }
 
 // scanEC2ByoipCidrs stores the address ranges provisioned to EC2 through

@@ -203,7 +203,8 @@ func TestScanAutoScaling_NotificationConfigurationOutcomes(t *testing.T) {
 		{name: "denied", page1Err: asTestDenied, wantWarns: 1},
 		{name: "denied on a later page stores nothing", page2Err: asTestDenied, wantWarns: 1},
 		{name: "other error on a later page", page2Err: apiErr("ValidationException", "bad token"), wantCode: "ValidationException"},
-		{name: "transient error is a warning", page1Err: apiErr("ServiceUnavailable", "try later"), wantWarns: 1},
+		// Alone, the transient error is returned, so the scan is partial.
+		{name: "transient error alone is returned", page1Err: apiErr("ServiceUnavailable", "try later"), wantCode: "ServiceUnavailable"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)

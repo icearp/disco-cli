@@ -68,13 +68,25 @@ func scanCassandra(ctx context.Context, acct *account, region string, st *store.
 // scanCassandraAll runs every phase even when an earlier one fails, so one
 // phase's error costs no other phase its rows. Tables and types fan out over
 // the keyspaces listed first (none when that listing failed); streams list
-// the whole region and use the tables only for their contains pairs.
+// the whole region and use the tables only for their contains pairs. The
+// phases' errors are joined by phaseErrs.
 func scanCassandraAll(ctx context.Context, client cassandraAPI, streamsClient cassandraStreamsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var errs phaseErrs
 	keyspaceNames, kt, ki, kerr := scanCassandraKeyspaces(ctx, client, acct, region, st, scanID)
+	errs.add("cassandra keyspaces", kerr)
 	tableARNs, tt, ti, terr := scanCassandraTables(ctx, client, keyspaceNames, acct, region, st, scanID)
+	errs.add("cassandra tables", lateNXDOMAIN("cassandra tables", terr))
 	yt, yi, yerr := scanCassandraTypes(ctx, client, keyspaceNames, acct, region, st, scanID)
-	stt, sti, serr := scanCassandraStreams(ctx, streamsClient, tableARNs, acct, region, st, scanID)
-	return kt + tt + yt + stt, ki + ti + yi + sti, errors.Join(kerr, terr, yerr, serr)
+	errs.add("cassandra types", lateNXDOMAIN("cassandra types", yerr))
+	// Keyspaces itself not resolving means the region has no Keyspaces;
+	// probing the streams endpoint would only add a warning every scan.
+	var stt, sti int
+	if !isDNSNotFound(kerr) {
+		var serr error
+		stt, sti, serr = scanCassandraStreams(ctx, streamsClient, tableARNs, acct, region, st, scanID)
+		errs.add("cassandra streams", serr)
+	}
+	return kt + tt + yt + stt, ki + ti + yi + sti, errs.join(st, acct, region)
 }
 
 func scanCassandraKeyspaces(ctx context.Context, client cassandraAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
@@ -262,9 +274,12 @@ func scanCassandraTypes(ctx context.Context, client cassandraAPI, ksNames []stri
 // observed for this endpoint; the SDK builds it for every region with no
 // per-region list, so a region that does not serve it would show only on the
 // first call.
-// A network failure on any page warns once and keeps the rows listed so far.
-// Once a page has succeeded, any other error but a denial is returned after the
-// rows listed so far are stored.
+// An endpoint that does not resolve on the first call warns and stores nothing:
+// unlike every other Keyspaces call it is on the dual-stack domain (api.aws in
+// the aws partition), which egress filtering can block, so returning the
+// NXDOMAIN would report the whole service unavailable in this region and drop
+// the keyspace phases' rows. Any other error but a denial, a transient one
+// included, is returned after the rows listed so far are stored.
 func scanCassandraStreams(ctx context.Context, client cassandraStreamsAPI, tableARNs map[cassandraTableKey]string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	const op = "cassandra:ListStreams"
 	pager := keyspacesstreams.NewListStreamsPaginator(client, &keyspacesstreams.ListStreamsInput{},
@@ -277,16 +292,13 @@ func scanCassandraStreams(ctx context.Context, client cassandraStreamsAPI, table
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			switch {
-			// Unlike every other Keyspaces call, this endpoint is on the
-			// dual-stack domain (api.aws in the aws partition), which egress
-			// filtering can block. Returned, a network error joined with the
-			// other phases' errors would make the dispatcher reclassify the
-			// whole service: NXDOMAIN as region-unavailable, which zeroes the
-			// counts of the rows already stored, and any other network error
-			// as transient, which reports the other phases' hard errors as
-			// transient ones.
-			case isTransientNetworkError(perr):
-				_ = skipIfTransient(st, op, acct.ID, region, fmt.Errorf("dual-stack endpoint cassandra-streams.%s unreachable: %w", region, perr))
+			case !listed && isDNSNotFound(perr):
+				st.ReportWarning(store.ScanWarning{
+					Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
+					Message: fmt.Sprintf("CDC streams not scanned: the dual-stack endpoint cassandra-streams.%s does not resolve; DNS or egress filtering may block it, or the region may not offer it: %v", region, perr),
+				})
+			case isDNSNotFound(perr):
+				listErr = lateNXDOMAIN(op, perr)
 			case !listed && isOpNotDeployed(perr):
 				return 0, 0, nil
 			case isAccessDenied(perr):

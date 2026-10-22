@@ -44,20 +44,20 @@ func scanServerlessRepo(ctx context.Context, acct *account, region string, st *s
 	return scanServerlessRepoAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanServerlessRepoAll stores the account's applications, then the versions and
-// the policy of every application it stored, including the applications
+// scanServerlessRepoAll stores the account's applications, then the versions
+// and the policy of every application it stored, including the applications
 // listed before a failed page. All three phases run; their errors are joined
 // and the counts summed. The application phase's transient error is demoted to
-// a warning, since one transient member would make the dispatcher read the
-// whole join as transient. The child phases need no demotion: each skips a
-// parent whose call still fails transiently, with a warning, and never
-// returns a transient error.
+// a warning only beside a hard error: joined, it would be buried in the hard
+// error instead of reported under its op. The child phases need no demotion:
+// each skips a parent whose call still fails transiently, with a warning, and
+// never returns a transient error.
 func scanServerlessRepoAll(ctx context.Context, client serverlessRepoAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, apps, err := scanServerlessRepoApplications(ctx, client, acct, region, st, scanID)
 	vTotal, vInserted, verr := scanServerlessRepoApplicationVersions(ctx, client, acct, region, st, scanID, apps)
 	pTotal, pInserted, perr := scanServerlessRepoApplicationPolicies(ctx, client, acct, region, st, scanID, apps)
 	return total + vTotal + pTotal, inserted + vInserted + pInserted,
-		errors.Join(demoteTransient(st, sarListApplicationsOp, acct, region, err), verr, perr)
+		demoteBeside(st, sarListApplicationsOp, acct, region, err, verr, perr)
 }
 
 // scanServerlessRepoApplications stores the applications ListApplications

@@ -773,9 +773,9 @@ func TestScanWellArchitected_StoresAgentProfilesWithToolRows(t *testing.T) {
 	}
 }
 
-// A tool phase throttled after earlier phases stored rows is demoted to a
-// warning, and the rows the earlier phases and the agent phase stored are
-// still counted.
+// A tool phase throttled after earlier phases stored rows is returned as
+// transient, so the scan is partial, and the rows the earlier phases and the
+// agent phase stored are still counted.
 func TestScanWellArchitected_ThrottledToolPhaseKeepsCounts(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "wellarchitected")
@@ -784,16 +784,16 @@ func TestScanWellArchitected_ThrottledToolPhaseKeepsCounts(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, waDenied)
 	total, inserted, err := scanWellArchitected(context.Background(), acct, testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("err = %v, want nil after demotion", err)
+	if got := classifyServiceError(err); got != outcomeTransient {
+		t.Fatalf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
 	}
 	// Four tool parents and four of the five tool children, plus one agent
 	// profile, its context and its goal.
 	if total != 11 || inserted != 11 {
 		t.Errorf("total, inserted = %d, %d; want 11, 11", total, inserted)
 	}
-	if *warns != 1 {
-		t.Errorf("warnings = %d, want 1", *warns)
+	if *warns != 0 {
+		t.Errorf("warnings = %d, want 0", *warns)
 	}
 }
 

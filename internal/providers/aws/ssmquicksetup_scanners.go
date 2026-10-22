@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssmquicksetup"
@@ -28,19 +27,19 @@ const (
 
 // scanSSMQuickSetup discovers SSM Quick Setup configuration managers, then the
 // region's configurations. LifecycleAutomation is a ConfigurationManager
-// sub-resource that has no listable endpoint and is not scanned.
-// The configuration phase runs whatever the manager phase returned, so its
-// failure costs it nothing, and the counts from both sides are summed. Each
-// side's transient error is demoted to a warning, since one transient member
-// would make the dispatcher read the whole join as transient.
+// sub-resource that has no listable endpoint and is not scanned. The
+// configuration phase runs whatever the manager phase returned, so its failure
+// costs it nothing, and the counts from both sides are summed. Each side's
+// transient error is demoted to a warning only beside a hard error: joined, it
+// would be buried in the hard error instead of reported under its op.
 func scanSSMQuickSetup(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := ssmquicksetup.NewFromConfig(acct.cfg, func(o *ssmquicksetup.Options) { o.Region = region })
 	total, inserted, managers, err := scanSSMQuickSetupManagers(ctx, client, acct, region, st, scanID)
 	t, i, cerr := scanSSMQuickSetupConfigurations(ctx, client, acct, region, st, scanID, managers)
-	return total + t, inserted + i, errors.Join(
-		demoteTransient(st, "ssm-quicksetup:ListConfigurationManagers", acct, region, err),
-		demoteTransient(st, ssmQuickSetupConfigurationsOp, acct, region, cerr),
-	)
+	var errs phaseErrs
+	errs.add("ssm-quicksetup:ListConfigurationManagers", err)
+	errs.add(ssmQuickSetupConfigurationsOp, cerr)
+	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
 // scanSSMQuickSetupManagers stores the region's configuration managers and

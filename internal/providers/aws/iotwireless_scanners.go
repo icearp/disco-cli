@@ -54,14 +54,14 @@ func scanIoTWireless(ctx context.Context, acct *account, region string, st *stor
 // scanIoTWirelessAll runs the older phases, which stop at their first hard
 // error, then the event-configuration phase over the parents they stored, so a
 // failure on either side costs the other no rows. The older side's transient
-// error is demoted to a warning, since one transient member would make the
-// dispatcher read the whole join as transient; the event-configuration phase
-// tallies its own transients into a warning.
+// error is demoted to a warning only beside a hard error: joined, it would be
+// buried in the hard error instead of reported under its op; the
+// event-configuration phase tallies its own transients into a warning.
 func scanIoTWirelessAll(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	parents := iwEventParents{}
 	total, inserted, err := scanIWOlderPhases(ctx, client, acct, region, st, scanID, parents)
 	te, ie, eerr := scanIWEventConfigurations(ctx, client, acct, region, st, scanID, parents)
-	return total + te, inserted + ie, errors.Join(demoteTransient(st, "iotwireless", acct, region, err), eerr)
+	return total + te, inserted + ie, demoteBeside(st, "iotwireless", acct, region, err, eerr)
 }
 
 // scanIWOlderPhases runs the phases that predate event configurations,

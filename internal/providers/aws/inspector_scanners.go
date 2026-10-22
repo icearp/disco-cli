@@ -57,11 +57,13 @@ func scanInspector2(ctx context.Context, acct *account, region string, st *store
 	t, i, aerr := scanInspector2DelegatedAdmins(ctx, client, acct, region, st, scanID)
 	total += t
 	inserted += i
-	aerr = demoteTransient(st, "inspector2:ListDelegatedAdminAccounts", acct, region, aerr)
 	if errors.Is(err, errServiceDisabled) && (total > 0 || aerr != nil) {
 		err = nil
 	}
-	return total, inserted, errors.Join(demoteTransient(st, "inspector2", acct, region, err), aerr)
+	var errs phaseErrs
+	errs.add("inspector2", err)
+	errs.add("inspector2:ListDelegatedAdminAccounts", aerr)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // scanInspector2Resources lists finding-filters, member accounts

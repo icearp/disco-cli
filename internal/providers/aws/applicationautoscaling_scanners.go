@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -70,20 +69,20 @@ func applicationAutoScalingScalableTargetNativeID(region, acct, namespace, resou
 // later phase that runs still queries it. A hard target error still skips
 // the policies phase (below), so only the scheduled action phase does.
 //
-// The older phases (targets, then policies) stop at their first hard error.
-// The scheduled action phase runs after them whatever they returned, so its
-// failure costs no older phase its rows and theirs does not skip it. Each
-// side's transient error is demoted to a warning, since one transient member
-// would make the dispatcher read the whole join as transient; the counts are
-// summed.
+// The older phases (targets, then policies) stop at their first hard error. The
+// scheduled action phase runs after them whatever they returned, so its failure
+// costs no older phase its rows and theirs does not skip it. Each side's
+// transient error is demoted to a warning only beside a hard error: joined, it
+// would be buried in the hard error instead of reported under its op; the
+// counts are summed.
 func scanApplicationAutoScaling(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := applicationautoscaling.NewFromConfig(acct.cfg, func(o *applicationautoscaling.Options) { o.Region = region })
 	total, inserted, noTargets, err := scanApplicationAutoScalingOlderPhases(ctx, client, acct, region, st, scanID)
 	t, i, serr := scanApplicationAutoScalingScheduledActions(ctx, client, acct, region, st, scanID, noTargets)
-	return total + t, inserted + i, errors.Join(
-		demoteTransient(st, "application-autoscaling", acct, region, err),
-		demoteTransient(st, applicationAutoScalingScheduledActionsOp, acct, region, serr),
-	)
+	var errs phaseErrs
+	errs.add("application-autoscaling", err)
+	errs.add(applicationAutoScalingScheduledActionsOp, serr)
+	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
 func scanApplicationAutoScalingOlderPhases(ctx context.Context, client applicationAutoScalingAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, noTargets map[aastypes.ServiceNamespace]bool, err error) {

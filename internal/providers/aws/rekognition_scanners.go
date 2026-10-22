@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -61,14 +60,13 @@ func scanRekognition(ctx context.Context, acct *account, region string, st *stor
 
 // scanRekognitionAll runs the older phases, which stop at their first hard
 // error, then the project-policy phase over the projects stored before that
-// error, so a failure on either side costs the other no rows. The older
-// side's transient error is demoted to a warning: one transient member would
-// make the dispatcher read the whole join as transient, reporting the policy
-// phase's hard error as a transient one.
+// error, so a failure on either side costs the other no rows. The older side's
+// transient error is demoted to a warning only beside a hard error: joined, it
+// would be buried in the hard error instead of reported under its op.
 func scanRekognitionAll(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, projectARNs, err := scanRekOlderPhases(ctx, client, acct, region, st, scanID)
 	t, i, perr := scanRekProjectPolicies(ctx, client, acct, region, st, scanID, projectARNs)
-	return total + t, inserted + i, errors.Join(demoteTransient(st, "rekognition", acct, region, err), perr)
+	return total + t, inserted + i, demoteBeside(st, "rekognition", acct, region, err, perr)
 }
 
 // scanRekOlderPhases runs the phases that predate project policies

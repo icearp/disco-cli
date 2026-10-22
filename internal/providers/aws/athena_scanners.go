@@ -58,15 +58,15 @@ func athenaCapacityReservationARN(region, accountID, name string) string {
 //
 // The older phases stop at their first hard error. The notebook phase runs
 // whatever they returned, over the Spark workgroups stored before any failure,
-// so its failure costs no other phase its rows and theirs does not skip it.
-// The older phases' transient error is demoted to a warning, since one
-// transient member would make the dispatcher read the whole join as transient
-// (the notebook phase already warns on its own); the counts are summed.
+// so its failure costs no other phase its rows and theirs does not skip it. The
+// older phases' transient error is demoted to a warning only beside a hard
+// error: joined, it would be buried in the hard error instead of reported under
+// its op (the notebook phase already warns on its own); the counts are summed.
 func scanAthena(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := athena.NewFromConfig(acct.cfg, func(o *athena.Options) { o.Region = region })
 	total, inserted, sparkWorkGroups, err := scanAthenaOlderPhases(ctx, client, acct, region, st, scanID)
 	t, i, nerr := scanAthenaNotebooks(ctx, client, acct, region, st, scanID, sparkWorkGroups)
-	return total + t, inserted + i, errors.Join(demoteTransient(st, "athena", acct, region, err), nerr)
+	return total + t, inserted + i, demoteBeside(st, "athena", acct, region, err, nerr)
 }
 
 // scanAthenaOlderPhases runs the phases that predate notebooks, stopping at

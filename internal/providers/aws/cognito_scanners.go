@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -90,17 +89,17 @@ func scanCognito(ctx context.Context, acct *account, region string, st *store.St
 // The replica and client-secret phases run after every older phase, over the
 // pools and clients the pool phase stored, so an identity-pool or extended
 // phase failure does not skip them and their failure costs no older phase its
-// rows. The older phases' transient error is demoted to a warning, since one
-// transient member would make the dispatcher read the whole join as transient,
-// reporting a newer phase's hard error as a transient one; the errors are
-// joined and the counts summed.
+// rows. The older phases' transient error is demoted to a warning only beside a
+// hard error: joined, it would be buried in the hard error instead of reported
+// under its op; the errors are joined and the counts summed.
 func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pools, ferr := listCognitoUserPoolIDs(ctx, idpClient, acct, region, st)
 	if ferr != nil {
 		return 0, 0, ferr
 	}
 	total, inserted, stored, err := scanCognitoOlderPhases(ctx, idpClient, idClient, acct, region, st, scanID, pools.ids)
-	errs := []error{demoteTransient(st, "cognito-idp", acct, region, err)}
+	var errs phaseErrs
+	errs.add("cognito-idp", err)
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) {
 			return scanCognitoUserPoolReplicas(ctx, idpClient, acct, region, st, scanID, stored.replicatedPools(pools.replicated))
@@ -112,9 +111,9 @@ func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cogni
 		t, i, perr := phase()
 		total += t
 		inserted += i
-		errs = append(errs, perr)
+		errs.add("cognito-idp", perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // scanCognitoOlderPhases runs the phases that predate the replica and

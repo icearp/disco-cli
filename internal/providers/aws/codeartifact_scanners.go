@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -41,14 +40,14 @@ func scanCodeArtifact(ctx context.Context, acct *account, region string, st *sto
 
 // scanCodeArtifactAll runs the domain, repository and package-group phases,
 // which stop at their first hard error, then lists the packages of the
-// repositories stored before that error, so a failure on either side costs
-// the other no rows. The first side's transient error is demoted to a
-// warning: one transient member would make the dispatcher read the whole join
-// as transient, reporting a package phase's hard error as a transient one.
+// repositories stored before that error, so a failure on either side costs the
+// other no rows. The first side's transient error is demoted to a warning only
+// beside a hard error: joined, it would be buried in the hard error instead of
+// reported under its op.
 func scanCodeArtifactAll(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, repos, err := scanCAParents(ctx, client, acct, region, st, scanID)
 	t, i, perr := scanCAPackages(ctx, client, acct, region, st, scanID, repos)
-	return total + t, inserted + i, errors.Join(demoteTransient(st, "codeartifact", acct, region, err), perr)
+	return total + t, inserted + i, demoteBeside(st, "codeartifact", acct, region, err, perr)
 }
 
 // scanCAParents stores domains, repositories and package groups, stopping at

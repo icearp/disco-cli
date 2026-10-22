@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/cleanrooms"
@@ -54,7 +53,7 @@ func scanCleanRooms(ctx context.Context, acct *account, region string, st *store
 func scanCleanRoomsIn(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var (
 		collaborations, memberships []childParent
-		errs                        []error
+		errs                        phaseErrs
 	)
 	perMembership := func(scan func(memberID string) (int, int, error)) (t, i int, err error) {
 		for _, m := range memberships {
@@ -133,16 +132,9 @@ func scanCleanRoomsIn(ctx context.Context, client cleanRoomsAPI, acct *account, 
 		}
 		total += t
 		inserted += i
-		// A joined transient error would make the dispatcher classify the
-		// whole service transient and report the other phases' hard errors
-		// as transient ones.
-		if isTransientNetworkError(perr) {
-			_ = skipIfTransient(st, phase.name, acct.ID, region, perr)
-			continue
-		}
-		errs = append(errs, perr)
+		errs.add(phase.name, lateNXDOMAIN(phase.name, perr))
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 func scanCRCollaborations(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {

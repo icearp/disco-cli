@@ -20,6 +20,18 @@ var errRepeatedNextToken = errors.New("AWS returned the same NextToken twice in 
 // more results follow but carries no token to fetch them with.
 var errTruncatedWithoutToken = errors.New("AWS marked the listing truncated but returned no continuation token, so it stopped incomplete; rescan, and report it if it recurs")
 
+// errStoreRead marks a failed read of rows a scanner stored earlier in the
+// scan.
+var errStoreRead = errors.New("store read failed")
+
+// storeReadError wraps a failed store read in errStoreRead. The cause is
+// rendered with %v, not %w, for the reason store.storeWriteError gives: a
+// dropped Postgres connection surfaces as io.EOF or a net.Error, which the
+// dispatcher would otherwise report as a transient cloud glitch.
+func storeReadError(what string, cause error) error {
+	return fmt.Errorf("%w: %s: %v", errStoreRead, what, cause)
+}
+
 // incompleteLists collects, across one fan-out's concurrent keys, the errors
 // of listings that ended early on errRepeatedNextToken or
 // errTruncatedWithoutToken. Such a key keeps the rows it read and does not
@@ -604,29 +616,63 @@ func childFanOutCollectSkipCodes(
 	return total, inserted, errors.Join(err, uerr)
 }
 
-// isDemotableTransient reports whether a phase's error may be reported as a
-// transient warning and dropped: it is transient and carries no store write
-// failure and no incomplete listing. A phase can join a transient list error
-// with a failed upsert of the rows listed before it, or with another listing
-// that ended early; either must stay a hard error, or the scan reads as
-// complete.
-func isDemotableTransient(err error) bool {
-	return isTransientNetworkError(err) && !errors.Is(err, store.ErrStoreWrite) && !isIncompleteListing(err)
-}
-
 // demoteTransient reports a phase's transient error as a warning and drops it,
-// for scanners that join the errors of independent phases. The dispatcher
-// classifies a join as transient when any member is a network error or its
-// first API error is a throttle or 5xx, so a joined transient error would
-// report another phase's hard error as a transient one that a rescan fixes.
+// for scanners that join the errors of independent phases, so each transient
+// one is warned about under the op that failed and only the hard ones reach
+// the dispatcher. A join is transient only when every member is
+// (isTransientNetworkError), so a transient list error joined with a failed
+// upsert or an incomplete listing stays an error.
 // NXDOMAIN is returned unchanged: the dispatcher reads it as a silent
 // (region: unavailable) before its transient rung, so demoting it would turn
 // a region gap into a warning.
 func demoteTransient(st *store.Store, op string, acct *account, region string, err error) error {
-	if isDemotableTransient(err) && !isDNSNotFound(err) {
+	if isDemotableTransient(err) {
 		return skipIfTransient(st, op, acct.ID, region, err)
 	}
 	return err
+}
+
+// isDemotableTransient reports whether err is one demoteTransient turns into a
+// warning: every member transient, and no NXDOMAIN among them.
+func isDemotableTransient(err error) bool {
+	return err != nil && isTransientNetworkError(err) && !isDNSNotFound(err)
+}
+
+// isHardPhaseErr reports whether err, beside which a transient phase error is
+// demoted, holds a hard member: one neither transient nor a silent dispatch
+// sentinel (disabled, not entitled, unavailable or NXDOMAIN, blocked). Beside
+// a silent sentinel the transient error is kept, so the join is not read as
+// the sentinel, which would discard the stored rows' counts and the transient
+// error with them; it is classified as an error or transient instead.
+func isHardPhaseErr(err error) bool {
+	return !everyMember(err, func(m error) bool {
+		return isTransientNetworkError(m) || isServiceDisabledErr(m) || isServiceNotEntitledErr(m) ||
+			isServiceUnavailableErr(m) || isServiceBlocked(m)
+	})
+}
+
+// demoteBeside joins err with the errors of the phases that ran beside it,
+// demoting err to a warning under op only when those hold a hard error. A
+// transient err alone, or beside transient ones only, is returned, so the
+// dispatcher marks the scan partial instead of complete. rest is never
+// demoted.
+func demoteBeside(st *store.Store, op string, acct *account, region string, err error, rest ...error) error {
+	if others := errors.Join(rest...); others != nil && isHardPhaseErr(others) {
+		err = demoteTransient(st, op, acct, region, err)
+	}
+	return errors.Join(append([]error{err}, rest...)...)
+}
+
+// lateNXDOMAIN returns err, except that an NXDOMAIN from a phase that ran
+// after an earlier phase reached the same endpoint is flattened to a plain
+// error. Kept as NXDOMAIN, the dispatcher would report the region unavailable
+// and discard the counts of the rows the earlier phases stored; the host
+// resolved a moment ago, so it is a failure of this scan, not a region gap.
+func lateNXDOMAIN(op string, err error) error {
+	if !isDNSNotFound(err) {
+		return err
+	}
+	return fmt.Errorf("%s: the endpoint stopped resolving after earlier calls to it succeeded; rescan: %v", op, err)
 }
 
 // containedChild is a child row and the ResourceID of the parent that
@@ -670,8 +716,10 @@ func upsertContained(st *store.Store, op string, children []containedChild) (int
 			pairs = append(pairs, [2]string{c.row.ID, c.parentID})
 		}
 	}
+	// The rows are stored even when the closure write fails, so their counts
+	// are reported with its error.
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("closure %s: %w", op, err)
+		return total, inserted, fmt.Errorf("closure %s: %w", op, err)
 	}
 	return total, inserted, nil
 }
@@ -705,16 +753,16 @@ func (p *phaseErrs) add(op string, err error) {
 }
 
 // join returns the phases' errors for the dispatcher. When every one is
-// transient they are returned as is, so the dispatcher reads the scan as
-// partial. When any is a hard error, each transient one is demoted to a
-// warning first, since the dispatcher reads a join as transient when any
-// member is and would report the hard error as one a rescan fixes.
+// transient they are returned as is, so the dispatcher reports them as
+// transient and the scan as partial. When any is a hard error, each transient
+// one is demoted to a warning first, so it is reported as one a rescan fixes
+// rather than inside the hard error's message.
 func (p phaseErrs) join(st *store.Store, acct *account, region string) error {
 	errs := make([]error, len(p))
 	hard := false
 	for i, f := range p {
 		errs[i] = f.err
-		if !isDemotableTransient(f.err) || isDNSNotFound(f.err) {
+		if isHardPhaseErr(f.err) {
 			hard = true
 		}
 	}

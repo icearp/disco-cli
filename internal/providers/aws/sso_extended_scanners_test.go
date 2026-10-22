@@ -815,9 +815,9 @@ func TestScanSSOPermissionSets_NoPermissionSetWarns(t *testing.T) {
 }
 
 // With more keys than the fan-out limit, a throttle on the first call must
-// reach the scan as that throttle (demoted to one warning), not as the
-// context.Canceled the cancelled siblings see.
-func TestScanSSOAdmin_FanOutThrottleDemoted(t *testing.T) {
+// reach the scan as that throttle (transient, so the scan is partial), not as
+// the context.Canceled the cancelled siblings see.
+func TestScanSSOAdmin_FanOutThrottleIsTransient(t *testing.T) {
 	const keys = 30 // above fanoutMed (DescribePermissionSet) and fanoutHigh (ListAccountAssignments)
 	sets := make([]string, keys)
 	accounts := make([]string, keys)
@@ -903,11 +903,11 @@ func TestScanSSOAdmin_FanOutThrottleDemoted(t *testing.T) {
 				}
 				return
 			}
-			if err != nil {
-				t.Errorf("err=%v (outcome %v), want the throttle demoted to a warning", err, classifyServiceError(err))
+			if !isAPIErrorCode(err, tc.code) || classifyServiceError(err) != outcomeTransient {
+				t.Errorf("err=%v (outcome %v), want the %s itself as outcomeTransient", err, classifyServiceError(err), tc.code)
 			}
-			if len(warnings) != 1 || warnings[0].Service != "sso-admin" || !strings.Contains(warnings[0].Message, tc.code) {
-				t.Errorf("warnings=%v, want one sso-admin warning carrying %s", warnings, tc.code)
+			if len(warnings) != 0 {
+				t.Errorf("warnings=%v, want none: alone, the throttle is returned", warnings)
 			}
 		})
 	}

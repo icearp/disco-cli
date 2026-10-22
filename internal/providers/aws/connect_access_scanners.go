@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -38,11 +37,11 @@ type connectAccessAPI interface {
 	ListRoutingProfileQueues(context.Context, *connect.ListRoutingProfileQueuesInput, ...func(*connect.Options)) (*connect.ListRoutingProfileQueuesOutput, error)
 }
 
-// scanConnectAccess runs the access phases concurrently; each fans out over
-// the parent rows this scan stored, so none depends on another. Each error
-// passes through demoteTransient before the join, so a throttle on one cannot
-// make the dispatcher classify the service transient and hide another's hard
-// error.
+// scanConnectAccess runs the access phases concurrently; each fans out over the
+// parent rows this scan stored, so none depends on another. Each error is
+// joined by phaseErrs, which demotes a transient one to a warning only beside a
+// hard one, so a throttle on one phase is reported under its op instead of
+// buried in the other's hard error.
 func scanConnectAccess(ctx context.Context, client connectAccessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	phases := []struct {
 		op  string
@@ -73,14 +72,14 @@ func scanConnectAccess(ctx context.Context, client connectAccessAPI, acct *accou
 	wg.Wait()
 	var (
 		total, inserted int
-		errs            []error
+		errs            phaseErrs
 	)
 	for k, r := range results {
 		total += r.total
 		inserted += r.inserted
-		errs = append(errs, demoteTransient(st, phases[k].op, acct, region, r.err))
+		errs.add(phases[k].op, r.err)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // connectSecurityProfilePermissionAttrs is the permission list of one

@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -36,21 +35,20 @@ type ecsAPI interface {
 	DescribeTaskDefinition(context.Context, *ecs.DescribeTaskDefinitionInput, ...func(*ecs.Options)) (*ecs.DescribeTaskDefinitionOutput, error)
 }
 
-// scanECS runs the account-settings phase, then the cluster-rooted phases, so
-// a failure on either side costs the other no rows. Settings go first because
+// scanECS runs the account-settings phase, then the cluster-rooted phases, so a
+// failure on either side costs the other no rows. Settings go first because
 // they take a couple of calls, while the cluster phases fan out per cluster and
-// can run into the service deadline. Both sides' transient errors are demoted
-// to warnings: one transient member would make the dispatcher read the whole
-// join as transient, reporting the other side's hard error as a transient
-// one.
+// can run into the service deadline. Each side's transient error is demoted to
+// a warning only beside a hard error: joined, it would be buried in the hard
+// error instead of reported under its op.
 func scanECS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := ecs.NewFromConfig(acct.cfg, func(o *ecs.Options) { o.Region = region })
 	total, inserted, serr := scanECSAccountSettings(ctx, client, acct, region, st, scanID)
 	t, i, err := scanECSClusterPhases(ctx, client, acct, region, st, scanID)
-	return total + t, inserted + i, errors.Join(
-		demoteTransient(st, ecsListAccountSettingsOp, acct, region, serr),
-		demoteTransient(st, "ecs", acct, region, err),
-	)
+	var errs phaseErrs
+	errs.add(ecsListAccountSettingsOp, serr)
+	errs.add("ecs", err)
+	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
 // scanECSClusterPhases discovers ECS clusters, services, and task definitions

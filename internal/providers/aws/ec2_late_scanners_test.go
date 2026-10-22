@@ -558,8 +558,8 @@ func TestScanEC2_LatePhasesAfterOlderCategories(t *testing.T) {
 	})
 }
 
-// A transient error on any side of the join is demoted to one warning, so it
-// cannot make the dispatcher read another side's hard error as transient.
+// A transient error on any side of the join is demoted to one warning under its
+// op instead of buried in another side's hard error.
 func TestScanEC2_LateTransientDoesNotMaskHardError(t *testing.T) {
 	type tc struct{ name, transientOp, hardOp, warnOp string }
 	cases := []tc{{"transient older category", "DescribeSnapshots", "DescribeFastSnapshotRestores", "ec2"}}

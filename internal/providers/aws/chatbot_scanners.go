@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/chatbot"
@@ -66,15 +65,15 @@ type chatbotChannels struct {
 // The channel phases (custom actions and channel configurations) stop at their
 // first error other than a denial. The Chime webhook and user identity phases
 // run whatever the channel phases returned, so their failure costs no other
-// phase its rows. Each result has its transient error demoted to a warning
-// unless it carries a store write failure, since one transient member would
-// make the dispatcher read the whole join as transient; the rest are joined
-// and the counts summed.
+// phase its rows. Each result has its transient error demoted to a warning only
+// beside a hard error: joined, it would be buried in the hard error instead of
+// reported under its op; the rest are joined and the counts summed.
 func scanChatbot(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
 	region := "us-east-2"
 	client := chatbot.NewFromConfig(acct.cfg, func(o *chatbot.Options) { o.Region = region })
 	total, inserted, channels, err := scanChatbotChannelPhases(ctx, client, acct, region, st, scanID)
-	errs := []error{demoteTransient(st, "chatbot", acct, region, err)}
+	var errs phaseErrs
+	errs.add("chatbot", err)
 	for _, phase := range []struct {
 		op  string
 		run func() (int, int, error)
@@ -90,9 +89,9 @@ func scanChatbot(ctx context.Context, acct *account, _ string, st *store.Store, 
 		t, i, perr := phase.run()
 		total += t
 		inserted += i
-		errs = append(errs, demoteTransient(st, phase.op, acct, region, perr))
+		errs.add(phase.op, perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // scanChatbotChannelPhases runs the custom action and channel configuration

@@ -470,8 +470,9 @@ func TestScanGuardDuty_RuleOrgConfigurationsBadRequestPropagates(t *testing.T) {
 	}
 }
 
-// A 5xx on the older organization-configuration phase alone becomes one
-// warning: the service succeeds and keeps every other phase's rows and counts.
+// A 5xx on the older organization-configuration phase alone is returned as
+// transient, so the scan is partial, and every other phase keeps its rows and
+// counts.
 func TestScanGuardDuty_OrgConfigTransientKeepsOtherCounts(t *testing.T) {
 	st := newTestStore(t)
 	warned := recordGDWarnings(st)
@@ -480,11 +481,11 @@ func TestScanGuardDuty_OrgConfigTransientKeepsOtherCounts(t *testing.T) {
 		return nil, apiErr("InternalServerErrorException", "synthetic-test-500")
 	}
 	total, err := scanGDTopLevel(t, st, h)
-	if err != nil {
-		t.Fatalf("scanGuardDuty: %v; want nil", err)
+	if got := classifyServiceError(err); got != outcomeTransient {
+		t.Fatalf("classifyServiceError(%v) = %v; want outcomeTransient", err, got)
 	}
-	if want := []string{"guardduty:DescribeOrganizationConfiguration"}; !slices.Equal(warned(), want) {
-		t.Errorf("warnings %v; want %v", warned(), want)
+	if got := warned(); len(got) != 0 {
+		t.Errorf("warnings %v; want none", got)
 	}
 	if total != 4 {
 		t.Errorf("total = %d; want 4 (detector, publishing destination, association, rule org configuration)", total)

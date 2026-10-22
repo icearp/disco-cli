@@ -295,8 +295,8 @@ func TestScanKMS_TransientKeyPhaseDoesNotMaskKeyStoreError(t *testing.T) {
 	}
 }
 
-// A transient key store error is demoted to a warning, so the key phase's
-// hard error is not reclassified as transient and the key rows stay.
+// A transient key store error is demoted to a warning under its op instead of
+// buried in the key phase's hard error, and the key rows stay.
 func TestScanKMS_TransientKeyStorePhaseDoesNotMaskKeyError(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "kms:DescribeCustomKeyStores")

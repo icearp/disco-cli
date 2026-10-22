@@ -3,6 +3,7 @@ package aws
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"testing"
 
@@ -1361,27 +1362,45 @@ func TestResolveIAMDelegationRequestRequestors_NoRequestor(t *testing.T) {
 	}
 }
 
-// A request naming the scanned account still gets its edge, but the self-node
-// is left to scanIAMAccount: no reference-only placeholder is inserted even
-// when that row does not exist yet.
-func TestResolveIAMDelegationRequestRequestors_SelfAccountNoPlaceholder(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	reqID := iamTestSeedDelegationRequest(t, st, "dr-1", ptrStr(testAccountID))
+// A request naming the scanned account whose own row was not stored (its
+// read failed, or aws:iam was not scanned) gets a reference-only placeholder,
+// so its edge names a row that exists; a stored self row is kept intact.
+func TestResolveIAMDelegationRequestRequestors_SelfAccount(t *testing.T) {
+	selfNative := "arn:aws:iam::" + testAccountID + ":root"
+	selfID := store.ResourceID("aws", testAccountID, selfNative)
+	for _, scanned := range []bool{false, true} {
+		t.Run(fmt.Sprintf("scanned=%v", scanned), func(t *testing.T) {
+			st := newTestStore(t)
+			acct := newTestAccount(testAccountID)
+			populated := `{"SummaryMap":{"Users":5}}`
+			if scanned {
+				upsertTestResource(t, st, "aws", testAccountID, TypeIAMAccount, selfNative, "global", populated)
+			}
+			reqID := iamTestSeedDelegationRequest(t, st, "dr-1", ptrStr(testAccountID))
 
-	if err := resolveIAMDelegationRequestRequestors(acct, st); err != nil {
-		t.Fatalf("resolveIAMDelegationRequestRequestors: %v", err)
-	}
-	rels, err := st.RelationshipsFrom(reqID)
-	if err != nil {
-		t.Fatalf("RelationshipsFrom: %v", err)
-	}
-	selfID := store.ResourceID("aws", testAccountID, "arn:aws:iam::"+testAccountID+":root")
-	if len(rels) != 1 || rels[0].ToID != selfID || rels[0].Kind != store.RelAttachedTo {
-		t.Errorf("edges = %+v, want one attached-to the self account %s", rels, selfID)
-	}
-	if rows := iamTestAccountRows(t, st); len(rows) != 0 {
-		t.Errorf("account rows = %+v, want no self placeholder", rows)
+			if err := resolveIAMDelegationRequestRequestors(acct, st); err != nil {
+				t.Fatalf("resolveIAMDelegationRequestRequestors: %v", err)
+			}
+			rels, err := st.RelationshipsFrom(reqID)
+			if err != nil {
+				t.Fatalf("RelationshipsFrom: %v", err)
+			}
+			if len(rels) != 1 || rels[0].ToID != selfID || rels[0].Kind != store.RelAttachedTo {
+				t.Errorf("edges = %+v, want one attached-to the self account %s", rels, selfID)
+			}
+			rows := iamTestAccountRows(t, st)
+			if len(rows) != 1 || rows[0].ID != selfID {
+				t.Fatalf("account rows = %+v, want the self account %s only", rows, selfID)
+			}
+			if scanned && (rows[0].AttributesJSON != populated || rows[0].ReferenceOnly) {
+				t.Errorf("scanned self account changed: attributes %s, referenceOnly %v; want %s, false",
+					rows[0].AttributesJSON, rows[0].ReferenceOnly, populated)
+			}
+			if !scanned && (rows[0].AttributesJSON != "{}" || !rows[0].ReferenceOnly) {
+				t.Errorf("self placeholder: attributes %s, referenceOnly %v; want {}, true",
+					rows[0].AttributesJSON, rows[0].ReferenceOnly)
+			}
+		})
 	}
 }
 

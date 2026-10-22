@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -45,20 +44,20 @@ func scanRAM(ctx context.Context, acct *account, region string, st *store.Store,
 // scanRAMAll discovers Resource Access Manager resource shares
 // (ResourceOwner=SELF only — OTHER-ACCOUNTS are inbound shares we don't own),
 // the managed permission catalogue (AWS-managed permissions flagged
-// ManagedByProvider), and the principals and resources each owned share
-// covers. The phases are independent: each runs whatever another returns, and
-// every error passes through demoteTransient before the join, so a throttle on
-// one phase cannot make the dispatcher read another phase's hard error as
-// transient.
+// ManagedByProvider), and the principals and resources each owned share covers.
+// The phases are independent: each runs whatever another returns, and every
+// error is joined by phaseErrs, which demotes a transient one to a warning only
+// beside a hard one, so a throttle on one phase is reported under its op
+// instead of buried in the other's hard error.
 func scanRAMAll(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	shares, t1, i1, serr := scanRAMResourceShares(ctx, client, acct, region, st, scanID)
 	t2, i2, perr := scanRAMPermissions(ctx, client, acct, region, st, scanID)
 	t3, i3, aerr := scanRAMResourceShareAssociations(ctx, client, acct, region, st, scanID, shares)
-	return t1 + t2 + t3, i1 + i2 + i3, errors.Join(
-		demoteTransient(st, ramResourceSharesOp, acct, region, serr),
-		demoteTransient(st, ramPermissionsOp, acct, region, perr),
-		demoteTransient(st, ramAssociationsOp, acct, region, aerr),
-	)
+	var errs phaseErrs
+	errs.add(ramResourceSharesOp, serr)
+	errs.add(ramPermissionsOp, perr)
+	errs.add(ramAssociationsOp, aerr)
+	return t1 + t2 + t3, i1 + i2 + i3, errs.join(st, acct, region)
 }
 
 // scanRAMResourceShares stores the shares the account owns and returns the

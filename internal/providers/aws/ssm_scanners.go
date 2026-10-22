@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
@@ -54,9 +53,9 @@ type ssmAPI interface {
 // phases are sequential, not independent: after an error in scanSSMAll,
 // scanSSMExtended has not run. The permission phase runs whatever the earlier
 // phases returned, so its failure costs them nothing. The earlier phases'
-// transient error is demoted to a warning, since one transient member would
-// make the dispatcher read the whole join as transient; the counts of every
-// row stored are summed.
+// transient error is demoted to a warning only beside a hard error: joined, it
+// would be buried in the hard error instead of reported under its op; the
+// counts of every row stored are summed.
 //
 // Values are never fetched: even with the store-level secret scrubber,
 // plaintext would transit memory and risk landing in debug dumps. The KMS
@@ -67,7 +66,7 @@ func scanSSM(ctx context.Context, acct *account, region string, st *store.Store,
 	t, i, perr := scanSSMDocumentPermissions(ctx, client, acct, region, st, scanID, docs)
 	// The permission phase needs no demotion: childFanOutCollectSkipCodes
 	// already drops its transient per-document errors.
-	return total + t, inserted + i, errors.Join(demoteTransient(st, "ssm", acct, region, err), perr)
+	return total + t, inserted + i, demoteBeside(st, "ssm", acct, region, err, perr)
 }
 
 // scanSSMPhases runs scanSSMAll then scanSSMExtended, stopping at the first

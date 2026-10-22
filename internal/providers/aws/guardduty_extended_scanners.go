@@ -91,10 +91,12 @@ func scanGuardDutyExtended(ctx context.Context, client guardDutyExtAPI, acct *ac
 	if len(detectorIDs) == 0 {
 		return total, inserted, ferr
 	}
-	t, i, cerr := scanGDCustomDetectionRules(ctx, client, acct, region, st, scanID, orgRefused)
+	var errs phaseErrs
+	errs.add("guardduty:DescribeOrganizationConfiguration", ferr)
+	t, i = scanGDCustomDetectionRules(ctx, client, acct, region, st, scanID, orgRefused, &errs)
 	total += t
 	inserted += i
-	return total, inserted, errors.Join(demoteTransient(st, "guardduty:DescribeOrganizationConfiguration", acct, region, ferr), cerr)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // errGDOrgConfigRefused marks a detector whose first

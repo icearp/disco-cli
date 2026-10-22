@@ -115,14 +115,14 @@ func scanLogs(ctx context.Context, acct *account, region string, st *store.Store
 	if err != nil {
 		return total, inserted, fmt.Errorf("load log groups for phase 2: %w", err)
 	}
-	t2, n2, err2 := scanLogsPerGroup(ctx, client, acct, region, groups, st, scanID)
+	var errs phaseErrs
+	t2, n2 := scanLogsPerGroup(ctx, client, acct, region, groups, st, scanID, &errs)
 	total += t2
 	inserted += n2
 
 	// Phase 3 runs after phase 2 and joins its errors with phase 2's, so a
 	// failure here cannot stop any earlier scan.
 	obs := observabilityadmin.NewFromConfig(acct.cfg, func(o *observabilityadmin.Options) { o.Region = region })
-	errs := []error{err2}
 	for _, phase := range []struct {
 		op string
 		fn func() (int, int, error)
@@ -137,9 +137,9 @@ func scanLogs(ctx context.Context, acct *account, region string, st *store.Store
 		t, i, e := phase.fn()
 		total += t
 		inserted += i
-		errs = append(errs, demoteTransient(st, phase.op, acct, region, e))
+		errs.add(phase.op, e)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // scanLogsPerGroup runs the per-log-group scanners (phase 2) concurrently.
@@ -150,9 +150,10 @@ func scanLogs(ctx context.Context, acct *account, region string, st *store.Store
 // SDK's retries is warned about and skipped (scanLogsIndexPolicies).
 // The scanners share one ListResources load of the region's log-group set
 // (else loadLogGroupsForRegion runs once per scanner for the same rows).
-func scanLogsPerGroup(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (total, inserted int, err error) {
+// Each scanner adds its error to errs under its own op for scanLogs to join.
+func scanLogsPerGroup(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string, errs *phaseErrs) (total, inserted int) {
 	if len(groups) == 0 {
-		return 0, 0, nil
+		return 0, 0
 	}
 
 	phase2 := []struct {
@@ -175,7 +176,6 @@ func scanLogsPerGroup(ctx context.Context, client cwlogsAPI, acct *account, regi
 	var (
 		t2, n2 atomic.Int64
 		errMu  sync.Mutex
-		errs   []error
 		wg     sync.WaitGroup
 	)
 	for _, phase := range phase2 {
@@ -183,15 +183,13 @@ func scanLogsPerGroup(ctx context.Context, client cwlogsAPI, acct *account, regi
 			tt, nn, e := phase.fn()
 			t2.Add(int64(tt))
 			n2.Add(int64(nn))
-			if e = demoteTransient(st, phase.op, acct, region, e); e != nil {
-				errMu.Lock()
-				errs = append(errs, e)
-				errMu.Unlock()
-			}
+			errMu.Lock()
+			errs.add(phase.op, e)
+			errMu.Unlock()
 		})
 	}
 	wg.Wait()
-	return int(t2.Load()), int(n2.Load()), errors.Join(errs...)
+	return int(t2.Load()), int(n2.Load())
 }
 
 // logGroupARN strips the trailing ":*" the CloudWatch Logs API appends to log
@@ -1249,9 +1247,9 @@ func scanLogsS3TableSources(ctx context.Context, client cwlogsAPI, obs logsS3Tab
 // integrations. observabilityadmin owns them and its scan stores them; they are
 // listed again here because services scan concurrently, so that scan's rows
 // cannot be waited for. The call goes to observabilityadmin's endpoint, so it
-// is skipped where the dispatcher would skip that service, and a network error
-// is warned about here: joined into the logs errors, it would make the
-// dispatcher classify the whole logs scan as transient by it.
+// is skipped where the dispatcher would skip that service, and an NXDOMAIN on
+// the first page is that service's region gap. Any other error, a transient
+// one included, is returned for scanLogs to join.
 func listLogsS3TableIntegrations(ctx context.Context, client logsS3TableIntegrationLister, acct *account, region string, st *store.Store) ([]string, error) {
 	const op = "observabilityadmin:ListS3TableIntegrations"
 	const svc = "aws:observabilityadmin"
@@ -1261,10 +1259,12 @@ func listLogsS3TableIntegrations(ctx context.Context, client logsS3TableIntegrat
 	pager := observabilityadmin.NewListS3TableIntegrationsPaginator(client, &observabilityadmin.ListS3TableIntegrationsInput{},
 		func(o *observabilityadmin.ListS3TableIntegrationsPaginatorOptions) { o.Limit = 100 })
 	var arns []string
+	listed := false
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		switch {
 		case err == nil:
+			listed = true
 		// The observabilityadmin scan reports its own denial of this call as a
 		// warning; here it only explains the missing sources.
 		case isAccessDenied(err):
@@ -1275,11 +1275,12 @@ func listLogsS3TableIntegrations(ctx context.Context, client logsS3TableIntegrat
 			return arns, nil
 		// No observabilityadmin endpoint in this region, as the dispatcher
 		// treats it for that service.
-		case isDNSNotFound(err):
-			return arns, nil
-		case isTransientNetworkError(err):
-			return arns, skipIfTransient(st, op, acct.ID, region, err)
+		case !listed && isDNSNotFound(err):
+			return nil, nil
 		default:
+			if isDNSNotFound(err) {
+				return nil, lateNXDOMAIN(op, err)
+			}
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
 		for _, s := range out.IntegrationSummaries {

@@ -145,7 +145,7 @@ func TestScanOpenSearch_DomainErrorDoesNotStopLaterPhases(t *testing.T) {
 	}
 }
 
-// A later phase's transient network error warns instead of joining, so the
+// Beside a hard error, a later phase's transient network error warns instead of joining, so the
 // service keeps its counts and its hard errors are still classified as errors.
 func TestScanOpenSearch_LaterTransientErrorWarnsAndKeepsHardErrors(t *testing.T) {
 	st := newTestStore(t)
@@ -314,5 +314,40 @@ func TestScanOpenSearchDomains_CallerCancelReturned(t *testing.T) {
 	_, total, _, err := scanOpenSearchDomains(ctx, stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if !errors.Is(err, context.Canceled) || total != 0 {
 		t.Errorf("total = %d, err = %v; want 0, context.Canceled", total, err)
+	}
+}
+
+// A later phase's lone transient error reaches the dispatcher as transient,
+// with the other phases' counts, so the scan is marked partial.
+func TestScanOpenSearch_LoneTransientPhaseMarksPartial(t *testing.T) {
+	st := newTestStore(t)
+	handlers := osTopLevelHandlers()
+	handlers["ListApplications"] = func(any) (any, error) {
+		return nil, &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
+	}
+	total, err := runScanOpenSearch(t, st, handlers)
+	if got := classifyServiceError(err); got != outcomeTransient {
+		t.Errorf("classifyServiceError(%v) = %v; want outcomeTransient", err, got)
+	}
+	if total == 0 {
+		t.Error("total = 0; want the other phases' rows counted")
+	}
+}
+
+// A later phase's NXDOMAIN, after earlier phases reached the endpoint and
+// stored rows, is a failure of this scan, not a region gap: it is returned as
+// an error with the stored rows' counts.
+func TestScanOpenSearch_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	st := newTestStore(t)
+	handlers := osTopLevelHandlers()
+	handlers["ListApplications"] = func(any) (any, error) {
+		return nil, &net.DNSError{Err: "no such host", Name: "es.us-east-1.amazonaws.com", IsNotFound: true}
+	}
+	total, err := runScanOpenSearch(t, st, handlers)
+	if got := classifyServiceError(err); got != outcomeError {
+		t.Errorf("classifyServiceError(%v) = %v; want outcomeError", err, got)
+	}
+	if stored := countStoredRows(t, st); total == 0 || total != stored {
+		t.Errorf("total = %d, stored rows = %d; want the stored rows counted", total, stored)
 	}
 }

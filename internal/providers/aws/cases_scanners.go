@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/connectcases"
@@ -44,13 +43,12 @@ func scanCases(ctx context.Context, acct *account, region string, st *store.Stor
 // scanCasesAll runs the older phases, which stop at their first hard error,
 // then the field-option phase over the single-select fields stored before that
 // error, so a failure on either side costs the other no rows. The older side's
-// transient error is demoted to a warning: one transient member would make the
-// dispatcher read the whole join as transient, reporting the option phase's
-// hard error as a transient one.
+// transient error is demoted to a warning only beside a hard error: joined, it
+// would be buried in the hard error instead of reported under its op.
 func scanCasesAll(ctx context.Context, client casesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, selectFields, err := scanCasesOlderPhases(ctx, client, acct, region, st, scanID)
 	t, i, oerr := scanCasesFieldOptions(ctx, client, acct, region, st, scanID, selectFields)
-	return total + t, inserted + i, errors.Join(demoteTransient(st, "cases", acct, region, err), oerr)
+	return total + t, inserted + i, demoteBeside(st, "cases", acct, region, err, oerr)
 }
 
 // scanCasesOlderPhases runs the phases that predate field options, stopping

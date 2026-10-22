@@ -422,9 +422,10 @@ func TestScanDirectoryServiceDataIn_HostUnresolvedIsUnavailable(t *testing.T) {
 	}
 }
 
-// Once the groups are stored, an unresolvable host on the users phase warns
-// and keeps the groups' count, which the unavailable outcome would discard.
-func TestScanDirectoryServiceDataIn_HostUnresolvedAfterRowsWarns(t *testing.T) {
+// Once the groups are stored, an unresolvable host on the users phase is an
+// error reported with the groups' count, which the unavailable outcome would
+// discard, so the scan is marked partial.
+func TestScanDirectoryServiceDataIn_HostUnresolvedAfterRowsFails(t *testing.T) {
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "ds-data:ListUsers")
 	nxdomain := &net.DNSError{Err: "no such host", Name: "ds-data.us-east-1.amazonaws.com", IsNotFound: true}
@@ -432,8 +433,8 @@ func TestScanDirectoryServiceDataIn_HostUnresolvedAfterRowsWarns(t *testing.T) {
 		"ListUsers": func(any) (any, error) { return nil, nxdomain },
 	})
 	total, err := runDSDataScan(t, st, handlers)
-	if err != nil || total != 4 || *warned != 1 {
-		t.Errorf("total, err, warnings = %d, %v, %d; want 4, nil, 1", total, err, *warned)
+	if got := classifyServiceError(err); got != outcomeError || total != 4 || *warned != 0 {
+		t.Errorf("classifyServiceError(%v) = %v, total %d, warnings %d; want outcomeError, 4, 0", err, got, total, *warned)
 	}
 }
 

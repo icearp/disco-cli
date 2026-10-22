@@ -759,6 +759,13 @@ func TestClassifyServiceError_Blocked(t *testing.T) {
 	if got := classifyServiceError(denied); got != outcomeError {
 		t.Errorf("classifyServiceError(plain 403 denial) = %v, want outcomeError", got)
 	}
+	// A blocked phase joined with another phase's hard error is a hard error.
+	if got := classifyServiceError(errors.Join(blocked, errors.New("boom"))); got != outcomeError {
+		t.Errorf("classifyServiceError(blocked joined with hard error) = %v, want outcomeError", got)
+	}
+	if got := classifyServiceError(errors.Join(blocked, blocked)); got != outcomeBlocked {
+		t.Errorf("classifyServiceError(join of blocked) = %v, want outcomeBlocked", got)
+	}
 	// A store-write failure must still win, even carrying a 403-shaped cause: the
 	// ladder's first rung exists so a database outage is never reported as a
 	// benign per-service skip.
@@ -1058,6 +1065,12 @@ func TestClassifyServiceError_Rungs(t *testing.T) {
 		{"NXDOMAIN", &net.DNSError{Err: "no such host", IsNotFound: true}, outcomeUnavailable},
 		{"transient EOF", io.ErrUnexpectedEOF, outcomeTransient},
 		{"throttling", apiErr("ThrottlingException", "slow down"), outcomeTransient},
+		{"EC2 throttle", apiErr("RequestLimitExceeded", "Request limit exceeded."), outcomeTransient},
+		{"Wickr throttle", apiErr("RateLimitError", "too many requests"), outcomeTransient},
+		{"EC2 throttled exception", apiErr("EC2ThrottledException", "slow down"), outcomeTransient},
+		{"EC2 internal error", apiErr("InternalError", "An internal error has occurred"), outcomeTransient},
+		{"EC2 overloaded", apiErr("Unavailable", "The server is overloaded"), outcomeTransient},
+		{"EC2 client error stays hard", apiErr("InvalidParameterValue", "bad"), outcomeError},
 		// Budget exhaustion is a hard error, not a warning: the only deadline in
 		// the scan is the per-service one, so reaching it means the scanner
 		// returned nothing and something on our side is wrong. Ordering is what
@@ -1072,6 +1085,22 @@ func TestClassifyServiceError_Rungs(t *testing.T) {
 		{"store write beats deadline", fmt.Errorf("%w: %w", store.ErrStoreWrite, context.DeadlineExceeded), outcomeStoreWrite},
 		{"real IAM denial", apiErr("AccessDeniedException", "is not authorized to perform: s3:ListBuckets"), outcomeError},
 		{"plain error", errors.New("boom"), outcomeError},
+		// A join is transient only when every member is: a throttle beside a
+		// hard error must not report the hard error as one a rescan fixes.
+		{"join of transients", errors.Join(apiErr("ThrottlingException", "slow down"), io.ErrUnexpectedEOF), outcomeTransient},
+		{"throttle joined with hard error", errors.Join(apiErr("ThrottlingException", "slow down"), apiErr("ValidationException", "bad")), outcomeError},
+		{"hard error joined with throttle", errors.Join(errors.New("boom"), apiErr("ThrottlingException", "slow down")), outcomeError},
+		{"wrapped join", fmt.Errorf("phase: %w", errors.Join(apiErr("ThrottlingException", "slow down"), errors.New("boom"))), outcomeError},
+		{"multi-%w wrap", fmt.Errorf("%w: %w", apiErr("ThrottlingException", "slow down"), errors.New("boom")), outcomeError},
+		// The silent rungs hold only when every member does: a mixed join is a
+		// hard error, so its counts and message are reported.
+		{"lone NXDOMAIN in a join", errors.Join(&net.DNSError{Err: "no such host", IsNotFound: true}), outcomeUnavailable},
+		{"NXDOMAIN joined with unavailable sentinel", errors.Join(&net.DNSError{Err: "no such host", IsNotFound: true}, markServiceUnavailable(errors.New("x"))), outcomeUnavailable},
+		{"NXDOMAIN joined with hard error", errors.Join(&net.DNSError{Err: "no such host", IsNotFound: true}, apiErr("ValidationException", "bad")), outcomeError},
+		{"disabled joined with hard error", errors.Join(markServiceDisabled(errors.New("off")), errors.New("boom")), outcomeError},
+		{"not entitled joined with hard error", errors.Join(markServiceNotEntitled(errors.New("no")), errors.New("boom")), outcomeError},
+		{"unavailable sentinel joined with hard error", errors.Join(markServiceUnavailable(errors.New("x")), errors.New("boom")), outcomeError},
+		{"nested join of transients", errors.Join(apiErr("ThrottlingException", "slow down"), fmt.Errorf("p: %w", errors.Join(io.EOF, apiErr("ServiceUnavailable", "x")))), outcomeTransient},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

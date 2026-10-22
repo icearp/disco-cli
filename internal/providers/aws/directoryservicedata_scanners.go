@@ -57,16 +57,17 @@ func scanDirectoryServiceData(ctx context.Context, acct *account, region string,
 // nothing is stored, so the dispatcher reports the region unavailable without
 // a warning: the service may be offered in fewer regions than Directory
 // Service, and its SDK ships no endpoint table to skip them up front. After
-// rows are stored, a transient error (that one included) is warned about
-// rather than returned. Returned, that unresolvable host would make the
-// dispatcher report the region unavailable and discard the stored rows'
-// counts; any other transient error would become a transient scan error.
+// rows are stored, that unresolvable host is a plain error (lateNXDOMAIN):
+// returned as NXDOMAIN it would make the dispatcher report the region
+// unavailable and discard the stored rows' counts. The phases' errors are
+// joined by phaseErrs, so a lone or all-transient failure marks the scan
+// partial.
 func scanDirectoryServiceDataIn(ctx context.Context, dirs dsDataDirectoriesAPI, data directoryServiceDataAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	parents, err := dsDataParents(ctx, dirs, acct, region, st)
 	if err != nil || len(parents) == 0 {
 		return 0, 0, err
 	}
-	var errs []error
+	var errs phaseErrs
 	for _, phase := range []struct {
 		op  string
 		run func() (int, int, error)
@@ -80,13 +81,9 @@ func scanDirectoryServiceDataIn(ctx context.Context, dirs dsDataDirectoriesAPI, 
 		if isDNSNotFound(perr) && total == 0 {
 			return 0, 0, perr
 		}
-		if isDemotableTransient(perr) {
-			_ = skipIfTransient(st, phase.op, acct.ID, region, perr)
-			continue
-		}
-		errs = append(errs, perr)
+		errs.add(phase.op, lateNXDOMAIN(phase.op, perr))
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // dsDataParents lists the region's directories and returns those Directory

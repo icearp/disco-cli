@@ -63,49 +63,42 @@ func scanOrganizations(ctx context.Context, acct *account, _ string, st *store.S
 	orgID := store.ResourceID("aws", acct.ID, sv(org.Arn))
 	closurePairs := [][2]string{{orgID, orgID}}
 
+	// Every phase runs whatever the others return, so one failure costs no
+	// other phase its rows, and the closure links whatever the tree phases
+	// stored. The OU walk starts from the roots listed before any failure.
+	var errs phaseErrs
+	add := func(op string, t, i int, err error) {
+		total += t
+		inserted += i
+		errs.add(op, err)
+	}
 	rootIDs, ouARNByNativeID, t, i, ferr := scanOrgRoots(ctx, client, acct, st, scanID, orgID, &closurePairs)
-	total += t
-	inserted += i
-	if ferr != nil {
-		return total, inserted, ferr
-	}
+	add("organizations:ListRoots", t, i, ferr)
 	t, i, ferr = scanOrgOUTree(ctx, client, acct, st, scanID, rootIDs, ouARNByNativeID, &closurePairs)
-	total += t
-	inserted += i
-	if ferr != nil {
-		return total, inserted, ferr
-	}
+	add("organizations:ListOrganizationalUnitsForParent", t, i, ferr)
 	t, i, ferr = scanOrgAccounts(ctx, client, acct, st, scanID, ouARNByNativeID, &closurePairs)
-	total += t
-	inserted += i
-	if ferr != nil {
-		return total, inserted, ferr
-	}
+	add("organizations:ListAccounts", t, i, ferr)
 	t, i, ferr = scanOrgSCPs(ctx, client, acct, st, scanID)
-	total += t
-	inserted += i
-	if ferr != nil {
-		return total, inserted, ferr
-	}
+	add("organizations:ListPolicies", t, i, ferr)
 	if err := st.RecordHierarchyBatch(closurePairs); err != nil {
-		return total, inserted, fmt.Errorf("org hierarchy closure: %w", err)
+		errs.add("organizations hierarchy closure", fmt.Errorf("org hierarchy closure: %w", err))
 	}
 	t, i, ferr = scanOrganizationsResourcePolicy(ctx, client, acct, st, scanID)
+	add("organizations:DescribeResourcePolicy", t, i, ferr)
+	t, i = scanOrgResponsibilityTransfers(ctx, client, acct, st, scanID, &errs)
 	total += t
 	inserted += i
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	t, i, ferr = scanOrgResponsibilityTransfers(ctx, client, acct, st, scanID)
-	total += t
-	inserted += i
-	return total, inserted, ferr
+	return total, inserted, errs.join(st, acct, "")
 }
 
 // scanOrgResponsibilityTransfers captures billing responsibility transfers
 // from both inbound and outbound lists (a transfer can appear in both),
 // deduped by ARN/id. Only the BILLING transfer type is API-supported.
-func scanOrgResponsibilityTransfers(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+//
+// A list that fails or ends early keeps the transfers read before it, and the
+// other list still runs. Each failure is added to errs under its own op, so a
+// demoted transient one is warned about under the list that failed.
+func scanOrgResponsibilityTransfers(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string, errs *phaseErrs) (int, int) {
 	seen := map[string]bool{}
 	var batch []*store.Resource
 	add := func(transfers []types.ResponsibilityTransfer) {
@@ -137,12 +130,16 @@ func scanOrgResponsibilityTransfers(ctx context.Context, client organizationsAPI
 		if err != nil {
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "organizations:ListInboundResponsibilityTransfers", acct.ID, "", err)
-				break
+			} else {
+				errs.add("organizations:ListInboundResponsibilityTransfers", fmt.Errorf("organizations:ListInboundResponsibilityTransfers: %w", err))
 			}
-			return 0, 0, fmt.Errorf("organizations:ListInboundResponsibilityTransfers: %w", err)
+			break
 		}
 		add(out.ResponsibilityTransfers)
-		if out.NextToken == nil || *out.NextToken == "" {
+		if last, err := lastPage(inToken, out.NextToken); last {
+			if err != nil {
+				errs.add("organizations:ListInboundResponsibilityTransfers", fmt.Errorf("organizations:ListInboundResponsibilityTransfers: %w", err))
+			}
 			break
 		}
 		inToken = out.NextToken
@@ -157,17 +154,23 @@ func scanOrgResponsibilityTransfers(ctx context.Context, client organizationsAPI
 		if err != nil {
 			if isAccessDenied(err) {
 				_ = skipIfAccessDenied(st, "organizations:ListOutboundResponsibilityTransfers", acct.ID, "", err)
-				break
+			} else {
+				errs.add("organizations:ListOutboundResponsibilityTransfers", fmt.Errorf("organizations:ListOutboundResponsibilityTransfers: %w", err))
 			}
-			return 0, 0, fmt.Errorf("organizations:ListOutboundResponsibilityTransfers: %w", err)
+			break
 		}
 		add(out.ResponsibilityTransfers)
-		if out.NextToken == nil || *out.NextToken == "" {
+		if last, err := lastPage(outToken, out.NextToken); last {
+			if err != nil {
+				errs.add("organizations:ListOutboundResponsibilityTransfers", fmt.Errorf("organizations:ListOutboundResponsibilityTransfers: %w", err))
+			}
 			break
 		}
 		outToken = out.NextToken
 	}
-	return upsertBatch(st, batch, "organizations responsibility-transfers")
+	total, inserted, err := upsertBatch(st, batch, "organizations responsibility-transfers")
+	errs.add("organizations responsibility-transfers upsert", err)
+	return total, inserted
 }
 
 // scanOrgRoot describes the organization, upserts the org resource, and
@@ -234,7 +237,10 @@ func scanOrgRoots(ctx context.Context, client organizationsAPI, acct *account, s
 			}
 			return rootIDs, ouARNByNativeID, total, inserted, fmt.Errorf("organizations:ListRoots: %w", err)
 		}
-		var batch []*store.Resource
+		var (
+			batch    []*store.Resource
+			pageRoot []types.Root
+		)
 		for _, root := range page.Roots {
 			arn := sv(root.Arn)
 			id := sv(root.Id)
@@ -258,10 +264,7 @@ func scanOrgRoots(ctx context.Context, client organizationsAPI, acct *account, s
 				AttributesJSON: mustJSON(root),
 				DiscoveredBy:   scanID,
 			})
-			rid := store.ResourceID("aws", acct.ID, arn)
-			rootIDs = append(rootIDs, id)
-			ouARNByNativeID[id] = arn
-			*closurePairs = append(*closurePairs, [2]string{rid, orgID})
+			pageRoot = append(pageRoot, root)
 		}
 		if len(batch) > 0 {
 			n, err := st.UpsertResources(batch)
@@ -270,6 +273,14 @@ func scanOrgRoots(ctx context.Context, client organizationsAPI, acct *account, s
 			}
 			total += len(batch)
 			inserted += n
+		}
+		// Only stored roots are linked and walked as parents, so a failed
+		// write leaves no closure rows naming a missing root.
+		for _, root := range pageRoot {
+			arn, id := sv(root.Arn), sv(root.Id)
+			rootIDs = append(rootIDs, id)
+			ouARNByNativeID[id] = arn
+			*closurePairs = append(*closurePairs, [2]string{store.ResourceID("aws", acct.ID, arn), orgID})
 		}
 	}
 	return rootIDs, ouARNByNativeID, total, inserted, nil
@@ -294,6 +305,7 @@ func scanOrgAccounts(ctx context.Context, client *organizations.Client, acct *ac
 		parentDenied    skipTally
 		parentTransient skipTally
 		parentGone      skipTally
+		parentNotStored skipTally
 		failed          phaseErrs
 	)
 	defer func() {
@@ -312,6 +324,13 @@ func scanOrgAccounts(ctx context.Context, client *organizations.Client, acct *ac
 					parentGone.count, parentGone.first, parentGone.err),
 			})
 		}
+		if parentNotStored.count > 0 {
+			st.ReportWarning(store.ScanWarning{
+				Provider: "aws", Service: "organizations:ListParents", Scope: acct.ID,
+				Message: fmt.Sprintf("%d account(s) stored without their parent: %v; first %s",
+					parentNotStored.count, errParentNotStored, parentNotStored.first),
+			})
+		}
 	}()
 	pager := organizations.NewListAccountsPaginator(client, &organizations.ListAccountsInput{})
 	for pager.HasMorePages() {
@@ -323,7 +342,8 @@ func scanOrgAccounts(ctx context.Context, client *organizations.Client, acct *ac
 			return total, inserted, fmt.Errorf("organizations:ListAccounts: %w", err)
 		}
 		var (
-			batch []*store.Resource
+			batch     []*store.Resource
+			pagePairs [][2]string
 			// Tallied only once the page is stored, since the warnings say
 			// these accounts were stored.
 			pageUnlinked []struct {
@@ -344,6 +364,8 @@ func scanOrgAccounts(ctx context.Context, client *organizations.Client, acct *ac
 			// organization after ListAccounts.
 			case isAPIErrorCode(err, "ChildNotFoundException"):
 				tally = &parentGone
+			case errors.Is(err, errParentNotStored):
+				tally = &parentNotStored
 			case isTransientNetworkError(err):
 				tally = &parentTransient
 			case isAccessDenied(err):
@@ -361,7 +383,7 @@ func scanOrgAccounts(ctx context.Context, client *organizations.Client, acct *ac
 			if parentARN != "" {
 				pid := store.ResourceID("aws", acct.ID, parentARN)
 				accID := store.ResourceID("aws", acct.ID, arn)
-				*closurePairs = append(*closurePairs, [2]string{accID, pid})
+				pagePairs = append(pagePairs, [2]string{accID, pid})
 			}
 			status := string(a.Status)
 			batch = append(batch, &store.Resource{
@@ -386,6 +408,9 @@ func scanOrgAccounts(ctx context.Context, client *organizations.Client, acct *ac
 			total += len(batch)
 			inserted += n
 		}
+		// Linked only once stored, so a failed write leaves no closure rows
+		// naming a missing account.
+		*closurePairs = append(*closurePairs, pagePairs...)
 		for _, u := range pageUnlinked {
 			u.tally.skipped(u.arn, u.err)
 		}
@@ -508,10 +533,12 @@ func walkOUs(
 	}
 	parentResID := store.ResourceID("aws", acct.ID, parentARN)
 
-	var batch []*store.Resource
+	var (
+		batch []*store.Resource
+		pairs [][2]string
+	)
 	for _, ou := range children {
 		arn := sv(ou.Arn)
-		arnByID[sv(ou.Id)] = arn
 		r := &store.Resource{
 			Provider:       "aws",
 			AccountID:      acct.ID,
@@ -525,7 +552,7 @@ func walkOUs(
 		}
 		batch = append(batch, r)
 		childResID := store.ResourceID("aws", acct.ID, arn)
-		*closurePairs = append(*closurePairs, [2]string{childResID, parentResID})
+		pairs = append(pairs, [2]string{childResID, parentResID})
 	}
 	if len(batch) > 0 {
 		n, err := st.UpsertResources(batch)
@@ -534,6 +561,12 @@ func walkOUs(
 		}
 		total += len(batch)
 		inserted += n
+	}
+	// Only stored OUs are linked and resolve their accounts' parents, so a
+	// failed write leaves no closure rows naming a missing OU.
+	*closurePairs = append(*closurePairs, pairs...)
+	for _, ou := range children {
+		arnByID[sv(ou.Id)] = sv(ou.Arn)
 	}
 	for _, ou := range children {
 		t2, i2, err := walkOUs(ctx, client, acct, scanID, st, sv(ou.Id), sv(ou.Arn), arnByID, closurePairs)
@@ -548,7 +581,7 @@ func walkOUs(
 
 // firstParentARN resolves an account's first parent via ListParents, mapping
 // the native parent id to its ARN via arnByID (populated during the OU walk).
-// Returns "" if no parent resolves.
+// Returns errParentNotStored if no listed parent was stored this scan.
 func firstParentARN(ctx context.Context, client organizationsAPI, accountID string, arnByID map[string]string) (string, error) {
 	out, err := client.ListParents(ctx, &organizations.ListParentsInput{ChildId: &accountID})
 	if err != nil {
@@ -559,8 +592,13 @@ func firstParentARN(ctx context.Context, client organizationsAPI, accountID stri
 			return arn, nil
 		}
 	}
-	return "", nil
+	return "", fmt.Errorf("organizations:ListParents %s: %w", accountID, errParentNotStored)
 }
+
+// errParentNotStored marks an account whose listed parent this scan did not
+// store (a root without an Arn, or an OU whose listing or write failed), so
+// it is stored unlinked.
+var errParentNotStored = errors.New("its parent root or OU was not stored this scan")
 
 // describeSCPs fans out DescribePolicy across the listed SCP summaries to
 // fetch each policy's full body (Content + PolicySummary). Per-policy

@@ -346,3 +346,24 @@ func openClosingStore(t *testing.T) (st *store.Store, closeOnce func()) {
 		})
 	}
 }
+
+// refuseClosureWrites makes every hierarchy closure write fail while resource
+// writes still succeed. The abort is a constraint error, which the store does
+// not retry.
+func refuseClosureWrites(t *testing.T, st *store.Store) {
+	t.Helper()
+	if _, err := st.DB().Exec(`CREATE TRIGGER refuse_closure BEFORE INSERT ON hierarchy_closure
+		BEGIN SELECT RAISE(ABORT, 'test: closure write refused'); END`); err != nil {
+		t.Fatalf("create trigger: %v", err)
+	}
+}
+
+// countStoredRows counts the current resource rows in st.
+func countStoredRows(t *testing.T, st *store.Store) int {
+	t.Helper()
+	var n int
+	if err := st.DB().Get(&n, `SELECT COUNT(*) FROM resources WHERE superseded_by IS NULL`); err != nil {
+		t.Fatalf("count rows: %v", err)
+	}
+	return n
+}

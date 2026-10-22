@@ -437,8 +437,8 @@ func TestScanChatbot_StoreWriteBesideTransientStaysHardError(t *testing.T) {
 	}
 }
 
-// A phase's transient error is demoted to a warning, so it cannot make the
-// dispatcher read another phase's hard error as transient.
+// A phase's transient error is demoted to a warning under its op instead of
+// buried in another phase's hard error.
 func TestScanChatbot_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	cases := []struct {

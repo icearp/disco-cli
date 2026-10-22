@@ -27,8 +27,10 @@ func init() {
 // an internal errgroup. The IPAM extended phases and then the late phases
 // (scanEC2Late) run after them, whatever they return: runScanners cancels
 // every category on its first error, so a failure there would otherwise cost
-// the older categories their rows. Every side has its transient error demoted
-// to a warning before the join.
+// the older categories their rows. The categories' joined error and each
+// later phase's error are joined by phaseErrs: a lone or all-transient failure
+// is returned, so a throttled region is marked partial; a transient one beside
+// a hard one is demoted to a warning under its own op.
 func scanEC2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := ec2.NewFromConfig(acct.cfg, func(o *ec2.Options) { o.Region = region })
 	var (
@@ -98,9 +100,11 @@ func scanEC2(ctx context.Context, acct *account, region string, st *store.Store,
 			return scanEC2NetworkExtra(ctx, client, acct, region, st, scanID)
 		},
 	)
-	t, n, extErr := scanEC2IPAMExtended(ctx, client, acct, region, st, scanID, homeIPAM, ipamPolicies)
-	lt, ln, lateErr := scanEC2Late(ctx, client, acct, region, st, scanID)
-	return total + t + lt, inserted + n + ln, errors.Join(demoteTransient(st, "ec2", acct, region, err), extErr, lateErr)
+	var errs phaseErrs
+	errs.add("ec2", err)
+	t, n := scanEC2IPAMExtended(ctx, client, acct, region, st, scanID, homeIPAM, ipamPolicies, &errs)
+	lt, ln := scanEC2Late(ctx, client, acct, region, st, scanID, &errs)
+	return total + t + lt, inserted + n + ln, errs.join(st, acct, region)
 }
 
 // runScanners executes scanner functions concurrently via errgroup, aggregating

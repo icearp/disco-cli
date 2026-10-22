@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -56,15 +55,16 @@ const (
 // The older phases (standard accelerators through endpoint groups) stop at
 // their first hard error. The custom-routing and BYOIP phases run whatever any
 // other phase returned, so their failure costs no other phase its rows and an
-// older phase's failure does not skip them. Each result has its transient
-// error demoted to a warning, since one transient member would make the
-// dispatcher read the whole join as transient; the rest are joined and the
+// older phase's failure does not skip them. Each result has its transient error
+// demoted to a warning only beside a hard error: joined, it would be buried in
+// the hard error instead of reported under its op; the rest are joined and the
 // counts summed.
 func scanGlobalAccelerator(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
 	region := "us-west-2"
 	client := globalaccelerator.NewFromConfig(acct.cfg, func(o *globalaccelerator.Options) { o.Region = region })
 	total, inserted, err := scanGAOlderPhases(ctx, client, acct, region, st, scanID)
-	errs := []error{demoteTransient(st, "globalaccelerator", acct, region, err)}
+	var errs phaseErrs
+	errs.add("globalaccelerator", err)
 	for _, phase := range []struct {
 		op  string
 		run func() (int, int, error)
@@ -75,9 +75,9 @@ func scanGlobalAccelerator(ctx context.Context, acct *account, _ string, st *sto
 		t, i, perr := phase.run()
 		total += t
 		inserted += i
-		errs = append(errs, demoteTransient(st, phase.op, acct, region, perr))
+		errs.add(phase.op, perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // scanGAOlderPhases runs the phases that predate custom routing and BYOIP,

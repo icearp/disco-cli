@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"sync"
@@ -89,16 +88,17 @@ var appStreamSupportedRegions = map[string]bool{
 // phases run whatever any other phase returned, over the images and image
 // builders stored before a failure, so their failure costs no other phase its
 // rows and an older phase's failure does not skip them. Each of the three
-// results has its transient error demoted to a warning, since one transient
-// member would make the dispatcher read the whole join as transient, and the
-// rest are joined; the counts of all three are summed.
+// results has its transient error demoted to a warning only beside a hard
+// error: joined, it would be buried in the hard error instead of reported under
+// its op, and the rest are joined; the counts of all three are summed.
 func scanAppStream(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	if !appStreamSupportedRegions[region] {
 		return 0, 0, nil
 	}
 	client := appstream.NewFromConfig(acct.cfg, func(o *appstream.Options) { o.Region = region })
 	total, inserted, images, builders, err := scanASOlderPhases(ctx, client, acct, region, st, scanID)
-	errs := []error{demoteTransient(st, "appstream", acct, region, err)}
+	var errs phaseErrs
+	errs.add("appstream", err)
 	for _, phase := range []struct {
 		op  string
 		run func() (int, int, error)
@@ -113,9 +113,9 @@ func scanAppStream(ctx context.Context, acct *account, region string, st *store.
 		t, i, perr := phase.run()
 		total += t
 		inserted += i
-		errs = append(errs, demoteTransient(st, phase.op, acct, region, perr))
+		errs.add(phase.op, perr)
 	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 // scanASOlderPhases runs the phases that predate image permissions and software

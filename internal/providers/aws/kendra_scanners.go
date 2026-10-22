@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/kendra"
@@ -58,14 +57,15 @@ func scanKendra(ctx context.Context, acct *account, region string, st *store.Sto
 
 // scanKendraAll runs the older phases, which stop at their first error other
 // than an access denial (a transient one included), then the experience entity
-// and persona phases over the experiences stored before that error. The older side's transient error is demoted to a
-// warning: one transient member would make the dispatcher read the whole join
-// as transient, reporting a newer phase's hard error as a transient one.
+// and persona phases over the experiences stored before that error. The older
+// side's transient error is demoted to a warning only beside a hard error:
+// joined, it would be buried in the hard error instead of reported under its
+// op.
 func scanKendraAll(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, experiences, err := scanKendraOlderPhases(ctx, client, acct, region, st, scanID)
 	te, ie, eerr := scanKendraExperienceEntities(ctx, client, acct, region, st, scanID, experiences)
 	tp, ip, perr := scanKendraEntityPersonas(ctx, client, acct, region, st, scanID, experiences)
-	return total + te + tp, inserted + ie + ip, errors.Join(demoteTransient(st, "kendra", acct, region, err), eerr, perr)
+	return total + te + tp, inserted + ie + ip, demoteBeside(st, "kendra", acct, region, err, eerr, perr)
 }
 
 // scanKendraOlderPhases runs the phases that predate experience entities and

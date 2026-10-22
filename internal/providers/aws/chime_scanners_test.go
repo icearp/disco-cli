@@ -10,7 +10,11 @@ import (
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	ci "github.com/aws/aws-sdk-go-v2/service/chimesdkidentity"
+	citypes "github.com/aws/aws-sdk-go-v2/service/chimesdkidentity/types"
 	cp "github.com/aws/aws-sdk-go-v2/service/chimesdkmediapipelines"
+	cptypes "github.com/aws/aws-sdk-go-v2/service/chimesdkmediapipelines/types"
+	cm "github.com/aws/aws-sdk-go-v2/service/chimesdkmessaging"
+	cmtypes "github.com/aws/aws-sdk-go-v2/service/chimesdkmessaging/types"
 	cv "github.com/aws/aws-sdk-go-v2/service/chimesdkvoice"
 	cvtypes "github.com/aws/aws-sdk-go-v2/service/chimesdkvoice/types"
 	"github.com/icearp/disco-cli/store"
@@ -260,8 +264,9 @@ func TestScanChime_RoutingRegionGapSkipsSilentlyOnFirstPageOnly(t *testing.T) {
 		{name: "nxdomain", err: nxdomain},
 		{name: "unknown operation", err: unknownOp},
 		{name: "unknown operation after a page", err: unknownOp, onPage2: true, wantErr: true},
-		// Returned, it would mark all of aws:chime unavailable with 0 counts.
-		{name: "nxdomain after a page warns", err: nxdomain, onPage2: true, wantWarns: 1},
+		// Returned as a plain error: an NXDOMAIN would mark all of aws:chime
+		// unavailable with 0 counts.
+		{name: "nxdomain after a page", err: nxdomain, onPage2: true, wantErr: true},
 	} {
 		for _, op := range []string{"ListSipRules", "ListVoiceConnectorGroups"} {
 			t.Run(tc.name+"/"+op, func(t *testing.T) {
@@ -275,7 +280,10 @@ func TestScanChime_RoutingRegionGapSkipsSilentlyOnFirstPageOnly(t *testing.T) {
 				if gotErr := err != nil; gotErr != tc.wantErr {
 					t.Fatalf("scanChime err = %v, want error %v", err, tc.wantErr)
 				}
-				if tc.wantErr && !isAPIErrorCode(err, "UnknownOperationException") {
+				if tc.wantErr && classifyServiceError(err) != outcomeError {
+					t.Errorf("err = %v, want it classified outcomeError", err)
+				}
+				if tc.err == unknownOp && tc.wantErr && !isAPIErrorCode(err, "UnknownOperationException") {
 					t.Errorf("err = %v, want the UnknownOperationException returned", err)
 				}
 				if warned != tc.wantWarns {
@@ -342,9 +350,10 @@ func TestScanChime_RoutingTransientIsDemoted(t *testing.T) {
 	}
 }
 
-// TestScanChime_RoutingThrottleWarnsAndKeepsRows pins that Chime's modeled
-// throttle, which the SDK does not retry, is a warning rather than a scan error.
-func TestScanChime_RoutingThrottleWarnsAndKeepsRows(t *testing.T) {
+// TestScanChime_RoutingThrottleKeepsRowsAndIsTransient pins that Chime's
+// modeled throttle, once the retries are spent, keeps the rows read before it
+// and, alone, is returned as transient, so the scan is marked partial.
+func TestScanChime_RoutingThrottleKeepsRowsAndIsTransient(t *testing.T) {
 	for _, op := range []string{"ListSipRules", "ListVoiceConnectorGroups"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -353,11 +362,11 @@ func TestScanChime_RoutingThrottleWarnsAndKeepsRows(t *testing.T) {
 			h := chimeHandlers(&log, map[string]int32{})
 			h[op] = chimeFailPage(h[op], true, apiErr("ThrottledClientException", "rate exceeded"))
 			total, _, err := runChime(t, st, h)
-			if err != nil {
-				t.Fatalf("scanChime: %v", err)
+			if got := classifyServiceError(err); got != outcomeTransient {
+				t.Fatalf("classifyServiceError = %v, want outcomeTransient (err %v)", got, err)
 			}
-			if *warns != 1 {
-				t.Errorf("%s warnings = %d, want 1", op, *warns)
+			if *warns != 0 {
+				t.Errorf("%s warnings = %d, want 0", op, *warns)
 			}
 			// SIP media application, the sibling phase's 2 rows, this phase's page 1.
 			if total != 4 {
@@ -394,5 +403,54 @@ func TestChimeSipRuleNativeID(t *testing.T) {
 	got := chimeSipRuleNativeID("eu-west-2", "123456789012", "abc-123")
 	if want := "arn:aws:chime:eu-west-2:123456789012:sip-rule/abc-123"; got != want {
 		t.Errorf("chimeSipRuleNativeID = %q, want %q", got, want)
+	}
+}
+
+// Each of scanChime's four clients retries Chime's ThrottledClientException,
+// which the SDK retryer does not retry by itself: a single throttle costs no
+// rows. The older phases drop a non-denial error silently, so an unretried
+// throttle shows as the missing row.
+func TestScanChime_ThrottledClientExceptionIsRetried(t *testing.T) {
+	const aiARN = "arn:aws:chime:us-east-1:123456789012:app-instance/ai-1"
+	appInstances := func(any) (any, error) {
+		return &ci.ListAppInstancesOutput{AppInstances: []citypes.AppInstanceSummary{{AppInstanceArn: ptrStr(aiARN)}}}, nil
+	}
+	for _, tc := range []struct {
+		op, typ string
+		page    func(any) (any, error)
+	}{
+		{"ListAppInstances", TypeChimeAppInstance, appInstances},
+		{"ListChannelFlows", TypeChimeChannelFlow, func(any) (any, error) {
+			return &cm.ListChannelFlowsOutput{ChannelFlows: []cmtypes.ChannelFlowSummary{{ChannelFlowArn: ptrStr(aiARN + "/channel-flow/cf-1")}}}, nil
+		}},
+		{"ListMediaPipelines", TypeChimeMediaPipeline, func(any) (any, error) {
+			return &cp.ListMediaPipelinesOutput{MediaPipelines: []cptypes.MediaPipelineSummary{{MediaPipelineArn: ptrStr("arn:aws:chime:us-east-1:123456789012:media-pipeline/mp-1")}}}, nil
+		}},
+		{"ListSipMediaApplications", TypeChimeSipMediaApplication, func(any) (any, error) {
+			return &cv.ListSipMediaApplicationsOutput{SipMediaApplications: []cvtypes.SipMediaApplication{{SipMediaApplicationArn: ptrStr(chimeTestSMAARN)}}}, nil
+		}},
+	} {
+		t.Run(tc.op, func(t *testing.T) {
+			st := newTestStore(t)
+			calls := 0
+			handlers := map[string]func(any) (any, error){
+				"ListAppInstances": appInstances,
+				tc.op: func(in any) (any, error) {
+					calls++
+					if calls == 1 {
+						return nil, apiErr("ThrottledClientException", "rate exceeded")
+					}
+					return tc.page(in)
+				},
+			}
+			acct := newTestAccount(testAccountID)
+			acct.cfg = lmRetryingConfig(handlers)
+			if _, _, err := scanChime(context.Background(), acct, testRegion, st, testScanID); err != nil {
+				t.Fatalf("scanChime: %v", err)
+			}
+			if calls != 2 || len(rowsByNativeID(t, st, tc.typ)) != 1 {
+				t.Errorf("%s calls = %d, %s rows = %d; want 2 calls and the retried page's row", tc.op, calls, tc.typ, len(rowsByNativeID(t, st, tc.typ)))
+			}
+		})
 	}
 }

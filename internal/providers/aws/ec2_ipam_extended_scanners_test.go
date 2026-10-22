@@ -649,8 +649,8 @@ func TestScanEC2_IpamExtendedPhasesAfterOlderCategories(t *testing.T) {
 	})
 }
 
-// A transient error on either side of the join is demoted to one warning, so
-// it cannot make the dispatcher read the other side's hard error as transient.
+// A transient error on either side of the join is demoted to one warning under
+// its op instead of buried in the other side's hard error.
 func TestScanEC2_TransientSideDoesNotMaskHardError(t *testing.T) {
 	cases := []struct {
 		name, transientOp, hardOp, warnOp string
@@ -679,6 +679,36 @@ func TestScanEC2_TransientSideDoesNotMaskHardError(t *testing.T) {
 			}
 			if *warnings != 1 {
 				t.Errorf("%s warnings = %d, want 1", c.warnOp, *warnings)
+			}
+		})
+	}
+}
+
+// A throttle alone, on any side of scanEC2, is returned as transient, so the
+// dispatcher marks the region partial instead of complete; it is not demoted
+// to a warning, and the other phases keep their rows.
+func TestScanEC2_LoneThrottleMarksRegionPartial(t *testing.T) {
+	throttle := apiErr("RequestLimitExceeded", "Request limit exceeded.")
+	for _, c := range []struct{ op, warnOp string }{
+		{"DescribeVpcs", "ec2"},
+		{"DescribeByoipCidrs", ec2ByoipCidrsOp},
+		{"DescribeFastSnapshotRestores", ec2FastSnapshotRestoresOp},
+	} {
+		t.Run(c.op, func(t *testing.T) {
+			st := newTestStore(t)
+			var calls parentCalls
+			h := ipxTopLevelHandlers(&calls)
+			h[c.op] = func(any) (any, error) { return nil, throttle }
+			warnings := countOpWarnings(st, c.warnOp)
+			total, err := scanEC2TopLevel(t, st, h)
+			if got := classifyServiceError(err); got != outcomeTransient || !isAPIErrorCode(err, "RequestLimitExceeded") {
+				t.Fatalf("classifyServiceError(%v) = %v, want the RequestLimitExceeded as outcomeTransient", err, got)
+			}
+			if *warnings != 0 {
+				t.Errorf("%s warnings = %d, want 0", c.warnOp, *warnings)
+			}
+			if len(rowsByNativeID(t, st, TypeEC2IPAM)) != 1 || total == 0 {
+				t.Errorf("total = %d, IPAM rows = %d; want the IPAM row kept", total, len(rowsByNativeID(t, st, TypeEC2IPAM)))
 			}
 		})
 	}

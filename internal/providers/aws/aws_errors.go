@@ -401,7 +401,46 @@ func isEndpointUnreachable(err error) bool {
 // exhausting it means the scanner did not finish — see outcomeDeadline.
 // Without this exclusion it would satisfy the net.Error.Timeout() rung below
 // and be reported as a momentary glitch.
+//
+// A join (errors.Join, or fmt.Errorf with several %w) is transient only when
+// every member is (everyMember). errors.As alone matches when any member
+// does, which would report a hard error joined beside a throttle as one a
+// rescan fixes, and let a scanner demote it to a warning.
 func isTransientNetworkError(err error) bool {
+	return everyMember(err, isTransientCause)
+}
+
+// everyMember reports whether match holds for err or, when err's chain holds
+// a join, for every member of it, recursively.
+func everyMember(err error, match func(error) bool) bool {
+	members := joinedMembers(err)
+	if len(members) == 0 {
+		return match(err)
+	}
+	for _, m := range members {
+		if !everyMember(m, match) {
+			return false
+		}
+	}
+	return true
+}
+
+// joinedMembers returns the members of the first join in err's chain, or nil
+// when the chain holds none. The single wraps above a join are op labels
+// (fmt.Errorf with one %w), never a network or API error themselves.
+func joinedMembers(err error) []error {
+	for err != nil {
+		if j, ok := err.(interface{ Unwrap() []error }); ok {
+			return j.Unwrap()
+		}
+		err = errors.Unwrap(err)
+	}
+	return nil
+}
+
+// isTransientCause is isTransientNetworkError for an err whose chain holds no
+// join.
+func isTransientCause(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -466,9 +505,13 @@ func isTransientNetworkError(err error) bool {
 		"TooManyRequestsException",
 		// The Chime SDK models' 429 throttle and 500 failure. The SDK retryer
 		// does not retry ThrottledClientException (absent from
-		// DefaultThrottleErrorCodes, and 429 is not a retryable status), so a Chime
-		// throttle reaches us on its first attempt.
+		// DefaultThrottleErrorCodes, and 429 is not a retryable status);
+		// scanChime's clients add it, so it reaches us only once those retries
+		// are spent.
 		"ThrottledClientException", "ServiceFailureException",
+		// Wickr's throttle; scanWickr's client adds it to the retryer, so it
+		// reaches us only once those retries are spent.
+		"RateLimitError",
 		// License Manager's HTTP 429 throttle (the only model with it). The SDK
 		// retryer neither lists it among its throttle codes nor retries a 429 by
 		// status; scanLicenseManager's client adds it, so it reaches us only once
@@ -476,7 +519,14 @@ func isTransientNetworkError(err error) bool {
 		"RateLimitExceededException",
 		// A throttle code in the SDK retryer's DefaultThrottleErrorCodes (e.g.
 		// modeled by rekognition:ListProjectPolicies).
-		"ProvisionedThroughputExceededException")
+		"ProvisionedThroughputExceededException",
+		// EC2's query protocol uses its own codes, listed in AWS's EC2 API
+		// error-code reference: RequestLimitExceeded is its throttle (also in
+		// DefaultThrottleErrorCodes, as is EC2ThrottledException), and
+		// InternalError and Unavailable ("the server is overloaded") are its
+		// 5xx server errors. EC2 models no errors, so these arrive as generic
+		// API errors carrying the code.
+		"RequestLimitExceeded", "EC2ThrottledException", "InternalError", "Unavailable")
 }
 
 // httpStatusCode extracts the HTTP status from a Smithy transport response error.
@@ -673,14 +723,18 @@ func classifyServiceError(err error) serviceOutcome {
 	switch {
 	case errors.Is(err, store.ErrStoreWrite):
 		return outcomeStoreWrite
-	case errors.Is(err, errServiceDisabled):
+	// The silent rungs below report the service with no counts and no error,
+	// so each must hold for every member of a join (everyMember): one phase's
+	// NXDOMAIN joined with another phase's hard error is a hard error, reported
+	// with the rows the other phases stored.
+	case everyMember(err, isServiceDisabledErr):
 		return outcomeDisabled
-	case errors.Is(err, errServiceNotEntitled):
+	case everyMember(err, isServiceNotEntitledErr):
 		return outcomeNotEntitled
 	// NXDOMAIN or a scanner-returned unavailable sentinel = service not
 	// deployed in this scope. Silent-skip — distinct from a transient DNS
 	// outage, which still warns below.
-	case isDNSNotFound(err), errors.Is(err, errServiceUnavailable):
+	case everyMember(err, isServiceUnavailableErr):
 		return outcomeUnavailable
 	// A whole service refusing every caller. Detected generically rather than via
 	// a scanner-returned sentinel, so a service AWS blocks in future degrades
@@ -688,7 +742,7 @@ func classifyServiceError(err error) serviceOutcome {
 	// rung was added for (tnb reported nine identical hard errors per scan, one
 	// per region, marking every scan partial). Safe below the sentinel rungs: it
 	// requires a 403, and none of them carry one.
-	case isServiceBlocked(err):
+	case everyMember(err, isServiceBlocked):
 		return outcomeBlocked
 	// Must precede the transient rung: a deadline satisfies net.Error.Timeout(),
 	// so isTransientNetworkError would otherwise report budget exhaustion as a
@@ -702,4 +756,13 @@ func classifyServiceError(err error) serviceOutcome {
 	default:
 		return outcomeError
 	}
+}
+
+func isServiceDisabledErr(err error) bool    { return errors.Is(err, errServiceDisabled) }
+func isServiceNotEntitledErr(err error) bool { return errors.Is(err, errServiceNotEntitled) }
+
+// isServiceUnavailableErr matches NXDOMAIN or the scanner-returned
+// unavailable sentinel.
+func isServiceUnavailableErr(err error) bool {
+	return isDNSNotFound(err) || errors.Is(err, errServiceUnavailable)
 }

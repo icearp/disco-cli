@@ -32,14 +32,15 @@ const kav2SnapshotPageLimit = 50
 // scanKinesisAnalyticsV2 discovers Kinesis Data Analytics v2 applications,
 // their config sub-resources, and then the snapshots of every application it
 // stored. The snapshot phase runs whatever the application phase returned, so
-// its failure costs the applications nothing. The application phase's
-// transient error is demoted to a warning, since one transient member would
-// make the dispatcher read the whole join as transient; the counts are summed.
+// its failure costs the applications nothing. The application phase's transient
+// error is demoted to a warning only beside a hard error: joined, it would be
+// buried in the hard error instead of reported under its op; the counts are
+// summed.
 func scanKinesisAnalyticsV2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := kinesisanalyticsv2.NewFromConfig(acct.cfg, func(o *kinesisanalyticsv2.Options) { o.Region = region })
 	total, inserted, apps, err := scanKAV2Applications(ctx, client, acct, region, st, scanID)
 	t, i, serr := scanKAV2ApplicationSnapshots(ctx, client, acct, region, st, scanID, apps)
-	return total + t, inserted + i, errors.Join(demoteTransient(st, "kinesisanalyticsv2", acct, region, err), serr)
+	return total + t, inserted + i, demoteBeside(st, "kinesisanalyticsv2", acct, region, err, serr)
 }
 
 // scanKAV2Applications discovers the applications and their config

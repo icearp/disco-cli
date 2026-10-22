@@ -559,9 +559,9 @@ func TestScanDirectoryServiceIn_PhaseErrorReturnedOthersRun(t *testing.T) {
 	})
 }
 
-// A later phase's transient error is warned about on its own, so it cannot
-// make the dispatcher classify the whole service transient.
-func TestScanDirectoryServiceIn_TransientPhaseWarns(t *testing.T) {
+// A later phase's lone transient error reaches the dispatcher as transient,
+// with the other phases' counts, so the scan is marked partial.
+func TestScanDirectoryServiceIn_LoneTransientPhaseMarksPartial(t *testing.T) {
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "ds:DescribeTrusts")
 	handlers := dsHandlers(map[string]*parentCalls{}, map[string]func(any) (any, error){
@@ -569,8 +569,8 @@ func TestScanDirectoryServiceIn_TransientPhaseWarns(t *testing.T) {
 	})
 	want := dsWantNativeIDs()
 	total, err := runDSScan(t, st, handlers)
-	if err != nil || total != dsWantTotal(want, TypeDSTrust) || *warned != 1 {
-		t.Errorf("total, err, warnings = %d, %v, %d; want %d, nil, 1", total, err, *warned, dsWantTotal(want, TypeDSTrust))
+	if got := classifyServiceError(err); got != outcomeTransient || total != dsWantTotal(want, TypeDSTrust) || *warned != 0 {
+		t.Errorf("classifyServiceError(%v) = %v, total %d, warnings %d; want outcomeTransient, %d, 0", err, got, total, *warned, dsWantTotal(want, TypeDSTrust))
 	}
 }
 
@@ -630,5 +630,22 @@ func TestScanDirectoryServiceIn_EmptyChildren(t *testing.T) {
 	total, err := runDSScan(t, st, dsHandlers(map[string]*parentCalls{}, empty))
 	if wantTotal := len(want[TypeDSMicrosoftAD]) + len(want[TypeDSSimpleAD]); err != nil || total != wantTotal {
 		t.Errorf("total, err = %d, %v; want %d, nil", total, err, wantTotal)
+	}
+}
+
+// A later phase's NXDOMAIN, after the directory phase reached the endpoint and
+// stored rows, is a failure of this scan, not a region gap: it is returned as
+// an error with the stored rows' counts.
+func TestScanDirectoryServiceIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	st := newTestStore(t)
+	handlers := dsHandlers(map[string]*parentCalls{}, map[string]func(any) (any, error){
+		"DescribeTrusts": func(any) (any, error) {
+			return nil, &net.DNSError{Err: "no such host", Name: "ds.us-east-1.amazonaws.com", IsNotFound: true}
+		},
+	})
+	want := dsWantNativeIDs()
+	total, err := runDSScan(t, st, handlers)
+	if got := classifyServiceError(err); got != outcomeError || total != dsWantTotal(want, TypeDSTrust) {
+		t.Errorf("classifyServiceError(%v) = %v, total %d; want outcomeError, %d", err, got, total, dsWantTotal(want, TypeDSTrust))
 	}
 }

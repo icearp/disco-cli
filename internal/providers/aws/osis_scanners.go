@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/osis"
@@ -32,17 +31,17 @@ const (
 // AWS-managed configuration blueprints and VPC pipeline endpoints, then the
 // endpoint connections to this account's pipelines. The connection phase runs
 // whatever the earlier phases returned, so their failure costs it nothing, and
-// the counts from both sides are summed.
-// Each side's transient error is demoted to a warning, since one transient
-// member would make the dispatcher read the whole join as transient.
+// the counts from both sides are summed. Each side's transient error is demoted
+// to a warning only beside a hard error: joined, it would be buried in the hard
+// error instead of reported under its op.
 func scanOSIS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := osis.NewFromConfig(acct.cfg, func(o *osis.Options) { o.Region = region })
 	total, inserted, pipelines, err := scanOSISPhases(ctx, client, acct, region, st, scanID)
 	t, i, cerr := scanOSISPipelineEndpointConnections(ctx, client, acct, region, st, scanID, pipelines)
-	return total + t, inserted + i, errors.Join(
-		demoteTransient(st, "osis", acct, region, err),
-		demoteTransient(st, osisEndpointConnectionsOp, acct, region, cerr),
-	)
+	var errs phaseErrs
+	errs.add("osis", err)
+	errs.add(osisEndpointConnectionsOp, cerr)
+	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
 // scanOSISPhases runs the pipeline, blueprint and endpoint phases in order,

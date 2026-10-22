@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -223,7 +222,7 @@ func scanRDS(ctx context.Context, acct *account, region string, st *store.Store,
 	st2, in2, cerr := scanDBClusterSnapshotAttributes(ctx, client, acct, region, st, scanID, clusterSnapshots)
 	// The attribute phases need no demotion: childFanOutSkipTransient already
 	// drops their transient per-snapshot errors.
-	return total + st1 + st2, inserted + in1 + in2, errors.Join(demoteTransient(st, "rds", acct, region, err), serr, cerr)
+	return total + st1 + st2, inserted + in1 + in2, demoteBeside(st, "rds", acct, region, err, serr, cerr)
 }
 
 // nonRDSEngines are engines that ride rds:Describe* APIs but have their own

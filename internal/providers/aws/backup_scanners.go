@@ -265,7 +265,7 @@ func scanBackupPlans(ctx context.Context, client backupAPI, acct *account, regio
 	warnNotStored(st, "backup:ListBackupSelections", acct, region, &reads.selectionNoID, "backup selections have no SelectionId")
 	total, inserted, err := upsertContained(st, "backup plans", rows)
 	if err != nil {
-		return 0, 0, errors.Join(errs.join(st, acct, region), err)
+		return total, inserted, errors.Join(errs.join(st, acct, region), err)
 	}
 	reads.warn(st, "backup:GetBackupPlan", "backup:ListBackupSelections", acct, region)
 	return total, inserted, errs.join(st, acct, region)

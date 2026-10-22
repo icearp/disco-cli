@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -57,19 +56,19 @@ type kmsKeyAttrs struct {
 // ManagedByProvider.
 //
 // The custom key store and key phases are independent: each runs whatever the
-// other returned. Key stores go first, one short listing, so a service
-// deadline hit during the unbounded per-key fan-out does not lose them too.
-// Each side's transient error is demoted to a warning, since one transient
-// member would make the dispatcher read the whole join as transient; the
+// other returned. Key stores go first, one short listing, so a service deadline
+// hit during the unbounded per-key fan-out does not lose them too. Each side's
+// transient error is demoted to a warning only beside a hard error: joined, it
+// would be buried in the hard error instead of reported under its op; the
 // counts are summed.
 func scanKMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := kms.NewFromConfig(acct.cfg, func(o *kms.Options) { o.Region = region })
 	t, i, cerr := scanKMSCustomKeyStores(ctx, client, acct, region, st, scanID)
 	total, inserted, kerr := scanKMSKeys(ctx, client, acct, region, st, scanID)
-	return total + t, inserted + i, errors.Join(
-		demoteTransient(st, "kms", acct, region, kerr),
-		demoteTransient(st, "kms:DescribeCustomKeyStores", acct, region, cerr),
-	)
+	var errs phaseErrs
+	errs.add("kms", kerr)
+	errs.add("kms:DescribeCustomKeyStores", cerr)
+	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
 // kmsCustomKeyStoreNativeID synthesises an ARN-shaped id for a custom key

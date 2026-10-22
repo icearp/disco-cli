@@ -523,16 +523,17 @@ func TestScanLogsS3TableSources_Errors(t *testing.T) {
 	)
 	fail := func(err error) func(any) (any, error) { return func(any) (any, error) { return nil, err } }
 	for _, tc := range []struct {
-		name       string
-		override   map[string]func(any) (any, error)
-		wantTotal  int
-		wantErr    string
-		wantWarn   map[string]int
-		wantNotice int
+		name          string
+		override      map[string]func(any) (any, error)
+		wantTotal     int
+		wantErr       string
+		wantTransient bool
+		wantWarn      map[string]int
+		wantNotice    int
 	}{
 		{name: "integrations denied", override: map[string]func(any) (any, error){"ListS3TableIntegrations": fail(logsDenied)}, wantNotice: 1},
 		{name: "integrations endpoint absent", override: map[string]func(any) (any, error){"ListS3TableIntegrations": fail(&net.DNSError{Err: "no such host", Name: "observabilityadmin.xx.amazonaws.com", IsNotFound: true})}},
-		{name: "integrations unreachable", override: map[string]func(any) (any, error){"ListS3TableIntegrations": fail(&net.OpError{Op: "dial", Err: errors.New("connection refused")})}, wantWarn: map[string]int{obsOp: 1}},
+		{name: "integrations unreachable", override: map[string]func(any) (any, error){"ListS3TableIntegrations": fail(&net.OpError{Op: "dial", Err: errors.New("connection refused")})}, wantTransient: true},
 		{name: "integrations other error", override: map[string]func(any) (any, error){"ListS3TableIntegrations": fail(logsBadArg)}, wantErr: "InvalidParameterException"},
 		{name: "sources denied", override: map[string]func(any) (any, error){"ListSourcesForS3TableIntegration": fail(logsDenied)}, wantWarn: map[string]int{srcOp: 1}},
 		{name: "sources other error", override: map[string]func(any) (any, error){"ListSourcesForS3TableIntegration": fail(logsBadArg)}, wantErr: "InvalidParameterException"},
@@ -555,7 +556,12 @@ func TestScanLogsS3TableSources_Errors(t *testing.T) {
 				}
 			}
 			total, err := runS3TSources(t, st, newTestAccount(testAccountID), s3tHandlers(&parentCalls{}, tc.override))
-			if tc.wantErr == "" && err != nil || tc.wantErr != "" && !isAPIErrorCode(err, tc.wantErr) {
+			switch {
+			case tc.wantTransient:
+				if got := classifyServiceError(err); got != outcomeTransient {
+					t.Errorf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
+				}
+			case tc.wantErr == "" && err != nil || tc.wantErr != "" && !isAPIErrorCode(err, tc.wantErr):
 				t.Errorf("err = %v; want code %q", err, tc.wantErr)
 			}
 			if total != tc.wantTotal || len(rowsByNativeID(t, st, TypeLogsSource)) != tc.wantTotal {
@@ -739,5 +745,50 @@ func TestScanLogs_TransientPhaseErrorDoesNotMaskHardError(t *testing.T) {
 				t.Errorf("%s warnings = %d, want 1", tc.throttledOp, *warnings)
 			}
 		})
+	}
+}
+
+// A throttle on one phase, with no other phase failing, is returned as
+// transient, so the scan is partial rather than complete; it is not demoted.
+func TestScanLogs_LoneTransientPhaseMarksPartial(t *testing.T) {
+	throttled := func(any) (any, error) {
+		return nil, &smithy.GenericAPIError{Code: "ThrottlingException", Message: "rate exceeded"}
+	}
+	for _, op := range []string{"DescribeLogStreams", "ListSyslogConfigurations"} {
+		t.Run(op, func(t *testing.T) {
+			st := newTestStore(t)
+			acct := newTestAccount(testAccountID)
+			warnings := countOpWarnings(st, "logs:"+op)
+			acct.cfg = opStubConfig(logsTopLevelHandlers(map[string]func(any) (any, error){op: throttled}), logsDenied)
+			total, _, err := scanLogs(context.Background(), acct, testRegion, st, testScanID)
+			if got := classifyServiceError(err); got != outcomeTransient {
+				t.Errorf("classifyServiceError(%v) = %d; want outcomeTransient (%d)", err, got, outcomeTransient)
+			}
+			if *warnings != 0 {
+				t.Errorf("%s warnings = %d, want 0", op, *warnings)
+			}
+			if total == 0 {
+				t.Error("total = 0; want the other phases' rows counted")
+			}
+		})
+	}
+}
+
+// An integrations endpoint that stops resolving after a page succeeded is a
+// plain error, not observabilityadmin's region gap, so the listing is reported
+// incomplete instead of read as finished.
+func TestScanLogsS3TableSources_IntegrationsNXDOMAINAfterPageIsAnError(t *testing.T) {
+	st := newTestStore(t)
+	handlers := s3tHandlers(&parentCalls{}, nil)
+	first := handlers["ListS3TableIntegrations"]
+	handlers["ListS3TableIntegrations"] = func(in any) (any, error) {
+		if in.(*observabilityadmin.ListS3TableIntegrationsInput).NextToken == nil {
+			return first(in)
+		}
+		return nil, &net.DNSError{Err: "no such host", Name: "observabilityadmin.us-east-1.amazonaws.com", IsNotFound: true}
+	}
+	_, err := runS3TSources(t, st, newTestAccount(testAccountID), handlers)
+	if got := classifyServiceError(err); err == nil || got != outcomeError {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}
 }

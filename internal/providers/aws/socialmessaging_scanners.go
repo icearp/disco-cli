@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync/atomic"
 
@@ -81,16 +80,16 @@ func socialMessagingClientOptions(region string) func(*socialmessaging.Options) 
 }
 
 // scanSocialMessagingAll runs the older phases, which stop at their first hard
-// error, then the flow and message-template phases over the WABAs stored
-// before that error, so a failure on either side costs the other no rows. The
-// older side's transient error is demoted to a warning: one transient member
-// would make the dispatcher read the whole join as transient, reporting a new
-// phase's hard error as a transient one.
+// error, then the flow and message-template phases over the WABAs stored before
+// that error, so a failure on either side costs the other no rows. The older
+// side's transient error is demoted to a warning only beside a hard error:
+// joined, it would be buried in the hard error instead of reported under its
+// op.
 func scanSocialMessagingAll(ctx context.Context, client socialMessagingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	total, inserted, wabas, err := scanSocialMessagingOlderPhases(ctx, client, acct, region, st, scanID)
 	ft, fi, ferr := scanSocialMessagingFlows(ctx, client, acct, region, st, scanID, wabas)
 	tt, ti, terr := scanSocialMessagingTemplates(ctx, client, acct, region, st, scanID, wabas)
-	return total + ft + tt, inserted + fi + ti, errors.Join(demoteTransient(st, "social-messaging", acct, region, err), ferr, terr)
+	return total + ft + tt, inserted + fi + ti, demoteBeside(st, "social-messaging", acct, region, err, ferr, terr)
 }
 
 // scanSocialMessagingOlderPhases runs the phases that predate flows and

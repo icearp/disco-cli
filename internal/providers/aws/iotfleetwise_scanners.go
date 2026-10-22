@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -72,11 +71,10 @@ func scanIoTFleetWise(ctx context.Context, acct *account, region string, st *sto
 // error, then the decoder manifest child phases over the manifests the older
 // phases stored (none if they failed before the manifest phase). A child phase
 // failure costs no other phase its rows, and an older phase failing after the
-// manifest phase does not skip the child phases. The
-// older phases' transient error is demoted to a warning: one transient member
-// would make the dispatcher read the whole join as transient, hiding a child
-// phase's hard error. The child phases tally their transient errors per
-// manifest, so none of theirs is transient.
+// manifest phase does not skip the child phases. The older phases' transient
+// error is demoted to a warning only beside a hard error: joined, it would be
+// buried in the hard error instead of reported under its op. The child phases
+// tally their transient errors per manifest, so none of theirs is transient.
 //
 // The state-template feature-gate denial becomes markServiceDisabled only when
 // no phase stored a row and none failed otherwise. Else it becomes one
@@ -91,7 +89,7 @@ func scanIoTFleetWiseAll(ctx context.Context, client iotFWAPI, acct *account, re
 	ts, is, serr := scanIoTFWDecoderManifestSignals(ctx, client, acct, region, st, scanID, manifests)
 	tn, in, nerr := scanIoTFWDecoderManifestNetworkInterfaces(ctx, client, acct, region, st, scanID, manifests)
 	total, inserted = total+ts+tn, inserted+is+in
-	err = errors.Join(demoteTransient(st, "iotfleetwise", acct, region, err), serr, nerr)
+	err = demoteBeside(st, "iotfleetwise", acct, region, err, serr, nerr)
 	if stateTemplatesGated != nil {
 		if total == 0 && err == nil {
 			return 0, 0, markServiceDisabled(stateTemplatesGated)

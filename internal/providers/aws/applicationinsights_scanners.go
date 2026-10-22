@@ -81,14 +81,14 @@ func appInsightsLogPatternNativeID(setNativeID, pattern string) string {
 	return setNativeID + "/log-pattern/" + pattern
 }
 
-// scanApplicationInsights stores the applications, then their components
-// (with workloads) and log pattern sets (with patterns). The child phases run
+// scanApplicationInsights stores the applications, then their components (with
+// workloads) and log pattern sets (with patterns). The child phases run
 // whatever the applications phase returned, over the applications it stored.
-// The two child families are independent, so they run concurrently, and
-// neither cancels the other; all errors are joined. The applications phase's
-// transient error is demoted to a warning, because one transient member would
-// make the dispatcher read the whole join as transient, reporting a child
-// phase's hard error as a transient one.
+// The two child families are independent, so they run concurrently, and neither
+// cancels the other; all errors are joined. The applications phase's transient
+// error is demoted to a warning beside a child phase's hard error: joined, it
+// would be buried in the hard error instead of reported under its op; alone it
+// is returned, so the scan is marked partial.
 func scanApplicationInsights(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := applicationinsights.NewFromConfig(acct.cfg, func(o *applicationinsights.Options) { o.Region = region })
 	total, inserted, apps, err := scanApplicationInsightsApplications(ctx, client, acct, region, st, scanID)
@@ -100,8 +100,8 @@ func scanApplicationInsights(ctx context.Context, acct *account, region string, 
 	wg.Go(func() { ct, ci, cerr = scanAppInsightsComponentFamily(ctx, client, acct, region, st, scanID, apps) })
 	wg.Go(func() { pt, pi, perr = scanAppInsightsLogPatternFamily(ctx, client, acct, region, st, scanID, apps) })
 	wg.Wait()
-	return total + ct + pt, inserted + ci + pi, errors.Join(
-		demoteTransient(st, "applicationinsights:ListApplications", acct, region, err), cerr, perr)
+	return total + ct + pt, inserted + ci + pi, demoteBeside(
+		st, "applicationinsights:ListApplications", acct, region, err, cerr, perr)
 }
 
 // scanAppInsightsComponentFamily stores the components, then the workloads of
@@ -291,10 +291,13 @@ func scanAppInsightsComponents(ctx context.Context, client applicationInsightsAP
 		stored[i] = d.comp
 	}
 	total, inserted, err := upsertContained(st, "applicationinsights components", children)
-	if err != nil {
-		return 0, 0, nil, err
+	// upsertContained reports no rows when the upsert failed, and real ones
+	// when only the closure write after it failed: workloads are then still
+	// listed under the components stored.
+	if total == 0 {
+		stored = nil
 	}
-	return total, inserted, stored, nil
+	return total, inserted, stored, err
 }
 
 type appInsightsWorkload struct {
@@ -418,10 +421,11 @@ func scanAppInsightsLogPatternSets(ctx context.Context, client applicationInsigh
 		}
 	}
 	total, inserted, err := upsertContained(st, "applicationinsights log pattern sets", children)
-	if err != nil {
-		return 0, 0, nil, err
+	// As for components: patterns are listed under the sets stored.
+	if total == 0 {
+		sets = nil
 	}
-	return total, inserted, sets, nil
+	return total, inserted, sets, err
 }
 
 // scanAppInsightsLogPatterns lists the patterns of each stored pattern set.
