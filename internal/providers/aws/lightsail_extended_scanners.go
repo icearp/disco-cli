@@ -2,265 +2,112 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/lightsail"
+	lightsailtypes "github.com/aws/aws-sdk-go-v2/service/lightsail/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanLightsailExtended adds the snapshot, networking, storage, observability
-// and bucket access-key types. Paginated Lightsail Get* ops use manual
-// `pageToken` pagination; GetBucketAccessKeys does not paginate.
-func scanLightsailExtended(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	lbNames, t, i, ferr := scanLSLoadBalancers(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return 0, 0, ferr
+// lsLabel is a listed resource's display name: its name, or fallback when it
+// has none.
+func lsLabel(name *string, fallback string) string {
+	if n := sv(name); n != "" {
+		return n
 	}
-	total += t
-	inserted += i
-
-	var buckets []childParent
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanLSAlarms(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			var t, i int
-			var err error
-			buckets, t, i, err = scanLSBuckets(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (int, int, error) { return scanLSCertificates(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLSDatabaseSnapshots(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLSDisks(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLSDiskSnapshots(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLSDistributions(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLSDomains(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLSInstanceSnapshots(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanLSLBTlsCertificates(ctx, client, acct, region, st, scanID, lbNames)
-		},
-		func() (int, int, error) { return scanLSStaticIps(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLSKeyPairs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLSContactMethods(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanLSBucketAccessKeys(ctx, client, acct, region, st, scanID, buckets)
-		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+	return fallback
 }
 
 func scanLSAlarms(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.GetAlarms(ctx, &lightsail.GetAlarmsInput{PageToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lightsail:GetAlarms", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("lightsail:GetAlarms: %w", err)
-		}
-		for _, a := range out.Alarms {
-			arn := sv(a.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(a.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailAlarm, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		token = out.NextPageToken
-	}
-	return upsertBatch(st, batch, "lightsail alarms")
-}
-
-// scanLSBuckets returns the listed buckets so the access-key phase can fan
-// out (GetBucketAccessKeys requires BucketName).
-func scanLSBuckets(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	var (
-		batch   []*store.Resource
-		buckets []childParent
-		token   *string
-	)
-	for {
-		out, err := client.GetBuckets(ctx, &lightsail.GetBucketsInput{PageToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "lightsail:GetBuckets", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("lightsail:GetBuckets: %w", err)
-		}
-		for _, b := range out.Buckets {
-			arn := sv(b.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(b.Name)
-			if label == "" {
-				label = arn
-			} else {
-				buckets = append(buckets, childParent{id: label, arn: arn})
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailBucket, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		token = out.NextPageToken
-	}
-	total, inserted, err := upsertBatch(st, batch, "lightsail buckets")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return buckets, total, inserted, nil
-}
-
-func scanLSCertificates(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	out, err := client.GetCertificates(ctx, &lightsail.GetCertificatesInput{})
-	if err != nil {
-		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "lightsail:GetCertificates", acct.ID, region, err)
-		}
-		return 0, 0, fmt.Errorf("lightsail:GetCertificates: %w", err)
-	}
-	var batch []*store.Resource
-	for _, c := range out.Certificates {
-		arn := sv(c.CertificateArn)
-		if arn == "" {
-			continue
-		}
-		label := sv(c.CertificateName)
-		if label == "" {
-			label = sv(c.DomainName)
-		}
-		batch = append(batch, &store.Resource{
-			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-			Type: TypeLightsailCertificate, NativeID: arn,
-			Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+	_, t, i, err := lsList(ctx, st, acct, region, lsGetAlarmsOp, "alarms",
+		func(ctx context.Context, token *string) (*lightsail.GetAlarmsOutput, error) {
+			return client.GetAlarms(ctx, &lightsail.GetAlarmsInput{PageToken: token})
+		},
+		func(o *lightsail.GetAlarmsOutput) ([]lightsailtypes.Alarm, *string) { return o.Alarms, o.NextPageToken },
+		func(e lightsailtypes.Alarm) *store.Resource {
+			return lsRow(acct, region, scanID, TypeLightsailAlarm, sv(e.Arn), lsLabel(e.Name, sv(e.Arn)), e, e.Tags)
 		})
+	return t, i, err
+}
+
+// scanLSBuckets returns the stored buckets that have a name, so the access-key
+// phase can fan out (GetBucketAccessKeys requires BucketName).
+func scanLSBuckets(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
+	stored, t, i, err := lsList(ctx, st, acct, region, lsGetBucketsOp, "buckets",
+		func(ctx context.Context, token *string) (*lightsail.GetBucketsOutput, error) {
+			return client.GetBuckets(ctx, &lightsail.GetBucketsInput{PageToken: token})
+		},
+		func(o *lightsail.GetBucketsOutput) ([]lightsailtypes.Bucket, *string) {
+			return o.Buckets, o.NextPageToken
+		},
+		func(e lightsailtypes.Bucket) *store.Resource {
+			return lsRow(acct, region, scanID, TypeLightsailBucket, sv(e.Arn), lsLabel(e.Name, sv(e.Arn)), e, e.Tags)
+		})
+	var buckets []childParent
+	for _, b := range stored {
+		if name := sv(b.Name); name != "" {
+			buckets = append(buckets, childParent{id: name, arn: sv(b.Arn)})
+		}
 	}
-	return upsertBatch(st, batch, "lightsail certificates")
+	return buckets, t, i, err
+}
+
+// scanLSCertificates stores the GetCertificates summaries; without
+// IncludeCertificateDetails each carries its name, ARN, domain name and tags.
+func scanLSCertificates(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	_, t, i, err := lsList(ctx, st, acct, region, lsGetCertificatesOp, "certificates",
+		func(ctx context.Context, token *string) (*lightsail.GetCertificatesOutput, error) {
+			return client.GetCertificates(ctx, &lightsail.GetCertificatesInput{PageToken: token})
+		},
+		func(o *lightsail.GetCertificatesOutput) ([]lightsailtypes.CertificateSummary, *string) {
+			return o.Certificates, o.NextPageToken
+		},
+		func(e lightsailtypes.CertificateSummary) *store.Resource {
+			return lsRow(acct, region, scanID, TypeLightsailCertificate, sv(e.CertificateArn), lsLabel(e.CertificateName, sv(e.DomainName)), e, e.Tags)
+		})
+	return t, i, err
 }
 
 func scanLSDatabaseSnapshots(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.GetRelationalDatabaseSnapshots(ctx, &lightsail.GetRelationalDatabaseSnapshotsInput{PageToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lightsail:GetRelationalDatabaseSnapshots", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("lightsail:GetRelationalDatabaseSnapshots: %w", err)
-		}
-		for _, s := range out.RelationalDatabaseSnapshots {
-			arn := sv(s.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(s.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailDatabaseSnapshot, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		token = out.NextPageToken
-	}
-	return upsertBatch(st, batch, "lightsail database-snapshots")
+	_, t, i, err := lsList(ctx, st, acct, region, lsGetRelationalDatabaseSnapshotsOp, "database snapshots",
+		func(ctx context.Context, token *string) (*lightsail.GetRelationalDatabaseSnapshotsOutput, error) {
+			return client.GetRelationalDatabaseSnapshots(ctx, &lightsail.GetRelationalDatabaseSnapshotsInput{PageToken: token})
+		},
+		func(o *lightsail.GetRelationalDatabaseSnapshotsOutput) ([]lightsailtypes.RelationalDatabaseSnapshot, *string) {
+			return o.RelationalDatabaseSnapshots, o.NextPageToken
+		},
+		func(e lightsailtypes.RelationalDatabaseSnapshot) *store.Resource {
+			return lsRow(acct, region, scanID, TypeLightsailDatabaseSnapshot, sv(e.Arn), lsLabel(e.Name, sv(e.Arn)), e, e.Tags)
+		})
+	return t, i, err
 }
 
 func scanLSDisks(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.GetDisks(ctx, &lightsail.GetDisksInput{PageToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lightsail:GetDisks", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("lightsail:GetDisks: %w", err)
-		}
-		for _, d := range out.Disks {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(d.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailDisk, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		token = out.NextPageToken
-	}
-	return upsertBatch(st, batch, "lightsail disks")
+	_, t, i, err := lsList(ctx, st, acct, region, lsGetDisksOp, "disks",
+		func(ctx context.Context, token *string) (*lightsail.GetDisksOutput, error) {
+			return client.GetDisks(ctx, &lightsail.GetDisksInput{PageToken: token})
+		},
+		func(o *lightsail.GetDisksOutput) ([]lightsailtypes.Disk, *string) { return o.Disks, o.NextPageToken },
+		func(e lightsailtypes.Disk) *store.Resource {
+			return lsRow(acct, region, scanID, TypeLightsailDisk, sv(e.Arn), lsLabel(e.Name, sv(e.Arn)), e, e.Tags)
+		})
+	return t, i, err
 }
 
 func scanLSDiskSnapshots(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.GetDiskSnapshots(ctx, &lightsail.GetDiskSnapshotsInput{PageToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lightsail:GetDiskSnapshots", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("lightsail:GetDiskSnapshots: %w", err)
-		}
-		for _, s := range out.DiskSnapshots {
-			arn := sv(s.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(s.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailDiskSnapshot, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		token = out.NextPageToken
-	}
-	return upsertBatch(st, batch, "lightsail disk-snapshots")
+	_, t, i, err := lsList(ctx, st, acct, region, lsGetDiskSnapshotsOp, "disk snapshots",
+		func(ctx context.Context, token *string) (*lightsail.GetDiskSnapshotsOutput, error) {
+			return client.GetDiskSnapshots(ctx, &lightsail.GetDiskSnapshotsInput{PageToken: token})
+		},
+		func(o *lightsail.GetDiskSnapshotsOutput) ([]lightsailtypes.DiskSnapshot, *string) {
+			return o.DiskSnapshots, o.NextPageToken
+		},
+		func(e lightsailtypes.DiskSnapshot) *store.Resource {
+			return lsRow(acct, region, scanID, TypeLightsailDiskSnapshot, sv(e.Arn), lsLabel(e.Name, sv(e.Arn)), e, e.Tags)
+		})
+	return t, i, err
 }
 
 // scanLSDistributions: Lightsail distribution APIs are us-east-1-only — AWS
@@ -272,37 +119,17 @@ func scanLSDistributions(ctx context.Context, client lightsailAPI, acct *account
 	if region != "us-east-1" {
 		return 0, 0, nil
 	}
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.GetDistributions(ctx, &lightsail.GetDistributionsInput{PageToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lightsail:GetDistributions", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("lightsail:GetDistributions: %w", err)
-		}
-		for _, d := range out.Distributions {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(d.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailDistribution, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		token = out.NextPageToken
-	}
-	return upsertBatch(st, batch, "lightsail distributions")
+	_, t, i, err := lsList(ctx, st, acct, region, lsGetDistributionsOp, "distributions",
+		func(ctx context.Context, token *string) (*lightsail.GetDistributionsOutput, error) {
+			return client.GetDistributions(ctx, &lightsail.GetDistributionsInput{PageToken: token})
+		},
+		func(o *lightsail.GetDistributionsOutput) ([]lightsailtypes.LightsailDistribution, *string) {
+			return o.Distributions, o.NextPageToken
+		},
+		func(e lightsailtypes.LightsailDistribution) *store.Resource {
+			return lsRow(acct, region, scanID, TypeLightsailDistribution, sv(e.Arn), lsLabel(e.Name, sv(e.Arn)), e, e.Tags)
+		})
+	return t, i, err
 }
 
 // scanLSDomains: Lightsail domain APIs are us-east-1-only — same gate as
@@ -312,271 +139,202 @@ func scanLSDomains(ctx context.Context, client lightsailAPI, acct *account, regi
 	if region != "us-east-1" {
 		return 0, 0, nil
 	}
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.GetDomains(ctx, &lightsail.GetDomainsInput{PageToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lightsail:GetDomains", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("lightsail:GetDomains: %w", err)
-		}
-		for _, d := range out.Domains {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(d.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailDomain, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		token = out.NextPageToken
-	}
-	return upsertBatch(st, batch, "lightsail domains")
+	_, t, i, err := lsList(ctx, st, acct, region, lsGetDomainsOp, "domains",
+		func(ctx context.Context, token *string) (*lightsail.GetDomainsOutput, error) {
+			return client.GetDomains(ctx, &lightsail.GetDomainsInput{PageToken: token})
+		},
+		func(o *lightsail.GetDomainsOutput) ([]lightsailtypes.Domain, *string) {
+			return o.Domains, o.NextPageToken
+		},
+		func(e lightsailtypes.Domain) *store.Resource {
+			return lsRow(acct, region, scanID, TypeLightsailDomain, sv(e.Arn), lsLabel(e.Name, sv(e.Arn)), e, e.Tags)
+		})
+	return t, i, err
 }
 
 func scanLSInstanceSnapshots(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.GetInstanceSnapshots(ctx, &lightsail.GetInstanceSnapshotsInput{PageToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lightsail:GetInstanceSnapshots", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("lightsail:GetInstanceSnapshots: %w", err)
-		}
-		for _, s := range out.InstanceSnapshots {
-			arn := sv(s.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(s.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailInstanceSnapshot, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		token = out.NextPageToken
-	}
-	return upsertBatch(st, batch, "lightsail instance-snapshots")
+	_, t, i, err := lsList(ctx, st, acct, region, lsGetInstanceSnapshotsOp, "instance snapshots",
+		func(ctx context.Context, token *string) (*lightsail.GetInstanceSnapshotsOutput, error) {
+			return client.GetInstanceSnapshots(ctx, &lightsail.GetInstanceSnapshotsInput{PageToken: token})
+		},
+		func(o *lightsail.GetInstanceSnapshotsOutput) ([]lightsailtypes.InstanceSnapshot, *string) {
+			return o.InstanceSnapshots, o.NextPageToken
+		},
+		func(e lightsailtypes.InstanceSnapshot) *store.Resource {
+			return lsRow(acct, region, scanID, TypeLightsailInstanceSnapshot, sv(e.Arn), lsLabel(e.Name, sv(e.Arn)), e, e.Tags)
+		})
+	return t, i, err
 }
 
-// scanLSLoadBalancers returns LB names so the LB-TLS-cert phase can
-// fan-out (GetLoadBalancerTlsCertificates requires LoadBalancerName).
+// scanLSLoadBalancers returns the names of the stored load balancers, so the
+// TLS-certificate phase can fan out (GetLoadBalancerTlsCertificates requires
+// LoadBalancerName).
 func scanLSLoadBalancers(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+	stored, t, i, err := lsList(ctx, st, acct, region, lsGetLoadBalancersOp, "load balancers",
+		func(ctx context.Context, token *string) (*lightsail.GetLoadBalancersOutput, error) {
+			return client.GetLoadBalancers(ctx, &lightsail.GetLoadBalancersInput{PageToken: token})
+		},
+		func(o *lightsail.GetLoadBalancersOutput) ([]lightsailtypes.LoadBalancer, *string) {
+			return o.LoadBalancers, o.NextPageToken
+		},
+		func(e lightsailtypes.LoadBalancer) *store.Resource {
+			return lsRow(acct, region, scanID, TypeLightsailLoadBalancer, sv(e.Arn), lsLabel(e.Name, sv(e.Arn)), e, e.Tags)
+		})
 	var names []string
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.GetLoadBalancers(ctx, &lightsail.GetLoadBalancersInput{PageToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "lightsail:GetLoadBalancers", acct.ID, region, err)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("lightsail:GetLoadBalancers: %w", err)
+	for _, lb := range stored {
+		if name := sv(lb.Name); name != "" {
+			names = append(names, name)
 		}
-		for _, lb := range out.LoadBalancers {
-			arn := sv(lb.Arn)
-			if arn == "" {
-				continue
-			}
-			n := sv(lb.Name)
-			if n != "" {
-				names = append(names, n)
-			}
-			label := n
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailLoadBalancer, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(lb), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		token = out.NextPageToken
 	}
-	t, i, err := upsertBatch(st, batch, "lightsail load-balancers")
 	return names, t, i, err
 }
 
+// scanLSLBTlsCertificates lists each stored load balancer's TLS certificates
+// (GetLoadBalancerTlsCertificates is not paginated). A load balancer deleted
+// since GetLoadBalancers (NotFoundException, which the op models) is skipped;
+// denials warn once; any other failure keeps the other load balancers'
+// certificates and is returned after they are stored.
 func scanLSLBTlsCertificates(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string, lbNames []string) (int, int, error) {
-	if len(lbNames) == 0 {
-		return 0, 0, nil
-	}
-	var batch []*store.Resource
-	for _, lbName := range lbNames {
-		n := lbName
-		out, err := client.GetLoadBalancerTlsCertificates(ctx, &lightsail.GetLoadBalancerTlsCertificatesInput{LoadBalancerName: &n})
-		if err != nil {
-			if isAccessDenied(err) {
-				continue
-			}
-			return 0, 0, fmt.Errorf("lightsail:GetLoadBalancerTlsCertificates %s: %w", lbName, err)
+	var (
+		batch  []*store.Resource
+		denied skipTally
+		noARN  skipTally
+		errs   []error
+	)
+	for _, lb := range lbNames {
+		out, err := client.GetLoadBalancerTlsCertificates(ctx, &lightsail.GetLoadBalancerTlsCertificatesInput{LoadBalancerName: &lb})
+		switch {
+		case err == nil:
+		case isAPIErrorCode(err, "NotFoundException"):
+			continue
+		case isAccessDenied(err):
+			denied.skipped(lb, err)
+			continue
+		default:
+			errs = append(errs, fmt.Errorf("%s %s: %w", lsGetLoadBalancerTLSCertsOp, lb, err))
+			continue
 		}
 		for _, c := range out.TlsCertificates {
 			arn := sv(c.Arn)
+			label := lsLabel(c.Name, sv(c.DomainName))
 			if arn == "" {
+				noARN.skipped(lb+"/"+label, nil)
 				continue
 			}
-			label := sv(c.Name)
-			if label == "" {
-				label = sv(c.DomainName)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailLoadBalancerTLSCertificate, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
+			batch = append(batch, lsRow(acct, region, scanID, TypeLightsailLoadBalancerTLSCertificate, arn, label, c, c.Tags))
 		}
 	}
-	return upsertBatch(st, batch, "lightsail load-balancer-tls-certificates")
+	warnErr := lsWarnDenied(st, lsGetLoadBalancerTLSCertsOp, acct, region, &denied, "load balancers")
+	warnNotStored(st, lsGetLoadBalancerTLSCertsOp, acct, region, &noARN, "TLS certificates have no ARN")
+	t, i, uerr := upsertBatch(st, batch, "lightsail load-balancer-tls-certificates")
+	return t, i, errors.Join(append(errs, warnErr, uerr)...)
 }
 
 func scanLSKeyPairs(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.GetKeyPairs(ctx, &lightsail.GetKeyPairsInput{PageToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lightsail:GetKeyPairs", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("lightsail:GetKeyPairs: %w", err)
-		}
-		for _, kp := range out.KeyPairs {
-			arn := sv(kp.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(kp.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailKeyPair, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(kp), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		token = out.NextPageToken
-	}
-	return upsertBatch(st, batch, "lightsail key-pairs")
+	_, t, i, err := lsList(ctx, st, acct, region, lsGetKeyPairsOp, "key pairs",
+		func(ctx context.Context, token *string) (*lightsail.GetKeyPairsOutput, error) {
+			return client.GetKeyPairs(ctx, &lightsail.GetKeyPairsInput{PageToken: token})
+		},
+		func(o *lightsail.GetKeyPairsOutput) ([]lightsailtypes.KeyPair, *string) {
+			return o.KeyPairs, o.NextPageToken
+		},
+		func(e lightsailtypes.KeyPair) *store.Resource {
+			return lsRow(acct, region, scanID, TypeLightsailKeyPair, sv(e.Arn), lsLabel(e.Name, sv(e.Arn)), e, e.Tags)
+		})
+	return t, i, err
 }
 
 // scanLSContactMethods discovers the account's alarm-notification contact
-// methods. GetContactMethods takes no input and is not paginated.
+// methods. GetContactMethods is not paginated.
 func scanLSContactMethods(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	out, err := client.GetContactMethods(ctx, &lightsail.GetContactMethodsInput{})
-	if err != nil {
-		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "lightsail:GetContactMethods", acct.ID, region, err)
-		}
-		return 0, 0, fmt.Errorf("lightsail:GetContactMethods: %w", err)
-	}
-	var batch []*store.Resource
-	for _, cm := range out.ContactMethods {
-		arn := sv(cm.Arn)
-		if arn == "" {
-			continue
-		}
-		label := sv(cm.Name)
-		if label == "" {
-			label = sv(cm.ContactEndpoint)
-		}
-		status := string(cm.Status)
-		batch = append(batch, &store.Resource{
-			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-			Type: TypeLightsailContactMethod, NativeID: arn,
-			Name: &label, Region: &region, Status: &status, AttributesJSON: mustJSON(cm), DiscoveredBy: scanID,
+	_, t, i, err := lsList(ctx, st, acct, region, lsGetContactMethodsOp, "contact methods",
+		func(ctx context.Context, _ *string) (*lightsail.GetContactMethodsOutput, error) {
+			return client.GetContactMethods(ctx, &lightsail.GetContactMethodsInput{})
+		},
+		func(o *lightsail.GetContactMethodsOutput) ([]lightsailtypes.ContactMethod, *string) {
+			return o.ContactMethods, nil
+		},
+		func(e lightsailtypes.ContactMethod) *store.Resource {
+			r := lsRow(acct, region, scanID, TypeLightsailContactMethod, sv(e.Arn), lsLabel(e.Name, sv(e.ContactEndpoint)), e, e.Tags)
+			r.Status = nonEmptyPtr(string(e.Status))
+			return r
 		})
-	}
-	return upsertBatch(st, batch, "lightsail contact-methods")
+	return t, i, err
 }
 
+// scanLSStaticIps: the StaticIp element carries no tags, and no Lightsail read
+// op returns a static IP's tags, so its rows have none.
 func scanLSStaticIps(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.GetStaticIps(ctx, &lightsail.GetStaticIpsInput{PageToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lightsail:GetStaticIps", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("lightsail:GetStaticIps: %w", err)
-		}
-		for _, ip := range out.StaticIps {
-			arn := sv(ip.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(ip.Name)
-			if label == "" {
-				label = sv(ip.IpAddress)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLightsailStaticIP, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(ip), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		token = out.NextPageToken
-	}
-	return upsertBatch(st, batch, "lightsail static-ips")
+	_, t, i, err := lsList(ctx, st, acct, region, lsGetStaticIpsOp, "static IPs",
+		func(ctx context.Context, token *string) (*lightsail.GetStaticIpsOutput, error) {
+			return client.GetStaticIps(ctx, &lightsail.GetStaticIpsInput{PageToken: token})
+		},
+		func(o *lightsail.GetStaticIpsOutput) ([]lightsailtypes.StaticIp, *string) {
+			return o.StaticIps, o.NextPageToken
+		},
+		func(e lightsailtypes.StaticIp) *store.Resource {
+			return lsRow(acct, region, scanID, TypeLightsailStaticIP, sv(e.Arn), lsLabel(e.Name, sv(e.IpAddress)), e, nil)
+		})
+	return t, i, err
 }
 
-// scanLSBucketAccessKeys lists each scanned bucket's access keys. A key has no
-// ARN, so its NativeID is {bucketARN}/access-key/{AccessKeyId}. A bucket
-// deleted since GetBuckets (NotFoundException) is skipped.
+// scanLSBucketAccessKeys lists each scanned bucket's access keys, fanoutMed
+// buckets at a time, and stores them under their bucket. A key has no ARN, so
+// its NativeID is {bucketARN}/access-key/{AccessKeyId}; a key listed without
+// one is warned about and not stored. A bucket deleted since GetBuckets
+// (NotFoundException, which the op models) is skipped; denials warn once; any
+// other failure keeps the other buckets' keys and is returned after they are
+// stored. childFanOut is not used because it drops every bucket's keys on one
+// bucket's failure.
 func scanLSBucketAccessKeys(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string, buckets []childParent) (int, int, error) {
-	isBucketGone := func(err error) bool { return isAPIErrorCode(err, "NotFoundException") }
-	return childFanOut(ctx, st, acct, region, "lightsail:GetBucketAccessKeys", buckets, isBucketGone,
-		func(ctx context.Context, b childParent) ([]*store.Resource, error) {
+	var (
+		mu           sync.Mutex
+		children     []containedChild
+		errs         []error
+		denied, noID skipTally
+		wg           sync.WaitGroup
+	)
+	sem := make(chan struct{}, fanoutMed)
+	for _, b := range buckets {
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
 			out, err := client.GetBucketAccessKeys(ctx, &lightsail.GetBucketAccessKeysInput{BucketName: &b.id})
-			if err != nil {
-				return nil, err
+			switch {
+			case err == nil:
+			case isAPIErrorCode(err, "NotFoundException"):
+				return
+			case isAccessDenied(err):
+				denied.skipped(b.id, err)
+				return
+			default:
+				mu.Lock()
+				errs = append(errs, fmt.Errorf("%s %s: %w", lsGetBucketAccessKeysOp, b.id, err))
+				mu.Unlock()
+				return
 			}
-			var rows []*store.Resource
+			parentID := store.ResourceID("aws", acct.ID, b.arn)
 			for _, k := range out.AccessKeys {
 				id := sv(k.AccessKeyId)
 				if id == "" {
+					noID.skipped(b.id, nil)
 					continue
 				}
-				rows = append(rows, &store.Resource{
+				row := &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeLightsailBucketAccessKey, NativeID: b.arn + "/access-key/" + id,
 					Name: &id, Region: &region, Status: nonEmptyPtr(string(k.Status)), CreatedAt: tp(k.CreatedAt),
 					AttributesJSON: mustJSON(k), DiscoveredBy: scanID,
-				})
+				}
+				mu.Lock()
+				children = append(children, containedChild{row: row, parentID: parentID})
+				mu.Unlock()
 			}
-			return rows, nil
 		})
+	}
+	wg.Wait()
+	warnErr := lsWarnDenied(st, lsGetBucketAccessKeysOp, acct, region, &denied, "buckets")
+	warnNotStored(st, lsGetBucketAccessKeysOp, acct, region, &noID, "access keys have no AccessKeyId (first names their bucket)")
+	t, i, uerr := upsertContained(st, lsGetBucketAccessKeysOp, children)
+	return t, i, errors.Join(append(errs, warnErr, uerr)...)
 }

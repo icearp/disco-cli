@@ -77,6 +77,7 @@ func runLSBucketAccessKeys(st *store.Store, fake *fakeLightsail, buckets []child
 
 func TestScanLSBucketAccessKeys_StoresEveryBucketsKeysUnderItsBucket(t *testing.T) {
 	st := newTestStore(t)
+	warns := countOpWarnings(st, lsGetBucketAccessKeysOp)
 	buckets := seedLSBuckets(t, st, "b1", "b2")
 	fake := &fakeLightsail{keys: map[string][]lightsailtypes.AccessKey{
 		"b1": {lsAccessKey("AKIAB1ONE"), {Status: lightsailtypes.StatusTypeActive}, lsAccessKey("AKIAB1TWO")},
@@ -91,6 +92,9 @@ func TestScanLSBucketAccessKeys_StoresEveryBucketsKeysUnderItsBucket(t *testing.
 	rows := qsRows(t, st, TypeLightsailBucketAccessKey)
 	if len(rows) != 4 {
 		t.Fatalf("stored %d rows; want 4 (id-less key skipped)", len(rows))
+	}
+	if *warns != 1 {
+		t.Errorf("%s warnings = %d; want 1 for the id-less key", lsGetBucketAccessKeysOp, *warns)
 	}
 	for _, b := range []string{"b1", "b2"} {
 		one, two := lsAccessKeyNativeID(b, "AKIA"+strings.ToUpper(b)+"ONE"), lsAccessKeyNativeID(b, "AKIA"+strings.ToUpper(b)+"TWO")
@@ -123,13 +127,13 @@ func TestScanLSBucketAccessKeys_BucketErrorHandling(t *testing.T) {
 	}{
 		{"bucket deleted since listing is skipped", apiErr("NotFoundException", "gone"), false, 2, 0},
 		{"access denied warns once and keeps siblings", apiErr("AccessDeniedException", "User: x is not authorized to perform: lightsail:GetBucketAccessKeys"), false, 2, 1},
-		{"other error propagates", apiErr("ServiceException", "boom"), true, 0, 0},
+		{"other error keeps siblings and is returned after storing", apiErr("ServiceException", "boom"), true, 2, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
-			var warned []string
-			st.OnWarn = func(w store.ScanWarning) { warned = append(warned, w.Service) }
+			var warned []store.ScanWarning
+			st.OnWarn = func(w store.ScanWarning) { warned = append(warned, w) }
 			buckets := seedLSBuckets(t, st, "bad1", "bad2", "ok1", "ok2")
 			fake := &fakeLightsail{
 				keys: map[string][]lightsailtypes.AccessKey{"ok1": {lsAccessKey("AKIAOK1")}, "ok2": {lsAccessKey("AKIAOK2")}},
@@ -146,12 +150,15 @@ func TestScanLSBucketAccessKeys_BucketErrorHandling(t *testing.T) {
 			if got := len(qsRows(t, st, TypeLightsailBucketAccessKey)); got != tc.wantRows {
 				t.Errorf("stored %d rows; want %d", got, tc.wantRows)
 			}
+			for _, b := range []string{"ok1", "ok2"} {
+				assertQSContains(t, st, lsBucketARN(b), lsAccessKeyNativeID(b, "AKIA"+strings.ToUpper(b)))
+			}
 			if len(warned) != tc.wantWarns {
 				t.Errorf("recorded %d warnings; want %d", len(warned), tc.wantWarns)
 			}
-			for _, svc := range warned {
-				if svc != "lightsail:GetBucketAccessKeys" {
-					t.Errorf("warning names %q; want lightsail:GetBucketAccessKeys", svc)
+			for _, w := range warned {
+				if w.Service != lsGetBucketAccessKeysOp || w.Scope != testAccountID+"/"+testRegion {
+					t.Errorf("warning %s scope %q; want %s scope %s/%s", w.Service, w.Scope, lsGetBucketAccessKeysOp, testAccountID, testRegion)
 				}
 			}
 		})
@@ -271,5 +278,93 @@ func TestScanLightsail_BucketAccessKeyErrorPropagatesAfterExistingPhases(t *test
 	}
 	if _, ok := qsRows(t, st, TypeLightsailContactMethod)[lsContactMethodARN]; !ok {
 		t.Error("contact-methods phase did not run before the failing GetBucketAccessKeys")
+	}
+}
+
+// lsTLSFake serves GetLoadBalancerTlsCertificates by load balancer name; errs
+// fails a load balancer.
+type lsTLSFake struct {
+	lightsailAPI
+	certs map[string][]lightsailtypes.LoadBalancerTlsCertificate
+	errs  map[string]error
+}
+
+//nolint:revive // method name must match the SDK op (GetLoadBalancerTlsCertificates) to satisfy lightsailAPI.
+func (f *lsTLSFake) GetLoadBalancerTlsCertificates(_ context.Context, in *lightsail.GetLoadBalancerTlsCertificatesInput, _ ...func(*lightsail.Options)) (*lightsail.GetLoadBalancerTlsCertificatesOutput, error) {
+	if err := f.errs[*in.LoadBalancerName]; err != nil {
+		return nil, err
+	}
+	return &lightsail.GetLoadBalancerTlsCertificatesOutput{TlsCertificates: f.certs[*in.LoadBalancerName]}, nil
+}
+
+func lsTLSCert(id string) lightsailtypes.LoadBalancerTlsCertificate {
+	return lightsailtypes.LoadBalancerTlsCertificate{Arn: sdkaws.String(lsARN("LoadBalancerTlsCertificate", id)), Name: sdkaws.String(id)}
+}
+
+// One load balancer's failure keeps the other load balancers' certificates.
+func TestScanLSLBTlsCertificates_LoadBalancerErrorHandling(t *testing.T) {
+	cases := []struct {
+		name      string
+		err       error
+		wantCode  string
+		wantWarns int
+	}{
+		{"load balancer deleted since listing is skipped", apiErr("NotFoundException", "gone"), "", 0},
+		{"denial warns once and keeps siblings", apiErr("AccessDeniedException", "User: x is not authorized to perform: lightsail:GetLoadBalancerTlsCertificates"), "", 1},
+		{"other error keeps siblings and is returned", apiErr("ServiceException", "boom"), "ServiceException", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			var scopes []string
+			st.OnWarn = func(w store.ScanWarning) { scopes = append(scopes, w.Scope) }
+			warns := countOpWarnings(st, lsGetLoadBalancerTLSCertsOp)
+			fake := &lsTLSFake{
+				certs: map[string][]lightsailtypes.LoadBalancerTlsCertificate{"ok1": {lsTLSCert("c1")}, "ok2": {lsTLSCert("c2")}},
+				errs:  map[string]error{"bad1": tc.err, "bad2": tc.err},
+			}
+			total, _, err := scanLSLBTlsCertificates(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID,
+				[]string{"bad1", "ok1", "bad2", "ok2"})
+			if tc.wantCode != "" {
+				assertAPICode(t, err, tc.wantCode)
+			} else if err != nil {
+				t.Errorf("err = %v; want nil", err)
+			}
+			rows := rowsByNativeID(t, st, TypeLightsailLoadBalancerTLSCertificate)
+			for _, id := range []string{"c1", "c2"} {
+				if _, ok := rows[lsARN("LoadBalancerTlsCertificate", id)]; !ok {
+					t.Errorf("certificate %s not stored", id)
+				}
+			}
+			if total != 2 || len(rows) != 2 {
+				t.Errorf("total = %d, rows = %d; want 2, 2", total, len(rows))
+			}
+			if *warns != tc.wantWarns {
+				t.Errorf("%s warnings = %d; want %d", lsGetLoadBalancerTLSCertsOp, *warns, tc.wantWarns)
+			}
+			for _, sc := range scopes {
+				if sc != testAccountID+"/"+testRegion {
+					t.Errorf("warning scope %q; want %s/%s", sc, testAccountID, testRegion)
+				}
+			}
+		})
+	}
+}
+
+// A certificate listed without an ARN is warned about and not stored.
+func TestScanLSLBTlsCertificates_CertificateWithoutARNWarns(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, lsGetLoadBalancerTLSCertsOp)
+	fake := &lsTLSFake{certs: map[string][]lightsailtypes.LoadBalancerTlsCertificate{
+		"lb": {{Name: sdkaws.String("noarn")}, lsTLSCert("c1")},
+	}}
+	if _, _, err := scanLSLBTlsCertificates(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, []string{"lb"}); err != nil {
+		t.Fatalf("scanLSLBTlsCertificates: %v", err)
+	}
+	if rows := rowsByNativeID(t, st, TypeLightsailLoadBalancerTLSCertificate); len(rows) != 1 {
+		t.Errorf("stored %d certificates; want 1", len(rows))
+	}
+	if *warns != 1 {
+		t.Errorf("%s warnings = %d; want 1", lsGetLoadBalancerTLSCertsOp, *warns)
 	}
 }
