@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/amp"
@@ -17,27 +18,21 @@ func scanAPSExtended(ctx context.Context, client apsAPI, acct *account, region s
 		return 0, 0, err
 	}
 
+	// These phases list independent per-workspace data, so each runs
+	// whatever the others return.
+	var errs phaseErrs
 	t, i, ferr := scanAPSAnomalyDetectors(ctx, client, workspaces, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
+	total, inserted = total+t, inserted+i
+	errs.add("amp:ListAnomalyDetectors", ferr)
 
 	t, i, ferr = scanAPSRuleGroupsNamespaces(ctx, client, workspaces, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
+	total, inserted = total+t, inserted+i
+	errs.add("amp:ListRuleGroupsNamespaces", ferr)
 
 	t, i, ferr = scanAPSResourcePolicies(ctx, client, workspaces, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	return total, inserted, nil
+	total, inserted = total+t, inserted+i
+	errs.add("amp:DescribeResourcePolicy", ferr)
+	return total, inserted, errs.join(st, acct, region)
 }
 
 type apsWorkspaceRef struct {
@@ -70,7 +65,11 @@ func loadAPSWorkspaceIDs(ctx context.Context, client apsAPI, acct *account, regi
 }
 
 func scanAPSAnomalyDetectors(ctx context.Context, client apsAPI, workspaces []apsWorkspaceRef, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
+	var (
+		batch    []*store.Resource
+		listErrs []error
+		denied   skipTally
+	)
 	for _, w := range workspaces {
 		wid := w.ID
 		var nextToken *string
@@ -81,13 +80,14 @@ func scanAPSAnomalyDetectors(ctx context.Context, client apsAPI, workspaces []ap
 			})
 			if err != nil {
 				if isAccessDenied(err) {
-					_ = skipIfAccessDenied(st, "amp:ListAnomalyDetectors", acct.ID, region, err)
+					denied.skipped(wid, err)
 					break
 				}
 				if isAPIErrorCode(err, "ResourceNotFoundException", "ValidationException") {
 					break
 				}
-				return 0, 0, fmt.Errorf("amp:ListAnomalyDetectors w=%s: %w", wid, err)
+				listErrs = append(listErrs, fmt.Errorf("w=%s: %w", wid, err))
+				break
 			}
 			for _, d := range out.AnomalyDetectors {
 				arn := sv(d.Arn)
@@ -98,20 +98,29 @@ func scanAPSAnomalyDetectors(ctx context.Context, client apsAPI, workspaces []ap
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeAPSAnomalyDetector, NativeID: arn,
 					Name: d.Alias, Region: &region,
-					AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+					AttributesJSON: mustJSON(d), TagsJSON: mapTagsJSON(d.Tags), DiscoveredBy: scanID,
 				})
 			}
-			if out.NextToken == nil || *out.NextToken == "" {
+			last, terr := lastPage(nextToken, out.NextToken)
+			if terr != nil {
+				listErrs = append(listErrs, fmt.Errorf("w=%s: %w", wid, terr))
+			}
+			if last {
 				break
 			}
 			nextToken = out.NextToken
 		}
 	}
-	return upsertBatch(st, batch, "aps anomaly-detectors")
+	apsWarnDenied(st, "amp:ListAnomalyDetectors", acct, region, &denied, "anomaly detectors")
+	return upsertListed(st, batch, "amp:ListAnomalyDetectors", errors.Join(listErrs...))
 }
 
 func scanAPSRuleGroupsNamespaces(ctx context.Context, client apsAPI, workspaces []apsWorkspaceRef, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
+	var (
+		batch    []*store.Resource
+		listErrs []error
+		denied   skipTally
+	)
 	for _, w := range workspaces {
 		wid := w.ID
 		var nextToken *string
@@ -122,13 +131,14 @@ func scanAPSRuleGroupsNamespaces(ctx context.Context, client apsAPI, workspaces 
 			})
 			if err != nil {
 				if isAccessDenied(err) {
-					_ = skipIfAccessDenied(st, "amp:ListRuleGroupsNamespaces", acct.ID, region, err)
+					denied.skipped(wid, err)
 					break
 				}
 				if isAPIErrorCode(err, "ResourceNotFoundException", "ValidationException") {
 					break
 				}
-				return 0, 0, fmt.Errorf("amp:ListRuleGroupsNamespaces w=%s: %w", wid, err)
+				listErrs = append(listErrs, fmt.Errorf("w=%s: %w", wid, err))
+				break
 			}
 			for _, n := range out.RuleGroupsNamespaces {
 				arn := sv(n.Arn)
@@ -143,32 +153,47 @@ func scanAPSRuleGroupsNamespaces(ctx context.Context, client apsAPI, workspaces 
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeAPSRuleGroupsNamespace, NativeID: arn,
 					Name: n.Name, Region: &region,
-					AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
+					AttributesJSON: mustJSON(n), TagsJSON: mapTagsJSON(n.Tags), DiscoveredBy: scanID,
 				}
 				if status != "" {
 					r.Status = &status
 				}
 				batch = append(batch, r)
 			}
-			if out.NextToken == nil || *out.NextToken == "" {
+			last, terr := lastPage(nextToken, out.NextToken)
+			if terr != nil {
+				listErrs = append(listErrs, fmt.Errorf("w=%s: %w", wid, terr))
+			}
+			if last {
 				break
 			}
 			nextToken = out.NextToken
 		}
 	}
-	return upsertBatch(st, batch, "aps rule-groups-namespaces")
+	apsWarnDenied(st, "amp:ListRuleGroupsNamespaces", acct, region, &denied, "rule groups namespaces")
+	return upsertListed(st, batch, "amp:ListRuleGroupsNamespaces", errors.Join(listErrs...))
 }
 
 func scanAPSResourcePolicies(ctx context.Context, client apsAPI, workspaces []apsWorkspaceRef, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
+	var (
+		batch    []*store.Resource
+		denied   skipTally
+		readErrs []error
+	)
 	for _, w := range workspaces {
 		wid := w.ID
 		out, err := client.DescribeResourcePolicy(ctx, &amp.DescribeResourcePolicyInput{WorkspaceId: &wid})
 		if err != nil {
-			if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException", "ValidationException") {
+			if isAccessDenied(err) {
+				denied.skipped(wid, err)
 				continue
 			}
-			return 0, 0, fmt.Errorf("amp:DescribeResourcePolicy w=%s: %w", wid, err)
+			// ResourceNotFoundException: the workspace has no policy.
+			if isAPIErrorCode(err, "ResourceNotFoundException", "ValidationException") {
+				continue
+			}
+			readErrs = append(readErrs, fmt.Errorf("w=%s: %w", wid, err))
+			continue
 		}
 		if sv(out.PolicyDocument) == "" {
 			continue
@@ -182,5 +207,16 @@ func scanAPSResourcePolicies(ctx context.Context, client apsAPI, workspaces []ap
 			AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 		})
 	}
-	return upsertBatch(st, batch, "aps resource-policies")
+	apsWarnDenied(st, "amp:DescribeResourcePolicy", acct, region, &denied, "resource policies")
+	return upsertListed(st, batch, "amp:DescribeResourcePolicy", errors.Join(readErrs...))
+}
+
+// apsWarnDenied warns once for all the workspaces whose read of what was
+// denied, naming the first.
+func apsWarnDenied(st *store.Store, op string, acct *account, region string, denied *skipTally, what string) {
+	if denied.count == 0 {
+		return
+	}
+	_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf(
+		"%d workspace(s) denied, so their %s were not read; first %s: %w", denied.count, what, denied.first, denied.err))
 }

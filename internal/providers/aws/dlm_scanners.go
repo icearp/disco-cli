@@ -41,7 +41,7 @@ func scanDLM(ctx context.Context, acct *account, region string, st *store.Store,
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 			Type: TypeDLMLifecyclePolicy, NativeID: arn,
 			Name: &id, Region: &region, Status: &status,
-			AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			AttributesJSON: mustJSON(p), TagsJSON: mapTagsJSON(p.Tags), DiscoveredBy: scanID,
 		})
 	}
 	return upsertBatch(st, batch, "dlm lifecycle-policies")

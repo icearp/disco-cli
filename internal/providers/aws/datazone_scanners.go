@@ -1,10 +1,13 @@
 package aws
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/datazone"
+	dztypes "github.com/aws/aws-sdk-go-v2/service/datazone/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -75,144 +78,213 @@ type dzDomain struct {
 func scanDataZone(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := datazone.NewFromConfig(acct.cfg, func(o *datazone.Options) { o.Region = region })
 
-	domains, t, i, ferr := scanDataZoneDomains(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return 0, 0, ferr
-	}
-	total += t
-	inserted += i
+	// domains holds only the domains stored (none when the write failed), so
+	// a domain-phase error still lets the child phases walk them; it is
+	// returned beside theirs.
+	domains, total, inserted, domainErr := scanDataZoneDomains(ctx, client, acct, region, st, scanID)
+	var errs phaseErrs
+	errs.add(dzListDomainsOp, domainErr)
 	if len(domains) == 0 {
-		return total, inserted, nil
+		return total, inserted, errs.join(st, acct, region)
 	}
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) {
+	// Every phase runs whatever an earlier one returned, except a failed store
+	// write; a phase that fails keeps the rows it read, so a dependent phase
+	// walks only the parents that were stored.
+	for _, phase := range []struct {
+		op   string
+		scan func() (int, int, error)
+	}{
+		{"datazone:ListDomainUnitsForParent", func() (int, int, error) {
 			return scanDataZoneDomainUnits(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) {
+		}},
+		{"datazone:ListProjectProfiles", func() (int, int, error) {
 			return scanDataZoneProjectProfiles(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) { return scanDataZoneProjects(ctx, client, acct, region, st, scanID, domains) },
-		func() (int, int, error) {
+		}},
+		{"datazone:ListProjects", func() (int, int, error) {
+			return scanDataZoneProjects(ctx, client, acct, region, st, scanID, domains)
+		}},
+		{"datazone:ListProjectMemberships", func() (int, int, error) {
 			return scanDataZoneProjectMemberships(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) {
+		}},
+		{"datazone:SearchGroupProfiles", func() (int, int, error) {
 			return scanDataZoneGroupProfiles(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) {
+		}},
+		{"datazone:SearchUserProfiles", func() (int, int, error) {
 			return scanDataZoneUserProfiles(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) {
+		}},
+		{"datazone:ListEnvironmentProfiles", func() (int, int, error) {
 			return scanDataZoneEnvironmentProfiles(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) {
+		}},
+		{"datazone:ListEnvironmentBlueprintConfigurations", func() (int, int, error) {
 			return scanDataZoneEnvironmentBlueprintConfigurations(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) {
+		}},
+		{"datazone:ListEnvironments", func() (int, int, error) {
 			return scanDataZoneEnvironments(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) {
+		}},
+		{"datazone:ListEnvironmentActions", func() (int, int, error) {
 			return scanDataZoneEnvironmentActions(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) {
+		}},
+		{"datazone:ListSubscriptionTargets", func() (int, int, error) {
 			return scanDataZoneSubscriptionTargets(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) {
+		}},
+		{"datazone:ListDataSources", func() (int, int, error) {
 			return scanDataZoneDataSources(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) {
+		}},
+		{"datazone:ListConnections", func() (int, int, error) {
 			return scanDataZoneConnections(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) {
+		}},
+		{"datazone:ListEnvironmentBlueprints", func() (int, int, error) {
 			return scanDataZoneEnvironmentBlueprints(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) { return scanDataZoneRules(ctx, client, acct, region, st, scanID, domains) },
-		func() (int, int, error) {
+		}},
+		{"datazone:ListRules", func() (int, int, error) {
+			return scanDataZoneRules(ctx, client, acct, region, st, scanID, domains)
+		}},
+		{"datazone:ListSubscriptions", func() (int, int, error) {
 			return scanDataZoneSubscriptions(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) {
+		}},
+		{"datazone:ListSubscriptionGrants", func() (int, int, error) {
 			return scanDataZoneSubscriptionGrants(ctx, client, acct, region, st, scanID, domains)
-		},
-		// Account pools and notebooks are V2-only APIs that may reject a V1
-		// domain and do not model ResourceNotFound; they run last so such an
-		// error cannot cost the phases above.
-		func() (int, int, error) {
+		}},
+		{"datazone:ListAccountPools", func() (int, int, error) {
 			return scanDataZoneAccountPools(ctx, client, acct, region, st, scanID, domains)
-		},
-		func() (int, int, error) { return scanDataZoneNotebooks(ctx, client, acct, region, st, scanID, domains) },
+		}},
+		{"datazone:ListNotebooks", func() (int, int, error) {
+			return scanDataZoneNotebooks(ctx, client, acct, region, st, scanID, domains)
+		}},
 	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
+		t, i, ferr := phase.scan()
 		total += t
 		inserted += i
+		errs.add(phase.op, ferr)
+		if errors.Is(ferr, store.ErrStoreWrite) {
+			break
+		}
 	}
-	return total, inserted, nil
+	return total, inserted, errs.join(st, acct, region)
 }
 
 func dzARN(region, acct, domainID, kind, id string) string {
 	return fmt.Sprintf("arn:aws:datazone:%s:%s:domain/%s/%s/%s", region, acct, domainID, kind, id)
 }
 
+const (
+	dzListDomainsOp = "datazone:ListDomains"
+	dzGetDomainOp   = "datazone:GetDomain"
+)
+
+// dzDomainReads tallies the listed domains not stored from their GetDomain
+// body, one tally per cause, so that each cause warns once.
+type dzDomainReads struct {
+	denied  skipTally
+	unkeyed skipTally
+}
+
+// scanDataZoneDomains stores each listed domain from its GetDomain body, the
+// only source of its tags and root domain unit (see dzDomainRow for a failed
+// read), and returns the stored domains for the child phases. A ListDomains
+// page that fails keeps the domains read before it, if any, warning when it
+// was denied and returning any other error after they are stored, as is every
+// GetDomain error that is neither a denial nor a not-found.
 func scanDataZoneDomains(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string) ([]*dzDomain, int, int, error) {
-	pager := datazone.NewListDomainsPaginator(client, &datazone.ListDomainsInput{})
-	var domains []*dzDomain
-	var batch []*store.Resource
-	getDenied := false
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
+	var (
+		domains    []*dzDomain
+		batch      []*store.Resource
+		reads      dzDomainReads
+		errs       phaseErrs
+		listDenied error
+		nextToken  *string
+	)
+	// A manual loop, not the SDK paginator: the paginator follows a repeated
+	// NextToken forever, or with StopOnDuplicateToken stores a partial list
+	// as complete; lastPage returns errRepeatedNextToken instead.
+	for {
+		out, perr := client.ListDomains(ctx, &datazone.ListDomainsInput{NextToken: nextToken})
 		if perr != nil {
 			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "datazone:ListDomains", acct.ID, region, perr)
-				return nil, 0, 0, nil
+				listDenied = perr
+			} else {
+				errs.add(dzListDomainsOp, fmt.Errorf("%s: %w", dzListDomainsOp, perr))
 			}
-			return nil, 0, 0, fmt.Errorf("datazone:ListDomains: %w", perr)
+			break
 		}
 		for _, d := range out.Items {
-			arn := sv(d.Arn)
-			id := sv(d.Id)
-			if arn == "" || id == "" {
-				continue
+			row, dd, rerr := dzDomainRow(ctx, client, acct, region, scanID, d, &reads)
+			errs.add(dzGetDomainOp, rerr)
+			if row != nil {
+				batch = append(batch, row)
+				domains = append(domains, dd)
 			}
-			dd := &dzDomain{id: id}
-			attrsJSON := mustJSON(d)
-			// Full body carries RootDomainUnitId (downstream walk) and
-			// resolver fields (KmsKeyIdentifier, *Role).
-			gout, derr := client.GetDomain(ctx, &datazone.GetDomainInput{Identifier: &id})
-			switch {
-			case derr == nil:
-				dd.rootUnitID = sv(gout.RootDomainUnitId)
-				attrsJSON = mustJSON(gout)
-			case isAccessDenied(derr):
-				// Without the body there is no root unit, so the domain-unit
-				// walk and the rules phase skip this domain; say so once.
-				if !getDenied {
-					getDenied = true
-					_ = skipIfAccessDenied(st, "datazone:GetDomain", acct.ID, region, derr)
-				}
-			default:
-				return nil, 0, 0, fmt.Errorf("datazone:GetDomain %s: %w", id, derr)
-			}
-			domains = append(domains, dd)
-			label := sv(d.Name)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDataZoneDomain, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
-			})
 		}
+		last, terr := lastPage(nextToken, out.NextToken)
+		errs.add(dzListDomainsOp, terr)
+		if last {
+			break
+		}
+		nextToken = out.NextToken
 	}
-	t, i, err := upsertBatch(st, batch, "datazone domains")
-	return domains, t, i, err
+	total, inserted, uerr := upsertBatch(st, batch, "datazone domains")
+	if uerr != nil {
+		return nil, total, inserted, errors.Join(errs.join(st, acct, region), uerr)
+	}
+	if listDenied != nil {
+		_ = skipIfAccessDenied(st, dzListDomainsOp, acct.ID, region, fmt.Errorf(
+			"domains on this and later pages not stored: %w", listDenied))
+	}
+	const kept = "%d domain(s) stored as their ListDomains element, without tags or root domain unit, so their domain units and rules were not listed; first %s: %w"
+	if reads.denied.count > 0 {
+		_ = skipIfAccessDenied(st, dzGetDomainOp, acct.ID, region, fmt.Errorf(kept, reads.denied.count, reads.denied.first, reads.denied.err))
+	}
+	warnNotStored(st, dzListDomainsOp, acct, region, &reads.unkeyed, "domains have an empty ARN or id")
+	return domains, total, inserted, errs.join(st, acct, region)
+}
+
+// dzDomainRow builds a listed domain's row and child-phase handle from its
+// GetDomain body. A domain deleted since it was listed
+// (ResourceNotFoundException) is not stored. A denied GetDomain keeps the
+// ListDomains element, which has no tags and no root domain unit, and tallies
+// it in reads; any other error, a transient one included, keeps it too and is
+// returned, because the domain's units and rules go unlisted. A domain with no
+// ARN or id is tallied as unkeyed.
+func dzDomainRow(ctx context.Context, client dataZoneAPI, acct *account, region, scanID string, d dztypes.DomainSummary, reads *dzDomainReads) (*store.Resource, *dzDomain, error) {
+	arn, id := sv(d.Arn), sv(d.Id)
+	if arn == "" || id == "" {
+		reads.unkeyed.skipped(cmp.Or(arn, id, sv(d.Name)), nil)
+		return nil, nil, nil
+	}
+	dd := &dzDomain{id: id}
+	attrsJSON := mustJSON(d)
+	var (
+		tags map[string]string
+		err  error
+	)
+	gout, derr := client.GetDomain(ctx, &datazone.GetDomainInput{Identifier: &id})
+	switch {
+	case derr == nil:
+		// Full body carries RootDomainUnitId (downstream walk) and
+		// resolver fields (KmsKeyIdentifier, *Role).
+		dd.rootUnitID = sv(gout.RootDomainUnitId)
+		attrsJSON, tags = mustJSON(gout), gout.Tags
+	case isAPIErrorCode(derr, "ResourceNotFoundException"):
+		return nil, nil, nil
+	case isAccessDenied(derr):
+		reads.denied.skipped(id, derr)
+	default:
+		err = fmt.Errorf("%s %s: %w", dzGetDomainOp, id, derr)
+	}
+	label := cmp.Or(sv(d.Name), id)
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: TypeDataZoneDomain, NativeID: arn,
+		Name: &label, Region: &region, AttributesJSON: attrsJSON,
+		TagsJSON: mapTagsJSON(tags), DiscoveredBy: scanID,
+	}, dd, err
 }
 
 // scanDataZoneDomainUnits walks the domain unit tree starting at the
 // domain's root unit. BFS via ListDomainUnitsForParent.
 func scanDataZoneDomainUnits(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListDomainUnitsForParent"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		if d.rootUnitID == "" {
@@ -231,9 +303,10 @@ func scanDataZoneDomainUnits(ctx context.Context, client dataZoneAPI, acct *acco
 				out, perr := pager.NextPage(ctx)
 				if perr != nil {
 					if isAccessDenied(perr) {
+						f.warnDenied(perr)
 						break
 					}
-					return 0, 0, fmt.Errorf("datazone:ListDomainUnitsForParent %s/%s: %w", d.id, parent, perr)
+					return upsertListed(st, batch, "datazone:ListDomainUnitsForParent", fmt.Errorf("%s/%s: %w", d.id, parent, perr))
 				}
 				for _, u := range out.Items {
 					id := sv(u.Id)
@@ -258,6 +331,7 @@ func scanDataZoneDomainUnits(ctx context.Context, client dataZoneAPI, acct *acco
 }
 
 func scanDataZoneProjects(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListProjects"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		did := d.id
@@ -266,9 +340,10 @@ func scanDataZoneProjects(ctx context.Context, client dataZoneAPI, acct *account
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {
 				if isAccessDenied(perr) {
+					f.warnDenied(perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("datazone:ListProjects %s: %w", d.id, perr)
+				return upsertListed(st, batch, "datazone:ListProjects", fmt.Errorf("%s: %w", d.id, perr))
 			}
 			for _, p := range out.Items {
 				id := sv(p.Id)
@@ -292,6 +367,7 @@ func scanDataZoneProjects(ctx context.Context, client dataZoneAPI, acct *account
 }
 
 func scanDataZoneProjectProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListProjectProfiles"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		did := d.id
@@ -300,9 +376,10 @@ func scanDataZoneProjectProfiles(ctx context.Context, client dataZoneAPI, acct *
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {
 				if isAccessDenied(perr) {
+					f.warnDenied(perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("datazone:ListProjectProfiles %s: %w", d.id, perr)
+				return upsertListed(st, batch, "datazone:ListProjectProfiles", fmt.Errorf("%s: %w", d.id, perr))
 			}
 			for _, p := range out.Items {
 				id := sv(p.Id)
@@ -325,6 +402,7 @@ func scanDataZoneProjectProfiles(ctx context.Context, client dataZoneAPI, acct *
 }
 
 func scanDataZoneProjectMemberships(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListProjectMemberships"}
 	var batch []*store.Resource
 	memberIdx := 0
 	for _, d := range domains {
@@ -338,9 +416,10 @@ func scanDataZoneProjectMemberships(ctx context.Context, client dataZoneAPI, acc
 				out, perr := pager.NextPage(ctx)
 				if perr != nil {
 					if isAccessDenied(perr) {
+						f.warnDenied(perr)
 						break
 					}
-					return 0, 0, fmt.Errorf("datazone:ListProjectMemberships %s/%s: %w", d.id, projectID, perr)
+					return upsertListed(st, batch, "datazone:ListProjectMemberships", fmt.Errorf("%s/%s: %w", d.id, projectID, perr))
 				}
 				for _, m := range out.Members {
 					memberIdx++
@@ -362,6 +441,7 @@ func scanDataZoneProjectMemberships(ctx context.Context, client dataZoneAPI, acc
 }
 
 func scanDataZoneEnvironments(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListEnvironments"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		for _, projectID := range d.projectIDs {
@@ -374,9 +454,10 @@ func scanDataZoneEnvironments(ctx context.Context, client dataZoneAPI, acct *acc
 				out, perr := pager.NextPage(ctx)
 				if perr != nil {
 					if isAccessDenied(perr) {
+						f.warnDenied(perr)
 						break
 					}
-					return 0, 0, fmt.Errorf("datazone:ListEnvironments %s/%s: %w", d.id, projectID, perr)
+					return upsertListed(st, batch, "datazone:ListEnvironments", fmt.Errorf("%s/%s: %w", d.id, projectID, perr))
 				}
 				for _, e := range out.Items {
 					id := sv(e.Id)
@@ -401,6 +482,7 @@ func scanDataZoneEnvironments(ctx context.Context, client dataZoneAPI, acct *acc
 }
 
 func scanDataZoneEnvironmentProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListEnvironmentProfiles"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		did := d.id
@@ -409,9 +491,10 @@ func scanDataZoneEnvironmentProfiles(ctx context.Context, client dataZoneAPI, ac
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {
 				if isAccessDenied(perr) {
+					f.warnDenied(perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("datazone:ListEnvironmentProfiles %s: %w", d.id, perr)
+				return upsertListed(st, batch, "datazone:ListEnvironmentProfiles", fmt.Errorf("%s: %w", d.id, perr))
 			}
 			for _, e := range out.Items {
 				id := sv(e.Id)
@@ -434,6 +517,7 @@ func scanDataZoneEnvironmentProfiles(ctx context.Context, client dataZoneAPI, ac
 }
 
 func scanDataZoneEnvironmentActions(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListEnvironmentActions"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		for _, envID := range d.envIDs {
@@ -446,9 +530,10 @@ func scanDataZoneEnvironmentActions(ctx context.Context, client dataZoneAPI, acc
 				out, perr := pager.NextPage(ctx)
 				if perr != nil {
 					if isAccessDenied(perr) {
+						f.warnDenied(perr)
 						break
 					}
-					return 0, 0, fmt.Errorf("datazone:ListEnvironmentActions %s/%s: %w", d.id, envID, perr)
+					return upsertListed(st, batch, "datazone:ListEnvironmentActions", fmt.Errorf("%s/%s: %w", d.id, envID, perr))
 				}
 				for _, a := range out.Items {
 					id := sv(a.Id)
@@ -472,6 +557,7 @@ func scanDataZoneEnvironmentActions(ctx context.Context, client dataZoneAPI, acc
 }
 
 func scanDataZoneEnvironmentBlueprintConfigurations(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListEnvironmentBlueprintConfigurations"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		did := d.id
@@ -480,9 +566,10 @@ func scanDataZoneEnvironmentBlueprintConfigurations(ctx context.Context, client 
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {
 				if isAccessDenied(perr) {
+					f.warnDenied(perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("datazone:ListEnvironmentBlueprintConfigurations %s: %w", d.id, perr)
+				return upsertListed(st, batch, "datazone:ListEnvironmentBlueprintConfigurations", fmt.Errorf("%s: %w", d.id, perr))
 			}
 			for _, c := range out.Items {
 				bpID := sv(c.EnvironmentBlueprintId)
@@ -502,6 +589,7 @@ func scanDataZoneEnvironmentBlueprintConfigurations(ctx context.Context, client 
 }
 
 func scanDataZoneSubscriptionTargets(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListSubscriptionTargets"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		for _, envID := range d.envIDs {
@@ -514,9 +602,10 @@ func scanDataZoneSubscriptionTargets(ctx context.Context, client dataZoneAPI, ac
 				out, perr := pager.NextPage(ctx)
 				if perr != nil {
 					if isAccessDenied(perr) {
+						f.warnDenied(perr)
 						break
 					}
-					return 0, 0, fmt.Errorf("datazone:ListSubscriptionTargets %s/%s: %w", d.id, envID, perr)
+					return upsertListed(st, batch, "datazone:ListSubscriptionTargets", fmt.Errorf("%s/%s: %w", d.id, envID, perr))
 				}
 				for _, s := range out.Items {
 					id := sv(s.Id)
@@ -540,6 +629,7 @@ func scanDataZoneSubscriptionTargets(ctx context.Context, client dataZoneAPI, ac
 }
 
 func scanDataZoneDataSources(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListDataSources"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		for _, projectID := range d.projectIDs {
@@ -552,9 +642,10 @@ func scanDataZoneDataSources(ctx context.Context, client dataZoneAPI, acct *acco
 				out, perr := pager.NextPage(ctx)
 				if perr != nil {
 					if isAccessDenied(perr) {
+						f.warnDenied(perr)
 						break
 					}
-					return 0, 0, fmt.Errorf("datazone:ListDataSources %s/%s: %w", d.id, projectID, perr)
+					return upsertListed(st, batch, "datazone:ListDataSources", fmt.Errorf("%s/%s: %w", d.id, projectID, perr))
 				}
 				for _, ds := range out.Items {
 					id := sv(ds.DataSourceId)
@@ -578,6 +669,7 @@ func scanDataZoneDataSources(ctx context.Context, client dataZoneAPI, acct *acco
 }
 
 func scanDataZoneConnections(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:ListConnections"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		did := d.id
@@ -586,9 +678,10 @@ func scanDataZoneConnections(ctx context.Context, client dataZoneAPI, acct *acco
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {
 				if isAccessDenied(perr) {
+					f.warnDenied(perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("datazone:ListConnections %s: %w", d.id, perr)
+				return upsertListed(st, batch, "datazone:ListConnections", fmt.Errorf("%s: %w", d.id, perr))
 			}
 			for _, c := range out.Items {
 				id := sv(c.ConnectionId)

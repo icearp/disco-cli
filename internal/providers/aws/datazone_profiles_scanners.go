@@ -27,6 +27,7 @@ var dzUserTypes = []dztypes.UserSearchType{
 }
 
 func scanDataZoneGroupProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:SearchGroupProfiles"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		for _, gt := range dzGroupTypes {
@@ -38,9 +39,10 @@ func scanDataZoneGroupProfiles(ctx context.Context, client dataZoneAPI, acct *ac
 				out, perr := pager.NextPage(ctx)
 				if perr != nil {
 					if isAccessDenied(perr) {
+						f.warnDenied(perr)
 						break
 					}
-					return 0, 0, fmt.Errorf("datazone:SearchGroupProfiles %s/%s: %w", d.id, gt, perr)
+					return upsertListed(st, batch, "datazone:SearchGroupProfiles", fmt.Errorf("%s/%s: %w", d.id, gt, perr))
 				}
 				for _, g := range out.Items {
 					id := sv(g.Id)
@@ -66,6 +68,7 @@ func scanDataZoneGroupProfiles(ctx context.Context, client dataZoneAPI, acct *ac
 }
 
 func scanDataZoneUserProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:SearchUserProfiles"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		for _, ut := range dzUserTypes {
@@ -77,9 +80,10 @@ func scanDataZoneUserProfiles(ctx context.Context, client dataZoneAPI, acct *acc
 				out, perr := pager.NextPage(ctx)
 				if perr != nil {
 					if isAccessDenied(perr) {
+						f.warnDenied(perr)
 						break
 					}
-					return 0, 0, fmt.Errorf("datazone:SearchUserProfiles %s/%s: %w", d.id, ut, perr)
+					return upsertListed(st, batch, "datazone:SearchUserProfiles", fmt.Errorf("%s/%s: %w", d.id, ut, perr))
 				}
 				for _, u := range out.Items {
 					id := sv(u.Id)

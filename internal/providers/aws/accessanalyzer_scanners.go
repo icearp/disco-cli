@@ -64,6 +64,7 @@ func scanAccessAnalyzerAnalyzers(ctx context.Context, client accessAnalyzerAPI, 
 				Name:           &name,
 				Region:         &region,
 				AttributesJSON: mustJSON(a),
+				TagsJSON:       mapTagsJSON(a.Tags),
 				DiscoveredBy:   scanID,
 			}
 		})

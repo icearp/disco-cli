@@ -55,6 +55,7 @@ func scanBraketSpendingLimits(ctx context.Context, client braketAPI, acct *accou
 				Region:         &region,
 				CreatedAt:      tp(sl.CreatedAt),
 				AttributesJSON: mustJSON(sl),
+				TagsJSON:       mapTagsJSON(sl.Tags),
 				DiscoveredBy:   scanID,
 			})
 		}

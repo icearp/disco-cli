@@ -8,7 +8,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/braket"
 	braketTypes "github.com/aws/aws-sdk-go-v2/service/braket/types"
-	"github.com/icearp/disco-cli/store"
 )
 
 type stubBraket struct {
@@ -24,24 +23,33 @@ func TestScanBraketSpendingLimits(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 
 	arn := fmt.Sprintf("arn:aws:braket:%s:%s:spending-limit/sl-1", testRegion, acct.ID)
+	untagged := fmt.Sprintf("arn:aws:braket:%s:%s:spending-limit/sl-2", testRegion, acct.ID)
 	device := "arn:aws:braket:::device/qpu/ionq/Aria-1"
 	queued := "0"
 	limit := "100"
 	now := time.Unix(1700000000, 0).UTC()
 	stub := &stubBraket{
 		limits: []braketTypes.SpendingLimitSummary{
-			{SpendingLimitArn: &arn, DeviceArn: &device, QueuedSpend: &queued, SpendingLimit: &limit, CreatedAt: &now},
+			{SpendingLimitArn: &arn, DeviceArn: &device, QueuedSpend: &queued, SpendingLimit: &limit, CreatedAt: &now, Tags: map[string]string{"team": "quantum"}},
+			{SpendingLimitArn: &untagged, DeviceArn: &device},
 		},
 	}
 	total, inserted, err := scanBraketSpendingLimits(context.Background(), stub, acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	if total != 1 || inserted != 1 {
-		t.Fatalf("total=%d inserted=%d want 1/1", total, inserted)
+	if total != 2 || inserted != 2 {
+		t.Fatalf("total=%d inserted=%d want 2/2", total, inserted)
 	}
-	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, arn)); err != nil {
-		t.Errorf("spending limit missing: %v", err)
+	rows := rowsByNativeID(t, st, TypeBraketSpendingLimit)
+	for _, a := range []string{arn, untagged} {
+		if _, ok := rows[a]; !ok {
+			t.Fatalf("spending limit %s missing", a)
+		}
+	}
+	assertTagsMap(t, rows[arn].TagsJSON, map[string]string{"team": "quantum"})
+	if got := rows[untagged].TagsJSON; got != nil {
+		t.Errorf("untagged spending limit TagsJSON = %q, want nil", *got)
 	}
 }
 

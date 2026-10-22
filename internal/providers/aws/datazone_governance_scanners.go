@@ -31,13 +31,18 @@ func (f *dzFanout) skip(parent string, err error) error {
 	case f.notFoundModeled && isAPIErrorCode(err, "ResourceNotFoundException"):
 		return nil
 	case isAccessDenied(err):
-		if !f.warned {
-			f.warned = true
-			_ = skipIfAccessDenied(f.st, f.op, f.acct.ID, f.region, err)
-		}
+		f.warnDenied(err)
 		return nil
 	default:
-		return fmt.Errorf("%s %s: %w", f.op, parent, err)
+		return fmt.Errorf("%s: %w", parent, err)
+	}
+}
+
+// warnDenied warns about a denied call once per op, not once per parent.
+func (f *dzFanout) warnDenied(err error) {
+	if !f.warned {
+		f.warned = true
+		_ = skipIfAccessDenied(f.st, f.op, f.acct.ID, f.region, err)
 	}
 }
 
@@ -82,7 +87,7 @@ func scanDataZoneAccountPools(ctx context.Context, client dataZoneAPI, acct *acc
 			return out.Items, nil
 		})
 		if err != nil {
-			return 0, 0, err
+			return upsertListed(st, batch, f.op, err)
 		}
 		for _, p := range items {
 			id := sv(p.Id)
@@ -118,7 +123,7 @@ func scanDataZoneEnvironmentBlueprints(ctx context.Context, client dataZoneAPI, 
 				return out.Items, nil
 			})
 			if err != nil {
-				return 0, 0, err
+				return upsertListed(st, batch, f.op, err)
 			}
 			for _, b := range items {
 				id := sv(b.Id)
@@ -154,7 +159,7 @@ func scanDataZoneNotebooks(ctx context.Context, client dataZoneAPI, acct *accoun
 				return out.Items, nil
 			})
 			if err != nil {
-				return 0, 0, err
+				return upsertListed(st, batch, f.op, err)
 			}
 			for _, n := range items {
 				id := sv(n.Id)
@@ -198,7 +203,7 @@ func scanDataZoneRules(ctx context.Context, client dataZoneAPI, acct *account, r
 				return out.Items, nil
 			})
 			if err != nil {
-				return 0, 0, err
+				return upsertListed(st, batch, f.op, err)
 			}
 			for _, r := range items {
 				id := sv(r.Identifier)
@@ -233,7 +238,7 @@ func scanDataZoneSubscriptions(ctx context.Context, client dataZoneAPI, acct *ac
 			return out.Items, nil
 		})
 		if err != nil {
-			return 0, 0, err
+			return upsertListed(st, batch, f.op, err)
 		}
 		for _, s := range items {
 			id := sv(s.Id)
@@ -262,7 +267,7 @@ func scanDataZoneSubscriptionGrants(ctx context.Context, client dataZoneAPI, acc
 			return out.Items, nil
 		})
 		if err != nil {
-			return 0, 0, err
+			return upsertListed(st, batch, f.op, err)
 		}
 		for _, g := range items {
 			id := sv(g.Id)

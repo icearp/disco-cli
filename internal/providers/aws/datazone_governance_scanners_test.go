@@ -357,6 +357,28 @@ func TestScanDataZoneGovernance_OtherErrorPropagates(t *testing.T) {
 	}
 }
 
+// A hard error on one parent is returned with the rows already read for the
+// parents before it stored.
+func TestScanDataZoneGovernance_OtherErrorKeepsRowsRead(t *testing.T) {
+	for _, tc := range dzGovCases() {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			stub := &stubDZGov{errFor: map[string]error{tc.second: apiErr("ValidationException", "bad input")}}
+			tc.fill(stub, tc.first, tc.second)
+			_, _, err := tc.fn(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
+			if !isAPIErrorCode(err, "ValidationException") {
+				t.Fatalf("err=%v, want ValidationException propagated", err)
+			}
+			rows := dzRows(t, st, tc.typ)
+			for _, id := range []string{"a", "b"} {
+				if _, ok := rows[dzARN(testRegion, testAccountID, dzParentDomain(tc.first), tc.kind, id)]; !ok {
+					t.Errorf("%s %s (read before the failing parent) not stored", tc.kind, id)
+				}
+			}
+		})
+	}
+}
+
 // A parent deleted between listing and the child call is skipped only for ops
 // whose SDK error set models ResourceNotFoundException; elsewhere it is a real
 // error.
