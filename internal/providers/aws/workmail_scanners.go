@@ -145,8 +145,8 @@ type workMailScan struct {
 	// rejected holds the organizations whose state refused a member listing
 	// this scan; later phases skip them, so each is warned about once.
 	rejected map[string]bool
-	// mailboxes holds the ENABLED users and resources the users and resources
-	// phases stored, the parents of the mailbox permission phase.
+	// mailboxes holds the users and resources the users and resources phases
+	// stored, except DELETED ones, the parents of the mailbox permission phase.
 	mailboxes []workMailMailbox
 }
 
@@ -222,8 +222,8 @@ func (s *workMailScan) fanOutThen(ctx context.Context, op string, list func(cont
 }
 
 // fanOutMailboxes is fanOut for the users and resources phases: list also
-// returns the ENABLED entities among its rows, which are added to s.mailboxes
-// once the phase has stored its rows.
+// returns the entities among its rows that are not DELETED, which are added to
+// s.mailboxes once the phase has stored its rows.
 func (s *workMailScan) fanOutMailboxes(ctx context.Context, op string, list func(context.Context, childParent) ([]*store.Resource, []childParent, error)) (int, int, error) {
 	var (
 		mu      sync.Mutex
@@ -231,13 +231,13 @@ func (s *workMailScan) fanOutMailboxes(ctx context.Context, op string, list func
 	)
 	return s.fanOutThen(ctx, op,
 		func(ctx context.Context, org childParent) ([]*store.Resource, error) {
-			rows, enabled, err := list(ctx, org)
+			rows, mailboxes, err := list(ctx, org)
 			if err != nil {
 				return nil, err
 			}
 			mu.Lock()
 			defer mu.Unlock()
-			for _, e := range enabled {
+			for _, e := range mailboxes {
 				pending = append(pending, workMailMailbox{org: org, entity: e})
 			}
 			return rows, nil
@@ -295,13 +295,16 @@ func (s *workMailScan) row(typ string, parent childParent, kind, id string, name
 	}
 }
 
-// users stores every user except those in the DELETED state, which the
-// EntityState enum lets ListUsers return; disabled users are kept.
+// users stores every user ListUsers returns, ENABLED, DISABLED and DELETED
+// alike (the EntityState enum lets it return all three), with the state as
+// its Status. The call sets no Filters: ListUsersFilters.State matches one
+// state only, so an unfiltered call is the one that lists every state. A
+// DELETED user is not handed on as a mailbox: it has none to list grants of.
 func (s *workMailScan) users(ctx context.Context) (int, int, error) {
 	return s.fanOutMailboxes(ctx, "workmail:ListUsers", func(ctx context.Context, org childParent) ([]*store.Resource, []childParent, error) {
 		var (
-			rows    []*store.Resource
-			enabled []childParent
+			rows      []*store.Resource
+			mailboxes []childParent
 		)
 		pager := workmail.NewListUsersPaginator(s.client, &workmail.ListUsersInput{OrganizationId: &org.id, MaxResults: sdkaws.Int32(workMailPageSize)})
 		for pager.HasMorePages() {
@@ -311,21 +314,21 @@ func (s *workMailScan) users(ctx context.Context) (int, int, error) {
 			}
 			for _, u := range out.Users {
 				id := sv(u.Id)
-				if id == "" || u.State == workmailtypes.EntityStateDeleted {
+				if id == "" {
 					continue
 				}
 				row := s.row(TypeWorkMailUser, org, workMailUserKind, id, u.Name, nonEmptyPtr(string(u.State)), nil, u)
 				rows = append(rows, row)
-				if u.State == workmailtypes.EntityStateEnabled {
-					enabled = append(enabled, childParent{id: id, arn: row.NativeID})
+				if u.State != workmailtypes.EntityStateDeleted {
+					mailboxes = append(mailboxes, childParent{id: id, arn: row.NativeID})
 				}
 			}
 		}
-		return rows, enabled, nil
+		return rows, mailboxes, nil
 	})
 }
 
-// groups stores every group except deleted ones, as users does.
+// groups stores every group in every state, as users does.
 func (s *workMailScan) groups(ctx context.Context) (int, int, error) {
 	return s.fanOut(ctx, "workmail:ListGroups", func(ctx context.Context, org childParent) ([]*store.Resource, error) {
 		var rows []*store.Resource
@@ -337,7 +340,7 @@ func (s *workMailScan) groups(ctx context.Context) (int, int, error) {
 			}
 			for _, g := range out.Groups {
 				id := sv(g.Id)
-				if id == "" || g.State == workmailtypes.EntityStateDeleted {
+				if id == "" {
 					continue
 				}
 				rows = append(rows, s.row(TypeWorkMailGroup, org, workMailGroupKind, id, g.Name, nonEmptyPtr(string(g.State)), nil, g))
@@ -347,13 +350,13 @@ func (s *workMailScan) groups(ctx context.Context) (int, int, error) {
 	})
 }
 
-// resources stores every resource (room or equipment) except deleted ones,
-// as users does.
+// resources stores every resource (room or equipment) in every state, and
+// hands on all but the DELETED ones as mailboxes, as users does.
 func (s *workMailScan) resources(ctx context.Context) (int, int, error) {
 	return s.fanOutMailboxes(ctx, "workmail:ListResources", func(ctx context.Context, org childParent) ([]*store.Resource, []childParent, error) {
 		var (
-			rows    []*store.Resource
-			enabled []childParent
+			rows      []*store.Resource
+			mailboxes []childParent
 		)
 		pager := workmail.NewListResourcesPaginator(s.client, &workmail.ListResourcesInput{OrganizationId: &org.id, MaxResults: sdkaws.Int32(workMailPageSize)})
 		for pager.HasMorePages() {
@@ -363,17 +366,17 @@ func (s *workMailScan) resources(ctx context.Context) (int, int, error) {
 			}
 			for _, r := range out.Resources {
 				id := sv(r.Id)
-				if id == "" || r.State == workmailtypes.EntityStateDeleted {
+				if id == "" {
 					continue
 				}
 				row := s.row(TypeWorkMailResource, org, workMailResourceKind, id, r.Name, nonEmptyPtr(string(r.State)), nil, r)
 				rows = append(rows, row)
-				if r.State == workmailtypes.EntityStateEnabled {
-					enabled = append(enabled, childParent{id: id, arn: row.NativeID})
+				if r.State != workmailtypes.EntityStateDeleted {
+					mailboxes = append(mailboxes, childParent{id: id, arn: row.NativeID})
 				}
 			}
 		}
-		return rows, enabled, nil
+		return rows, mailboxes, nil
 	})
 }
 
@@ -535,41 +538,47 @@ func (s *workMailScan) personalAccessTokens(ctx context.Context) (int, int, erro
 // ARN. The granted permissions (FULL_ACCESS, SEND_AS, SEND_ON_BEHALF) are left
 // out of the key, so a change to them is a change on the grantee's row.
 //
-// The mailboxes are the ENABLED users and resources the users and resources
-// phases stored (EntityId takes a user or resource id, not a group), outside
-// the organizations a phase saw rejected. DISABLED entities are not asked:
-// whether the op answers for a deregistered entity is unobserved, and its
-// grants cannot be used while it is DISABLED. The phase makes one call per
-// page of each mailbox's grants, within the service's shared serviceTimeout;
-// running out of it is a hard error and, like any other, drops every
-// organization's grants.
+// The mailboxes are the users and resources the users and resources phases
+// stored, ENABLED and DISABLED alike but not DELETED (EntityId takes a user or
+// resource id, not a group), outside the organizations a phase saw rejected.
+// Whether the op answers for a DISABLED entity is unobserved live. The phase
+// makes one call per page of each mailbox's grants, within the service's
+// shared serviceTimeout; running out of it is a hard error and, like any
+// other, drops every organization's grants.
 //
 // A mailbox deleted, or in an organization deleted, since it was listed is
 // skipped silently (EntityNotFoundException, OrganizationNotFoundException).
 // A mailbox whose organization's state refuses the call
 // (OrganizationStateException) is skipped with one warning for the phase, as
-// is one whose call still fails transiently after the SDK's retries. Every
-// other error fails the phase, EntityStateException included, as the op does
-// not model it; since childFanOut stores nothing after a hard error, one such
-// error (say, for a user disabled between its listing and this call) drops
-// the grants of every organization in the region this scan.
+// is one whose call still fails transiently after the SDK's retries.
+// EntityStateException is skipped per mailbox with one warning for the phase
+// too, although the op's model does not list it (a deliberate exception to
+// skipping only modeled codes): DISABLED users and resources are asked, Put-
+// and DeleteMailboxPermissions model the code for an entity in the wrong
+// state, and failing the phase on it would drop the grants of every other
+// mailbox in the region. Every other error fails the phase; since childFanOut
+// stores nothing after a hard error, one such error drops the grants of every
+// organization in the region this scan.
 func (s *workMailScan) mailboxPermissions(ctx context.Context) (int, int, error) {
 	const op = "workmail:ListMailboxPermissions"
 	mailboxes, orgOf := s.listableMailboxes()
 	isGone := func(err error) bool {
 		return isAPIErrorCode(err, "EntityNotFoundException") || isWorkMailOrgGone(err)
 	}
-	var orgState skipTally
+	var orgState, entityState skipTally
 	total, inserted, err := childFanOutSkipTransient(ctx, s.st, s.acct, s.region, op, mailboxes, isGone, byParentARN,
 		func(ctx context.Context, mailbox childParent) ([]*store.Resource, error) {
 			rows, err := s.listMailboxPermissions(ctx, orgOf[mailbox.arn], mailbox)
-			if orgState.dropCode("OrganizationStateException", mailbox.arn, err) {
+			if orgState.dropCode("OrganizationStateException", mailbox.arn, err) ||
+				entityState.dropCode("EntityStateException", mailbox.arn, err) {
 				return nil, nil
 			}
 			return rows, err
 		})
 	orgState.warnCode(s.st, op, s.acct, s.region, "OrganizationStateException", "mailbox(es)",
 		"the organization's state (for example, being created or deleted) can refuse the call")
+	entityState.warnCode(s.st, op, s.acct, s.region, "EntityStateException", "mailbox(es)",
+		"a user or resource in a state such as DISABLED can refuse the call")
 	return total, inserted, err
 }
 

@@ -375,9 +375,9 @@ func TestWorkMailChildPhases_Empty(t *testing.T) {
 	}
 }
 
-// WorkMail keeps listing deleted entities; they are skipped while disabled
-// ones are kept.
-func TestWorkMailEntities_SkipDeletedKeepDisabled(t *testing.T) {
+// WorkMail keeps listing deleted entities; they are stored with Status
+// DELETED, as disabled ones are with Status DISABLED.
+func TestWorkMailEntities_StoreDeletedAndDisabled(t *testing.T) {
 	for _, tc := range []struct {
 		op, typ, kind string
 		run           func(*workMailScan, context.Context) (int, int, error)
@@ -400,9 +400,9 @@ func TestWorkMailEntities_SkipDeletedKeepDisabled(t *testing.T) {
 				t.Fatalf("%s: %v", tc.op, err)
 			}
 			rows := rowsByNativeID(t, st, tc.typ)
-			off := wmOrgA + "/" + tc.kind + "/off"
-			if len(rows) != 1 || sv(rows[off].Status) != "DISABLED" {
-				t.Errorf("rows = %v; want only %s with Status DISABLED", slices.Sorted(maps.Keys(rows)), off)
+			off, del := wmOrgA+"/"+tc.kind+"/off", wmOrgA+"/"+tc.kind+"/del"
+			if len(rows) != 2 || sv(rows[off].Status) != "DISABLED" || sv(rows[del].Status) != "DELETED" {
+				t.Errorf("rows = %v; want %s with Status DISABLED and %s with Status DELETED", slices.Sorted(maps.Keys(rows)), off, del)
 			}
 		})
 	}
@@ -607,6 +607,8 @@ func TestScanWorkMailIn_StoreWriteBesideTransientStaysHardError(t *testing.T) {
 	}
 }
 
+var wmEntityState = &smithy.GenericAPIError{Code: "EntityStateException", Message: "entity is disabled"}
+
 const (
 	wmUserA1     = wmOrgA + "/user/u1"
 	wmResourceA1 = wmOrgA + "/resource/r1"
@@ -778,6 +780,7 @@ func TestWorkMailMailboxPermissions_PerMailboxErrors(t *testing.T) {
 		{"OrgGoneSkippedSilently", wmOrgGone, 0},
 		{"OrgStateWarnsOnce", wmOrgState, 1},
 		{"TransientWarnsOnce", wmThrottled, 1},
+		{"EntityStateWarnsOnce", wmEntityState, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			rows, total, warnings, err := wmMailboxErrScenario(t, tc.fail)
@@ -786,7 +789,7 @@ func TestWorkMailMailboxPermissions_PerMailboxErrors(t *testing.T) {
 			}
 		})
 	}
-	for _, code := range []string{"InvalidParameterException", "EntityStateException"} {
+	for _, code := range []string{"InvalidParameterException", "LimitExceededException"} {
 		t.Run(code+"Propagates", func(t *testing.T) {
 			_, _, warnings, err := wmMailboxErrScenario(t, &smithy.GenericAPIError{Code: code, Message: "no"})
 			var ae smithy.APIError
@@ -800,11 +803,11 @@ func TestWorkMailMailboxPermissions_PerMailboxErrors(t *testing.T) {
 	}
 }
 
-// The users and resources phases hand on their ENABLED entities as
-// mailboxes, not DISABLED ones and none from an organization whose listing
+// The users and resources phases hand on their ENABLED and DISABLED entities
+// as mailboxes, not DELETED ones and none from an organization whose listing
 // was refused, and only once the phase stored its rows: a hard or demoted
 // transient error, after which childFanOut stores nothing, hands on none.
-func TestWorkMailEntities_RecordStoredEnabledMailboxes(t *testing.T) {
+func TestWorkMailEntities_RecordStoredMailboxes(t *testing.T) {
 	for _, tc := range []struct {
 		op, kind string
 		run      func(*workMailScan, context.Context) (int, int, error)
@@ -827,7 +830,10 @@ func TestWorkMailEntities_RecordStoredEnabledMailboxes(t *testing.T) {
 			wantErr bool
 			want    []workMailMailbox
 		}{
-			{"OrgRejected", wmOrgState, false, []workMailMailbox{{org: wmOrgs[0], entity: childParent{id: "on", arn: wmOrgA + "/" + tc.kind + "/on"}}}},
+			{"OrgRejected", wmOrgState, false, []workMailMailbox{
+				{org: wmOrgs[0], entity: childParent{id: "on", arn: wmOrgA + "/" + tc.kind + "/on"}},
+				{org: wmOrgs[0], entity: childParent{id: "off", arn: wmOrgA + "/" + tc.kind + "/off"}},
+			}},
 			{"HardError", wmBadInput, true, nil},
 			{"Transient", wmThrottled, false, nil},
 		} {
@@ -888,5 +894,85 @@ func TestScanWorkMailIn_MailboxPermissionsRunLast(t *testing.T) {
 	}
 	if len(rowsByNativeID(t, st, TypeWorkMailUser)) != 2 {
 		t.Errorf("users = %d, want 2", len(rowsByNativeID(t, st, TypeWorkMailUser)))
+	}
+}
+
+// DISABLED and DELETED users and resources are stored with their state. The
+// DISABLED ones' mailbox permissions are asked; the DELETED ones have no
+// mailbox and are not. EntityStateException for one mailbox skips only that
+// mailbox, with one warning; any other code still fails the phase, and the
+// entity rows are kept either way.
+func TestScanWorkMailIn_EntityStateMailboxes(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		fail         error
+		wantGrants   int
+		wantWarnings int
+	}{
+		{"EveryMailboxAnswers", nil, 6, 0},
+		{"EntityStateSkipsOneMailbox", wmEntityState, 5, 1},
+		{"OtherCodeFailsPhase", wmBadInput, 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warned := countOpWarnings(st, wmMailboxOp)
+			var calls parentCalls
+			handlers := wmTopLevelHandlers(map[string]func(any) (any, error){
+				"ListUsers": func(in any) (any, error) {
+					org := wmOrgOf(in)
+					return &workmail.ListUsersOutput{Users: []workmailtypes.User{
+						{Id: ptrStr(org + "-1"), State: workmailtypes.EntityStateEnabled},
+						{Id: ptrStr(org + "-off"), Name: ptrStr("off"), State: workmailtypes.EntityStateDisabled},
+						{Id: ptrStr(org + "-del"), Name: ptrStr("del"), State: workmailtypes.EntityStateDeleted},
+					}}, nil
+				},
+				"ListResources": func(in any) (any, error) {
+					return &workmail.ListResourcesOutput{Resources: []workmailtypes.Resource{
+						{Id: ptrStr(wmOrgOf(in) + "-roff"), Name: ptrStr("roff"), State: workmailtypes.EntityStateDisabled},
+						{Id: ptrStr(wmOrgOf(in) + "-rdel"), Name: ptrStr("rdel"), State: workmailtypes.EntityStateDeleted},
+					}}, nil
+				},
+				"ListMailboxPermissions": func(in any) (any, error) {
+					calls.add(wmMailboxOf(in))
+					if tc.fail != nil && wmMailboxOf(in) == "m-a/m-a-off" {
+						return nil, tc.fail
+					}
+					return wmPerms(nil, "g-1"), nil
+				},
+			})
+			_, _, err := scanWorkMailIn(context.Background(), wmClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+
+			if tc.fail == wmBadInput {
+				var ae smithy.APIError
+				if !errors.As(err, &ae) || ae.ErrorCode() != "InvalidParameterException" || classifyServiceError(err) != outcomeError {
+					t.Errorf("err = %v, want an outcomeError InvalidParameterException", err)
+				}
+			} else if err != nil {
+				t.Fatalf("scanWorkMailIn: %v", err)
+			}
+			wantCalls := []string{"m-a/m-a-1", "m-a/m-a-off", "m-a/m-a-roff", "m-b/m-b-1", "m-b/m-b-off", "m-b/m-b-roff"}
+			if got := calls.distinct(); !slices.Equal(got, wantCalls) {
+				t.Errorf("mailboxes queried = %v, want %v", got, wantCalls)
+			}
+			for _, want := range []struct{ typ, nid, status string }{
+				{TypeWorkMailUser, wmOrgA + "/user/m-a-off", "DISABLED"},
+				{TypeWorkMailResource, wmOrgA + "/resource/m-a-roff", "DISABLED"},
+				{TypeWorkMailUser, wmOrgA + "/user/m-a-del", "DELETED"},
+				{TypeWorkMailResource, wmOrgA + "/resource/m-a-rdel", "DELETED"},
+			} {
+				r, ok := rowsByNativeID(t, st, want.typ)[want.nid]
+				if !ok || sv(r.Status) != want.status {
+					t.Errorf("%s present = %v, Status = %q; want true, %s", want.nid, ok, sv(r.Status), want.status)
+				}
+			}
+			grants := rowsByNativeID(t, st, TypeWorkMailMailboxPermission)
+			if len(grants) != tc.wantGrants || *warned != tc.wantWarnings {
+				t.Errorf("grants = %v, warnings = %d; want %d grants, %d warnings", slices.Sorted(maps.Keys(grants)), *warned, tc.wantGrants, tc.wantWarnings)
+			}
+			off := wmOrgA + "/user/m-a-off/mailboxpermission/g-1"
+			if _, ok := grants[off]; ok != (tc.fail == nil) {
+				t.Errorf("grant %s stored = %v, want %v", off, ok, tc.fail == nil)
+			}
+		})
 	}
 }
