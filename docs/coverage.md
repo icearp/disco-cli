@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 60.9% (2030/3336 listable) · depth0 72.7% · depth1 43.8% · depth2 35.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 60.9% (2031/3336 listable) · depth0 72.7% · depth1 43.8% · depth2 35.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -13,7 +13,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 203 | 213 | 48.8 |
 | element-arn | 36 | 70 | 34.0 |
-| element-created | 6 | 8 | 42.9 |
+| element-created | 7 | 7 | 50.0 |
 
 | Service | Covered | Uncovered | % |
 |---|---|---|---|
@@ -166,7 +166,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sso | 14 | 3 | 82.4 |
 | states | 4 | 3 | 57.1 |
 | support | 0 | 3 | 0.0 |
-| wafv2 | 6 | 3 | 66.7 |
 | xray | 4 | 3 | 57.1 |
 | amplify | 5 | 2 | 71.4 |
 | arc-zonal-shift | 1 | 2 | 33.3 |
@@ -209,6 +208,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | sqs | 1 | 2 | 33.3 |
 | synthetics | 2 | 2 | 50.0 |
 | tax | 0 | 2 | 0.0 |
+| wafv2 | 7 | 2 | 77.8 |
 | account | 0 | 1 | 0.0 |
 | acm | 5 | 1 | 83.3 |
 | agent-registry | 2 | 1 | 66.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1306)
+### Uncovered (listable, no scanner) (1305)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -1622,7 +1622,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | voiceid | voiceid/watchlist | 1 |  | child-uncatalogued | voiceid:DescribeWatchlist, voiceid:ListWatchlists |
 | waf | waf/loggingconfiguration | 0 |  | element-written | waf:GetLoggingConfiguration, waf:ListLoggingConfigurations |
 | waf-regional | waf-regional/loggingconfiguration | 0 |  | element-written | waf-regional:GetLoggingConfiguration, waf-regional:ListLoggingConfigurations |
-| wafv2 | wafv2/apikey | 0 |  | element-created | wafv2:ListAPIKeys |
 | wafv2 | wafv2/availablemanagedrulegroupversion | 0 |  | child-uncatalogued | wafv2:ListAvailableManagedRuleGroupVersions |
 | wafv2 | wafv2/settlementrecord | 0 |  | element-arn | wafv2:ListSettlementRecords |
 | wellarchitected | wellarchitected/agentrecommendation | 1 |  | sr-resource | wellarchitected:GetAgentRecommendation, wellarchitected:ListAgentRecommendations |

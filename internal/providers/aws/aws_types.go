@@ -282,6 +282,7 @@ const (
 	TypeWAFv2RegexPatternSet      = "aws:wafv2:regex-pattern-set"
 	TypeWAFv2WebACLAssociation    = "aws:wafv2:web-acl-association"
 	TypeWAFv2ManagedRuleSet       = "aws:wafv2:managed-rule-set"
+	TypeWAFv2APIKey               = "aws:wafv2:api-key"
 	// WAF Classic v1 — global/CloudFront scope (waf_scanners.go)
 	TypeWAFWebACL               = "aws:waf:web-acl"
 	TypeWAFRule                 = "aws:waf:rule"

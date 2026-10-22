@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 60.851318944844124,
-    "covered": 2030,
-    "uncovered": 1306,
+    "percent": 60.881294964028775,
+    "covered": 2031,
+    "uncovered": 1305,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -1968,6 +1968,7 @@
       "waf/sqlinjectionmatchset",
       "waf/webacl",
       "waf/xssmatchset",
+      "wafv2/apikey",
       "wafv2/ipset",
       "wafv2/loggingconfiguration",
       "wafv2/managedruleset",
@@ -3303,7 +3304,6 @@
       "voiceid/watchlist",
       "waf-regional/loggingconfiguration",
       "waf/loggingconfiguration",
-      "wafv2/apikey",
       "wafv2/availablemanagedrulegroupversion",
       "wafv2/settlementrecord",
       "wellarchitected/agentrecommendation",
