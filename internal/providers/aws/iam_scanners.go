@@ -171,13 +171,19 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 	return int(t.Load()), int(n.Load()), errors.Join(errs...)
 }
 
+// iamAccountNativeID builds the aws:iam:account self-node key. scanIAMAccount
+// and resolveIAMDelegationRequestRequestors use it, so the requestor
+// placeholder and the scanned row share one identity.
+func iamAccountNativeID(accountID string) string {
+	return "arn:aws:iam::" + accountID + ":root"
+}
+
 // scanIAMAccount upserts the account self-node (aws:iam:account) carrying
 // account-level posture: IAM account summary, account alias (if any), and
 // password policy (absent if unconfigured). One row per scanned account, keyed
-// NativeID = arn:aws:iam::<acct>:root — the same natural key the
-// cross-account-trust and org-management resolvers use for placeholder rows,
-// so a foreign account first seen by reference version-populates its empty
-// placeholder once directly scanned.
+// NativeID = arn:aws:iam::<acct>:root — the same natural key the resolvers
+// that insert account placeholder rows use, so a foreign account first seen
+// by reference version-populates its empty placeholder once directly scanned.
 func scanIAMAccount(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
 	summary, err := client.GetAccountSummary(ctx, &iam.GetAccountSummaryInput{})
 	if err != nil {
@@ -208,7 +214,7 @@ func scanIAMAccount(ctx context.Context, client iamAPI, acct *account, st *store
 		Provider:       "aws",
 		AccountID:      acct.ID,
 		Type:           TypeIAMAccount,
-		NativeID:       fmt.Sprintf("arn:aws:iam::%s:root", acct.ID),
+		NativeID:       iamAccountNativeID(acct.ID),
 		Name:           &name,
 		Region:         regionGlobal,
 		AttributesJSON: mustJSON(attrs),

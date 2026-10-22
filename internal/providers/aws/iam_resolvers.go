@@ -153,6 +153,10 @@ func init() {
 		resolveIAMDelegationRequestBoundaries,
 		EdgeDecl{TypeIAMDelegationRequest, TypeIAMPolicy, store.RelBoundedBy},
 	)
+	registerResolver(
+		resolveIAMDelegationRequestRequestors,
+		EdgeDecl{TypeIAMDelegationRequest, TypeIAMAccount, store.RelAttachedTo},
+	)
 }
 
 // resolveInstanceProfileRoles links each instance profile to the role it contains.
@@ -1321,6 +1325,86 @@ func resolveIAMDelegationRequestBoundaries(acct *account, st *store.Store) error
 			if err := st.UpsertRelationship(r.ID, toID, store.RelBoundedBy, "directed", nil); err != nil {
 				return fmt.Errorf("upsert delegation-request→boundary: %w", err)
 			}
+		}
+	}
+	return errors.Join(decodeErrs...)
+}
+
+// resolveIAMDelegationRequestRequestors emits an `attached-to` edge from each
+// delegation request to the aws:iam:account of the partner that filed it
+// (RequestorId, a bare 12-digit account id per the model's pattern). The
+// partner account is usually outside scan scope, so its self-node is inserted
+// as a placeholder first; insert-if-absent leaves a scanned account's row
+// untouched, whichever of scanner and resolver runs first. A request naming
+// the scanned account itself gets its edge but no placeholder.
+//
+// `attached-to` with {"role": "requestor"} mirrors the organization →
+// management-account edge. `cross-account-trust` would claim the partner can
+// reach this account, but a pending, rejected or expired request grants
+// nothing; the request's state is on its own row.
+//
+// A row whose attributes do not decode costs only its own edge; its error is
+// returned after the rest resolve.
+func resolveIAMDelegationRequestRequestors(acct *account, st *store.Store) error {
+	requests, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"},
+		AccountID: acct.ID,
+		Types:     []string{TypeIAMDelegationRequest},
+		Limit:     util.AllResources,
+	})
+	if err != nil || len(requests) == 0 {
+		return err
+	}
+	type pending struct{ fromID, requestor string }
+	var edges []pending
+	requestors := map[string]struct{}{}
+	var decodeErrs []error
+	for _, r := range requests {
+		var attrs struct {
+			RequestorID *string `json:"RequestorId"`
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode delegation request %s: %w", r.NativeID, err))
+			continue
+		}
+		requestor := sv(attrs.RequestorID)
+		if requestor == "" {
+			continue
+		}
+		// The scanned account's self-node is scanIAMAccount's row; a {}
+		// reference-only placeholder there would make it look unscanned.
+		if requestor != acct.ID {
+			requestors[requestor] = struct{}{}
+		}
+		edges = append(edges, pending{fromID: r.ID, requestor: requestor})
+	}
+	if len(edges) == 0 {
+		return errors.Join(decodeErrs...)
+	}
+
+	placeholders := make([]*store.Resource, 0, len(requestors))
+	for other := range requestors {
+		name := other
+		placeholders = append(placeholders, &store.Resource{
+			Provider:       "aws",
+			AccountID:      other,
+			Type:           TypeIAMAccount,
+			NativeID:       iamAccountNativeID(other),
+			Name:           &name,
+			Region:         regionGlobal,
+			AttributesJSON: "{}",
+			DiscoveredBy:   requests[0].DiscoveredBy,
+		})
+	}
+	if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
+		return fmt.Errorf("insert delegation-requestor account placeholders: %w", err)
+	}
+
+	edgeAttrs := mustJSON(map[string]string{"role": "requestor"})
+	for _, e := range edges {
+		toID := store.ResourceID("aws", e.requestor, iamAccountNativeID(e.requestor))
+		if err := st.UpsertRelationship(e.fromID, toID, store.RelAttachedTo, "directed", &edgeAttrs); err != nil {
+			return fmt.Errorf("upsert delegation-request→requestor account: %w", err)
 		}
 	}
 	return errors.Join(decodeErrs...)

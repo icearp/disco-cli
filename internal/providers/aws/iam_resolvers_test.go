@@ -1153,3 +1153,159 @@ func TestResolveIAMDelegationRequestBoundaries_DecodeErrorKeepsSiblings(t *testi
 	}
 	assertRelationship(t, rels, reqID, policyID, store.RelBoundedBy)
 }
+
+// --- resolveIAMDelegationRequestRequestors ---
+
+const iamTestPartnerAccount = "222222222222"
+
+func iamTestPartnerAccountID() string {
+	return store.ResourceID("aws", iamTestPartnerAccount, "arn:aws:iam::"+iamTestPartnerAccount+":root")
+}
+
+func iamTestSeedDelegationRequest(t *testing.T, st *store.Store, id string, requestor *string) string {
+	t.Helper()
+	attrs := mustJSON(iamtypes.DelegationRequest{DelegationRequestId: ptrStr(id), RequestorId: requestor})
+	return upsertTestResourceNamed(t, st, TypeIAMDelegationRequest, iamTestDelegationNativeID(id), "global", attrs, id)
+}
+
+func iamTestAccountRows(t *testing.T, st *store.Store) []store.Resource {
+	t.Helper()
+	rows, err := st.ListResources(store.ResourceFilter{Types: []string{TypeIAMAccount}, Limit: 100})
+	if err != nil {
+		t.Fatalf("ListResources accounts: %v", err)
+	}
+	return rows
+}
+
+// The only edge from a request is attached-to its requestor account with
+// role=requestor, and nothing points back at the request.
+func iamTestAssertRequestorEdge(t *testing.T, st *store.Store, reqID string) {
+	t.Helper()
+	rels, err := st.RelationshipsFrom(reqID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 || rels[0].ToID != iamTestPartnerAccountID() || rels[0].Kind != store.RelAttachedTo {
+		t.Fatalf("edges from %s = %+v, want one attached-to the partner account", reqID, rels)
+	}
+	var edgeAttrs map[string]string
+	if err := json.Unmarshal([]byte(sv(rels[0].Attributes)), &edgeAttrs); err != nil || len(edgeAttrs) != 1 || edgeAttrs["role"] != "requestor" {
+		t.Errorf("edge attributes = %s (%v), want {\"role\":\"requestor\"}", sv(rels[0].Attributes), err)
+	}
+	back, err := st.RelationshipsTo(reqID)
+	if err != nil {
+		t.Fatalf("RelationshipsTo: %v", err)
+	}
+	if len(back) != 0 {
+		t.Errorf("edges into request %s = %+v, want none", reqID, back)
+	}
+}
+
+func TestResolveIAMDelegationRequestRequestors_ScannedAccountKeptIntact(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	populated := `{"SummaryMap":{"Users":5}}`
+	scannedID := upsertTestResource(t, st, "aws", iamTestPartnerAccount, TypeIAMAccount,
+		"arn:aws:iam::"+iamTestPartnerAccount+":root", "global", populated)
+	reqID := iamTestSeedDelegationRequest(t, st, "dr-1", ptrStr(iamTestPartnerAccount))
+
+	if err := resolveIAMDelegationRequestRequestors(acct, st); err != nil {
+		t.Fatalf("resolveIAMDelegationRequestRequestors: %v", err)
+	}
+	iamTestAssertRequestorEdge(t, st, reqID)
+	rows := iamTestAccountRows(t, st)
+	if len(rows) != 1 || rows[0].ID != scannedID {
+		t.Fatalf("account rows = %+v, want only the scanned account", rows)
+	}
+	if rows[0].AttributesJSON != populated || rows[0].ReferenceOnly {
+		t.Errorf("scanned account changed: attributes %s, referenceOnly %v; want %s, false",
+			rows[0].AttributesJSON, rows[0].ReferenceOnly, populated)
+	}
+}
+
+// Two requests from one partner get one placeholder, and a second resolver run
+// neither adds a row nor changes the first.
+func TestResolveIAMDelegationRequestRequestors_ExternalAccountPlaceholder(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	req1 := iamTestSeedDelegationRequest(t, st, "dr-1", ptrStr(iamTestPartnerAccount))
+	req2 := iamTestSeedDelegationRequest(t, st, "dr-2", ptrStr(iamTestPartnerAccount))
+
+	for run := 1; run <= 2; run++ {
+		if err := resolveIAMDelegationRequestRequestors(acct, st); err != nil {
+			t.Fatalf("run %d: resolveIAMDelegationRequestRequestors: %v", run, err)
+		}
+		rows := iamTestAccountRows(t, st)
+		if len(rows) != 1 {
+			t.Fatalf("run %d: account rows = %+v, want one placeholder", run, rows)
+		}
+		p := rows[0]
+		if p.ID != iamTestPartnerAccountID() || p.AccountID != iamTestPartnerAccount ||
+			sv(p.Name) != iamTestPartnerAccount || sv(p.Region) != "global" ||
+			p.AttributesJSON != "{}" || !p.ReferenceOnly || p.DiscoveredBy != testScanID {
+			t.Errorf("run %d: placeholder = %+v, want the partner self-node, name and account %s, region global, {} attributes, reference-only, discovered by %s",
+				run, p, iamTestPartnerAccount, testScanID)
+		}
+		iamTestAssertRequestorEdge(t, st, req1)
+		iamTestAssertRequestorEdge(t, st, req2)
+	}
+}
+
+func TestResolveIAMDelegationRequestRequestors_NoRequestor(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	reqID := iamTestSeedDelegationRequest(t, st, "dr-1", nil)
+
+	if err := resolveIAMDelegationRequestRequestors(acct, st); err != nil {
+		t.Fatalf("resolveIAMDelegationRequestRequestors: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(reqID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("edges = %+v, want none for a request with no RequestorId", rels)
+	}
+	if rows := iamTestAccountRows(t, st); len(rows) != 0 {
+		t.Errorf("account rows = %+v, want no placeholder", rows)
+	}
+}
+
+// A request naming the scanned account still gets its edge, but the self-node
+// is left to scanIAMAccount: no reference-only placeholder is inserted even
+// when that row does not exist yet.
+func TestResolveIAMDelegationRequestRequestors_SelfAccountNoPlaceholder(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	reqID := iamTestSeedDelegationRequest(t, st, "dr-1", ptrStr(testAccountID))
+
+	if err := resolveIAMDelegationRequestRequestors(acct, st); err != nil {
+		t.Fatalf("resolveIAMDelegationRequestRequestors: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(reqID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	selfID := store.ResourceID("aws", testAccountID, "arn:aws:iam::"+testAccountID+":root")
+	if len(rels) != 1 || rels[0].ToID != selfID || rels[0].Kind != store.RelAttachedTo {
+		t.Errorf("edges = %+v, want one attached-to the self account %s", rels, selfID)
+	}
+	if rows := iamTestAccountRows(t, st); len(rows) != 0 {
+		t.Errorf("account rows = %+v, want no self placeholder", rows)
+	}
+}
+
+// A row whose attributes do not decode fails the resolver without costing a
+// later sibling its edge or placeholder (ListResources orders by name).
+func TestResolveIAMDelegationRequestRequestors_DecodeErrorKeepsSiblings(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResourceNamed(t, st, TypeIAMDelegationRequest, iamTestDelegationNativeID("dr-0"), "global", `{"RequestorId":7}`, "dr-0")
+	reqID := iamTestSeedDelegationRequest(t, st, "dr-1", ptrStr(iamTestPartnerAccount))
+
+	var typeErr *json.UnmarshalTypeError
+	if err := resolveIAMDelegationRequestRequestors(acct, st); !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want the dr-0 decode error", err)
+	}
+	iamTestAssertRequestorEdge(t, st, reqID)
+}
