@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -255,10 +256,15 @@ func TestScanDataZoneGovernance_PagesFieldsAndFanout(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			stub := &stubDZGov{}
 			tc.fill(stub, tc.first, tc.second)
+			warnings := 0
+			st.OnWarn = func(store.ScanWarning) { warnings++ }
 
 			total, _, err := tc.fn(context.Background(), stub, acct, testRegion, st, testScanID, dzFixtureDomains())
 			if err != nil {
 				t.Fatalf("scan: %v", err)
+			}
+			if warnings != 1 {
+				t.Errorf("warnings=%d, want 1 for the id-less element", warnings)
 			}
 			if total != 3 {
 				t.Errorf("total=%d, want 3 (two pages of %s plus %s, id-less element skipped)", total, tc.first, tc.second)
@@ -357,23 +363,21 @@ func TestScanDataZoneGovernance_OtherErrorPropagates(t *testing.T) {
 	}
 }
 
-// A hard error on one parent is returned with the rows already read for the
-// parents before it stored.
-func TestScanDataZoneGovernance_OtherErrorKeepsRowsRead(t *testing.T) {
+// A hard error on one parent is recorded and the fan-out moves on: the rows
+// of the parent listed after it are stored and the error is returned.
+func TestScanDataZoneGovernance_OtherErrorKeepsSiblings(t *testing.T) {
 	for _, tc := range dzGovCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
-			stub := &stubDZGov{errFor: map[string]error{tc.second: apiErr("ValidationException", "bad input")}}
+			bad := apiErr("ValidationException", "bad input")
+			stub := &stubDZGov{errFor: map[string]error{tc.first: bad}}
 			tc.fill(stub, tc.first, tc.second)
-			_, _, err := tc.fn(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
-			if !isAPIErrorCode(err, "ValidationException") {
-				t.Fatalf("err=%v, want ValidationException propagated", err)
+			total, _, err := tc.fn(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, dzFixtureDomains())
+			if !errors.Is(err, bad) {
+				t.Fatalf("err=%v, want the failing parent's error returned", err)
 			}
-			rows := dzRows(t, st, tc.typ)
-			for _, id := range []string{"a", "b"} {
-				if _, ok := rows[dzARN(testRegion, testAccountID, dzParentDomain(tc.first), tc.kind, id)]; !ok {
-					t.Errorf("%s %s (read before the failing parent) not stored", tc.kind, id)
-				}
+			if _, ok := dzRows(t, st, tc.typ)[dzARN(testRegion, testAccountID, dzParentDomain(tc.second), tc.kind, "c")]; total != 1 || !ok {
+				t.Errorf("total=%d, sibling row c stored=%v; want 1/true", total, ok)
 			}
 		})
 	}
@@ -412,15 +416,15 @@ func TestDzCollect_DeniedMidPagesKeepsItems(t *testing.T) {
 	st := newTestStore(t)
 	f := &dzFanout{st: st, acct: newTestAccount(testAccountID), region: testRegion, op: "datazone:ListRules"}
 	calls := 0
-	items, err := dzCollect(context.Background(), f, "dom-1", func() bool { return calls < 2 }, func(context.Context) ([]int, error) {
+	items := dzCollect(context.Background(), f, "dom-1", func() bool { return calls < 2 }, func(context.Context) ([]int, error) {
 		calls++
 		if calls == 2 {
 			return nil, apiErr("AccessDeniedException", "denied")
 		}
 		return []int{1}, nil
 	})
-	if err != nil || len(items) != 1 {
-		t.Fatalf("items=%v err=%v, want [1]/nil", items, err)
+	if len(f.errs) != 0 || len(items) != 1 {
+		t.Fatalf("items=%v errs=%v, want [1] and no recorded error", items, f.errs)
 	}
 }
 
@@ -554,7 +558,7 @@ func TestScanDataZoneDomains_GetDomainDeniedWarnsOnce(t *testing.T) {
 		arn := "arn:aws:datazone:" + testRegion + ":" + testAccountID + ":domain/" + id
 		items = append(items, dztypes.DomainSummary{Arn: &arn, Id: ptrStr(id)})
 	}
-	domains, total, _, err := scanDataZoneDomains(context.Background(), &stubDZDomains{domains: items}, newTestAccount(testAccountID), testRegion, st, testScanID)
+	domains, total, _, err := scanDZDomains(&stubDZDomains{domains: items}, st)
 	if err != nil || total != 2 || len(domains) != 2 {
 		t.Fatalf("domains=%d total=%d err=%v, want 2/2/nil", len(domains), total, err)
 	}

@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/codeguruprofiler"
@@ -23,6 +24,12 @@ func scanCodeGuruProfiler(ctx context.Context, acct *account, region string, st 
 
 	includeDesc := true
 	var batch []*store.Resource
+	var unkeyed skipTally
+	defer func() {
+		if !errors.Is(err, store.ErrStoreWrite) {
+			warnNotStored(st, cgpListOp, acct, region, &unkeyed, "profiling groups have an empty ARN")
+		}
+	}()
 	var nextToken *string
 	for {
 		out, err := client.ListProfilingGroups(ctx, &codeguruprofiler.ListProfilingGroupsInput{
@@ -41,6 +48,7 @@ func scanCodeGuruProfiler(ctx context.Context, acct *account, region string, st 
 		for _, p := range out.ProfilingGroups {
 			arn := sv(p.Arn)
 			if arn == "" {
+				unkeyed.skipped(sv(p.Name), nil)
 				continue
 			}
 			batch = append(batch, &store.Resource{

@@ -27,7 +27,7 @@ var dzUserTypes = []dztypes.UserSearchType{
 }
 
 func scanDataZoneGroupProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
-	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:SearchGroupProfiles"}
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:SearchGroupProfiles", what: "group profiles"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		for _, gt := range dzGroupTypes {
@@ -38,15 +38,13 @@ func scanDataZoneGroupProfiles(ctx context.Context, client dataZoneAPI, acct *ac
 			for pager.HasMorePages() {
 				out, perr := pager.NextPage(ctx)
 				if perr != nil {
-					if isAccessDenied(perr) {
-						f.warnDenied(perr)
-						break
-					}
-					return upsertListed(st, batch, "datazone:SearchGroupProfiles", fmt.Errorf("%s/%s: %w", d.id, gt, perr))
+					f.record(fmt.Sprintf("%s/%s", d.id, gt), perr)
+					break
 				}
 				for _, g := range out.Items {
 					id := sv(g.Id)
 					if id == "" {
+						f.noID(d.id)
 						continue
 					}
 					name := sv(g.GroupName)
@@ -64,11 +62,11 @@ func scanDataZoneGroupProfiles(ctx context.Context, client dataZoneAPI, acct *ac
 			}
 		}
 	}
-	return upsertBatch(st, batch, "datazone group-profiles")
+	return f.finish(batch)
 }
 
 func scanDataZoneUserProfiles(ctx context.Context, client dataZoneAPI, acct *account, region string, st *store.Store, scanID string, domains []*dzDomain) (int, int, error) {
-	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:SearchUserProfiles"}
+	f := &dzFanout{st: st, acct: acct, region: region, op: "datazone:SearchUserProfiles", what: "user profiles"}
 	var batch []*store.Resource
 	for _, d := range domains {
 		for _, ut := range dzUserTypes {
@@ -79,15 +77,13 @@ func scanDataZoneUserProfiles(ctx context.Context, client dataZoneAPI, acct *acc
 			for pager.HasMorePages() {
 				out, perr := pager.NextPage(ctx)
 				if perr != nil {
-					if isAccessDenied(perr) {
-						f.warnDenied(perr)
-						break
-					}
-					return upsertListed(st, batch, "datazone:SearchUserProfiles", fmt.Errorf("%s/%s: %w", d.id, ut, perr))
+					f.record(fmt.Sprintf("%s/%s", d.id, ut), perr)
+					break
 				}
 				for _, u := range out.Items {
 					id := sv(u.Id)
 					if id == "" {
+						f.noID(d.id)
 						continue
 					}
 					status := string(u.Status)
@@ -101,5 +97,5 @@ func scanDataZoneUserProfiles(ctx context.Context, client dataZoneAPI, acct *acc
 			}
 		}
 	}
-	return upsertBatch(st, batch, "datazone user-profiles")
+	return f.finish(batch)
 }

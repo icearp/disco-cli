@@ -107,6 +107,7 @@ func apsRepeatingClient() *amp.Client {
 		"DescribeResourcePolicy": func(any) (any, error) {
 			return &amp.DescribeResourcePolicyOutput{PolicyDocument: ptrStr(`{"Version":"2012-10-17"}`)}, nil
 		},
+		"ListScrapers": func(any) (any, error) { return &amp.ListScrapersOutput{}, nil },
 	}
 	return amp.NewFromConfig(opStubConfig(handlers, errors.New("unexpected op")))
 }
@@ -138,12 +139,12 @@ func TestScanAPSExtended_RepeatedTokenKeepsRowsAndPhases(t *testing.T) {
 
 	t.Run("later phases run", func(t *testing.T) {
 		st := newTestStore(t)
-		total, _, err := scanAPSExtended(context.Background(), apsRepeatingClient(), acct, testRegion, st, testScanID)
+		total, _, err := scanAPSAll(context.Background(), apsRepeatingClient(), acct, testRegion, st, testScanID)
 		if !errors.Is(err, errRepeatedNextToken) {
 			t.Fatalf("err = %v, want errRepeatedNextToken", err)
 		}
-		if total != 5 {
-			t.Errorf("total = %d, want 5 (2 detectors, 2 namespaces, 1 policy)", total)
+		if total != 6 {
+			t.Errorf("total = %d, want 6 (1 workspace, 2 detectors, 2 namespaces, 1 policy)", total)
 		}
 		if n := len(rowsByNativeID(t, st, TypeAPSResourcePolicy)); n != 1 {
 			t.Errorf("resource policies stored = %d, want 1", n)
@@ -318,5 +319,81 @@ func TestScanAPSResourcePolicies_DeniedWarnsOnce(t *testing.T) {
 				t.Errorf("total=%d stored=%d ws-ok stored=%v, want 1/1/true", total, len(rows), ok)
 			}
 		})
+	}
+}
+
+// TestScanAPSExtended_ListErrorByPage pins how a failed anomaly-detector or
+// rule-groups-namespace listing is handled by page. On the first page the
+// modeled ResourceNotFoundException (workspace gone) skips silently and
+// ValidationException (workspace not ready) skips with one warning. On a later
+// page the rows read are kept:
+// ResourceNotFoundException (workspace deleted while paged) warns once with no
+// error, ValidationException is returned.
+func TestScanAPSExtended_ListErrorByPage(t *testing.T) {
+	workspaces := []apsWorkspaceRef{{ID: "ws-1", ARN: "arn:aws:aps:us-east-1:123456789012:workspace/ws-1"}}
+	acct := newTestAccount(testAccountID)
+	for _, c := range []struct {
+		name      string
+		laterPage bool
+		code      string
+		wantRows  int
+		wantWarns int
+		wantErr   bool
+	}{
+		{"first page not found", false, "ResourceNotFoundException", 0, 0, false},
+		{"first page validation", false, "ValidationException", 0, 1, false},
+		{"later page not found", true, "ResourceNotFoundException", 1, 1, false},
+		{"later page validation", true, "ValidationException", 1, 0, true},
+	} {
+		failing := func(tok *string) error {
+			if (tok != nil) == c.laterPage {
+				return apiErr(c.code, "failed")
+			}
+			return nil
+		}
+		handlers := map[string]func(in any) (any, error){
+			"ListAnomalyDetectors": func(in any) (any, error) {
+				if err := failing(in.(*amp.ListAnomalyDetectorsInput).NextToken); err != nil {
+					return nil, err
+				}
+				return &amp.ListAnomalyDetectorsOutput{NextToken: ptrStr("t"), AnomalyDetectors: []amptypes.AnomalyDetectorSummary{
+					{Arn: ptrStr("arn:aws:aps:us-east-1:123456789012:anomalydetector/ws-1/ad-1")},
+				}}, nil
+			},
+			"ListRuleGroupsNamespaces": func(in any) (any, error) {
+				if err := failing(in.(*amp.ListRuleGroupsNamespacesInput).NextToken); err != nil {
+					return nil, err
+				}
+				return &amp.ListRuleGroupsNamespacesOutput{NextToken: ptrStr("t"), RuleGroupsNamespaces: []amptypes.RuleGroupsNamespaceSummary{
+					{Arn: ptrStr("arn:aws:aps:us-east-1:123456789012:rulegroupsnamespace/ws-1/ns-1")},
+				}}, nil
+			},
+		}
+		client := amp.NewFromConfig(opStubConfig(handlers, errors.New("unexpected op")))
+		for _, p := range []struct {
+			op, typ string
+			scan    func(context.Context, apsAPI, []apsWorkspaceRef, *account, string, *store.Store, string) (int, int, error)
+		}{
+			{"amp:ListAnomalyDetectors", TypeAPSAnomalyDetector, scanAPSAnomalyDetectors},
+			{"amp:ListRuleGroupsNamespaces", TypeAPSRuleGroupsNamespace, scanAPSRuleGroupsNamespaces},
+		} {
+			t.Run(p.typ+"/"+c.name, func(t *testing.T) {
+				st := newTestStore(t)
+				warns := countOpWarnings(st, p.op)
+				_, _, err := p.scan(context.Background(), client, workspaces, acct, testRegion, st, testScanID)
+				if got := isAPIErrorCode(err, c.code); got != c.wantErr {
+					t.Errorf("err = %v, want error %v", err, c.wantErr)
+				}
+				if err != nil && !c.wantErr {
+					t.Errorf("err = %v, want nil", err)
+				}
+				if n := len(rowsByNativeID(t, st, p.typ)); n != c.wantRows {
+					t.Errorf("stored = %d, want %d", n, c.wantRows)
+				}
+				if *warns != c.wantWarns {
+					t.Errorf("warnings = %d, want %d", *warns, c.wantWarns)
+				}
+			})
+		}
 	}
 }

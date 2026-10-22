@@ -8,6 +8,7 @@ import (
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/codeguruprofiler"
 	cgptypes "github.com/aws/aws-sdk-go-v2/service/codeguruprofiler/types"
+	"github.com/icearp/disco-cli/store"
 )
 
 // TestScanCodeGuruProfiler_ReadsTags pins that a profiling-group row carries
@@ -127,5 +128,87 @@ func TestScanCodeGuruProfiler_RepeatedTokenKeepsRows(t *testing.T) {
 	}
 	if n := len(rowsByNativeID(t, st, TypeCodeGuruProfilerProfilingGroup)); total != 2 || n != 2 {
 		t.Errorf("total=%d stored=%d, want 2 each", total, n)
+	}
+}
+
+// TestScanCodeGuruProfiler_DeniedLaterPageWriteFails pins that when a later
+// page is denied and storing the groups already read fails, the write error is
+// returned and no denial warning claims the groups were handled.
+func TestScanCodeGuruProfiler_DeniedLaterPageWriteFails(t *testing.T) {
+	st, closeStore := openClosingStore(t)
+	handlers := map[string]func(in any) (any, error){
+		"ListProfilingGroups": func(in any) (any, error) {
+			if in.(*codeguruprofiler.ListProfilingGroupsInput).NextToken != nil {
+				closeStore()
+				return nil, apiErr("AccessDeniedException", "not authorized to perform: codeguru-profiler:ListProfilingGroups")
+			}
+			return &codeguruprofiler.ListProfilingGroupsOutput{NextToken: ptrStr("t"), ProfilingGroups: []cgptypes.ProfilingGroupDescription{
+				{Arn: ptrStr("arn:aws:codeguru-profiler:us-east-1:123456789012:profilingGroup/g1"), Name: ptrStr("g1")},
+			}}, nil
+		},
+	}
+	warns := countOpWarnings(st, cgpListOp)
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
+	_, _, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v, want ErrStoreWrite", err)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d, want 0", *warns)
+	}
+}
+
+// TestScanCodeGuruProfiler_EmptyARNWarnsOnce pins that listed groups with no
+// ARN are not stored and warn once, beside the stored group.
+func TestScanCodeGuruProfiler_EmptyARNWarnsOnce(t *testing.T) {
+	handlers := map[string]func(in any) (any, error){
+		"ListProfilingGroups": func(any) (any, error) {
+			return &codeguruprofiler.ListProfilingGroupsOutput{ProfilingGroups: []cgptypes.ProfilingGroupDescription{
+				{Arn: ptrStr("arn:aws:codeguru-profiler:us-east-1:123456789012:profilingGroup/g1"), Name: ptrStr("g1")},
+				{Name: ptrStr("g2")},
+				{Name: ptrStr("g3")},
+			}}, nil
+		},
+	}
+	st := newTestStore(t)
+	warns := countOpWarnings(st, cgpListOp)
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
+	total, _, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if n := len(rowsByNativeID(t, st, TypeCodeGuruProfilerProfilingGroup)); total != 1 || n != 1 {
+		t.Errorf("total=%d stored=%d, want 1 each", total, n)
+	}
+	if *warns != 1 {
+		t.Errorf("warnings = %d, want 1", *warns)
+	}
+}
+
+// TestScanCodeGuruProfiler_WriteFailsNoEmptyARNWarning pins that when storing
+// the groups fails, ErrStoreWrite is returned and the id-less group does not
+// warn.
+func TestScanCodeGuruProfiler_WriteFailsNoEmptyARNWarning(t *testing.T) {
+	st, closeStore := openClosingStore(t)
+	handlers := map[string]func(in any) (any, error){
+		"ListProfilingGroups": func(any) (any, error) {
+			closeStore()
+			return &codeguruprofiler.ListProfilingGroupsOutput{ProfilingGroups: []cgptypes.ProfilingGroupDescription{
+				{Arn: ptrStr("arn:aws:codeguru-profiler:us-east-1:123456789012:profilingGroup/g1"), Name: ptrStr("g1")},
+				{Name: ptrStr("g2")},
+			}}, nil
+		},
+	}
+	warns := countOpWarnings(st, cgpListOp)
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, errors.New("unexpected op"))
+	_, _, err := scanCodeGuruProfiler(context.Background(), acct, testRegion, st, testScanID)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v, want ErrStoreWrite", err)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d, want 0", *warns)
 	}
 }
