@@ -325,3 +325,24 @@ func seedParentRows(t *testing.T, st *store.Store, typ string, nativeIDs ...stri
 		t.Fatalf("seed %s: %v", typ, err)
 	}
 }
+
+// openClosingStore opens a store the caller closes mid-scan, so that the next
+// upsert fails. Not newTestStore: its cleanup queries the DB, which a closed
+// store can't serve. closeOnce closes it the first time it is called.
+func openClosingStore(t *testing.T) (st *store.Store, closeOnce func()) {
+	t.Helper()
+	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	insertTestScan(t, st, testScanID, "running")
+	var once sync.Once
+	return st, func() {
+		once.Do(func() {
+			if err := st.Close(); err != nil {
+				t.Errorf("close: %v", err)
+			}
+		})
+	}
+}

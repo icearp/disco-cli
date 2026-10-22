@@ -687,3 +687,44 @@ func warnNotStored(st *store.Store, op string, acct *account, region string, t *
 		Message: fmt.Sprintf("%d listed %s, so they were not stored; first %s", t.count, why, t.first),
 	})
 }
+
+// phaseErrs collects the errors of a scanner's independent phases, each with
+// the op it is warned under if demoted.
+type phaseErrs []struct {
+	op  string
+	err error
+}
+
+func (p *phaseErrs) add(op string, err error) {
+	if err != nil {
+		*p = append(*p, struct {
+			op  string
+			err error
+		}{op, err})
+	}
+}
+
+// join returns the phases' errors for the dispatcher. When every one is
+// transient they are returned as is, so the dispatcher reads the scan as
+// partial. When any is a hard error, each transient one is demoted to a
+// warning first, since the dispatcher reads a join as transient when any
+// member is and would report the hard error as one a rescan fixes.
+func (p phaseErrs) join(st *store.Store, acct *account, region string) error {
+	errs := make([]error, len(p))
+	hard := false
+	for i, f := range p {
+		errs[i] = f.err
+		if !isDemotableTransient(f.err) || isDNSNotFound(f.err) {
+			hard = true
+		}
+	}
+	if len(p) == 1 {
+		return p[0].err
+	}
+	if hard {
+		for i, f := range p {
+			errs[i] = demoteTransient(st, f.op, acct, region, f.err)
+		}
+	}
+	return errors.Join(errs...)
+}

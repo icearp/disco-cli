@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/backup"
@@ -49,59 +50,108 @@ type backupAPI interface {
 
 // scanBackup runs every AWS Backup phase for one region on a client pinned to
 // that region. Phases that list parents run before the phases that fan out
-// over them.
+// over them, and each runs whatever the earlier ones returned. Errors join
+// through phaseErrs, which demotes the transient ones to warnings only beside
+// a hard error, so a transient-only failure still makes the scan partial.
 func scanBackup(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := backup.NewFromConfig(acct.cfg, func(o *backup.Options) { o.Region = region })
+	var errs phaseErrs
+	add := func(op string, t, i int, err error) {
+		total += t
+		inserted += i
+		errs.add(op, err)
+	}
 	airGapped, t, i, ferr := scanBackupAll(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
+	add("backup", t, i, ferr)
 	t, i, ferr = scanBackupExtended(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
+	add("backup", t, i, ferr)
 	t, i, ferr = scanBackupHoldsAndRecoveryPoints(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
+	add("backup:ListRecoveryPointsByBackupVault", t, i, ferr)
 	t, i, ferr = scanBackupAccessPoints(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
+	add("backup:ListBackupAccessPoints", t, i, ferr)
 	t, i, ferr = scanBackupRestoreAccessVaults(ctx, client, acct, region, st, scanID, airGapped)
-	if ferr != nil {
-		return total, inserted, ferr
+	add("backup:ListRestoreAccessBackupVaults", t, i, ferr)
+	return total, inserted, errs.join(st, acct, region)
+}
+
+// backupPlanReads tallies the plans and selections kept or dropped by the
+// per-plan reads, for one warning per cause after the rows are stored.
+type backupPlanReads struct {
+	planDenied          skipTally
+	planTransient       transientTally
+	planNoID            skipTally
+	selectionsDenied    skipTally
+	selectionsTransient transientTally
+	selectionNoID       skipTally
+}
+
+// warn reports each tally once under the op that caused it; call it only
+// after the plans are stored.
+func (r *backupPlanReads) warn(st *store.Store, getOp, selectionsOp string, acct *account, region string) {
+	const kept = "%d backup plan(s) stored as their ListBackupPlans element, without the plan body, first %s: %w"
+	if r.planDenied.count > 0 {
+		_ = skipIfAccessDenied(st, getOp, acct.ID, region, fmt.Errorf(kept, r.planDenied.count, r.planDenied.first, r.planDenied.err))
 	}
-	total += t
-	inserted += i
-	return total, inserted, nil
+	if r.planTransient.count > 0 {
+		_ = skipIfTransient(st, getOp, acct.ID, region, fmt.Errorf(kept, r.planTransient.count, r.planTransient.first, r.planTransient.err))
+	}
+	if r.selectionsDenied.count > 0 {
+		_ = skipIfAccessDenied(st, selectionsOp, acct.ID, region, fmt.Errorf(
+			"%d backup plan(s) stored without their selections from the denied page on, first %s: %w",
+			r.selectionsDenied.count, r.selectionsDenied.first, r.selectionsDenied.err))
+	}
+	if r.selectionsTransient.count > 0 {
+		_ = skipIfTransient(st, selectionsOp, acct.ID, region, fmt.Errorf(
+			"%d backup plan(s) stored without their selections from the failed page on, first %s: %w",
+			r.selectionsTransient.count, r.selectionsTransient.first, r.selectionsTransient.err))
+	}
+}
+
+// backupPlanAttrs returns the plan's GetBackupPlan body. A denied or transient
+// read keeps the plan as its list element, a different shape, and returns
+// that error as keptErr for the caller to tally once the plan is kept; gone
+// reports a plan deleted since it was listed (ResourceNotFoundException, in
+// the op's model); any other error is returned as err.
+func backupPlanAttrs(ctx context.Context, client backupAPI, p backuptypes.BackupPlansListMember) (attrs string, gone bool, keptErr, err error) {
+	out, err := client.GetBackupPlan(ctx, &backup.GetBackupPlanInput{BackupPlanId: p.BackupPlanId})
+	switch {
+	case err == nil:
+		return mustJSON(out), false, nil, nil
+	case isAPIErrorCode(err, "ResourceNotFoundException"):
+		return "", true, nil, nil
+	case isTransientNetworkError(err) || isAccessDenied(err):
+		return mustJSON(p), false, err, nil
+	default:
+		return "", false, nil, fmt.Errorf("backup:GetBackupPlan %s: %w", sv(p.BackupPlanId), err)
+	}
 }
 
 // scanBackupAll holds the testable scan body. It also returns the logically
-// air-gapped vaults it listed, which parent the restore access vaults.
+// air-gapped vaults it listed, which parent the restore access vaults. Plans
+// do not depend on vaults, so they are scanned whatever the vault listing
+// returned; a denied vault listing keeps the pages read before it and warns.
 func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (airGapped []childParent, total, inserted int, err error) {
-	// Vaults.
-	var vaultBatch []*store.Resource
+	var (
+		vaultBatch []*store.Resource
+		noARN      skipTally
+		vaultErr   error
+	)
 	vPager := backup.NewListBackupVaultsPaginator(client, &backup.ListBackupVaultsInput{})
 	for vPager.HasMorePages() {
 		page, err := vPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "backup:ListBackupVaults", acct.ID, region, err)
+				_ = skipIfAccessDenied(st, "backup:ListBackupVaults", acct.ID, region, fmt.Errorf(
+					"listing truncated, vaults on this and later pages not stored: %w", err))
+			} else {
+				vaultErr = fmt.Errorf("backup:ListBackupVaults: %w", err)
 			}
-			return nil, 0, 0, fmt.Errorf("backup:ListBackupVaults: %w", err)
+			break
 		}
 		for _, v := range page.BackupVaultList {
 			arn := sv(v.BackupVaultArn)
 			if arn == "" {
+				noARN.skipped(fmt.Sprintf("%q", sv(v.BackupVaultName)), nil)
 				continue
 			}
 			// VaultType=LOGICALLY_AIR_GAPPED_BACKUP_VAULT splits to its own
@@ -128,43 +178,75 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 			})
 		}
 	}
+	warnNotStored(st, "backup:ListBackupVaults", acct, region, &noARN, "backup vaults have no BackupVaultArn")
 	if len(vaultBatch) > 0 {
 		n, err := st.UpsertResources(vaultBatch)
 		if err != nil {
-			return nil, 0, 0, fmt.Errorf("upsert Backup vaults: %w", err)
+			return nil, 0, 0, errors.Join(vaultErr, fmt.Errorf("upsert Backup vaults: %w", err))
 		}
 		total += len(vaultBatch)
 		inserted += n
 	}
 
-	// Plans and selections.
+	var errs phaseErrs
+	errs.add("backup:ListBackupVaults", vaultErr)
+	t, i, err := scanBackupPlans(ctx, client, acct, region, st, scanID)
+	errs.add("backup:ListBackupPlans", err)
+	return airGapped, total + t, inserted + i, errs.join(st, acct, region)
+}
+
+// scanBackupPlans stores every plan, from its GetBackupPlan body (see
+// backupPlanAttrs for when the list element is kept instead), and each plan's
+// selections, linked under it. A plan GetBackupPlan or ListBackupSelections no
+// longer finds was deleted since it was listed and is skipped with its
+// selections. A denied listing keeps the pages read before it and warns. Any
+// other listing error stops the listing. Any other GetBackupPlan error does
+// not store that plan; any other ListBackupSelections error stores the plan
+// with the selections read before it. Either way the scan goes on to the next
+// plan, and every such error is returned after what was read is stored.
+func scanBackupPlans(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var (
-		planBatch     []*store.Resource
-		selectionPair []struct {
-			r         *store.Resource
-			parentARN string
-		}
+		rows  []containedChild
+		reads backupPlanReads
+		errs  phaseErrs
 	)
 	pPager := backup.NewListBackupPlansPaginator(client, &backup.ListBackupPlansInput{})
 	for pPager.HasMorePages() {
 		page, err := pPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				break
+				_ = skipIfAccessDenied(st, "backup:ListBackupPlans", acct.ID, region, fmt.Errorf(
+					"listing truncated, plans on this and later pages not stored: %w", err))
+			} else {
+				errs.add("backup:ListBackupPlans", fmt.Errorf("backup:ListBackupPlans: %w", err))
 			}
-			return nil, 0, 0, fmt.Errorf("backup:ListBackupPlans: %w", err)
+			break
 		}
 		for _, p := range page.BackupPlansList {
-			planARN := sv(p.BackupPlanArn)
-			planID := sv(p.BackupPlanId)
+			planARN, planID := sv(p.BackupPlanArn), sv(p.BackupPlanId)
 			if planARN == "" || planID == "" {
+				reads.planNoID.skipped(fmt.Sprintf("%q", sv(p.BackupPlanName)), nil)
 				continue
 			}
-			attrsJSON := mustJSON(p)
-			if gout, gerr := client.GetBackupPlan(ctx, &backup.GetBackupPlanInput{BackupPlanId: &planID}); gerr == nil {
-				attrsJSON = mustJSON(gout)
+			attrsJSON, gone, keptErr, err := backupPlanAttrs(ctx, client, p)
+			if err != nil {
+				errs.add("backup:GetBackupPlan", err)
+				continue
 			}
-			planBatch = append(planBatch, &store.Resource{
+			if gone {
+				continue
+			}
+			sels, gone, err := listBackupSelections(ctx, client, acct, region, scanID, planARN, planID, &reads)
+			if gone {
+				continue
+			}
+			errs.add("backup:ListBackupSelections", err)
+			// Tallied only once the plan is known to be kept, since the
+			// warning says it was stored.
+			if keptErr != nil && !reads.planTransient.drop(planARN, keptErr) {
+				reads.planDenied.skipped(planARN, keptErr)
+			}
+			rows = append(rows, containedChild{row: &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -175,74 +257,64 @@ func scanBackupAll(ctx context.Context, client backupAPI, acct *account, region 
 				CreatedAt:      tp(p.CreationDate),
 				AttributesJSON: attrsJSON,
 				DiscoveredBy:   scanID,
-			})
+			}})
+			rows = append(rows, sels...)
+		}
+	}
+	warnNotStored(st, "backup:ListBackupPlans", acct, region, &reads.planNoID, "backup plans have no BackupPlanArn or BackupPlanId")
+	warnNotStored(st, "backup:ListBackupSelections", acct, region, &reads.selectionNoID, "backup selections have no SelectionId")
+	total, inserted, err := upsertContained(st, "backup plans", rows)
+	if err != nil {
+		return 0, 0, errors.Join(errs.join(st, acct, region), err)
+	}
+	reads.warn(st, "backup:GetBackupPlan", "backup:ListBackupSelections", acct, region)
+	return total, inserted, errs.join(st, acct, region)
+}
 
-			// List selections for this plan.
-			sPager := backup.NewListBackupSelectionsPaginator(client, &backup.ListBackupSelectionsInput{BackupPlanId: &planID})
-			for sPager.HasMorePages() {
-				sp, err := sPager.NextPage(ctx)
-				if err != nil {
-					if isAccessDenied(err) {
-						break
-					}
-					return nil, 0, 0, fmt.Errorf("backup:ListBackupSelections %s: %w", planID, err)
-				}
-				for _, s := range sp.BackupSelectionsList {
-					selID := sv(s.SelectionId)
-					if selID == "" {
-						continue
-					}
-					selARN := fmt.Sprintf("arn:aws:backup:%s:%s:backup-plan:%s/selection/%s", region, acct.ID, planID, selID)
-					selectionPair = append(selectionPair, struct {
-						r         *store.Resource
-						parentARN string
-					}{
-						r: &store.Resource{
-							Provider:       "aws",
-							AccountID:      acct.ID,
-							AccountName:    &acct.Name,
-							Type:           TypeBackupSelection,
-							NativeID:       selARN,
-							Name:           s.SelectionName,
-							Region:         &region,
-							CreatedAt:      tp(s.CreationDate),
-							AttributesJSON: mustJSON(s),
-							DiscoveredBy:   scanID,
-						},
-						parentARN: planARN,
-					})
-				}
+// listBackupSelections builds one plan's selection rows, linked under the
+// plan. A denied or transient page keeps the pages read before it and is
+// tallied in reads. gone reports ResourceNotFoundException (in the op's
+// model): the plan was deleted since it was read. Any other error is returned
+// with the earlier pages' rows.
+func listBackupSelections(ctx context.Context, client backupAPI, acct *account, region, scanID, planARN, planID string, reads *backupPlanReads) (rows []containedChild, gone bool, err error) {
+	planResID := store.ResourceID("aws", acct.ID, planARN)
+	sPager := backup.NewListBackupSelectionsPaginator(client, &backup.ListBackupSelectionsInput{BackupPlanId: &planID})
+	for sPager.HasMorePages() {
+		sp, err := sPager.NextPage(ctx)
+		if err != nil {
+			switch {
+			case isAPIErrorCode(err, "ResourceNotFoundException"):
+				return nil, true, nil
+			case reads.selectionsTransient.drop(planARN, err):
+				return rows, false, nil
+			case isAccessDenied(err):
+				reads.selectionsDenied.skipped(planARN, err)
+				return rows, false, nil
 			}
+			return rows, false, fmt.Errorf("backup:ListBackupSelections %s: %w", planID, err)
+		}
+		for _, s := range sp.BackupSelectionsList {
+			selID := sv(s.SelectionId)
+			if selID == "" {
+				reads.selectionNoID.skipped(planARN, nil)
+				continue
+			}
+			rows = append(rows, containedChild{
+				row: &store.Resource{
+					Provider:       "aws",
+					AccountID:      acct.ID,
+					AccountName:    &acct.Name,
+					Type:           TypeBackupSelection,
+					NativeID:       fmt.Sprintf("arn:aws:backup:%s:%s:backup-plan:%s/selection/%s", region, acct.ID, planID, selID),
+					Name:           s.SelectionName,
+					Region:         &region,
+					CreatedAt:      tp(s.CreationDate),
+					AttributesJSON: mustJSON(s),
+					DiscoveredBy:   scanID,
+				},
+				parentID: planResID,
+			})
 		}
 	}
-	if len(planBatch) > 0 {
-		n, err := st.UpsertResources(planBatch)
-		if err != nil {
-			return nil, 0, 0, fmt.Errorf("upsert Backup plans: %w", err)
-		}
-		total += len(planBatch)
-		inserted += n
-	}
-	if len(selectionPair) > 0 {
-		rs := make([]*store.Resource, len(selectionPair))
-		for i, p := range selectionPair {
-			rs[i] = p.r
-		}
-		n, err := st.UpsertResources(rs)
-		if err != nil {
-			return nil, 0, 0, fmt.Errorf("upsert Backup selections: %w", err)
-		}
-		total += len(rs)
-		inserted += n
-		pairs := make([][2]string, len(selectionPair))
-		for i, p := range selectionPair {
-			parentID := store.ResourceID("aws", acct.ID, p.parentARN)
-			pairs[i] = [2]string{p.r.ID, parentID}
-		}
-		if err := st.RecordHierarchyBatch(pairs); err != nil {
-			return nil, 0, 0, fmt.Errorf("closure Backup selections: %w", err)
-		}
-	}
-
-	return airGapped, total, inserted, nil
+	return rows, false, nil
 }

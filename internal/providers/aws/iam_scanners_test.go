@@ -153,10 +153,16 @@ func TestScanIAMUserCredentials_StoresEveryPageOfEveryUser(t *testing.T) {
 	for _, c := range iamCredCases {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
+			warns := countOpWarnings(st, "iam:"+c.op)
 			var calls parentCalls
 			total, err := c.scan(t, st, iamTestUsers("alice", "bob"), c.handler(nil, &calls))
 			if err != nil {
 				t.Fatalf("scan: %v", err)
+			}
+			// Each user's second page holds an element with no id: not
+			// stored, and reported in one warning for both users.
+			if *warns != 1 {
+				t.Errorf("iam:%s warnings = %d, want 1 for the id-less elements", c.op, *warns)
 			}
 			want := []string{c.nativeID("alice", "alice-1"), c.nativeID("alice", "alice-2"), c.nativeID("bob", "bob-1"), c.nativeID("bob", "bob-2")}
 			rows := rowsByNativeID(t, st, c.typ)
@@ -192,7 +198,8 @@ func TestScanIAMUserCredentials_Empty(t *testing.T) {
 }
 
 // A user deleted mid-scan is skipped silently; a denial warns once for the op
-// and drops only the denied users; any other error fails the phase.
+// and drops only the denied users; any other error fails the phase. The
+// served users' id-less elements add one warning to each count.
 func TestScanIAMUserCredentials_PerUserErrors(t *testing.T) {
 	for _, c := range iamCredCases {
 		t.Run(c.op+"/gone", func(t *testing.T) {
@@ -200,8 +207,8 @@ func TestScanIAMUserCredentials_PerUserErrors(t *testing.T) {
 			warns := countOpWarnings(st, "iam:"+c.op)
 			var calls parentCalls
 			total, err := c.scan(t, st, iamTestUsers("alice", "gone"), c.handler(map[string]error{"gone": iamGone}, &calls))
-			if err != nil || *warns != 0 || total != 2 {
-				t.Errorf("total = %d, warnings = %d, err = %v; want alice's 2 rows, 0 warnings, nil", total, *warns, err)
+			if err != nil || *warns != 1 || total != 2 {
+				t.Errorf("total = %d, warnings = %d, err = %v; want alice's 2 rows, 1 warning, nil", total, *warns, err)
 			}
 			if got := calls.distinct(); !slices.Equal(got, []string{"alice", "gone"}) {
 				t.Errorf("users queried = %v, want [alice gone]", got)
@@ -213,8 +220,8 @@ func TestScanIAMUserCredentials_PerUserErrors(t *testing.T) {
 			var calls parentCalls
 			fail := map[string]error{"alice": iamDenied, "bob": iamDenied}
 			total, err := c.scan(t, st, iamTestUsers("alice", "bob", "carol"), c.handler(fail, &calls))
-			if err != nil || *warns != 1 {
-				t.Errorf("warnings = %d, err = %v; want 1, nil", *warns, err)
+			if err != nil || *warns != 2 {
+				t.Errorf("warnings = %d, err = %v; want 2 (the denial, carol's id-less element), nil", *warns, err)
 			}
 			want := []string{c.nativeID("carol", "carol-1"), c.nativeID("carol", "carol-2")}
 			if got := nativeIDs(rowsByNativeID(t, st, c.typ)); total != 2 || !slices.Equal(got, want) {

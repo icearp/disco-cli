@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"sync"
 	"testing"
 
@@ -180,5 +181,172 @@ func TestScanOrganizations_ARNlessRootSubtreeStillStored(t *testing.T) {
 		if _, ok := rowsByNativeID(t, st, typ)[""]; ok {
 			t.Errorf("a %s row has an empty NativeID", typ)
 		}
+	}
+}
+
+// A denied ListParents keeps every account, unlinked, and warns once; an
+// account that left the organization (ChildNotFoundException) is stored
+// unlinked and warned about once; any other error fails the scan.
+func TestScanOrganizations_ListParentsErrors(t *testing.T) {
+	t.Run("denied", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countOpWarnings(st, "organizations:ListParents")
+		h := orgTreeHandlers()
+		h["ListParents"] = func(any) (any, error) {
+			return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized to perform: organizations:ListParents"}
+		}
+		acct := newTestAccount(testAccountID)
+		acct.cfg = opStubConfig(h, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"})
+		if _, _, err := scanOrganizations(context.Background(), acct, "", st, testScanID); err != nil {
+			t.Fatalf("scanOrganizations: %v", err)
+		}
+		if *warns != 1 {
+			t.Errorf("organizations:ListParents warnings = %d, want 1", *warns)
+		}
+		accounts := rowsByNativeID(t, st, TypeOrganizationsAccount)
+		if len(accounts) != 4 {
+			t.Fatalf("account rows = %v, want the 4 listed", nativeIDs(accounts))
+		}
+		rels, err := st.RelationshipsFrom(store.ResourceID("aws", testAccountID, orgTestRootARN))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range rels {
+			if r.ToID == store.ResourceID("aws", testAccountID, orgTestAcct1ARN) {
+				t.Errorf("root contains account %s although its parent was not read", orgTestAcct1ARN)
+			}
+		}
+	})
+	t.Run("account gone", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countOpWarnings(st, "organizations:ListParents")
+		h := orgTreeHandlers()
+		parents := h["ListParents"]
+		h["ListParents"] = func(in any) (any, error) {
+			if sv(in.(*organizations.ListParentsInput).ChildId) == "111111111111" {
+				return nil, &smithy.GenericAPIError{Code: "ChildNotFoundException", Message: "gone"}
+			}
+			return parents(in)
+		}
+		acct := newTestAccount(testAccountID)
+		acct.cfg = opStubConfig(h, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"})
+		total, _, err := scanOrganizations(context.Background(), acct, "", st, testScanID)
+		if err != nil || *warns != 1 || total != 8 {
+			t.Fatalf("total = %d, warnings = %d, err = %v; want 8 rows, 1 warning for the unlinked account, nil", total, *warns, err)
+		}
+		assertContainsNative(t, st, orgTestOUARN, orgTestAcct2ARN)
+		rels, err := st.RelationshipsFrom(store.ResourceID("aws", testAccountID, orgTestRootARN))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range rels {
+			if r.ToID == store.ResourceID("aws", testAccountID, orgTestAcct1ARN) {
+				t.Errorf("root contains account %s although ListParents no longer found it", orgTestAcct1ARN)
+			}
+		}
+	})
+	// One account's ListParents fails mid-page: every account is still stored,
+	// the failed one unlinked. A throttle warns once and is no error; any
+	// other error is returned after the accounts are stored.
+	oneFails := func(err error) map[string]func(in any) (any, error) {
+		h := orgTreeHandlers()
+		parents := h["ListParents"]
+		h["ListParents"] = func(in any) (any, error) {
+			if sv(in.(*organizations.ListParentsInput).ChildId) == "111111111111" {
+				return nil, err
+			}
+			return parents(in)
+		}
+		return h
+	}
+	for _, tc := range []struct {
+		name      string
+		err       error
+		wantWarns int
+		wantCode  string
+	}{
+		{"throttled", &smithy.GenericAPIError{Code: "TooManyRequestsException", Message: "slow down"}, 1, ""},
+		{"other error", &smithy.GenericAPIError{Code: "InvalidInputException", Message: "bad"}, 0, "InvalidInputException"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "organizations:ListParents")
+			acct := newTestAccount(testAccountID)
+			acct.cfg = opStubConfig(oneFails(tc.err), &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"})
+			_, _, err := scanOrganizations(context.Background(), acct, "", st, testScanID)
+			if tc.wantCode != "" {
+				assertAPICode(t, err, tc.wantCode)
+			} else if err != nil {
+				t.Fatalf("scanOrganizations: %v", err)
+			}
+			if *warns != tc.wantWarns {
+				t.Errorf("organizations:ListParents warnings = %d, want %d", *warns, tc.wantWarns)
+			}
+			if n := len(rowsByNativeID(t, st, TypeOrganizationsAccount)); n != 4 {
+				t.Errorf("account rows = %d, want the 4 listed", n)
+			}
+			// scanOrganizations records the closure only when every phase
+			// before it succeeded, so the links are checked on success only.
+			if tc.wantCode == "" {
+				assertContainsNative(t, st, orgTestOUARN, orgTestAcct2ARN)
+			}
+		})
+	}
+	// The "stored without their parent" warning counts only accounts stored:
+	// a failed write returns the store error and no warning.
+	t.Run("denied but not stored", func(t *testing.T) {
+		st, closeStore := openClosingStore(t)
+		warns := countOpWarnings(st, "organizations:ListParents")
+		h := orgTreeHandlers()
+		h["ListParents"] = func(any) (any, error) {
+			closeStore()
+			return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized to perform: organizations:ListParents"}
+		}
+		acct := newTestAccount(testAccountID)
+		acct.cfg = opStubConfig(h, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"})
+		_, _, err := scanOrganizations(context.Background(), acct, "", st, testScanID)
+		if !errors.Is(err, store.ErrStoreWrite) {
+			t.Errorf("err = %v, want the store write failure", err)
+		}
+		if *warns != 0 {
+			t.Errorf("organizations:ListParents warnings = %d, want 0: no account was stored", *warns)
+		}
+	})
+}
+
+// DescribeResourcePolicy's expected states (no policy, no organization) store
+// nothing silently; a denial warns once; any other error fails the scan.
+func TestScanOrganizations_DescribeResourcePolicyErrors(t *testing.T) {
+	cases := []struct {
+		name      string
+		err       error
+		wantWarns int
+		wantCode  string
+	}{
+		{"denied", &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized to perform: organizations:DescribeResourcePolicy"}, 1, ""},
+		{"no policy", &smithy.GenericAPIError{Code: "ResourcePolicyNotFoundException", Message: "none"}, 0, ""},
+		{"other error", &smithy.GenericAPIError{Code: "ServiceException", Message: "boom"}, 0, "ServiceException"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "organizations:DescribeResourcePolicy")
+			h := orgTreeHandlers()
+			h["DescribeResourcePolicy"] = func(any) (any, error) { return nil, tc.err }
+			acct := newTestAccount(testAccountID)
+			acct.cfg = opStubConfig(h, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"})
+			_, _, err := scanOrganizations(context.Background(), acct, "", st, testScanID)
+			if tc.wantCode != "" {
+				assertAPICode(t, err, tc.wantCode)
+			} else if err != nil {
+				t.Fatalf("scanOrganizations: %v", err)
+			}
+			if *warns != tc.wantWarns {
+				t.Errorf("organizations:DescribeResourcePolicy warnings = %d, want %d", *warns, tc.wantWarns)
+			}
+			if rows := rowsByNativeID(t, st, TypeOrganizationsResourcePolicy); len(rows) != 0 {
+				t.Errorf("resource policy rows = %v, want none", nativeIDs(rows))
+			}
+		})
 	}
 }

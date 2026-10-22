@@ -455,3 +455,22 @@ func TestChildFanOut_IncompleteListingWithStoreWriteFails(t *testing.T) {
 		t.Errorf("stored %d rows, total %d; want the fan-out failed with none", got, total)
 	}
 }
+
+// NXDOMAIN is never demoted (the dispatcher reads it as a region gap), so it
+// counts as the hard member: the throttle beside it is demoted to one warning
+// and the NXDOMAIN reaches the dispatcher.
+func TestPhaseErrsJoin_NXDOMAINBesideThrottle(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "svc:Throttled")
+	nxdomain := &net.DNSError{Err: "no such host", Name: "svc.us-east-1.amazonaws.com", IsNotFound: true}
+	var errs phaseErrs
+	errs.add("svc:Unreachable", nxdomain)
+	errs.add("svc:Throttled", apiErr("ThrottlingException", "Rate exceeded"))
+	err := errs.join(st, newTestAccount(testAccountID), testRegion)
+	if !isDNSNotFound(err) {
+		t.Errorf("err = %v, want the NXDOMAIN", err)
+	}
+	if *warns != 1 {
+		t.Errorf("svc:Throttled warnings = %d, want 1 for the demoted throttle", *warns)
+	}
+}

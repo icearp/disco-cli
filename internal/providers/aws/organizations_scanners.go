@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
@@ -288,7 +289,30 @@ func scanOrgOUTree(ctx context.Context, client *organizations.Client, acct *acco
 }
 
 func scanOrgAccounts(ctx context.Context, client *organizations.Client, acct *account, st *store.Store, scanID string, ouARNByNativeID map[string]string, closurePairs *[][2]string) (int, int, error) {
-	var total, inserted int
+	var (
+		total, inserted int
+		parentDenied    skipTally
+		parentTransient skipTally
+		parentGone      skipTally
+		failed          phaseErrs
+	)
+	defer func() {
+		if parentTransient.count > 0 {
+			_ = skipIfTransient(st, "organizations:ListParents", acct.ID, "", fmt.Errorf(
+				"%d account(s) stored without their parent, first %s: %w", parentTransient.count, parentTransient.first, parentTransient.err))
+		}
+		if parentDenied.count > 0 {
+			_ = skipIfAccessDenied(st, "organizations:ListParents", acct.ID, "", fmt.Errorf(
+				"%d account(s) stored without their parent, first %s: %w", parentDenied.count, parentDenied.first, parentDenied.err))
+		}
+		if parentGone.count > 0 {
+			st.ReportWarning(store.ScanWarning{
+				Provider: "aws", Service: "organizations:ListParents", Scope: acct.ID,
+				Message: fmt.Sprintf("%d account(s) stored without their parent: they left the organization after ListAccounts; first %s: %v",
+					parentGone.count, parentGone.first, parentGone.err),
+			})
+		}
+	}()
 	pager := organizations.NewListAccountsPaginator(client, &organizations.ListAccountsInput{})
 	for pager.HasMorePages() {
 		page, err := pager.NextPage(ctx)
@@ -298,12 +322,41 @@ func scanOrgAccounts(ctx context.Context, client *organizations.Client, acct *ac
 			}
 			return total, inserted, fmt.Errorf("organizations:ListAccounts: %w", err)
 		}
-		var batch []*store.Resource
+		var (
+			batch []*store.Resource
+			// Tallied only once the page is stored, since the warnings say
+			// these accounts were stored.
+			pageUnlinked []struct {
+				arn   string
+				err   error
+				tally *skipTally
+			}
+		)
 		for _, a := range page.Accounts {
 			arn := sv(a.Arn)
 			parentARN, err := firstParentARN(ctx, client, sv(a.Id), ouARNByNativeID)
-			if err != nil {
-				return total, inserted, err
+			// Whatever ListParents returned, the listed account is stored; a
+			// failed read only leaves it unlinked.
+			var tally *skipTally
+			switch {
+			case err == nil:
+			// ChildNotFoundException, in the op's model: the account left the
+			// organization after ListAccounts.
+			case isAPIErrorCode(err, "ChildNotFoundException"):
+				tally = &parentGone
+			case isTransientNetworkError(err):
+				tally = &parentTransient
+			case isAccessDenied(err):
+				tally = &parentDenied
+			default:
+				failed.add("organizations:ListParents", err)
+			}
+			if tally != nil {
+				pageUnlinked = append(pageUnlinked, struct {
+					arn   string
+					err   error
+					tally *skipTally
+				}{arn, err, tally})
 			}
 			if parentARN != "" {
 				pid := store.ResourceID("aws", acct.ID, parentARN)
@@ -328,13 +381,16 @@ func scanOrgAccounts(ctx context.Context, client *organizations.Client, acct *ac
 		if len(batch) > 0 {
 			n, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert org accounts: %w", err)
+				return total, inserted, errors.Join(failed.join(st, acct, ""), fmt.Errorf("upsert org accounts: %w", err))
 			}
 			total += len(batch)
 			inserted += n
 		}
+		for _, u := range pageUnlinked {
+			u.tally.skipped(u.arn, u.err)
+		}
 	}
-	return total, inserted, nil
+	return total, inserted, failed.join(st, acct, "")
 }
 
 // scanOrgSCPs lists SCP summaries, fans out DescribePolicy to fetch each
@@ -397,10 +453,13 @@ func scanOrgSCPs(ctx context.Context, client *organizations.Client, acct *accoun
 // policy (singleton). Synth ARN: arn:aws:organizations::{a}:resourcepolicy.
 func scanOrganizationsResourcePolicy(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.DescribeResourcePolicy(ctx, &organizations.DescribeResourcePolicyInput{})
-	if err != nil {
-		if isAccessDenied(err) || isAPIErrorCode(err, "ResourcePolicyNotFoundException", "AWSOrganizationsNotInUseException") {
-			return 0, 0, nil
-		}
+	switch {
+	case err == nil:
+	case isAPIErrorCode(err, "ResourcePolicyNotFoundException", "AWSOrganizationsNotInUseException"):
+		return 0, 0, nil
+	case isAccessDenied(err):
+		return 0, 0, skipIfAccessDenied(st, "organizations:DescribeResourcePolicy", acct.ID, "", err)
+	default:
 		return 0, 0, fmt.Errorf("organizations:DescribeResourcePolicy: %w", err)
 	}
 	if out.ResourcePolicy == nil || out.ResourcePolicy.ResourcePolicySummary == nil {
@@ -493,9 +552,6 @@ func walkOUs(
 func firstParentARN(ctx context.Context, client organizationsAPI, accountID string, arnByID map[string]string) (string, error) {
 	out, err := client.ListParents(ctx, &organizations.ListParentsInput{ChildId: &accountID})
 	if err != nil {
-		if isAccessDenied(err) {
-			return "", nil
-		}
 		return "", fmt.Errorf("organizations:ListParents %s: %w", accountID, err)
 	}
 	for _, p := range out.Parents {

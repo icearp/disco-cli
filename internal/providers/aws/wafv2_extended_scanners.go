@@ -13,7 +13,7 @@ import (
 // pattern sets, and web-ACL associations. WebACLAssociation rows are
 // synthesized per (web ACL ARN, associated resource ARN); LoggingConfig and
 // RegexPatternSet expose native ARNs.
-func scanWAFv2ScopeExtended(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string, aclSummaries []types.WebACLSummary) (total, inserted int, err error) {
+func scanWAFv2ScopeExtended(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string, webACLARNs []string) (total, inserted int, err error) {
 	{
 		t, i, ferr := scanWAFv2LoggingConfigs(ctx, client, acct, region, scope, st, scanID)
 		if ferr != nil {
@@ -41,8 +41,8 @@ func scanWAFv2ScopeExtended(ctx context.Context, client wafv2API, acct *account,
 	// Web-ACL associations only meaningful for REGIONAL scope (CloudFront
 	// distributions associate via dedicated APIs, not ListResourcesForWebACL).
 	if scope == types.ScopeRegional {
-		for _, s := range aclSummaries {
-			t, i, ferr := scanWAFv2WebACLAssociations(ctx, client, acct, region, st, scanID, sv(s.ARN))
+		for _, arn := range webACLARNs {
+			t, i, ferr := scanWAFv2WebACLAssociations(ctx, client, acct, region, st, scanID, arn)
 			if ferr != nil {
 				return total, inserted, ferr
 			}
@@ -88,8 +88,11 @@ func scanWAFv2LoggingConfigs(ctx context.Context, client wafv2API, acct *account
 }
 
 func scanWAFv2RegexPatternSets(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextMarker *string
+	var (
+		batch      []*store.Resource
+		nextMarker *string
+		arnless    skipTally
+	)
 	for {
 		out, err := client.ListRegexPatternSets(ctx, &wafv2.ListRegexPatternSetsInput{Scope: scope, NextMarker: nextMarker})
 		if err != nil {
@@ -101,6 +104,7 @@ func scanWAFv2RegexPatternSets(ctx context.Context, client wafv2API, acct *accou
 		for _, r := range out.RegexPatternSets {
 			arn := sv(r.ARN)
 			if arn == "" {
+				arnless.skipped(fmt.Sprintf("%q", sv(r.Name)), nil)
 				continue
 			}
 			batch = append(batch, &store.Resource{
@@ -115,6 +119,7 @@ func scanWAFv2RegexPatternSets(ctx context.Context, client wafv2API, acct *accou
 		}
 		nextMarker = out.NextMarker
 	}
+	warnNotStored(st, "wafv2:ListRegexPatternSets", acct, region, &arnless, "regex pattern sets have no ARN")
 	return upsertBatch(st, batch, "wafv2 regex-pattern-sets")
 }
 
@@ -155,12 +160,14 @@ func scanWAFv2ManagedRuleSets(ctx context.Context, client wafv2API, acct *accoun
 // scanWAFv2WebACLAssociations enumerates resources associated with each
 // regional WebACL. Synth ARN: webACLArn + /association/{resourceArn}.
 func scanWAFv2WebACLAssociations(ctx context.Context, client wafv2API, acct *account, region string, st *store.Store, scanID string, webACLArn string) (int, int, error) {
-	if webACLArn == "" {
-		return 0, 0, nil
-	}
 	wa := webACLArn
 	out, err := client.ListResourcesForWebACL(ctx, &wafv2.ListResourcesForWebACLInput{WebACLArn: &wa})
 	if err != nil {
+		// WAFNonexistentItemException is in the op's model: the ACL was deleted
+		// since it was stored, so it has no associations left to list.
+		if isAPIErrorCode(err, "WAFNonexistentItemException") {
+			return 0, 0, nil
+		}
 		if isAccessDenied(err) {
 			return 0, 0, skipIfAccessDenied(st, "wafv2:ListResourcesForWebACL", acct.ID, region, err)
 		}

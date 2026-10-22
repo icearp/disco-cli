@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -11,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/wafv2/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
 )
 
 func init() {
@@ -54,10 +54,9 @@ type wafv2API interface {
 //
 // The API-key phase runs after the older per-scope phases whatever they
 // returned, so a failure on either side does not stop the other from listing.
-// A lone error is returned as is, so the dispatcher classifies it (a transient
-// one becomes a scan error and a partial scan). Only when several phases fail
-// is each transient error demoted to a warning before the join, since one
-// transient member would make the dispatcher read the whole join as transient.
+// Errors join through phaseErrs: transient ones are demoted to warnings only
+// beside a hard error, so the dispatcher neither hides the hard error nor
+// reads an all-transient failure as a complete scan.
 func scanWAFv2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := wafv2.NewFromConfig(acct.cfg, func(o *wafv2.Options) { o.Region = region })
 
@@ -66,49 +65,29 @@ func scanWAFv2(ctx context.Context, acct *account, region string, st *store.Stor
 		scopes = append(scopes, types.ScopeCloudfront)
 	}
 
-	type phaseErr struct {
-		op  string
-		err error
-	}
-	var failed []phaseErr
+	var errs phaseErrs
 	total, inserted, err := scanWAFv2Scopes(ctx, client, acct, region, scopes, st, scanID)
-	if err != nil {
-		failed = append(failed, phaseErr{"wafv2", err})
-	}
+	errs.add("wafv2", err)
 	for _, scope := range scopes {
 		t, i, kerr := scanWAFv2APIKeys(ctx, client, acct, region, scope, st, scanID)
 		total += t
 		inserted += i
-		if kerr != nil {
-			failed = append(failed, phaseErr{wafv2ListAPIKeysOp, kerr})
-		}
+		errs.add(wafv2ListAPIKeysOp, kerr)
 	}
-	switch len(failed) {
-	case 0:
-		return total, inserted, nil
-	case 1:
-		return total, inserted, failed[0].err
-	}
-	errs := make([]error, len(failed))
-	for i, f := range failed {
-		errs[i] = demoteTransient(st, f.op, acct, region, f.err)
-	}
-	return total, inserted, errors.Join(errs...)
+	return total, inserted, errs.join(st, acct, region)
 }
 
-// scanWAFv2Scopes runs the per-scope phases, stopping at the first scope that
-// fails. Its counts are the sum of what each scope returned, and a failing
-// scope can return 0, 0 after storing rows.
+// scanWAFv2Scopes runs the per-scope phases of every scope, whatever the
+// others returned. Its counts are every row the scopes stored.
 func scanWAFv2Scopes(ctx context.Context, client wafv2API, acct *account, region string, scopes []types.Scope, st *store.Store, scanID string) (total, inserted int, err error) {
+	var errs phaseErrs
 	for _, scope := range scopes {
 		t, i, err := scanWAFv2Scope(ctx, client, acct, region, scope, st, scanID)
 		total += t
 		inserted += i
-		if err != nil {
-			return total, inserted, err
-		}
+		errs.add("wafv2", err)
 	}
-	return total, inserted, nil
+	return total, inserted, errs.join(st, acct, region)
 }
 
 const wafv2ListAPIKeysOp = "wafv2:ListAPIKeys"
@@ -173,17 +152,31 @@ func scanWAFv2APIKeys(ctx context.Context, client wafv2API, acct *account, regio
 	return upsertRegionChildren(st, acct, region, wafv2ListAPIKeysOp, keys, err)
 }
 
-func scanWAFv2Scope(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string) (total, inserted int, err error) {
-	// Web ACLs: list summaries then GetWebACL for full config.
-	var aclSummaries []types.WebACLSummary
-	var aclMarker *string
+// scanWAFv2WebACLs stores the scope's web ACLs from their GetWebACL bodies and
+// returns the ARNs of the ACLs stored. A failed listing keeps the pages read
+// before it: a denial warns, any other error is returned. A denied or
+// transient GetWebACL keeps the ACL as its ListWebACLs summary, a different
+// shape, with one warning per cause; an ACL GetWebACL no longer finds
+// (WAFNonexistentItemException, in the op's model) was deleted since it was
+// listed and is not stored. Any other GetWebACL error is returned after the
+// other ACLs are stored. An ACL whose stored shape carries no ARN is not
+// stored and warned about under the op that returned it.
+func scanWAFv2WebACLs(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string) ([]string, int, int, error) {
+	var (
+		aclSummaries []types.WebACLSummary
+		aclMarker    *string
+		errs         phaseErrs
+	)
 	for {
 		out, err := client.ListWebACLs(ctx, &wafv2.ListWebACLsInput{Scope: scope, NextMarker: aclMarker})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "wafv2:ListWebACLs", acct.ID, region, err)
+				_ = skipIfAccessDenied(st, "wafv2:ListWebACLs", acct.ID, region, fmt.Errorf(
+					"scope=%s: listing truncated, web ACLs on this and later pages not stored: %w", scope, err))
+			} else {
+				errs.add("wafv2:ListWebACLs", fmt.Errorf("wafv2:ListWebACLs scope=%s: %w", scope, err))
 			}
-			return 0, 0, fmt.Errorf("wafv2:ListWebACLs scope=%s: %w", scope, err)
+			break
 		}
 		aclSummaries = append(aclSummaries, out.WebACLs...)
 		if out.NextMarker == nil {
@@ -191,144 +184,200 @@ func scanWAFv2Scope(ctx context.Context, client wafv2API, acct *account, region 
 		}
 		aclMarker = out.NextMarker
 	}
-
 	var (
-		mu       sync.Mutex
-		aclBatch []*store.Resource
+		mu                      sync.Mutex
+		failed                  phaseErrs
+		denied, noBody          skipTally
+		transient               transientTally
+		summaryNoARN, bodyNoARN skipTally
 	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, s := range aclSummaries {
-		g.Go(func() error {
-			out, err := client.GetWebACL(gctx, &wafv2.GetWebACLInput{
+	// Keyed by list position: a summary's ARN may be empty.
+	keys := make([]string, len(aclSummaries))
+	byKey := make(map[string]types.WebACLSummary, len(aclSummaries))
+	for i, s := range aclSummaries {
+		keys[i] = strconv.Itoa(i)
+		byKey[keys[i]] = s
+	}
+	// A hard error is collected rather than returned, so one bad ACL neither
+	// cancels the other reads nor discards their rows. describe therefore never
+	// returns an error, and neither does describeFanOut.
+	aclBatch, _ := describeFanOut(ctx, st, acct, region, "wafv2:GetWebACL", keys, neverSkip,
+		func(ctx context.Context, key string) (*store.Resource, error) {
+			s := byKey[key]
+			out, err := client.GetWebACL(ctx, &wafv2.GetWebACLInput{
 				Id:    s.Id,
 				Name:  s.Name,
 				Scope: scope,
 			})
-			if err != nil {
-				if isAccessDenied(err) {
-					return nil
-				}
-				return fmt.Errorf("wafv2:GetWebACL %s: %w", sv(s.Name), err)
+			arn, name, attrs := sv(s.ARN), s.Name, any(s)
+			noARN := &summaryNoARN
+			switch {
+			case err == nil && out.WebACL != nil:
+				arn, name, attrs, noARN = sv(out.WebACL.ARN), out.WebACL.Name, out.WebACL, &bodyNoARN
+			case err == nil:
+				// No body to store: kept as its summary, like a failed read.
+			case isAPIErrorCode(err, "WAFNonexistentItemException"):
+				return nil, nil
+			case !isTransientNetworkError(err) && !isAccessDenied(err):
+				mu.Lock()
+				failed.add("wafv2:GetWebACL", fmt.Errorf("wafv2:GetWebACL %s: %w", sv(s.Name), err))
+				mu.Unlock()
+				return nil, nil
 			}
-			acl := out.WebACL
-			arn := sv(acl.ARN)
-			r := &store.Resource{
+			if arn == "" {
+				noARN.skipped(fmt.Sprintf("%q", sv(name)), nil)
+				return nil, nil
+			}
+			// Tallied only once the summary is known to be storable, since the
+			// warning says it was stored.
+			switch {
+			case err == nil && out.WebACL == nil:
+				noBody.skipped(arn, nil)
+			case err != nil && !transient.drop(arn, err):
+				denied.skipped(arn, err)
+			}
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeWAFv2WebACL,
 				NativeID:       arn,
-				Name:           acl.Name,
+				Name:           name,
 				Region:         &region,
-				AttributesJSON: mustJSON(acl),
+				AttributesJSON: mustJSON(attrs),
 				DiscoveredBy:   scanID,
-			}
-			mu.Lock()
-			aclBatch = append(aclBatch, r)
-			mu.Unlock()
-			return nil
+			}, nil
+		})
+	errs = append(errs, failed...)
+	warnNotStored(st, "wafv2:ListWebACLs", acct, region, &summaryNoARN, "web ACLs kept as their summary have no ARN")
+	warnNotStored(st, "wafv2:GetWebACL", acct, region, &bodyNoARN, "web ACL bodies have no ARN")
+	if len(aclBatch) == 0 {
+		return nil, 0, 0, errs.join(st, acct, region)
+	}
+	n, err := st.UpsertResources(aclBatch)
+	if err != nil {
+		return nil, 0, 0, errors.Join(errs.join(st, acct, region), fmt.Errorf("upsert WAFv2 WebACLs: %w", err))
+	}
+	const kept = "scope=%s: %d web ACL(s) stored as their ListWebACLs summary, without the ACL body, first %s: %w"
+	if denied.count > 0 {
+		_ = skipIfAccessDenied(st, "wafv2:GetWebACL", acct.ID, region, fmt.Errorf(kept, scope, denied.count, denied.first, denied.err))
+	}
+	if transient.count > 0 {
+		_ = skipIfTransient(st, "wafv2:GetWebACL", acct.ID, region, fmt.Errorf(kept, scope, transient.count, transient.first, transient.err))
+	}
+	if noBody.count > 0 {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: "wafv2:GetWebACL", Scope: acct.ID + "/" + region,
+			Message: fmt.Sprintf("scope=%s: %d web ACL(s) stored as their ListWebACLs summary because GetWebACL returned no WebACL; first %s",
+				scope, noBody.count, noBody.first),
 		})
 	}
-	if err := g.Wait(); err != nil {
-		return 0, 0, err
+	stored := make([]string, len(aclBatch))
+	for i, r := range aclBatch {
+		stored[i] = r.NativeID
 	}
-	if len(aclBatch) > 0 {
-		n, err := st.UpsertResources(aclBatch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert WAFv2 WebACLs: %w", err)
-		}
-		total += len(aclBatch)
-		inserted += n
-	}
+	return stored, len(aclBatch), n, errs.join(st, acct, region)
+}
 
-	// Rule groups
-	var rgBatch []*store.Resource
-	var rgMarker *string
+// wafv2Listed is a rule group or IP set summary: both carry the same fields.
+type wafv2Listed struct {
+	arn, name *string
+	attrs     any
+}
+
+// scanWAFv2Summaries stores one scope's rule groups or IP sets, listed by
+// list. A failed listing keeps the pages read before it: a denial warns, any
+// other error is returned with the counts of what was stored. A summary
+// without an ARN is not stored and is warned about once.
+func scanWAFv2Summaries(st *store.Store, acct *account, region, scanID string, scope types.Scope, op, kind, rtype string,
+	list func(marker *string) ([]wafv2Listed, *string, error),
+) (int, int, error) {
+	var (
+		batch   []*store.Resource
+		arnless skipTally
+		marker  *string
+		listErr error
+	)
 	for {
-		out, err := client.ListRuleGroups(ctx, &wafv2.ListRuleGroupsInput{Scope: scope, NextMarker: rgMarker})
+		items, next, err := list(marker)
 		if err != nil {
 			if isAccessDenied(err) {
-				return total, inserted, nil
+				_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf(
+					"scope=%s: listing truncated, %s on this and later pages not stored: %w", scope, kind, err))
+			} else {
+				listErr = fmt.Errorf("%s scope=%s: %w", op, scope, err)
 			}
-			return 0, 0, fmt.Errorf("wafv2:ListRuleGroups scope=%s: %w", scope, err)
+			break
 		}
-		for _, s := range out.RuleGroups {
-			arn := sv(s.ARN)
-			r := &store.Resource{
+		for _, it := range items {
+			arn := sv(it.arn)
+			if arn == "" {
+				arnless.skipped(fmt.Sprintf("%q", sv(it.name)), nil)
+				continue
+			}
+			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           TypeWAFv2RuleGroup,
+				Type:           rtype,
 				NativeID:       arn,
-				Name:           s.Name,
+				Name:           it.name,
 				Region:         &region,
-				AttributesJSON: mustJSON(s),
+				AttributesJSON: mustJSON(it.attrs),
 				DiscoveredBy:   scanID,
-			}
-			rgBatch = append(rgBatch, r)
+			})
 		}
-		if out.NextMarker == nil {
+		if next == nil {
 			break
 		}
-		rgMarker = out.NextMarker
+		marker = next
 	}
-	if len(rgBatch) > 0 {
-		n, err := st.UpsertResources(rgBatch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert WAFv2 rule groups: %w", err)
-		}
-		total += len(rgBatch)
-		inserted += n
+	warnNotStored(st, op, acct, region, &arnless, kind+" have no ARN")
+	total, inserted, err := upsertBatch(st, batch, "wafv2 "+kind)
+	if err != nil {
+		return 0, 0, errors.Join(listErr, err)
 	}
+	return total, inserted, listErr
+}
 
-	// IP sets
-	var ipBatch []*store.Resource
-	var ipMarker *string
-	for {
-		out, err := client.ListIPSets(ctx, &wafv2.ListIPSetsInput{Scope: scope, NextMarker: ipMarker})
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, nil
-			}
-			return 0, 0, fmt.Errorf("wafv2:ListIPSets scope=%s: %w", scope, err)
-		}
-		for _, s := range out.IPSets {
-			arn := sv(s.ARN)
-			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeWAFv2IPSet,
-				NativeID:       arn,
-				Name:           s.Name,
-				Region:         &region,
-				AttributesJSON: mustJSON(s),
-				DiscoveredBy:   scanID,
-			}
-			ipBatch = append(ipBatch, r)
-		}
-		if out.NextMarker == nil {
-			break
-		}
-		ipMarker = out.NextMarker
-	}
-	if len(ipBatch) > 0 {
-		n, err := st.UpsertResources(ipBatch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert WAFv2 IP sets: %w", err)
-		}
-		total += len(ipBatch)
-		inserted += n
-	}
-
-	{
-		t, i, ferr := scanWAFv2ScopeExtended(ctx, client, acct, region, scope, st, scanID, aclSummaries)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
+// scanWAFv2Scope runs one scope's phases, each whatever the others returned,
+// and returns the counts of every row stored with their errors joined.
+func scanWAFv2Scope(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string) (total, inserted int, err error) {
+	var errs phaseErrs
+	add := func(op string, t, i int, err error) {
 		total += t
 		inserted += i
+		errs.add(op, err)
 	}
-
-	return total, inserted, nil
+	webACLARNs, t, i, err := scanWAFv2WebACLs(ctx, client, acct, region, scope, st, scanID)
+	add("wafv2:ListWebACLs", t, i, err)
+	t, i, err = scanWAFv2Summaries(st, acct, region, scanID, scope, "wafv2:ListRuleGroups", "rule groups", TypeWAFv2RuleGroup,
+		func(marker *string) ([]wafv2Listed, *string, error) {
+			out, err := client.ListRuleGroups(ctx, &wafv2.ListRuleGroupsInput{Scope: scope, NextMarker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			items := make([]wafv2Listed, len(out.RuleGroups))
+			for i, s := range out.RuleGroups {
+				items[i] = wafv2Listed{s.ARN, s.Name, s}
+			}
+			return items, out.NextMarker, nil
+		})
+	add("wafv2:ListRuleGroups", t, i, err)
+	t, i, err = scanWAFv2Summaries(st, acct, region, scanID, scope, "wafv2:ListIPSets", "IP sets", TypeWAFv2IPSet,
+		func(marker *string) ([]wafv2Listed, *string, error) {
+			out, err := client.ListIPSets(ctx, &wafv2.ListIPSetsInput{Scope: scope, NextMarker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			items := make([]wafv2Listed, len(out.IPSets))
+			for i, s := range out.IPSets {
+				items[i] = wafv2Listed{s.ARN, s.Name, s}
+			}
+			return items, out.NextMarker, nil
+		})
+	add("wafv2:ListIPSets", t, i, err)
+	t, i, err = scanWAFv2ScopeExtended(ctx, client, acct, region, scope, st, scanID, webACLARNs)
+	add("wafv2", t, i, err)
+	return total, inserted, errs.join(st, acct, region)
 }

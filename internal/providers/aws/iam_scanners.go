@@ -830,7 +830,8 @@ func iamUserChildRow(acct *account, scanID, typ, userARN, kind, id string, statu
 // scanIAMServiceSpecificCredentials lists each user's service-specific
 // credentials (CodeCommit, Keyspaces, Bedrock and CloudWatch Logs API keys).
 func scanIAMServiceSpecificCredentials(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, int, error) {
-	return childFanOut(ctx, st, acct, "global", "iam:ListServiceSpecificCredentials", users, isIAMUserGone,
+	var idless skipTally
+	total, inserted, err := childFanOut(ctx, st, acct, "global", "iam:ListServiceSpecificCredentials", users, isIAMUserGone,
 		func(gctx context.Context, u childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			// Per user, not AllUsers: no live call has confirmed what AllUsers
@@ -844,6 +845,7 @@ func scanIAMServiceSpecificCredentials(ctx context.Context, client iamAPI, users
 				for _, c := range out.ServiceSpecificCredentials {
 					id := sv(c.ServiceSpecificCredentialId)
 					if id == "" {
+						idless.skipped(u.arn, nil)
 						continue
 					}
 					rows = append(rows, iamUserChildRow(acct, scanID, TypeIAMServiceSpecificCredential, u.arn, "service-specific-credential", id, c.Status, c.CreateDate, c))
@@ -857,11 +859,14 @@ func scanIAMServiceSpecificCredentials(ctx context.Context, client iamAPI, users
 				input.Marker = out.Marker
 			}
 		})
+	warnNotStored(st, "iam:ListServiceSpecificCredentials", acct, "global", &idless, "service-specific credentials have no ServiceSpecificCredentialId")
+	return total, inserted, err
 }
 
 // scanIAMSigningCertificates lists each user's X.509 signing certificates.
 func scanIAMSigningCertificates(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, int, error) {
-	return childFanOut(ctx, st, acct, "global", "iam:ListSigningCertificates", users, isIAMUserGone,
+	var idless skipTally
+	total, inserted, err := childFanOut(ctx, st, acct, "global", "iam:ListSigningCertificates", users, isIAMUserGone,
 		func(gctx context.Context, u childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			pager := iam.NewListSigningCertificatesPaginator(client, &iam.ListSigningCertificatesInput{UserName: &u.id})
@@ -873,6 +878,7 @@ func scanIAMSigningCertificates(ctx context.Context, client iamAPI, users []chil
 				for _, c := range out.Certificates {
 					id := sv(c.CertificateId)
 					if id == "" {
+						idless.skipped(u.arn, nil)
 						continue
 					}
 					rows = append(rows, iamUserChildRow(acct, scanID, TypeIAMSigningCertificate, u.arn, "signing-certificate", id, c.Status, c.UploadDate, c))
@@ -880,6 +886,8 @@ func scanIAMSigningCertificates(ctx context.Context, client iamAPI, users []chil
 			}
 			return rows, nil
 		})
+	warnNotStored(st, "iam:ListSigningCertificates", acct, "global", &idless, "signing certificates have no CertificateId")
+	return total, inserted, err
 }
 
 // scanIAMSSHPublicKeys lists each user's SSH public keys (CodeCommit). The list
@@ -887,7 +895,8 @@ func scanIAMSigningCertificates(ctx context.Context, client iamAPI, users []chil
 // fingerprint at one more call per key against IAM's low TPS ceiling, and
 // neither is needed to inventory the key or link it to its user.
 func scanIAMSSHPublicKeys(ctx context.Context, client iamAPI, users []childParent, acct *account, st *store.Store, scanID string) (int, int, error) {
-	return childFanOut(ctx, st, acct, "global", "iam:ListSSHPublicKeys", users, isIAMUserGone,
+	var idless skipTally
+	total, inserted, err := childFanOut(ctx, st, acct, "global", "iam:ListSSHPublicKeys", users, isIAMUserGone,
 		func(gctx context.Context, u childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
 			pager := iam.NewListSSHPublicKeysPaginator(client, &iam.ListSSHPublicKeysInput{UserName: &u.id})
@@ -899,6 +908,7 @@ func scanIAMSSHPublicKeys(ctx context.Context, client iamAPI, users []childParen
 				for _, k := range out.SSHPublicKeys {
 					id := sv(k.SSHPublicKeyId)
 					if id == "" {
+						idless.skipped(u.arn, nil)
 						continue
 					}
 					rows = append(rows, iamUserChildRow(acct, scanID, TypeIAMSSHPublicKey, u.arn, "ssh-public-key", id, k.Status, k.UploadDate, k))
@@ -906,6 +916,8 @@ func scanIAMSSHPublicKeys(ctx context.Context, client iamAPI, users []childParen
 			}
 			return rows, nil
 		})
+	warnNotStored(st, "iam:ListSSHPublicKeys", acct, "global", &idless, "SSH public keys have no SSHPublicKeyId")
+	return total, inserted, err
 }
 
 // iamDelegationRequestNativeID builds the delegation-request ARN in the format
