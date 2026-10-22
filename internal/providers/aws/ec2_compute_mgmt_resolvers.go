@@ -68,6 +68,8 @@ func resolveSnapshotRelationships(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if v := sv(attrs.VolumeID); v != "" {
+			// acct.ID keying holds: a RAM share recipient can only view or
+			// copy a shared volume, never snapshot it.
 			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "volume", v))
 			if volSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -227,6 +229,8 @@ func emitInstanceVolumeEdges(st *store.Store, acct *account, r store.Resource, r
 		if bdm.Ebs == nil || bdm.Ebs.VolumeID == nil {
 			continue
 		}
+		// acct.ID keying holds for RAM shares: a share recipient can only
+		// view or copy a shared volume, never attach it.
 		volID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "volume", *bdm.Ebs.VolumeID))
 		if err := st.UpsertRelationship(r.ID, volID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert instance→volume relationship: %w", err)

@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
@@ -139,6 +140,19 @@ func scanSecurityGroups(ctx context.Context, client ec2API, acct *account, regio
 	)
 }
 
+// scanVolumes stores every volume DescribeVolumes lists, including volumes
+// another account shares through AWS RAM (AWS RAM documents that a share
+// recipient's DescribeVolumes lists them). A volume ARN names its owner's
+// account, so the NativeID is built from OwnerId; the row stays under the
+// scanned account that listed it.
+//
+// Falling back to acct.ID when OwnerId is empty is a deliberate exception to
+// the NativeID presence-skip rule (internal/providers/CLAUDE.md, "NativeID is
+// the identity handle", rule 2): a presence skip would drop listed volumes,
+// against the no-dropped-data decision. OwnerId arrived with RAM volume
+// sharing (ec2 v1.331.0) and is optional in the model, so a partition or
+// endpoint may omit it; in every case known so far, the account that lists a
+// volume with no OwnerId is its owner.
 func scanVolumes(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return ec2PageScan(
 		ctx, "ec2:DescribeVolumes", acct, region, st,
@@ -152,7 +166,7 @@ func scanVolumes(ctx context.Context, client ec2API, acct *account, region strin
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2Volume,
-					NativeID:       ec2ARN(region, acct.ID, "volume", sv(vol.VolumeId)),
+					NativeID:       ec2ARN(region, cmp.Or(sv(vol.OwnerId), acct.ID), "volume", sv(vol.VolumeId)),
 					Name:           ec2TagName(vol.Tags),
 					Region:         &region,
 					Zone:           vol.AvailabilityZoneId,

@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -13,6 +14,10 @@ func init() {
 	registerResolver(
 		resolveEC2VolumeKMS,
 		EdgeDecl{TypeEC2Volume, TypeKMSKey, store.RelUses},
+	)
+	registerResolver(
+		resolveEC2VolumeOwners,
+		EdgeDecl{TypeEC2Volume, TypeIAMAccount, store.RelAttachedTo},
 	)
 	registerResolver(
 		resolveEC2ImageKMS,
@@ -124,6 +129,92 @@ func resolveEC2VolumeKMS(acct *account, st *store.Store) error {
 		}
 	}
 	return nil
+}
+
+// volumeRowsByRegionID maps region+"\x00"+VolumeId to the row ID of each
+// volume stored under the scanned account. A resolver holding a bare volume
+// id looks the row up here instead of rebuilding the ARN from acct.ID,
+// because a shared volume's NativeID names its owner's account.
+func volumeRowsByRegionID(acct *account, st *store.Store) (map[string]string, error) {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2Volume},
+		Limit: util.AllResources,
+	})
+	if err != nil {
+		return nil, err
+	}
+	idx := make(map[string]string, len(rows))
+	for _, r := range rows {
+		_, id, ok := strings.Cut(r.NativeID, ":volume/")
+		if !ok {
+			return nil, fmt.Errorf("ec2 volume NativeID %q has no :volume/ segment", r.NativeID)
+		}
+		idx[sv(r.Region)+"\x00"+id] = r.ID
+	}
+	return idx, nil
+}
+
+// resolveEC2VolumeOwners links each listed volume another account owns (such
+// as one shared through AWS RAM) to that owner's aws:iam:account self-node,
+// inserting a reference-only placeholder when the owner has no row. A volume
+// the scanned account owns, or one with no OwnerId, gets no edge.
+func resolveEC2VolumeOwners(acct *account, st *store.Store) error {
+	volumes, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEC2Volume},
+		Limit: util.AllResources,
+	})
+	if err != nil || len(volumes) == 0 {
+		return err
+	}
+	type pending struct{ fromID, owner string }
+	var edges []pending
+	owners := map[string]struct{}{}
+	var decodeErrs []error
+	for _, v := range volumes {
+		var attrs struct {
+			OwnerID *string `json:"OwnerId"`
+		}
+		if err := json.Unmarshal([]byte(v.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode ec2 volume %s: %w", v.NativeID, err))
+			continue
+		}
+		owner := sv(attrs.OwnerID)
+		if owner == "" || owner == acct.ID {
+			continue
+		}
+		owners[owner] = struct{}{}
+		edges = append(edges, pending{fromID: v.ID, owner: owner})
+	}
+	if len(edges) == 0 {
+		return errors.Join(decodeErrs...)
+	}
+
+	placeholders := make([]*store.Resource, 0, len(owners))
+	for owner := range owners {
+		name := owner
+		placeholders = append(placeholders, &store.Resource{
+			Provider:       "aws",
+			AccountID:      owner,
+			Type:           TypeIAMAccount,
+			NativeID:       iamAccountNativeID(owner),
+			Name:           &name,
+			Region:         regionGlobal,
+			AttributesJSON: "{}",
+			DiscoveredBy:   volumes[0].DiscoveredBy,
+		})
+	}
+	if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
+		return fmt.Errorf("insert volume-owner account placeholders: %w", err)
+	}
+
+	edgeAttrs := mustJSON(map[string]string{"role": "owner"})
+	for _, e := range edges {
+		toID := store.ResourceID("aws", e.owner, iamAccountNativeID(e.owner))
+		if err := st.UpsertRelationship(e.fromID, toID, store.RelAttachedTo, "directed", &edgeAttrs); err != nil {
+			return fmt.Errorf("upsert ec2-volume→owner account: %w", err)
+		}
+	}
+	return errors.Join(decodeErrs...)
 }
 
 // resolveEC2ImageKMS links each AMI to KMS keys via per-block-device EBS

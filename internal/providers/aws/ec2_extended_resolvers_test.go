@@ -1,11 +1,143 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+
 	"github.com/icearp/disco-cli/store"
 )
+
+// volOwnerTestSeed stores a volume under the scanned account. The owner
+// resolver reads only OwnerId from the attributes, so the NativeID is fixed.
+func volOwnerTestSeed(t *testing.T, st *store.Store, id string, owner *string) string {
+	t.Helper()
+	attrs := mustJSON(ec2types.Volume{VolumeId: ptrStr(id), OwnerId: owner})
+	return upsertTestResourceNamed(t, st, TypeEC2Volume, ec2ARN(testRegion, testAccountID, "volume", id), testRegion, attrs, id)
+}
+
+func volOwnerTestAssertEdge(t *testing.T, st *store.Store, volID string) {
+	t.Helper()
+	rels, err := st.RelationshipsFrom(volID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 || rels[0].ToID != iamTestPartnerAccountID() || rels[0].Kind != store.RelAttachedTo {
+		t.Fatalf("edges from %s = %+v, want one attached-to the owner account", volID, rels)
+	}
+	var edgeAttrs map[string]string
+	if err := json.Unmarshal([]byte(sv(rels[0].Attributes)), &edgeAttrs); err != nil || len(edgeAttrs) != 1 || edgeAttrs["role"] != "owner" {
+		t.Errorf("edge attributes = %s (%v), want {\"role\":\"owner\"}", sv(rels[0].Attributes), err)
+	}
+}
+
+func volOwnerTestAssertNoEdgeNoAccount(t *testing.T, st *store.Store, volID string) {
+	t.Helper()
+	rels, err := st.RelationshipsFrom(volID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("edges from %s = %+v, want none", volID, rels)
+	}
+	if rows := iamTestAccountRows(t, st); len(rows) != 0 {
+		t.Errorf("account rows = %+v, want no placeholder", rows)
+	}
+}
+
+// Two volumes shared by one owner get one placeholder, and a second resolver
+// run neither adds a row nor changes the first.
+func TestResolveEC2VolumeOwners_ForeignOwnerPlaceholder(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	vol1 := volOwnerTestSeed(t, st, "vol-1", ptrStr(iamTestPartnerAccount))
+	vol2 := volOwnerTestSeed(t, st, "vol-2", ptrStr(iamTestPartnerAccount))
+
+	for run := 1; run <= 2; run++ {
+		if err := resolveEC2VolumeOwners(acct, st); err != nil {
+			t.Fatalf("run %d: resolveEC2VolumeOwners: %v", run, err)
+		}
+		rows := iamTestAccountRows(t, st)
+		if len(rows) != 1 {
+			t.Fatalf("run %d: account rows = %+v, want one placeholder", run, rows)
+		}
+		p := rows[0]
+		if p.ID != iamTestPartnerAccountID() || p.AccountID != iamTestPartnerAccount ||
+			sv(p.Name) != iamTestPartnerAccount || sv(p.Region) != "global" ||
+			p.AttributesJSON != "{}" || !p.ReferenceOnly || p.DiscoveredBy != testScanID {
+			t.Errorf("run %d: placeholder = %+v, want the owner self-node, name and account %s, region global, {} attributes, reference-only, discovered by %s",
+				run, p, iamTestPartnerAccount, testScanID)
+		}
+		volOwnerTestAssertEdge(t, st, vol1)
+		volOwnerTestAssertEdge(t, st, vol2)
+	}
+}
+
+// An owner account that already has a scanned row keeps it unchanged.
+func TestResolveEC2VolumeOwners_ScannedOwnerKeptIntact(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	populated := `{"SummaryMap":{"Users":5}}`
+	scannedID := upsertTestResource(t, st, "aws", iamTestPartnerAccount, TypeIAMAccount,
+		"arn:aws:iam::"+iamTestPartnerAccount+":root", "global", populated)
+	volID := volOwnerTestSeed(t, st, "vol-1", ptrStr(iamTestPartnerAccount))
+
+	if err := resolveEC2VolumeOwners(acct, st); err != nil {
+		t.Fatalf("resolveEC2VolumeOwners: %v", err)
+	}
+	volOwnerTestAssertEdge(t, st, volID)
+	rows := iamTestAccountRows(t, st)
+	if len(rows) != 1 || rows[0].ID != scannedID {
+		t.Fatalf("account rows = %+v, want only the scanned owner account", rows)
+	}
+	if rows[0].AttributesJSON != populated || rows[0].ReferenceOnly {
+		t.Errorf("scanned account changed: attributes %s, referenceOnly %v; want %s, false",
+			rows[0].AttributesJSON, rows[0].ReferenceOnly, populated)
+	}
+}
+
+func TestResolveEC2VolumeOwners_SelfOwnerNoEdge(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	volID := volOwnerTestSeed(t, st, "vol-1", ptrStr(testAccountID))
+
+	if err := resolveEC2VolumeOwners(acct, st); err != nil {
+		t.Fatalf("resolveEC2VolumeOwners: %v", err)
+	}
+	volOwnerTestAssertNoEdgeNoAccount(t, st, volID)
+}
+
+func TestResolveEC2VolumeOwners_NoOwnerNoEdge(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	volID := volOwnerTestSeed(t, st, "vol-1", nil)
+
+	if err := resolveEC2VolumeOwners(acct, st); err != nil {
+		t.Fatalf("resolveEC2VolumeOwners: %v", err)
+	}
+	volOwnerTestAssertNoEdgeNoAccount(t, st, volID)
+}
+
+// A row whose attributes do not decode fails the resolver without costing a
+// later sibling its edge or placeholder (ListResources orders by name).
+func TestResolveEC2VolumeOwners_DecodeErrorKeepsSiblings(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResourceNamed(t, st, TypeEC2Volume, ec2ARN(testRegion, testAccountID, "volume", "vol-0"), testRegion, `{"OwnerId":7}`, "vol-0")
+	volID := volOwnerTestSeed(t, st, "vol-1", ptrStr(iamTestPartnerAccount))
+
+	var typeErr *json.UnmarshalTypeError
+	if err := resolveEC2VolumeOwners(acct, st); !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want the vol-0 decode error", err)
+	}
+	volOwnerTestAssertEdge(t, st, volID)
+	if rows := iamTestAccountRows(t, st); len(rows) != 1 || rows[0].ID != iamTestPartnerAccountID() {
+		t.Errorf("account rows = %+v, want the owner placeholder", rows)
+	}
+}
 
 func TestResolveEC2VolumeKMS(t *testing.T) {
 	st := newTestStore(t)

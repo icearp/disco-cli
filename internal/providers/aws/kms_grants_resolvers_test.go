@@ -181,6 +181,64 @@ func TestResolveKMSGrantEncryptionContext_EBSVolume(t *testing.T) {
 	assertRelationship(t, rels, grantID, volID, store.RelUses)
 }
 
+// A volume shared from another account is stored under the scanned account
+// but keyed by its owner's ARN; a grant naming its bare id still reaches it.
+func TestResolveKMSGrantEncryptionContext_SharedEBSVolume(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	volARN := ec2ARN(testRegion, iamTestPartnerAccount, "volume", "vol-shared")
+	volID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Volume, volARN, testRegion, `{}`)
+
+	grantARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc-123/grant/g-shared", testRegion, acct.ID)
+	attrs := `{"GrantId":"g-shared","Constraints":{"EncryptionContextSubset":{"aws:ebs:id":"vol-shared"}}}`
+	grantID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSGrant, grantARN, testRegion, attrs)
+
+	if err := resolveKMSGrantEncryptionContext(acct, st); err != nil {
+		t.Fatalf("resolveKMSGrantEncryptionContext: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(grantID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Fatalf("edges from grant = %+v, want one to the shared volume", rels)
+	}
+	assertRelationship(t, rels, grantID, volID, store.RelUses)
+}
+
+// A volume grant in another region does not match a same-id volume here.
+func TestResolveKMSGrantEncryptionContext_EBSVolumeOtherRegion(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeEC2Volume, ec2ARN(testRegion, acct.ID, "volume", "vol-abc"), testRegion, `{}`)
+
+	grantARN := fmt.Sprintf("arn:aws:kms:eu-west-1:%s:key/abc-123/grant/g-eu", acct.ID)
+	attrs := `{"GrantId":"g-eu","Constraints":{"EncryptionContextSubset":{"aws:ebs:id":"vol-abc"}}}`
+	grantID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSGrant, grantARN, "eu-west-1", attrs)
+
+	if err := resolveKMSGrantEncryptionContext(acct, st); err != nil {
+		t.Fatalf("resolveKMSGrantEncryptionContext: %v", err)
+	}
+	if rels, _ := st.RelationshipsFrom(grantID); len(rels) != 0 {
+		t.Errorf("edges from eu-west-1 grant = %+v, want none", rels)
+	}
+}
+
+// A stored volume whose NativeID has no volume segment fails the resolver
+// rather than silently leaving every grant without its volume edge.
+func TestResolveKMSGrantEncryptionContext_MalformedVolumeNativeID(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeEC2Volume, "vol-bare", testRegion, `{}`)
+	grantARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc-123/grant/g-1", testRegion, acct.ID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeKMSGrant, grantARN, testRegion, `{"GrantId":"g-1"}`)
+
+	if err := resolveKMSGrantEncryptionContext(acct, st); err == nil {
+		t.Error("resolveKMSGrantEncryptionContext = nil, want an error for the malformed volume NativeID")
+	}
+}
+
 // TestResolveKMSGrantEncryptionContext_EBSVolumeUnscanned confirms FK-safe
 // skip when the named volume has no row in the local store.
 func TestResolveKMSGrantEncryptionContext_EBSVolumeUnscanned(t *testing.T) {

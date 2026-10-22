@@ -118,8 +118,8 @@ func resolveKMSGrantEncryptionContext(acct *account, st *store.Store) error {
 	if len(grants) == 0 {
 		return nil
 	}
-	// Pre-load id sets for every target type the dispatch map names plus
-	// EC2 volume (bare-id encryption-context key, not full ARN).
+	// Pre-load id sets for every target type the dispatch map names. EC2
+	// volumes are named by bare id (not full ARN), so they get a VolumeId index.
 	idSets := map[string]map[string]bool{}
 	for _, dtype := range kmsEncCtxARNDispatch {
 		if _, ok := idSets[dtype]; ok {
@@ -131,9 +131,9 @@ func resolveKMSGrantEncryptionContext(acct *account, st *store.Store) error {
 		}
 		idSets[dtype] = set
 	}
-	volSet, err := scannedIDSet(acct, st, TypeEC2Volume)
+	volRows, err := volumeRowsByRegionID(acct, st)
 	if err != nil {
-		return fmt.Errorf("load id-set %s: %w", TypeEC2Volume, err)
+		return fmt.Errorf("load %s rows: %w", TypeEC2Volume, err)
 	}
 	for _, gr := range grants {
 		var a struct {
@@ -152,8 +152,8 @@ func resolveKMSGrantEncryptionContext(acct *account, st *store.Store) error {
 					continue
 				}
 				if k == "aws:ebs:id" {
-					volID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "volume", v))
-					if !volSet[volID] {
+					volID, ok := volRows[region+"\x00"+v]
+					if !ok {
 						continue
 					}
 					if err := st.UpsertRelationship(gr.ID, volID, store.RelUses, "directed", nil); err != nil {
