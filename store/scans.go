@@ -73,19 +73,25 @@ func (s Scan) MarshalJSON() ([]byte, error) {
 		ResourceCount: s.ResourceCount,
 	}
 	if w.Providers == nil && s.ProvidersJSON != "" {
-		_ = json.Unmarshal([]byte(s.ProvidersJSON), &w.Providers)
+		if err := json.Unmarshal([]byte(s.ProvidersJSON), &w.Providers); err != nil {
+			return nil, fmt.Errorf("scan %s: decode providers column: %w", s.ID, err)
+		}
 	}
 	if w.Providers == nil {
 		w.Providers = []string{}
 	}
 	if s.ScopeJSON != "" {
-		_ = json.Unmarshal([]byte(s.ScopeJSON), &w.Scope)
+		if err := json.Unmarshal([]byte(s.ScopeJSON), &w.Scope); err != nil {
+			return nil, fmt.Errorf("scan %s: decode scope column: %w", s.ID, err)
+		}
 	}
 	if w.Scope == nil {
 		w.Scope = map[string]any{}
 	}
 	if s.MetaJSON != nil && *s.MetaJSON != "" {
-		_ = json.Unmarshal([]byte(*s.MetaJSON), &w.Meta)
+		if err := json.Unmarshal([]byte(*s.MetaJSON), &w.Meta); err != nil {
+			return nil, fmt.Errorf("scan %s: decode meta column: %w", s.ID, err)
+		}
 	}
 	if w.Meta == nil {
 		w.Meta = map[string]any{}
@@ -304,7 +310,10 @@ func (s *Store) AppendScanError(id string, e ScanErrorEntry) error {
 		return err
 	}
 	var list []ScanErrorEntry
-	_ = json.Unmarshal([]byte(raw), &list)
+	if err := json.Unmarshal([]byte(raw), &list); err != nil {
+		// Rewriting would replace every recorded entry with this one.
+		return fmt.Errorf("scan %s: decode existing errors column before append: %w", id, err)
+	}
 	list = append(list, e)
 	out, err := json.Marshal(list)
 	if err != nil {
@@ -360,7 +369,10 @@ func (s *Store) AppendScanWarning(id string, e ScanWarningEntry) error {
 		return err
 	}
 	var list []ScanWarningEntry
-	_ = json.Unmarshal([]byte(raw), &list)
+	if err := json.Unmarshal([]byte(raw), &list); err != nil {
+		// Rewriting would replace every recorded entry with this one.
+		return fmt.Errorf("scan %s: decode existing warnings column before append: %w", id, err)
+	}
 	list = append(list, e)
 	out, err := json.Marshal(list)
 	if err != nil {

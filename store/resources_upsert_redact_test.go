@@ -2,11 +2,13 @@ package store
 
 import (
 	"encoding/json"
+	"math"
 	"strings"
 	"sync"
 	"testing"
 
 	"github.com/icearp/disco-cli/internal/redact"
+	"github.com/icearp/disco-cli/internal/util"
 )
 
 // testRedactType carries a redaction rule; testNoRulesType carries none.
@@ -128,6 +130,32 @@ func TestResourceWriters_MalformedAttributesOnUnruledTypeStoredRaw(t *testing.T)
 			if len(errs) != 0 {
 				t.Errorf("scan errors = %+v; want none", errs)
 			}
+		})
+	}
+}
+
+// TestResourceWriters_UnencodableAttributesReported pins that a row whose
+// attributes util.MustJSON could not encode is still written, as a resource
+// that exists, but the lost attributes surface as one scan error naming the
+// row rather than passing as an ordinary row.
+func TestResourceWriters_UnencodableAttributesReported(t *testing.T) {
+	for _, w := range resourceWriters {
+		t.Run(w.name, func(t *testing.T) {
+			withDialects(t, func(t *testing.T, st *Store) {
+				in := util.MustJSON(struct{ Ratio float64 }{math.NaN()})
+				got, errs := writeAndCollect(t, st, w.write, testNoRulesType, "unencodable-1", in)
+
+				if !util.IsMarshalFailure(got.AttributesJSON) {
+					t.Errorf("stored attributes = %s; want the MustJSON failure object", got.AttributesJSON)
+				}
+				if len(errs) != 1 {
+					t.Fatalf("scan errors = %d (%+v); want 1", len(errs), errs)
+				}
+				e := errs[0]
+				if e.Provider != "aws" || e.Service != testNoRulesType || e.Scope != "111" {
+					t.Errorf("scan error = {%s %s %s}; want {aws %s 111}", e.Provider, e.Service, e.Scope, testNoRulesType)
+				}
+			})
 		})
 	}
 }

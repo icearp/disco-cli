@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -62,9 +63,13 @@ func resolveShieldProtectionTargets(acct *account, st *store.Store) error {
 		return err
 	}
 
+	// A row that does not decode is reported at the end so that it costs the
+	// others none of their edges.
+	var decodeErrs []error
 	for _, p := range protections {
 		var attrs shieldProtectionAttrs
 		if err := json.Unmarshal([]byte(p.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeShieldProtection, p.NativeID, err))
 			continue
 		}
 		ref := sv(attrs.ResourceArn)
@@ -83,7 +88,7 @@ func resolveShieldProtectionTargets(acct *account, st *store.Store) error {
 			return fmt.Errorf("upsert shield protection→target: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveShieldProtectionGroupMembers emits a contains edge from each
@@ -109,9 +114,13 @@ func resolveShieldProtectionGroupMembers(acct *account, st *store.Store) error {
 		return err
 	}
 
+	// A row that does not decode is reported at the end so that it costs the
+	// others none of their edges.
+	var decodeErrs []error
 	for _, g := range groups {
 		var attrs shieldProtectionGroupAttrs
 		if err := json.Unmarshal([]byte(g.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeShieldProtectionGroup, g.NativeID, err))
 			continue
 		}
 		if attrs.Pattern != "ARBITRARY" {
@@ -130,7 +139,7 @@ func resolveShieldProtectionGroupMembers(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // classifyShieldProtectedResource maps a Shield ResourceArn to (disco type,

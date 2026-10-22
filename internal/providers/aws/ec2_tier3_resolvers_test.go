@@ -1,9 +1,13 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -140,6 +144,33 @@ func TestResolveEC2IPAMPLRTargetToResolver(t *testing.T) {
 	}
 	rels, _ := st.RelationshipsFrom(tID)
 	assertRelationship(t, rels, tID, plrID, store.RelAttachedTo)
+}
+
+// A target whose attributes do not parse is reported, and the targets listed
+// before and after it are still wired. Names a, b, c fix the listing order
+// (ListResources orders by type, then name).
+func TestResolveEC2IPAMPLRTargetToResolver_BadAttrsReportedOthersWired(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	plrID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2IPAMPrefixListResolver,
+		ec2ARN(testRegion, acct.ID, "ipam-prefix-list-resolver", "iplr-1"), testRegion, "{}")
+	tARN := func(n string) string { return ec2ARN(testRegion, acct.ID, "ipam-prefix-list-resolver-target", n) }
+	attrs := mustJSON(ec2types.IpamPrefixListResolverTarget{IpamPrefixListResolverId: sdkaws.String("iplr-1")})
+	before := upsertTestResourceNamed(t, st, TypeEC2IPAMPrefixListResolverTarget, tARN("a"), testRegion, attrs, "a")
+	upsertTestResourceNamed(t, st, TypeEC2IPAMPrefixListResolverTarget, tARN("b"), testRegion, `{"IpamPrefixListResolverId":7}`, "b")
+	after := upsertTestResourceNamed(t, st, TypeEC2IPAMPrefixListResolverTarget, tARN("c"), testRegion, attrs, "c")
+
+	var typeErr *json.UnmarshalTypeError
+	if err := resolveEC2IPAMPLRTargetToResolver(acct, st); !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want a JSON type error", err)
+	}
+	for _, id := range []string{before, after} {
+		rels, err := st.RelationshipsFrom(id)
+		if err != nil {
+			t.Fatalf("RelationshipsFrom: %v", err)
+		}
+		assertRelationship(t, rels, id, plrID, store.RelAttachedTo)
+	}
 }
 
 func TestResolveEC2RouteServerEndpointToServer(t *testing.T) {

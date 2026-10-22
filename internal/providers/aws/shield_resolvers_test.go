@@ -1,9 +1,13 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	shieldtypes "github.com/aws/aws-sdk-go-v2/service/shield/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -146,6 +150,57 @@ func TestResolveShieldProtectionGroupMembers(t *testing.T) {
 	assertRelationship(t, rels, gID, p2ID, store.RelContains)
 	if len(rels) != 2 {
 		t.Errorf("expected 2 edges, got %d: %+v", len(rels), rels)
+	}
+}
+
+// A protection whose attributes do not parse is reported, and the protections
+// listed before and after it are still wired. Names a, b, c fix the listing
+// order (ListResources orders by type, then name).
+func TestResolveShieldProtectionTargets_BadAttrsReportedOthersWired(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	cfARN := fmt.Sprintf("arn:aws:cloudfront::%s:distribution/E27EXAMPLE51Z", acct.ID)
+	cfID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontDistribution, cfARN, "", `{}`)
+	attrs := mustJSON(shieldtypes.Protection{ResourceArn: sdkaws.String(cfARN)})
+	before := upsertTestResourceNamed(t, st, TypeShieldProtection, shieldProtectionARN(acct.ID, "a"), "", attrs, "a")
+	upsertTestResourceNamed(t, st, TypeShieldProtection, shieldProtectionARN(acct.ID, "b"), "", `{"ResourceArn":7}`, "b")
+	after := upsertTestResourceNamed(t, st, TypeShieldProtection, shieldProtectionARN(acct.ID, "c"), "", attrs, "c")
+
+	var typeErr *json.UnmarshalTypeError
+	if err := resolveShieldProtectionTargets(acct, st); !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want a JSON type error", err)
+	}
+	for _, id := range []string{before, after} {
+		rels, err := st.RelationshipsFrom(id)
+		if err != nil {
+			t.Fatalf("RelationshipsFrom: %v", err)
+		}
+		assertRelationship(t, rels, id, cfID, store.RelAttachedTo)
+	}
+}
+
+// A protection group whose attributes do not parse is reported, and the
+// groups listed before and after it are still wired.
+func TestResolveShieldProtectionGroupMembers_BadAttrsReportedOthersWired(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	pARN := shieldProtectionARN(acct.ID, "m1")
+	pID := upsertTestResource(t, st, "aws", acct.ID, TypeShieldProtection, pARN, "", `{}`)
+	attrs := mustJSON(shieldtypes.ProtectionGroup{Pattern: shieldtypes.ProtectionGroupPatternArbitrary, Members: []string{pARN}})
+	before := upsertTestResourceNamed(t, st, TypeShieldProtectionGroup, shieldProtectionGroupARN(acct.ID, "a"), "", attrs, "a")
+	upsertTestResourceNamed(t, st, TypeShieldProtectionGroup, shieldProtectionGroupARN(acct.ID, "b"), "", `{"Members":7}`, "b")
+	after := upsertTestResourceNamed(t, st, TypeShieldProtectionGroup, shieldProtectionGroupARN(acct.ID, "c"), "", attrs, "c")
+
+	var typeErr *json.UnmarshalTypeError
+	if err := resolveShieldProtectionGroupMembers(acct, st); !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want a JSON type error", err)
+	}
+	for _, id := range []string{before, after} {
+		rels, err := st.RelationshipsFrom(id)
+		if err != nil {
+			t.Fatalf("RelationshipsFrom: %v", err)
+		}
+		assertRelationship(t, rels, id, pID, store.RelContains)
 	}
 }
 

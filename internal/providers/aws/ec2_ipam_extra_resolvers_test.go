@@ -1,8 +1,12 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"testing"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -52,6 +56,50 @@ func TestResolveIpamVerificationTokenRelationships(t *testing.T) {
 	}
 	rels, _ := st.RelationshipsFrom(tokID)
 	assertRelationship(t, rels, tokID, ipamID, store.RelAttachedTo)
+}
+
+// A row whose attributes do not parse is reported, and the rows listed before
+// and after it are still wired. Names a, b, c fix the listing order
+// (ListResources orders by type, then name).
+func TestResolveIpamChildRelationships_BadAttrsReportedOthersWired(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		typ     string
+		kind    string
+		attrs   string
+		resolve func(*account, *store.Store) error
+	}{
+		{
+			"policy", TypeEC2IpamPolicy, "ipam-policy",
+			mustJSON(ec2types.IpamPolicy{IpamId: sdkaws.String("ipam-aaa")}), resolveIpamPolicyRelationships,
+		},
+		{
+			"verification-token", TypeEC2IpamExternalResourceVerificationToken, "ipam-external-resource-verification-token",
+			mustJSON(ec2types.IpamExternalResourceVerificationToken{IpamId: sdkaws.String("ipam-aaa")}), resolveIpamVerificationTokenRelationships,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			acct := newTestAccount(testAccountID)
+			ipamID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2IPAM, ec2ARN(testRegion, acct.ID, "ipam", "ipam-aaa"), testRegion, "{}")
+			childARN := func(n string) string { return ec2ARN(testRegion, acct.ID, tc.kind, n) }
+			before := upsertTestResourceNamed(t, st, tc.typ, childARN("a"), testRegion, tc.attrs, "a")
+			upsertTestResourceNamed(t, st, tc.typ, childARN("b"), testRegion, `{"IpamId":7}`, "b")
+			after := upsertTestResourceNamed(t, st, tc.typ, childARN("c"), testRegion, tc.attrs, "c")
+
+			var typeErr *json.UnmarshalTypeError
+			if err := tc.resolve(acct, st); !errors.As(err, &typeErr) {
+				t.Errorf("err = %v, want a JSON type error", err)
+			}
+			for _, id := range []string{before, after} {
+				rels, err := st.RelationshipsFrom(id)
+				if err != nil {
+					t.Fatalf("RelationshipsFrom: %v", err)
+				}
+				assertRelationship(t, rels, id, ipamID, store.RelAttachedTo)
+			}
+		})
+	}
 }
 
 func TestResolveIpamVerificationTokenRelationships_NoAttrs(t *testing.T) {

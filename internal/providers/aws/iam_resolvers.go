@@ -1073,11 +1073,15 @@ func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 	}
 	var edges []pending
 	stubs := map[string]struct{}{}
+	// A role whose trust policy does not decode is reported at the end so that
+	// it costs the other roles none of their edges.
+	var decodeErrs []error
 	for _, r := range roles {
 		var attrs struct {
 			AssumeRolePolicyDocument *string `json:"AssumeRolePolicyDocument"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		if attrs.AssumeRolePolicyDocument == nil || *attrs.AssumeRolePolicyDocument == "" {
@@ -1085,12 +1089,14 @@ func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 		}
 		doc, err := url.QueryUnescape(*attrs.AssumeRolePolicyDocument)
 		if err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("unescape %s %s AssumeRolePolicyDocument: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		var parsed struct {
 			Statement statementPrincipalList `json:"Statement"`
 		}
 		if err := json.Unmarshal([]byte(doc), &parsed); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s AssumeRolePolicyDocument: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		for _, stmt := range parsed.Statement {
@@ -1109,7 +1115,7 @@ func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 	}
 
 	if len(edges) == 0 {
-		return nil
+		return errors.Join(decodeErrs...)
 	}
 
 	placeholders := make([]*store.Resource, 0, len(stubs))
@@ -1138,7 +1144,7 @@ func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 			return fmt.Errorf("upsert cross-account-trust: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // statementPrincipalList decodes Statement[] with Principal.AWS payload.
@@ -1246,6 +1252,9 @@ func resolveIAMPermissionBoundaries(acct *account, st *store.Store) error {
 		policyIDSet[p.ID] = struct{}{}
 	}
 
+	// A principal that does not decode is reported at the end so that it costs
+	// the others none of their edges.
+	var decodeErrs []error
 	for _, r := range principals {
 		var attrs struct {
 			PermissionsBoundary *struct {
@@ -1254,6 +1263,7 @@ func resolveIAMPermissionBoundaries(acct *account, st *store.Store) error {
 			} `json:"PermissionsBoundary"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		if attrs.PermissionsBoundary == nil || sv(attrs.PermissionsBoundary.PermissionsBoundaryArn) == "" {
@@ -1268,7 +1278,7 @@ func resolveIAMPermissionBoundaries(acct *account, st *store.Store) error {
 			return fmt.Errorf("upsert principal→boundary: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveIAMDelegationRequestBoundaries emits `bounded-by` edges from each

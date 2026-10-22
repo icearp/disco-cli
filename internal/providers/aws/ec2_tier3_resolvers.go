@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -398,11 +399,15 @@ func resolveEC2IPAMPLRTargetToResolver(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	// A row that does not decode is reported at the end so that it costs the
+	// others none of their edges.
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			IpamPrefixListResolverID *string `json:"IpamPrefixListResolverId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeEC2IPAMPrefixListResolverTarget, r.NativeID, err))
 			continue
 		}
 		id := sv(attrs.IpamPrefixListResolverID)
@@ -418,7 +423,7 @@ func resolveEC2IPAMPLRTargetToResolver(acct *account, st *store.Store) error {
 			return fmt.Errorf("upsert ec2 plr-target→plr: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveEC2RouteServerEndpointToServer wires route-server-endpoint → its

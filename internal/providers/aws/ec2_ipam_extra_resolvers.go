@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -53,11 +54,15 @@ func resolveIpamPolicyRelationships(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	// A row that does not decode is reported at the end so that it costs the
+	// others none of their edges.
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			IpamID *string `json:"IpamId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		if tgtID, ok := idx[sv(attrs.IpamID)]; ok {
@@ -66,7 +71,7 @@ func resolveIpamPolicyRelationships(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 func resolveIpamVerificationTokenRelationships(acct *account, st *store.Store) error {
@@ -83,11 +88,15 @@ func resolveIpamVerificationTokenRelationships(acct *account, st *store.Store) e
 	if err != nil {
 		return err
 	}
+	// A row that does not decode is reported at the end so that it costs the
+	// others none of their edges.
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			IpamID *string `json:"IpamId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		if tgtID, ok := idx[sv(attrs.IpamID)]; ok {
@@ -96,5 +105,5 @@ func resolveIpamVerificationTokenRelationships(acct *account, st *store.Store) e
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }

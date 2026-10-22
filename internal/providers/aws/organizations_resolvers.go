@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -68,6 +69,10 @@ func resolveOrganizationsSCPTargets(acct *account, st *store.Store) error {
 
 	client := organizations.NewFromConfig(acct.cfg)
 	ctx := context.Background()
+	// Organizations supports per-policy resource permissions, so each SCP is
+	// tried; the denials share one warning so they cannot flood the cap.
+	var denied skipTally
+	defer denied.warnDenied(st, "organizations:ListTargetsForPolicy", acct.ID, "SCP(s)")
 	for _, scp := range scps {
 		policyID := extractPolicyID(scp.NativeID)
 		if policyID == nil {
@@ -80,6 +85,7 @@ func resolveOrganizationsSCPTargets(acct *account, st *store.Store) error {
 			page, err := pager.NextPage(ctx)
 			if err != nil {
 				if isAccessDenied(err) {
+					denied.skipped(scp.NativeID, err)
 					break
 				}
 				return fmt.Errorf("organizations:ListTargetsForPolicy %s: %w", scp.NativeID, err)
@@ -165,7 +171,7 @@ func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
 		page, err := adminPager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return nil
+				return skipIfAccessDenied(st, "organizations:ListDelegatedAdministrators", acct.ID, "", err)
 			}
 			return fmt.Errorf("organizations:ListDelegatedAdministrators: %w", err)
 		}
@@ -176,14 +182,21 @@ func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
 		}
 	}
 
+	// Each admin account is tried; the denials share one warning so they
+	// cannot flood the cap.
+	var deniedAdmins skipTally
+	defer deniedAdmins.warnDenied(st, "organizations:ListDelegatedServicesForAccount", acct.ID, "delegated admin account(s)")
 	for _, adminID := range admins {
 		var services []string
+		denied := false
 		svcPager := organizations.NewListDelegatedServicesForAccountPaginator(client,
 			&organizations.ListDelegatedServicesForAccountInput{AccountId: &adminID})
 		for svcPager.HasMorePages() {
 			page, err := svcPager.NextPage(ctx)
 			if err != nil {
 				if isAccessDenied(err) {
+					deniedAdmins.skipped(adminID, err)
+					denied = true
 					break
 				}
 				return fmt.Errorf("organizations:ListDelegatedServicesForAccount %s: %w", adminID, err)
@@ -201,8 +214,15 @@ func resolveOrganizationsDelegatedAdmins(acct *account, st *store.Store) error {
 			continue
 		}
 		acctResID := store.ResourceID("aws", acct.ID, acctARN)
-		attrJSON := mustJSON(map[string]any{"DelegatedServices": services})
-		if err := st.UpsertRelationship(org.ID, acctResID, store.RelAttachedTo, "directed", &attrJSON); err != nil {
+		// A denied read keeps the edge, which ListDelegatedAdministrators proved,
+		// but stores no DelegatedServices: a list, even an empty one, would claim
+		// to know which services the account administers.
+		var attrs *string
+		if !denied {
+			attrJSON := mustJSON(map[string]any{"DelegatedServices": services})
+			attrs = &attrJSON
+		}
+		if err := st.UpsertRelationship(org.ID, acctResID, store.RelAttachedTo, "directed", attrs); err != nil {
 			return fmt.Errorf("upsert org→delegated-admin: %w", err)
 		}
 	}
@@ -240,11 +260,15 @@ func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error
 	}
 	var pendings []pending
 	stubByAcct := map[string]struct{}{}
+	// An org row that does not decode is reported at the end so that it costs
+	// the others none of their edges.
+	var decodeErrs []error
 	for _, org := range orgs {
 		var attrs struct {
 			MasterAccountID *string `json:"MasterAccountId"`
 		}
-		if jerr := json.Unmarshal([]byte(org.AttributesJSON), &attrs); jerr != nil {
+		if err := json.Unmarshal([]byte(org.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeOrganization, org.NativeID, err))
 			continue
 		}
 		master := sv(attrs.MasterAccountID)
@@ -259,7 +283,7 @@ func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error
 		pendings = append(pendings, pending{fromID: org.ID, masterAcctID: master, realAccount: false})
 	}
 	if len(pendings) == 0 {
-		return nil
+		return errors.Join(decodeErrs...)
 	}
 	if len(stubByAcct) > 0 {
 		placeholders := make([]*store.Resource, 0, len(stubByAcct))
@@ -294,7 +318,7 @@ func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error
 			return fmt.Errorf("upsert org→management-account relationship: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // extractPolicyID pulls the p-xxxx identifier out of an SCP ARN of the form

@@ -349,6 +349,15 @@ func (t *notReadyTally) warnSkipped(st *store.Store, op string, acct *account, r
 	t.warnCode(st, op, acct, region, "ValidationException", what, why)
 }
 
+// warnDenied warns once, through skipIfAccessDenied, for every key whose call
+// was denied, naming what the keys are, the first and its error.
+func (t *skipTally) warnDenied(st *store.Store, op, accountID, what string) {
+	if t.count == 0 {
+		return
+	}
+	_ = skipIfAccessDenied(st, op, accountID, "", fmt.Errorf("%d %s denied, first %s: %w", t.count, what, t.first, t.err))
+}
+
 // warnCode warns once for every parent skipped with the error code code,
 // naming what the parents are, why the service may refuse one, the first and
 // its error.

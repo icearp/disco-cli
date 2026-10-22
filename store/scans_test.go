@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"reflect"
 	"strings"
 	"testing"
@@ -187,5 +189,72 @@ func testTypesForScan(t *testing.T, st *Store) {
 	}
 	if got, _ := st.TypesForScan("nope"); len(got) != 0 {
 		t.Errorf("unknown scan types = %v", got)
+	}
+}
+
+// TestAppendScanEntry_CorruptColumnRefusesRewrite pins that an undecodable
+// scans.errors / scans.warnings column fails the append instead of being
+// overwritten by a one-entry array that silently drops what was recorded.
+// SQLite only: Postgres stores both columns as JSONB, which cannot hold
+// malformed JSON, and appends server-side without decoding.
+func TestAppendScanEntry_CorruptColumnRefusesRewrite(t *testing.T) {
+	const corrupt = `[{"service":"aws:ec2"`
+	for _, tc := range []struct {
+		column string
+		append func(st *Store, id string) error
+	}{
+		{"errors", func(st *Store, id string) error {
+			return st.AppendScanError(id, ScanErrorEntry{Service: "aws:s3", Code: "Throttling", Message: "m"})
+		}},
+		{"warnings", func(st *Store, id string) error {
+			return st.AppendScanWarning(id, ScanWarningEntry{Service: "aws:s3", Message: "m"})
+		}},
+	} {
+		t.Run(tc.column, func(t *testing.T) {
+			st := openTestStore(t)
+			id, err := st.CreateScanWithID("corrupt-"+tc.column, []string{"aws"}, map[string]any{})
+			if err != nil {
+				t.Fatalf("CreateScanWithID: %v", err)
+			}
+			if _, err := st.exec(`UPDATE scans SET `+tc.column+` = ? WHERE id = ?`, corrupt, id); err != nil {
+				t.Fatalf("corrupt %s: %v", tc.column, err)
+			}
+
+			err = tc.append(st, id)
+			var syntaxErr *json.SyntaxError
+			if !errors.As(err, &syntaxErr) {
+				t.Errorf("append to corrupt %s column: err = %v; want a *json.SyntaxError", tc.column, err)
+			}
+			var raw string
+			if err := st.get(&raw, `SELECT `+tc.column+` FROM scans WHERE id = ?`, id); err != nil {
+				t.Fatalf("read %s: %v", tc.column, err)
+			}
+			if raw != corrupt {
+				t.Errorf("%s column = %q after failed append; want it untouched %q", tc.column, raw, corrupt)
+			}
+		})
+	}
+}
+
+// TestScanMarshalJSON_CorruptColumnFails pins that a Scan whose stored JSON
+// columns do not decode fails to render, instead of rendering an empty
+// providers list / scope / meta that claims the scan recorded none.
+func TestScanMarshalJSON_CorruptColumnFails(t *testing.T) {
+	bad := "{not json"
+	for _, tc := range []struct {
+		name string
+		scan Scan
+	}{
+		{"providers", Scan{ID: "s", ProvidersJSON: bad}},
+		{"scope", Scan{ID: "s", ScopeJSON: bad}},
+		{"meta", Scan{ID: "s", MetaJSON: &bad}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := json.Marshal(tc.scan)
+			var syntaxErr *json.SyntaxError
+			if !errors.As(err, &syntaxErr) {
+				t.Errorf("json.Marshal(Scan with corrupt %s) = %s, %v; want a *json.SyntaxError", tc.name, out, err)
+			}
+		})
 	}
 }

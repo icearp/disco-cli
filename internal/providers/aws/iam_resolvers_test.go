@@ -1031,6 +1031,67 @@ func TestResolveIAMRoleCrossAccountTrust_SameAccountOnly(t *testing.T) {
 	}
 }
 
+// iamTrustRoleAttrs is a role's attributes whose trust policy allows account
+// 222222222222, URL-encoded as the SDK returns it.
+func iamTrustRoleAttrs() string {
+	doc := `{"Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::222222222222:root"},"Action":"sts:AssumeRole"}]}`
+	return mustJSON(iamtypes.Role{AssumeRolePolicyDocument: sdkaws.String(url.QueryEscape(doc))})
+}
+
+// A role whose attributes, trust-policy escaping or trust-policy JSON does not
+// decode is reported, each with its own cause, and the roles listed before
+// and after them are still wired. Names fix the listing order (ListResources
+// orders by type, then name).
+func TestResolveIAMRoleCrossAccountTrust_UndecodableReportedOthersWired(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	roleARN := func(n string) string { return "arn:aws:iam::" + testAccountID + ":role/" + n }
+	before := upsertTestResourceNamed(t, st, TypeIAMRole, roleARN("a"), "", iamTrustRoleAttrs(), "a")
+	upsertTestResourceNamed(t, st, TypeIAMRole, roleARN("b1"), "", `{"AssumeRolePolicyDocument":7}`, "b1")
+	upsertTestResourceNamed(t, st, TypeIAMRole, roleARN("b2"), "",
+		mustJSON(iamtypes.Role{AssumeRolePolicyDocument: sdkaws.String("%zz")}), "b2")
+	upsertTestResourceNamed(t, st, TypeIAMRole, roleARN("b3"), "",
+		mustJSON(iamtypes.Role{AssumeRolePolicyDocument: sdkaws.String(url.QueryEscape(`{"Statement":`))}), "b3")
+	after := upsertTestResourceNamed(t, st, TypeIAMRole, roleARN("c"), "", iamTrustRoleAttrs(), "c")
+
+	err := resolveIAMRoleCrossAccountTrust(acct, st)
+	var (
+		typeErr   *json.UnmarshalTypeError
+		escapeErr url.EscapeError
+		syntaxErr *json.SyntaxError
+	)
+	if !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want b1's JSON type error", err)
+	}
+	if !errors.As(err, &escapeErr) {
+		t.Errorf("err = %v, want b2's URL escape error", err)
+	}
+	if !errors.As(err, &syntaxErr) {
+		t.Errorf("err = %v, want b3's JSON syntax error", err)
+	}
+	wantID := store.ResourceID("aws", "222222222222", "arn:aws:iam::222222222222:root")
+	for _, id := range []string{before, after} {
+		rels, err := st.RelationshipsFrom(id)
+		if err != nil {
+			t.Fatalf("RelationshipsFrom: %v", err)
+		}
+		assertRelationship(t, rels, id, wantID, store.RelCrossAccountTrust)
+	}
+}
+
+// With no role producing an edge, a decode error is still returned rather
+// than lost in the no-edges early return.
+func TestResolveIAMRoleCrossAccountTrust_OnlyUndecodableRoleReported(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, "arn:aws:iam::"+testAccountID+":role/bad", "", `{"AssumeRolePolicyDocument":7}`)
+
+	var typeErr *json.UnmarshalTypeError
+	if err := resolveIAMRoleCrossAccountTrust(acct, st); !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want a JSON type error", err)
+	}
+}
+
 // TestResolveIAMRoleCrossAccountTrust_NoRoles verifies the resolver no-ops
 // when no IAM roles are present in the account.
 func TestResolveIAMRoleCrossAccountTrust_NoRoles(t *testing.T) {
@@ -1077,6 +1138,35 @@ func TestResolveIAMPermissionBoundaries(t *testing.T) {
 	relsUnscanned, _ := st.RelationshipsFrom(roleIDUnscanned)
 	if len(relsUnscanned) != 0 {
 		t.Errorf("unscanned-boundary role should emit zero edges, got %+v", relsUnscanned)
+	}
+}
+
+// A principal whose attributes do not parse is reported, and the principals
+// listed before and after it are still wired. Names a, b, c fix the listing
+// order (ListResources orders by type, then name).
+func TestResolveIAMPermissionBoundaries_BadAttrsReportedOthersWired(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	policyARN := "arn:aws:iam::" + testAccountID + ":policy/MyBoundary"
+	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, policyARN, "", "{}")
+	roleARN := func(n string) string { return "arn:aws:iam::" + testAccountID + ":role/" + n }
+	attrs := mustJSON(iamtypes.Role{PermissionsBoundary: &iamtypes.AttachedPermissionsBoundary{
+		PermissionsBoundaryArn: sdkaws.String(policyARN), PermissionsBoundaryType: iamtypes.PermissionsBoundaryAttachmentTypePolicy,
+	}})
+	before := upsertTestResourceNamed(t, st, TypeIAMRole, roleARN("a"), "", attrs, "a")
+	upsertTestResourceNamed(t, st, TypeIAMRole, roleARN("b"), "", `{"PermissionsBoundary":7}`, "b")
+	after := upsertTestResourceNamed(t, st, TypeIAMRole, roleARN("c"), "", attrs, "c")
+
+	var typeErr *json.UnmarshalTypeError
+	if err := resolveIAMPermissionBoundaries(acct, st); !errors.As(err, &typeErr) {
+		t.Errorf("err = %v, want a JSON type error", err)
+	}
+	for _, id := range []string{before, after} {
+		rels, err := st.RelationshipsFrom(id)
+		if err != nil {
+			t.Fatalf("RelationshipsFrom: %v", err)
+		}
+		assertRelationship(t, rels, id, policyID, store.RelBoundedBy)
 	}
 }
 

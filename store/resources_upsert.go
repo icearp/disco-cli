@@ -10,6 +10,7 @@ import (
 
 	"github.com/icearp/disco-cli/internal/managed"
 	"github.com/icearp/disco-cli/internal/redact"
+	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/internal/volatile"
 )
 
@@ -76,7 +77,21 @@ func (s *Store) noteNativeIDType(r *Resource) {
 // warning, because the stored row no longer says what the cloud returned.
 // Service and Scope follow noteNativeIDType: the type and the account, so the
 // entry names the row without repeating its attributes.
+//
+// Attributes that util.MustJSON could not encode hold only its error object,
+// which no rule matches; that row is reported the same way, since the cloud's
+// attributes are equally lost.
 func (s *Store) redactAttributes(r *Resource) {
+	if util.IsMarshalFailure(r.AttributesJSON) {
+		s.ReportError(ScanError{
+			Provider: r.Provider,
+			Service:  r.Type,
+			Scope:    r.AccountID,
+			Message: fmt.Sprintf("native_id %q: attributes could not be encoded as JSON and were stored as %s; this is a disco bug, please report it with this message",
+				r.NativeID, r.AttributesJSON),
+		})
+		return
+	}
 	out, err := redact.Apply(r.Type, r.AttributesJSON)
 	r.AttributesJSON = out
 	if err != nil {
@@ -84,7 +99,7 @@ func (s *Store) redactAttributes(r *Resource) {
 			Provider: r.Provider,
 			Service:  r.Type,
 			Scope:    r.AccountID,
-			Message: fmt.Sprintf("native_id %q: attributes replaced with %s: %v; the code that built this row needs fixing",
+			Message: fmt.Sprintf("native_id %q: attributes replaced with %s: %v; this is a disco bug, please report it with this message",
 				r.NativeID, redact.UnparseableAttributes, err),
 		})
 	}

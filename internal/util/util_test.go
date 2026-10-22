@@ -1,6 +1,8 @@
 package util
 
 import (
+	"encoding/json"
+	"math"
 	"testing"
 	"time"
 )
@@ -33,6 +35,46 @@ func TestMustJSON_Map(t *testing.T) {
 	got := MustJSON(m)
 	if got != `{"key":"value"}` {
 		t.Errorf("MustJSON(map): got %q", got)
+	}
+}
+
+// TestMustJSON_MarshalFailureIsRecognisable pins that a value json.Marshal
+// rejects yields a JSON object IsMarshalFailure recognises, carrying the
+// marshal error, never a plain "{}" indistinguishable from empty attributes.
+func TestMustJSON_MarshalFailureIsRecognisable(t *testing.T) {
+	got := MustJSON(struct{ Ratio float64 }{math.NaN()})
+	if !IsMarshalFailure(got) {
+		t.Errorf("IsMarshalFailure(MustJSON(NaN)) = false for %s; want true", got)
+	}
+	var obj map[string]string
+	if err := json.Unmarshal([]byte(got), &obj); err != nil {
+		t.Fatalf("MustJSON(NaN) = %s is not a JSON object: %v", got, err)
+	}
+	if len(obj) != 1 || obj[marshalFailedKey] == "" {
+		t.Errorf("MustJSON(NaN) = %v; want one non-empty %q member", obj, marshalFailedKey)
+	}
+}
+
+// TestIsMarshalFailure_OrdinaryOutput pins that IsMarshalFailure rejects what
+// MustJSON returns for values that do marshal.
+func TestIsMarshalFailure_OrdinaryOutput(t *testing.T) {
+	for _, v := range []any{nil, map[string]string{}, struct{ A string }{"x"}, []int{1}} {
+		if s := MustJSON(v); IsMarshalFailure(s) {
+			t.Errorf("IsMarshalFailure(%s) = true; want false", s)
+		}
+	}
+}
+
+// TestIsMarshalFailure_KeyAmongOtherMembers pins that a value which itself
+// carries the failure key next to other members is not taken for MustJSON's
+// failure object: the store would otherwise skip redacting its other members.
+func TestIsMarshalFailure_KeyAmongOtherMembers(t *testing.T) {
+	v := struct {
+		Err    string `json:"disco:marshalError"`
+		Secret string
+	}{"x", "hunter2"}
+	if s := MustJSON(v); IsMarshalFailure(s) {
+		t.Errorf("IsMarshalFailure(%s) = true; want false", s)
 	}
 }
 
