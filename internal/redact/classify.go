@@ -27,12 +27,14 @@ const (
 // value's key name marks it as a likely secret. A credential shape anywhere
 // in the string redacts first, even inside an allowlisted shape. References
 // and booleans are kept under any key, because they name a secret or a
-// setting without holding one; EC2 resource ids only under a key that is not
+// setting without holding one; resource ids only under a key that is not
 // sensitive. Numbers are never kept: a PIN, card or account number is one.
+// The credential, reference and resource-id shapes beyond the provider-neutral
+// ones come from RegisterSignatures.
 //
 // Residual: a secret that happens to be, or is written in, an allowlisted
-// shape (ARN, SSM/Secrets Manager reference, boolean, EC2 id) is kept unless
-// it also contains a credential shape.
+// shape (reference, boolean, resource id) is kept unless it also contains a
+// credential shape.
 func classify(sensitiveKey bool, value any) any {
 	switch v := value.(type) {
 	case nil, bool:
@@ -49,35 +51,34 @@ func classify(sensitiveKey bool, value any) any {
 }
 
 func classifyString(sensitiveKey bool, s string) any {
+	sigs := registeredSignatures()
 	switch {
-	case isCredentialShape(s):
+	case isCredentialShape(s) || anyMatch(sigs.Credential, s):
 		return PlaceholderValueShape
-	case isReference(s), isBoolString(s):
+	case anyMatch(sigs.Reference, s), isBoolString(s):
 		return s
 	case sensitiveKey:
 		return PlaceholderKeyName
-	case isResourceID(s):
+	case anyMatch(sigs.ResourceID, s):
 		return s
 	}
 	return PlaceholderRule
 }
 
 var (
-	// No word boundaries: a key glued to other text ("xAKIA…") is still a key.
-	accessKeyRE = regexp.MustCompile(`(?:AKIA|ASIA)[0-9A-Z]{16}`)
-	jwtRE       = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*`)
-	pemRE       = regexp.MustCompile(`-----BEGIN [A-Z0-9 ]+-----`)
+	jwtRE = regexp.MustCompile(`eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*`)
+	pemRE = regexp.MustCompile(`-----BEGIN [A-Z0-9 ]+-----`)
 	// Any userinfo, password or not: a token is often the user part alone
 	// (https://<token>@github.com).
 	userinfoURLRE = regexp.MustCompile(`[A-Za-z][A-Za-z0-9+.-]*://[^/?#\s@]+@`)
 )
 
-// isCredentialShape reports whether s contains an AWS access key id, a JWT,
-// a PEM block, a URL with userinfo, a connection string with a secret
-// field, or a JSON document (whose inner keys a single key name cannot
+// isCredentialShape reports whether s contains a provider-neutral credential
+// shape: a JWT, a PEM block, a URL with userinfo, a connection string with a
+// secret field, or a JSON document (whose inner keys a single key name cannot
 // vouch for).
 func isCredentialShape(s string) bool {
-	return accessKeyRE.MatchString(s) || jwtRE.MatchString(s) || pemRE.MatchString(s) ||
+	return jwtRE.MatchString(s) || pemRE.MatchString(s) ||
 		userinfoURLRE.MatchString(s) || isConnectionString(s) || isEmbeddedJSON(s)
 }
 
@@ -98,44 +99,9 @@ func isEmbeddedJSON(s string) bool {
 	return (strings.HasPrefix(t, "{") || strings.HasPrefix(t, "[")) && json.Valid([]byte(t))
 }
 
-// ec2IDPrefixes are the EC2 id prefixes kept as resource ids.
-var ec2IDPrefixes = []string{
-	"sg", "subnet", "vpc", "i", "eni", "vol", "snap", "ami", "eipalloc", "igw",
-	"nat", "rtb", "acl", "vpce", "tgw", "tgw-attach", "pcx", "lt",
-}
-
-// arnPattern is an unanchored ARN: partition, an empty or real-looking
-// region, an empty, 12-digit or "aws" account, and a resource of the
-// characters ARNs use, with the Lambda ":$LATEST" qualifier allowed only as
-// a suffix.
-const arnPattern = `arn:aws(?:-cn|-us-gov|-eusc|-iso(?:-[a-z])?)?:[a-z0-9-]+:(?:[a-z]{2,4}(?:-[a-z]+)+-\d)?:(?:\d{12}|aws)?:[A-Za-z0-9_+=,.@/:*-]+(?::\$LATEST)?`
-
-var (
-	arnRE = regexp.MustCompile(`^` + arnPattern + `$`)
-	// A CloudFormation dynamic reference to an SSM parameter by name or ARN
-	// (optionally versioned) or to a Secrets Manager secret, or the Parameter
-	// Store path that references a Secrets Manager secret.
-	dynamicRefRE = regexp.MustCompile(`^(?:\{\{resolve:(?:ssm|ssm-secure):(?:` + arnPattern + `|[A-Za-z0-9_./-]+)(?::\d+)?\}\}|\{\{resolve:secretsmanager:[A-Za-z0-9/_+=.@:-]+\}\}|/aws/reference/secretsmanager/[A-Za-z0-9/_+=.@:-]+)$`)
-	// An EC2 id: a listed prefix and 8 or 17 lowercase hex digits.
-	resourceIDRE = regexp.MustCompile(`^(?:` + strings.Join(ec2IDPrefixes, "|") + `)-(?:[0-9a-f]{8}|[0-9a-f]{17})$`)
-)
-
-// maxARNLen is the longest ARN IAM accepts; Go's regexp caps a repeat
-// count at 1000, so the length is checked outside arnRE.
-const maxARNLen = 2048
-
-// isReference reports whether s is an ARN or a reference to an SSM
-// parameter or a Secrets Manager secret: it names where a secret lives
-// without holding it.
-func isReference(s string) bool {
-	return (len(s) <= maxARNLen && arnRE.MatchString(s)) || dynamicRefRE.MatchString(s)
-}
-
 func isBoolString(s string) bool {
 	return strings.EqualFold(s, "true") || strings.EqualFold(s, "false")
 }
-
-func isResourceID(s string) bool { return resourceIDRE.MatchString(s) }
 
 // sensitiveStems are matched as substrings of the lowercased key with its
 // separators removed, so DB_PASSWORD, dbPassword and DBPASSWORD all match.
