@@ -2,8 +2,10 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/networkmanager"
 	nmtypes "github.com/aws/aws-sdk-go-v2/service/networkmanager/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -52,480 +54,554 @@ type networkManagerAPI interface {
 	ListCoreNetworkPrefixListAssociations(context.Context, *networkmanager.ListCoreNetworkPrefixListAssociationsInput, ...func(*networkmanager.Options)) (*networkmanager.ListCoreNetworkPrefixListAssociationsOutput, error)
 }
 
+const (
+	nmDescribeGlobalNetworksOp         = "networkmanager:DescribeGlobalNetworks"
+	nmListCoreNetworksOp               = "networkmanager:ListCoreNetworks"
+	nmGetSitesOp                       = "networkmanager:GetSites"
+	nmGetDevicesOp                     = "networkmanager:GetDevices"
+	nmGetLinksOp                       = "networkmanager:GetLinks"
+	nmGetLinkAssociationsOp            = "networkmanager:GetLinkAssociations"
+	nmGetCustomerGatewayAssociationsOp = "networkmanager:GetCustomerGatewayAssociations"
+	nmGetTGWRegistrationsOp            = "networkmanager:GetTransitGatewayRegistrations"
+	nmGetConnectionsOp                 = "networkmanager:GetConnections"
+	nmListAttachmentsOp                = "networkmanager:ListAttachments"
+	nmListPeeringsOp                   = "networkmanager:ListPeerings"
+	nmListConnectPeersOp               = "networkmanager:ListConnectPeers"
+	nmListPrefixListAssocsOp           = "networkmanager:ListCoreNetworkPrefixListAssociations"
+)
+
+// nmMaxResults is the documented page cap of every list op scanned here.
+var nmMaxResults = sdkaws.Int32(500)
+
 // scanNetworkManager runs only in us-west-2 — NetworkManager is a global,
 // single-home-region service; other regions return the same data
 // redundantly.
 func scanNetworkManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region := "us-west-2"
 	client := networkmanager.NewFromConfig(acct.cfg, func(o *networkmanager.Options) { o.Region = region })
-
-	globalIDs, t, i, ferr := scanNMGlobalNetworks(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return 0, 0, ferr
-	}
-	total += t
-	inserted += i
-
-	coreIDs, t, i, ferr := scanNMCoreNetworks(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanNMSites(ctx, client, acct, region, st, scanID, globalIDs) },
-		func() (int, int, error) { return scanNMDevices(ctx, client, acct, region, st, scanID, globalIDs) },
-		func() (int, int, error) { return scanNMLinks(ctx, client, acct, region, st, scanID, globalIDs) },
-		func() (int, int, error) {
-			return scanNMLinkAssociations(ctx, client, acct, region, st, scanID, globalIDs)
-		},
-		func() (int, int, error) {
-			return scanNMCGWAssociations(ctx, client, acct, region, st, scanID, globalIDs)
-		},
-		func() (int, int, error) {
-			return scanNMTGWRegistrations(ctx, client, acct, region, st, scanID, globalIDs)
-		},
-		func() (int, int, error) { return scanNMConnections(ctx, client, acct, region, st, scanID, globalIDs) },
-		func() (int, int, error) { return scanNMAttachments(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanNMPeerings(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanNMConnectPeers(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanNMPrefixListAssocs(ctx, client, acct, region, st, scanID, coreIDs)
-		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+	return scanNMAll(ctx, client, acct, region, st, scanID)
 }
 
-func scanNMGlobalNetworks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := networkmanager.NewDescribeGlobalNetworksPaginator(client, &networkmanager.DescribeGlobalNetworksInput{})
-	var ids []string
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "networkmanager:DescribeGlobalNetworks", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("networkmanager:DescribeGlobalNetworks: %w", perr)
-		}
-		for _, g := range out.GlobalNetworks {
-			arn := sv(g.GlobalNetworkArn)
-			if arn == "" {
-				continue
-			}
-			id := sv(g.GlobalNetworkId)
-			ids = append(ids, id)
-			label := id
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeNetworkManagerGlobalNetwork, NativeID: arn,
-				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
+// scanNMAll runs every phase and joins their errors; only a store write
+// failure stops it. A failed parent phase leaves its child phases fewer
+// parents to list.
+func scanNMAll(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	var errs phaseErrs
+	stop := func(op string, t, i int, ferr error) bool {
+		total, inserted = total+t, inserted+i
+		errs.add(op, ferr)
+		return errors.Is(ferr, store.ErrStoreWrite)
+	}
+
+	globalIDs, t, i, ferr := scanNMGlobalNetworks(ctx, client, acct, region, st, scanID)
+	if stop(nmDescribeGlobalNetworksOp, t, i, ferr) {
+		return total, inserted, errs.join(st, acct, region)
+	}
+	coreIDs, t, i, ferr := scanNMCoreNetworks(ctx, client, acct, region, st, scanID)
+	if stop(nmListCoreNetworksOp, t, i, ferr) {
+		return total, inserted, errs.join(st, acct, region)
+	}
+	for _, phase := range []struct {
+		op string
+		fn func() (int, int, error)
+	}{
+		{nmGetSitesOp, func() (int, int, error) { return scanNMSites(ctx, client, acct, region, st, scanID, globalIDs) }},
+		{nmGetDevicesOp, func() (int, int, error) { return scanNMDevices(ctx, client, acct, region, st, scanID, globalIDs) }},
+		{nmGetLinksOp, func() (int, int, error) { return scanNMLinks(ctx, client, acct, region, st, scanID, globalIDs) }},
+		{nmGetLinkAssociationsOp, func() (int, int, error) {
+			return scanNMLinkAssociations(ctx, client, acct, region, st, scanID, globalIDs)
+		}},
+		{nmGetCustomerGatewayAssociationsOp, func() (int, int, error) {
+			return scanNMCGWAssociations(ctx, client, acct, region, st, scanID, globalIDs)
+		}},
+		{nmGetTGWRegistrationsOp, func() (int, int, error) {
+			return scanNMTGWRegistrations(ctx, client, acct, region, st, scanID, globalIDs)
+		}},
+		{nmGetConnectionsOp, func() (int, int, error) {
+			return scanNMConnections(ctx, client, acct, region, st, scanID, globalIDs)
+		}},
+		{nmListAttachmentsOp, func() (int, int, error) { return scanNMAttachments(ctx, client, acct, region, st, scanID) }},
+		{nmListPeeringsOp, func() (int, int, error) { return scanNMPeerings(ctx, client, acct, region, st, scanID) }},
+		{nmListConnectPeersOp, func() (int, int, error) { return scanNMConnectPeers(ctx, client, acct, region, st, scanID) }},
+		{nmListPrefixListAssocsOp, func() (int, int, error) {
+			return scanNMPrefixListAssocs(ctx, client, acct, region, st, scanID, coreIDs)
+		}},
+	} {
+		t, i, ferr := phase.fn()
+		if stop(phase.op, t, i, ferr) {
+			break
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "networkmanager global-networks")
+	return total, inserted, errs.join(st, acct, region)
+}
+
+func nmTagsJSON(tags []nmtypes.Tag) *string {
+	return kvTagsJSON(tags, func(t nmtypes.Tag) (*string, *string) { return t.Key, t.Value })
+}
+
+// nmRow builds the row of a listed NetworkManager element.
+func nmRow(acct *account, scanID, rtype, nativeID, name string, element any, tags *string) *store.Resource {
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: rtype, NativeID: nativeID, Name: &name, Region: regionGlobal,
+		AttributesJSON: mustJSON(element), TagsJSON: tags, DiscoveredBy: scanID,
+	}
+}
+
+// nmReadPages reads every page of one listing. On a failed page it returns the
+// items already read with the error, so the caller can keep them. A repeated
+// NextToken ends the listing with errRepeatedNextToken.
+func nmReadPages[Item any](ctx context.Context, page func(ctx context.Context, token *string) ([]Item, *string, error)) ([]Item, error) {
+	var (
+		items []Item
+		token *string
+	)
+	for {
+		got, next, err := page(ctx, token)
+		if err != nil {
+			return items, err
+		}
+		items = append(items, got...)
+		done, err := lastPage(token, next)
+		if done {
+			return items, err
+		}
+		token = next
+	}
+}
+
+// nmSkips tallies the listed items not stored, one tally per reason, so each
+// reason is warned about once.
+type nmSkips struct {
+	whys    []string
+	tallies map[string]*skipTally
+}
+
+func (s *nmSkips) skipped(why, key string) {
+	if s.tallies == nil {
+		s.tallies = map[string]*skipTally{}
+	}
+	t, ok := s.tallies[why]
+	if !ok {
+		t = &skipTally{}
+		s.tallies[why] = t
+		s.whys = append(s.whys, why)
+	}
+	t.skipped(key, nil)
+}
+
+func (s *nmSkips) warn(st *store.Store, op string, acct *account, region string) {
+	for _, why := range s.whys {
+		warnNotStored(st, op, acct, region, s.tallies[why], why)
+	}
+}
+
+// nmBuild turns listed items into rows. row returns nil with the reason and a
+// key naming the item when the item cannot be stored.
+func nmBuild[Item any](items []Item, row func(Item) (r *store.Resource, why, key string), rows []*store.Resource, skips *nmSkips) []*store.Resource {
+	for _, it := range items {
+		r, why, key := row(it)
+		if r == nil {
+			skips.skipped(why, key)
+			continue
+		}
+		rows = append(rows, r)
+	}
+	return rows
+}
+
+// nmStoreList stores the rows of an account-wide listing, those read before a
+// failed page included. A denial is warned about rather than returned; any
+// other error is returned after the rows are stored. Warnings are reported only
+// once the write succeeded, so none claims rows a failed write lost.
+func nmStoreList[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (r *store.Resource, why, key string),
+) (int, int, error) {
+	var skips nmSkips
+	items, err := nmReadPages(ctx, page)
+	rows := nmBuild(items, row, nil, &skips)
+	var denied error
+	if isAccessDenied(err) {
+		denied, err = err, nil
+	}
+	total, inserted, err := upsertListed(st, rows, op, err)
+	if errors.Is(err, store.ErrStoreWrite) {
+		return total, inserted, err
+	}
+	if denied != nil {
+		_ = skipIfAccessDenied(st, op, acct.ID, region, denied)
+	}
+	skips.warn(st, op, acct, region)
+	return total, inserted, err
+}
+
+// nmStorePerParent lists op's items for each parent in turn and stores the
+// rows of every parent read. One parent's failure does not stop the others:
+// a parent the service no longer finds (ResourceNotFoundException, deleted
+// since it was listed) is skipped silently when nothing was read from it and
+// with a warning otherwise; a denied parent is warned about once for the op;
+// any other error is returned after the rows are stored. Rows read before a
+// failed page are kept in every case.
+func nmStorePerParent[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, parents []string,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (r *store.Resource, why, key string),
+) (int, int, error) {
+	var (
+		rows             []*store.Resource
+		errs             []error
+		denied, vanished skipTally
+		skips            nmSkips
+	)
+	for _, p := range parents {
+		if err := ctx.Err(); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", op, err))
+			break
+		}
+		items, err := nmReadPages(ctx, func(ctx context.Context, token *string) ([]Item, *string, error) {
+			return page(ctx, p, token)
+		})
+		rows = nmBuild(items, func(it Item) (*store.Resource, string, string) { return row(p, it) }, rows, &skips)
+		switch {
+		case err == nil:
+		case isAPIErrorCode(err, "ResourceNotFoundException") && len(items) == 0:
+		case isAPIErrorCode(err, "ResourceNotFoundException"):
+			vanished.skipped(p, err)
+		case isAccessDenied(err):
+			denied.skipped(p, err)
+		default:
+			errs = append(errs, fmt.Errorf("%s %s: %w", op, p, err))
+		}
+	}
+	total, inserted, uerr := upsertBatch(st, rows, op)
+	if uerr != nil {
+		return total, inserted, errors.Join(append(errs, uerr)...)
+	}
+	if denied.count > 0 {
+		_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf("%d parent(s) denied, first %s: %w", denied.count, denied.first, denied.err))
+	}
+	if vanished.count > 0 {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
+			Message: fmt.Sprintf("%d parent(s) were deleted while their listing was read, so only part of it was stored; first %s: %v", vanished.count, vanished.first, vanished.err),
+		})
+	}
+	skips.warn(st, op, acct, region)
+	return total, inserted, errors.Join(errs...)
+}
+
+// scanNMGlobalNetworks stores the global networks and returns the ids of
+// those stored, for the per-global-network phases.
+func scanNMGlobalNetworks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+	var (
+		ids       []string
+		noChildID skipTally
+	)
+	t, i, err := nmStoreList(ctx, st, acct, region, nmDescribeGlobalNetworksOp,
+		func(ctx context.Context, token *string) ([]nmtypes.GlobalNetwork, *string, error) {
+			out, err := client.DescribeGlobalNetworks(ctx, &networkmanager.DescribeGlobalNetworksInput{NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.GlobalNetworks, out.NextToken, nil
+		},
+		func(g nmtypes.GlobalNetwork) (*store.Resource, string, string) {
+			arn, id := sv(g.GlobalNetworkArn), sv(g.GlobalNetworkId)
+			if arn == "" {
+				return nil, "global networks have an empty GlobalNetworkArn, and their children were not read either", id
+			}
+			if id == "" {
+				noChildID.skipped(arn, nil)
+			} else {
+				ids = append(ids, id)
+			}
+			return nmRow(acct, scanID, TypeNetworkManagerGlobalNetwork, arn, id, g, nmTagsJSON(g.Tags)), "", ""
+		})
+	if !errors.Is(err, store.ErrStoreWrite) {
+		nmWarnNoChildID(st, nmDescribeGlobalNetworksOp, acct, region, &noChildID, "global network(s)", "GlobalNetworkId")
+	}
 	return ids, t, i, err
 }
 
-func scanNMCoreNetworks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := networkmanager.NewListCoreNetworksPaginator(client, &networkmanager.ListCoreNetworksInput{})
-	var ids []string
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "networkmanager:ListCoreNetworks", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("networkmanager:ListCoreNetworks: %w", perr)
-		}
-		for _, c := range out.CoreNetworks {
-			arn := sv(c.CoreNetworkArn)
-			if arn == "" {
-				continue
-			}
-			id := sv(c.CoreNetworkId)
-			ids = append(ids, id)
-			label := id
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeNetworkManagerCoreNetwork, NativeID: arn,
-				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
+// nmWarnNoChildID warns once for the parents stored without the id their
+// child listings key on, so those children were not read.
+func nmWarnNoChildID(st *store.Store, op string, acct *account, region string, t *skipTally, what, field string) {
+	if t.count == 0 {
+		return
 	}
-	t, i, err := upsertBatch(st, batch, "networkmanager core-networks")
+	st.ReportWarning(store.ScanWarning{
+		Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
+		Message: fmt.Sprintf("%d %s stored with an empty %s, so their children were not read; first %s", t.count, what, field, t.first),
+	})
+}
+
+// scanNMCoreNetworks stores the core networks and returns the ids of those
+// stored, for the prefix-list association phase.
+func scanNMCoreNetworks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+	var (
+		ids       []string
+		noChildID skipTally
+	)
+	t, i, err := nmStoreList(ctx, st, acct, region, nmListCoreNetworksOp,
+		func(ctx context.Context, token *string) ([]nmtypes.CoreNetworkSummary, *string, error) {
+			out, err := client.ListCoreNetworks(ctx, &networkmanager.ListCoreNetworksInput{NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.CoreNetworks, out.NextToken, nil
+		},
+		func(c nmtypes.CoreNetworkSummary) (*store.Resource, string, string) {
+			arn, id := sv(c.CoreNetworkArn), sv(c.CoreNetworkId)
+			if arn == "" {
+				return nil, "core networks have an empty CoreNetworkArn, and their children were not read either", id
+			}
+			if id == "" {
+				noChildID.skipped(arn, nil)
+			} else {
+				ids = append(ids, id)
+			}
+			return nmRow(acct, scanID, TypeNetworkManagerCoreNetwork, arn, id, c, nmTagsJSON(c.Tags)), "", ""
+		})
+	if !errors.Is(err, store.ErrStoreWrite) {
+		nmWarnNoChildID(st, nmListCoreNetworksOp, acct, region, &noChildID, "core network(s)", "CoreNetworkId")
+	}
 	return ids, t, i, err
 }
 
 func scanNMSites(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	var batch []*store.Resource
-	for _, gid := range globalIDs {
-		id := gid
-		pager := networkmanager.NewGetSitesPaginator(client, &networkmanager.GetSitesInput{GlobalNetworkId: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("networkmanager:GetSites %s: %w", gid, perr)
+	return nmStorePerParent(ctx, st, acct, region, nmGetSitesOp, globalIDs,
+		func(ctx context.Context, gid string, token *string) ([]nmtypes.Site, *string, error) {
+			out, err := client.GetSites(ctx, &networkmanager.GetSitesInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, s := range out.Sites {
-				arn := sv(s.SiteArn)
-				if arn == "" {
-					continue
-				}
-				label := sv(s.SiteId)
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeNetworkManagerSite, NativeID: arn,
-					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-				})
+			return out.Sites, out.NextToken, nil
+		},
+		func(gid string, s nmtypes.Site) (*store.Resource, string, string) {
+			arn := sv(s.SiteArn)
+			if arn == "" {
+				return nil, "sites have an empty SiteArn (first names their global network)", gid
 			}
-		}
-	}
-	return upsertBatch(st, batch, "networkmanager sites")
+			return nmRow(acct, scanID, TypeNetworkManagerSite, arn, sv(s.SiteId), s, nmTagsJSON(s.Tags)), "", ""
+		})
 }
 
 func scanNMDevices(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	var batch []*store.Resource
-	for _, gid := range globalIDs {
-		id := gid
-		pager := networkmanager.NewGetDevicesPaginator(client, &networkmanager.GetDevicesInput{GlobalNetworkId: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("networkmanager:GetDevices %s: %w", gid, perr)
+	return nmStorePerParent(ctx, st, acct, region, nmGetDevicesOp, globalIDs,
+		func(ctx context.Context, gid string, token *string) ([]nmtypes.Device, *string, error) {
+			out, err := client.GetDevices(ctx, &networkmanager.GetDevicesInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, d := range out.Devices {
-				arn := sv(d.DeviceArn)
-				if arn == "" {
-					continue
-				}
-				label := sv(d.DeviceId)
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeNetworkManagerDevice, NativeID: arn,
-					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-				})
+			return out.Devices, out.NextToken, nil
+		},
+		func(gid string, d nmtypes.Device) (*store.Resource, string, string) {
+			arn := sv(d.DeviceArn)
+			if arn == "" {
+				return nil, "devices have an empty DeviceArn (first names their global network)", gid
 			}
-		}
-	}
-	return upsertBatch(st, batch, "networkmanager devices")
+			return nmRow(acct, scanID, TypeNetworkManagerDevice, arn, sv(d.DeviceId), d, nmTagsJSON(d.Tags)), "", ""
+		})
 }
 
 func scanNMLinks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	var batch []*store.Resource
-	for _, gid := range globalIDs {
-		id := gid
-		pager := networkmanager.NewGetLinksPaginator(client, &networkmanager.GetLinksInput{GlobalNetworkId: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("networkmanager:GetLinks %s: %w", gid, perr)
+	return nmStorePerParent(ctx, st, acct, region, nmGetLinksOp, globalIDs,
+		func(ctx context.Context, gid string, token *string) ([]nmtypes.Link, *string, error) {
+			out, err := client.GetLinks(ctx, &networkmanager.GetLinksInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, l := range out.Links {
-				arn := sv(l.LinkArn)
-				if arn == "" {
-					continue
-				}
-				label := sv(l.LinkId)
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeNetworkManagerLink, NativeID: arn,
-					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
-				})
+			return out.Links, out.NextToken, nil
+		},
+		func(gid string, l nmtypes.Link) (*store.Resource, string, string) {
+			arn := sv(l.LinkArn)
+			if arn == "" {
+				return nil, "links have an empty LinkArn (first names their global network)", gid
 			}
-		}
-	}
-	return upsertBatch(st, batch, "networkmanager links")
+			return nmRow(acct, scanID, TypeNetworkManagerLink, arn, sv(l.LinkId), l, nmTagsJSON(l.Tags)), "", ""
+		})
 }
 
 // scanNMLinkAssociations — LinkAssociation has no native ARN. Synth from
 // (deviceId, linkId).
 func scanNMLinkAssociations(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	var batch []*store.Resource
-	for _, gid := range globalIDs {
-		id := gid
-		pager := networkmanager.NewGetLinkAssociationsPaginator(client, &networkmanager.GetLinkAssociationsInput{GlobalNetworkId: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("networkmanager:GetLinkAssociations %s: %w", gid, perr)
+	return nmStorePerParent(ctx, st, acct, region, nmGetLinkAssociationsOp, globalIDs,
+		func(ctx context.Context, gid string, token *string) ([]nmtypes.LinkAssociation, *string, error) {
+			out, err := client.GetLinkAssociations(ctx, &networkmanager.GetLinkAssociationsInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, a := range out.LinkAssociations {
-				dev := sv(a.DeviceId)
-				lnk := sv(a.LinkId)
-				if dev == "" || lnk == "" {
-					continue
-				}
-				arn := fmt.Sprintf("arn:aws:networkmanager::%s:global-network/%s/link-association/%s/%s", acct.ID, gid, dev, lnk)
-				label := dev + "/" + lnk
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeNetworkManagerLinkAssociation, NativeID: arn,
-					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-				})
+			return out.LinkAssociations, out.NextToken, nil
+		},
+		func(gid string, a nmtypes.LinkAssociation) (*store.Resource, string, string) {
+			dev, lnk := sv(a.DeviceId), sv(a.LinkId)
+			if dev == "" || lnk == "" {
+				return nil, "link associations have an empty DeviceId or LinkId (first names their global network)", gid
 			}
-		}
-	}
-	return upsertBatch(st, batch, "networkmanager link-associations")
+			arn := fmt.Sprintf("arn:aws:networkmanager::%s:global-network/%s/link-association/%s/%s", acct.ID, gid, dev, lnk)
+			return nmRow(acct, scanID, TypeNetworkManagerLinkAssociation, arn, dev+"/"+lnk, a, nil), "", ""
+		})
 }
 
 // scanNMCGWAssociations — CustomerGatewayAssociation synth from (gid,
 // cgwArn).
 func scanNMCGWAssociations(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	var batch []*store.Resource
-	for _, gid := range globalIDs {
-		id := gid
-		pager := networkmanager.NewGetCustomerGatewayAssociationsPaginator(client, &networkmanager.GetCustomerGatewayAssociationsInput{GlobalNetworkId: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("networkmanager:GetCustomerGatewayAssociations %s: %w", gid, perr)
+	return nmStorePerParent(ctx, st, acct, region, nmGetCustomerGatewayAssociationsOp, globalIDs,
+		func(ctx context.Context, gid string, token *string) ([]nmtypes.CustomerGatewayAssociation, *string, error) {
+			out, err := client.GetCustomerGatewayAssociations(ctx, &networkmanager.GetCustomerGatewayAssociationsInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, a := range out.CustomerGatewayAssociations {
-				cgw := sv(a.CustomerGatewayArn)
-				if cgw == "" {
-					continue
-				}
-				arn := fmt.Sprintf("arn:aws:networkmanager::%s:global-network/%s/cgw-association/%s", acct.ID, gid, cgw)
-				label := cgw
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeNetworkManagerCustomerGatewayAssociation, NativeID: arn,
-					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-				})
+			return out.CustomerGatewayAssociations, out.NextToken, nil
+		},
+		func(gid string, a nmtypes.CustomerGatewayAssociation) (*store.Resource, string, string) {
+			cgw := sv(a.CustomerGatewayArn)
+			if cgw == "" {
+				return nil, "customer gateway associations have an empty CustomerGatewayArn (first names their global network)", gid
 			}
-		}
-	}
-	return upsertBatch(st, batch, "networkmanager cgw-associations")
+			arn := fmt.Sprintf("arn:aws:networkmanager::%s:global-network/%s/cgw-association/%s", acct.ID, gid, cgw)
+			return nmRow(acct, scanID, TypeNetworkManagerCustomerGatewayAssociation, arn, cgw, a, nil), "", ""
+		})
 }
 
 // scanNMTGWRegistrations — TransitGatewayRegistration synth from (gid,
 // tgwArn).
 func scanNMTGWRegistrations(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	var batch []*store.Resource
-	for _, gid := range globalIDs {
-		id := gid
-		pager := networkmanager.NewGetTransitGatewayRegistrationsPaginator(client, &networkmanager.GetTransitGatewayRegistrationsInput{GlobalNetworkId: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("networkmanager:GetTransitGatewayRegistrations %s: %w", gid, perr)
+	return nmStorePerParent(ctx, st, acct, region, nmGetTGWRegistrationsOp, globalIDs,
+		func(ctx context.Context, gid string, token *string) ([]nmtypes.TransitGatewayRegistration, *string, error) {
+			out, err := client.GetTransitGatewayRegistrations(ctx, &networkmanager.GetTransitGatewayRegistrationsInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, r := range out.TransitGatewayRegistrations {
-				tgw := sv(r.TransitGatewayArn)
-				if tgw == "" {
-					continue
-				}
-				arn := fmt.Sprintf("arn:aws:networkmanager::%s:global-network/%s/tgw-registration/%s", acct.ID, gid, tgw)
-				label := tgw
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeNetworkManagerTransitGatewayRegistration, NativeID: arn,
-					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-				})
+			return out.TransitGatewayRegistrations, out.NextToken, nil
+		},
+		func(gid string, r nmtypes.TransitGatewayRegistration) (*store.Resource, string, string) {
+			tgw := sv(r.TransitGatewayArn)
+			if tgw == "" {
+				return nil, "transit gateway registrations have an empty TransitGatewayArn (first names their global network)", gid
 			}
-		}
-	}
-	return upsertBatch(st, batch, "networkmanager tgw-registrations")
+			arn := fmt.Sprintf("arn:aws:networkmanager::%s:global-network/%s/tgw-registration/%s", acct.ID, gid, tgw)
+			return nmRow(acct, scanID, TypeNetworkManagerTransitGatewayRegistration, arn, tgw, r, nil), "", ""
+		})
 }
 
 // scanNMConnections enumerates device-to-device connections per global
 // network (GetConnections requires GlobalNetworkId). Connections carry a
 // native ConnectionArn.
 func scanNMConnections(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	var batch []*store.Resource
-	for _, gid := range globalIDs {
-		id := gid
-		pager := networkmanager.NewGetConnectionsPaginator(client, &networkmanager.GetConnectionsInput{GlobalNetworkId: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("networkmanager:GetConnections %s: %w", gid, perr)
+	return nmStorePerParent(ctx, st, acct, region, nmGetConnectionsOp, globalIDs,
+		func(ctx context.Context, gid string, token *string) ([]nmtypes.Connection, *string, error) {
+			out, err := client.GetConnections(ctx, &networkmanager.GetConnectionsInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, c := range out.Connections {
-				arn := sv(c.ConnectionArn)
-				if arn == "" {
-					continue
-				}
-				label := sv(c.ConnectionId)
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeNetworkManagerConnection, NativeID: arn,
-					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-				})
+			return out.Connections, out.NextToken, nil
+		},
+		func(gid string, c nmtypes.Connection) (*store.Resource, string, string) {
+			arn := sv(c.ConnectionArn)
+			if arn == "" {
+				return nil, "connections have an empty ConnectionArn (first names their global network)", gid
 			}
-		}
-	}
-	return upsertBatch(st, batch, "networkmanager connections")
+			return nmRow(acct, scanID, TypeNetworkManagerConnection, arn, sv(c.ConnectionId), c, nmTagsJSON(c.Tags)), "", ""
+		})
+}
+
+// nmAttachmentTypes maps each AttachmentType to its disco type.
+var nmAttachmentTypes = map[nmtypes.AttachmentType]string{
+	nmtypes.AttachmentTypeConnect:                  TypeNetworkManagerConnectAttachment,
+	nmtypes.AttachmentTypeVpc:                      TypeNetworkManagerVpcAttachment,
+	nmtypes.AttachmentTypeSiteToSiteVpn:            TypeNetworkManagerSiteToSiteVpnAttachment,
+	nmtypes.AttachmentTypeDirectConnectGateway:     TypeNetworkManagerDirectConnectGatewayAttachment,
+	nmtypes.AttachmentTypeTransitGatewayRouteTable: TypeNetworkManagerTransitGatewayRouteTableAttachment,
 }
 
 // scanNMAttachments enumerates all attachments (single ListAttachments
 // op covering Connect/VPC/SiteToSiteVpn/DirectConnectGateway/TGWRouteTable)
-// and routes each to its disco type via AttachmentType.
+// and routes each to its disco type via AttachmentType. An AttachmentType
+// newer than this map is warned about, not stored.
 func scanNMAttachments(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := networkmanager.NewListAttachmentsPaginator(client, &networkmanager.ListAttachmentsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "networkmanager:ListAttachments", acct.ID, region, perr)
-				return 0, 0, nil
+	return nmStoreList(ctx, st, acct, region, nmListAttachmentsOp,
+		func(ctx context.Context, token *string) ([]nmtypes.Attachment, *string, error) {
+			out, err := client.ListAttachments(ctx, &networkmanager.ListAttachmentsInput{NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("networkmanager:ListAttachments: %w", perr)
-		}
-		for _, a := range out.Attachments {
+			return out.Attachments, out.NextToken, nil
+		},
+		func(a nmtypes.Attachment) (*store.Resource, string, string) {
 			id := sv(a.AttachmentId)
 			if id == "" {
-				continue
+				return nil, "attachments have an empty AttachmentId (first names their core network)", sv(a.CoreNetworkId)
 			}
-			var dtype string
-			switch a.AttachmentType {
-			case nmtypes.AttachmentTypeConnect:
-				dtype = TypeNetworkManagerConnectAttachment
-			case nmtypes.AttachmentTypeVpc:
-				dtype = TypeNetworkManagerVpcAttachment
-			case nmtypes.AttachmentTypeSiteToSiteVpn:
-				dtype = TypeNetworkManagerSiteToSiteVpnAttachment
-			case nmtypes.AttachmentTypeDirectConnectGateway:
-				dtype = TypeNetworkManagerDirectConnectGatewayAttachment
-			case nmtypes.AttachmentTypeTransitGatewayRouteTable:
-				dtype = TypeNetworkManagerTransitGatewayRouteTableAttachment
-			default:
-				continue
+			dtype, ok := nmAttachmentTypes[a.AttachmentType]
+			if !ok {
+				return nil, "attachments have an AttachmentType disco does not map", fmt.Sprintf("%s (%s)", id, a.AttachmentType)
 			}
 			arn := fmt.Sprintf("arn:aws:networkmanager::%s:attachment/%s", acct.ID, id)
-			label := id
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: dtype, NativeID: arn,
-				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "networkmanager attachments")
+			return nmRow(acct, scanID, dtype, arn, id, a, nmTagsJSON(a.Tags)), "", ""
+		})
 }
 
+// scanNMPeerings stores the transit gateway peerings, the only PeeringType
+// disco maps; a newer type is warned about, not stored.
 func scanNMPeerings(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := networkmanager.NewListPeeringsPaginator(client, &networkmanager.ListPeeringsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "networkmanager:ListPeerings", acct.ID, region, perr)
-				return 0, 0, nil
+	return nmStoreList(ctx, st, acct, region, nmListPeeringsOp,
+		func(ctx context.Context, token *string) ([]nmtypes.Peering, *string, error) {
+			out, err := client.ListPeerings(ctx, &networkmanager.ListPeeringsInput{NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("networkmanager:ListPeerings: %w", perr)
-		}
-		for _, p := range out.Peerings {
-			if p.PeeringType != nmtypes.PeeringTypeTransitGateway {
-				continue
-			}
+			return out.Peerings, out.NextToken, nil
+		},
+		func(p nmtypes.Peering) (*store.Resource, string, string) {
 			id := sv(p.PeeringId)
 			if id == "" {
-				continue
+				return nil, "peerings have an empty PeeringId (first names their core network)", sv(p.CoreNetworkId)
+			}
+			if p.PeeringType != nmtypes.PeeringTypeTransitGateway {
+				return nil, "peerings have a PeeringType disco does not map", fmt.Sprintf("%s (%s)", id, p.PeeringType)
 			}
 			arn := fmt.Sprintf("arn:aws:networkmanager::%s:peering/%s", acct.ID, id)
-			label := id
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeNetworkManagerTransitGatewayPeering, NativeID: arn,
-				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "networkmanager peerings")
+			return nmRow(acct, scanID, TypeNetworkManagerTransitGatewayPeering, arn, id, p, nmTagsJSON(p.Tags)), "", ""
+		})
 }
 
 func scanNMConnectPeers(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := networkmanager.NewListConnectPeersPaginator(client, &networkmanager.ListConnectPeersInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "networkmanager:ListConnectPeers", acct.ID, region, perr)
-				return 0, 0, nil
+	return nmStoreList(ctx, st, acct, region, nmListConnectPeersOp,
+		func(ctx context.Context, token *string) ([]nmtypes.ConnectPeerSummary, *string, error) {
+			out, err := client.ListConnectPeers(ctx, &networkmanager.ListConnectPeersInput{NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("networkmanager:ListConnectPeers: %w", perr)
-		}
-		for _, c := range out.ConnectPeers {
+			return out.ConnectPeers, out.NextToken, nil
+		},
+		func(c nmtypes.ConnectPeerSummary) (*store.Resource, string, string) {
 			id := sv(c.ConnectPeerId)
 			if id == "" {
-				continue
+				return nil, "connect peers have an empty ConnectPeerId (first names their core network)", sv(c.CoreNetworkId)
 			}
 			arn := fmt.Sprintf("arn:aws:networkmanager::%s:connect-peer/%s", acct.ID, id)
-			label := id
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeNetworkManagerConnectPeer, NativeID: arn,
-				Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "networkmanager connect-peers")
+			return nmRow(acct, scanID, TypeNetworkManagerConnectPeer, arn, id, c, nmTagsJSON(c.Tags)), "", ""
+		})
 }
 
 func scanNMPrefixListAssocs(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, coreIDs []string) (int, int, error) {
-	var batch []*store.Resource
-	for _, cid := range coreIDs {
-		id := cid
-		pager := networkmanager.NewListCoreNetworkPrefixListAssociationsPaginator(client, &networkmanager.ListCoreNetworkPrefixListAssociationsInput{CoreNetworkId: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("networkmanager:ListCoreNetworkPrefixListAssociations %s: %w", cid, perr)
+	return nmStorePerParent(ctx, st, acct, region, nmListPrefixListAssocsOp, coreIDs,
+		func(ctx context.Context, cid string, token *string) ([]nmtypes.PrefixListAssociation, *string, error) {
+			out, err := client.ListCoreNetworkPrefixListAssociations(ctx, &networkmanager.ListCoreNetworkPrefixListAssociationsInput{CoreNetworkId: &cid, NextToken: token, MaxResults: nmMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, p := range out.PrefixListAssociations {
-				plArn := sv(p.PrefixListArn)
-				if plArn == "" {
-					continue
-				}
-				arn := fmt.Sprintf("arn:aws:networkmanager::%s:core-network/%s/prefix-list-association/%s", acct.ID, cid, plArn)
-				label := plArn
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeNetworkManagerCoreNetworkPrefixListAssociation, NativeID: arn,
-					Name: &label, Region: regionGlobal, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-				})
+			return out.PrefixListAssociations, out.NextToken, nil
+		},
+		func(cid string, p nmtypes.PrefixListAssociation) (*store.Resource, string, string) {
+			plArn := sv(p.PrefixListArn)
+			if plArn == "" {
+				return nil, "prefix list associations have an empty PrefixListArn (first names their core network)", cid
 			}
-		}
-	}
-	return upsertBatch(st, batch, "networkmanager prefix-list-associations")
+			arn := fmt.Sprintf("arn:aws:networkmanager::%s:core-network/%s/prefix-list-association/%s", acct.ID, cid, plArn)
+			return nmRow(acct, scanID, TypeNetworkManagerCoreNetworkPrefixListAssociation, arn, plArn, p, nil), "", ""
+		})
 }
