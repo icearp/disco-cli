@@ -72,7 +72,7 @@ func scanOutpostsSites(ctx context.Context, client outpostsAPI, acct *account, r
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeOutpostsSite, NativeID: arn,
 				Name: s.Name, Region: &region,
-				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(s), TagsJSON: mapTagsJSON(s.Tags), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -109,7 +109,7 @@ func scanOutpostsOutposts(ctx context.Context, client outpostsAPI, acct *account
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeOutpostsOutpost, NativeID: arn,
 				Name: o.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(o), DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(o), TagsJSON: mapTagsJSON(o.Tags), DiscoveredBy: scanID,
 			})
 		}
 	}

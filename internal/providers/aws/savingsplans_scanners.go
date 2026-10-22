@@ -58,7 +58,7 @@ func scanSavingsPlans(ctx context.Context, client savingsPlansAPI, acct *account
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSavingsPlansSavingsPlan, NativeID: arn,
 				Name: &label, Region: regionGlobal, Status: &status,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(p), TagsJSON: mapTagsJSON(p.Tags), DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {

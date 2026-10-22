@@ -70,7 +70,7 @@ func scanSnowDevices(ctx context.Context, client snowDeviceManagementAPI, acct *
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSnowDeviceManagementManagedDevice, NativeID: arn,
 				Name: &label, Region: &region,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(d), TagsJSON: mapTagsJSON(d.Tags), DiscoveredBy: scanID,
 			})
 		}
 	}
@@ -104,7 +104,7 @@ func scanSnowTasks(ctx context.Context, client snowDeviceManagementAPI, acct *ac
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSnowDeviceManagementTask, NativeID: arn,
 				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(t), TagsJSON: mapTagsJSON(t.Tags), DiscoveredBy: scanID,
 			})
 		}
 	}

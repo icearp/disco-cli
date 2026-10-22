@@ -74,7 +74,7 @@ func scanSignerSigningProfiles(ctx context.Context, client signerAPI, acct *acco
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSignerSigningProfile, NativeID: arn,
 				Name: &name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(p), TagsJSON: mapTagsJSON(p.Tags), DiscoveredBy: scanID,
 			})
 		}
 		if out.NextToken == nil || *out.NextToken == "" {

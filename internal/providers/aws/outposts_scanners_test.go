@@ -29,7 +29,7 @@ var (
 )
 
 // opHandlers answers every op the scanner calls: one site, two outposts over
-// two pages (one owned by the test account, one with no owner reported), three assets for the first outpost over two pages (one without
+// two pages (one owned by the test account and tagged, one with no owner reported), three assets for the first outpost over two pages (one without
 // an id) and one for the second. assetCalls records the outposts ListAssets
 // was called for.
 func opHandlers(assetCalls *parentCalls) map[string]func(in any) (any, error) {
@@ -39,7 +39,7 @@ func opHandlers(assetCalls *parentCalls) map[string]func(in any) (any, error) {
 		},
 		"ListOutposts": func(in any) (any, error) {
 			if in.(*outposts.ListOutpostsInput).NextToken == nil {
-				return &outposts.ListOutpostsOutput{NextToken: ptrStr("p2"), Outposts: []outpoststypes.Outpost{{OutpostArn: ptrStr(opTestOP1), OwnerId: ptrStr(testAccountID)}}}, nil
+				return &outposts.ListOutpostsOutput{NextToken: ptrStr("p2"), Outposts: []outpoststypes.Outpost{{OutpostArn: ptrStr(opTestOP1), OwnerId: ptrStr(testAccountID), Tags: map[string]string{"rack": "r1"}}}}, nil
 			}
 			return &outposts.ListOutpostsOutput{Outposts: []outpoststypes.Outpost{{OutpostArn: ptrStr(opTestOP2)}}}, nil
 		},
@@ -303,5 +303,37 @@ func TestScanOutposts_OutpostErrorStopsAssets(t *testing.T) {
 	}
 	if got := assetCalls.distinct(); len(got) != 0 {
 		t.Errorf("assets listed for %v, want none", got)
+	}
+}
+
+// Site and outpost rows carry their own listed element's Tags; an untagged
+// element stores none, and an asset does not inherit its outpost's tags.
+func TestScanOutposts_ReadsTags(t *testing.T) {
+	const untaggedSite = "arn:aws:outposts:us-east-1:123456789012:site/os-0123456789abcdef9"
+	st := newTestStore(t)
+	var assetCalls parentCalls
+	h := opHandlers(&assetCalls)
+	h["ListSites"] = func(any) (any, error) {
+		return &outposts.ListSitesOutput{Sites: []outpoststypes.Site{
+			{SiteArn: ptrStr(opTestSite), Tags: map[string]string{"dc": "east"}},
+			{SiteArn: ptrStr(untaggedSite)},
+		}}, nil
+	}
+	if _, err := scanOPTopLevel(t, st, h); err != nil {
+		t.Fatalf("scanOutposts: %v", err)
+	}
+
+	sites := rowsByNativeID(t, st, TypeOutpostsSite)
+	assertTagsMap(t, sites[opTestSite].TagsJSON, map[string]string{"dc": "east"})
+	if got := sites[untaggedSite].TagsJSON; got != nil {
+		t.Errorf("untagged site TagsJSON = %q, want nil", *got)
+	}
+	outpostRows := rowsByNativeID(t, st, TypeOutpostsOutpost)
+	assertTagsMap(t, outpostRows[opTestOP1].TagsJSON, map[string]string{"rack": "r1"})
+	if got := outpostRows[opTestOP2].TagsJSON; got != nil {
+		t.Errorf("untagged outpost TagsJSON = %q, want nil", *got)
+	}
+	if got := rowsByNativeID(t, st, TypeOutpostsAsset)[opTestA1].TagsJSON; got != nil {
+		t.Errorf("asset TagsJSON = %q, want nil (not inherited from its outpost)", *got)
 	}
 }

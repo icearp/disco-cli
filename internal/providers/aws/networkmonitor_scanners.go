@@ -47,7 +47,7 @@ func scanNetworkMonitor(ctx context.Context, acct *account, region string, st *s
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeNetworkMonitorMonitor, NativeID: arn,
 				Name: m.MonitorName, Region: &region, Status: &state,
-				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(m), TagsJSON: mapTagsJSON(m.Tags), DiscoveredBy: scanID,
 			})
 			names = append(names, sv(m.MonitorName))
 		}
@@ -104,7 +104,7 @@ func scanNetworkMonitorProbes(ctx context.Context, client *networkmonitor.Client
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeNetworkMonitorProbe, NativeID: arn,
 					Name: &label, Region: &region, Status: &state,
-					AttributesJSON: mustJSON(pr), DiscoveredBy: scanID,
+					AttributesJSON: mustJSON(pr), TagsJSON: mapTagsJSON(pr.Tags), DiscoveredBy: scanID,
 				})
 			}
 			if len(rows) > 0 {

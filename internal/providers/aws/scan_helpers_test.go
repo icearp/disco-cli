@@ -610,6 +610,7 @@ func TestTransientDemotersAreKnown(t *testing.T) {
 			"ec2_ipam_resolver_scanners.go:scanIPAMPrefixListResolvers": true,
 			"fms_scanners.go:warnFMSListingOnly":                        true,
 			"organizations_scanners.go:scanOrgAccounts":                 true,
+			"pipes_scanners.go:scanPipes":                               true,
 			"securityhub_scanners.go:warn":                              true,
 			"wafv2_scanners.go:scanWAFv2WebACLs":                        true,
 			"wafv2_extended_scanners.go:scanWAFv2WebACLAssociations":    true,
