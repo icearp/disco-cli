@@ -187,21 +187,30 @@ func TestScanLogsIndexPolicies_OtherErrorPropagates(t *testing.T) {
 	}
 }
 
-func TestScanLogsIndexPolicies_RepeatedTokenStops(t *testing.T) {
+// A repeated token fails the group's listing with errRepeatedNextToken, and
+// the policy already listed is stored.
+func TestScanLogsIndexPolicies_RepeatedTokenFails(t *testing.T) {
 	st := newTestStore(t)
 	groups := seedLogGroups(t, st, "a")
 	calls := &parentCalls{}
 	client := logsTestClient(map[string]func(any) (any, error){
 		"DescribeIndexPolicies": func(in any) (any, error) {
 			calls.add(sv(in.(*cwlogs.DescribeIndexPoliciesInput).NextToken))
-			return &cwlogs.DescribeIndexPoliciesOutput{NextToken: ptrStr("same")}, nil
+			return &cwlogs.DescribeIndexPoliciesOutput{
+				IndexPolicies: []logsTypes.IndexPolicy{{Source: logsTypes.IndexSourceLogGroup, PolicyDocument: ptrStr("{}")}},
+				NextToken:     ptrStr("same"),
+			}, nil
 		},
 	})
-	if _, _, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID); err != nil {
-		t.Fatalf("err = %v", err)
+	_, _, err := scanLogsIndexPolicies(context.Background(), client, newTestAccount(testAccountID), testRegion, groups, st, testScanID)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	if got := len(calls.ids); got != 2 {
 		t.Errorf("calls = %d, want 2 (first page, then the repeated token)", got)
+	}
+	if got := len(rowsByNativeID(t, st, TypeLogsIndexPolicy)); got != 1 {
+		t.Errorf("stored = %d; want the listed policy stored", got)
 	}
 }
 
@@ -357,6 +366,7 @@ func TestScanLogsSyslogConfigurations_Errors(t *testing.T) {
 		list      func(any) (any, error)
 		wantTotal int
 		wantErr   string
+		wantIs    error
 		wantWarn  int
 	}{
 		{name: "empty", list: func(any) (any, error) { return &cwlogs.ListSyslogConfigurationsOutput{}, nil }},
@@ -364,7 +374,7 @@ func TestScanLogsSyslogConfigurations_Errors(t *testing.T) {
 		{name: "op not deployed", list: func(any) (any, error) { return nil, logsNoOp }},
 		{name: "op gone after a page", list: onePage, wantTotal: 1, wantErr: "UnknownOperationException"},
 		{name: "other error", list: func(any) (any, error) { return nil, logsBadArg }, wantErr: "InvalidParameterException"},
-		{name: "repeated token stops", list: func(in any) (any, error) {
+		{name: "repeated token fails", list: func(in any) (any, error) {
 			if in.(*cwlogs.ListSyslogConfigurationsInput).NextToken != nil {
 				return &cwlogs.ListSyslogConfigurationsOutput{NextToken: ptrStr("same")}, nil
 			}
@@ -372,14 +382,19 @@ func TestScanLogsSyslogConfigurations_Errors(t *testing.T) {
 				SyslogConfigurations: []logsTypes.SyslogConfiguration{syslogConfig(lgTestARN("a"), "vpce-1")},
 				NextToken:            ptrStr("same"),
 			}, nil
-		}, wantTotal: 1},
+		}, wantTotal: 1, wantIs: errRepeatedNextToken},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			warnings := countOpWarnings(st, "logs:ListSyslogConfigurations")
 			client := logsTestClient(map[string]func(any) (any, error){"ListSyslogConfigurations": tc.list})
 			total, _, err := scanLogsSyslogConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, nil, st, testScanID)
-			if tc.wantErr == "" && err != nil || tc.wantErr != "" && !isAPIErrorCode(err, tc.wantErr) {
+			switch {
+			case tc.wantIs != nil:
+				if !errors.Is(err, tc.wantIs) {
+					t.Errorf("err = %v; want %v", err, tc.wantIs)
+				}
+			case tc.wantErr == "" && err != nil || tc.wantErr != "" && !isAPIErrorCode(err, tc.wantErr):
 				t.Errorf("err = %v; want code %q", err, tc.wantErr)
 			}
 			if total != tc.wantTotal || len(rowsByNativeID(t, st, TypeLogsSyslogConfig)) != tc.wantTotal {

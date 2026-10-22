@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -107,7 +108,8 @@ func TestScanDXInterconnects_Empty(t *testing.T) {
 	}
 }
 
-func TestScanDXInterconnects_RepeatedTokenStops(t *testing.T) {
+// A repeated token fails the listing; the interconnect already listed is stored.
+func TestScanDXInterconnects_RepeatedTokenFails(t *testing.T) {
 	st := newTestStore(t)
 	calls := 0
 	client := newDXTestClient(map[string]func(any) (any, error){
@@ -122,8 +124,12 @@ func TestScanDXInterconnects_RepeatedTokenStops(t *testing.T) {
 			}, nil
 		},
 	})
-	if _, _, err := scanDXInterconnects(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
-		t.Fatalf("scanDXInterconnects: %v", err)
+	_, _, err := scanDXInterconnects(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
+	}
+	if got := len(rowsByNativeID(t, st, TypeDirectConnectInterconnect)); got != 1 {
+		t.Errorf("stored = %d; want the listed interconnect stored", got)
 	}
 	if calls != 2 {
 		t.Errorf("%d calls; want 2 (the first page, then the repeated token)", calls)
@@ -564,5 +570,85 @@ func TestScanDXResiliencyGroups_AssociationOrderStable(t *testing.T) {
 	associating := assoc(directconnecttypes.ResiliencyGroupAssociationStateAssociating)
 	if a, b := stored(disassociating, associating), stored(associating, disassociating); a != b {
 		t.Errorf("attributes depend on API order:\n%s\n%s", a, b)
+	}
+}
+
+// dxRepeatToken answers every call with page and the token "same", as a broken
+// service would, counting the calls; a fourth call fails so a loop that does
+// not stop ends in an assertion rather than a hang.
+func dxRepeatToken(calls *atomic.Int32, page func() any) func(any) (any, error) {
+	return func(any) (any, error) {
+		if calls.Add(1) > 3 {
+			return nil, errors.New("called again after a repeated token")
+		}
+		return page(), nil
+	}
+}
+
+// A repeated ListResiliencyGroups token fails the listing; the group already
+// listed is still read and stored.
+func TestScanDXResiliencyGroups_RepeatedListTokenFails(t *testing.T) {
+	st := newTestStore(t)
+	h := &dxGroupHandlers{}
+	handlers := h.handlers()
+	var calls atomic.Int32
+	handlers["ListResiliencyGroups"] = dxRepeatToken(&calls, func() any {
+		return &directconnect.ListResiliencyGroupsOutput{NextToken: sdkaws.String("same"), Items: []directconnecttypes.ResiliencyGroupSummary{
+			{ResiliencyGroupId: sdkaws.String("rg-a"), State: directconnecttypes.ResiliencyGroupStateAvailable},
+		}}
+	})
+	_, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Errorf("ListResiliencyGroups calls = %d; want 2 (stop when the token repeats)", got)
+	}
+	if _, ok := rowsByNativeID(t, st, TypeDirectConnectResiliencyGroup)[dxTestGroupA]; !ok {
+		t.Errorf("group rg-a not stored")
+	}
+}
+
+// A repeated ListResiliencyGroupAssociations token fails the scan, but every
+// group is still stored. The group whose listing repeated keeps Associations
+// null (not read): stored with part of them, it would claim the rest absent.
+func TestScanDXResiliencyGroups_RepeatedAssociationTokenFails(t *testing.T) {
+	st := newTestStore(t)
+	h := &dxGroupHandlers{}
+	handlers := h.handlers()
+	listAssocs := handlers["ListResiliencyGroupAssociations"]
+	var calls atomic.Int32
+	handlers["ListResiliencyGroupAssociations"] = func(in any) (any, error) {
+		if sdkaws.ToString(in.(*directconnect.ListResiliencyGroupAssociationsInput).ResiliencyGroupId) != "rg-a" {
+			return listAssocs(in)
+		}
+		if calls.Add(1) > 3 {
+			return nil, errors.New("called again after a repeated token")
+		}
+		return &directconnect.ListResiliencyGroupAssociationsOutput{NextToken: sdkaws.String("same"), Items: []directconnecttypes.ResiliencyGroupAssociation{
+			{ResiliencyGroupId: sdkaws.String("rg-a"), ConnectionArn: sdkaws.String(dxTestConn1), State: directconnecttypes.ResiliencyGroupAssociationStateAssociated},
+		}}, nil
+	}
+	_, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Errorf("rg-a association calls = %d; want 2 (stop when the token repeats)", got)
+	}
+	rows := rowsByNativeID(t, st, TypeDirectConnectResiliencyGroup)
+	for id, wantNull := range map[string]bool{dxTestGroupA: true, dxTestGroupB: false} {
+		r, ok := rows[id]
+		if !ok {
+			t.Errorf("group %s not stored", id)
+			continue
+		}
+		var attrs struct{ Associations json.RawMessage }
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			t.Fatalf("decode %s: %v", id, err)
+		}
+		if gotNull := string(attrs.Associations) == "null"; gotNull != wantNull {
+			t.Errorf("group %s Associations = %s; want null %v", id, attrs.Associations, wantNull)
+		}
 	}
 }

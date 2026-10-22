@@ -242,8 +242,8 @@ func scanEC2LockedSnapshots(ctx context.Context, client ec2API, acct *account, r
 			}
 			locks = append(locks, s)
 		}
-		next := sv(page.NextToken)
-		if next == "" || next == sv(token) {
+		var done bool
+		if done, listErr = lastPage(token, page.NextToken); done {
 			break
 		}
 		token = page.NextToken
@@ -364,13 +364,11 @@ func scanEC2ApplicationStatusChecks(ctx context.Context, client ec2API, acct *ac
 				DiscoveredBy:   scanID,
 			}})
 		}
-		next := sv(page.NextToken)
-		if next == "" || next == sv(token) {
-			break
+		if done, err := lastPage(token, page.NextToken); done {
+			return upsertRegionChildren(st, acct, region, ec2ApplicationStatusChecksOp, children, err)
 		}
 		token = page.NextToken
 	}
-	return upsertRegionChildren(st, acct, region, ec2ApplicationStatusChecksOp, children, nil)
 }
 
 // scanEC2RouteServerAssociations stores, under each route server this scan

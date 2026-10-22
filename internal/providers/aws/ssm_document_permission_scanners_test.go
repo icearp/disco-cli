@@ -3,7 +3,9 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
@@ -216,19 +218,55 @@ func TestDescribeSSMDocumentPermission_SortIsTotal(t *testing.T) {
 	}
 }
 
-// A token the API repeats ends the loop instead of looping forever.
-func TestDescribeSSMDocumentPermission_RepeatedTokenStops(t *testing.T) {
+// A repeated token fails the read and returns no share lists: a partial list
+// stored as the document's whole permission would claim accounts it never
+// listed are not shared.
+func TestDescribeSSMDocumentPermission_RepeatedTokenFails(t *testing.T) {
 	page := &ssm.DescribeDocumentPermissionOutput{AccountIds: []string{ssmTestAcctLow}, NextToken: ptrStr("same")}
 	stub := &stubSSMDocPerm{pages: []*ssm.DescribeDocumentPermissionOutput{page, page, page}}
 	perm, err := describeSSMDocumentPermission(context.Background(), stub, ssmTestDocA)
-	if err != nil {
-		t.Fatalf("describeSSMDocumentPermission: %v", err)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	if len(stub.ins) != 2 || sv(stub.ins[1].NextToken) != "same" {
 		t.Errorf("calls = %d (second token %q), want 2 ending on the repeated token", len(stub.ins), sv(stub.ins[len(stub.ins)-1].NextToken))
 	}
-	if !slices.Equal(perm.AccountIDs, []string{ssmTestAcctLow, ssmTestAcctLow}) {
-		t.Errorf("AccountIds = %v, want both pages' entries", perm.AccountIDs)
+	if perm.AccountIDs != nil || perm.AccountSharingInfoList != nil {
+		t.Errorf("perm = %+v; want both lists nil (not read)", perm)
+	}
+}
+
+// A document whose permission listing repeats its token keeps its row with
+// the share lists null (not read), and the scan returns the error; the
+// sibling document's row keeps its lists.
+func TestScanSSMDocumentPermissions_RepeatedTokenKeepsRowWithoutLists(t *testing.T) {
+	st := newTestStore(t)
+	var calls parentCalls
+	var log opLog
+	handlers := ssmDocPermHandlers(t, &calls, noSSMPermErr)
+	describe := handlers["DescribeDocumentPermission"]
+	var repeats atomic.Int32
+	handlers["DescribeDocumentPermission"] = func(in any) (any, error) {
+		if sv(in.(*ssm.DescribeDocumentPermissionInput).Name) != ssmTestDocA {
+			return describe(in)
+		}
+		if repeats.Add(1) > 3 {
+			return nil, errors.New("called again after a repeated token")
+		}
+		return &ssm.DescribeDocumentPermissionOutput{AccountIds: []string{ssmTestAcctLow}, NextToken: ptrStr("same")}, nil
+	}
+	if _, _, err := scanSSMTopLevel(st, handlers, &log); !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
+	}
+	rows := rowsByNativeID(t, st, TypeSSMDocumentPermission)
+	if got, want := nativeIDs(rows), []string{ssmTestPermID(ssmTestDocA), ssmTestPermID(ssmTestDocB)}; !slices.Equal(got, want) {
+		t.Fatalf("permission rows = %v, want %v", got, want)
+	}
+	if a := ssmPermBody(t, rows[ssmTestPermID(ssmTestDocA)]); a.AccountIDs != nil || a.AccountSharingInfoList != nil {
+		t.Errorf("repeating document body = %+v; want both lists null", a)
+	}
+	if b := ssmPermBody(t, rows[ssmTestPermID(ssmTestDocB)]); b.AccountIDs == nil || b.AccountSharingInfoList == nil {
+		t.Errorf("sibling document body = %+v; want both lists read ([])", b)
 	}
 }
 

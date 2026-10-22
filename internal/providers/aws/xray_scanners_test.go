@@ -179,7 +179,8 @@ func TestScanXRayIndexingRules_Empty(t *testing.T) {
 	}
 }
 
-func TestScanXRayIndexingRules_RepeatedTokenStops(t *testing.T) {
+// A repeated token fails the listing; both pages' rules are stored.
+func TestScanXRayIndexingRules_RepeatedTokenFails(t *testing.T) {
 	st := newTestStore(t)
 	calls := 0
 	total, err := scanXRayIndexingRulesWith(t, st, map[string]func(in any) (any, error){
@@ -195,8 +196,8 @@ func TestScanXRayIndexingRules_RepeatedTokenStops(t *testing.T) {
 			}, nil
 		},
 	})
-	if err != nil {
-		t.Fatalf("scanXRayIndexingRules: %v", err)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	if calls != 2 || total != 2 {
 		t.Errorf("calls = %d, total = %d; want 2, 2", calls, total)

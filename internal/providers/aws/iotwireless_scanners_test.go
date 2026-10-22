@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"sync/atomic"
 	"testing"
@@ -302,7 +303,7 @@ func TestScanIoTWireless_EventConfigurationPageErrorKeepsRows(t *testing.T) {
 	assertIWCfgRows(t, st, append(iwCfgRowsExcept(iwtypes.EventNotificationResourceTypeWirelessDevice), iwTestCfgDevice))
 }
 
-func TestScanIoTWireless_EventConfigurationRepeatedTokenStops(t *testing.T) {
+func TestScanIoTWireless_EventConfigurationRepeatedTokenFails(t *testing.T) {
 	st := newTestStore(t)
 	handlers := iwHandlers(&parentCalls{})
 	var calls atomic.Int32
@@ -312,8 +313,8 @@ func TestScanIoTWireless_EventConfigurationRepeatedTokenStops(t *testing.T) {
 		}
 		return &iotwireless.ListEventConfigurationsOutput{NextToken: sdkaws.String("same")}, nil
 	}
-	if _, err := scanIoTWirelessTopLevel(t, st, handlers); err != nil {
-		t.Fatalf("err = %v; want nil (a repeated token ends the listing)", err)
+	if _, err := scanIoTWirelessTopLevel(t, st, handlers); !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v; want errRepeatedNextToken", err)
 	}
 	// Each resource type: the first call, then one call with the repeated token.
 	if n := calls.Load(); n != 6 {

@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -27,26 +28,35 @@ func init() {
 }
 
 // scanAPIGatewayV2Portals stores developer portals and this account's portal
-// products, then each product's pages and REST endpoint pages.
+// products, then each product's pages and REST endpoint pages. A phase whose
+// listing ended incomplete has stored what it read; the later phases still
+// run and its error is returned with theirs. Any other error, a failed store
+// write joined to an incomplete listing included, stops the scan.
 func scanAPIGatewayV2Portals(ctx context.Context, client apigatewayv2PortalAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	total, inserted, err = scanAPIGatewayV2PortalList(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return total, inserted, err
+	var errs []error
+	// add counts a phase and records its error; it reports whether the
+	// error stops the scan, which an incomplete listing does not unless it
+	// carries a store write failure.
+	add := func(t, n int, phaseErr error) bool {
+		total += t
+		inserted += n
+		if phaseErr != nil {
+			errs = append(errs, phaseErr)
+		}
+		return phaseErr != nil && !continuesPastIncomplete(phaseErr)
 	}
-	t, n, products, err := scanAPIGatewayV2PortalProducts(ctx, client, acct, region, st, scanID)
-	total += t
-	inserted += n
-	if err != nil {
-		return total, inserted, err
+	if add(scanAPIGatewayV2PortalList(ctx, client, acct, region, st, scanID)) {
+		return total, inserted, errors.Join(errs...)
 	}
-	t, n, err = scanAPIGatewayV2ProductPages(ctx, client, acct, region, st, scanID, products)
-	total += t
-	inserted += n
-	if err != nil {
-		return total, inserted, err
+	t, n, products, phaseErr := scanAPIGatewayV2PortalProducts(ctx, client, acct, region, st, scanID)
+	if add(t, n, phaseErr) {
+		return total, inserted, errors.Join(errs...)
 	}
-	t, n, err = scanAPIGatewayV2ProductRestEndpointPages(ctx, client, acct, region, st, scanID, products)
-	return total + t, inserted + n, err
+	if add(scanAPIGatewayV2ProductPages(ctx, client, acct, region, st, scanID, products)) {
+		return total, inserted, errors.Join(errs...)
+	}
+	add(scanAPIGatewayV2ProductRestEndpointPages(ctx, client, acct, region, st, scanID, products))
+	return total, inserted, errors.Join(errs...)
 }
 
 // skipPortalListError reports whether a region-wide portal list error is
@@ -92,9 +102,8 @@ func scanAPIGatewayV2PortalList(ctx context.Context, client apigatewayv2PortalAP
 				AttributesJSON: mustJSON(p), TagsJSON: mapTagsJSON(p.Tags), DiscoveredBy: scanID,
 			})
 		}
-		// Mirrors the SDK paginators' StopOnDuplicateToken; a repeated token would loop forever.
-		if next := sv(page.NextToken); next == "" || next == sv(input.NextToken) {
-			break
+		if done, err := lastPage(input.NextToken, page.NextToken); done {
+			return upsertListed(st, batch, op, err)
 		}
 		input.NextToken = page.NextToken
 	}
@@ -111,6 +120,7 @@ func scanAPIGatewayV2PortalProducts(ctx context.Context, client apigatewayv2Port
 	var (
 		batch    []*store.Resource
 		products []childParent
+		pageErr  error
 	)
 	for {
 		page, err := client.ListPortalProducts(ctx, input)
@@ -143,16 +153,14 @@ func scanAPIGatewayV2PortalProducts(ctx context.Context, client apigatewayv2Port
 				AttributesJSON: mustJSON(p), TagsJSON: mapTagsJSON(p.Tags), DiscoveredBy: scanID,
 			})
 		}
-		if next := sv(page.NextToken); next == "" || next == sv(input.NextToken) {
+		var done bool
+		if done, pageErr = lastPage(input.NextToken, page.NextToken); done {
 			break
 		}
 		input.NextToken = page.NextToken
 	}
-	total, inserted, err := upsertBatch(st, batch, op)
-	if err != nil {
-		return 0, 0, nil, err
-	}
-	return total, inserted, products, nil
+	total, inserted, err := upsertListed(st, batch, op, pageErr)
+	return total, inserted, products, err
 }
 
 // isPortalProductGone matches a product deleted between ListPortalProducts
@@ -185,8 +193,8 @@ func scanAPIGatewayV2ProductPages(ctx context.Context, client apigatewayv2Portal
 						AttributesJSON: mustJSON(pp), DiscoveredBy: scanID,
 					})
 				}
-				if next := sv(page.NextToken); next == "" || next == sv(input.NextToken) {
-					return rows, nil
+				if done, err := lastPage(input.NextToken, page.NextToken); done {
+					return rows, err
 				}
 				input.NextToken = page.NextToken
 			}
@@ -217,8 +225,8 @@ func scanAPIGatewayV2ProductRestEndpointPages(ctx context.Context, client apigat
 						AttributesJSON: mustJSON(ep), DiscoveredBy: scanID,
 					})
 				}
-				if next := sv(page.NextToken); next == "" || next == sv(input.NextToken) {
-					return rows, nil
+				if done, err := lastPage(input.NextToken, page.NextToken); done {
+					return rows, err
 				}
 				input.NextToken = page.NextToken
 			}

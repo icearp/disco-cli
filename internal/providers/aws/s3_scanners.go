@@ -233,11 +233,18 @@ func s3BucketConfigRow(acct *account, scanID, typ, kind, bucket string, id *stri
 	}
 }
 
-// s3MorePages reports whether a ListBucket*Configurations page has a
-// successor. These ops have no SDK paginator; like the SDK paginators'
-// StopOnDuplicateToken, a token equal to the one just sent ends the loop.
-func s3MorePages(truncated *bool, next, sent *string) bool {
-	return sdkaws.ToBool(truncated) && sv(next) != "" && sv(next) != sv(sent)
+// s3LastPage is lastPage for the ListBucket*Configurations ops, which have no
+// SDK paginator: a page that is not truncated is also the last, and a
+// truncated page without a token ends the listing with
+// errTruncatedWithoutToken.
+func s3LastPage(truncated *bool, next, sent *string) (bool, error) {
+	if !sdkaws.ToBool(truncated) {
+		return true, nil
+	}
+	if sv(next) == "" {
+		return true, errTruncatedWithoutToken
+	}
+	return lastPage(sent, next)
 }
 
 func scanS3AnalyticsConfigs(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (int, int, error) {
@@ -255,8 +262,8 @@ func scanS3AnalyticsConfigs(ctx context.Context, acct *account, homed map[string
 						rows = append(rows, r)
 					}
 				}
-				if !s3MorePages(out.IsTruncated, out.NextContinuationToken, in.ContinuationToken) {
-					return rows, nil
+				if done, err := s3LastPage(out.IsTruncated, out.NextContinuationToken, in.ContinuationToken); done {
+					return rows, err
 				}
 				in.ContinuationToken = out.NextContinuationToken
 			}
@@ -278,8 +285,8 @@ func scanS3IntelligentTieringConfigs(ctx context.Context, acct *account, homed m
 						rows = append(rows, r)
 					}
 				}
-				if !s3MorePages(out.IsTruncated, out.NextContinuationToken, in.ContinuationToken) {
-					return rows, nil
+				if done, err := s3LastPage(out.IsTruncated, out.NextContinuationToken, in.ContinuationToken); done {
+					return rows, err
 				}
 				in.ContinuationToken = out.NextContinuationToken
 			}
@@ -301,8 +308,8 @@ func scanS3InventoryConfigs(ctx context.Context, acct *account, homed map[string
 						rows = append(rows, r)
 					}
 				}
-				if !s3MorePages(out.IsTruncated, out.NextContinuationToken, in.ContinuationToken) {
-					return rows, nil
+				if done, err := s3LastPage(out.IsTruncated, out.NextContinuationToken, in.ContinuationToken); done {
+					return rows, err
 				}
 				in.ContinuationToken = out.NextContinuationToken
 			}
@@ -324,8 +331,8 @@ func scanS3MetricsConfigs(ctx context.Context, acct *account, homed map[string]s
 						rows = append(rows, r)
 					}
 				}
-				if !s3MorePages(out.IsTruncated, out.NextContinuationToken, in.ContinuationToken) {
-					return rows, nil
+				if done, err := s3LastPage(out.IsTruncated, out.NextContinuationToken, in.ContinuationToken); done {
+					return rows, err
 				}
 				in.ContinuationToken = out.NextContinuationToken
 			}

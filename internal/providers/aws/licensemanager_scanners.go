@@ -135,7 +135,10 @@ func lmTokenNativeID(licenseArn, tokenID string) string {
 // rows of the pages already read.
 func scanLMReceivedLicenses(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	const op = "license-manager:ListReceivedLicenses"
-	var batch []*store.Resource
+	var (
+		batch   []*store.Resource
+		pageErr error
+	)
 	input := &licensemanager.ListReceivedLicensesInput{MaxResults: sdkaws.Int32(lmPageSize)}
 	for {
 		out, err := client.ListReceivedLicenses(ctx, input)
@@ -168,12 +171,13 @@ func scanLMReceivedLicenses(ctx context.Context, client licenseManagerAPI, acct 
 			})
 		}
 		// ListReceivedLicenses has no paginator; a repeated token would loop forever.
-		if next := sv(out.NextToken); next == "" || next == sv(input.NextToken) {
+		var done bool
+		if done, pageErr = lastPage(input.NextToken, out.NextToken); done {
 			break
 		}
 		input.NextToken = out.NextToken
 	}
-	return upsertBatch(st, batch, "license-manager received-licenses")
+	return upsertListed(st, batch, op, pageErr)
 }
 
 // lmTokenDeleted is the TokenData.Status of a deleted token; the model
@@ -186,7 +190,10 @@ const lmTokenDeleted = "DELETED"
 // already read.
 func scanLMTokens(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	const op = "license-manager:ListTokens"
-	var batch []*store.Resource
+	var (
+		batch   []*store.Resource
+		pageErr error
+	)
 	input := &licensemanager.ListTokensInput{MaxResults: sdkaws.Int32(lmPageSize)}
 	for {
 		out, err := client.ListTokens(ctx, input)
@@ -213,12 +220,13 @@ func scanLMTokens(ctx context.Context, client licenseManagerAPI, acct *account, 
 			})
 		}
 		// ListTokens has no paginator; a repeated token would loop forever.
-		if next := sv(out.NextToken); next == "" || next == sv(input.NextToken) {
+		var done bool
+		if done, pageErr = lastPage(input.NextToken, out.NextToken); done {
 			break
 		}
 		input.NextToken = out.NextToken
 	}
-	return upsertBatch(st, batch, "license-manager tokens")
+	return upsertListed(st, batch, op, pageErr)
 }
 
 func scanLMLicenseConfigurations(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

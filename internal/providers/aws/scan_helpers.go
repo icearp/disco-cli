@@ -16,6 +16,69 @@ import (
 // stopping silently would store a partial listing as if it were complete.
 var errRepeatedNextToken = errors.New("AWS returned the same NextToken twice in a row, so the listing stopped incomplete; rescan, and report it if it recurs")
 
+// errTruncatedWithoutToken fails a hand-rolled pagination loop whose page says
+// more results follow but carries no token to fetch them with.
+var errTruncatedWithoutToken = errors.New("AWS marked the listing truncated but returned no continuation token, so it stopped incomplete; rescan, and report it if it recurs")
+
+// incompleteLists collects, across one fan-out's concurrent keys, the errors
+// of listings that ended early on errRepeatedNextToken or
+// errTruncatedWithoutToken. Such a key keeps the rows it read and does not
+// fail the errgroup, so its siblings are not cancelled; the fan-out stores
+// every row, then returns the collected errors.
+type incompleteLists struct {
+	mu   sync.Mutex
+	errs []error
+}
+
+// isIncompleteListing reports whether err ended a listing early: on a
+// repeated token, or on a truncated page without one.
+func isIncompleteListing(err error) bool {
+	return errors.Is(err, errRepeatedNextToken) || errors.Is(err, errTruncatedWithoutToken)
+}
+
+// continuesPastIncomplete reports whether work may go on past err: it ended a
+// listing early and carries no store write failure. A broken store must still
+// stop the work, since every later write would fail too.
+func continuesPastIncomplete(err error) bool {
+	return isIncompleteListing(err) && !errors.Is(err, store.ErrStoreWrite)
+}
+
+// take reports whether work may go on past err (continuesPastIncomplete),
+// recording it under op and key when it may.
+func (l *incompleteLists) take(op, key string, err error) bool {
+	if !continuesPastIncomplete(err) {
+		return false
+	}
+	l.record(fmt.Errorf("%s %s: %w", op, key, err))
+	return true
+}
+
+func (l *incompleteLists) record(err error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.errs = append(l.errs, err)
+}
+
+// err joins the recorded errors; nil when none was recorded. Read it only
+// after the fan-out returns.
+func (l *incompleteLists) err() error { return errors.Join(l.errs...) }
+
+// lastPage reports whether a hand-rolled NextToken loop has read its last
+// page, given the token it sent and the one the page returned: true when got
+// is empty, and true with errRepeatedNextToken when got repeats sent. The
+// caller returns that error with the rows it read, so the listing ends marked
+// partial instead of reading as complete.
+func lastPage(sent, got *string) (bool, error) {
+	next := sv(got)
+	if next == "" {
+		return true, nil
+	}
+	if next == sv(sent) {
+		return true, fmt.Errorf("NextToken %q: %w", next, errRepeatedNextToken)
+	}
+	return false, nil
+}
+
 // pageScan drives an AWS SDK v2 paginator, converts each page's items to
 // *store.Resource via toResource, and upserts in per-page batches. iamAction
 // labels the call for AccessDenied warnings (e.g. "secretsmanager:ListSecrets").
@@ -150,6 +213,17 @@ func nonEmptyPtr(s string) *string {
 	return &s
 }
 
+// upsertListed stores the rows a listing read and returns err, wrapped with
+// op, alongside any write error, so a listing that stopped early keeps what
+// it read and marks the scan partial.
+func upsertListed(st *store.Store, batch []*store.Resource, op string, err error) (int, int, error) {
+	total, inserted, uerr := upsertBatch(st, batch, op)
+	if err != nil {
+		err = fmt.Errorf("%s: %w", op, err)
+	}
+	return total, inserted, errors.Join(err, uerr)
+}
+
 // childParent is a parent listed earlier in the same scan: id is what the
 // child list op keys on, arn is the parent row's NativeID.
 type childParent struct{ id, arn string }
@@ -184,14 +258,17 @@ func (f *fanOutErrs) keyErr(key string, err error) error {
 
 // childFanOut runs list for each parent concurrently (fanoutMed), upserts every
 // child and links it under its parent via the contains closure. A failed
-// parent is dropped or returned per fanOutErrs.keyErr.
+// parent is dropped or returned per fanOutErrs.keyErr, except a listing that
+// ended early (incompleteLists): its rows are stored with its siblings' and
+// its error is returned after them.
 func childFanOut(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	isSkip func(error) bool, list func(context.Context, childParent) ([]*store.Resource, error),
 ) (int, int, error) {
 	var (
-		mu       sync.Mutex
-		children []containedChild
+		mu         sync.Mutex
+		children   []containedChild
+		incomplete incompleteLists
 	)
 	errs := &fanOutErrs{st: st, acct: acct, region: region, op: op, isSkip: isSkip}
 	g, gctx := errgroup.WithContext(ctx)
@@ -199,7 +276,7 @@ func childFanOut(
 	for _, p := range parents {
 		g.Go(func() error {
 			rows, err := list(gctx, p)
-			if err != nil {
+			if err != nil && !incomplete.take(op, p.id, err) {
 				return errs.keyErr(p.id, err)
 			}
 			parentID := store.ResourceID("aws", acct.ID, p.arn)
@@ -212,9 +289,10 @@ func childFanOut(
 		})
 	}
 	if err := g.Wait(); err != nil {
-		return 0, 0, err
+		return 0, 0, errors.Join(err, incomplete.err())
 	}
-	return upsertContained(st, op, children)
+	total, inserted, uerr := upsertContained(st, op, children)
+	return total, inserted, errors.Join(incomplete.err(), uerr)
 }
 
 // childFanOutStored is childFanOut for parents whose children are too many or
@@ -222,12 +300,16 @@ func childFanOut(
 // concurrently (fanoutMed), writes the children itself (a page at a time,
 // through upsertContained) and returns the counts. A failed parent is dropped
 // or returned per fanOutErrs.keyErr; the rows it stored before failing stay
-// and are counted.
+// and are counted. A parent whose listing ended early (incompleteLists) does
+// not cancel its siblings; its error is returned after they finish.
 func childFanOutStored(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	isSkip func(error) bool, storeChildren func(context.Context, childParent) (int, int, error),
 ) (int, int, error) {
-	var total, inserted atomic.Int64
+	var (
+		total, inserted atomic.Int64
+		incomplete      incompleteLists
+	)
 	errs := &fanOutErrs{st: st, acct: acct, region: region, op: op, isSkip: isSkip}
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(fanoutMed)
@@ -236,14 +318,14 @@ func childFanOutStored(
 			t, i, err := storeChildren(gctx, p)
 			total.Add(int64(t))
 			inserted.Add(int64(i))
-			if err != nil {
+			if err != nil && !incomplete.take(op, p.id, err) {
 				return errs.keyErr(p.id, err)
 			}
 			return nil
 		})
 	}
 	err := g.Wait()
-	return int(total.Load()), int(inserted.Load()), err
+	return int(total.Load()), int(inserted.Load()), errors.Join(err, incomplete.err())
 }
 
 // describeFanOut runs describe for each key concurrently (fanoutMed) and
@@ -495,8 +577,9 @@ func childFanOutStoredSkipCodes(
 // a row or two each, where a write per parent would cost more than the
 // listing: the rows list returns are collected and stored under their parents
 // in one upsert after the fan-out. The skip and warning rules are those of
-// childFanOutStoredSkipCodes; the rows of parents listed before a failure are
-// still stored, and the failure is returned alongside any write error.
+// childFanOutStoredSkipCodes; the rows of parents listed before a failure,
+// and those a parent returns with its error, are still stored, and the failure
+// is returned alongside any write error.
 func childFanOutCollectSkipCodes(
 	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
 	isSkip func(error) bool, label func(childParent) string, what string, codes []skipCode,
@@ -509,16 +592,13 @@ func childFanOutCollectSkipCodes(
 	_, _, err := childFanOutStoredSkipCodes(ctx, st, acct, region, op, parents, isSkip, label, what, codes,
 		func(ctx context.Context, p childParent) (int, int, error) {
 			rows, err := list(ctx, p)
-			if err != nil {
-				return 0, 0, err
-			}
 			parentID := store.ResourceID("aws", acct.ID, p.arn)
 			mu.Lock()
 			defer mu.Unlock()
 			for _, r := range rows {
 				children = append(children, containedChild{row: r, parentID: parentID})
 			}
-			return 0, 0, nil
+			return 0, 0, err
 		})
 	total, inserted, uerr := upsertContained(st, op, children)
 	return total, inserted, errors.Join(err, uerr)
@@ -526,10 +606,12 @@ func childFanOutCollectSkipCodes(
 
 // isDemotableTransient reports whether a phase's error may be reported as a
 // transient warning and dropped: it is transient and carries no store write
-// failure. A phase can join a transient list error with a failed upsert of the
-// rows listed before it, and that write failure must stay a hard error.
+// failure and no incomplete listing. A phase can join a transient list error
+// with a failed upsert of the rows listed before it, or with another listing
+// that ended early; either must stay a hard error, or the scan reads as
+// complete.
 func isDemotableTransient(err error) bool {
-	return isTransientNetworkError(err) && !errors.Is(err, store.ErrStoreWrite)
+	return isTransientNetworkError(err) && !errors.Is(err, store.ErrStoreWrite) && !isIncompleteListing(err)
 }
 
 // demoteTransient reports a phase's transient error as a warning and drops it,

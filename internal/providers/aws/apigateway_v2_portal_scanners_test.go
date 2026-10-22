@@ -3,6 +3,8 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"path/filepath"
 	"slices"
 	"sync"
 	"testing"
@@ -238,9 +240,8 @@ func TestScanAPIGatewayV2PortalList_StoredRow(t *testing.T) {
 }
 
 // repeatTokenPortalAPI returns the token it was sent, as a broken service
-// would; the loop must stop rather than spin.
+// would; the loop must fail rather than spin or read as complete.
 type repeatTokenPortalAPI struct {
-	apigatewayv2PortalAPI
 	calls int
 }
 
@@ -252,14 +253,155 @@ func (s *repeatTokenPortalAPI) ListPortals(_ context.Context, _ *apigatewayv2.Li
 	return &apigatewayv2.ListPortalsOutput{Items: []apigwv2types.PortalSummary{testPortal("a")}, NextToken: sdkaws.String("same")}, nil
 }
 
-func TestScanAPIGatewayV2PortalList_RepeatedTokenStops(t *testing.T) {
+// A repeated token stops the listing with errRepeatedNextToken, and the
+// portal already listed is stored.
+func TestScanAPIGatewayV2PortalList_RepeatedTokenFails(t *testing.T) {
 	st := newTestStore(t)
 	stub := &repeatTokenPortalAPI{}
-	if _, _, err := scanAPIGatewayV2PortalList(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
-		t.Fatal(err)
+	_, _, err := scanAPIGatewayV2PortalList(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	if stub.calls != 2 {
 		t.Errorf("ListPortals calls = %d; want 2 (stop when the token repeats)", stub.calls)
+	}
+	if got := len(rowsByNativeID(t, st, TypeAPIGatewayV2Portal)); got != 1 {
+		t.Errorf("stored = %d; want the listed portal stored", got)
+	}
+}
+
+func (s *repeatTokenPortalAPI) ListPortalProducts(_ context.Context, _ *apigatewayv2.ListPortalProductsInput, _ ...func(*apigatewayv2.Options)) (*apigatewayv2.ListPortalProductsOutput, error) {
+	s.calls++
+	if s.calls > 3 {
+		return nil, apiErr("ConflictException", "loop did not stop on a repeated token")
+	}
+	return &apigatewayv2.ListPortalProductsOutput{Items: []apigwv2types.PortalProductSummary{testPortalProduct(testAccountID, "p1")}, NextToken: sdkaws.String("same")}, nil
+}
+
+func (s *repeatTokenPortalAPI) ListProductPages(_ context.Context, _ *apigatewayv2.ListProductPagesInput, _ ...func(*apigatewayv2.Options)) (*apigatewayv2.ListProductPagesOutput, error) {
+	s.calls++
+	if s.calls > 3 {
+		return nil, apiErr("ConflictException", "loop did not stop on a repeated token")
+	}
+	return &apigatewayv2.ListProductPagesOutput{Items: []apigwv2types.ProductPageSummaryNoBody{testProductPage("p1", "pg1")}, NextToken: sdkaws.String("same")}, nil
+}
+
+func (s *repeatTokenPortalAPI) ListProductRestEndpointPages(_ context.Context, _ *apigatewayv2.ListProductRestEndpointPagesInput, _ ...func(*apigatewayv2.Options)) (*apigatewayv2.ListProductRestEndpointPagesOutput, error) {
+	s.calls++
+	if s.calls > 3 {
+		return nil, apiErr("ConflictException", "loop did not stop on a repeated token")
+	}
+	return &apigatewayv2.ListProductRestEndpointPagesOutput{Items: []apigwv2types.ProductRestEndpointPageSummaryNoBody{testRestPage("p1", "r1")}, NextToken: sdkaws.String("same")}, nil
+}
+
+// The product list and both per-product page lists fail on a repeated token
+// after two calls instead of reading as complete; each keeps the row it read.
+func TestScanAPIGatewayV2PortalChildren_RepeatedTokenFails(t *testing.T) {
+	products := []childParent{{id: "p1", arn: portalTestARN(testAccountID, "portalproducts", "p1")}}
+	for _, tc := range []struct {
+		name     string
+		run      func(apigatewayv2PortalAPI, *store.Store) error
+		storedAs string // the type whose listed row must be stored
+	}{
+		{"ListPortalProducts", func(c apigatewayv2PortalAPI, st *store.Store) error {
+			_, _, _, err := scanAPIGatewayV2PortalProducts(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
+			return err
+		}, TypeAPIGatewayV2PortalProduct},
+		{"ListProductPages", func(c apigatewayv2PortalAPI, st *store.Store) error {
+			_, _, err := scanAPIGatewayV2ProductPages(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID, products)
+			return err
+		}, TypeAPIGatewayV2ProductPage},
+		{"ListProductRestEndpointPages", func(c apigatewayv2PortalAPI, st *store.Store) error {
+			_, _, err := scanAPIGatewayV2ProductRestEndpointPages(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID, products)
+			return err
+		}, TypeAPIGatewayV2ProductRestEndpointPage},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			stub := &repeatTokenPortalAPI{}
+			if err := tc.run(stub, st); !errors.Is(err, errRepeatedNextToken) {
+				t.Fatalf("err = %v, want errRepeatedNextToken", err)
+			}
+			if stub.calls != 2 {
+				t.Errorf("calls = %d; want 2 (stop when the token repeats)", stub.calls)
+			}
+			if got := len(rowsByNativeID(t, st, tc.storedAs)); got != 1 {
+				t.Errorf("stored %s rows = %d; want the listed one", tc.storedAs, got)
+			}
+		})
+	}
+}
+
+// repeatingPortalPhases is stubPortalAPI with ListPortals and/or
+// ListPortalProducts answering every call with the token it was given.
+// onPortalRepeat, when set, runs as ListPortals repeats its token;
+// productCalls counts ListPortalProducts calls.
+type repeatingPortalPhases struct {
+	*stubPortalAPI
+	portals, products bool
+	calls             int
+	onPortalRepeat    func()
+	productCalls      int
+}
+
+func (s *repeatingPortalPhases) ListPortals(ctx context.Context, in *apigatewayv2.ListPortalsInput, o ...func(*apigatewayv2.Options)) (*apigatewayv2.ListPortalsOutput, error) {
+	if !s.portals {
+		return s.stubPortalAPI.ListPortals(ctx, in, o...)
+	}
+	if s.calls++; s.calls > 3 {
+		return nil, apiErr("ConflictException", "loop did not stop on a repeated token")
+	}
+	if s.calls == 2 && s.onPortalRepeat != nil {
+		s.onPortalRepeat()
+	}
+	return &apigatewayv2.ListPortalsOutput{Items: []apigwv2types.PortalSummary{testPortal("a")}, NextToken: sdkaws.String("same")}, nil
+}
+
+func (s *repeatingPortalPhases) ListPortalProducts(ctx context.Context, in *apigatewayv2.ListPortalProductsInput, o ...func(*apigatewayv2.Options)) (*apigatewayv2.ListPortalProductsOutput, error) {
+	s.productCalls++
+	if !s.products {
+		return s.stubPortalAPI.ListPortalProducts(ctx, in, o...)
+	}
+	if s.calls++; s.calls > 6 {
+		return nil, apiErr("ConflictException", "loop did not stop on a repeated token")
+	}
+	return &apigatewayv2.ListPortalProductsOutput{Items: []apigwv2types.PortalProductSummary{testPortalProduct(testAccountID, "p1")}, NextToken: sdkaws.String("same")}, nil
+}
+
+// A repeated token in the portal or product listing fails the scan, but the
+// later phases still run: every product's pages are stored.
+func TestScanAPIGatewayV2Portals_RepeatedTokenRunsLaterPhases(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		portals, products bool
+	}{
+		{"ListPortals", true, false},
+		{"ListPortalProducts", false, true},
+		{"both", true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			stub := &repeatingPortalPhases{portals: tc.portals, products: tc.products, stubPortalAPI: &stubPortalAPI{
+				portalPages:  [][]apigwv2types.PortalSummary{{testPortal("a")}},
+				productPages: [][]apigwv2types.PortalProductSummary{{testPortalProduct(testAccountID, "p1")}},
+				pagePages:    map[string][][]apigwv2types.ProductPageSummaryNoBody{"p1": {{testProductPage("p1", "pg1")}}},
+				restPages:    map[string][][]apigwv2types.ProductRestEndpointPageSummaryNoBody{"p1": {{testRestPage("p1", "r1")}}},
+			}}
+			_, _, err := scanAPIGatewayV2Portals(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			if !errors.Is(err, errRepeatedNextToken) {
+				t.Fatalf("err = %v, want errRepeatedNextToken", err)
+			}
+			for typ, want := range map[string]string{
+				TypeAPIGatewayV2Portal:                  portalTestARN(testAccountID, "portals", "a"),
+				TypeAPIGatewayV2PortalProduct:           portalTestARN(testAccountID, "portalproducts", "p1"),
+				TypeAPIGatewayV2ProductPage:             productPageARN("p1", "pg1"),
+				TypeAPIGatewayV2ProductRestEndpointPage: restPageARN("p1", "r1"),
+			} {
+				if _, ok := rowsByNativeID(t, st, typ)[want]; !ok {
+					t.Errorf("%s %s not stored", typ, want)
+				}
+			}
+		})
 	}
 }
 
@@ -592,5 +734,30 @@ func TestScanAPIGatewayV2_CoreErrorSkipsPortals(t *testing.T) {
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
 	if _, _, err := scanAPIGatewayV2(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "ConflictException") {
 		t.Fatalf("err = %v; want the GetVpcLinks ConflictException", err)
+	}
+}
+
+// A repeated ListPortals token whose rows then fail to store stops the scan:
+// a broken store is not an incomplete listing, and the later phases would
+// only fail their writes too.
+func TestScanAPIGatewayV2Portals_RepeatedTokenWithStoreWriteStops(t *testing.T) {
+	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
+	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	insertTestScan(t, st, testScanID, "running")
+	stub := &repeatingPortalPhases{portals: true, stubPortalAPI: &stubPortalAPI{}, onPortalRepeat: func() {
+		if err := st.Close(); err != nil {
+			t.Errorf("close: %v", err)
+		}
+	}}
+	_, _, err = scanAPIGatewayV2Portals(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if !errors.Is(err, store.ErrStoreWrite) || !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v; want store.ErrStoreWrite joined with errRepeatedNextToken", err)
+	}
+	if stub.productCalls != 0 {
+		t.Errorf("ListPortalProducts calls = %d; want 0 (a failed store stops the scan)", stub.productCalls)
 	}
 }

@@ -24,9 +24,11 @@ const (
 )
 
 // ssmDocumentPermission is the Share permission of one document, gathered
-// over every page. Both lists are sorted because the API documents no order,
-// and are never nil, so an unshared document always stores the same body.
-// The keys are DescribeDocumentPermissionOutput's.
+// over every page. Both lists are sorted because the API documents no order.
+// They are nil (stored as null: not read) only when the listing ended
+// incomplete, so an unshared document always stores the same body and a
+// partial share list is never stored. The keys are
+// DescribeDocumentPermissionOutput's.
 type ssmDocumentPermission struct {
 	AccountIDs             []string `json:"AccountIds"`
 	AccountSharingInfoList []types.AccountSharingInfo
@@ -59,8 +61,10 @@ func scanSSMDocumentPermissions(ctx context.Context, client ssmAPI, acct *accoun
 	}}
 	return childFanOutCollectSkipCodes(ctx, st, acct, region, ssmDescribeDocumentPermissionOp, docs, isGone, byParentID, "document(s)", codes,
 		func(ctx context.Context, doc childParent) ([]*store.Resource, error) {
+			// An incomplete listing keeps the row, its lists null, and returns
+			// the error with it.
 			perm, err := describeSSMDocumentPermission(ctx, client, doc.id)
-			if err != nil {
+			if err != nil && !isIncompleteListing(err) {
 				return nil, err
 			}
 			return []*store.Resource{{
@@ -68,12 +72,13 @@ func scanSSMDocumentPermissions(ctx context.Context, client ssmAPI, acct *accoun
 				Type: TypeSSMDocumentPermission, NativeID: ssmDocumentPermissionNativeID(doc.arn),
 				Name: &doc.id, Region: &region,
 				AttributesJSON: mustJSON(perm), DiscoveredBy: scanID,
-			}}, nil
+			}}, err
 		})
 }
 
 // describeSSMDocumentPermission reads every page of the Share permission of
-// the document name. The op has no SDK paginator.
+// the document name. The op has no SDK paginator. With an error it returns no
+// share lists, never part of them.
 func describeSSMDocumentPermission(ctx context.Context, client ssmAPI, name string) (ssmDocumentPermission, error) {
 	perm := ssmDocumentPermission{AccountIDs: []string{}, AccountSharingInfoList: []types.AccountSharingInfo{}}
 	in := &ssm.DescribeDocumentPermissionInput{
@@ -89,7 +94,11 @@ func describeSSMDocumentPermission(ctx context.Context, client ssmAPI, name stri
 		perm.AccountIDs = append(perm.AccountIDs, out.AccountIds...)
 		perm.AccountSharingInfoList = append(perm.AccountSharingInfoList, out.AccountSharingInfoList...)
 		// A repeated token would loop forever.
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
+		done, err := lastPage(in.NextToken, out.NextToken)
+		if err != nil {
+			return ssmDocumentPermission{}, err
+		}
+		if done {
 			break
 		}
 		in.NextToken = out.NextToken

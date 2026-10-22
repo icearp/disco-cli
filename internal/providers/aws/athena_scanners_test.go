@@ -362,23 +362,30 @@ func TestIsAthenaSparkWorkGroup_EngineVersion(t *testing.T) {
 	}
 }
 
-func TestListAthenaNotebooks_StopsOnRepeatedToken(t *testing.T) {
+func TestListAthenaNotebooks_FailsOnRepeatedToken(t *testing.T) {
 	var calls atomic.Int32
 	cfg := opStubConfig(map[string]func(in any) (any, error){
 		"ListNotebookMetadata": func(any) (any, error) {
-			if calls.Add(1) > 2 {
+			n := calls.Add(1)
+			if n > 2 {
 				return nil, errors.New("called again after a repeated token")
 			}
-			return &athena.ListNotebookMetadataOutput{NextToken: ptrStr("same")}, nil
+			return &athena.ListNotebookMetadataOutput{NextToken: ptrStr("same"), NotebookMetadataList: []athenatypes.NotebookMetadata{
+				{NotebookId: ptrStr(fmt.Sprintf("nb%d", n))},
+			}}, nil
 		},
 	}, athenaDenied)
 	client := athena.NewFromConfig(cfg)
-	_, err := listAthenaNotebooks(context.Background(), client, newTestAccount(testAccountID), testRegion, testScanID,
+	rows, err := listAthenaNotebooks(context.Background(), client, newTestAccount(testAccountID), testRegion, testScanID,
 		childParent{id: athenaTestSparkWG1, arn: athenaTestSparkWGARN1})
-	if err != nil {
-		t.Fatalf("listAthenaNotebooks: %v", err)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	if got := calls.Load(); got != 2 {
 		t.Errorf("calls = %d, want 2", got)
+	}
+	want := []string{athenaTestSparkWGARN1 + "/notebook/nb1", athenaTestSparkWGARN1 + "/notebook/nb2"}
+	if got := resourceNativeIDs(rows); !slices.Equal(got, want) {
+		t.Errorf("rows = %v, want both pages' rows %v", got, want)
 	}
 }

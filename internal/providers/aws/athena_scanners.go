@@ -371,12 +371,11 @@ func listAthenaNotebooks(ctx context.Context, client athenaAPI, acct *account, r
 		}
 		// ListNotebookMetadata has no paginator; a repeated token would loop
 		// forever.
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
-			break
+		if done, err := lastPage(in.NextToken, out.NextToken); done {
+			return rows, err
 		}
 		in.NextToken = out.NextToken
 	}
-	return rows, nil
 }
 
 // scanAthenaNamedQueries lists each workgroup's saved (named) queries and

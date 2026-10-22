@@ -159,13 +159,11 @@ func scanEC2IpamByoasns(ctx context.Context, client ec2API, acct *account, regio
 				DiscoveredBy:   scanID,
 			}})
 		}
-		next := sv(page.NextToken)
-		if next == "" || next == sv(token) {
-			break
+		if done, err := lastPage(token, page.NextToken); done {
+			return upsertRegionChildren(st, acct, region, ec2IpamByoasnOp, children, err)
 		}
 		token = page.NextToken
 	}
-	return upsertRegionChildren(st, acct, region, ec2IpamByoasnOp, children, nil)
 }
 
 // ipamPolicyAllocationRuleNativeID builds the NativeID of the allocation rules
@@ -225,9 +223,8 @@ func listIpamPolicyAllocationRules(ctx context.Context, client ec2API, acct *acc
 				DiscoveredBy:   scanID,
 			})
 		}
-		next := sv(page.NextToken)
-		if next == "" || next == sv(token) {
-			return rows, nil
+		if done, err := lastPage(token, page.NextToken); done {
+			return rows, err
 		}
 		token = page.NextToken
 	}
@@ -284,8 +281,8 @@ func scanEC2IpamInternetRegistryAssociations(ctx context.Context, client ec2API,
 				DiscoveredBy:   scanID,
 			})
 		}
-		next := sv(page.NextToken)
-		if next == "" || next == sv(token) {
+		var done bool
+		if done, listErr = lastPage(token, page.NextToken); done {
 			break
 		}
 		token = page.NextToken

@@ -84,8 +84,8 @@ func scanOpenSearchDirectQueryDataSources(ctx context.Context, client opensearch
 				AttributesJSON: mustJSON(flattenOpenSearchDirectQueryDataSource(d)), DiscoveredBy: scanID,
 			})
 		}
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
-			return upsertBatch(st, batch, op)
+		if done, err := lastPage(in.NextToken, out.NextToken); done {
+			return upsertListed(st, batch, op, err)
 		}
 		in.NextToken = out.NextToken
 	}
@@ -111,7 +111,10 @@ func openSearchTagsJSON(tags []opensearchtypes.Tag) *string {
 // arn:aws:es:{region}:{account}:vpc-endpoint/{VpcEndpointId}.
 func scanOpenSearchVpcEndpoints(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	const listOp = "opensearch:ListVpcEndpoints"
-	var pages [][]string
+	var (
+		pages   [][]string
+		pageErr error
+	)
 	in := &opensearch.ListVpcEndpointsInput{}
 	for {
 		out, err := client.ListVpcEndpoints(ctx, in)
@@ -130,7 +133,8 @@ func scanOpenSearchVpcEndpoints(ctx context.Context, client opensearchAPI, acct 
 		if len(ids) > 0 {
 			pages = append(pages, ids)
 		}
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
+		var done bool
+		if done, pageErr = lastPage(in.NextToken, out.NextToken); done {
 			break
 		}
 		in.NextToken = out.NextToken
@@ -142,8 +146,11 @@ func scanOpenSearchVpcEndpoints(ctx context.Context, client opensearchAPI, acct 
 			Message: fmt.Sprintf("%d endpoints not described, so not stored: %s", len(failed), strings.Join(failed, ", ")),
 		})
 	}
+	if pageErr != nil {
+		pageErr = fmt.Errorf("%s: %w", listOp, pageErr)
+	}
 	total, inserted, uerr := upsertBatch(st, batch, "opensearch vpc-endpoints")
-	return total, inserted, errors.Join(err, uerr)
+	return total, inserted, errors.Join(pageErr, err, uerr)
 }
 
 const openSearchDescribeVpcEndpointsOp = "opensearch:DescribeVpcEndpoints"

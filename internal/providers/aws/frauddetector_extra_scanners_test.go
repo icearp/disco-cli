@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -320,26 +321,33 @@ func TestScanFDVersions_NoParentsMakesNoCalls(t *testing.T) {
 	}
 }
 
-// TestScanFDDetectorVersions_RepeatedTokenEndsPagination pins the
-// StopOnDuplicateToken guard on the manual DescribeDetector loop: a page that
-// hands back the token it was asked with is the last page.
-func TestScanFDDetectorVersions_RepeatedTokenEndsPagination(t *testing.T) {
+// TestScanFDDetectorVersions_RepeatedTokenFails pins the repeated-token guard
+// on the manual DescribeDetector loop: a page that hands back the token it was
+// asked with ends the loop with errRepeatedNextToken, and that the versions it
+// read and a sibling detector's versions are still stored.
+func TestScanFDDetectorVersions_RepeatedTokenFails(t *testing.T) {
 	st := newTestStore(t)
-	seedFDParents(t, st, TypeFraudDetectorDetector, fdDetectorARN, "d1")
-	fake := &fakeFD{detectorPages: map[string]map[string]*frauddetector.DescribeDetectorOutput{"d1": {
-		"":   {DetectorVersionSummaries: []frauddetectortypes.DetectorVersionSummary{fdVersionSummary("1")}, NextToken: sdkaws.String("p2")},
-		"p2": {DetectorVersionSummaries: []frauddetectortypes.DetectorVersionSummary{fdVersionSummary("2")}, NextToken: sdkaws.String("p2")},
-	}}}
+	seedFDParents(t, st, TypeFraudDetectorDetector, fdDetectorARN, "d1", "d2")
+	fake := &fakeFD{detectorPages: map[string]map[string]*frauddetector.DescribeDetectorOutput{
+		"d1": {
+			"":   {DetectorVersionSummaries: []frauddetectortypes.DetectorVersionSummary{fdVersionSummary("1")}, NextToken: sdkaws.String("p2")},
+			"p2": {DetectorVersionSummaries: []frauddetectortypes.DetectorVersionSummary{fdVersionSummary("2")}, NextToken: sdkaws.String("p2")},
+		},
+		"d2": {"": {DetectorVersionSummaries: []frauddetectortypes.DetectorVersionSummary{fdVersionSummary("1")}}},
+	}}
 	_, _, err := scanFDDetectorVersions(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID,
-		[]childParent{{id: "d1", arn: fdDetectorARN("d1")}})
-	if err != nil {
-		t.Fatalf("scanFDDetectorVersions: %v", err)
+		[]childParent{{id: "d1", arn: fdDetectorARN("d1")}, {id: "d2", arn: fdDetectorARN("d2")}})
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	if got := fake.calls("d1"); got != 2 {
 		t.Errorf("DescribeDetector called %d times; want 2 (the repeated token ends the loop)", got)
 	}
-	if got := len(qsRows(t, st, TypeFraudDetectorDetectorVersion)); got != 2 {
-		t.Errorf("stored %d rows; want 2", got)
+	rows := qsRows(t, st, TypeFraudDetectorDetectorVersion)
+	for _, want := range []string{fdDetectorVersionARN("d1", "1"), fdDetectorVersionARN("d1", "2"), fdDetectorVersionARN("d2", "1")} {
+		if _, ok := rows[want]; !ok {
+			t.Errorf("version %s not stored; stored %d rows", want, len(rows))
+		}
 	}
 }
 

@@ -78,8 +78,8 @@ func listCognitoUserPoolReplicaRows(ctx context.Context, client cognitoidpAPI, a
 		replicas = append(replicas, out.UserPoolReplicas...)
 		// ListUserPoolReplicas has no paginator; a repeated token would loop
 		// forever.
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
-			return cognitoReplicaRows(acct, region, scanID, pool, replicas), nil
+		if done, err := lastPage(in.NextToken, out.NextToken); done {
+			return cognitoReplicaRows(acct, region, scanID, pool, replicas), err
 		}
 		in.NextToken = out.NextToken
 	}
@@ -163,8 +163,8 @@ func listCognitoClientSecretRows(ctx context.Context, client cognitoidpAPI, acct
 		}
 		// ListUserPoolClientSecrets has no paginator; a repeated token would
 		// loop forever.
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
-			return rows, nil
+		if done, err := lastPage(in.NextToken, out.NextToken); done {
+			return rows, err
 		}
 		in.NextToken = out.NextToken
 	}

@@ -228,9 +228,11 @@ func scanKafkaChannels(ctx context.Context, client kafkaChildAPI, acct *account,
 		describeRejected transientTally
 	)
 	t, i, err := kafkaChildFanOut(ctx, st, acct, region, errs, parents, func(ctx context.Context, cluster childParent) ([]*store.Resource, error) {
-		arns, err := listKafkaChannelARNs(ctx, client, cluster.arn)
-		if err != nil {
-			return nil, err
+		// A listing that ended early returns the channels it read with its
+		// error; they are described and stored, and the error is returned.
+		arns, listErr := listKafkaChannelARNs(ctx, client, cluster.arn)
+		if len(arns) == 0 {
+			return nil, listErr
 		}
 		// Described one at a time: clusters already run fanoutMed-wide, and a
 		// cluster's channels are delivery pipelines, expected to be few.
@@ -258,7 +260,7 @@ func scanKafkaChannels(ctx context.Context, client kafkaChildAPI, acct *account,
 				AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 			})
 		}
-		return rows, nil
+		return rows, listErr
 	})
 	warnKafkaRejected(st, kafkaDescribeChannelOp, "channel(s)", acct, region, &describeRejected)
 	return t, i, err
@@ -279,8 +281,8 @@ func listKafkaChannelARNs(ctx context.Context, client kafkaChildAPI, clusterARN 
 			}
 		}
 		// ListChannels has no paginator; a repeated token would loop forever.
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
-			return arns, nil
+		if done, err := lastPage(in.NextToken, out.NextToken); done {
+			return arns, err
 		}
 		in.NextToken = out.NextToken
 	}

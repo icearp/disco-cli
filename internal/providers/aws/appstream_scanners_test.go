@@ -491,23 +491,30 @@ func TestScanAppStream_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 	}
 }
 
-func TestListASSoftwareAssociations_StopsOnRepeatedToken(t *testing.T) {
+func TestListASSoftwareAssociations_FailsOnRepeatedToken(t *testing.T) {
 	var calls atomic.Int32
 	cfg := opStubConfig(map[string]func(in any) (any, error){
 		"DescribeSoftwareAssociations": func(any) (any, error) {
-			if calls.Add(1) > 2 {
+			n := calls.Add(1)
+			if n > 2 {
 				return nil, errors.New("called again after a repeated token")
 			}
-			return &appstream.DescribeSoftwareAssociationsOutput{NextToken: ptrStr("same")}, nil
+			return &appstream.DescribeSoftwareAssociationsOutput{NextToken: ptrStr("same"), SoftwareAssociations: []astypes.SoftwareAssociations{
+				{SoftwareName: ptrStr(fmt.Sprintf("sw%d", n))},
+			}}, nil
 		},
 	}, asDenied)
 	client := appstream.NewFromConfig(cfg)
-	_, err := listASSoftwareAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, testScanID,
+	rows, err := listASSoftwareAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, testScanID,
 		childParent{id: asTestBuilder, arn: asTestBuilder})
-	if err != nil {
-		t.Fatalf("listASSoftwareAssociations: %v", err)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	if got := calls.Load(); got != 2 {
 		t.Errorf("calls = %d, want 2", got)
+	}
+	want := []string{asTestBuilder + "/software-association/sw1", asTestBuilder + "/software-association/sw2"}
+	if got := resourceNativeIDs(rows); !slices.Equal(got, want) {
+		t.Errorf("rows = %v, want both pages' rows %v", got, want)
 	}
 }

@@ -590,8 +590,8 @@ func listIWEventConfigurations(ctx context.Context, client iotWirelessAPI, rt iw
 		items = append(items, out.EventConfigurationsList...)
 		// ListEventConfigurations has no paginator; a repeated token would
 		// loop forever.
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
-			return items, nil
+		if done, err := lastPage(in.NextToken, out.NextToken); done {
+			return items, err
 		}
 		in.NextToken = out.NextToken
 	}

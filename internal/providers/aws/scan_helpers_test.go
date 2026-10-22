@@ -9,7 +9,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/icearp/disco-cli/store"
 )
@@ -306,4 +308,150 @@ func TestNotReadyTally_WarnsOnceForValidationExceptionOnly(t *testing.T) {
 	}
 	tally.warnSkipped(st, "evs:ListX", acct, testRegion, "parent(s)", "not ready")
 	assertOneSkipWarning(t, *warns, "evs:ListX", 2, firstByARN)
+}
+
+// incompleteSiblingWait is how long a sibling of a parent whose listing ended
+// incomplete waits for a cancellation that must not come. A passing run does
+// not depend on it; only a regression (siblings cancelled) needs the cancel to
+// land within it, which it does in microseconds.
+const incompleteSiblingWait = 200 * time.Millisecond
+
+// siblingWatch lets the siblings of a failing parent count whether the
+// fan-out cancels them. errgroup keeps only its first error, so a sibling's
+// context.Canceled would never reach the fan-out's result.
+type siblingWatch struct {
+	failed    chan struct{}
+	cancelled atomic.Int32
+}
+
+// await waits for the failing parent to return, then counts a cancellation
+// of ctx within incompleteSiblingWait.
+func (w *siblingWatch) await(ctx context.Context) {
+	<-w.failed
+	select {
+	case <-ctx.Done():
+		w.cancelled.Add(1)
+	case <-time.After(incompleteSiblingWait):
+	}
+}
+
+// A parent whose listing ended on a repeated token keeps the rows it read
+// and does not cancel its siblings; the fan-out stores every row and returns
+// the repeat.
+func TestChildFanOut_IncompleteListingKeepsRowsAndSiblings(t *testing.T) {
+	st := newTestStore(t)
+	seedSkipFanOutParents(t, st)
+	w := &siblingWatch{failed: make(chan struct{})}
+	total, _, err := childFanOut(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
+		skipFanOutParents, func(error) bool { return false },
+		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+			if p.id == "env-ok" {
+				defer close(w.failed)
+				return []*store.Resource{skipFanOutChild(p)}, fmt.Errorf("page 2: %w", errRepeatedNextToken)
+			}
+			w.await(ctx)
+			return []*store.Resource{skipFanOutChild(p)}, nil
+		})
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v; want errRepeatedNextToken", err)
+	}
+	if n := w.cancelled.Load(); n != 0 {
+		t.Errorf("%d siblings cancelled; want 0", n)
+	}
+	if got := len(rowsByNativeID(t, st, TypeEVSEnvironmentHost)); got != 3 || total != 3 {
+		t.Errorf("stored %d rows, total %d; want every parent's row, 3", got, total)
+	}
+}
+
+// A parent whose listing ended on a repeated token does not cancel its
+// siblings, and the repeat is returned with every parent's counts.
+func TestChildFanOutStored_IncompleteListingKeepsSiblings(t *testing.T) {
+	st := newTestStore(t)
+	w := &siblingWatch{failed: make(chan struct{})}
+	total, _, err := childFanOutStored(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
+		skipFanOutParents, func(error) bool { return false },
+		func(ctx context.Context, p childParent) (int, int, error) {
+			if p.id == "env-ok" {
+				defer close(w.failed)
+				return 1, 1, fmt.Errorf("page 2: %w", errRepeatedNextToken)
+			}
+			w.await(ctx)
+			return 1, 1, nil
+		})
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v; want errRepeatedNextToken", err)
+	}
+	if n := w.cancelled.Load(); n != 0 {
+		t.Errorf("%d siblings cancelled; want 0", n)
+	}
+	if total != 3 {
+		t.Errorf("total = %d; want 3", total)
+	}
+}
+
+// A transient error joined with a listing that ended incomplete stays an
+// error: demoting the join to a warning would report the scan complete.
+func TestDemoteTransient_KeepsIncompleteListingJoin(t *testing.T) {
+	for name, incomplete := range map[string]error{"repeated token": errRepeatedNextToken, "truncated without token": errTruncatedWithoutToken} {
+		t.Run(name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := recordWarnings(st)
+			joined := errors.Join(fmt.Errorf("op: %w", incomplete), apiErr("ThrottlingException", "slow down"))
+			if !isTransientNetworkError(joined) {
+				t.Fatalf("precondition: %v is not transient, so the test proves nothing", joined)
+			}
+			got := demoteTransient(st, "op", newTestAccount(testAccountID), testRegion, joined)
+			if !errors.Is(got, incomplete) {
+				t.Errorf("demoteTransient = %v; want the join returned", got)
+			}
+			if len(*warns) != 0 {
+				t.Errorf("warnings = %+v; want none", *warns)
+			}
+		})
+	}
+}
+
+// runScanners: a scanner whose listing ended incomplete does not cancel the
+// others, and its error is returned with every scanner's counts.
+func TestRunScanners_IncompleteListingKeepsSiblings(t *testing.T) {
+	w := &siblingWatch{failed: make(chan struct{})}
+	total, _, err := runScanners(context.Background(),
+		func(context.Context) (int, int, error) {
+			defer close(w.failed)
+			return 1, 1, fmt.Errorf("page 2: %w", errRepeatedNextToken)
+		},
+		func(ctx context.Context) (int, int, error) {
+			w.await(ctx)
+			return 1, 1, nil
+		})
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v; want errRepeatedNextToken", err)
+	}
+	if n := w.cancelled.Load(); n != 0 {
+		t.Errorf("%d siblings cancelled; want 0", n)
+	}
+	if total != 2 {
+		t.Errorf("total = %d; want 2", total)
+	}
+}
+
+// An incomplete listing joined with a failed store write is a hard error, not
+// an incomplete listing: the parent's rows are dropped by the hard-error rule
+// rather than written to a store that has already failed.
+func TestChildFanOut_IncompleteListingWithStoreWriteFails(t *testing.T) {
+	st := newTestStore(t)
+	seedSkipFanOutParents(t, st)
+	p := skipFanOutParents[0]
+	total, _, err := childFanOut(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
+		[]childParent{p}, func(error) bool { return false },
+		func(context.Context, childParent) ([]*store.Resource, error) {
+			return []*store.Resource{skipFanOutChild(p)}, errors.Join(
+				fmt.Errorf("page 2: %w", errRepeatedNextToken), fmt.Errorf("page 1: %w", store.ErrStoreWrite))
+		})
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
+	}
+	if got := len(rowsByNativeID(t, st, TypeEVSEnvironmentHost)); got != 0 || total != 0 {
+		t.Errorf("stored %d rows, total %d; want the fan-out failed with none", got, total)
+	}
 }

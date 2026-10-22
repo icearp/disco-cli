@@ -104,15 +104,25 @@ func scanEC2(ctx context.Context, acct *account, region string, st *store.Store,
 }
 
 // runScanners executes scanner functions concurrently via errgroup, aggregating
-// total/inserted counts. Each fn receives the errgroup-derived context.
+// total/inserted counts. Each fn receives the errgroup-derived context. An fn
+// whose listing ended incomplete (continuesPastIncomplete) has stored what it
+// read and does not cancel the others; its error is returned after they
+// finish. Any other error cancels them.
 func runScanners(ctx context.Context, fns ...func(context.Context) (int, int, error)) (int, int, error) {
-	var t, n atomic.Int64
+	var (
+		t, n       atomic.Int64
+		incomplete incompleteLists
+	)
 	g, gctx := errgroup.WithContext(ctx)
 	for _, fn := range fns {
 		g.Go(func() error {
 			tt, nn, err := fn(gctx)
 			t.Add(int64(tt))
 			n.Add(int64(nn))
+			if continuesPastIncomplete(err) {
+				incomplete.record(err)
+				return nil
+			}
 			return err
 		})
 	}
@@ -120,7 +130,7 @@ func runScanners(ctx context.Context, fns ...func(context.Context) (int, int, er
 	// left-to-right, so loading them inline with g.Wait() would read them while
 	// goroutines are still running and yield 0/0.
 	err := g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return int(t.Load()), int(n.Load()), errors.Join(err, incomplete.err())
 }
 
 // ec2Pager is satisfied by every AWS SDK v2 EC2 paginator.

@@ -262,6 +262,15 @@ func rowsByNativeID(t *testing.T, st *store.Store, typ string) map[string]store.
 	return byID
 }
 
+// resourceNativeIDs is the NativeIDs of rows a helper returned, in order.
+func resourceNativeIDs(rows []*store.Resource) []string {
+	ids := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.NativeID)
+	}
+	return ids
+}
+
 // assertContainsNative fails the test unless the parent contains the child,
 // both given by NativeID.
 func assertContainsNative(t *testing.T, st *store.Store, parentNativeID, childNativeID string) {

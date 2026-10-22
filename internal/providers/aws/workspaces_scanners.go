@@ -532,10 +532,9 @@ func listWSConnectClientAddIns(ctx context.Context, client workSpacesAPI, acct *
 		}
 		// DescribeConnectClientAddIns has no paginator; a repeated token would
 		// loop forever.
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
-			break
+		if done, err := lastPage(in.NextToken, out.NextToken); done {
+			return rows, err
 		}
 		in.NextToken = out.NextToken
 	}
-	return rows, nil
 }

@@ -222,10 +222,10 @@ func scanFDDetectorVersions(ctx context.Context, client fraudDetectorAPI, acct *
 					}
 					rows = append(rows, fdChildResource(acct, region, scanID, TypeFraudDetectorDetectorVersion, arn, vid, string(v.Status), v))
 				}
-				// Mirrors the SDK paginators' StopOnDuplicateToken: DescribeDetector
-				// has no paginator, and a repeated token would loop forever.
-				if next := sv(out.NextToken); next == "" || next == sv(input.NextToken) {
-					return rows, nil
+				// DescribeDetector has no paginator; a repeated token would loop
+				// forever.
+				if done, err := lastPage(input.NextToken, out.NextToken); done {
+					return rows, err
 				}
 				input.NextToken = out.NextToken
 			}

@@ -335,7 +335,7 @@ func TestDescribeWSConnectionAliasPermission_SortIsTotal(t *testing.T) {
 	}
 }
 
-func TestDescribeWSConnectionAliasPermission_StopsOnRepeatedToken(t *testing.T) {
+func TestDescribeWSConnectionAliasPermission_FailsOnRepeatedToken(t *testing.T) {
 	var calls atomic.Int32
 	cfg := opStubConfig(map[string]func(in any) (any, error){
 		"DescribeConnectionAliasPermissions": func(any) (any, error) {
@@ -345,10 +345,56 @@ func TestDescribeWSConnectionAliasPermission_StopsOnRepeatedToken(t *testing.T) 
 			return &workspaces.DescribeConnectionAliasPermissionsOutput{NextToken: ptrStr("same")}, nil
 		},
 	}, wsDenied)
-	if _, err := describeWSConnectionAliasPermission(context.Background(), workspaces.NewFromConfig(cfg), wsTestAliasID1); err != nil {
-		t.Fatalf("describeWSConnectionAliasPermission: %v", err)
+	perm, err := describeWSConnectionAliasPermission(context.Background(), workspaces.NewFromConfig(cfg), wsTestAliasID1)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	if got := calls.Load(); got != 2 {
 		t.Errorf("calls = %d, want 2", got)
+	}
+	if perm.AliasID != wsTestAliasID1 || perm.ConnectionAliasPermissions != nil {
+		t.Errorf("perm = %+v; want AliasId %s and no grants (not read)", perm, wsTestAliasID1)
+	}
+}
+
+// An alias whose permission listing repeats its token keeps its row with the
+// grants null (not read), and the scan returns the error; the sibling alias
+// keeps its row and its read grants.
+func TestScanWorkSpaces_RepeatedAliasPermissionTokenKeepsRowWithoutGrants(t *testing.T) {
+	st := newTestStore(t)
+	var addInCalls, permCalls parentCalls
+	handlers := wsAliasHandlers(&addInCalls, &permCalls)
+	describe := handlers["DescribeConnectionAliasPermissions"]
+	var repeats atomic.Int32
+	handlers["DescribeConnectionAliasPermissions"] = func(in any) (any, error) {
+		if sv(in.(*workspaces.DescribeConnectionAliasPermissionsInput).AliasId) != wsTestAliasID1 {
+			return describe(in)
+		}
+		if repeats.Add(1) > 3 {
+			return nil, errors.New("called again after a repeated token")
+		}
+		return &workspaces.DescribeConnectionAliasPermissionsOutput{
+			AliasId: ptrStr(wsTestAliasID1), NextToken: ptrStr("same"),
+			ConnectionAliasPermissions: []wstypes.ConnectionAliasPermission{{SharedAccountId: ptrStr("444455556666"), AllowAssociation: ptrBool(true)}},
+		}, nil
+	}
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, wsDenied)
+	if _, _, err := scanWorkSpaces(context.Background(), acct, testRegion, st, testScanID); !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
+	}
+	perms := rowsByNativeID(t, st, TypeWorkSpacesConnectionAliasPermission)
+	if got := nativeIDs(perms); !slices.Equal(got, []string{wsTestAliasPerm1, wsTestAliasPerm2}) {
+		t.Fatalf("permission rows = %v, want [%s %s]", got, wsTestAliasPerm1, wsTestAliasPerm2)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(perms[wsTestAliasPerm1].AttributesJSON), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(raw["ConnectionAliasPermissions"]); got != "null" {
+		t.Errorf("repeating alias ConnectionAliasPermissions = %s, want null", got)
+	}
+	if got := wsAliasPermissionAttrs(t, perms[wsTestAliasPerm2].AttributesJSON).ConnectionAliasPermissions; got == nil {
+		t.Errorf("sibling alias grants = null, want [] (read)")
 	}
 }

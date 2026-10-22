@@ -276,11 +276,9 @@ func scanEC2ServiceLinkVirtualInterfaces(ctx context.Context, client ec2API, acc
 				DiscoveredBy:   scanID,
 			}})
 		}
-		next := sv(page.NextToken)
-		if next == "" || next == sv(token) {
-			break
+		if done, err := lastPage(token, page.NextToken); done {
+			return upsertRegionChildren(st, acct, region, ec2ServiceLinkVirtualInterfacesOp, children, err)
 		}
 		token = page.NextToken
 	}
-	return upsertRegionChildren(st, acct, region, ec2ServiceLinkVirtualInterfacesOp, children, nil)
 }

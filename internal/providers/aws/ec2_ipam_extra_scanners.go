@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -39,8 +40,11 @@ func scanEC2IPAMExtra(ctx context.Context, client ec2API, acct *account, region 
 // whose allocation rules can still be read. It drops delete-complete ones,
 // inferring (not observed) that a deleted policy has none.
 func scanIpamPolicies(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, policies []childParent, err error) {
-	var batch []*store.Resource
-	var token *string
+	var (
+		batch   []*store.Resource
+		token   *string
+		pageErr error
+	)
 	for {
 		out, perr := client.DescribeIpamPolicies(ctx, &ec2.DescribeIpamPoliciesInput{NextToken: token})
 		if perr != nil {
@@ -71,24 +75,25 @@ func scanIpamPolicies(ctx context.Context, client ec2API, acct *account, region 
 				policies = append(policies, childParent{id: id, arn: arn})
 			}
 		}
-		if out.NextToken == nil || *out.NextToken == "" {
+		var done bool
+		if done, pageErr = lastPage(token, out.NextToken); done {
 			break
 		}
 		token = out.NextToken
 	}
-	if len(batch) == 0 {
-		return 0, 0, nil, nil
+	total, inserted, err = upsertListed(st, batch, "ec2:DescribeIpamPolicies", pageErr)
+	if errors.Is(err, store.ErrStoreWrite) {
+		return 0, 0, nil, err
 	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, nil, fmt.Errorf("upsert ec2 ipam-policies: %w", uerr)
-	}
-	return len(batch), n, policies, nil
+	return total, inserted, policies, err
 }
 
 func scanIpamExternalResourceVerificationTokens(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var batch []*store.Resource
-	var token *string
+	var (
+		batch   []*store.Resource
+		token   *string
+		pageErr error
+	)
 	for {
 		out, perr := client.DescribeIpamExternalResourceVerificationTokens(ctx, &ec2.DescribeIpamExternalResourceVerificationTokensInput{NextToken: token})
 		if perr != nil {
@@ -117,17 +122,11 @@ func scanIpamExternalResourceVerificationTokens(ctx context.Context, client ec2A
 				DiscoveredBy:   scanID,
 			})
 		}
-		if out.NextToken == nil || *out.NextToken == "" {
+		var done bool
+		if done, pageErr = lastPage(token, out.NextToken); done {
 			break
 		}
 		token = out.NextToken
 	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ec2 ipam-external-resource-verification-tokens: %w", uerr)
-	}
-	return len(batch), n, nil
+	return upsertListed(st, batch, "ec2:DescribeIpamExternalResourceVerificationTokens", pageErr)
 }

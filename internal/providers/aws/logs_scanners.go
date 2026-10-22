@@ -1094,15 +1094,16 @@ func scanLogsIndexPolicies(ctx context.Context, client cwlogsAPI, acct *account,
 				transient.skipped(p.arn, err)
 				return 0, 0, nil
 			}
-			if err != nil {
-				return 0, 0, err
-			}
+			// A listing that ended on a repeated token returns the rows it read
+			// with its error: they are stored and the error is returned with
+			// their counts. Any other error comes with no rows.
 			parentID := store.ResourceID("aws", acct.ID, p.arn)
 			children := make([]containedChild, len(rows))
 			for i, r := range rows {
 				children[i] = containedChild{row: r, parentID: parentID}
 			}
-			return upsertContained(st, op, children)
+			t, i, uerr := upsertContained(st, op, children)
+			return t, i, errors.Join(err, uerr)
 		})
 	transient.warnSkipped(st, op, acct, region)
 	return total, inserted, err
@@ -1134,10 +1135,10 @@ func listLogGroupIndexPolicy(ctx context.Context, client cwlogsAPI, acct *accoun
 				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			})
 		}
-		// Mirrors the SDK paginators' StopOnDuplicateToken: DescribeIndexPolicies
-		// has no paginator, and a repeated token would loop forever.
-		if next := sv(out.NextToken); next == "" || next == sv(input.NextToken) {
-			return rows, nil
+		// DescribeIndexPolicies has no paginator; a repeated token would loop
+		// forever.
+		if done, err := lastPage(input.NextToken, out.NextToken); done {
+			return rows, err
 		}
 		input.NextToken = out.NextToken
 	}
@@ -1204,10 +1205,13 @@ func scanLogsSyslogConfigurations(ctx context.Context, client cwlogsAPI, acct *a
 		if err := st.RecordHierarchyBatch(pairs); err != nil {
 			return total, inserted, fmt.Errorf("hierarchy closure for syslog configurations: %w", err)
 		}
-		// Mirrors the SDK paginators' StopOnDuplicateToken:
-		// ListSyslogConfigurations has no paginator, and a repeated token would
-		// loop forever.
-		if next := sv(out.NextToken); next == "" || next == sv(input.NextToken) {
+		// ListSyslogConfigurations has no paginator; a repeated token would loop
+		// forever.
+		done, err := lastPage(input.NextToken, out.NextToken)
+		if err != nil {
+			return total, inserted, fmt.Errorf("%s: %w", op, err)
+		}
+		if done {
 			return total, inserted, nil
 		}
 		input.NextToken = out.NextToken

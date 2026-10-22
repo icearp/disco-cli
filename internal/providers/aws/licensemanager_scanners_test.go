@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -165,7 +166,8 @@ func TestScanLMReceivedLicenses_OtherErrorPropagates(t *testing.T) {
 	}
 }
 
-func TestScanLMReceivedLicenses_StopsOnRepeatedToken(t *testing.T) {
+// A repeated token fails the listing; the license already listed is stored.
+func TestScanLMReceivedLicenses_FailsOnRepeatedToken(t *testing.T) {
 	st := newTestStore(t)
 	var calls int
 	_, err := scanLMReceivedForTest(t, st, func(*licensemanager.ListReceivedLicensesInput) (any, error) {
@@ -178,8 +180,8 @@ func TestScanLMReceivedLicenses_StopsOnRepeatedToken(t *testing.T) {
 			NextToken: ptrStr("same"),
 		}, nil
 	})
-	if err != nil || calls != 2 {
-		t.Errorf("calls, err = %d, %v; want 2, nil", calls, err)
+	if !errors.Is(err, errRepeatedNextToken) || calls != 2 {
+		t.Errorf("calls, err = %d, %v; want 2, errRepeatedNextToken", calls, err)
 	}
 	if n := len(rowsByNativeID(t, st, TypeLicenseManagerReceivedLicense)); n != 1 {
 		t.Errorf("stored rows = %d, want 1", n)
@@ -283,7 +285,8 @@ func TestScanLMTokens_OtherErrorPropagates(t *testing.T) {
 	}
 }
 
-func TestScanLMTokens_StopsOnRepeatedToken(t *testing.T) {
+// A repeated token fails the listing; the token already listed is stored.
+func TestScanLMTokens_FailsOnRepeatedToken(t *testing.T) {
 	st := newTestStore(t)
 	var calls int
 	_, err := scanLMTokensForTest(t, st, func(*licensemanager.ListTokensInput) (any, error) {
@@ -293,8 +296,8 @@ func TestScanLMTokens_StopsOnRepeatedToken(t *testing.T) {
 		}
 		return &licensemanager.ListTokensOutput{Tokens: []lmtypes.TokenData{lmToken("t1", lmTestLicenseArn, "AVAILABLE")}, NextToken: ptrStr("same")}, nil
 	})
-	if err != nil || calls != 2 {
-		t.Errorf("calls, err = %d, %v; want 2, nil", calls, err)
+	if !errors.Is(err, errRepeatedNextToken) || calls != 2 {
+		t.Errorf("calls, err = %d, %v; want 2, errRepeatedNextToken", calls, err)
 	}
 	if n := len(rowsByNativeID(t, st, TypeLicenseManagerToken)); n != 1 {
 		t.Errorf("stored rows = %d, want 1", n)

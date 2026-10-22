@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"strconv"
 	"testing"
@@ -366,27 +367,35 @@ func TestScanCognitoChildren_Empty(t *testing.T) {
 	}
 }
 
-// TestScanCognitoChildren_RepeatedTokenStops pins that a listing answering
-// with the token it was given ends after that page instead of looping.
-func TestScanCognitoChildren_RepeatedTokenStops(t *testing.T) {
+// TestScanCognitoChildren_RepeatedTokenFails pins that a listing answering
+// with the token it was given ends after that page with errRepeatedNextToken
+// instead of looping or reading as complete, and that every parent's rows read
+// before the repeat are stored.
+func TestScanCognitoChildren_RepeatedTokenFails(t *testing.T) {
 	for _, ph := range cogChildPhases() {
 		t.Run(ph.op, func(t *testing.T) {
 			st := newTestStore(t)
-			ph.seedParents(t, st, "p1")
+			keys := []string{"p1", "p2"}
+			ph.seedParents(t, st, keys...)
 			f := newCogFake()
 			f.repeatToken = true
-			native := ph.seedOK(f, "p1")
-			f.replicas["p1"] = append(f.replicas["p1"], nil)
-			f.secrets["p1"] = append(f.secrets["p1"], nil)
-			total, _, err := ph.run(f, st, []string{"p1"})
-			if err != nil || total != 1 {
-				t.Errorf("scan = (%d, %v); want (1, nil)", total, err)
+			var want []string
+			for _, k := range keys {
+				want = append(want, ph.seedOK(f, k))
+				f.replicas[k] = append(f.replicas[k], nil)
+				f.secrets[k] = append(f.secrets[k], nil)
 			}
-			if _, ok := rowsByNativeID(t, st, ph.typ)[native]; !ok {
-				t.Errorf("row %s missing", native)
+			if _, _, err := ph.run(f, st, keys); !errors.Is(err, errRepeatedNextToken) {
+				t.Errorf("err = %v; want errRepeatedNextToken", err)
 			}
-			if n := len(f.calls.ids); n != 2 {
-				t.Errorf("%d calls; want 2 (the first page, then the repeated token)", n)
+			if n := len(f.calls.ids); n != 4 {
+				t.Errorf("%d calls; want 4 (per parent the first page, then the repeated token)", n)
+			}
+			rows := rowsByNativeID(t, st, ph.typ)
+			for _, native := range want {
+				if _, ok := rows[native]; !ok {
+					t.Errorf("row %s not stored; stored %v", native, rows)
+				}
 			}
 		})
 	}

@@ -248,8 +248,9 @@ func TestScanEC2IpamByoasns_StoresLiveAsnsAcrossPages(t *testing.T) {
 	}
 }
 
-// A repeated NextToken ends the loop instead of spinning.
-func TestScanEC2IpamByoasns_RepeatedTokenStops(t *testing.T) {
+// A repeated NextToken ends the loop with errRepeatedNextToken instead of
+// spinning or reading as complete; the ASN already listed is stored.
+func TestScanEC2IpamByoasns_RepeatedTokenFails(t *testing.T) {
 	st := newTestStore(t)
 	calls := 0
 	_, _, err := scanEC2IpamByoasns(context.Background(), ipxClient(map[string]func(any) (any, error){
@@ -263,8 +264,11 @@ func TestScanEC2IpamByoasns_RepeatedTokenStops(t *testing.T) {
 			}}}, nil
 		},
 	}), newTestAccount(testAccountID), testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scanEC2IpamByoasns: %v", err)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
+	}
+	if got := len(rowsByNativeID(t, st, TypeEC2IpamByoasn)); got != 1 {
+		t.Errorf("stored = %d; want the listed ASN stored", got)
 	}
 	if calls != 2 {
 		t.Errorf("calls = %d, want 2 (stop when the token repeats)", calls)
@@ -734,27 +738,35 @@ func TestScanEC2_IpamHomeRegionPhasesOnlyInIpamHomeRegion(t *testing.T) {
 	}
 }
 
-// A repeated NextToken ends a policy's allocation-rule loop instead of spinning.
-func TestScanEC2IpamPolicyAllocationRules_RepeatedTokenStops(t *testing.T) {
+// A repeated NextToken ends a policy's allocation-rule loop with
+// errRepeatedNextToken instead of spinning; the rules both pages listed are
+// stored.
+func TestScanEC2IpamPolicyAllocationRules_RepeatedTokenFails(t *testing.T) {
 	st := newTestStore(t)
 	ipxSeedPolicies(t, st, ipxPolicy1)
 	calls := 0
+	locales := []string{ipxLocale, ipxLocale2}
 	_, _, err := scanEC2IpamPolicyAllocationRules(context.Background(), ipxClient(map[string]func(any) (any, error){
 		"GetIpamPolicyAllocationRules": func(any) (any, error) {
 			calls++
-			if calls > 3 {
+			if calls > 2 {
 				return nil, errIpxTest
 			}
 			return &ec2.GetIpamPolicyAllocationRulesOutput{NextToken: ptrStr(ipxPageNext), IpamPolicyDocuments: []ec2types.IpamPolicyDocument{{
-				IpamPolicyId: ptrStr(ipxPolicy1), ResourceType: ec2types.IpamPolicyResourceTypeEip, Locale: ptrStr(ipxLocale),
+				IpamPolicyId: ptrStr(ipxPolicy1), ResourceType: ec2types.IpamPolicyResourceTypeEip, Locale: ptrStr(locales[calls-1]),
 			}}}, nil
 		},
 	}), newTestAccount(testAccountID), testRegion, st, testScanID, ipxParents(ipxPolicy1))
-	if err != nil {
-		t.Fatalf("scanEC2IpamPolicyAllocationRules: %v", err)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	if calls != 2 {
 		t.Errorf("calls = %d, want 2 (stop when the token repeats)", calls)
+	}
+	want := []string{ipxRuleID(ipxPolicy1, "eip", ipxLocale), ipxRuleID(ipxPolicy1, "eip", ipxLocale2)}
+	slices.Sort(want)
+	if got := nativeIDs(rowsByNativeID(t, st, TypeEC2IpamPolicyAllocationRule)); !slices.Equal(got, want) {
+		t.Errorf("rows = %v, want %v", got, want)
 	}
 }
 
@@ -826,7 +838,7 @@ func TestScanEC2IpamInternetRegistryAssociations_DeniedAfterPageKeepsRows(t *tes
 }
 
 // A repeated NextToken ends the loop instead of spinning.
-func TestScanEC2IpamInternetRegistryAssociations_RepeatedTokenStops(t *testing.T) {
+func TestScanEC2IpamInternetRegistryAssociations_RepeatedTokenFails(t *testing.T) {
 	st := newTestStore(t)
 	calls := 0
 	_, _, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){
@@ -838,8 +850,8 @@ func TestScanEC2IpamInternetRegistryAssociations_RepeatedTokenStops(t *testing.T
 			return &ec2.DescribeIpamInternetRegistryAssociationsOutput{NextToken: ptrStr(ipxPageNext)}, nil
 		},
 	}), newTestAccount(testAccountID), testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scanEC2IpamInternetRegistryAssociations: %v", err)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	if calls != 2 {
 		t.Errorf("calls = %d, want 2 (stop when the token repeats)", calls)

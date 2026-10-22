@@ -452,6 +452,9 @@ type elxWidePhase struct {
 	// contained maps a row to the parent NativeID it must sit under.
 	contained map[string]string
 	check     func(*testing.T, map[string]store.Resource)
+	// sdkPaginator marks a phase paged by the SDK paginator, whose
+	// StopOnDuplicateToken ends a repeated token without an error.
+	sdkPaginator bool
 }
 
 func elxLockID(id string) string { return lockedSnapshotNativeID(testRegion, testAccountID, id) }
@@ -496,7 +499,8 @@ var elxWidePhases = []elxWidePhase{
 	{
 		name: "verified access logging configurations", op: ec2VALoggingConfigurationsOp,
 		sdkOp: "DescribeVerifiedAccessInstanceLoggingConfigurations", typ: TypeEC2VerifiedAccessInstanceLoggingConfiguration,
-		pageSize: ec2VALoggingConfigurationsPageSize,
+		sdkPaginator: true,
+		pageSize:     ec2VALoggingConfigurationsPageSize,
 		seed: func(t *testing.T, st *store.Store) {
 			tgxSeedParent(t, st, TypeEC2VerifiedAccessInstance, elxARN("verified-access-instance", elxVAI1), testRegion, "", testScanID)
 		},
@@ -666,7 +670,8 @@ func TestScanEC2LateExtraWide_Errors(t *testing.T) {
 	}
 }
 
-// An empty listing stores nothing; a repeated NextToken ends the loop.
+// An empty listing stores nothing; a repeated NextToken ends the loop, and a
+// hand-rolled loop returns errRepeatedNextToken with the listed page stored.
 func TestScanEC2LateExtraWide_EmptyAndRepeatedToken(t *testing.T) {
 	for _, ph := range elxWidePhases {
 		t.Run(ph.name+"/empty", func(t *testing.T) {
@@ -678,6 +683,7 @@ func TestScanEC2LateExtraWide_EmptyAndRepeatedToken(t *testing.T) {
 		})
 		t.Run(ph.name+"/repeated token", func(t *testing.T) {
 			st := newTestStore(t)
+			ph.seed(t, st)
 			calls := 0
 			_, _, err := elxRun(ph.run, st, map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) {
 				calls++
@@ -686,8 +692,15 @@ func TestScanEC2LateExtraWide_EmptyAndRepeatedToken(t *testing.T) {
 				}
 				return ph.page1, nil
 			}})
-			if err != nil {
-				t.Fatalf("err = %v, want nil", err)
+			switch {
+			case ph.sdkPaginator:
+				if err != nil {
+					t.Fatalf("err = %v, want nil", err)
+				}
+			case !errors.Is(err, errRepeatedNextToken):
+				t.Fatalf("err = %v, want errRepeatedNextToken", err)
+			case len(rowsByNativeID(t, st, ph.typ)) != 1:
+				t.Errorf("stored = %d; want the first page's row stored", len(rowsByNativeID(t, st, ph.typ)))
 			}
 			if calls != 2 {
 				t.Errorf("calls = %d, want 2 (stop when the token repeats)", calls)

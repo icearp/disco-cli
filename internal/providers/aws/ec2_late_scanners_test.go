@@ -303,8 +303,9 @@ func TestScanEC2ServiceLinkVirtualInterfaces_StoresAcrossPages(t *testing.T) {
 	}
 }
 
-// A repeated NextToken ends the loop instead of spinning.
-func TestScanEC2ServiceLinkVirtualInterfaces_RepeatedTokenStops(t *testing.T) {
+// A repeated NextToken ends the loop with errRepeatedNextToken instead of
+// spinning or reading as complete; the interface already listed is stored.
+func TestScanEC2ServiceLinkVirtualInterfaces_RepeatedTokenFails(t *testing.T) {
 	st := newTestStore(t)
 	calls := 0
 	_, _, err := scanEC2ServiceLinkVirtualInterfaces(context.Background(), lateClient(map[string]func(any) (any, error){
@@ -318,8 +319,11 @@ func TestScanEC2ServiceLinkVirtualInterfaces_RepeatedTokenStops(t *testing.T) {
 			}}}, nil
 		},
 	}), newTestAccount(testAccountID), testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scanEC2ServiceLinkVirtualInterfaces: %v", err)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
+	}
+	if got := len(rowsByNativeID(t, st, TypeEC2ServiceLinkVirtualInterface)); got != 1 {
+		t.Errorf("stored = %d; want the listed interface stored", got)
 	}
 	if calls != 2 {
 		t.Errorf("calls = %d, want 2 (stop when the token repeats)", calls)

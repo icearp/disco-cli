@@ -454,23 +454,30 @@ func TestScanWorkSpaces_FailedAddInDirectory(t *testing.T) {
 	}
 }
 
-func TestListWSConnectClientAddIns_StopsOnRepeatedToken(t *testing.T) {
+func TestListWSConnectClientAddIns_FailsOnRepeatedToken(t *testing.T) {
 	var calls atomic.Int32
 	cfg := opStubConfig(map[string]func(in any) (any, error){
 		"DescribeConnectClientAddIns": func(any) (any, error) {
-			if calls.Add(1) > 2 {
+			n := calls.Add(1)
+			if n > 2 {
 				return nil, errors.New("called again after a repeated token")
 			}
-			return &workspaces.DescribeConnectClientAddInsOutput{NextToken: ptrStr("same")}, nil
+			return &workspaces.DescribeConnectClientAddInsOutput{NextToken: ptrStr("same"), AddIns: []wstypes.ConnectClientAddIn{
+				{AddInId: ptrStr(fmt.Sprintf("ai%d", n))},
+			}}, nil
 		},
 	}, wsDenied)
 	client := workspaces.NewFromConfig(cfg)
-	_, err := listWSConnectClientAddIns(context.Background(), client, newTestAccount(testAccountID), testRegion, testScanID,
+	rows, err := listWSConnectClientAddIns(context.Background(), client, newTestAccount(testAccountID), testRegion, testScanID,
 		childParent{id: wsTestDirID1, arn: wsTestDir1})
-	if err != nil {
-		t.Fatalf("listWSConnectClientAddIns: %v", err)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	if got := calls.Load(); got != 2 {
 		t.Errorf("calls = %d, want 2", got)
+	}
+	want := []string{wsTestDir1 + "/connect-client-add-in/ai1", wsTestDir1 + "/connect-client-add-in/ai2"}
+	if got := resourceNativeIDs(rows); !slices.Equal(got, want) {
+		t.Errorf("rows = %v, want both pages' rows %v", got, want)
 	}
 }

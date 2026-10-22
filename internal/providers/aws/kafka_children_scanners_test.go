@@ -808,8 +808,8 @@ func TestScanKafka_DescribeChannelDeniedWarnsOnce(t *testing.T) {
 }
 
 // ListChannels has no paginator: a token the service repeats ends the listing
-// with the channels read so far rather than looping.
-func TestScanKafka_ChannelsRepeatedTokenStops(t *testing.T) {
+// with errRepeatedNextToken rather than looping or reading as complete.
+func TestScanKafka_ChannelsRepeatedTokenFails(t *testing.T) {
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := kafkaHandlers(calls)
@@ -827,11 +827,16 @@ func TestScanKafka_ChannelsRepeatedTokenStops(t *testing.T) {
 			return &kafka.ListChannelsOutput{Channels: []kafkatypes.ChannelInfo{{ChannelArn: sdkaws.String(kafkaTestChannel2)}}, NextToken: sdkaws.String("same")}, nil
 		}
 	}
-	if _, err := scanKafkaTopLevel(t, st, h); err != nil {
-		t.Fatalf("scanKafka: %v", err)
+	if _, err := scanKafkaTopLevel(t, st, h); !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
 	}
 	if listed != 2 {
 		t.Errorf("ListChannels calls = %d, want 2", listed)
 	}
-	assertKafkaChildRows(t, st, kafkaAllChildRows)
+	rows := rowsByNativeID(t, st, TypeMSKChannel)
+	for _, want := range []string{kafkaTestChannel1, kafkaTestChannel2} {
+		if _, ok := rows[want]; !ok {
+			t.Errorf("channel %s listed before the repeat was not stored; stored %d", want, len(rows))
+		}
+	}
 }

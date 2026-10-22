@@ -231,7 +231,10 @@ func xrayIndexingRuleNativeID(region, accountID, name string) string {
 // later page it is returned, since there disco echoes a NextToken.
 func scanXRayIndexingRules(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	in := &xray.GetIndexingRulesInput{}
-	var batch []*store.Resource
+	var (
+		batch   []*store.Resource
+		pageErr error
+	)
 	for {
 		out, err := client.GetIndexingRules(ctx, in)
 		if isAccessDenied(err) {
@@ -262,10 +265,11 @@ func scanXRayIndexingRules(ctx context.Context, client xrayAPI, acct *account, r
 		}
 		// GetIndexingRules has no paginator and no page-size input; a repeated
 		// token would loop forever.
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
+		var done bool
+		if done, pageErr = lastPage(in.NextToken, out.NextToken); done {
 			break
 		}
 		in.NextToken = out.NextToken
 	}
-	return upsertBatch(st, batch, "xray indexing-rules")
+	return upsertListed(st, batch, xrayGetIndexingRulesOp, pageErr)
 }

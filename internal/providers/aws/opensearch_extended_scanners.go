@@ -93,8 +93,8 @@ func scanOpenSearchDataSourceAttachments(ctx context.Context, client opensearchA
 						AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 					})
 				}
-				if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
-					return rows, nil
+				if done, err := lastPage(in.NextToken, out.NextToken); done {
+					return rows, err
 				}
 				in.NextToken = out.NextToken
 			}

@@ -312,7 +312,10 @@ const dxPageLimit = 100
 // after a successful page keeps the rows already listed.
 func scanDXInterconnects(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	in := &directconnect.DescribeInterconnectsInput{MaxResults: sdkaws.Int32(dxPageLimit)}
-	var batch []*store.Resource
+	var (
+		batch   []*store.Resource
+		pageErr error
+	)
 	for {
 		out, err := client.DescribeInterconnects(ctx, in)
 		if err != nil {
@@ -336,18 +339,19 @@ func scanDXInterconnects(ctx context.Context, client dxAPI, acct *account, regio
 		}
 		// DescribeInterconnects has no paginator; a repeated token would loop
 		// forever.
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
+		var done bool
+		if done, pageErr = lastPage(in.NextToken, out.NextToken); done {
 			break
 		}
 		in.NextToken = out.NextToken
 	}
-	return upsertBatch(st, batch, "directconnect interconnects")
+	return upsertListed(st, batch, dxDescribeInterconnectsOp, pageErr)
 }
 
 // dxResiliencyGroupAttrs is the group's detail with its connection
 // associations, sorted because the API documents no order and a reordered
 // list would otherwise version the group. Associations is null when listing
-// them was denied and [] when the group has none.
+// them was denied or ended incomplete, and [] when the group has none.
 type dxResiliencyGroupAttrs struct {
 	directconnecttypes.ResiliencyGroup
 	Associations []directconnecttypes.ResiliencyGroupAssociation
@@ -369,15 +373,24 @@ type dxResiliencyGroupAttrs struct {
 // regions, its row would flip Region on every scan.
 func scanDXResiliencyGroups(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	ids, err := listDXResiliencyGroupIDs(ctx, client)
+	if isAccessDenied(err) {
+		return 0, 0, skipIfAccessDenied(st, dxListResiliencyGroupsOp, acct.ID, region, err)
+	}
+	// A repeated token returns the ids read before it: their groups are
+	// stored and the listing error is returned with them.
+	var listErr error
 	if err != nil {
-		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, dxListResiliencyGroupsOp, acct.ID, region, err)
+		listErr = fmt.Errorf("%s: %w", dxListResiliencyGroupsOp, err)
+		if len(ids) == 0 {
+			return 0, 0, listErr
 		}
-		return 0, 0, fmt.Errorf("%s: %w", dxListResiliencyGroupsOp, err)
 	}
 	never := func(error) bool { return false }
 	assocErrs := &fanOutErrs{st: st, acct: acct, region: region, op: dxListResiliencyGroupAssociationsOp, isSkip: never}
-	var getTransient, assocTransient transientTally
+	var (
+		getTransient, assocTransient transientTally
+		assocIncomplete              incompleteLists
+	)
 	rows, err := describeFanOut(ctx, st, acct, region, dxGetResiliencyGroupOp, ids, never,
 		func(ctx context.Context, id string) (*store.Resource, error) {
 			out, err := client.GetResiliencyGroup(ctx, &directconnect.GetResiliencyGroupInput{ResiliencyGroupId: &id})
@@ -399,7 +412,11 @@ func scanDXResiliencyGroups(ctx context.Context, client dxAPI, acct *account, re
 				assocTransient.skipped(id, err)
 				return nil, nil
 			}
-			if err != nil {
+			// The listing returns no associations with an error, so a group
+			// whose listing ended incomplete is stored with Associations null
+			// (not read), never with part of them; that error is returned
+			// after every group is stored.
+			if err != nil && !assocIncomplete.take(dxListResiliencyGroupAssociationsOp, id, err) {
 				if kerr := assocErrs.keyErr(id, err); kerr != nil {
 					return nil, kerr
 				}
@@ -415,9 +432,10 @@ func scanDXResiliencyGroups(ctx context.Context, client dxAPI, acct *account, re
 	getTransient.warnSkipped(st, dxGetResiliencyGroupOp, acct, region)
 	assocTransient.warnSkipped(st, dxListResiliencyGroupAssociationsOp, acct, region)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, errors.Join(listErr, assocIncomplete.err(), err)
 	}
-	return upsertBatch(st, rows, "directconnect resiliency groups")
+	total, inserted, uerr := upsertBatch(st, rows, "directconnect resiliency groups")
+	return total, inserted, errors.Join(listErr, assocIncomplete.err(), uerr)
 }
 
 // listDXResiliencyGroupIDs returns the ids of the region's groups that are not
@@ -439,8 +457,8 @@ func listDXResiliencyGroupIDs(ctx context.Context, client dxAPI) ([]string, erro
 		}
 		// ListResiliencyGroups has no paginator; a repeated token would loop
 		// forever.
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
-			return ids, nil
+		if done, err := lastPage(in.NextToken, out.NextToken); done {
+			return ids, err
 		}
 		in.NextToken = out.NextToken
 	}
@@ -457,7 +475,11 @@ func listDXResiliencyGroupAssociations(ctx context.Context, client dxAPI, groupI
 		assocs = append(assocs, out.Items...)
 		// ListResiliencyGroupAssociations has no paginator; a repeated token
 		// would loop forever.
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
+		done, err := lastPage(in.NextToken, out.NextToken)
+		if err != nil {
+			return nil, err
+		}
+		if done {
 			break
 		}
 		in.NextToken = out.NextToken

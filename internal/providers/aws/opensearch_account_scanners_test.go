@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"slices"
 	"strings"
@@ -93,7 +94,8 @@ func TestScanOpenSearchDirectQueryDataSources_Empty(t *testing.T) {
 	}
 }
 
-func TestScanOpenSearchDirectQueryDataSources_StopsOnRepeatedToken(t *testing.T) {
+// A repeated token fails the listing; both pages' data sources are stored.
+func TestScanOpenSearchDirectQueryDataSources_FailsOnRepeatedToken(t *testing.T) {
 	calls := 0
 	_, total, err := osScanAccount(t, scanOpenSearchDirectQueryDataSources, map[string]func(any) (any, error){
 		"ListDirectQueryDataSources": func(any) (any, error) {
@@ -105,8 +107,8 @@ func TestScanOpenSearchDirectQueryDataSources_StopsOnRepeatedToken(t *testing.T)
 			return &opensearch.ListDirectQueryDataSourcesOutput{NextToken: ptrStr("same"), DirectQueryDataSources: []opensearchtypes.DirectQueryDataSource{{DataSourceArn: &arn}}}, nil
 		},
 	})
-	if err != nil || calls != 2 || total != 2 {
-		t.Errorf("calls = %d, total = %d, err = %v; want 2 calls, 2 rows, nil", calls, total, err)
+	if !errors.Is(err, errRepeatedNextToken) || calls != 2 || total != 2 {
+		t.Errorf("calls = %d, total = %d, err = %v; want 2 calls, 2 rows, errRepeatedNextToken", calls, total, err)
 	}
 }
 
@@ -624,5 +626,32 @@ func TestScanOpenSearchConnections_Empty(t *testing.T) {
 		if total, _, err := scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); total != 0 || err != nil {
 			t.Errorf("%s: total = %d, err = %v; want 0, nil", name, total, err)
 		}
+	}
+}
+
+// A repeated ListVpcEndpoints token fails the listing; the endpoint already
+// listed is still described and stored.
+func TestScanOpenSearchVpcEndpoints_RepeatedTokenFails(t *testing.T) {
+	calls := 0
+	st, _, err := osScanAccount(t, scanOpenSearchVpcEndpoints, map[string]func(any) (any, error){
+		"ListVpcEndpoints": func(any) (any, error) {
+			calls++
+			if calls > 3 {
+				return nil, osBadInput
+			}
+			return &opensearch.ListVpcEndpointsOutput{NextToken: ptrStr("same"), VpcEndpointSummaryList: []opensearchtypes.VpcEndpointSummary{{VpcEndpointId: ptrStr("aos-ep1")}}}, nil
+		},
+		"DescribeVpcEndpoints": func(any) (any, error) {
+			return &opensearch.DescribeVpcEndpointsOutput{VpcEndpoints: []opensearchtypes.VpcEndpoint{{VpcEndpointId: ptrStr("aos-ep1")}}}, nil
+		},
+	})
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
+	}
+	if calls != 2 {
+		t.Errorf("ListVpcEndpoints calls = %d; want 2 (stop when the token repeats)", calls)
+	}
+	if _, ok := rowsByNativeID(t, st, TypeOpenSearchVpcEndpoint)[osVpcEndpointID("aos-ep1")]; !ok {
+		t.Errorf("endpoint aos-ep1 not stored")
 	}
 }

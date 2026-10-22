@@ -2,8 +2,11 @@ package aws
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"maps"
 	"slices"
+	"sync/atomic"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
@@ -154,5 +157,45 @@ func TestScanOpenSearchApplications_ReturnsAttachmentParents(t *testing.T) {
 	}
 	if want := []childParent{{id: "a1", arn: osApp1ARN}}; total != 2 || !slices.Equal(parents, want) {
 		t.Errorf("total = %d, parents = %v; want 2 rows, %v (a parent needs both id and ARN)", total, parents, want)
+	}
+}
+
+// A repeated token fails an application's attachment listing instead of
+// reading as complete; the attachments it read and a sibling application's
+// attachments are still stored.
+func TestScanOpenSearchDataSourceAttachments_RepeatedTokenFails(t *testing.T) {
+	st := newTestStore(t)
+	var calls atomic.Int32
+	_, err := scanOSAttachments(t, st, func(in any) (any, error) {
+		switch sv(in.(*opensearch.ListDataSourceAttachmentsInput).Id) {
+		case "a1":
+		case "a3":
+			return &opensearch.ListDataSourceAttachmentsOutput{Attachments: []opensearchtypes.DataSourceAttachmentSummary{
+				{AttachmentId: ptrStr("att3"), DataSourceArn: ptrStr(osDomainARN)},
+			}}, nil
+		default:
+			return &opensearch.ListDataSourceAttachmentsOutput{}, nil
+		}
+		n := calls.Add(1)
+		if n > 3 {
+			return nil, osBadInput
+		}
+		return &opensearch.ListDataSourceAttachmentsOutput{NextToken: ptrStr("same"), Attachments: []opensearchtypes.DataSourceAttachmentSummary{
+			{AttachmentId: ptrStr(fmt.Sprintf("att1-%d", n)), DataSourceArn: ptrStr(osDomainARN)},
+		}}, nil
+	})
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Errorf("a1 calls = %d; want 2 (stop when the token repeats)", got)
+	}
+	want := []string{
+		osApp1ARN + "/data-source-attachment/att1-1",
+		osApp1ARN + "/data-source-attachment/att1-2",
+		osApp3ARN + "/data-source-attachment/att3",
+	}
+	if ids := slices.Sorted(maps.Keys(rowsByNativeID(t, st, TypeOpenSearchDataSourceAttachment))); !slices.Equal(ids, want) {
+		t.Errorf("rows = %v; want %v", ids, want)
 	}
 }

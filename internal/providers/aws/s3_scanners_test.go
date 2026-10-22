@@ -3,6 +3,8 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -256,23 +258,64 @@ func TestScanS3BucketConfigs_Empty(t *testing.T) {
 	}
 }
 
-func TestScanS3BucketConfigs_RepeatedTokenStops(t *testing.T) {
+// TestScanS3BucketConfigs_RepeatedTokenFails pins that a bucket whose listing
+// repeats its token fails the scan with errRepeatedNextToken, keeps the
+// configurations it read, and leaves its sibling bucket's configurations
+// stored.
+func TestScanS3BucketConfigs_RepeatedTokenFails(t *testing.T) {
 	for _, k := range s3ConfigKinds {
 		t.Run(k.op, func(t *testing.T) {
 			calls := map[string]int{}
 			run := runS3ConfigKind(t, k, func(bucket string, _ *string) (any, error) {
+				if bucket != "b-west" {
+					return k.page([]string{"e"}, false, nil), nil
+				}
 				calls[bucket]++
 				// A third call means the repeated token was followed; end the
 				// loop so the failure is an assertion, not a hang.
-				return k.page(nil, calls[bucket] < 3, sdkaws.String("same")), nil
+				return k.page([]string{fmt.Sprintf("w%d", calls[bucket])}, calls[bucket] < 3, sdkaws.String("same")), nil
 			})
-			if run.err != nil {
-				t.Fatalf("scan: %v", run.err)
+			if !errors.Is(run.err, errRepeatedNextToken) {
+				t.Fatalf("err = %v, want errRepeatedNextToken", run.err)
 			}
 			if got := run.tokens["b-west"]; len(got) != 2 {
 				t.Errorf("b-west calls = %q; want 2 (stop when the token repeats)", got)
 			}
+			assertS3ConfigsStored(t, run.st, k, s3ConfigNativeID(k, "b-west", "w1"), s3ConfigNativeID(k, "b-west", "w2"), s3ConfigNativeID(k, "b-east", "e"))
 		})
+	}
+}
+
+// TestScanS3BucketConfigs_TruncatedWithoutTokenFails pins that a page marked
+// truncated with no continuation token fails with errTruncatedWithoutToken
+// instead of reading as the last page, and that its rows are kept.
+func TestScanS3BucketConfigs_TruncatedWithoutTokenFails(t *testing.T) {
+	for _, k := range s3ConfigKinds {
+		t.Run(k.op, func(t *testing.T) {
+			run := runS3ConfigKind(t, k, func(bucket string, _ *string) (any, error) {
+				if bucket != "b-west" {
+					return k.page([]string{"e"}, false, nil), nil
+				}
+				return k.page([]string{"w1"}, true, nil), nil
+			})
+			if !errors.Is(run.err, errTruncatedWithoutToken) {
+				t.Fatalf("err = %v, want errTruncatedWithoutToken", run.err)
+			}
+			if got := run.tokens["b-west"]; len(got) != 1 {
+				t.Errorf("b-west calls = %q; want 1", got)
+			}
+			assertS3ConfigsStored(t, run.st, k, s3ConfigNativeID(k, "b-west", "w1"), s3ConfigNativeID(k, "b-east", "e"))
+		})
+	}
+}
+
+func assertS3ConfigsStored(t *testing.T, st *store.Store, k s3ConfigKind, want ...string) {
+	t.Helper()
+	rows := rowsByNativeID(t, st, k.typ)
+	for _, id := range want {
+		if _, ok := rows[id]; !ok {
+			t.Errorf("%s not stored; stored %d rows", id, len(rows))
+		}
 	}
 }
 

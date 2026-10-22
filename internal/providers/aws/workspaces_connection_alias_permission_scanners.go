@@ -20,8 +20,10 @@ const wsDescribeAliasPermissionsOp = "workspaces:DescribeConnectionAliasPermissi
 
 // wsConnectionAliasPermission is the sharing permission set of one connection
 // alias, gathered over every page. The list is sorted because the API
-// documents no order, and is never nil, so an unshared alias always stores
-// the same body. The keys are DescribeConnectionAliasPermissionsOutput's.
+// documents no order. It is nil (stored as null: not read) only when the
+// listing ended incomplete, so an unshared alias always stores the same body
+// and a partial list is never stored. The keys are
+// DescribeConnectionAliasPermissionsOutput's.
 type wsConnectionAliasPermission struct {
 	AliasID                    string `json:"AliasId"`
 	ConnectionAliasPermissions []wstypes.ConnectionAliasPermission
@@ -62,8 +64,10 @@ func scanWSConnectionAliasPermissions(ctx context.Context, client workSpacesAPI,
 	}}
 	return childFanOutCollectSkipCodes(ctx, st, acct, region, wsDescribeAliasPermissionsOp, aliases, isWSAliasGone, byParentID, "alias(es)", codes,
 		func(ctx context.Context, alias childParent) ([]*store.Resource, error) {
+			// An incomplete listing keeps the row, its list null, and returns
+			// the error with it.
 			perm, err := describeWSConnectionAliasPermission(ctx, client, alias.id)
-			if err != nil {
+			if err != nil && !isIncompleteListing(err) {
 				return nil, err
 			}
 			return []*store.Resource{{
@@ -71,12 +75,13 @@ func scanWSConnectionAliasPermissions(ctx context.Context, client workSpacesAPI,
 				Type: TypeWorkSpacesConnectionAliasPermission, NativeID: wsConnectionAliasPermissionNativeID(alias.arn),
 				Name: &alias.id, Region: &region,
 				AttributesJSON: mustJSON(perm), DiscoveredBy: scanID,
-			}}, nil
+			}}, err
 		})
 }
 
 // describeWSConnectionAliasPermission reads every page of the permissions of
-// the alias aliasID. The op has no SDK paginator.
+// the alias aliasID. The op has no SDK paginator. With an error it returns no
+// permissions, never part of them.
 func describeWSConnectionAliasPermission(ctx context.Context, client workSpacesAPI, aliasID string) (wsConnectionAliasPermission, error) {
 	perm := wsConnectionAliasPermission{AliasID: aliasID, ConnectionAliasPermissions: []wstypes.ConnectionAliasPermission{}}
 	in := &workspaces.DescribeConnectionAliasPermissionsInput{AliasId: &aliasID, MaxResults: sdkaws.Int32(wsPageLimit)}
@@ -87,7 +92,11 @@ func describeWSConnectionAliasPermission(ctx context.Context, client workSpacesA
 		}
 		perm.ConnectionAliasPermissions = append(perm.ConnectionAliasPermissions, out.ConnectionAliasPermissions...)
 		// A repeated token would loop forever.
-		if next := sv(out.NextToken); next == "" || next == sv(in.NextToken) {
+		done, err := lastPage(in.NextToken, out.NextToken)
+		if err != nil {
+			return wsConnectionAliasPermission{AliasID: aliasID}, err
+		}
+		if done {
 			break
 		}
 		in.NextToken = out.NextToken
