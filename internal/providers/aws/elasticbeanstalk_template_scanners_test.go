@@ -35,9 +35,12 @@ var (
 )
 
 // ebSettingCases are the "base" template's option settings and the value the
-// store must hold for each: only references, booleans and EC2 resource ids
-// are kept; every other value, however innocuous, numbers included, is
-// replaced by its reason-tagged placeholder.
+// store must hold for each. In a strict namespace (environment properties,
+// JVM options, SNS topics), in any letter case, or with no namespace, only
+// references, booleans and EC2 resource ids are kept and every other value,
+// however innocuous, is replaced by its reason-tagged placeholder. In any other
+// namespace a value is kept unless its OptionName is secret-looking or it
+// holds a credential shape (JSON included).
 var ebSettingCases = []struct {
 	setting ebtypes.ConfigurationOptionSetting
 	want    string
@@ -56,7 +59,7 @@ var ebSettingCases = []struct {
 	{ebSetting("aws:elasticbeanstalk:application:environmentsecrets", "DB_PASSWORD", "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-AbCdEf"), "arn:aws:secretsmanager:us-east-1:123456789012:secret:db-AbCdEf"},
 	{ebSetting("aws:elasticbeanstalk:application:environment", "API_TOKEN", "{{resolve:ssm-secure:/web/api-token:1}}"), "{{resolve:ssm-secure:/web/api-token:1}}"},
 	{ebSetting("aws:elasticbeanstalk:cloudwatch:logs", "StreamLogs", "true"), "true"},
-	{ebSetting("aws:autoscaling:asg", "MinSize", "1"), redact.PlaceholderRule},
+	{ebSetting("aws:autoscaling:asg", "MinSize", "1"), "1"},
 	{ebSetting("aws:elasticbeanstalk:application:environment", "ADMIN_PASSCODE", "482915"), redact.PlaceholderRule},
 	{ebSetting("aws:elasticbeanstalk:application:environment", "STRIPE_KEY_LIVE", "4111111111111111"), redact.PlaceholderRule},
 	{ebSetting("aws:elasticbeanstalk:application:environment", "BACKUP_ROLE", "arn:aws:x:::Hunter2!pass"), redact.PlaceholderRule},
@@ -65,8 +68,20 @@ var ebSettingCases = []struct {
 	{ebSetting("aws:elasticbeanstalk:application:environment", "ROLE", "arn:aws:a:::xAKIAIOSFODNN7EXAMPLE"), redact.PlaceholderValueShape},
 	{ebtypes.ConfigurationOptionSetting{Namespace: sdkaws.String("aws:elasticbeanstalk:application:environment"), Value: sdkaws.String("998877")}, redact.PlaceholderKeyName},
 	{ebSetting("aws:autoscaling:launchconfiguration", "SecurityGroups", "sg-0123456789abcdef0"), "sg-0123456789abcdef0"},
-	{ebSetting("aws:autoscaling:launchconfiguration", "InstanceType", "t3.micro"), redact.PlaceholderRule},
-	{ebSetting("aws:elasticbeanstalk:cloudwatch:logs", "LogGroupName", "/aws/elasticbeanstalk/web"), redact.PlaceholderRule},
+	{ebSetting("aws:autoscaling:launchconfiguration", "InstanceType", "t3.micro"), "t3.micro"},
+	{ebSetting("aws:autoscaling:launchconfiguration", "EC2KeyName", "deploy-key"), "deploy-key"},
+	{ebSetting("aws:elasticbeanstalk:application", "Application Healthcheck URL", "/health"), "/health"},
+	{ebSetting("aws:elasticbeanstalk:cloudwatch:logs", "LogGroupName", "/aws/elasticbeanstalk/web"), "/aws/elasticbeanstalk/web"},
+	{ebSetting("aws:elasticbeanstalk:container:tomcat:jvmoptions", "Xmx", "512m"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:container:nodejs", "NodeCommand", "node app.js --db-password hunter5"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:application:environmentsecrets", "DB_HOST", "secrets-host.internal"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:customoption", "Stage", "prod-custom"), redact.PlaceholderRule},
+	{ebSetting("aws:cloudformation:template:parameter", "Stage", "prod-cfn"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:sns:topics", "Notification Endpoint", "https://hooks.slack.com/services/T0000/B0000/XXXXwebhook"), redact.PlaceholderRule},
+	{ebSetting("aws:elasticbeanstalk:sns:topics", "Notification Topic ARN", "arn:aws:sns:us-east-1:123456789012:alerts"), "arn:aws:sns:us-east-1:123456789012:alerts"},
+	{ebSetting("aws:elasticbeanstalk:sns:topics", "Notification Protocol", "https"), redact.PlaceholderRule},
+	{ebSetting("AWS:ElasticBeanstalk:Application:Environment", "DB_HOST", "db.internal"), redact.PlaceholderRule},
+	{ebtypes.ConfigurationOptionSetting{OptionName: sdkaws.String("DB_HOST"), Value: sdkaws.String("db.internal")}, redact.PlaceholderRule},
 }
 
 func ebSetting(namespace, name, value string) ebtypes.ConfigurationOptionSetting {

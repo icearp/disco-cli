@@ -7,7 +7,8 @@ import (
 	"unicode"
 )
 
-// Reason-tagged placeholders written by RedactUnlessSafe. The plain
+// Reason-tagged placeholders written by RedactUnlessSafe and
+// RedactIfSensitive. The plain
 // Placeholder stays the output of RedactScalar and RedactSubtree.
 const (
 	// PlaceholderKeyName replaces a value whose key name marks it as a
@@ -50,10 +51,30 @@ func classify(sensitiveKey bool, value any) any {
 	return PlaceholderRule
 }
 
+// classifyIfSensitive is classify for a value that is a setting unless shown
+// otherwise: under a sensitive key name classify judges it; under any other
+// it is kept unless it is an object or array (classify redacts every scalar
+// in it, since inner keys go unjudged) or a string containing a credential
+// shape.
+func classifyIfSensitive(sensitiveKey bool, value any) any {
+	if sensitiveKey {
+		return classify(true, value)
+	}
+	switch v := value.(type) {
+	case map[string]any, []any:
+		return classify(false, value)
+	case string:
+		if hasCredential(v) {
+			return PlaceholderValueShape
+		}
+	}
+	return value
+}
+
 func classifyString(sensitiveKey bool, s string) any {
 	sigs := registeredSignatures()
 	switch {
-	case isCredentialShape(s) || anyMatch(sigs.Credential, s):
+	case hasCredential(s):
 		return PlaceholderValueShape
 	case anyMatch(sigs.Reference, s), isBoolString(s):
 		return s
@@ -63,6 +84,12 @@ func classifyString(sensitiveKey bool, s string) any {
 		return s
 	}
 	return PlaceholderRule
+}
+
+// hasCredential reports whether s contains a provider-neutral or a
+// registered credential shape.
+func hasCredential(s string) bool {
+	return isCredentialShape(s) || anyMatch(registeredSignatures().Credential, s)
 }
 
 var (

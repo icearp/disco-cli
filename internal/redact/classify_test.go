@@ -325,3 +325,47 @@ func TestApply_RedactUnlessSafeReviewLeaks(t *testing.T) {
 		}
 	}
 }
+
+// A rule's SiblingOverride switches its mode per object: the override's
+// RedactUnlessSafe for an object whose sibling holds an override value (in
+// any case) or is missing or not a string, else the rule's RedactIfSensitive,
+// which keeps a value unless its key name is sensitive or missing, it carries
+// a credential shape, or it is an object or array.
+func TestApply_SiblingOverride(t *testing.T) {
+	resetForTest()
+	withSignatures(t, testSignatures)
+	Register(TypeRules{Type: "t", Attributes: []Rule{{
+		Path: "Settings[*].Value", Mode: RedactIfSensitive, KeyField: "Name",
+		Override: &SiblingOverride{Field: "Ns", Values: []string{"vendor:env"}, Mode: RedactUnlessSafe},
+	}}})
+	for _, tc := range []struct {
+		name, setting, want string
+	}{
+		{"override value", `{"Ns":"vendor:env","Name":"HOST","Value":"db.internal"}`, `"` + PlaceholderRule + `"`},
+		{"override value in other case", `{"Ns":"Vendor:ENV","Name":"HOST","Value":"db.internal"}`, `"` + PlaceholderRule + `"`},
+		{"missing sibling", `{"Name":"HOST","Value":"db.internal"}`, `"` + PlaceholderRule + `"`},
+		{"non-string sibling", `{"Ns":7,"Name":"HOST","Value":"db.internal"}`, `"` + PlaceholderRule + `"`},
+		{"other value kept", `{"Ns":"vendor:asg","Name":"HOST","Value":"db.internal"}`, `"db.internal"`},
+		{"other number kept", `{"Ns":"vendor:asg","Name":"MinSize","Value":3}`, `3`},
+		{"other sensitive key", `{"Ns":"vendor:asg","Name":"DB_PASSWORD","Value":"hunter2"}`, `"` + PlaceholderKeyName + `"`},
+		{"other missing key", `{"Ns":"vendor:asg","Value":"hunter2"}`, `"` + PlaceholderKeyName + `"`},
+		{"other reference under sensitive key", `{"Ns":"vendor:asg","Name":"DB_PASSWORD","Value":"` + testRef + `"}`, `"` + testRef + `"`},
+		{"other credential shape", `{"Ns":"vendor:asg","Name":"HOST","Value":"` + testJWT + `"}`, `"` + PlaceholderValueShape + `"`},
+		{"other registered credential", `{"Ns":"vendor:asg","Name":"HOST","Value":"x ` + testCred + `"}`, `"` + PlaceholderValueShape + `"`},
+		{"other object", `{"Ns":"vendor:asg","Name":"HOST","Value":{"k":"v"}}`, `{"k":"` + PlaceholderRule + `"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var got map[string]any
+			if err := json.Unmarshal([]byte(mustApply(t, "t", `{"Settings":[`+tc.setting+`]}`)), &got); err != nil {
+				t.Fatalf("unmarshal: %v", err)
+			}
+			v, err := json.Marshal(settingValue(got))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(v) != tc.want {
+				t.Errorf("Apply(%s) value = %s; want %s", tc.setting, v, tc.want)
+			}
+		})
+	}
+}

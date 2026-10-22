@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 )
 
 // Placeholder replaces redacted scalar values.
@@ -24,13 +26,19 @@ const UnparseableAttributes = `{"redacted":"` + PlaceholderUnparseable + `"}`
 // not be redacted and were replaced with UnparseableAttributes.
 var ErrUnparseable = errors.New("attributes could not be redacted")
 
+// judgement is how the value reached so far is to be redacted: the rule's
+// mode or its override's, and whether its key name marks it as a likely
+// secret (see keySensitive).
+type judgement struct {
+	mode      Mode
+	sensitive bool
+}
+
 // apply walks v under segs[0:] and redacts values that land at a terminal
-// segment. sensitive says whether the key name of the value reached so far
-// marks it as a likely secret (see keySensitive); array elements inherit
-// their array's.
-func apply(v any, segs []segment, r compiledRule, sensitive bool) any {
+// segment as j says; array elements inherit their array's judgement.
+func apply(v any, segs []segment, r compiledRule, j judgement) any {
 	if len(segs) == 0 {
-		return redactTerminal(v, r.mode, sensitive)
+		return redactTerminal(v, j)
 	}
 	s := segs[0]
 	rest := segs[1:]
@@ -38,32 +46,52 @@ func apply(v any, segs []segment, r compiledRule, sensitive bool) any {
 	case segLiteral:
 		if m, ok := v.(map[string]any); ok {
 			if child, exists := m[s.name]; exists {
-				m[s.name] = apply(child, rest, r, keySensitive(m, s.name, r))
+				m[s.name] = apply(child, rest, r, judge(m, s.name, r))
 			}
 		}
 	case segMapWildcard:
 		if m, ok := v.(map[string]any); ok {
 			for k, child := range m {
-				m[k] = apply(child, rest, r, keySensitive(m, k, r))
+				m[k] = apply(child, rest, r, judge(m, k, r))
 			}
 		}
 	case segArrayWildcard:
 		if a, ok := v.([]any); ok {
 			for i, child := range a {
-				a[i] = apply(child, rest, r, sensitive)
+				a[i] = apply(child, rest, r, j)
 			}
 		}
 	}
 	return v
 }
 
+// judge returns the judgement for the value at m[name].
+func judge(m map[string]any, name string, r compiledRule) judgement {
+	mode := modeFor(m, r)
+	return judgement{mode: mode, sensitive: keySensitive(m, name, mode, r)}
+}
+
+// modeFor returns the override's mode when r has one and the override's
+// sibling in m is missing, not a string, or one of its values; else r's mode.
+func modeFor(m map[string]any, r compiledRule) Mode {
+	o := r.override
+	if o == nil {
+		return r.mode
+	}
+	v, ok := m[o.Field].(string)
+	if !ok || slices.ContainsFunc(o.Values, func(want string) bool { return strings.EqualFold(want, v) }) {
+		return o.Mode
+	}
+	return r.mode
+}
+
 // keySensitive reports whether the value at m[name] is to be judged as a
-// likely secret, which only RedactUnlessSafe asks: always under
-// KeyIsSensitive; else by the string in the
-// KeyField sibling when one is set, a missing or non-string sibling counting
-// as sensitive because nothing vouches for the value; else by name.
-func keySensitive(m map[string]any, name string, r compiledRule) bool {
-	if r.mode != RedactUnlessSafe {
+// likely secret, which only RedactUnlessSafe and RedactIfSensitive ask:
+// always under KeyIsSensitive; else by the string in the KeyField sibling
+// when one is set, a missing or non-string sibling counting as sensitive
+// because nothing vouches for the value; else by name.
+func keySensitive(m map[string]any, name string, mode Mode, r compiledRule) bool {
+	if mode != RedactUnlessSafe && mode != RedactIfSensitive {
 		return false
 	}
 	if r.keyIsSensitive {
@@ -82,10 +110,13 @@ func keySensitive(m map[string]any, name string, r compiledRule) bool {
 //   - RedactScalar replaces a scalar with Placeholder; objects/arrays under
 //     RedactScalar pass through untouched (use RedactSubtree to nuke a tree).
 //   - RedactUnlessSafe keeps v only when classify allows its shape.
-func redactTerminal(v any, mode Mode, sensitive bool) any {
-	switch mode {
+//   - RedactIfSensitive keeps v unless classifyIfSensitive redacts it.
+func redactTerminal(v any, j judgement) any {
+	switch j.mode {
 	case RedactUnlessSafe:
-		return classify(sensitive, v)
+		return classify(j.sensitive, v)
+	case RedactIfSensitive:
+		return classifyIfSensitive(j.sensitive, v)
 	case RedactSubtree:
 		return redactAllScalars(v)
 	case RedactScalar:
@@ -135,7 +166,7 @@ func applyJSON(raw string, rules []compiledRule) (string, error) {
 		return UnparseableAttributes, parseError(err)
 	}
 	for _, r := range rules {
-		v = apply(v, r.segs, r, false)
+		v = apply(v, r.segs, r, judgement{mode: r.mode})
 	}
 	out, err := json.Marshal(v)
 	// Unreachable today: v came from Unmarshal and rules only keep its values

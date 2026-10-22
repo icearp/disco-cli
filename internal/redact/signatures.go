@@ -2,16 +2,18 @@ package redact
 
 import "sync"
 
-// Signatures adds value shapes to the RedactUnlessSafe classifier. A provider
-// package registers its own from init(); the classifier applies the core
-// shapes plus every registered one to every value, whatever the row's
-// provider, because a credential or reference of one cloud can sit in another
-// cloud's resource. A shape is known only to builds that link the package
-// registering it: a slim build without aws does not recognise an AWS access
-// key as a credential. It is still redacted there only because the value is
-// not on any safe list, so a provider that registers a Reference or
-// ResourceID shape must not match strings that can carry another cloud's
-// credential.
+// Signatures adds value shapes to the RedactUnlessSafe and RedactIfSensitive
+// classifiers. A provider package registers its own from init(); the
+// classifiers apply the core shapes plus every registered one to every value,
+// whatever the row's provider, because a credential or reference of one cloud
+// can sit in another cloud's resource. A shape is known only to builds that
+// link the package registering it: a slim build without a provider does not
+// recognise that provider's credential shapes. Under RedactUnlessSafe such a
+// value is still redacted, only because it is not on any safe list, so a
+// provider that registers a Reference or ResourceID shape must not match
+// strings that can carry another cloud's credential. Under RedactIfSensitive,
+// whose default is to keep, such a value under a non-sensitive key is stored
+// as is.
 type Signatures struct {
 	// Credential matches a string containing a credential anywhere in it. A
 	// match redacts the value under any key, even inside a reference shape.

@@ -11,15 +11,45 @@ import (
 )
 
 func init() {
-	// Values in several option namespaces can hold credentials (environment
-	// properties, EKS env-variables, custom options, URLs with userinfo), so
-	// each value is classified under its OptionName and kept only when it is
-	// judged safe; Namespace, OptionName and ResourceName always stay.
+	// Namespace, OptionName and ResourceName always stay. A value in a
+	// namespace whose values may be secrets under names that do not say so
+	// (beanstalkStrictNamespaces), or with no namespace, is kept only when
+	// judged safe under its OptionName; any other value is a platform setting
+	// (instance type, scaling, health check path) and is kept unless its
+	// OptionName is secret-looking (aws:rds:dbinstance DBPassword) or it holds a
+	// credential shape. JSON values are a credential shape, which covers the
+	// Beanstalk Cluster env-variables and secrets options that share
+	// aws:elasticbeanstalk:eks:environment with cpu and memory, and
+	// custom-config in aws:elasticbeanstalk:eks:observability.
 	registerType(restype.Descriptor{
 		Type:    TypeBeanstalkConfigurationTemplate,
 		Service: "elasticbeanstalk",
-		Redact:  []redact.Rule{{Path: "OptionSettings[*].Value", Mode: redact.RedactUnlessSafe, KeyField: "OptionName"}},
+		Redact: []redact.Rule{{
+			Path: "OptionSettings[*].Value", Mode: redact.RedactIfSensitive, KeyField: "OptionName",
+			Override: &redact.SiblingOverride{Field: "Namespace", Values: beanstalkStrictNamespaces, Mode: redact.RedactUnlessSafe},
+		}},
 	})
+}
+
+// beanstalkStrictNamespaces are the option namespaces whose values can be
+// secrets under option names that do not say so.
+var beanstalkStrictNamespaces = []string{
+	// Environment properties: any name, any value.
+	"aws:elasticbeanstalk:application:environment",
+	// Environment-variable names mapped to secret ARNs.
+	"aws:elasticbeanstalk:application:environmentsecrets",
+	// Free JVM command-line text and arbitrary -X options.
+	"aws:elasticbeanstalk:container:tomcat:jvmoptions",
+	// NodeCommand is free command-line text.
+	"aws:elasticbeanstalk:container:nodejs",
+	// User-defined options read by Fn::GetOptionSetting.
+	"aws:elasticbeanstalk:customoption",
+	// Legacy containers' template parameters; that they carry user values is
+	// unverified against AWS documentation.
+	"aws:cloudformation:template:parameter",
+	// Notification Endpoint can be a webhook URL with its secret in the path;
+	// email endpoints are redacted with it, an accepted over-redaction.
+	"aws:elasticbeanstalk:sns:topics",
 }
 
 const beanstalkDescribeConfigurationSettingsOp = "elasticbeanstalk:DescribeConfigurationSettings"

@@ -23,23 +23,43 @@ const (
 	// (PlaceholderKeyName, PlaceholderValueShape, PlaceholderRule), for a
 	// field that only sometimes holds a secret.
 	RedactUnlessSafe
+	// RedactIfSensitive keeps a value unless its key name marks it as a
+	// secret or it contains a credential shape (both judged as under
+	// RedactUnlessSafe, with the same placeholders), for a field whose values
+	// are settings rather than secrets but whose key names a user may choose.
+	RedactIfSensitive
 )
 
 // Rule names a path inside AttributesJSON and the redaction mode.
 type Rule struct {
 	Path string
 	Mode Mode
-	// KeyField, for RedactUnlessSafe, names the sibling of the path's last
-	// named segment whose string value is the terminal value's key name, for
-	// an array of name/value objects (OptionSettings[*].Value keyed by
-	// OptionName); a missing or non-string sibling counts as a sensitive key.
+	// KeyField, for RedactUnlessSafe and RedactIfSensitive, names the sibling
+	// of the path's last named segment whose string value is the terminal
+	// value's key name, for an array of name/value objects
+	// (OptionSettings[*].Value keyed by OptionName); a missing or non-string
+	// sibling counts as a sensitive key.
 	// Unset, the key name is the map key or literal that leads to the value.
 	KeyField string
-	// KeyIsSensitive, for RedactUnlessSafe, judges every value as if its key
-	// name were secret-looking, so only references and booleans are kept: for
-	// a field that holds either a credential or a pointer to one under a key
-	// that does not say so (Authentication.Value).
+	// KeyIsSensitive, for RedactUnlessSafe and RedactIfSensitive, judges every
+	// value as if its key name were secret-looking, so only references and
+	// booleans are kept: for a field that holds either a credential or a
+	// pointer to one under a key that does not say so (Authentication.Value).
 	KeyIsSensitive bool
+	// Override, set, switches the rule's mode per object: see SiblingOverride.
+	Override *SiblingOverride
+}
+
+// SiblingOverride applies Mode in place of the rule's own mode to a value
+// whose sibling Field (a sibling of the path's last named segment, as with
+// KeyField) holds one of Values, compared case-insensitively. A missing or
+// non-string sibling also selects Mode, because nothing vouches for the
+// value, so Mode is to be the stricter of the two. Under a map-wildcard
+// terminal the sibling read is a key of the iterated map, as with KeyField.
+type SiblingOverride struct {
+	Field  string
+	Values []string
+	Mode   Mode
 }
 
 // TypeRules bundles every Rule for one resource type.
@@ -53,6 +73,7 @@ type compiledRule struct {
 	mode           Mode
 	keyField       string
 	keyIsSensitive bool
+	override       *SiblingOverride
 }
 
 var (
@@ -74,6 +95,7 @@ func Register(r TypeRules) {
 			mode:           rule.Mode,
 			keyField:       rule.KeyField,
 			keyIsSensitive: rule.KeyIsSensitive,
+			override:       rule.Override,
 		})
 	}
 	regMu.Lock()
