@@ -2,10 +2,18 @@ package aws
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"go/types"
+	"maps"
 	"testing"
 
 	acmtypes "github.com/aws/aws-sdk-go-v2/service/acm/types"
+	cfntypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	cloudfronttypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
+	cloudhsmv2types "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2/types"
+	acotypes "github.com/aws/aws-sdk-go-v2/service/computeoptimizerautomation/types"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	ecstypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
@@ -18,62 +26,163 @@ import (
 	wellarchitectedtypes "github.com/aws/aws-sdk-go-v2/service/wellarchitected/types"
 )
 
-// assertTagsJSON unmarshals a tag-JSON pointer and asserts a single-entry map.
-func assertTagsJSON(t *testing.T, label string, got *string, wantKey, wantVal string) {
-	t.Helper()
-	if got == nil {
-		t.Fatalf("%s: nil result", label)
+// TestAWSTagKV_CoversUnion fails when an awsTag union member has no case in
+// awsTagKV's type switch (or a case names a non-member). The compiler accepts a
+// missing case, and awsTagKV would then panic only when a scan meets that type.
+func TestAWSTagKV_CoversUnion(t *testing.T) {
+	f, err := parser.ParseFile(token.NewFileSet(), "aws_tags.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse aws_tags.go: %v", err)
 	}
-	var m map[string]string
-	if err := json.Unmarshal([]byte(*got), &m); err != nil {
-		t.Fatalf("%s: invalid JSON %q: %v", label, *got, err)
+	union := map[string]bool{}
+	cases := map[string]bool{}
+	for _, decl := range f.Decls {
+		switch d := decl.(type) {
+		case *ast.GenDecl:
+			collectAWSTagUnion(d, union)
+		case *ast.FuncDecl:
+			if d.Name.Name == "awsTagKV" {
+				collectCaseTypes(d.Body, cases)
+			}
+		}
 	}
-	if m[wantKey] != wantVal {
-		t.Errorf("%s: %q = %q, want %q", label, wantKey, m[wantKey], wantVal)
+	if len(union) == 0 || len(cases) == 0 {
+		t.Fatalf("found %d awsTag members and %d awsTagKV cases in aws_tags.go; this test no longer finds them", len(union), len(cases))
+	}
+	for m := range union {
+		if !cases[m] {
+			t.Errorf("awsTag member %s has no case in awsTagKV", m)
+		}
+	}
+	for c := range cases {
+		if !union[c] {
+			t.Errorf("awsTagKV case %s is not an awsTag member", c)
+		}
 	}
 }
 
-// TestAWSTagsJSON_AllUnionMembers exercises every type in the awsTag union so a
-// missing case in the type-switch (which silently drops tags) is caught at
-// test time. Per aws/CLAUDE.md "Tag JSON helpers": new SDK service tag types
-// must be added to both the union AND the case block — both edits or helper
-// drops tags silently. EC2 + ec2types is already covered by aws_test.go.
+func collectAWSTagUnion(d *ast.GenDecl, into map[string]bool) {
+	for _, spec := range d.Specs {
+		ts, ok := spec.(*ast.TypeSpec)
+		if !ok || ts.Name.Name != "awsTag" {
+			continue
+		}
+		iface, ok := ts.Type.(*ast.InterfaceType)
+		if !ok {
+			continue
+		}
+		for _, elem := range iface.Methods.List {
+			collectUnionTerms(elem.Type, into)
+		}
+	}
+}
+
+func collectUnionTerms(e ast.Expr, into map[string]bool) {
+	if bin, ok := e.(*ast.BinaryExpr); ok && bin.Op == token.OR {
+		collectUnionTerms(bin.X, into)
+		collectUnionTerms(bin.Y, into)
+		return
+	}
+	into[types.ExprString(e)] = true
+}
+
+func collectCaseTypes(body *ast.BlockStmt, into map[string]bool) {
+	ast.Inspect(body, func(n ast.Node) bool {
+		if cc, ok := n.(*ast.CaseClause); ok {
+			for _, e := range cc.List {
+				into[types.ExprString(e)] = true
+			}
+		}
+		return true
+	})
+}
+
+// TestAWSTagsJSON_AllUnionMembers checks that each awsTagKV case reads its own
+// type's Key and Value; TestAWSTagKV_CoversUnion only checks that the case exists.
 func TestAWSTagsJSON_AllUnionMembers(t *testing.T) {
 	k, v := "K", "V"
-
-	assertTagsJSON(t, "acm", awsTagsJSON([]acmtypes.Tag{{Key: &k, Value: &v}}), k, v)
-	assertTagsJSON(t, "cloudfront", awsTagsJSON([]cloudfronttypes.Tag{{Key: &k, Value: &v}}), k, v)
-	assertTagsJSON(t, "ecr", awsTagsJSON([]ecrtypes.Tag{{Key: &k, Value: &v}}), k, v)
-	assertTagsJSON(t, "ecs", awsTagsJSON([]ecstypes.Tag{{Key: &k, Value: &v}}), k, v)
-	assertTagsJSON(t, "elasticache", awsTagsJSON([]elasticachetypes.Tag{{Key: &k, Value: &v}}), k, v)
-	assertTagsJSON(t, "firehose", awsTagsJSON([]firehosetypes.Tag{{Key: &k, Value: &v}}), k, v)
-	assertTagsJSON(t, "iam", awsTagsJSON([]iamtypes.Tag{{Key: &k, Value: &v}}), k, v)
-	assertTagsJSON(t, "kinesis", awsTagsJSON([]kinesistypes.Tag{{Key: &k, Value: &v}}), k, v)
-	assertTagsJSON(t, "rds", awsTagsJSON([]rdstypes.Tag{{Key: &k, Value: &v}}), k, v)
-	assertTagsJSON(t, "route53", awsTagsJSON([]route53types.Tag{{Key: &k, Value: &v}}), k, v)
-	assertTagsJSON(t, "wellarchitected", awsTagsJSON([]wellarchitectedtypes.Tag{{Key: &k, Value: &v}}), k, v)
+	tests := []struct {
+		name string
+		got  *string
+	}{
+		{"acm", awsTagsJSON([]acmtypes.Tag{{Key: &k, Value: &v}})},
+		{"computeoptimizerautomation", awsTagsJSON([]acotypes.Tag{{Key: &k, Value: &v}})},
+		{"cloudformation", awsTagsJSON([]cfntypes.Tag{{Key: &k, Value: &v}})},
+		{"cloudfront", awsTagsJSON([]cloudfronttypes.Tag{{Key: &k, Value: &v}})},
+		{"cloudhsmv2", awsTagsJSON([]cloudhsmv2types.Tag{{Key: &k, Value: &v}})},
+		{"ec2", awsTagsJSON([]ec2types.Tag{{Key: &k, Value: &v}})},
+		{"ecr", awsTagsJSON([]ecrtypes.Tag{{Key: &k, Value: &v}})},
+		{"ecs", awsTagsJSON([]ecstypes.Tag{{Key: &k, Value: &v}})},
+		{"elasticache", awsTagsJSON([]elasticachetypes.Tag{{Key: &k, Value: &v}})},
+		{"firehose", awsTagsJSON([]firehosetypes.Tag{{Key: &k, Value: &v}})},
+		{"iam", awsTagsJSON([]iamtypes.Tag{{Key: &k, Value: &v}})},
+		{"kinesis", awsTagsJSON([]kinesistypes.Tag{{Key: &k, Value: &v}})},
+		{"rds", awsTagsJSON([]rdstypes.Tag{{Key: &k, Value: &v}})},
+		{"route53", awsTagsJSON([]route53types.Tag{{Key: &k, Value: &v}})},
+		{"wellarchitected", awsTagsJSON([]wellarchitectedtypes.Tag{{Key: &k, Value: &v}})},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assertTagsMap(t, tt.got, map[string]string{k: v})
+		})
+	}
 }
 
-// TestAWSTagsJSON_NilPointersSkipped asserts that tags with nil Key or Value
-// are dropped rather than panicking or producing a bogus "" entry.
-func TestAWSTagsJSON_NilPointersSkipped(t *testing.T) {
-	k, v := "Real", "Value"
-	tags := []iamtypes.Tag{
-		{Key: nil, Value: &v},
-		{Key: &k, Value: nil},
-		{Key: &k, Value: &v},
-	}
-	got := awsTagsJSON(tags)
+// assertTagsMap decodes a tag-JSON pointer and compares it with want.
+func assertTagsMap(t *testing.T, got *string, want map[string]string) {
+	t.Helper()
 	if got == nil {
-		t.Fatal("nil result")
+		t.Fatalf("got nil, want %v", want)
 	}
 	var m map[string]string
 	if err := json.Unmarshal([]byte(*got), &m); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+		t.Fatalf("invalid JSON %q: %v", *got, err)
 	}
-	if len(m) != 1 || m["Real"] != "Value" {
-		t.Errorf("got %v, want single Real=Value entry", m)
+	if !maps.Equal(m, want) {
+		t.Errorf("got %v, want %v", m, want)
 	}
+}
+
+// TestAWSTagsJSON_NilKeySkippedNilValueKept: a nil Key has nothing to key the
+// entry by, so the tag is skipped; a nil Value (the ElastiCache model documents
+// "May be null") keeps the key with "".
+func TestAWSTagsJSON_NilKeySkippedNilValueKept(t *testing.T) {
+	k, keyOnly, v := "Real", "KeyOnly", "Value"
+	tags := []elasticachetypes.Tag{
+		{Key: nil, Value: &v},
+		{Key: &keyOnly, Value: nil},
+		{Key: &k, Value: &v},
+	}
+	assertTagsMap(t, awsTagsJSON(tags), map[string]string{"Real": "Value", "KeyOnly": ""})
+}
+
+// kvTestTag stands in for an SDK tag type outside the awsTag union.
+type kvTestTag struct{ K, V *string }
+
+func kvTestTagKV(t kvTestTag) (key, value *string) { return t.K, t.V }
+
+func TestKVTagsJSON_EmptyIsNil(t *testing.T) {
+	if got := kvTagsJSON(nil, kvTestTagKV); got != nil {
+		t.Errorf("kvTagsJSON(nil) = %q, want nil", *got)
+	}
+	if got := kvTagsJSON([]kvTestTag{}, kvTestTagKV); got != nil {
+		t.Errorf("kvTagsJSON(empty) = %q, want nil", *got)
+	}
+	v := "orphan"
+	if got := kvTagsJSON([]kvTestTag{{K: nil, V: &v}}, kvTestTagKV); got != nil {
+		t.Errorf("kvTagsJSON(only nil keys) = %q, want nil", *got)
+	}
+}
+
+func TestKVTagsJSON_ReadsThroughAccessor(t *testing.T) {
+	k1, k2, keyOnly, v := "env", "team", "flag", "prod"
+	tags := []kvTestTag{
+		{K: &k1, V: &v},
+		{K: &k2, V: &v},
+		{K: nil, V: &v},
+		{K: &keyOnly, V: nil},
+	}
+	assertTagsMap(t, kvTagsJSON(tags, kvTestTagKV), map[string]string{"env": "prod", "team": "prod", "flag": ""})
 }
 
 // TestMapTagsJSON covers the alternative helper for services whose SDK returns
