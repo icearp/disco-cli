@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -130,7 +131,7 @@ func scanKafkaClusterPolicies(ctx context.Context, client kafkaExtAPI, acct *acc
 	batch, err := describeFanOut(ctx, st, acct, region, errs.op, kafkaClusterARNs(clusters), errs.gone,
 		func(ctx context.Context, clusterARN string) (*store.Resource, error) {
 			out, err := client.GetClusterPolicy(ctx, &kafka.GetClusterPolicyInput{ClusterArn: &clusterARN})
-			if err != nil && errs.tallied(clusterARN, err) {
+			if err != nil && errs.tallied(clusterARN, err, false) {
 				return nil, nil
 			}
 			if err != nil {
@@ -172,34 +173,34 @@ func scanKafkaScramSecrets(ctx context.Context, client kafkaExtAPI, acct *accoun
 	for _, c := range clusters {
 		g.Go(func() error {
 			rows, err := listKafkaScramSecrets(gctx, client, acct, region, scanID, c.arn)
-			if err != nil && errs.tallied(c.arn, err) {
+			// A cluster deleted mid-listing took its secret associations with it.
+			if errs.gone(err) {
 				return nil
 			}
-			if err != nil {
-				return keyErrs.keyErr(c.arn, err)
-			}
 			mu.Lock()
-			defer mu.Unlock()
 			batch = append(batch, rows...)
-			return nil
+			mu.Unlock()
+			if err == nil || errs.tallied(c.arn, err, len(rows) > 0) {
+				return nil
+			}
+			return keyErrs.keyErr(c.arn, err)
 		})
 	}
 	err := g.Wait()
+	total, inserted, uerr := upsertBatch(st, batch, "kafka batch-scram-secrets")
 	errs.warn(st, acct, region)
-	if err != nil {
-		return 0, 0, err
-	}
-	return upsertBatch(st, batch, "kafka batch-scram-secrets")
+	return total, inserted, errors.Join(err, uerr)
 }
 
-// listKafkaScramSecrets builds one cluster's SCRAM secret rows.
+// listKafkaScramSecrets builds one cluster's SCRAM secret rows. On an error
+// it returns the rows read before it with the error.
 func listKafkaScramSecrets(ctx context.Context, client kafkaExtAPI, acct *account, region, scanID, clusterARN string) ([]*store.Resource, error) {
-	pager := kafka.NewListScramSecretsPaginator(client, &kafka.ListScramSecretsInput{ClusterArn: &clusterARN})
+	in := &kafka.ListScramSecretsInput{ClusterArn: &clusterARN}
 	var rows []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
+	for {
+		out, err := client.ListScramSecrets(ctx, in)
 		if err != nil {
-			return nil, err
+			return rows, err
 		}
 		for _, secretARN := range out.SecretArnList {
 			if secretARN == "" {
@@ -213,6 +214,11 @@ func listKafkaScramSecrets(ctx context.Context, client kafkaExtAPI, acct *accoun
 				Name: &label, Region: &region, AttributesJSON: mustJSON(map[string]string{"ClusterArn": clusterARN, "SecretArn": secretARN}), DiscoveredBy: scanID,
 			})
 		}
+		// The SDK paginator loops forever on a repeated token, or with
+		// StopOnDuplicateToken stops as if the listing were complete.
+		if done, err := lastPage(in.NextToken, out.NextToken); done {
+			return rows, err
+		}
+		in.NextToken = out.NextToken
 	}
-	return rows, nil
 }

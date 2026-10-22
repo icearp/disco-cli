@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -360,7 +362,8 @@ func TestScanKafka_NoChildren(t *testing.T) {
 
 // A cluster (or, for DescribeChannel, a channel) deleted since listing,
 // denied, failing transiently or rejected with BadRequestException drops only
-// its own children: NotFoundException is skipped silently for the ops whose
+// its own children, except that a channel whose DescribeChannel is denied or
+// transient is kept as its summary: NotFoundException is skipped silently for the ops whose
 // model lists it (ListChannels, DescribeChannel, ListNodes), and each of the
 // others warns once however many parents hit it. NotFoundException from an op
 // whose model does not list it (ListTopics, ListClientVpcConnections) fails
@@ -440,7 +443,7 @@ func TestScanKafka_FailedChildParent(t *testing.T) {
 		{
 			"channel describe denied", "DescribeChannel", kafkaDescribeChannelOp,
 			map[string]error{kafkaTestChannel1: kafkaDenied, kafkaTestChannel2: kafkaDenied},
-			"", kafkaChildRowsWithout(TypeMSKChannel, kafkaAllChildRows[TypeMSKChannel]...), 1,
+			"", kafkaAllChildRows, 1,
 		},
 		{
 			"channel describe rejected", "DescribeChannel", kafkaDescribeChannelOp,
@@ -450,12 +453,12 @@ func TestScanKafka_FailedChildParent(t *testing.T) {
 		{
 			"one channel describe denied", "DescribeChannel", kafkaDescribeChannelOp,
 			map[string]error{kafkaTestChannel1: kafkaDenied},
-			"", kafkaChildRowsWithout(TypeMSKChannel, kafkaTestChannel1), 1,
+			"", kafkaAllChildRows, 1,
 		},
 		{
-			"channel describe throttled", "DescribeChannel", kafkaListChannelsOp,
+			"channel describe throttled", "DescribeChannel", kafkaDescribeChannelOp,
 			map[string]error{kafkaTestChannel2: kafkaThrottled},
-			"", kafkaChildRowsWithout(TypeMSKChannel, kafkaAllChildRows[TypeMSKChannel]...), 1,
+			"", kafkaAllChildRows, 1,
 		},
 		{
 			"channel describe other", "DescribeChannel", kafkaDescribeChannelOp,
@@ -783,7 +786,8 @@ func kafkaTwoExpressHandlers(calls map[string]*parentCalls) map[string]func(in a
 	return h
 }
 
-// A DescribeChannel denial on every Express cluster warns once in all.
+// A DescribeChannel denial on every Express cluster keeps each channel as its
+// ListChannels summary and warns once in all.
 func TestScanKafka_DescribeChannelDeniedWarnsOnce(t *testing.T) {
 	st := newTestStore(t)
 	warns := countOpWarnings(st, kafkaDescribeChannelOp)
@@ -802,8 +806,55 @@ func TestScanKafka_DescribeChannelDeniedWarnsOnce(t *testing.T) {
 	if *warns != 1 {
 		t.Errorf("DescribeChannel warnings = %d, want 1", *warns)
 	}
-	if n := len(rowsByNativeID(t, st, TypeMSKChannel)); n != 0 {
-		t.Errorf("channel rows = %d, want 0", n)
+	if n := len(rowsByNativeID(t, st, TypeMSKChannel)); n != 2 {
+		t.Errorf("channel rows = %d, want 2, each kept as its summary", n)
+	}
+}
+
+// A channel whose DescribeChannel is denied or fails transiently is stored as
+// its ListChannels element, warned about once after it is stored; its sibling
+// keeps its DescribeChannel body.
+func TestScanKafka_DescribeChannelFailureKeepsSummary(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"denied", kafkaDenied},
+		{"transient", kafkaThrottled},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, kafkaDescribeChannelOp)
+			calls := map[string]*parentCalls{}
+			h := kafkaHandlers(calls)
+			describe := h["DescribeChannel"]
+			h["DescribeChannel"] = func(in any) (any, error) {
+				if sdkaws.ToString(in.(*kafka.DescribeChannelInput).ChannelArn) == kafkaTestChannel1 {
+					return nil, tc.err
+				}
+				return describe(in)
+			}
+			if _, err := scanKafkaTopLevel(t, st, h); err != nil {
+				t.Fatalf("scanKafka: %v", err)
+			}
+			rows := rowsByNativeID(t, st, TypeMSKChannel)
+			var kept, described kafka.DescribeChannelOutput
+			if err := json.Unmarshal([]byte(rows[kafkaTestChannel1].AttributesJSON), &kept); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal([]byte(rows[kafkaTestChannel2].AttributesJSON), &described); err != nil {
+				t.Fatal(err)
+			}
+			if sv(kept.ChannelArn) != kafkaTestChannel1 || kept.TopicConfigurationList != nil {
+				t.Errorf("channel 1 attrs = %s, want its ListChannels summary", rows[kafkaTestChannel1].AttributesJSON)
+			}
+			if described.TopicConfigurationList == nil {
+				t.Errorf("channel 2 attrs = %s, want its DescribeChannel body", rows[kafkaTestChannel2].AttributesJSON)
+			}
+			if *warns != 1 {
+				t.Errorf("DescribeChannel warnings = %d, want 1", *warns)
+			}
+		})
 	}
 }
 
@@ -838,5 +889,120 @@ func TestScanKafka_ChannelsRepeatedTokenFails(t *testing.T) {
 		if _, ok := rows[want]; !ok {
 			t.Errorf("channel %s listed before the repeat was not stored; stored %d", want, len(rows))
 		}
+	}
+}
+
+// A ListChannels page that still fails transiently after the SDK's retries
+// keeps the channels its earlier pages listed, with one warning saying the
+// cluster was partially read.
+func TestScanKafka_ChannelsLaterPageTransientKeepsEarlierPages(t *testing.T) {
+	st := newTestStore(t)
+	var warned []string
+	st.OnWarn = func(w store.ScanWarning) {
+		if w.Service == kafkaListChannelsOp {
+			warned = append(warned, w.Message)
+		}
+	}
+	calls := map[string]*parentCalls{}
+	h := kafkaHandlers(calls)
+	h["ListChannels"] = func(in any) (any, error) {
+		p := in.(*kafka.ListChannelsInput)
+		calls["ListChannels"].add(sdkaws.ToString(p.ClusterArn))
+		if p.NextToken != nil {
+			return nil, kafkaThrottled
+		}
+		return &kafka.ListChannelsOutput{Channels: []kafkatypes.ChannelInfo{{ChannelArn: sdkaws.String(kafkaTestChannel1)}}, NextToken: sdkaws.String("page-2")}, nil
+	}
+	if _, err := scanKafkaTopLevel(t, st, h); err != nil {
+		t.Fatalf("scanKafka: %v", err)
+	}
+	if got := nativeIDs(rowsByNativeID(t, st, TypeMSKChannel)); !slices.Equal(got, []string{kafkaTestChannel1}) {
+		t.Errorf("channels = %v, want the first page's %s", got, kafkaTestChannel1)
+	}
+	// The message is the contract here: "skipped" would deny the stored page.
+	if len(warned) != 1 || !strings.Contains(warned[0], "partially read") {
+		t.Errorf("ListChannels warnings = %q, want one saying the cluster was partially read", warned)
+	}
+}
+
+// A channel kept as its ListChannels summary is warned about only when it was
+// stored: a hard DescribeChannel error in the same fan-out stores no channel,
+// so no warning may say one was.
+func TestScanKafka_ChannelSummaryWarnsOnlyWhenStored(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, kafkaDescribeChannelOp)
+	calls := map[string]*parentCalls{}
+	h := kafkaHandlers(calls)
+	described := 0 // one cluster's channels are described one at a time
+	h["DescribeChannel"] = func(any) (any, error) {
+		if described++; described == 1 {
+			return nil, kafkaDenied
+		}
+		return nil, kafkaUnexpected
+	}
+	_, err := scanKafkaTopLevel(t, st, h)
+	assertAPICode(t, err, "ConflictException")
+	if n := len(rowsByNativeID(t, st, TypeMSKChannel)); n != 0 {
+		t.Fatalf("channels stored = %d, want 0", n)
+	}
+	if *warns != 0 {
+		t.Errorf("DescribeChannel warnings = %d, want 0: no summary was stored", *warns)
+	}
+}
+
+// A channel kept as its ListChannels summary has its tags read with
+// ListTagsForResource. When that read fails too the channel is stored without
+// tags and one warning says so; when it answers NotFoundException the channel
+// was deleted and is not stored.
+func TestScanKafka_ChannelSummaryReadsTags(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		tags       func(any) (any, error)
+		wantStored bool
+		wantTags   map[string]string
+		wantWarns  int
+	}{
+		{"read", func(any) (any, error) {
+			return &kafka.ListTagsForResourceOutput{Tags: map[string]string{"team": "data"}}, nil
+		}, true, map[string]string{"team": "data"}, 0},
+		{"failed", func(any) (any, error) { return nil, kafkaThrottled }, true, nil, 1},
+		{"channel gone", func(any) (any, error) { return nil, kafkaGone }, false, nil, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, kafkaListTagsForResourceOp)
+			calls := map[string]*parentCalls{}
+			h := kafkaHandlers(calls)
+			describe := h["DescribeChannel"]
+			h["DescribeChannel"] = func(in any) (any, error) {
+				if sdkaws.ToString(in.(*kafka.DescribeChannelInput).ChannelArn) == kafkaTestChannel1 {
+					return nil, kafkaThrottled
+				}
+				return describe(in)
+			}
+			h["ListTagsForResource"] = tc.tags
+			if _, err := scanKafkaTopLevel(t, st, h); err != nil {
+				t.Fatalf("scanKafka: %v", err)
+			}
+			row, ok := rowsByNativeID(t, st, TypeMSKChannel)[kafkaTestChannel1]
+			if ok != tc.wantStored {
+				t.Fatalf("channel 1 stored = %v, want %v", ok, tc.wantStored)
+			}
+			if *warns != tc.wantWarns {
+				t.Errorf("ListTagsForResource warnings = %d, want %d", *warns, tc.wantWarns)
+			}
+			if !ok {
+				return
+			}
+			var got map[string]string
+			if row.TagsJSON != nil {
+				if err := json.Unmarshal([]byte(*row.TagsJSON), &got); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if !maps.Equal(got, tc.wantTags) {
+				t.Errorf("channel 1 tags = %v, want %v", got, tc.wantTags)
+			}
+		})
 	}
 }

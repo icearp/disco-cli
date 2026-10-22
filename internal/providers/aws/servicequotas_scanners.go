@@ -498,14 +498,22 @@ func quotaPeriodUnit(u sqtypes.PeriodUnit) string {
 	}
 }
 
+// serviceQuotasService is the registered service name. registerService repeats
+// it as a literal because regionsgen reads the name from the literal.
+const serviceQuotasService = "aws:servicequotas"
+
 // homeGlobalRegion elects the single region that emits global quotas: us-east-1
-// (AWS's commercial home region for global quota increases) when scanned,
-// otherwise the lexicographically smallest scanned region so globals are still
-// recorded when --regions excludes us-east-1. The elected row is region-less, so
-// the choice only governs which scan invocation writes it — never the row itself.
+// (AWS's commercial home region for global quota increases) when this scanner
+// runs there, otherwise the lexicographically smallest region it runs in, so
+// globals are still recorded when --regions excludes us-east-1 or the account
+// has not enabled it. It elects only among the regions the scanner is
+// dispatched to: an elected region that never runs would store no global
+// quota at all. The elected row is region-less, so the choice only governs
+// which scan invocation writes it — never the row itself.
 func homeGlobalRegion(acct *account) string {
-	if len(acct.Regions) == 0 || slices.Contains(acct.Regions, "us-east-1") {
+	regions := acct.dispatchedRegions(serviceQuotasService)
+	if len(regions) == 0 || slices.Contains(regions, "us-east-1") {
 		return "us-east-1"
 	}
-	return slices.Min(acct.Regions)
+	return slices.Min(regions)
 }

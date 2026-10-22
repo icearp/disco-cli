@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -400,7 +401,9 @@ func TestScanLicenseManager_TransientDoesNotMaskHardError(t *testing.T) {
 
 // License Manager throttles with RateLimitExceededException (HTTP 429), which
 // the SDK retryer does not retry, so the first throttle reaches the scanner.
-func TestScanLicenseManager_RateLimitExceededWarnsAndKeepsRows(t *testing.T) {
+// Alone, it is returned as a transient error, so the scan reads as partial,
+// and the rows listed before it are kept.
+func TestScanLicenseManager_RateLimitExceededIsTransientAndKeepsRows(t *testing.T) {
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, "license-manager:ListTokens")
 	rateLimited := &lmtypes.RateLimitExceededException{Message: ptrStr("Too many requests have been submitted. Try again after a brief wait.")}
@@ -409,11 +412,11 @@ func TestScanLicenseManager_RateLimitExceededWarnsAndKeepsRows(t *testing.T) {
 			return &licensemanager.ListReceivedLicensesOutput{Licenses: []lmtypes.GrantedLicense{lmGranted(lmTestLicenseArn, "self", lmtypes.LicenseStatusAvailable)}}, nil
 		},
 		func(any) (any, error) { return nil, rateLimited })
-	if err != nil || total != 2 {
-		t.Fatalf("total, err = %d, %v; want 2 (license, received license), nil", total, err)
+	if got := classifyServiceError(err); got != outcomeTransient || total != 2 {
+		t.Fatalf("total, outcome = %d, %v (err %v); want 2 (license, received license), outcomeTransient", total, got, err)
 	}
-	if *warnings != 1 {
-		t.Errorf("warnings = %d, want 1 for the rate-limited ListTokens", *warnings)
+	if *warnings != 0 {
+		t.Errorf("warnings = %d, want 0: a lone transient is returned, not demoted", *warnings)
 	}
 	if len(rowsByNativeID(t, st, TypeLicenseManagerLicense)) != 1 || len(rowsByNativeID(t, st, TypeLicenseManagerReceivedLicense)) != 1 {
 		t.Error("a row listed before the throttle is missing")
@@ -535,5 +538,210 @@ func TestScanLMPhases_ServiceRoleMissingWarnsAndKeepsEarlierPages(t *testing.T) 
 				t.Errorf("warnings = %d, want 1", *warnings)
 			}
 		})
+	}
+}
+
+// lmGrantARN is the ARN of the test grant named id.
+func lmGrantARN(id string) string {
+	return "arn:aws:license-manager::" + testAccountID + ":grant:g-" + id
+}
+
+// scanLicenseManagerWith runs scanLicenseManager against lmTopLevelHandlers
+// with empty received-license and token listings, overridden by h.
+func scanLicenseManagerWith(t *testing.T, st *store.Store, h map[string]func(any) (any, error)) (int, error) {
+	t.Helper()
+	handlers := lmTopLevelHandlers(
+		func(any) (any, error) { return &licensemanager.ListReceivedLicensesOutput{}, nil },
+		func(any) (any, error) { return &licensemanager.ListTokensOutput{}, nil })
+	for op, f := range h {
+		handlers[op] = f
+	}
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, lmDenied)
+	total, _, err := scanLicenseManager(context.Background(), acct, "", st, testScanID)
+	return total, err
+}
+
+// A failing phase does not stop the phases after it: the first phase's error
+// is returned with the rows of every later phase.
+func TestScanLicenseManager_FailedPhaseRunsLaterPhases(t *testing.T) {
+	st := newTestStore(t)
+	total, err := scanLicenseManagerWith(t, st, map[string]func(any) (any, error){
+		"ListLicenses": func(any) (any, error) { return nil, lmBadInput },
+		"ListDistributedGrants": func(any) (any, error) {
+			return &licensemanager.ListDistributedGrantsOutput{Grants: []lmtypes.Grant{{GrantArn: ptrStr(lmGrantARN("1")), GrantName: ptrStr("g1")}}}, nil
+		},
+		"ListTokens": func(any) (any, error) {
+			return &licensemanager.ListTokensOutput{Tokens: []lmtypes.TokenData{lmToken("t1", lmTestLicenseArn, "AVAILABLE")}}, nil
+		},
+	})
+	assertAPICode(t, err, "ValidationException")
+	if total != 2 {
+		t.Errorf("total = %d, want 2 (grant, token)", total)
+	}
+	if len(rowsByNativeID(t, st, TypeLicenseManagerGrant)) != 1 || len(rowsByNativeID(t, st, TypeLicenseManagerToken)) != 1 {
+		t.Error("a phase after the failed ListLicenses stored nothing")
+	}
+}
+
+// A listing that fails or repeats its token after its first page keeps that
+// page's rows and returns the error.
+func TestScanLicenseManager_LaterPageErrorKeepsEarlierPages(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		page2   func() (any, error)
+		wantErr func(error) bool
+	}{
+		{"error", func() (any, error) { return nil, lmBadInput }, func(err error) bool { return isAPIErrorCode(err, "ValidationException") }},
+		{"repeated token", func() (any, error) {
+			return &licensemanager.ListDistributedGrantsOutput{NextToken: ptrStr("p2")}, nil
+		}, func(err error) bool { return errors.Is(err, errRepeatedNextToken) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			_, err := scanLicenseManagerWith(t, st, map[string]func(any) (any, error){
+				"ListDistributedGrants": func(in any) (any, error) {
+					if in.(*licensemanager.ListDistributedGrantsInput).NextToken == nil {
+						return &licensemanager.ListDistributedGrantsOutput{
+							Grants:    []lmtypes.Grant{{GrantArn: ptrStr(lmGrantARN("1")), GrantName: ptrStr("g1")}},
+							NextToken: ptrStr("p2"),
+						}, nil
+					}
+					return tc.page2()
+				},
+			})
+			if !tc.wantErr(err) {
+				t.Errorf("err = %v, want the page 2 failure", err)
+			}
+			if _, ok := rowsByNativeID(t, st, TypeLicenseManagerGrant)[lmGrantARN("1")]; !ok {
+				t.Error("grant from page 1 not stored")
+			}
+		})
+	}
+}
+
+// A received-license or token listing that fails after its first page keeps
+// that page's rows and returns the error.
+func TestScanLMReceivedAndTokens_LaterPageErrorKeepsEarlierPages(t *testing.T) {
+	st := newTestStore(t)
+	total, err := scanLMReceivedForTest(t, st, func(in *licensemanager.ListReceivedLicensesInput) (any, error) {
+		if in.NextToken == nil {
+			return &licensemanager.ListReceivedLicensesOutput{
+				Licenses:  []lmtypes.GrantedLicense{lmGranted(lmTestLicenseArn, "a", lmtypes.LicenseStatusAvailable)},
+				NextToken: ptrStr("p2"),
+			}, nil
+		}
+		return nil, lmBadInput
+	})
+	assertAPICode(t, err, "ValidationException")
+	if total != 1 || len(rowsByNativeID(t, st, TypeLicenseManagerReceivedLicense)) != 1 {
+		t.Errorf("received licenses: total = %d, want 1 stored from page 1", total)
+	}
+
+	st = newTestStore(t)
+	total, err = scanLMTokensForTest(t, st, func(in *licensemanager.ListTokensInput) (any, error) {
+		if in.NextToken == nil {
+			return &licensemanager.ListTokensOutput{Tokens: []lmtypes.TokenData{lmToken("t1", lmTestLicenseArn, "AVAILABLE")}, NextToken: ptrStr("p2")}, nil
+		}
+		return nil, lmBadInput
+	})
+	assertAPICode(t, err, "ValidationException")
+	if total != 1 || len(rowsByNativeID(t, st, TypeLicenseManagerToken)) != 1 {
+		t.Errorf("tokens: total = %d, want 1 stored from page 1", total)
+	}
+}
+
+// "Service role not found" reports the service disabled only when no phase
+// stored a row, whatever its order, and no phase failed otherwise; else it is a
+// partial denial that warns once and keeps the other phases' rows.
+func TestScanLicenseManager_NotSetUpSentinelOnlyWhenNothingElse(t *testing.T) {
+	type handlers = map[string]func(any) (any, error)
+	notSetUp := func(any) (any, error) {
+		return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "Service role not found"}
+	}
+	rateLimited := func(any) (any, error) {
+		return nil, &lmtypes.RateLimitExceededException{Message: ptrStr("Too many requests have been submitted.")}
+	}
+	noLicenses := func(any) (any, error) { return &licensemanager.ListLicensesOutput{}, nil }
+	configurations := func(any) (any, error) {
+		return &licensemanager.ListLicenseConfigurationsOutput{LicenseConfigurations: []lmtypes.LicenseConfiguration{
+			{LicenseConfigurationArn: ptrStr("arn:aws:license-manager:us-east-1:123456789012:license-configuration:lic-1"), Name: ptrStr("c1")},
+		}}, nil
+	}
+	isNil := func(t *testing.T, err error) {
+		if err != nil {
+			t.Errorf("err = %v, want nil", err)
+		}
+	}
+	for _, tc := range []struct {
+		name      string
+		h         handlers
+		wantErr   func(*testing.T, error)
+		wantTotal int
+		wantWarns int
+	}{
+		{"nothing else stored", handlers{"ListLicenses": notSetUp}, func(t *testing.T, err error) {
+			if !errors.Is(err, errServiceDisabled) {
+				t.Errorf("err = %v, want errServiceDisabled", err)
+			}
+		}, 0, 0},
+		{"after a stored row", handlers{"ListDistributedGrants": notSetUp}, isNil, 1, 1},
+		{"before a later phase's row", handlers{"ListLicenses": noLicenses, "ListDistributedGrants": notSetUp, "ListLicenseConfigurations": configurations}, isNil, 1, 1},
+		{"after a transient phase", handlers{"ListLicenses": rateLimited, "ListDistributedGrants": notSetUp}, func(t *testing.T, err error) {
+			if got := classifyServiceError(err); got != outcomeTransient {
+				t.Errorf("err = %v (outcome %v), want outcomeTransient", err, got)
+			}
+		}, 0, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warnings := countOpWarnings(st, lmListGrantsOp)
+			total, err := scanLicenseManagerWith(t, st, tc.h)
+			tc.wantErr(t, err)
+			if total != tc.wantTotal {
+				t.Errorf("total = %d, want %d", total, tc.wantTotal)
+			}
+			if *warnings != tc.wantWarns {
+				t.Errorf("ListDistributedGrants warnings = %d, want %d", *warnings, tc.wantWarns)
+			}
+		})
+	}
+}
+
+// An item listed without the identifier its row is keyed by is not stored and
+// is warned about once under its op.
+func TestScanLicenseManager_UnkeyedItemsWarn(t *testing.T) {
+	st := newTestStore(t)
+	var mu sync.Mutex
+	warned := map[string]int{}
+	st.OnWarn = func(w store.ScanWarning) {
+		mu.Lock()
+		warned[w.Service]++
+		mu.Unlock()
+	}
+	_, err := scanLicenseManagerWith(t, st, map[string]func(any) (any, error){
+		"ListDistributedGrants": func(any) (any, error) {
+			return &licensemanager.ListDistributedGrantsOutput{Grants: []lmtypes.Grant{
+				{GrantArn: ptrStr(lmGrantARN("1")), GrantName: ptrStr("g1")},
+				{GrantName: ptrStr("no-arn")},
+			}}, nil
+		},
+		"ListReceivedLicenses": func(any) (any, error) {
+			return &licensemanager.ListReceivedLicensesOutput{Licenses: []lmtypes.GrantedLicense{{LicenseName: ptrStr("no-arn"), Status: lmtypes.LicenseStatusAvailable}}}, nil
+		},
+		"ListTokens": func(any) (any, error) {
+			return &licensemanager.ListTokensOutput{Tokens: []lmtypes.TokenData{lmToken("", lmTestLicenseArn, "AVAILABLE")}}, nil
+		},
+	})
+	if err != nil {
+		t.Fatalf("scanLicenseManager: %v", err)
+	}
+	for _, op := range []string{"license-manager:ListDistributedGrants", "license-manager:ListReceivedLicenses", "license-manager:ListTokens"} {
+		if warned[op] != 1 {
+			t.Errorf("%s warnings = %d, want 1", op, warned[op])
+		}
+	}
+	if n := len(rowsByNativeID(t, st, TypeLicenseManagerGrant)); n != 1 {
+		t.Errorf("grants stored = %d, want 1", n)
 	}
 }

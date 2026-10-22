@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kafka"
@@ -18,6 +17,7 @@ type kafkaChildAPI interface {
 	ListTopics(context.Context, *kafka.ListTopicsInput, ...func(*kafka.Options)) (*kafka.ListTopicsOutput, error)
 	ListChannels(context.Context, *kafka.ListChannelsInput, ...func(*kafka.Options)) (*kafka.ListChannelsOutput, error)
 	DescribeChannel(context.Context, *kafka.DescribeChannelInput, ...func(*kafka.Options)) (*kafka.DescribeChannelOutput, error)
+	ListTagsForResource(context.Context, *kafka.ListTagsForResourceInput, ...func(*kafka.Options)) (*kafka.ListTagsForResourceOutput, error)
 	ListClientVpcConnections(context.Context, *kafka.ListClientVpcConnectionsInput, ...func(*kafka.Options)) (*kafka.ListClientVpcConnectionsOutput, error)
 	ListNodes(context.Context, *kafka.ListNodesInput, ...func(*kafka.Options)) (*kafka.ListNodesOutput, error)
 }
@@ -26,6 +26,7 @@ const (
 	kafkaListTopicsOp               = "kafka:ListTopics"
 	kafkaListChannelsOp             = "kafka:ListChannels"
 	kafkaDescribeChannelOp          = "kafka:DescribeChannel"
+	kafkaListTagsForResourceOp      = "kafka:ListTagsForResource"
 	kafkaListClientVpcConnectionsOp = "kafka:ListClientVpcConnections"
 	kafkaListNodesOp                = "kafka:ListNodes"
 )
@@ -116,19 +117,26 @@ type kafkaChildErrs struct {
 	gone      func(error) bool
 	transient transientTally
 	rejected  transientTally
+	// partial counts the clusters whose listing failed transiently or was
+	// rejected after earlier pages were read; those pages are kept.
+	partial skipTally
 }
 
 func isKafkaGone(err error) bool { return isAPIErrorCode(err, "NotFoundException") }
 
-// tallied reports whether err was counted as transient or rejected for parent.
-func (e *kafkaChildErrs) tallied(parent string, err error) bool {
+// tallied reports whether err was counted as transient or rejected for
+// parent; kept says whether pages read before err are kept, making the
+// parent partially read rather than skipped.
+func (e *kafkaChildErrs) tallied(parent string, err error, kept bool) bool {
 	switch {
+	case !isTransientNetworkError(err) && !isKafkaRejected(err):
+		return false
+	case kept:
+		e.partial.skipped(parent, err)
 	case isTransientNetworkError(err):
 		e.transient.skipped(parent, err)
-	case isKafkaRejected(err):
-		e.rejected.skipped(parent, err)
 	default:
-		return false
+		e.rejected.skipped(parent, err)
 	}
 	return true
 }
@@ -136,18 +144,26 @@ func (e *kafkaChildErrs) tallied(parent string, err error) bool {
 func (e *kafkaChildErrs) warn(st *store.Store, acct *account, region string) {
 	e.transient.warnSkipped(st, e.op, acct, region)
 	warnKafkaRejected(st, e.op, "cluster(s)", acct, region, &e.rejected)
+	if e.partial.count > 0 {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: e.op, Scope: acct.ID + "/" + region,
+			Message: fmt.Sprintf("%d cluster(s) partially read: a later page failed and only the pages before it were read, first %s: %v", e.partial.count, e.partial.first, e.partial.err),
+		})
+	}
 }
 
 // kafkaChildFanOut runs list for each parent through childFanOut under the
-// kafkaChildErrs policy.
+// kafkaChildErrs policy. A skipped parent keeps the rows list returned with
+// its error (pages read before a later page failed); childFanOut drops those
+// of a parent whose error it returns.
 func kafkaChildFanOut(
 	ctx context.Context, st *store.Store, acct *account, region string, errs *kafkaChildErrs, parents []childParent,
 	list func(context.Context, childParent) ([]*store.Resource, error),
 ) (int, int, error) {
 	t, i, err := childFanOut(ctx, st, acct, region, errs.op, parents, errs.gone, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 		rows, err := list(ctx, p)
-		if err != nil && errs.tallied(p.id, err) {
-			return nil, nil
+		if err != nil && errs.tallied(p.id, err, len(rows) > 0) {
+			return rows, nil
 		}
 		return rows, err
 	})
@@ -166,7 +182,7 @@ func scanKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, r
 	parents := kafkaParents(clusters, func(kafkaCluster) bool { return true })
 	t, i, err := childFanOutStored(ctx, st, acct, region, errs.op, parents, errs.gone, func(ctx context.Context, p childParent) (int, int, error) {
 		t, i, err := storeKafkaTopics(ctx, client, acct, region, st, scanID, p)
-		if err != nil && errs.tallied(p.id, err) {
+		if err != nil && errs.tallied(p.id, err, t > 0) {
 			return t, i, nil
 		}
 		return t, i, err
@@ -217,72 +233,119 @@ func storeKafkaTopics(ctx context.Context, client kafkaChildAPI, acct *account, 
 // without a ChannelArn is not stored. Per channel, DescribeChannel's
 // NotFoundException (deleted since listing) skips it silently and a rejection
 // (isKafkaRejected) skips it with one warning for all such channels, keeping
-// its siblings; a denied DescribeChannel likewise skips only that channel,
-// with one warning for every denial in the region, as fanOutErrs.keyErr does
-// for a denied parent.
+// its siblings. A denied DescribeChannel, or one that still fails
+// transiently after the SDK's retries, keeps the channel as its ListChannels
+// summary, a different shape, with one warning per cause for the region. Its
+// tags are then read with ListTagsForResource, so that a throttled describe
+// does not read as an untagged channel; a NotFoundException there (in the
+// op's model) means the channel was deleted and it is not stored, and any
+// other failure stores it without tags, with one warning saying so.
 func scanKafkaChannels(ctx context.Context, client kafkaChildAPI, acct *account, region string, st *store.Store, scanID string, clusters []kafkaCluster) (int, int, error) {
 	errs := &kafkaChildErrs{op: kafkaListChannelsOp, gone: isKafkaGone}
 	parents := kafkaParents(clusters, func(c kafkaCluster) bool { return c.express })
 	var (
-		describeDenied   sync.Once
-		describeRejected transientTally
+		describeDenied    skipTally
+		describeRejected  transientTally
+		describeTransient transientTally
+		tagsUnread        skipTally
 	)
 	t, i, err := kafkaChildFanOut(ctx, st, acct, region, errs, parents, func(ctx context.Context, cluster childParent) ([]*store.Resource, error) {
-		// A listing that ended early returns the channels it read with its
-		// error; they are described and stored, and the error is returned.
-		arns, listErr := listKafkaChannelARNs(ctx, client, cluster.arn)
-		if len(arns) == 0 {
+		// A listing that failed after its first page returns the channels it
+		// read with its error; they are described and returned with it, and
+		// kafkaChildFanOut decides whether they are stored.
+		listed, listErr := listKafkaChannels(ctx, client, cluster.arn)
+		if len(listed) == 0 {
 			return nil, listErr
 		}
 		// Described one at a time: clusters already run fanoutMed-wide, and a
 		// cluster's channels are delivery pipelines, expected to be few.
 		var rows []*store.Resource
-		for _, arn := range arns {
+		for _, c := range listed {
+			arn := *c.ChannelArn
 			out, err := client.DescribeChannel(ctx, &kafka.DescribeChannelInput{ClusterArn: sdkaws.String(cluster.arn), ChannelArn: sdkaws.String(arn)})
 			switch {
 			case err == nil:
+				rows = append(rows, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeMSKChannel, NativeID: arn,
+					Name: out.ChannelName, Region: &region, Status: nonEmptyPtr(string(out.Status)),
+					CreatedAt: tp(out.CreationTime), TagsJSON: mapTagsJSON(out.Tags),
+					AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
+				})
+				continue
 			case isKafkaGone(err):
 				continue
 			case isKafkaRejected(err):
 				describeRejected.skipped(arn, err)
 				continue
-			case isAccessDenied(err):
-				describeDenied.Do(func() { _ = skipIfAccessDenied(st, kafkaDescribeChannelOp, acct.ID, region, err) })
-				continue
+			case isAccessDenied(err), isTransientNetworkError(err):
 			default:
 				return nil, fmt.Errorf("%s %s: %w", kafkaDescribeChannelOp, arn, err)
 			}
-			rows = append(rows, &store.Resource{
+			// Denied or transient: kept as its ListChannels summary.
+			r := &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeMSKChannel, NativeID: arn,
-				Name: out.ChannelName, Region: &region, Status: nonEmptyPtr(string(out.Status)),
-				CreatedAt: tp(out.CreationTime), TagsJSON: mapTagsJSON(out.Tags),
-				AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
-			})
+				Name: c.ChannelName, Region: &region, Status: nonEmptyPtr(string(c.Status)),
+				CreatedAt: tp(c.CreationTime), AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			}
+			tags, terr := client.ListTagsForResource(ctx, &kafka.ListTagsForResourceInput{ResourceArn: sdkaws.String(arn)})
+			switch {
+			case terr == nil:
+				r.TagsJSON = mapTagsJSON(tags.Tags)
+			case isKafkaGone(terr):
+				continue
+			default:
+				tagsUnread.skipped(arn, terr)
+			}
+			if isAccessDenied(err) {
+				describeDenied.skipped(arn, err)
+			} else {
+				describeTransient.skipped(arn, err)
+			}
+			rows = append(rows, r)
 		}
 		return rows, listErr
 	})
 	warnKafkaRejected(st, kafkaDescribeChannelOp, "channel(s)", acct, region, &describeRejected)
+	// The summaries are stored only when the fan-out stored its rows; on a
+	// failed write, or a hard error in any cluster, it stored none.
+	if t > 0 && !errors.Is(err, store.ErrStoreWrite) {
+		const kept = "%d channel(s) stored as their ListChannels summary, without the DescribeChannel body, first %s: %w"
+		if describeDenied.count > 0 {
+			_ = skipIfAccessDenied(st, kafkaDescribeChannelOp, acct.ID, region, fmt.Errorf(kept, describeDenied.count, describeDenied.first, describeDenied.err))
+		}
+		if describeTransient.count > 0 {
+			_ = skipIfTransient(st, kafkaDescribeChannelOp, acct.ID, region, fmt.Errorf(kept, describeTransient.count, describeTransient.first, describeTransient.err))
+		}
+		if tagsUnread.count > 0 {
+			st.ReportWarning(store.ScanWarning{
+				Provider: "aws", Service: kafkaListTagsForResourceOp, Scope: acct.ID + "/" + region,
+				Message: fmt.Sprintf("%d channel(s) stored as their ListChannels summary with their tags unread, first %s: %v", tagsUnread.count, tagsUnread.first, tagsUnread.err),
+			})
+		}
+	}
 	return t, i, err
 }
 
-// listKafkaChannelARNs lists the ARNs of one cluster's channels.
-func listKafkaChannelARNs(ctx context.Context, client kafkaChildAPI, clusterARN string) ([]string, error) {
+// listKafkaChannels lists one cluster's channels that carry a ChannelArn. On
+// an error it returns the channels read before it with the error.
+func listKafkaChannels(ctx context.Context, client kafkaChildAPI, clusterARN string) ([]kafkatypes.ChannelInfo, error) {
 	in := &kafka.ListChannelsInput{ClusterArn: sdkaws.String(clusterARN), MaxResults: sdkaws.Int32(kafkaPageLimit)}
-	var arns []string
+	var listed []kafkatypes.ChannelInfo
 	for {
 		out, err := client.ListChannels(ctx, in)
 		if err != nil {
-			return nil, err
+			return listed, err
 		}
 		for _, c := range out.Channels {
-			if arn := sv(c.ChannelArn); arn != "" {
-				arns = append(arns, arn)
+			if sv(c.ChannelArn) != "" {
+				listed = append(listed, c)
 			}
 		}
 		// ListChannels has no paginator; a repeated token would loop forever.
 		if done, err := lastPage(in.NextToken, out.NextToken); done {
-			return arns, err
+			return listed, err
 		}
 		in.NextToken = out.NextToken
 	}

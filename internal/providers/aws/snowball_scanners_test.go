@@ -404,6 +404,7 @@ func TestScanSnowballAddressesOnce_DeniedRegionLeavesTurnToNext(t *testing.T) {
 	warned := countOpWarnings(st, snowballDescribeAddressesOp)
 	acct := newTestAccount(testAccountID)
 	acct.Regions = []string{"us-west-2", "eu-west-1", "us-east-1"}
+	acct.scanRegions = acct.Regions
 	denied := sbClient(map[string]func(any) (any, error){})
 	if total, _, err := scanSnowballAddressesOnce(context.Background(), denied, acct, "us-east-1", st, testScanID); err != nil || total != 0 {
 		t.Fatalf("us-east-1: total, err = %d, %v; want 0, nil", total, err)
@@ -418,6 +419,22 @@ func TestScanSnowballAddressesOnce_DeniedRegionLeavesTurnToNext(t *testing.T) {
 	}
 	if *warned != 1 {
 		t.Errorf("warnings = %d, want 1 (the us-east-1 denial)", *warned)
+	}
+}
+
+// A configured US region the scan never dispatches to (here us-east-1, as if
+// not enabled for the account) is not stored as a US address's Region.
+func TestScanSnowballAddressesOnce_RegionLabelIsADispatchedRegion(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	acct.Regions = []string{"us-east-1", "us-west-2"}
+	acct.scanRegions = []string{"us-west-2"}
+	var calls atomic.Int32
+	if _, _, err := scanSnowballAddressesOnce(context.Background(), sbClient(sbCountingAddresses(&calls)), acct, "us-west-2", st, testScanID); err != nil {
+		t.Fatalf("us-west-2: %v", err)
+	}
+	if got := rowsByNativeID(t, st, TypeSnowballAddress)[sbAddressNative("1")]; sv(got.Region) != "us-west-2" {
+		t.Errorf("address region = %q, want us-west-2, the only scanned US region", sv(got.Region))
 	}
 }
 
@@ -616,6 +633,26 @@ func TestScanSnowballAll_PhaseErrorKeepsOtherPhase(t *testing.T) {
 				t.Errorf("%s %s missing", tc.keptType, tc.keptID)
 			}
 		})
+	}
+}
+
+// A lone throttle is returned, not demoted, so the dispatcher reads the scan
+// as partial; the other phase's rows are kept.
+func TestScanSnowballAll_LoneTransientIsReturned(t *testing.T) {
+	st := newTestStore(t)
+	warned := countOpWarnings(st, snowballListClustersOp)
+	handlers := sbTopLevelHandlers(map[string]func(any) (any, error){
+		"ListClusters": func(any) (any, error) { return nil, sbThrottled },
+	})
+	_, _, err := scanSnowballAll(context.Background(), sbClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID)
+	if got := classifyServiceError(err); got != outcomeTransient {
+		t.Errorf("classifyServiceError(%v) = %v, want outcomeTransient", err, got)
+	}
+	if *warned != 0 {
+		t.Errorf("%s warnings = %d, want 0", snowballListClustersOp, *warned)
+	}
+	if _, ok := rowsByNativeID(t, st, TypeSnowballAddress)[sbAddressNative("1")]; !ok {
+		t.Error("address from the other phase missing")
 	}
 }
 

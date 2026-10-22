@@ -440,7 +440,7 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 	}
 
 	t.Run("emitted at us-east-1, dropped at us-west-2", func(t *testing.T) {
-		acct := &account{ID: testAccountID, Name: "Test Account", Regions: []string{"us-east-1", "us-west-2"}}
+		acct := &account{ID: testAccountID, Name: "Test Account", Regions: []string{"us-east-1", "us-west-2"}, scanRegions: []string{"us-east-1", "us-west-2"}}
 
 		stEast := newTestStore(t)
 		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "us-east-1", stEast, testScanID, noRateLimit()); err != nil {
@@ -469,7 +469,7 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 	})
 
 	t.Run("fallback to min region when us-east-1 not scanned", func(t *testing.T) {
-		acct := &account{ID: testAccountID, Name: "Test Account", Regions: []string{"us-west-2", "eu-west-1"}}
+		acct := &account{ID: testAccountID, Name: "Test Account", Regions: []string{"us-west-2", "eu-west-1"}, scanRegions: []string{"us-west-2", "eu-west-1"}}
 		// min(us-west-2, eu-west-1) == eu-west-1 → home.
 		st := newTestStore(t)
 		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "eu-west-1", st, testScanID, noRateLimit()); err != nil {
@@ -477,6 +477,19 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 		}
 		if rows := listQuotaRows(t, st); len(rows) != 1 {
 			t.Errorf("got %d rows, want 1 (global emitted at elected min home eu-west-1)", len(rows))
+		}
+	})
+
+	// us-east-1 is configured but never scanned (e.g. dropped as not enabled
+	// for the account), so electing it would record the global quota nowhere.
+	t.Run("only dispatched regions are elected", func(t *testing.T) {
+		acct := &account{ID: testAccountID, Name: "Test Account", Regions: []string{"us-east-1", "us-west-2", "eu-west-1"}, scanRegions: []string{"us-west-2", "eu-west-1"}}
+		st := newTestStore(t)
+		if _, _, err := scanServiceQuotasWithClient(context.Background(), mkStub(), acct, "eu-west-1", st, testScanID, noRateLimit()); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		if rows := listQuotaRows(t, st); len(rows) != 1 {
+			t.Errorf("got %d rows, want 1 (global emitted at eu-west-1, the min dispatched region)", len(rows))
 		}
 	})
 }

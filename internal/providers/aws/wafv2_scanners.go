@@ -139,11 +139,12 @@ func scanWAFv2APIKeys(ctx context.Context, client wafv2API, acct *account, regio
 				AttributesJSON: mustJSON(k), DiscoveredBy: scanID,
 			}})
 		}
-		if out.NextMarker == nil {
-			break
-		}
-		if marker != nil && *out.NextMarker == *marker {
-			err = fmt.Errorf("scope=%s: NextMarker %q: %w", scope, *marker, errRepeatedNextToken)
+		// ListAPIKeys has no paginator; a repeated marker would loop forever.
+		done, perr := lastPage(marker, out.NextMarker)
+		if done {
+			if perr != nil {
+				err = fmt.Errorf("scope=%s: %w", scope, perr)
+			}
 			break
 		}
 		marker = out.NextMarker
@@ -154,13 +155,13 @@ func scanWAFv2APIKeys(ctx context.Context, client wafv2API, acct *account, regio
 
 // scanWAFv2WebACLs stores the scope's web ACLs from their GetWebACL bodies and
 // returns the ARNs of the ACLs stored. A failed listing keeps the pages read
-// before it: a denial warns, any other error is returned. A denied or
-// transient GetWebACL keeps the ACL as its ListWebACLs summary, a different
-// shape, with one warning per cause; an ACL GetWebACL no longer finds
-// (WAFNonexistentItemException, in the op's model) was deleted since it was
-// listed and is not stored. Any other GetWebACL error is returned after the
-// other ACLs are stored. An ACL whose stored shape carries no ARN is not
-// stored and warned about under the op that returned it.
+// before it: a denial warns; any other error, and a repeated marker, is
+// returned. A denied or transient GetWebACL keeps the ACL as its ListWebACLs
+// summary, a different shape, with one warning per cause; an ACL GetWebACL no
+// longer finds (WAFNonexistentItemException, in the op's model) was deleted
+// since it was listed and is not stored. Any other GetWebACL error is
+// returned after the other ACLs are stored. An ACL whose stored shape carries
+// no ARN is not stored and warned about under the op that returned it.
 func scanWAFv2WebACLs(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string) ([]string, int, int, error) {
 	var (
 		aclSummaries []types.WebACLSummary
@@ -179,7 +180,11 @@ func scanWAFv2WebACLs(ctx context.Context, client wafv2API, acct *account, regio
 			break
 		}
 		aclSummaries = append(aclSummaries, out.WebACLs...)
-		if out.NextMarker == nil {
+		done, err := lastPage(aclMarker, out.NextMarker)
+		if err != nil {
+			errs.add("wafv2:ListWebACLs", fmt.Errorf("wafv2:ListWebACLs scope=%s: %w", scope, err))
+		}
+		if done {
 			break
 		}
 		aclMarker = out.NextMarker
@@ -279,16 +284,18 @@ func scanWAFv2WebACLs(ctx context.Context, client wafv2API, acct *account, regio
 	return stored, len(aclBatch), n, errs.join(st, acct, region)
 }
 
-// wafv2Listed is a rule group or IP set summary: both carry the same fields.
+// wafv2Listed is one listed WAFv2 item: arn keys its row (nil when it has none),
+// name names it, attrs is the element stored.
 type wafv2Listed struct {
 	arn, name *string
 	attrs     any
 }
 
-// scanWAFv2Summaries stores one scope's rule groups or IP sets, listed by
-// list. A failed listing keeps the pages read before it: a denial warns, any
-// other error is returned with the counts of what was stored. A summary
-// without an ARN is not stored and is warned about once.
+// scanWAFv2Summaries stores one scope's items of kind, listed by list, each
+// keyed by the arn list returns for it. A failed listing keeps the pages read
+// before it: a denial warns; any other error, and a repeated marker, is
+// returned with the counts of what was stored. An item without an arn is not
+// stored and is warned about once.
 func scanWAFv2Summaries(st *store.Store, acct *account, region, scanID string, scope types.Scope, op, kind, rtype string,
 	list func(marker *string) ([]wafv2Listed, *string, error),
 ) (int, int, error) {
@@ -305,7 +312,7 @@ func scanWAFv2Summaries(st *store.Store, acct *account, region, scanID string, s
 				_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf(
 					"scope=%s: listing truncated, %s on this and later pages not stored: %w", scope, kind, err))
 			} else {
-				listErr = fmt.Errorf("%s scope=%s: %w", op, scope, err)
+				listErr = err
 			}
 			break
 		}
@@ -327,17 +334,19 @@ func scanWAFv2Summaries(st *store.Store, acct *account, region, scanID string, s
 				DiscoveredBy:   scanID,
 			})
 		}
-		if next == nil {
+		// The WAFv2 list ops have no paginator; a repeated marker would loop
+		// forever.
+		var done bool
+		if done, listErr = lastPage(marker, next); done {
 			break
 		}
 		marker = next
 	}
 	warnNotStored(st, op, acct, region, &arnless, kind+" have no ARN")
-	total, inserted, err := upsertBatch(st, batch, "wafv2 "+kind)
-	if err != nil {
-		return 0, 0, errors.Join(listErr, err)
+	if listErr != nil {
+		listErr = fmt.Errorf("scope=%s: %w", scope, listErr)
 	}
-	return total, inserted, listErr
+	return upsertListed(st, batch, op, listErr)
 }
 
 // scanWAFv2Scope runs one scope's phases, each whatever the others returned,

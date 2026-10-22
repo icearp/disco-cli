@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -182,60 +183,130 @@ func cloudTrailConfigFanOut(
 
 // scanCloudTrailExtended discovers Lake channels, dashboards, and
 // resource-based policies attached to channels/dashboards/event-data-stores.
-// ResourcePolicy synth ARN: {targetArn}/policy.
-func scanCloudTrailExtended(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	channelArns, t, i, ferr := scanCTChannels(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
+// ResourcePolicy synth ARN: {targetArn}/policy. Every phase runs whatever the
+// others returned, and the policies are read for the targets listed before
+// any listing failed; the counts are every row stored and the errors join
+// through phaseErrs. eventDataStores are the stores
+// scanCloudTrailEventDataStores stored.
+func scanCloudTrailExtended(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string, eventDataStores []childParent) (total, inserted int, err error) {
+	var errs phaseErrs
+	channelArns, t, i, err := scanCTChannels(ctx, client, acct, region, st, scanID)
+	total, inserted = total+t, inserted+i
+	errs.add(ctListChannelsOp, err)
 
-	dashboardArns, t, i, ferr := scanCTDashboards(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
+	dashboardArns, t, i, err := scanCTDashboards(ctx, client, acct, region, st, scanID)
+	total, inserted = total+t, inserted+i
+	errs.add(ctListDashboardsOp, err)
 
-	edsArns, ferr := scanCTEDSARNs(ctx, client, acct, region, st)
-	if ferr != nil {
-		return total, inserted, ferr
+	policyTargets := slices.Concat(channelArns, dashboardArns)
+	for _, eds := range eventDataStores {
+		policyTargets = append(policyTargets, eds.arn)
 	}
-
-	policyTargets := append(append(channelArns, dashboardArns...), edsArns...)
-	t, i, ferr = scanCTResourcePolicies(ctx, client, policyTargets, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	return total, inserted, nil
+	t, i, err = scanCTResourcePolicies(ctx, client, policyTargets, acct, region, st, scanID)
+	total, inserted = total+t, inserted+i
+	errs.add("cloudtrail:GetResourcePolicy", err)
+	return total, inserted, errs.join(st, acct, region)
 }
 
-func scanCTChannels(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	var batch []*store.Resource
-	var arns []string
-	var nextToken *string
+const (
+	ctListChannelsOp   = "cloudtrail:ListChannels"
+	ctListDashboardsOp = "cloudtrail:ListDashboards"
+)
+
+// ctListPages reads a hand-rolled NextToken listing, page by page, until list
+// fails or returns its last page. A denial warns under op and ends the listing
+// without an error; any other error, and a repeated token, ends it with one.
+// ListDashboards has no SDK paginator, and ListChannels' would loop on a
+// repeated token or, told to stop on one, read as a complete listing.
+func ctListPages(st *store.Store, acct *account, region, op string, list func(token *string) (*string, error)) error {
+	var token *string
 	for {
-		out, err := client.ListChannels(ctx, &cloudtrail.ListChannelsInput{NextToken: nextToken})
+		next, err := list(token)
+		if isAccessDenied(err) {
+			return skipIfAccessDenied(st, op, acct.ID, region, err)
+		}
 		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "cloudtrail:ListChannels", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("cloudtrail:ListChannels: %w", err)
+			return err
+		}
+		done, err := lastPage(token, next)
+		if done {
+			return err
+		}
+		token = next
+	}
+}
+
+// ctDetailFailures tallies the Lake items whose detail read (GetChannel,
+// GetDashboard) failed, so that each is stored as its list element.
+type ctDetailFailures struct {
+	denied    skipTally
+	transient transientTally
+	other     skipTally
+}
+
+func (f *ctDetailFailures) add(key string, err error) {
+	switch {
+	case isAccessDenied(err):
+		f.denied.skipped(key, err)
+	case f.transient.drop(key, err):
+	default:
+		f.other.skipped(key, err)
+	}
+}
+
+// settle warns once per cause about the denied and transient reads and
+// returns the other failed reads as one error joined to err, the listing's.
+// The warnings say the items were stored, so they are not given after a
+// failed write.
+func (f *ctDetailFailures) settle(st *store.Store, acct *account, region, listOp, op string, err error) error {
+	kept := "%d item(s) stored as their " + listOp + " element, without the " + op + " body, first %s: %w"
+	if !errors.Is(err, store.ErrStoreWrite) {
+		if f.denied.count > 0 {
+			_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf(kept, f.denied.count, f.denied.first, f.denied.err))
+		}
+		if f.transient.count > 0 {
+			_ = skipIfTransient(st, op, acct.ID, region, fmt.Errorf(kept, f.transient.count, f.transient.first, f.transient.err))
+		}
+	}
+	if f.other.count == 0 {
+		return err
+	}
+	return errors.Join(err, fmt.Errorf("%s: "+kept, op, f.other.count, f.other.first, f.other.err))
+}
+
+// scanCTChannels stores the Lake channels and returns the ARNs of those
+// listed. The pages read before a failed listing are stored. A channel
+// GetChannel no longer finds (ChannelNotFoundException, in the op's model) was
+// deleted since it was listed and is not stored; any other GetChannel failure
+// stores it as its list element, per ctDetailFailures.
+func scanCTChannels(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+	var (
+		batch   []*store.Resource
+		arns    []string
+		arnless skipTally
+		failed  ctDetailFailures
+	)
+	listErr := ctListPages(st, acct, region, ctListChannelsOp, func(token *string) (*string, error) {
+		out, err := client.ListChannels(ctx, &cloudtrail.ListChannelsInput{NextToken: token})
+		if err != nil {
+			return nil, err
 		}
 		for _, c := range out.Channels {
 			arn := sv(c.ChannelArn)
 			if arn == "" {
+				arnless.skipped(fmt.Sprintf("%q", sv(c.Name)), nil)
 				continue
 			}
-			arns = append(arns, arn)
 			detail, dErr := client.GetChannel(ctx, &cloudtrail.GetChannelInput{Channel: &arn})
-			var attrs any = c
-			if dErr == nil {
-				attrs = detail
+			if isAPIErrorCode(dErr, "ChannelNotFoundException") {
+				continue
 			}
+			var attrs any = detail
+			if dErr != nil {
+				failed.add(arn, dErr)
+				attrs = c
+			}
+			arns = append(arns, arn)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCloudTrailChannel, NativeID: arn,
@@ -244,108 +315,105 @@ func scanCTChannels(ctx context.Context, client cloudtrailAPI, acct *account, re
 				AttributesJSON:    mustJSON(attrs), DiscoveredBy: scanID,
 			})
 		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	t, i, err := upsertBatch(st, batch, "cloudtrail channels")
-	return arns, t, i, err
+		return out.NextToken, nil
+	})
+	warnNotStored(st, ctListChannelsOp, acct, region, &arnless, "channels have no ChannelArn")
+	t, i, err := upsertListed(st, batch, ctListChannelsOp, listErr)
+	return arns, t, i, failed.settle(st, acct, region, ctListChannelsOp, "cloudtrail:GetChannel", err)
 }
 
+// scanCTDashboards stores the Lake dashboards and returns the ARNs of those
+// listed. The pages read before a failed listing are stored. A dashboard
+// GetDashboard no longer finds (ResourceNotFoundException, in the op's model)
+// was deleted since it was listed and is not stored; any other GetDashboard
+// failure stores it as its list element, per ctDetailFailures.
 func scanCTDashboards(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	var batch []*store.Resource
-	var arns []string
-	var nextToken *string
-	for {
-		out, err := client.ListDashboards(ctx, &cloudtrail.ListDashboardsInput{NextToken: nextToken})
+	var (
+		batch   []*store.Resource
+		arns    []string
+		arnless skipTally
+		failed  ctDetailFailures
+	)
+	listErr := ctListPages(st, acct, region, ctListDashboardsOp, func(token *string) (*string, error) {
+		out, err := client.ListDashboards(ctx, &cloudtrail.ListDashboardsInput{NextToken: token})
 		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "cloudtrail:ListDashboards", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("cloudtrail:ListDashboards: %w", err)
+			return nil, err
 		}
 		for _, d := range out.Dashboards {
 			arn := sv(d.DashboardArn)
 			if arn == "" {
+				arnless.skipped(fmt.Sprintf("of type %s", d.Type), nil)
 				continue
 			}
-			arns = append(arns, arn)
 			detail, dErr := client.GetDashboard(ctx, &cloudtrail.GetDashboardInput{DashboardId: &arn})
-			var attrs any = d
-			var status string
-			if dErr == nil {
-				attrs = detail
-				status = string(detail.Status)
+			if isAPIErrorCode(dErr, "ResourceNotFoundException") {
+				continue
 			}
 			r := &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCloudTrailDashboard, NativeID: arn,
 				Region:         &region,
-				AttributesJSON: mustJSON(attrs), DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
 			}
-			if status != "" {
-				r.Status = &status
+			if dErr != nil {
+				failed.add(arn, dErr)
+			} else {
+				r.Status, r.AttributesJSON = nonEmptyPtr(string(detail.Status)), mustJSON(detail)
 			}
+			arns = append(arns, arn)
 			batch = append(batch, r)
 		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	t, i, err := upsertBatch(st, batch, "cloudtrail dashboards")
-	return arns, t, i, err
+		return out.NextToken, nil
+	})
+	warnNotStored(st, ctListDashboardsOp, acct, region, &arnless, "dashboards have no DashboardArn")
+	t, i, err := upsertListed(st, batch, ctListDashboardsOp, listErr)
+	return arns, t, i, failed.settle(st, acct, region, ctListDashboardsOp, "cloudtrail:GetDashboard", err)
 }
 
-// scanCTEDSARNs collects scanned event-data-store ARNs (already upserted by
-// the main scanner) for resource-policy fan-out.
-func scanCTEDSARNs(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store) ([]string, error) {
-	var arns []string
-	var nextToken *string
-	for {
-		out, err := client.ListEventDataStores(ctx, &cloudtrail.ListEventDataStoresInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("cloudtrail:ListEventDataStores(policy): %w", err)
-		}
-		for _, e := range out.EventDataStores {
-			if a := sv(e.EventDataStoreArn); a != "" {
-				arns = append(arns, a)
-			}
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return arns, nil
-}
-
+// scanCTResourcePolicies stores the resource-based policy of each target that
+// has one. A target with none, or that is gone or of a type without policies,
+// is skipped silently; denied reads, and reads that still fail transiently
+// after the SDK's retries, are skipped with one warning per cause. Any other
+// error ends the reads and is returned after the policies read before it are
+// stored.
 func scanCTResourcePolicies(ctx context.Context, client cloudtrailAPI, targets []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
+	const op = "cloudtrail:GetResourcePolicy"
+	var (
+		batch     []*store.Resource
+		denied    skipTally
+		transient transientTally
+		getErr    error
+	)
 	for _, target := range targets {
-		t := target
-		out, err := client.GetResourcePolicy(ctx, &cloudtrail.GetResourcePolicyInput{ResourceArn: &t})
+		out, err := client.GetResourcePolicy(ctx, &cloudtrail.GetResourcePolicyInput{ResourceArn: &target})
+		if isAccessDenied(err) {
+			denied.skipped(target, err)
+			continue
+		}
+		if transient.drop(target, err) {
+			continue
+		}
+		if isAPIErrorCode(err, "ResourcePolicyNotFoundException", "ResourceNotFoundException", "ResourceTypeNotSupportedException") {
+			continue
+		}
 		if err != nil {
-			if isAccessDenied(err) || isAPIErrorCode(err, "ResourcePolicyNotFoundException", "ResourceNotFoundException", "ResourceTypeNotSupportedException") {
-				continue
-			}
-			return 0, 0, fmt.Errorf("cloudtrail:GetResourcePolicy %s: %w", t, err)
+			getErr = fmt.Errorf("%s: %w", target, err)
+			break
 		}
 		if sv(out.ResourcePolicy) == "" && sv(out.DelegatedAdminResourcePolicy) == "" {
 			continue
 		}
-		arn := t + "/policy"
-		label := t
+		label := target
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-			Type: TypeCloudTrailResourcePolicy, NativeID: arn,
+			Type: TypeCloudTrailResourcePolicy, NativeID: target + "/policy",
 			Name: &label, Region: &region,
 			AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 		})
 	}
-	return upsertBatch(st, batch, "cloudtrail resource-policies")
+	if denied.count > 0 {
+		_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf("%d resource policy read(s) denied, first for %s: %w", denied.count, denied.first, denied.err))
+	}
+	transient.warnSkipped(st, op, acct, region)
+	return upsertListed(st, batch, op, getErr)
 }

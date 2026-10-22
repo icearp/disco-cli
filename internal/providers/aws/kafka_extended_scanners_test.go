@@ -1,12 +1,15 @@
 package aws
 
 import (
+	"errors"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kafka"
+	"github.com/icearp/disco-cli/store"
 )
 
 const kafkaTestScramSecret = "arn:aws:secretsmanager:us-east-1:123456789012:secret:AmazonMSK_x-AbCdEf"
@@ -92,5 +95,129 @@ func TestScanKafka_PerClusterPhaseErrors(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A ListScramSecrets listing that ends after its first page, with an error or
+// a repeated token, keeps the secrets that page listed and returns the error.
+func TestScanKafka_ScramLaterPageFailureKeepsEarlierPages(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		page2   func() (any, error)
+		wantErr func(*testing.T, error)
+	}{
+		{
+			"error",
+			func() (any, error) { return nil, kafkaUnexpected },
+			func(t *testing.T, err error) { assertAPICode(t, err, "ConflictException") },
+		},
+		{
+			"repeated token",
+			func() (any, error) { return &kafka.ListScramSecretsOutput{NextToken: sdkaws.String("page-2")}, nil },
+			func(t *testing.T, err error) {
+				if !errors.Is(err, errRepeatedNextToken) {
+					t.Errorf("err = %v, want errRepeatedNextToken", err)
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			calls := map[string]*parentCalls{}
+			h := kafkaHandlers(calls)
+			var later atomic.Int32
+			h["ListScramSecrets"] = func(in any) (any, error) {
+				p := in.(*kafka.ListScramSecretsInput)
+				arn := sdkaws.ToString(p.ClusterArn)
+				calls["ListScramSecrets"].add(arn)
+				switch {
+				case arn != kafkaTestClusterA:
+					return &kafka.ListScramSecretsOutput{SecretArnList: []string{kafkaTestScramSecret}}, nil
+				case p.NextToken == nil:
+					return &kafka.ListScramSecretsOutput{SecretArnList: []string{kafkaTestScramSecret}, NextToken: sdkaws.String("page-2")}, nil
+				case later.Add(1) > 2:
+					return nil, kafkaGone // a stop that did not happen
+				default:
+					return tc.page2()
+				}
+			}
+			_, err := scanKafkaTopLevel(t, st, h)
+			tc.wantErr(t, err)
+			if n := later.Load(); n != 1 {
+				t.Errorf("later ListScramSecrets calls for %s = %d, want 1", kafkaTestClusterA, n)
+			}
+			// The siblings are not asserted: the error cancels those not yet run.
+			secrets := rowsByNativeID(t, st, TypeMSKBatchScramSecret)
+			if _, ok := secrets[kafkaTestClusterA+"/batch-scram-secret/"+kafkaTestScramSecret]; !ok {
+				t.Errorf("first-page scram secret of %s not stored; stored %d", kafkaTestClusterA, len(secrets))
+			}
+		})
+	}
+}
+
+// kafkaScramSecondPage serves ListScramSecrets with one secret per cluster;
+// cluster A's listing continues to a second page that fails with err.
+func kafkaScramSecondPage(calls map[string]*parentCalls, err error) func(any) (any, error) {
+	return func(in any) (any, error) {
+		p := in.(*kafka.ListScramSecretsInput)
+		arn := sdkaws.ToString(p.ClusterArn)
+		calls["ListScramSecrets"].add(arn)
+		switch {
+		case arn != kafkaTestClusterA:
+			return &kafka.ListScramSecretsOutput{SecretArnList: []string{kafkaTestScramSecret}}, nil
+		case p.NextToken == nil:
+			return &kafka.ListScramSecretsOutput{SecretArnList: []string{kafkaTestScramSecret}, NextToken: sdkaws.String("page-2")}, nil
+		default:
+			return nil, err
+		}
+	}
+}
+
+// A cluster deleted while its SCRAM secrets were listed (NotFoundException,
+// in the op's model) took its associations with it: the rows of its earlier
+// pages are not stored, and the scan succeeds.
+func TestScanKafka_ScramClusterGoneMidListingDropsItsRows(t *testing.T) {
+	st := newTestStore(t)
+	calls := map[string]*parentCalls{}
+	h := kafkaHandlers(calls)
+	h["ListScramSecrets"] = kafkaScramSecondPage(calls, kafkaGone)
+	if _, err := scanKafkaTopLevel(t, st, h); err != nil {
+		t.Fatalf("scanKafka: %v", err)
+	}
+	secrets := rowsByNativeID(t, st, TypeMSKBatchScramSecret)
+	if _, ok := secrets[kafkaTestClusterA+"/batch-scram-secret/"+kafkaTestScramSecret]; ok {
+		t.Errorf("scram secret of the deleted %s stored", kafkaTestClusterA)
+	}
+	if _, ok := secrets[kafkaTestClusterX+"/batch-scram-secret/"+kafkaTestScramSecret]; !ok {
+		t.Errorf("scram secret of %s not stored", kafkaTestClusterX)
+	}
+}
+
+// A cluster whose SCRAM listing fails transiently after its first page is
+// warned about once, as partially read, and only after its first page is
+// stored.
+func TestScanKafka_ScramPartialReadWarnsAfterStore(t *testing.T) {
+	st := newTestStore(t)
+	calls := map[string]*parentCalls{}
+	h := kafkaHandlers(calls)
+	h["ListScramSecrets"] = kafkaScramSecondPage(calls, kafkaThrottled)
+	var warned []string
+	storedAtWarning := -1
+	st.OnWarn = func(w store.ScanWarning) {
+		if w.Service != "kafka:ListScramSecrets" {
+			return
+		}
+		warned = append(warned, w.Message)
+		storedAtWarning = len(rowsByNativeID(t, st, TypeMSKBatchScramSecret))
+	}
+	if _, err := scanKafkaTopLevel(t, st, h); err != nil {
+		t.Fatalf("scanKafka: %v", err)
+	}
+	// The message is the contract here: "skipped" would deny the stored page.
+	if len(warned) != 1 || !strings.Contains(warned[0], "partially read") {
+		t.Fatalf("ListScramSecrets warnings = %q, want one saying the cluster was partially read", warned)
+	}
+	if want := len(rowsByNativeID(t, st, TypeMSKBatchScramSecret)); storedAtWarning != want || want == 0 {
+		t.Errorf("rows stored when warned = %d, want all %d, stored first", storedAtWarning, want)
 	}
 }

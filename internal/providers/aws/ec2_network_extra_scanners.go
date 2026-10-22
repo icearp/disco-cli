@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -81,15 +82,25 @@ func scanSecurityGroupRules(ctx context.Context, client ec2API, acct *account, r
 // N+1 call per owned subnet is the only way to enumerate them. The subnets are
 // listed here rather than read from the store because the networking scanner
 // that stores them runs concurrently.
+//
+// A subnet whose call still fails transiently after the SDK's retries is
+// skipped with one warning for all such subnets, keeping its siblings' rows,
+// or, when it fails after its first page, kept partially read with one
+// warning for all such subnets. Any other error, and a repeated token, stops
+// the fan-out; the rows read before it are still stored.
 func scanSubnetCidrReservations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	subnetIDs, err := listSubnetIDs(ctx, client, acct)
 	if err != nil || len(subnetIDs) == 0 {
 		return 0, 0, err
 	}
 	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-		gone  skipTally
+		mu        sync.Mutex
+		batch     []*store.Resource
+		gone      skipTally
+		transient transientTally
+		// partial counts the subnets whose listing failed transiently after
+		// earlier pages were read; those pages are kept.
+		partial skipTally
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(fanoutMed)
@@ -98,9 +109,6 @@ func scanSubnetCidrReservations(ctx context.Context, client ec2API, acct *accoun
 			reservations, err := getSubnetCidrReservations(gctx, client, subnetID)
 			if gone.dropCode(ec2SubnetNotFound, subnetID, err) {
 				return nil
-			}
-			if err != nil {
-				return err
 			}
 			rows := make([]*store.Resource, 0, len(reservations))
 			for _, r := range reservations {
@@ -124,28 +132,42 @@ func scanSubnetCidrReservations(ctx context.Context, client ec2API, acct *accoun
 			mu.Lock()
 			batch = append(batch, rows...)
 			mu.Unlock()
-			return nil
+			switch {
+			case err == nil:
+				return nil
+			case len(reservations) > 0 && isTransientNetworkError(err):
+				partial.skipped(subnetID, err)
+				return nil
+			case transient.drop(subnetID, err):
+				return nil
+			}
+			return err
 		})
 	}
 	err = g.Wait()
 	gone.warnCode(st, ec2SubnetCidrReservationsOp, acct, region, ec2SubnetNotFound,
 		"subnet(s)", "a subnet deleted since it was listed, or one not yet visible to this API")
-	if err != nil {
-		// A denial is IAM-wide for the op, not per subnet: warn once instead of
-		// once per subnet.
-		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, ec2SubnetCidrReservationsOp, acct.ID, region, err)
-		}
-		if isEC2RegionFeatureGap(err) {
-			return 0, 0, nil
-		}
-		return 0, 0, err
+	transient.warnSkipped(st, ec2SubnetCidrReservationsOp, acct, region)
+	if partial.count > 0 {
+		_ = skipIfTransient(st, ec2SubnetCidrReservationsOp, acct.ID, region, fmt.Errorf(
+			"%d subnet(s) partially read, only the pages before the failure read, first %s: %w", partial.count, partial.first, partial.err))
 	}
-	return upsertBatch(st, batch, "ec2 subnet-cidr-reservations")
+	switch {
+	// A denial is IAM-wide for the op, not per subnet: warn once instead of
+	// once per subnet.
+	case isAccessDenied(err):
+		err = skipIfAccessDenied(st, ec2SubnetCidrReservationsOp, acct.ID, region, err)
+	case isEC2RegionFeatureGap(err):
+		err = nil
+	}
+	total, inserted, uerr := upsertBatch(st, batch, "ec2 subnet-cidr-reservations")
+	return total, inserted, errors.Join(err, uerr)
 }
 
 // getSubnetCidrReservations returns the IPv4 and IPv6 reservations of one
-// subnet. GetSubnetCidrReservations has no SDK paginator.
+// subnet; on an error, those read before it with the error.
+// GetSubnetCidrReservations has no SDK paginator, so a repeated token is
+// caught here rather than looping.
 func getSubnetCidrReservations(ctx context.Context, client ec2API, subnetID string) ([]ec2types.SubnetCidrReservation, error) {
 	var out []ec2types.SubnetCidrReservation
 	var token *string
@@ -155,12 +177,15 @@ func getSubnetCidrReservations(ctx context.Context, client ec2API, subnetID stri
 			NextToken: token,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("%s %s: %w", ec2SubnetCidrReservationsOp, subnetID, err)
+			return out, fmt.Errorf("%s %s: %w", ec2SubnetCidrReservationsOp, subnetID, err)
 		}
 		out = append(out, page.SubnetIpv4CidrReservations...)
 		out = append(out, page.SubnetIpv6CidrReservations...)
-		if sv(page.NextToken) == "" {
-			return out, nil
+		if done, err := lastPage(token, page.NextToken); done {
+			if err != nil {
+				err = fmt.Errorf("%s %s: %w", ec2SubnetCidrReservationsOp, subnetID, err)
+			}
+			return out, err
 		}
 		token = page.NextToken
 	}

@@ -3,8 +3,13 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net"
+	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -444,5 +449,331 @@ func TestScanCloudTrail_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 	}
 	if *warns != 1 {
 		t.Errorf("warnings = %d, want 1 for the demoted transient", *warns)
+	}
+}
+
+const (
+	ctTestChannelARN   = "arn:aws:cloudtrail:us-east-1:123456789012:channel/ch-1"
+	ctTestDashboardARN = "arn:aws:cloudtrail:us-east-1:123456789012:dashboard/db-1"
+)
+
+// ctWithLakeHandlers answers ListChannels and ListDashboards with one item on
+// a first page whose NextToken is next (nil: the only page), every later page
+// with later, and GetResourcePolicy with a policy for every target.
+func ctWithLakeHandlers(h map[string]func(in any) (any, error), next *string, later func() (any, error)) {
+	h["ListChannels"] = func(in any) (any, error) {
+		if in.(*cloudtrail.ListChannelsInput).NextToken != nil {
+			return later()
+		}
+		return &cloudtrail.ListChannelsOutput{Channels: []cloudtrailtypes.Channel{{ChannelArn: sdkaws.String(ctTestChannelARN), Name: sdkaws.String("ch-1")}}, NextToken: next}, nil
+	}
+	h["ListDashboards"] = func(in any) (any, error) {
+		if in.(*cloudtrail.ListDashboardsInput).NextToken != nil {
+			return later()
+		}
+		return &cloudtrail.ListDashboardsOutput{Dashboards: []cloudtrailtypes.DashboardDetail{{DashboardArn: sdkaws.String(ctTestDashboardARN)}}, NextToken: next}, nil
+	}
+	h["GetResourcePolicy"] = func(in any) (any, error) {
+		arn := in.(*cloudtrail.GetResourcePolicyInput).ResourceArn
+		return &cloudtrail.GetResourcePolicyOutput{ResourceArn: arn, ResourcePolicy: sdkaws.String(`{"Version":"2012-10-17"}`)}, nil
+	}
+}
+
+// A failing Lake listing stops none of the other extended phases: the other
+// listing's rows and every listed target's resource policy are stored, and
+// the error is returned.
+func TestScanCloudTrail_ExtendedPhasesIndependent(t *testing.T) {
+	for _, tc := range []struct {
+		fail, typ, kept string
+	}{
+		{"ListChannels", TypeCloudTrailDashboard, ctTestDashboardARN},
+		{"ListDashboards", TypeCloudTrailChannel, ctTestChannelARN},
+	} {
+		t.Run(tc.fail, func(t *testing.T) {
+			st := newTestStore(t)
+			var insightCalls, evCfgCalls parentCalls
+			h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
+			ctWithLakeHandlers(h, nil, nil)
+			h[tc.fail] = func(any) (any, error) { return nil, ctBadInput }
+			_, err := scanCloudTrailTopLevel(t, st, h)
+			assertAPICode(t, err, "InvalidParameterException")
+			if _, ok := rowsByNativeID(t, st, tc.typ)[tc.kept]; !ok {
+				t.Errorf("%s not stored", tc.kept)
+			}
+			policies := rowsByNativeID(t, st, TypeCloudTrailResourcePolicy)
+			for _, target := range []string{tc.kept, ctTestEDS1ARN} {
+				if _, ok := policies[target+"/policy"]; !ok {
+					t.Errorf("resource policy of %s not stored; got %v", target, nativeIDs(policies))
+				}
+			}
+		})
+	}
+}
+
+// A Lake listing that fails or repeats its token after its first page keeps
+// that page's item and reads its resource policy, and returns the error.
+func TestScanCloudTrail_LakeLaterPageFailureKeepsEarlierPages(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		later   func() (any, error)
+		wantErr func(error) bool
+	}{
+		{"error", func() (any, error) { return nil, ctBadInput }, func(err error) bool { return isAPIErrorCode(err, "InvalidParameterException") }},
+		{"repeated token", func() (any, error) {
+			return &cloudtrail.ListChannelsOutput{NextToken: sdkaws.String("p2")}, nil
+		}, func(err error) bool { return errors.Is(err, errRepeatedNextToken) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			var insightCalls, evCfgCalls parentCalls
+			h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
+			var laterCalls int
+			ctWithLakeHandlers(h, sdkaws.String("p2"), func() (any, error) {
+				if laterCalls++; laterCalls > 2 {
+					return &cloudtrail.ListChannelsOutput{}, nil // a stop that did not happen
+				}
+				return tc.later()
+			})
+			// Dashboards list one page, so only the channel listing fails.
+			h["ListDashboards"] = func(any) (any, error) { return &cloudtrail.ListDashboardsOutput{}, nil }
+			_, err := scanCloudTrailTopLevel(t, st, h)
+			if !tc.wantErr(err) {
+				t.Errorf("err = %v, want the second page's failure", err)
+			}
+			if laterCalls != 1 {
+				t.Errorf("ListChannels calls after the first page = %d, want 1", laterCalls)
+			}
+			if _, ok := rowsByNativeID(t, st, TypeCloudTrailChannel)[ctTestChannelARN]; !ok {
+				t.Error("channel from the first page not stored")
+			}
+			if _, ok := rowsByNativeID(t, st, TypeCloudTrailResourcePolicy)[ctTestChannelARN+"/policy"]; !ok {
+				t.Error("resource policy of the first page's channel not stored")
+			}
+		})
+	}
+}
+
+// A channel or dashboard listed without an ARN is not stored and is warned
+// about once under its list op.
+func TestScanCloudTrail_ARNlessLakeItemsWarn(t *testing.T) {
+	st := newTestStore(t)
+	var mu sync.Mutex
+	warns := map[string]int{}
+	st.OnWarn = func(w store.ScanWarning) {
+		mu.Lock()
+		warns[w.Service]++
+		mu.Unlock()
+	}
+	var insightCalls, evCfgCalls parentCalls
+	h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
+	h["ListChannels"] = func(any) (any, error) {
+		return &cloudtrail.ListChannelsOutput{Channels: []cloudtrailtypes.Channel{{Name: sdkaws.String("no-arn")}}}, nil
+	}
+	h["ListDashboards"] = func(any) (any, error) {
+		return &cloudtrail.ListDashboardsOutput{Dashboards: []cloudtrailtypes.DashboardDetail{{Type: cloudtrailtypes.DashboardTypeCustom}}}, nil
+	}
+	if _, err := scanCloudTrailTopLevel(t, st, h); err != nil {
+		t.Fatalf("scanCloudTrail: %v", err)
+	}
+	if warns["cloudtrail:ListChannels"] != 1 || warns["cloudtrail:ListDashboards"] != 1 {
+		t.Errorf("warnings: ListChannels = %d, ListDashboards = %d; want 1 each", warns["cloudtrail:ListChannels"], warns["cloudtrail:ListDashboards"])
+	}
+}
+
+// The event data stores whose resource policies are read are those the
+// event-data-store phase stored: a store GetEventDataStore no longer finds is
+// neither stored nor read, and the stores are listed once.
+func TestScanCloudTrail_PoliciesReadForStoredEventDataStores(t *testing.T) {
+	st := newTestStore(t)
+	var insightCalls, evCfgCalls parentCalls
+	h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
+	ctWithLakeHandlers(h, nil, nil)
+	listEDS, getEDS := h["ListEventDataStores"], h["GetEventDataStore"]
+	var listed atomic.Int32
+	h["ListEventDataStores"] = func(in any) (any, error) {
+		listed.Add(1)
+		return listEDS(in)
+	}
+	h["GetEventDataStore"] = func(in any) (any, error) {
+		if sv(in.(*cloudtrail.GetEventDataStoreInput).EventDataStore) == ctTestEDS1ARN {
+			return nil, apiErr("EventDataStoreNotFoundException", "gone")
+		}
+		return getEDS(in)
+	}
+	if _, err := scanCloudTrailTopLevel(t, st, h); err != nil {
+		t.Fatalf("scanCloudTrail: %v", err)
+	}
+	policies := rowsByNativeID(t, st, TypeCloudTrailResourcePolicy)
+	if _, ok := policies[ctTestEDS1ARN+"/policy"]; ok {
+		t.Errorf("resource policy of the vanished %s stored", ctTestEDS1ARN)
+	}
+	if _, ok := policies[ctTestEDS2ARN+"/policy"]; !ok {
+		t.Errorf("resource policy of %s not stored; got %v", ctTestEDS2ARN, nativeIDs(policies))
+	}
+	if n := listed.Load(); n != 2 {
+		t.Errorf("ListEventDataStores calls = %d, want 2 (its two pages, once)", n)
+	}
+}
+
+// A denied GetResourcePolicy skips that target with one warning for all such;
+// any other error ends the reads, and the policies read before it are stored.
+func TestScanCloudTrail_ResourcePolicyFailures(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "cloudtrail:GetResourcePolicy")
+	var insightCalls, evCfgCalls parentCalls
+	h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
+	ctWithLakeHandlers(h, nil, nil)
+	get := h["GetResourcePolicy"]
+	// The event data stores' order is not fixed: the first one read succeeds
+	// and the next fails.
+	var readFirst string
+	h["GetResourcePolicy"] = func(in any) (any, error) {
+		switch arn := sv(in.(*cloudtrail.GetResourcePolicyInput).ResourceArn); {
+		case arn == ctTestChannelARN, arn == ctTestDashboardARN:
+			return nil, ctDenied
+		case readFirst != "":
+			return nil, ctBadInput
+		default:
+			readFirst = arn
+		}
+		return get(in)
+	}
+	_, err := scanCloudTrailTopLevel(t, st, h)
+	assertAPICode(t, err, "InvalidParameterException")
+	if _, ok := rowsByNativeID(t, st, TypeCloudTrailResourcePolicy)[readFirst+"/policy"]; !ok {
+		t.Errorf("resource policy of %q, read before the failure, not stored", readFirst)
+	}
+	if *warns != 1 {
+		t.Errorf("GetResourcePolicy warnings = %d, want 1", *warns)
+	}
+}
+
+// A failed GetChannel or GetDashboard keeps the item as its list element:
+// denied and transient reads warn once and the scan succeeds, any other error
+// is returned. An item the read no longer finds was deleted and is not stored.
+func TestScanCloudTrail_LakeDetailFailureKeepsListElement(t *testing.T) {
+	transient := &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset")}
+	for _, op := range []struct {
+		name, label, typ, arn, notFound string
+	}{
+		{"GetChannel", "cloudtrail:GetChannel", TypeCloudTrailChannel, ctTestChannelARN, "ChannelNotFoundException"},
+		{"GetDashboard", "cloudtrail:GetDashboard", TypeCloudTrailDashboard, ctTestDashboardARN, "ResourceNotFoundException"},
+	} {
+		for _, tc := range []struct {
+			name      string
+			err       error
+			wantCode  string // "" means the scan returns nil
+			wantWarns int
+			wantRow   bool
+		}{
+			{"read", nil, "", 0, true},
+			{"denied", ctDenied, "", 1, true},
+			{"transient", transient, "", 1, true},
+			{"other", ctBadInput, "InvalidParameterException", 0, true},
+			{"not found", apiErr(op.notFound, "gone"), "", 0, false},
+		} {
+			t.Run(op.name+"/"+tc.name, func(t *testing.T) {
+				st := newTestStore(t)
+				warns := countOpWarnings(st, op.label)
+				var insightCalls, evCfgCalls parentCalls
+				h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
+				ctWithLakeHandlers(h, nil, nil)
+				h["GetChannel"] = func(any) (any, error) {
+					return &cloudtrail.GetChannelOutput{ChannelArn: sdkaws.String(ctTestChannelARN), Name: sdkaws.String("ch-1"), Source: sdkaws.String("Custom")}, nil
+				}
+				h["GetDashboard"] = func(any) (any, error) {
+					return &cloudtrail.GetDashboardOutput{DashboardArn: sdkaws.String(ctTestDashboardARN), Status: cloudtrailtypes.DashboardStatusCreated}, nil
+				}
+				if tc.err != nil {
+					h[op.name] = func(any) (any, error) { return nil, tc.err }
+				}
+				_, err := scanCloudTrailTopLevel(t, st, h)
+				if tc.wantCode != "" {
+					assertAPICode(t, err, tc.wantCode)
+				} else if err != nil {
+					t.Fatalf("scanCloudTrail: %v", err)
+				}
+				if *warns != tc.wantWarns {
+					t.Errorf("%s warnings = %d, want %d", op.label, *warns, tc.wantWarns)
+				}
+				row, ok := rowsByNativeID(t, st, op.typ)[op.arn]
+				if ok != tc.wantRow {
+					t.Fatalf("%s stored = %v, want %v", op.arn, ok, tc.wantRow)
+				}
+				if !ok {
+					return
+				}
+				var attrs map[string]any
+				if err := json.Unmarshal([]byte(row.AttributesJSON), &attrs); err != nil {
+					t.Fatal(err)
+				}
+				_, hasSource := attrs["Source"]
+				_, hasStatus := attrs["Status"]
+				if detailed := hasSource || hasStatus; detailed != (tc.err == nil) {
+					t.Errorf("%s attrs = %s; want the %s body: %v", op.arn, row.AttributesJSON, op.name, tc.err == nil)
+				}
+			})
+		}
+	}
+}
+
+// A failed write stores no channel, so the warning that a channel was stored
+// as its list element is not given.
+func TestScanCTChannels_NoKeptWarningAfterFailedWrite(t *testing.T) {
+	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
+	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	insertTestScan(t, st, testScanID, "running")
+	warns := countOpWarnings(st, "cloudtrail:GetChannel")
+	client := cloudtrail.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
+		"ListChannels": func(any) (any, error) {
+			return &cloudtrail.ListChannelsOutput{Channels: []cloudtrailtypes.Channel{{ChannelArn: sdkaws.String(ctTestChannelARN), Name: sdkaws.String("ch-1")}}}, nil
+		},
+		"GetChannel": func(any) (any, error) {
+			if err := st.Close(); err != nil {
+				t.Errorf("close: %v", err)
+			}
+			return nil, ctDenied
+		},
+	}, ctDenied))
+	_, _, _, err = scanCTChannels(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v, want store.ErrStoreWrite", err)
+	}
+	if *warns != 0 {
+		t.Errorf("GetChannel warnings = %d, want 0: the channel was not stored", *warns)
+	}
+}
+
+// A GetResourcePolicy that still fails transiently after the SDK's retries
+// skips only that target, with one warning; the other targets' policies are
+// read and stored and the scan succeeds.
+func TestScanCloudTrail_TransientResourcePolicySkipsOnlyItsTarget(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "cloudtrail:GetResourcePolicy")
+	var insightCalls, evCfgCalls parentCalls
+	h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
+	ctWithLakeHandlers(h, nil, nil)
+	get := h["GetResourcePolicy"]
+	h["GetResourcePolicy"] = func(in any) (any, error) {
+		if sv(in.(*cloudtrail.GetResourcePolicyInput).ResourceArn) == ctTestChannelARN {
+			return nil, &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset")}
+		}
+		return get(in)
+	}
+	if _, err := scanCloudTrailTopLevel(t, st, h); err != nil {
+		t.Fatalf("scanCloudTrail: %v", err)
+	}
+	policies := rowsByNativeID(t, st, TypeCloudTrailResourcePolicy)
+	for _, target := range []string{ctTestDashboardARN, ctTestEDS1ARN, ctTestEDS2ARN} {
+		if _, ok := policies[target+"/policy"]; !ok {
+			t.Errorf("resource policy of %s not stored; got %v", target, nativeIDs(policies))
+		}
+	}
+	if *warns != 1 {
+		t.Errorf("GetResourcePolicy warnings = %d, want 1", *warns)
 	}
 }

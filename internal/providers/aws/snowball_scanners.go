@@ -18,6 +18,10 @@ func init() {
 	registerService(serviceEntry{name: "aws:snowball", fn: scanSnowball})
 }
 
+// snowballService is the registered service name. registerService repeats it
+// as a literal because regionsgen reads the name from the literal.
+const snowballService = "aws:snowball"
+
 const (
 	snowballDescribeAddressesOp = "snowball:DescribeAddresses"
 	snowballListClustersOp      = "snowball:ListClusters"
@@ -42,17 +46,17 @@ func scanSnowball(ctx context.Context, acct *account, region string, st *store.S
 // scanSnowballAll runs the cluster phase, then the address phase. Clusters go
 // first because a US region's address phase may wait for another US region's
 // call (scanSnowballAddressesOnce), and that wait must not spend the clusters'
-// time budget. Both errors pass through demoteTransient before they are
-// joined, so a throttle on one phase cannot make the dispatcher classify the
-// whole service transient and report the other phase's hard error as a
-// transient one.
+// time budget. The errors join through phaseErrs: a throttle on one phase is
+// demoted to a warning only beside the other phase's hard error, so the
+// dispatcher neither reports that hard error as transient nor reads a lone
+// throttle as a complete scan.
 func scanSnowballAll(ctx context.Context, client snowballAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, cerr := scanSnowballClusters(ctx, client, acct, region, st, scanID)
-	t, i, aerr := scanSnowballAddressesOnce(ctx, client, acct, region, st, scanID)
-	return total + t, inserted + i, errors.Join(
-		demoteTransient(st, snowballListClustersOp, acct, region, cerr),
-		demoteTransient(st, snowballDescribeAddressesOp, acct, region, aerr),
-	)
+	var errs phaseErrs
+	total, inserted, err := scanSnowballClusters(ctx, client, acct, region, st, scanID)
+	errs.add(snowballListClustersOp, err)
+	t, i, err := scanSnowballAddressesOnce(ctx, client, acct, region, st, scanID)
+	errs.add(snowballDescribeAddressesOp, err)
+	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
 // snowballAddressGate lets one US region at a time list the account's
@@ -106,7 +110,7 @@ func scanSnowballAddressesOnce(ctx context.Context, client snowballAPI, acct *ac
 	if gate.done {
 		return 0, 0, nil
 	}
-	complete, total, inserted, err := scanSnowballAddresses(ctx, client, acct, region, snowballUSAddressRegion(acct.Regions, region), st, scanID)
+	complete, total, inserted, err := scanSnowballAddresses(ctx, client, acct, region, snowballUSAddressRegion(acct.dispatchedRegions(snowballService), region), st, scanID)
 	gate.done = complete
 	return total, inserted, err
 }
@@ -114,8 +118,9 @@ func scanSnowballAddressesOnce(ctx context.Context, client snowballAPI, acct *ac
 // snowballUSAddressRegion is the Region stored on a US address: the first
 // US region in sort order among the scanned regions, whichever US region made
 // the call, so that the address keeps one Region from scan to scan
-// (`disco resources --regions` stays stable). region, the caller, is always a
-// candidate.
+// (`disco resources --regions` stays stable). scanned are the regions the
+// scanner is dispatched to, so the label never names a region it did not
+// scan. region, the caller, is always a candidate.
 func snowballUSAddressRegion(scanned []string, region string) string {
 	label := region
 	for _, r := range scanned {

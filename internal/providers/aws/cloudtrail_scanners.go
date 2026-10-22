@@ -110,7 +110,7 @@ func scanCloudTrailOlderPhases(ctx context.Context, client cloudtrailAPI, acct *
 	t, i, err := scanCloudTrailEventDataStores(ctx, client, acct, region, st, scanID, &parents)
 	total, inserted = total+t, inserted+i
 	errs.add("cloudtrail:ListEventDataStores", err)
-	t, i, err = scanCloudTrailExtended(ctx, client, acct, region, st, scanID)
+	t, i, err = scanCloudTrailExtended(ctx, client, acct, region, st, scanID, parents.eventDataStores)
 	errs.add("cloudtrail", err)
 	return total + t, inserted + i, parents
 }

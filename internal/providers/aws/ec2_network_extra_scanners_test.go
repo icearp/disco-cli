@@ -3,6 +3,8 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"slices"
 	"strings"
 	"sync"
@@ -39,10 +41,15 @@ type netExtraStub struct {
 	// resvPages and resvErr are keyed by subnet id, then (pages) by NextToken.
 	resvPages map[string]map[string]*ec2.GetSubnetCidrReservationsOutput
 	resvErr   map[string]error
+	// resvLaterErr fails a subnet's calls after its first page; from the
+	// third such call on they return an empty last page, so a listing that
+	// does not stop ends fast.
+	resvLaterErr map[string]error
 
-	mu            sync.Mutex
-	resvQueried   []string
-	assocRequests int
+	mu             sync.Mutex
+	resvQueried    []string
+	resvLaterCalls int
+	assocRequests  int
 }
 
 func (s *netExtraStub) DescribeSecurityGroupRules(_ context.Context, in *ec2.DescribeSecurityGroupRulesInput, _ ...func(*ec2.Options)) (*ec2.DescribeSecurityGroupRulesOutput, error) {
@@ -79,9 +86,18 @@ func (s *netExtraStub) GetSubnetCidrReservations(_ context.Context, in *ec2.GetS
 	s.mu.Lock()
 	if in.NextToken == nil {
 		s.resvQueried = append(s.resvQueried, id)
+	} else {
+		s.resvLaterCalls++
 	}
+	later := s.resvLaterCalls
 	s.mu.Unlock()
 	if err := s.resvErr[id]; err != nil {
+		return nil, err
+	}
+	if in.NextToken != nil && later > 2 {
+		return &ec2.GetSubnetCidrReservationsOutput{}, nil
+	}
+	if err := s.resvLaterErr[id]; err != nil && in.NextToken != nil {
 		return nil, err
 	}
 	if page := s.resvPages[id][sdkaws.ToString(in.NextToken)]; page != nil {
@@ -363,6 +379,39 @@ func TestScanSubnetCidrReservations(t *testing.T) {
 			t.Errorf("err = %v; want the InvalidParameterValue API error", err)
 		}
 	})
+	// The stub ignores cancellation, so every sibling's call completes.
+	t.Run("OtherErrorKeepsRowsReadBeforeIt", func(t *testing.T) {
+		stub := &netExtraStub{
+			subnetPages: subnets,
+			resvPages:   map[string]map[string]*ec2.GetSubnetCidrReservationsOutput{"subnet-a": {"": {SubnetIpv4CidrReservations: []ec2types.SubnetCidrReservation{resv("scr-v4")}}}},
+			resvErr:     map[string]error{"subnet-b": apiErr("InvalidParameterValue", "bad")},
+		}
+		st := newTestStore(t)
+		total, _, err := scanSubnetCidrReservations(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
+		if !isAPIErrorCode(err, "InvalidParameterValue") {
+			t.Errorf("err = %v; want the InvalidParameterValue API error", err)
+		}
+		if rows := listNetExtraRows(t, st, TypeEC2SubnetCidrReservation); total != 1 || len(rows) != 1 {
+			t.Errorf("total = %d, rows = %d; want 1, 1: subnet-a's reservation", total, len(rows))
+		}
+	})
+	t.Run("TransientSubnetSkippedKeepsSiblings", func(t *testing.T) {
+		stub := &netExtraStub{
+			subnetPages: subnets,
+			resvPages: map[string]map[string]*ec2.GetSubnetCidrReservationsOutput{
+				"subnet-a": {"": {SubnetIpv4CidrReservations: []ec2types.SubnetCidrReservation{resv("scr-v4")}}},
+				"subnet-b": {"": {SubnetIpv4CidrReservations: []ec2types.SubnetCidrReservation{resv("scr-b")}}},
+			},
+			resvErr: map[string]error{"subnet-gone": &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset by peer")}},
+		}
+		total, rows, warns := runNetExtra(t, scanSubnetCidrReservations, stub, TypeEC2SubnetCidrReservation)
+		if total != 2 || len(rows) != 2 {
+			t.Errorf("total = %d, rows = %d; want 2, 2: the siblings' reservations", total, len(rows))
+		}
+		if len(warns) != 1 || warns[0].Service != ec2SubnetCidrReservationsOp {
+			t.Errorf("warns = %+v; want one %s warning for the failed subnet", warns, ec2SubnetCidrReservationsOp)
+		}
+	})
 }
 
 // isSubnetGoneWarning reports whether w is the GetSubnetCidrReservations skip
@@ -513,5 +562,56 @@ func TestScanEC2NetworkExtra_AllPhasesStore(t *testing.T) {
 		if n := len(listNetExtraRows(t, st, typ)); n != 1 {
 			t.Errorf("%s: %d rows; want 1", typ, n)
 		}
+	}
+}
+
+// A subnet whose reservation listing fails or repeats its token after its
+// first page keeps that page's reservation. A hard error and a repeated token
+// are returned; a transient failure is warned about once as a partial read.
+func TestScanSubnetCidrReservations_LaterPageFailureKeepsEarlierPages(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		laterErr  error
+		wantErr   func(error) bool
+		wantWarns int
+	}{
+		{"error", apiErr("InvalidParameterValue", "bad"), func(err error) bool { return isAPIErrorCode(err, "InvalidParameterValue") }, 0},
+		{"repeated token", nil, func(err error) bool { return errors.Is(err, errRepeatedNextToken) }, 0},
+		{"transient", &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset")}, func(err error) bool { return err == nil }, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			stub := &netExtraStub{
+				subnetPages: map[string]*ec2.DescribeSubnetsOutput{"": {Subnets: []ec2types.Subnet{ownedSubnet("subnet-a", testAccountID)}}},
+				resvPages: map[string]map[string]*ec2.GetSubnetCidrReservationsOutput{"subnet-a": {
+					"":   {SubnetIpv4CidrReservations: []ec2types.SubnetCidrReservation{{SubnetCidrReservationId: sdkaws.String("scr-1")}}, NextToken: sdkaws.String("p2")},
+					"p2": {NextToken: sdkaws.String("p2")},
+				}},
+			}
+			if tc.laterErr != nil {
+				stub.resvLaterErr = map[string]error{"subnet-a": tc.laterErr}
+			}
+			st := newTestStore(t)
+			var warned []string
+			st.OnWarn = func(w store.ScanWarning) {
+				if w.Service == ec2SubnetCidrReservationsOp {
+					warned = append(warned, w.Message)
+				}
+			}
+			_, _, err := scanSubnetCidrReservations(context.Background(), stub, newTestAccount(testAccountID), netExtraRegion, st, testScanID)
+			if !tc.wantErr(err) {
+				t.Errorf("err = %v, want the second page's failure", err)
+			}
+			if stub.resvLaterCalls != 1 {
+				t.Errorf("calls after the first page = %d, want 1", stub.resvLaterCalls)
+			}
+			// The message is the contract here: "skipped" would deny the stored page.
+			if len(warned) != tc.wantWarns || (tc.wantWarns > 0 && !strings.Contains(warned[0], "partially read")) {
+				t.Errorf("warnings = %q, want %d saying the subnet was partially read", warned, tc.wantWarns)
+			}
+			id := ec2ARN(netExtraRegion, testAccountID, "subnet-cidr-reservation", "scr-1")
+			if _, ok := listNetExtraRows(t, st, TypeEC2SubnetCidrReservation)[id]; !ok {
+				t.Errorf("first-page reservation %s not stored", id)
+			}
+		})
 	}
 }
