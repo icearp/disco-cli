@@ -283,20 +283,42 @@ func assertContainsNative(t *testing.T, st *store.Store, parentNativeID, childNa
 	assertRelationship(t, rels, parentID, store.ResourceID("aws", testAccountID, childNativeID), store.RelContains)
 }
 
-// countOpWarnings counts the scan warnings recorded for op.
+// countOpWarnings counts the scan warnings recorded for op. Every warning is
+// still passed on to the OnWarn st had before, so counters for several ops
+// can watch one store.
 func countOpWarnings(st *store.Store, op string) *int {
 	var (
 		mu sync.Mutex
 		n  int
 	)
+	prev := st.OnWarn
 	st.OnWarn = func(w store.ScanWarning) {
 		if w.Service == op {
 			mu.Lock()
 			n++
 			mu.Unlock()
 		}
+		if prev != nil {
+			prev(w)
+		}
 	}
 	return &n
+}
+
+// Two counters on one store each count their own op's warnings, and an OnWarn
+// set before them still sees every warning.
+func TestCountOpWarnings_CountersChain(t *testing.T) {
+	st := newTestStore(t)
+	var earlier int
+	st.OnWarn = func(store.ScanWarning) { earlier++ }
+	a := countOpWarnings(st, "svc:OpA")
+	b := countOpWarnings(st, "svc:OpB")
+	for _, op := range []string{"svc:OpA", "svc:OpB", "svc:OpB", "svc:OpC"} {
+		st.ReportWarning(store.ScanWarning{Provider: "aws", Service: op, Message: "m"})
+	}
+	if *a != 1 || *b != 2 || earlier != 4 {
+		t.Errorf("counts OpA=%d OpB=%d earlier OnWarn=%d; want 1, 2, 4", *a, *b, earlier)
+	}
 }
 
 // recordCallRegions makes cfg record the region of every call it answers. The

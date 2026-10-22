@@ -612,6 +612,7 @@ func TestTransientDemotersAreKnown(t *testing.T) {
 			"organizations_scanners.go:scanOrgAccounts":                 true,
 			"securityhub_scanners.go:warn":                              true,
 			"wafv2_scanners.go:scanWAFv2WebACLs":                        true,
+			"wafv2_extended_scanners.go:scanWAFv2WebACLAssociations":    true,
 		},
 	}
 	names, err := filepath.Glob("*.go")

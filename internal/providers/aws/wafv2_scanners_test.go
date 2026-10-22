@@ -710,7 +710,7 @@ func TestScanWAFv2_AssociationsOnlyForStoredACLs(t *testing.T) {
 						return nil, err
 					}
 				}
-				return &wafv2.ListResourcesForWebACLOutput{ResourceArns: []string{acl + "-alb"}}, nil
+				return wafALBAssociation(in)
 			}
 			st := newTestStore(t)
 			acct := newTestAccount(testAccountID)
@@ -731,6 +731,187 @@ func TestScanWAFv2_AssociationsOnlyForStoredACLs(t *testing.T) {
 			}
 			if got := nativeIDs(rowsByNativeID(t, st, TypeWAFv2WebACLAssociation)); !slices.Equal(got, wantAssoc) {
 				t.Errorf("associations = %v, want %v", got, wantAssoc)
+			}
+			// A gone ACL is not asked again for its other resource types.
+			for name := range tc.assocFail {
+				acl := wafACLARN(name)
+				if n := len(slices.DeleteFunc(slices.Clone(listed.ids), func(id string) bool { return id != acl })); n != 1 {
+					t.Errorf("ListResourcesForWebACL calls for gone ACL %s = %d, want 1", name, n)
+				}
+			}
+		})
+	}
+}
+
+// Each web ACL's associations are listed once for every resource type the op
+// lists for a regional ACL, never with the type left empty (the op then lists
+// ALBs only), and an association of a non-ALB type is stored.
+func TestScanWAFv2_AssociationsListedPerResourceType(t *testing.T) {
+	var calls wafAPIKeyCalls
+	h := wafv2Handlers(&calls)
+	wafWithACLs(h, nil)
+	var (
+		mu        sync.Mutex
+		requested = map[string][]string{} // web ACL -> resource types requested
+	)
+	h["ListResourcesForWebACL"] = func(in any) (any, error) {
+		i := in.(*wafv2.ListResourcesForWebACLInput)
+		mu.Lock()
+		requested[sv(i.WebACLArn)] = append(requested[sv(i.WebACLArn)], string(i.ResourceType))
+		mu.Unlock()
+		return &wafv2.ListResourcesForWebACLOutput{ResourceArns: []string{sv(i.WebACLArn) + "-" + string(i.ResourceType)}}, nil
+	}
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
+	if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
+		t.Fatalf("scanWAFv2: %v", err)
+	}
+	want := []string{
+		"AGENTCORE_GATEWAY", "API_GATEWAY", "APPLICATION_LOAD_BALANCER", "APPSYNC",
+		"APP_RUNNER_SERVICE", "COGNITO_USER_POOL", "VERIFIED_ACCESS_INSTANCE",
+	}
+	for _, name := range []string{"a", "b"} {
+		got := slices.Sorted(slices.Values(requested[wafACLARN(name)]))
+		if !slices.Equal(got, want) {
+			t.Errorf("resource types requested for ACL %s = %v, want %v", name, got, want)
+		}
+	}
+	rows := rowsByNativeID(t, st, TypeWAFv2WebACLAssociation)
+	if len(rows) != 14 {
+		t.Errorf("associations stored = %d, want 14 (2 ACLs x 7 resource types)", len(rows))
+	}
+	acl := wafACLARN("a")
+	apigw, ok := rows[acl+"/association/"+acl+"-API_GATEWAY"]
+	if !ok {
+		t.Fatalf("API_GATEWAY association of ACL a not stored; got %v", nativeIDs(rows))
+	}
+	var attrs map[string]string
+	if err := json.Unmarshal([]byte(apigw.AttributesJSON), &attrs); err != nil {
+		t.Fatal(err)
+	}
+	if attrs["WebACLArn"] != acl || attrs["ResourceArn"] != acl+"-API_GATEWAY" {
+		t.Errorf("API_GATEWAY association attrs = %v", attrs)
+	}
+}
+
+// Every ResourceType value of the pinned SDK is either listed for regional web
+// ACLs or is AMPLIFY, which only a CLOUDFRONT-scope ACL protects. disco does
+// not list CLOUDFRONT-scope associations, so AMPLIFY associations are an open
+// gap, not handled. A value a later SDK adds fails here until someone reads
+// its doc and places it.
+func TestWAFv2RegionalResourceTypesCoverEnum(t *testing.T) {
+	got := []string{"AMPLIFY"}
+	for _, e := range wafv2RegionalResourceTypes {
+		got = append(got, string(e.rt))
+	}
+	slices.Sort(got)
+	var want []string
+	for _, rt := range types.ResourceType("").Values() {
+		want = append(want, string(rt))
+	}
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Errorf("regional resource types + AMPLIFY = %v; the SDK enum = %v", got, want)
+	}
+}
+
+// A resource type whose owning service AWS does not offer in the region is
+// not requested there; the other types still are.
+func TestScanWAFv2_AssociationTypesOnlyWhereOwnerOffered(t *testing.T) {
+	const region = "xx-nowhere-1" // in no SDK endpoint table, so only the catalog below offers services there
+	var calls wafAPIKeyCalls
+	h := wafv2Handlers(&calls)
+	wafWithACLs(h, nil)
+	var (
+		mu        sync.Mutex
+		requested = map[string]bool{}
+	)
+	h["ListResourcesForWebACL"] = func(in any) (any, error) {
+		mu.Lock()
+		requested[string(in.(*wafv2.ListResourcesForWebACLInput).ResourceType)] = true
+		mu.Unlock()
+		return &wafv2.ListResourcesForWebACLOutput{}, nil
+	}
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
+	acct.availByCode = map[string]map[string]bool{}
+	for _, code := range []string{"elasticloadbalancingv2", "apigateway", "appsync", "cognito", "ec2", "bedrock-agentcore"} {
+		acct.availByCode[code] = map[string]bool{region: true}
+	}
+	if _, _, err := scanWAFv2(context.Background(), acct, region, st, testScanID); err != nil {
+		t.Fatalf("scanWAFv2: %v", err)
+	}
+	got := slices.Sorted(maps.Keys(requested))
+	want := []string{
+		"AGENTCORE_GATEWAY", "API_GATEWAY", "APPLICATION_LOAD_BALANCER", "APPSYNC",
+		"COGNITO_USER_POOL", "VERIFIED_ACCESS_INSTANCE",
+	}
+	if !slices.Equal(got, want) {
+		t.Errorf("resource types requested = %v, want %v (no APP_RUNNER_SERVICE: aws:apprunner not offered)", got, want)
+	}
+}
+
+// One or two resource types' listings failing for every ACL cost only those
+// types' associations: a denial, a transient failure or WAF rejecting the
+// resource type warns once per cause (a rejection once per type) and the scan
+// succeeds; any other error, including WAF rejecting another field, is returned.
+func TestScanWAFv2_AssociationTypeFailureKeepsOtherTypes(t *testing.T) {
+	typeRejected := &types.WAFInvalidParameterException{
+		Message: sdkaws.String("bad type"), Field: types.ParameterExceptionFieldResourceType,
+	}
+	apigw := []types.ResourceType{types.ResourceTypeApiGateway}
+	cases := []struct {
+		name      string
+		err       error
+		failTypes []types.ResourceType
+		wantCode  string // the API error returned, or "" for none
+		wantWarns int
+	}{
+		{"denied", apiErr("AccessDeniedException", "not authorized to perform: apigateway:GET"), apigw, "", 1},
+		{"transient", &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset")}, apigw, "", 1},
+		{"other error", apiErr("WAFInvalidParameterException", "bad"), apigw, "WAFInvalidParameterException", 0},
+		{"resource type rejected", typeRejected, apigw, "", 1},
+		{"two resource types rejected", typeRejected, []types.ResourceType{types.ResourceTypeApiGateway, types.ResourceTypeAppsync}, "", 2},
+		{"other field rejected", &types.WAFInvalidParameterException{
+			Message: sdkaws.String("bad arn"), Field: types.ParameterExceptionFieldResourceArn,
+		}, apigw, "WAFInvalidParameterException", 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls wafAPIKeyCalls
+			h := wafv2Handlers(&calls)
+			wafWithACLs(h, nil)
+			h["ListResourcesForWebACL"] = func(in any) (any, error) {
+				i := in.(*wafv2.ListResourcesForWebACLInput)
+				if slices.Contains(tc.failTypes, i.ResourceType) {
+					return nil, tc.err
+				}
+				return &wafv2.ListResourcesForWebACLOutput{ResourceArns: []string{sv(i.WebACLArn) + "-" + string(i.ResourceType)}}, nil
+			}
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "wafv2:ListResourcesForWebACL")
+			acct := newTestAccount(testAccountID)
+			acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
+			_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+			if tc.wantCode == "" {
+				if err != nil {
+					t.Fatalf("scanWAFv2: %v", err)
+				}
+			} else {
+				assertAPICode(t, err, tc.wantCode)
+			}
+			if *warns != tc.wantWarns {
+				t.Errorf("ListResourcesForWebACL warnings = %d, want %d", *warns, tc.wantWarns)
+			}
+			rows := rowsByNativeID(t, st, TypeWAFv2WebACLAssociation)
+			if want := 2 * (7 - len(tc.failTypes)); len(rows) != want {
+				t.Errorf("associations stored = %d, want %d (2 ACLs x the types that did not fail)", len(rows), want)
+			}
+			acl := wafACLARN("a")
+			if _, ok := rows[acl+"/association/"+acl+"-COGNITO_USER_POOL"]; !ok {
+				t.Errorf("COGNITO_USER_POOL association of ACL a not stored; got %v", nativeIDs(rows))
 			}
 		})
 	}
@@ -943,10 +1124,18 @@ func wafExtendedLists(h map[string]func(in any) (any, error)) {
 		}
 		return &wafv2.ListManagedRuleSetsOutput{ManagedRuleSets: []types.ManagedRuleSetSummary{{ARN: sdkaws.String(wafv2RegionalTestARN("managedruleset", "m")), Name: sdkaws.String("m")}}}, nil
 	}
-	h["ListResourcesForWebACL"] = func(in any) (any, error) {
-		acl := sv(in.(*wafv2.ListResourcesForWebACLInput).WebACLArn)
-		return &wafv2.ListResourcesForWebACLOutput{ResourceArns: []string{acl + "-alb"}}, nil
+	h["ListResourcesForWebACL"] = wafALBAssociation
+}
+
+// wafALBAssociation answers ListResourcesForWebACL with one load balancer,
+// named after the ACL, for the APPLICATION_LOAD_BALANCER listing and nothing
+// for every other resource type.
+func wafALBAssociation(in any) (any, error) {
+	i := in.(*wafv2.ListResourcesForWebACLInput)
+	if i.ResourceType != types.ResourceTypeApplicationLoadBalancer {
+		return &wafv2.ListResourcesForWebACLOutput{}, nil
 	}
+	return &wafv2.ListResourcesForWebACLOutput{ResourceArns: []string{sv(i.WebACLArn) + "-alb"}}, nil
 }
 
 // wafExtendedRows is the number of rows stored per extended type.
@@ -1161,8 +1350,11 @@ func TestScanWAFv2_AssociationSkipsWarnOncePerCause(t *testing.T) {
 		{"denied", failing(apiErr("AccessDeniedException", "not authorized to perform: wafv2:ListResourcesForWebACL")), 0},
 		{"transient", failing(&net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset")}), 0},
 		{"empty resource ARN", func(in any) (any, error) {
-			acl := sv(in.(*wafv2.ListResourcesForWebACLInput).WebACLArn)
-			return &wafv2.ListResourcesForWebACLOutput{ResourceArns: []string{"", acl + "-alb"}}, nil
+			out, err := wafALBAssociation(in)
+			if alb := out.(*wafv2.ListResourcesForWebACLOutput).ResourceArns; len(alb) > 0 {
+				out = &wafv2.ListResourcesForWebACLOutput{ResourceArns: []string{"", alb[0]}}
+			}
+			return out, err
 		}, 2},
 	}
 	for _, tc := range cases {

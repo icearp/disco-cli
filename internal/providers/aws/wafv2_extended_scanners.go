@@ -82,13 +82,53 @@ func scanWAFv2ScopeExtended(ctx context.Context, client wafv2API, acct *account,
 	return total, inserted, errs.join(st, acct, region)
 }
 
+// wafv2RegionalResourceTypes are the ResourceType values ListResourcesForWebACL
+// is called with for a regional web ACL, each with the disco scanner service
+// that owns the protected resource. The op lists one resource type per call
+// (ALB when none is given). A type is requested only in regions its owner is
+// dispatched to (account.dispatchesTo), because WAF's answer for a type whose
+// service AWS does not offer in the region is unverified. Verified Access has
+// no service of its own and goes with aws:ec2.
+//
+// Every value of the pinned SDK's enum is here except AMPLIFY. An Amplify
+// application takes a CLOUDFRONT-scope web ACL (the SDK's Scope doc), and disco
+// does not list associations of CLOUDFRONT-scope ACLs: Amplify associations
+// are an open gap, not handled.
+var wafv2RegionalResourceTypes = []struct {
+	rt    types.ResourceType
+	owner string
+}{
+	{types.ResourceTypeApplicationLoadBalancer, "aws:elasticloadbalancingv2"},
+	{types.ResourceTypeApiGateway, "aws:apigateway"},
+	{types.ResourceTypeAppsync, "aws:appsync"},
+	{types.ResourceTypeCognitioUserPool, "aws:cognito"},
+	{types.ResourceTypeAppRunnerService, "aws:apprunner"},
+	{types.ResourceTypeVerifiedAccessInstance, "aws:ec2"},
+	{types.ResourceTypeAgentcoreGateway, "aws:bedrockagentcore"},
+}
+
+// wafv2ResourceTypesIn returns the wafv2RegionalResourceTypes whose owning
+// service is dispatched to region.
+func wafv2ResourceTypesIn(acct *account, region string) []types.ResourceType {
+	var rts []types.ResourceType
+	for _, t := range wafv2RegionalResourceTypes {
+		if acct.dispatchesTo(t.owner, region) {
+			rts = append(rts, t.rt)
+		}
+	}
+	return rts
+}
+
 // scanWAFv2WebACLAssociations stores the resources associated with each
-// regional WebACL. Synth ARN: webACLArn + /association/{resourceArn}. An ACL
-// deleted since it was stored (WAFNonexistentItemException, in the op's model)
-// has no associations left to list. An ACL whose call is denied, or still
-// fails transiently after the SDK's retries, is skipped with one warning per
-// cause for all such ACLs. Any other error is returned, naming its ACL, after
-// the other ACLs' associations are stored.
+// regional WebACL, listed once per wafv2ResourceTypesIn value. Synth
+// ARN: webACLArn + /association/{resourceArn}. An ACL deleted since it was
+// stored (WAFNonexistentItemException, in the op's model) has no associations
+// left to list. A (ACL, resource type) listing that is denied (the op needs
+// permissions specific to the resource type), or still fails transiently after
+// the SDK's retries, is skipped with one warning per cause for all such
+// listings. A resource type WAF rejects (isWAFv2ResourceTypeRejected) warns
+// once per type. Any other error is returned, naming its ACL and resource type,
+// after every other listing's associations are stored.
 func scanWAFv2WebACLAssociations(ctx context.Context, client wafv2API, acct *account, region string, st *store.Store, scanID string, webACLArns []string) (int, int, error) {
 	const op = "wafv2:ListResourcesForWebACL"
 	var (
@@ -96,40 +136,80 @@ func scanWAFv2WebACLAssociations(ctx context.Context, client wafv2API, acct *acc
 		denied, unkeyed skipTally
 		transient       transientTally
 		failed          []error
+		rejected        = map[types.ResourceType]*skipTally{}
+		rts             = wafv2ResourceTypesIn(acct, region)
 	)
+acls:
 	for _, wa := range webACLArns {
-		out, err := client.ListResourcesForWebACL(ctx, &wafv2.ListResourcesForWebACLInput{WebACLArn: &wa})
-		switch {
-		case err == nil:
-		case isAPIErrorCode(err, "WAFNonexistentItemException"):
-			continue
-		case transient.drop(wa, err):
-			continue
-		case isAccessDenied(err):
-			denied.skipped(wa, err)
-			continue
-		default:
-			failed = append(failed, fmt.Errorf("%s: %w", wa, err))
-			continue
-		}
-		for _, rArn := range out.ResourceArns {
-			if rArn == "" {
-				unkeyed.skipped("of web ACL "+wa, nil)
+		for _, rt := range rts {
+			out, err := client.ListResourcesForWebACL(ctx, &wafv2.ListResourcesForWebACLInput{WebACLArn: &wa, ResourceType: rt})
+			key := wa + " " + string(rt)
+			switch {
+			case err == nil:
+			case isAPIErrorCode(err, "WAFNonexistentItemException"):
+				continue acls
+			case transient.drop(key, err):
+				continue
+			case isAccessDenied(err):
+				denied.skipped(key, err)
+				continue
+			case isWAFv2ResourceTypeRejected(err):
+				if rejected[rt] == nil {
+					rejected[rt] = &skipTally{}
+				}
+				rejected[rt].skipped(wa, err)
+				continue
+			default:
+				failed = append(failed, fmt.Errorf("%s: %w", key, err))
 				continue
 			}
-			label := rArn
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWAFv2WebACLAssociation, NativeID: wa + "/association/" + rArn,
-				Name: &label, Region: &region,
-				AttributesJSON: mustJSON(map[string]string{"WebACLArn": wa, "ResourceArn": rArn}), DiscoveredBy: scanID,
-			})
+			batch = append(batch, wafv2AssociationRows(acct, region, scanID, wa, out.ResourceArns, &unkeyed)...)
 		}
 	}
 	if denied.count > 0 {
-		_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf("%d web ACL(s) skipped, first %s: %w", denied.count, denied.first, denied.err))
+		_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf("%d (web ACL, resource type) listing(s) skipped, first %s: %w", denied.count, denied.first, denied.err))
 	}
-	transient.warnSkipped(st, op, acct, region)
+	for _, rt := range rts {
+		if t := rejected[rt]; t != nil {
+			t.warnCode(st, op, acct, region, "WAFInvalidParameterException", "web ACL(s) listed for resource type "+string(rt),
+				"WAF may not support this resource type in the region")
+		}
+	}
+	if transient.count > 0 {
+		_ = skipIfTransient(st, op, acct.ID, region, fmt.Errorf("%d (web ACL, resource type) listing(s) skipped, first %s: %w", transient.count, transient.first, transient.err))
+	}
 	warnNotStored(st, op, acct, region, &unkeyed, "associated resources have an empty ARN")
 	return upsertListed(st, batch, op, errors.Join(failed...))
+}
+
+// isWAFv2ResourceTypeRejected reports whether WAF refused the ResourceType of a
+// ListResourcesForWebACL call (WAFInvalidParameterException with Field
+// RESOURCE_TYPE). disco passes only values of the SDK enum, so the likely cause
+// is a resource type WAF does not support in the region, a per-region feature
+// gap rather than a bad input; it is warned about, never skipped silently,
+// because the rejection has not been observed live. A rejection of any other
+// field stays an error.
+func isWAFv2ResourceTypeRejected(err error) bool {
+	var pe *types.WAFInvalidParameterException
+	return errors.As(err, &pe) && pe.Field == types.ParameterExceptionFieldResourceType
+}
+
+// wafv2AssociationRows builds one association row per resource ARN listed for
+// web ACL wa; an empty ARN is tallied in unkeyed instead of stored.
+func wafv2AssociationRows(acct *account, region, scanID, wa string, resourceArns []string, unkeyed *skipTally) []*store.Resource {
+	var rows []*store.Resource
+	for _, rArn := range resourceArns {
+		if rArn == "" {
+			unkeyed.skipped("of web ACL "+wa, nil)
+			continue
+		}
+		label := rArn
+		rows = append(rows, &store.Resource{
+			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+			Type: TypeWAFv2WebACLAssociation, NativeID: wa + "/association/" + rArn,
+			Name: &label, Region: &region,
+			AttributesJSON: mustJSON(map[string]string{"WebACLArn": wa, "ResourceArn": rArn}), DiscoveredBy: scanID,
+		})
+	}
+	return rows
 }

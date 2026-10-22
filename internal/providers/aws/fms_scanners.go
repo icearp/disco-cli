@@ -56,7 +56,7 @@ func fmsNotificationChannelNativeID(region, accountID string) string {
 }
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeFMSNotificationChannel, Service: "fms"})
+	registerType(restype.Descriptor{Type: TypeFMSNotificationChannel, Service: "fms", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeFMSPolicy, Service: "fms"})
 	registerType(restype.Descriptor{Type: TypeFMSResourceSet, Service: "fms"})
 	registerType(restype.Descriptor{Type: TypeFMSAppsList, Service: "fms"})

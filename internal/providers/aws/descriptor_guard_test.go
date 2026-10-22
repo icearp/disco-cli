@@ -139,7 +139,7 @@ func TestUntaggableTypesDeclared(t *testing.T) {
 		TypeACMAccount, TypeAPIGatewayAccount, TypeARCZonalShiftObserverStatus,
 		TypeCloudWatchOTelEnrichment, TypeConnectAttachedFilesConfiguration,
 		TypeEC2AllowedImagesSetting, TypeEC2SnapshotBlockPublicAccess,
-		TypeEC2VerifiedAccessInstanceLoggingConfiguration, TypeEC2VPCBlockPublicAccessOptions,
+		TypeEC2VerifiedAccessInstanceLoggingConfiguration, TypeEC2VPCBlockPublicAccessOptions, TypeFMSNotificationChannel,
 		TypeECRPublicRegistry, TypeECRRegistryScanningConfig, TypeECRReplicationConfiguration, TypeECRRepositoryScanningConfig,
 		TypeECSAccountSetting, TypeIoTAccountAuditConfiguration, TypeIoTEncryptionConfiguration,
 		TypeLakeFormationDataLakeSettings, TypeNotificationsManagedNotificationAdditionalChannelAssoc,
