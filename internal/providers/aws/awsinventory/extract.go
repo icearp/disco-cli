@@ -102,6 +102,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 	}
 	x := &universe{entries: map[string]*entry{}, catalogued: map[string]map[string]bool{}}
 	aliases := map[string]map[string]bool{}
+	retired := map[string]bool{} // modules whose service shape is deprecated
 	for _, f := range files {
 		raw, rerr := os.ReadFile(f)
 		if rerr != nil {
@@ -116,6 +117,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 		sm := newServiceModel(&m)
 		module := modelModule(base)
 		svc, _ := serviceKey(&m)
+		retired[module] = sm.deprecated
 		reached := map[string]bool{}
 		for id := range sm.ops {
 			reached[shapeName(id)] = true
@@ -139,7 +141,7 @@ func (extractor) Extract(_ context.Context, dir string) (*sdkinv.Universe, error
 	u.Diagnostics = append(u.Diagnostics, absentModels(files, sdkinv.LinkedModules())...)
 	mergeDetailReads(x.entries)
 	resolveTree(x.entries, x.catalogued)
-	u.Candidates = assemble(x.entries)
+	u.Candidates = assemble(x.entries, retired)
 	u.ServiceAliases = serviceAliases(aliases, u.Candidates)
 	sdkinv.SortCandidates(u.Candidates)
 	sdkinv.SortOps(u.Other)

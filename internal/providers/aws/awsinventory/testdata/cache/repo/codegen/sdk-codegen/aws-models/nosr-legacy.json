@@ -1,0 +1,100 @@
+{
+ "smithy": "2.0",
+ "shapes": {
+  "legacy#NoSRLegacy": {
+   "type": "service",
+   "version": "2015-01-01",
+   "operations": [
+    {
+     "target": "legacy#ListRelics"
+    },
+    {
+     "target": "legacy#DescribeThings"
+    }
+   ],
+   "traits": {
+    "aws.auth#sigv4": {
+     "name": "nosr"
+    },
+    "smithy.api#deprecated": {
+     "message": "This namespace has been deprecated"
+    }
+   }
+  },
+  "legacy#Relic": {
+   "type": "structure",
+   "members": {
+    "RelicId": {
+     "target": "smithy.api#String"
+    },
+    "RelicArn": {
+     "target": "smithy.api#String"
+    }
+   }
+  },
+  "legacy#RelicList": {
+   "type": "list",
+   "member": {
+    "target": "legacy#Relic"
+   }
+  },
+  "legacy#ListRelics": {
+   "type": "operation",
+   "input": {
+    "target": "legacy#ListRelicsRequest"
+   },
+   "output": {
+    "target": "legacy#ListRelicsResponse"
+   },
+   "traits": {}
+  },
+  "legacy#ListRelicsRequest": {
+   "type": "structure",
+   "members": {}
+  },
+  "legacy#ListRelicsResponse": {
+   "type": "structure",
+   "members": {
+    "Relics": {
+     "target": "legacy#RelicList"
+    }
+   }
+  },
+  "legacy#Thing": {
+   "type": "structure",
+   "members": {
+    "ThingId": {
+     "target": "smithy.api#String"
+    }
+   }
+  },
+  "legacy#ThingList": {
+   "type": "list",
+   "member": {
+    "target": "legacy#Thing"
+   }
+  },
+  "legacy#DescribeThings": {
+   "type": "operation",
+   "input": {
+    "target": "legacy#DescribeThingsRequest"
+   },
+   "output": {
+    "target": "legacy#DescribeThingsResponse"
+   },
+   "traits": {}
+  },
+  "legacy#DescribeThingsRequest": {
+   "type": "structure",
+   "members": {}
+  },
+  "legacy#DescribeThingsResponse": {
+   "type": "structure",
+   "members": {
+    "Things": {
+     "target": "legacy#ThingList"
+    }
+   }
+  }
+ }
+}

@@ -92,6 +92,51 @@ func TestCompareBaseline(t *testing.T) {
 			t.Errorf("new pins: drifts = %+v", ds)
 		}
 	})
+	t.Run("covered key still a candidate carries its current bucket and reason", func(t *testing.T) {
+		newPins := map[string]string{"sdk": "v2"}
+		// Retired is fatal under any pins: a listing outranks the retired
+		// exclusion, so only a lost listing moves a covered key there.
+		// Attribute and preview-only moves can come from the SDK alone.
+		for _, tc := range []struct {
+			name string
+			pins map[string]string
+			row  Row
+			kind string
+		}{
+			{"retired, same pins", pins, Row{Bucket: BucketExcluded, Reason: ReasonRetired}, DriftRegressed},
+			{"retired, new pins", newPins, Row{Bucket: BucketExcluded, Reason: ReasonRetired}, DriftRegressed},
+			{"attribute, same pins", pins, Row{Bucket: BucketAttribute}, DriftRegressed},
+			{"attribute, new pins", newPins, Row{Bucket: BucketAttribute}, DriftGoneSince},
+			{"preview-only, new pins", newPins, Row{Bucket: BucketExcluded, Reason: "preview-only"}, DriftGoneSince},
+		} {
+			m := baselineMatrix(tc.pins, []string{"ec2/instance"}, []string{"ec2/fleet"}, []string{"aws:x:y"})
+			tc.row.Key = "s3/bucket"
+			m.Rows = append(m.Rows, tc.row)
+			var got []Drift
+			for _, d := range CompareBaseline(base, []Matrix{m}) {
+				if d.Key == "s3/bucket" {
+					got = append(got, d)
+				}
+			}
+			if len(got) != 1 || got[0].Kind != tc.kind || got[0].Fatal() != (tc.kind == DriftRegressed) ||
+				got[0].Bucket != tc.row.Bucket || got[0].Reason != tc.row.Reason || got[0].Detail != "" {
+				t.Errorf("%s: s3/bucket drifts = %+v, want kind %s bucket %q reason %q, no detail", tc.name, got, tc.kind, tc.row.Bucket, tc.row.Reason)
+			}
+		}
+		// An uncovered key that moved to excluded/retired says so too.
+		m := baselineMatrix(pins, []string{"ec2/instance", "s3/bucket"}, nil, []string{"aws:x:y"})
+		m.Rows = append(m.Rows, Row{Key: "ec2/fleet", Bucket: BucketExcluded, Reason: ReasonRetired})
+		ds := CompareBaseline(base, []Matrix{m})
+		if len(ds) != 1 || ds[0].Kind != DriftDenominatorCut || ds[0].Bucket != BucketExcluded || ds[0].Reason != ReasonRetired {
+			t.Errorf("uncovered key moved: drifts = %+v", ds)
+		}
+		// A key no row carries names no bucket.
+		for _, d := range CompareBaseline(base, []Matrix{baselineMatrix(pins, []string{"ec2/instance"}, []string{"ec2/fleet"}, []string{"aws:x:y"})}) {
+			if d.Key == "s3/bucket" && (d.Bucket != "" || d.Reason != "" || d.Kind != DriftRegressed || d.Detail != "no longer a candidate") {
+				t.Errorf("gone key drift = %+v, want regressed, no bucket or reason", d)
+			}
+		}
+	})
 	t.Run("provider without baseline reports", func(t *testing.T) {
 		m := baselineMatrix(pins, nil, nil, nil)
 		m.Provider = "gcp"

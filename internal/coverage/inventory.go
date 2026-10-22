@@ -18,7 +18,7 @@ const (
 	BucketCovered       Bucket = "covered"        // resource candidate paired with a scanner
 	BucketUncovered     Bucket = "uncovered"      // resource candidate no scanner lists
 	BucketAttribute     Bucket = "attribute"      // detail read of a parent (Get + id, no collection)
-	BucketExcluded      Bucket = "excluded"       // catalog / non-resource / preview-only candidate
+	BucketExcluded      Bucket = "excluded"       // catalog / non-resource / preview-only / unlisted retired candidate
 	BucketDiscoOnly     Bucket = "disco-only"     // emitted type with no candidate
 	BucketRegistryDrift Bucket = "registry-drift" // --cross-check: registry ↔ universe mismatch
 )
@@ -58,6 +58,11 @@ const (
 	// listing's scanner stores are the parent's, not the candidate's, so the
 	// row names none.
 	ReasonMembership = "membership-edge"
+	// ReasonRetired: an unlisted resource candidate carrying
+	// sdkinv.SignalRetired. The SDK still ships the listing but marks its
+	// service deprecated, so the row is kept out of the gap list; the API may
+	// still answer.
+	ReasonRetired = "retired"
 )
 
 // signalEdge prefixes the "<kind>-><target>" of each edge that models a
@@ -224,6 +229,8 @@ func BuildInventory(in Inputs) Matrix {
 			}
 		case len(paired) > 0 || listed || row.DiscoType != "":
 			row.Bucket = BucketCovered
+		case hasSignal(c, sdkinv.SignalRetired):
+			row.Bucket, row.Reason = BucketExcluded, ReasonRetired
 		default:
 			row.Bucket = BucketUncovered
 		}

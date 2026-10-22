@@ -204,9 +204,14 @@ SDK call in its file can produce. `--check-strict` and CI exit 1 on it.
 |---|---|---|
 | `covered` | Resource candidate with an `emits`/`sidecar`/`derived` pairing to one of its ops, or an emitted type whose `Ident` equals the candidate's (`matched-by-name`) | yes |
 | `uncovered` | Resource candidate no scanner lists — **the only actionable gap** | yes |
-| `attribute` / `excluded` | Attribute, catalog, non-resource, preview-only candidates | no |
+| `attribute` / `excluded` | Attribute, catalog, non-resource, preview-only candidates; and `excluded` reason `retired`: a resource candidate carrying `SignalRetired` (every op's SDK source is marked deprecated) that no scanner lists | no |
 | `disco-only` | Emitted type no candidate accounts for, with its unpaired reason | no |
 | `registry-drift` | `--cross-check` only: the live registry and the SDK disagree | no |
+
+Candidate bucket order, first match wins: `preview-only` signal → `excluded`; attribute class →
+`attribute`; catalog / non-resource class → `excluded`; any scanner listing (pairing or name
+match) → `covered`; `SignalRetired` → `excluded` (`retired`); else `uncovered`. A retired
+candidate a scanner lists therefore stays `covered`.
 
 `Percent = covered / (covered + uncovered)` per provider, per service and per depth, computed
 before any `--filter`.

@@ -70,7 +70,10 @@ func TestExtract_Fixture(t *testing.T) {
 		"widgets/widget/tag": {sdkinv.ClassAttribute, 1, "widgets/widget", []string{"ListTagsForResource"}},
 		// No catalog and no traits: the collection shape alone makes the
 		// listing, and nothing says GetThing reads, so it is not folded in.
-		"nosr/thing": {sdkinv.ClassCatalog, 0, "", []string{"ListThings"}},
+		// nosr-legacy.json signs as nosr too, behind a deprecated service
+		// shape: its DescribeThings folds into the live thing.
+		"nosr/thing": {sdkinv.ClassCatalog, 0, "", []string{"DescribeThings", "ListThings"}},
+		"nosr/relic": {sdkinv.ClassResource, 0, "", []string{"ListRelics"}},
 		// gears declares Smithy resource shapes: the model's nesting places
 		// Worker under Fleet although SearchWorkers hangs off Farm; Alias,
 		// declared at the service, nests under Farm by its identifiers.
@@ -136,6 +139,13 @@ func TestExtract_Fixture(t *testing.T) {
 	if th := got["nosr/thing"]; !slices.Contains(th.Signals, "list:untraited") || !hasOther(u, "nosr:GetThing") {
 		t.Errorf("nosr signals = %v, other = %v", th.Signals, otherLabels(u))
 	}
+	// Retired only when every op comes from a deprecated service shape: relic
+	// is listed by the deprecated model alone, thing by a live one as well.
+	for key, c := range got {
+		if want := key == "nosr/relic"; slices.Contains(c.Signals, sdkinv.SignalRetired) != want {
+			t.Errorf("%s signals = %v, want retired = %v", key, c.Signals, want)
+		}
+	}
 	for key, want := range map[string]string{"gears/farm": "smithy-resource", "gears/worker": "smithy-resource", "gears/tag": "tagging"} {
 		if got[key].Rule != want {
 			t.Errorf("%s rule = %q, want %q (signals %v)", key, got[key].Rule, want, got[key].Signals)
@@ -182,7 +192,7 @@ func TestExtract_Fixture(t *testing.T) {
 	for _, d := range u.Diagnostics {
 		kinds[d.Source] = true
 	}
-	if len(u.Diagnostics) != 2 || !kinds["nosr.json"] || !kinds["service-reference/index.json"] {
+	if len(u.Diagnostics) != 3 || !kinds["nosr.json"] || !kinds["nosr-legacy.json"] || !kinds["service-reference/index.json"] {
 		t.Errorf("diagnostics = %+v", u.Diagnostics)
 	}
 	if u.Pins["aws-sdk-go-v2"] != SDKRef || u.Pins["service-reference"] == "" {
@@ -286,6 +296,26 @@ func TestBindAction(t *testing.T) {
 	}
 	if _, ok, sig := s.bindAction("DeleteBucket", ""); ok || sig != "sr:unbound" {
 		t.Errorf("unknown operation bound: %v %q", ok, sig)
+	}
+}
+
+// TestAssemble_RetiredNeedsAnOp: "every op is deprecated" holds vacuously
+// for an entry with no ops; that must not read as retired.
+func TestAssemble_RetiredNeedsAnOp(t *testing.T) {
+	mod := modelModule("old.json")
+	for _, tc := range []struct {
+		name string
+		ops  []sdkinv.Operation
+		want bool
+	}{
+		{"no ops", nil, false},
+		{"deprecated op", []sdkinv.Operation{{Name: "ListRelics", Module: mod}}, true},
+	} {
+		en := &entry{service: "old", nouns: []string{"Relic"}, signals: map[string]bool{}, refs: map[string]bool{}, ops: tc.ops}
+		cands := assemble(map[string]*entry{"old/relic": en}, map[string]bool{mod: true})
+		if len(cands) != 1 || slices.Contains(cands[0].Signals, sdkinv.SignalRetired) != tc.want {
+			t.Errorf("%s: candidates = %+v, want retired = %v", tc.name, cands, tc.want)
+		}
 	}
 }
 

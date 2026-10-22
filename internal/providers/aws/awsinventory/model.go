@@ -82,6 +82,9 @@ type serviceModel struct {
 	m          *smithyModel
 	service    *shape
 	pagDefault paginated
+	// deprecated is the service shape's smithy.api#deprecated trait: the SDK
+	// marks the whole namespace deprecated (the API may still answer).
+	deprecated bool
 	ops        map[string]binding  // reachable operation shape id -> how it is bound
 	res        map[string]*resNode // reachable resource shape id -> node
 	creates    map[string][]string // Ident(X) -> ids of reachable operations named exactly "Create"+X
@@ -102,6 +105,7 @@ func newServiceModel(m *smithyModel) *serviceModel {
 		return sm
 	}
 	decodeTrait(sm.service.Traits, "smithy.api#paginated", &sm.pagDefault)
+	_, sm.deprecated = sm.service.Traits["smithy.api#deprecated"]
 	for _, o := range sm.service.Operations {
 		sm.bind(o.Target, binding{})
 	}

@@ -95,14 +95,14 @@ func WriteBaseline(path string, b Baseline) error {
 // Drift kinds. Fatal kinds fail `--baseline`; the rest are reported so a
 // reviewer sees the denominator move.
 const (
-	DriftRegressed      = "regressed"           // fatal: a covered key is now uncovered
+	DriftRegressed      = "regressed"           // fatal: a covered key is no longer covered
 	DriftPercentDrop    = "percent-drop"        // fatal: same pins, lower percent
 	DriftNewUnexplained = "new-unexplained"     // fatal: an emitted type lost its SDK pairing
 	DriftPairingMode    = "pairing-mode"        // fatal: baseline and run disagree on whether pairing ran
 	DriftNoBaseline     = "no-baseline"         // fatal: provider absent from the file, so nothing guards it
 	DriftNewSince       = "new-since-baseline"  // a key the baseline never saw (pin bump or new scanner)
-	DriftGoneSince      = "gone-since-baseline" // a baseline key the SDK no longer lists (pin bump)
-	DriftDenominatorCut = "denominator-shrunk"  // an uncovered key left the universe (rule change)
+	DriftGoneSince      = "gone-since-baseline" // a covered key no longer covered or uncovered (pin bump)
+	DriftDenominatorCut = "denominator-shrunk"  // an uncovered key left the denominator (rule change)
 	DriftPinsChanged    = "pins-changed"        // the denominator moved; percent is not comparable
 )
 
@@ -112,6 +112,11 @@ type Drift struct {
 	Kind     string `json:"kind"`
 	Key      string `json:"key,omitempty"`
 	Detail   string `json:"detail,omitempty"`
+	// Bucket and Reason are the key's row in the fresh matrix when a baseline
+	// covered key left covered/uncovered but is still a candidate (now an
+	// attribute, or excluded); empty when no row carries the key.
+	Bucket Bucket `json:"bucket,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // Fatal reports whether the drift is a regression rather than movement.
@@ -121,6 +126,35 @@ func (d Drift) Fatal() bool {
 		return true
 	}
 	return false
+}
+
+// movedIndex holds the candidate rows outside covered/uncovered by key.
+type movedIndex map[string]Row
+
+// annotate records the key's current bucket and reason on d when the key is
+// still a candidate in another bucket.
+func (mv movedIndex) annotate(d Drift) Drift {
+	r, ok := mv[d.Key]
+	if !ok {
+		return d
+	}
+	d.Bucket, d.Reason = r.Bucket, r.Reason
+	return d
+}
+
+// movedRows indexes the candidate rows outside covered/uncovered by key.
+// Rows arrive sorted, so the first row of a key siblings share is stable.
+func movedRows(rows []Row) movedIndex {
+	out := movedIndex{}
+	for _, r := range rows {
+		if r.Bucket != BucketAttribute && r.Bucket != BucketExcluded {
+			continue
+		}
+		if _, dup := out[r.Key]; !dup {
+			out[r.Key] = r
+		}
+	}
+	return out
 }
 
 // CompareBaseline diffs fresh unfiltered matrices against the baseline.
@@ -165,29 +199,40 @@ func CompareBaseline(b Baseline, ms []Matrix) []Drift {
 				out = append(out, Drift{Provider: m.Provider, Kind: DriftNewSince, Key: k, Detail: "covered"})
 			}
 		}
-		// A covered key that is no longer a candidate at all: under the same
-		// pins the universe cannot have shrunk, so the extractor or scanner
-		// lost it; under new pins the SDK retired it.
+		// A covered key that left covered/uncovered: either no longer a
+		// candidate at all, or still one in another bucket (attribute, or
+		// excluded by class or as retired). Under the same pins the extractor
+		// or scanner lost it; under new pins the SDK may have moved it.
 		current := map[string]bool{}
 		for _, k := range append(cur.CoveredKeys, cur.UncoveredKeys...) {
 			current[k] = true
 		}
+		moved := movedRows(m.Rows)
 		for _, k := range pb.CoveredKeys {
 			if current[k] {
 				continue
 			}
-			if samePins {
-				out = append(out, Drift{Provider: m.Provider, Kind: DriftRegressed, Key: k, Detail: "no longer a candidate"})
-			} else {
-				out = append(out, Drift{Provider: m.Provider, Kind: DriftGoneSince, Key: k})
+			d := moved.annotate(Drift{Provider: m.Provider, Kind: DriftGoneSince, Key: k})
+			// BuildInventory puts any scanner listing ahead of the retired
+			// exclusion, so a covered key now excluded as retired lost its
+			// listing whatever the SDK did: fatal under any pins, like covered
+			// to uncovered. Other moves (a class change, preview-only, which
+			// outranks a listing) can come from the SDK alone.
+			if samePins || d.Reason == ReasonRetired {
+				d.Kind = DriftRegressed
 			}
+			if d.Kind == DriftRegressed && d.Bucket == "" {
+				d.Detail = "no longer a candidate"
+			}
+			out = append(out, d)
 		}
-		// An uncovered key leaving the universe shrinks the denominator and
-		// raises the percent, so no other check here fires. That is what a
-		// classifier rule change looks like, and it must still be reviewed.
+		// An uncovered key leaving the denominator (the universe, or for
+		// attribute/excluded) raises the percent, so no other check here
+		// fires. That is what a classifier rule change looks like, and it
+		// must still be reviewed.
 		for _, k := range pb.UncoveredKeys {
 			if !current[k] {
-				out = append(out, Drift{Provider: m.Provider, Kind: DriftDenominatorCut, Key: k})
+				out = append(out, moved.annotate(Drift{Provider: m.Provider, Kind: DriftDenominatorCut, Key: k}))
 			}
 		}
 		for _, t := range cur.Unexplained {

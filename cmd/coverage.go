@@ -59,7 +59,9 @@ Bucket model:
   - covered      a resource candidate some scanner lists.
   - uncovered    a resource candidate no scanner lists — the gap list.
   - attribute    a detail read; listed, not counted.
-  - excluded     catalog / non-resource / preview-only; listed, not counted.
+  - excluded     catalog / non-resource / preview-only, or retired (the SDK
+                 marks the service deprecated and no scanner lists it);
+                 listed, not counted.
   - disco-only   an emitted type with no candidate; the reason says whether
                  it is explained (no SDK, built from a non-list op, SDK skew).
   - registry-drift  only with --cross-check: the live registry (CloudFormation
@@ -383,6 +385,24 @@ func baselineStep(o servicesOptions, matrices []coverage.Matrix) ([]coverage.Dri
 	return coverage.CompareBaseline(b, matrices), nil
 }
 
+// driftLine renders one drift; bucket= and reason= name where a key that left
+// covered/uncovered landed, when it is still a candidate.
+func driftLine(mark string, d coverage.Drift) string {
+	parts := []string{d.Kind}
+	for _, s := range []string{d.Key, d.Detail} {
+		if s != "" {
+			parts = append(parts, s)
+		}
+	}
+	if d.Bucket != "" {
+		parts = append(parts, "bucket="+string(d.Bucket))
+	}
+	if d.Reason != "" {
+		parts = append(parts, "reason="+d.Reason)
+	}
+	return mark + d.Provider + ": " + strings.Join(parts, " ")
+}
+
 // reportDrifts prints every drift on stderr after the report and fails on
 // the fatal ones, so the rendered matrix is still there to read.
 func reportDrifts(drifts []coverage.Drift) error {
@@ -393,7 +413,7 @@ func reportDrifts(drifts []coverage.Drift) error {
 			mark = "! "
 			fatal++
 		}
-		fmt.Fprintf(os.Stderr, "%s%s: %s %s %s\n", mark, d.Provider, d.Kind, d.Key, d.Detail)
+		fmt.Fprintln(os.Stderr, driftLine(mark, d))
 	}
 	if fatal > 0 {
 		return fmt.Errorf("%w: %d regression(s) against the baseline; accept with `make gen-coverage` only if intended", errCoverageBaseline, fatal)

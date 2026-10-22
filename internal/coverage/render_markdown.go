@@ -76,7 +76,7 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 		// The disco type column is what makes a wrong class rule visible: an
 		// excluded row a scanner provably lists and stores is a classifier
 		// bug, and printing only service/key/reason hid 93 of them.
-		{BucketExcluded, "Excluded (catalog, non-resource, preview-only)", []string{"Service", "Key", "Reason", "Disco type"}, func(r Row) []string {
+		{BucketExcluded, "Excluded (catalog, non-resource, preview-only, retired)", []string{"Service", "Key", "Reason", "Disco type"}, func(r Row) []string {
 			return []string{r.Service, r.Key, r.Reason, discoTypeCell(r)}
 		}},
 	}
@@ -103,9 +103,10 @@ func renderMatrixMarkdown(w io.Writer, m Matrix) error {
 // the JSON signals only.
 const denominatorNote = "The denominator is every candidate the provider's own SDK can list that the " +
 	"extractor classified `resource` — not every API operation, and not a curated list. " +
-	"Attributes (detail reads), catalogs (provider-published, read-only) and non-resources are " +
-	"outside it and are listed below. Each row names the rule that classified it; the table " +
-	"below gives the coverage of each rule, so a rule that admits rows no scanner can close is " +
+	"Attributes (detail reads), catalogs (provider-published, read-only), non-resources, " +
+	"preview-only candidates and retired ones no scanner lists (the SDK marks their service " +
+	"deprecated) are outside it; `--filter attribute` and `--filter excluded` list them. Each " +
+	"uncovered row names the rule that admitted it; the table below gives the coverage of each rule, so a rule that admits rows no scanner can close is " +
 	"visible as a low percentage rather than as a smaller number.\n\n"
 
 // renderRuleTable splits the headline by admitting rule.

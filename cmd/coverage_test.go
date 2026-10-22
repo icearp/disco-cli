@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -439,5 +440,31 @@ func TestCoverageResolversMissing_WithRefsKeepsReflessTypes(t *testing.T) {
 	plain, withRefs := rows(), rows("--with-refs")
 	if len(plain) == 0 || len(withRefs) != len(plain) {
 		t.Fatalf("--with-refs returned %d rows, plain returned %d", len(withRefs), len(plain))
+	}
+}
+
+// TestReportDrifts_PrintsMovedBucketAndReason: a key still a candidate in
+// another bucket names where it landed, and a regressed drift fails the run.
+func TestReportDrifts_PrintsMovedBucketAndReason(t *testing.T) {
+	drifts := []coverage.Drift{
+		{Provider: "aws", Kind: coverage.DriftRegressed, Key: "chime/user", Bucket: coverage.BucketExcluded, Reason: coverage.ReasonRetired},
+		{Provider: "aws", Kind: coverage.DriftDenominatorCut, Key: "chime/bot"},
+	}
+	out, err := captureStderr(t, func() error { return reportDrifts(drifts) })
+	if !errors.Is(err, errCoverageBaseline) {
+		t.Errorf("err = %v, want errCoverageBaseline", err)
+	}
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("stderr = %q, want 2 lines", out)
+	}
+	fields := strings.Fields(lines[0])
+	for _, tok := range []string{"bucket=excluded", "reason=retired", "chime/user", coverage.DriftRegressed} {
+		if !slices.Contains(fields, tok) {
+			t.Errorf("line %q lacks %q", lines[0], tok)
+		}
+	}
+	if strings.Contains(lines[1], "bucket=") || strings.Contains(lines[1], "reason=") {
+		t.Errorf("unmoved drift line %q names a bucket or reason", lines[1])
 	}
 }

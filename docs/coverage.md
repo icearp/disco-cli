@@ -1,17 +1,17 @@
 ## AWS
 
-**Coverage:** 60.9% (2031/3336 listable) · depth0 72.7% · depth1 43.8% · depth2 35.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 439 · disco-only 0 (0 unexplained)
+**Coverage:** 61.0% (2031/3331 listable) · depth0 72.9% · depth1 43.8% · depth2 35.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 444 · disco-only 0 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
-The denominator is every candidate the provider's own SDK can list that the extractor classified `resource` — not every API operation, and not a curated list. Attributes (detail reads), catalogs (provider-published, read-only) and non-resources are outside it and are listed below. Each row names the rule that classified it; the table below gives the coverage of each rule, so a rule that admits rows no scanner can close is visible as a low percentage rather than as a smaller number.
+The denominator is every candidate the provider's own SDK can list that the extractor classified `resource` — not every API operation, and not a curated list. Attributes (detail reads), catalogs (provider-published, read-only), non-resources, preview-only candidates and retired ones no scanner lists (the SDK marks their service deprecated) are outside it; `--filter attribute` and `--filter excluded` list them. Each uncovered row names the rule that admitted it; the table below gives the coverage of each rule, so a rule that admits rows no scanner can close is visible as a low percentage rather than as a smaller number.
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
 | sr-resource | 1045 | 176 | 85.6 |
-| child-uncatalogued | 308 | 709 | 30.3 |
+| child-uncatalogued | 308 | 708 | 30.3 |
 | smithy-resource | 432 | 130 | 76.9 |
-| element-written | 203 | 213 | 48.8 |
+| element-written | 203 | 209 | 49.3 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 7 | 7 | 50.0 |
 
@@ -28,7 +28,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | datazone | 19 | 17 | 52.8 |
 | glue | 25 | 17 | 59.5 |
 | bedrock-agentcore | 30 | 16 | 65.2 |
-| chime | 13 | 16 | 44.8 |
 | iot | 33 | 16 | 67.3 |
 | lex | 8 | 16 | 33.3 |
 | mgn | 10 | 15 | 40.0 |
@@ -46,6 +45,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | quicksight | 32 | 12 | 72.7 |
 | wellarchitected | 12 | 12 | 50.0 |
 | aws-marketplace | 0 | 11 | 0.0 |
+| chime | 13 | 11 | 54.2 |
 | deadline | 16 | 11 | 59.3 |
 | devicefarm | 8 | 11 | 42.1 |
 | clouddirectory | 2 | 10 | 16.7 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1305)
+### Uncovered (listable, no scanner) (1300)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -507,10 +507,8 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | ce | ce/costallocationtagbackfillhistory | 0 |  | element-written | ce:ListCostAllocationTagBackfillHistory |
 | ce | ce/costcategoryresourceassociation | 0 |  | element-arn | ce:ListCostCategoryResourceAssociations |
 | ce | ce/savingsplansutilizationdetail | 0 |  | element-arn | ce:GetSavingsPlansUtilizationDetails |
-| chime | chime/account | 0 |  | element-written | chime:GetAccount, chime:ListAccounts |
 | chime | chime/appinstanceuserendpoint | 1 |  | child-uncatalogued | chime:DescribeAppInstanceUserEndpoint, chime:ListAppInstanceUserEndpoints |
 | chime | chime/attendee | 1 |  | child-uncatalogued | chime:GetAttendee, chime:ListAttendees |
-| chime | chime/bot | 0 |  | element-written | chime:GetBot, chime:ListBots |
 | chime | chime/channel | 0 |  | sr-resource | chime:DescribeChannel, chime:ListChannels, chime:SearchChannels |
 | chime | chime/channelmessage | 1 |  | child-uncatalogued | chime:GetChannelMessage, chime:ListChannelMessages |
 | chime | chime/channelsassociatedwithchannelflow | 1 |  | child-uncatalogued | chime:ListChannelsAssociatedWithChannelFlow |
@@ -519,10 +517,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | chime | chime/phonenumber | 0 |  | element-written | chime:GetPhoneNumber, chime:ListPhoneNumbers |
 | chime | chime/phonenumberorder | 0 |  | element-written | chime:GetPhoneNumberOrder, chime:ListPhoneNumberOrders |
 | chime | chime/proxysession | 1 |  | child-uncatalogued | chime:GetProxySession, chime:ListProxySessions |
-| chime | chime/room | 0 |  | element-written | chime:GetRoom, chime:ListRooms |
-| chime | chime/roommembership | 1 |  | child-uncatalogued | chime:ListRoomMemberships |
 | chime | chime/subchannel | 1 |  | child-uncatalogued | chime:ListSubChannels |
-| chime | chime/user | 0 |  | element-written | chime:GetUser, chime:ListUsers |
 | cleanrooms | cleanrooms/analysislogexport | 1 |  | child-uncatalogued | cleanrooms:GetAnalysisLogExport, cleanrooms:ListAnalysisLogExports |
 | cleanrooms | cleanrooms/collaborationanalysistemplate | 1 |  | child-uncatalogued | cleanrooms:BatchGetCollaborationAnalysisTemplate, cleanrooms:GetCollaborationAnalysisTemplate, cleanrooms:ListCollaborationAnalysisTemplates |
 | cleanrooms | cleanrooms/collaborationchangerequest | 1 |  | child-uncatalogued | cleanrooms:GetCollaborationChangeRequest, cleanrooms:ListCollaborationChangeRequests |
@@ -1673,7 +1668,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 Pins: azure-sdk-for-go@f3847e8925003b3ae044a0ce2eaebd0e9983ed90
 
-The denominator is every candidate the provider's own SDK can list that the extractor classified `resource` — not every API operation, and not a curated list. Attributes (detail reads), catalogs (provider-published, read-only) and non-resources are outside it and are listed below. Each row names the rule that classified it; the table below gives the coverage of each rule, so a rule that admits rows no scanner can close is visible as a low percentage rather than as a smaller number.
+The denominator is every candidate the provider's own SDK can list that the extractor classified `resource` — not every API operation, and not a curated list. Attributes (detail reads), catalogs (provider-published, read-only), non-resources, preview-only candidates and retired ones no scanner lists (the SDK marks their service deprecated) are outside it; `--filter attribute` and `--filter excluded` list them. Each uncovered row names the rule that admitted it; the table below gives the coverage of each rule, so a rule that admits rows no scanner can close is visible as a low percentage rather than as a smaller number.
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
@@ -4019,7 +4014,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 Pins: google.golang.org/api@v0.292.0
 
-The denominator is every candidate the provider's own SDK can list that the extractor classified `resource` — not every API operation, and not a curated list. Attributes (detail reads), catalogs (provider-published, read-only) and non-resources are outside it and are listed below. Each row names the rule that classified it; the table below gives the coverage of each rule, so a rule that admits rows no scanner can close is visible as a low percentage rather than as a smaller number.
+The denominator is every candidate the provider's own SDK can list that the extractor classified `resource` — not every API operation, and not a curated list. Attributes (detail reads), catalogs (provider-published, read-only), non-resources, preview-only candidates and retired ones no scanner lists (the SDK marks their service deprecated) are outside it; `--filter attribute` and `--filter excluded` list them. Each uncovered row names the rule that admitted it; the table below gives the coverage of each rule, so a rule that admits rows no scanner can close is visible as a low percentage rather than as a smaller number.
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|

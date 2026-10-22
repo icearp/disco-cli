@@ -661,7 +661,8 @@ func resolveTree(entries map[string]*entry, catalogued map[string]map[string]boo
 // assemble turns identity-keyed entries into candidates keyed by display
 // names. A parent renders as its own entry's display when one exists (so
 // Parent always names a candidate key), else as the lineage's display form.
-func assemble(entries map[string]*entry) []sdkinv.Candidate {
+// retired names the modules whose service shape is deprecated.
+func assemble(entries map[string]*entry, retired map[string]bool) []sdkinv.Candidate {
 	byKey := map[string]*entry{}
 	for _, id := range slices.Sorted(maps.Keys(entries)) { // fold order decides the kept entry
 		en := entries[id]
@@ -712,6 +713,15 @@ func assemble(entries map[string]*entry) []sdkinv.Candidate {
 		// beside lexmodelsv2's.
 		if modules := opModules(c.Ops); len(modules) > 1 {
 			c.Signals = append(c.Signals, "multi-module:"+strings.Join(modules, ","))
+		}
+		// Judged on the folded ops, not per model: sibling models share a
+		// signing name (at release-2026-09-15 the deprecated chime.json signs
+		// as "chime" like the live chime-sdk-* models), so a key a live
+		// sibling also lists is not retired.
+		// Extract gives every entry an op today; the length check keeps an
+		// op-less entry from being retired by vacuous truth.
+		if len(c.Ops) > 0 && !slices.ContainsFunc(c.Ops, func(o sdkinv.Operation) bool { return !retired[o.Module] }) {
+			c.Signals = append(c.Signals, sdkinv.SignalRetired)
 		}
 		sort.Strings(c.Signals)
 		for r := range en.refs {

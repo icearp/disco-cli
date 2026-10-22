@@ -33,6 +33,12 @@ const (
 	ClassNonResource Class = "non-resource" // account attributes, operations, metrics, history
 )
 
+// SignalRetired marks a candidate whose every operation comes from an SDK
+// source the SDK marks deprecated. The mark says nothing about whether the
+// API still answers. Coverage excludes the candidate only when no scanner
+// lists it: a scanned candidate stays covered.
+const SignalRetired = "retired"
+
 // Operation is one SDK operation relevant to listing a candidate.
 type Operation struct {
 	Service  string   `json:"service"`            // join key: AWS sigv4 name; Azure namespace; GCP discovery name

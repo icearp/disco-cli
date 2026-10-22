@@ -460,6 +460,62 @@ func TestBuildInventory_ExcludedKeepsScannerEvidence(t *testing.T) {
 	}
 }
 
+// TestBuildInventory_RetiredExcludedUnlessListed: a retired candidate no
+// scanner lists is excluded with reason retired and leaves the percent; one a
+// scanner lists, by any route, stays covered; other classes keep their bucket.
+func TestBuildInventory_RetiredExcludedUnlessListed(t *testing.T) {
+	in := testInputs()
+	in.Universe.Candidates = append(in.Universe.Candidates,
+		cand("old", "old/relic", sdkinv.ClassResource, 0, sdkinv.SignalRetired),
+		cand("old", "old/scanned", sdkinv.ClassResource, 0, sdkinv.SignalRetired),
+		cand("old", "old/sidecar", sdkinv.ClassResource, 0, sdkinv.SignalRetired),
+		cand("old", "old/named", sdkinv.ClassResource, 0, sdkinv.SignalRetired),
+		cand("old", "old/setting", sdkinv.ClassAttribute, 0, sdkinv.SignalRetired),
+		cand("old", "old/region", sdkinv.ClassCatalog, 0, sdkinv.SignalRetired),
+	)
+	in.Emits = append(in.Emits,
+		TypeDecl{Service: "old", DiscoType: "aws:old:scanned"},
+		TypeDecl{Service: "old", DiscoType: "aws:old:named"},
+	)
+	in.Pairings = append(in.Pairings,
+		pairing.Pairing{Key: "old/scanned", Kind: "emits", Types: []string{"aws:old:scanned"}},
+		pairing.Pairing{Key: "old/sidecar", Kind: "sidecar"},
+	)
+	m := BuildInventory(in)
+	for key, w := range map[string]struct {
+		bucket Bucket
+		reason string
+	}{
+		"old/relic":   {BucketExcluded, ReasonRetired},
+		"old/scanned": {BucketCovered, ""},
+		"old/sidecar": {BucketCovered, ReasonSidecar},
+		"old/named":   {BucketCovered, ReasonMatchedByName},
+		"old/setting": {BucketAttribute, ""},
+		"old/region":  {BucketExcluded, "catalog"},
+	} {
+		r, ok := rowByKey(m, key, "")
+		if !ok {
+			t.Errorf("%s: no row", key)
+			continue
+		}
+		if r.Bucket != w.bucket || r.Reason != w.reason {
+			t.Errorf("%s = %s %q, want %s %q", key, r.Bucket, r.Reason, w.bucket, w.reason)
+		}
+	}
+	// testInputs alone: 5 covered, 1 uncovered, 3 excluded. The three listed
+	// retired rows join covered; relic and region join excluded.
+	if s := m.Summary; s.Covered != 8 || s.Uncovered != 1 || s.Excluded != 5 || s.Attribute != 2 {
+		t.Errorf("summary = %+v", s)
+	}
+	i := slices.IndexFunc(m.Services, func(v ServiceSummary) bool { return v.Service == "old" })
+	if i < 0 {
+		t.Fatalf("no old service summary in %+v", m.Services)
+	}
+	if v := m.Services[i]; v.Covered != 3 || v.Uncovered != 0 {
+		t.Errorf("old service summary = %+v", v)
+	}
+}
+
 // TestBuildInventory_OpsDedupe: sibling models and per-version GCP documents
 // repeat a label, and 930 rows rendered a duplicated ops cell.
 func TestBuildInventory_OpsDedupe(t *testing.T) {
