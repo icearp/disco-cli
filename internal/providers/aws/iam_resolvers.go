@@ -1120,25 +1120,14 @@ func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 
 	placeholders := make([]*store.Resource, 0, len(stubs))
 	for other := range stubs {
-		nativeID := fmt.Sprintf("arn:aws:iam::%s:root", other)
-		name := other
-		placeholders = append(placeholders, &store.Resource{
-			Provider:       "aws",
-			AccountID:      other,
-			Type:           TypeIAMAccount,
-			NativeID:       nativeID,
-			Name:           &name,
-			Region:         regionGlobal,
-			AttributesJSON: "{}",
-			DiscoveredBy:   scanID,
-		})
+		placeholders = append(placeholders, iamAccountPlaceholder(other, scanID))
 	}
 	if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
 		return fmt.Errorf("insert referenced-account placeholders: %w", err)
 	}
 
 	for _, e := range edges {
-		toID := store.ResourceID("aws", e.acctID, fmt.Sprintf("arn:aws:iam::%s:root", e.acctID))
+		toID := store.ResourceID("aws", e.acctID, iamAccountNativeID(e.acctID))
 		attrs := mustJSON(map[string]string{"principal": e.principal, "trust-account": e.acctID})
 		if err := st.UpsertRelationship(e.fromID, toID, store.RelCrossAccountTrust, "directed", &attrs); err != nil {
 			return fmt.Errorf("upsert cross-account-trust: %w", err)
@@ -1224,6 +1213,8 @@ func isAllDigits(s string) bool {
 // the boundary's policy is not in scan scope (cross-account boundary, or
 // account hasn't scanned policies). Cross-account boundary ARNs short-circuit
 // because the rebuilt ResourceID uses our account, never the foreign one.
+// IncludeManaged keeps AWS-managed policies (arn:aws:iam::aws:policy/*) as
+// targets.
 func resolveIAMPermissionBoundaries(acct *account, st *store.Store) error {
 	principals, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"},
@@ -1239,10 +1230,11 @@ func resolveIAMPermissionBoundaries(acct *account, st *store.Store) error {
 	}
 
 	policies, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"},
-		AccountID: acct.ID,
-		Types:     []string{TypeIAMPolicy},
-		Limit:     util.AllResources,
+		Providers:      []string{"aws"},
+		AccountID:      acct.ID,
+		Types:          []string{TypeIAMPolicy},
+		IncludeManaged: true,
+		Limit:          util.AllResources,
 	})
 	if err != nil {
 		return err
@@ -1392,17 +1384,7 @@ func resolveIAMDelegationRequestRequestors(acct *account, st *store.Store) error
 
 	placeholders := make([]*store.Resource, 0, len(requestors))
 	for other := range requestors {
-		name := other
-		placeholders = append(placeholders, &store.Resource{
-			Provider:       "aws",
-			AccountID:      other,
-			Type:           TypeIAMAccount,
-			NativeID:       iamAccountNativeID(other),
-			Name:           &name,
-			Region:         regionGlobal,
-			AttributesJSON: "{}",
-			DiscoveredBy:   requests[0].DiscoveredBy,
-		})
+		placeholders = append(placeholders, iamAccountPlaceholder(other, requests[0].DiscoveredBy))
 	}
 	if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
 		return fmt.Errorf("insert delegation-requestor account placeholders: %w", err)

@@ -288,18 +288,7 @@ func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error
 	if len(stubByAcct) > 0 {
 		placeholders := make([]*store.Resource, 0, len(stubByAcct))
 		for other := range stubByAcct {
-			nativeID := fmt.Sprintf("arn:aws:iam::%s:root", other)
-			name := other
-			placeholders = append(placeholders, &store.Resource{
-				Provider:       "aws",
-				AccountID:      other,
-				Type:           TypeIAMAccount,
-				NativeID:       nativeID,
-				Name:           &name,
-				Region:         regionGlobal,
-				AttributesJSON: "{}",
-				DiscoveredBy:   orgs[0].DiscoveredBy,
-			})
+			placeholders = append(placeholders, iamAccountPlaceholder(other, orgs[0].DiscoveredBy))
 		}
 		if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
 			return fmt.Errorf("insert master-account placeholders: %w", err)
@@ -311,8 +300,7 @@ func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error
 		if p.realAccount {
 			toID = store.ResourceID("aws", acct.ID, arnByID[p.masterAcctID])
 		} else {
-			toID = store.ResourceID("aws", p.masterAcctID,
-				fmt.Sprintf("arn:aws:iam::%s:root", p.masterAcctID))
+			toID = store.ResourceID("aws", p.masterAcctID, iamAccountNativeID(p.masterAcctID))
 		}
 		if err := st.UpsertRelationship(p.fromID, toID, store.RelAttachedTo, "directed", &edgeAttrs); err != nil {
 			return fmt.Errorf("upsert org→management-account relationship: %w", err)

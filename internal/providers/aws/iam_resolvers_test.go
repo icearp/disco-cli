@@ -1142,6 +1142,33 @@ func TestResolveIAMPermissionBoundaries(t *testing.T) {
 	}
 }
 
+// An AWS-managed boundary policy is stored ManagedByProvider and still gets
+// its edge.
+func TestResolveIAMPermissionBoundaries_AWSManagedPolicy(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	managedARN := "arn:aws:iam::aws:policy/PowerUserAccess"
+	if _, err := st.UpsertResource(&store.Resource{
+		Provider: "aws", AccountID: acct.ID, Type: TypeIAMPolicy, NativeID: managedARN,
+		Region: regionGlobal, AttributesJSON: "{}", DiscoveredBy: testScanID, ManagedByProvider: true,
+	}); err != nil {
+		t.Fatalf("seed managed policy: %v", err)
+	}
+	attrs := mustJSON(iamtypes.Role{PermissionsBoundary: &iamtypes.AttachedPermissionsBoundary{
+		PermissionsBoundaryArn: sdkaws.String(managedARN), PermissionsBoundaryType: iamtypes.PermissionsBoundaryAttachmentTypePolicy,
+	}})
+	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, "arn:aws:iam::"+testAccountID+":role/bounded", "", attrs)
+
+	if err := resolveIAMPermissionBoundaries(acct, st); err != nil {
+		t.Fatalf("resolveIAMPermissionBoundaries: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(roleID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	assertRelationship(t, rels, roleID, store.ResourceID("aws", acct.ID, managedARN), store.RelBoundedBy)
+}
+
 // A principal whose attributes do not parse is reported, and the principals
 // listed before and after it are still wired. Names a, b, c fix the listing
 // order (ListResources orders by type, then name).

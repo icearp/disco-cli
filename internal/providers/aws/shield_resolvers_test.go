@@ -19,16 +19,20 @@ func shieldProtectionGroupARN(acct, id string) string {
 	return fmt.Sprintf("arn:aws:shield::%s:protection-group/%s", acct, id)
 }
 
-// TestResolveShieldProtectionTargets covers all four scanned target types plus
+// TestResolveShieldProtectionTargets covers every scanned target type plus
 // the EIP shape normalisation (Shield's `:eip-allocation/` → disco's
 // `:elastic-ip/`).
 func TestResolveShieldProtectionTargets(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	// ELBv2 LB target.
-	lbARN := fmt.Sprintf("arn:aws:elasticloadbalancingv2:%s:%s:loadbalancer/app/web/abc123", testRegion, acct.ID)
-	lbID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2LoadBalancer, lbARN, testRegion, `{}`)
+	// ELBv2 (application, network) and classic load balancer targets.
+	albARN := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/app/web/50dc6c495c0c9188", testRegion, acct.ID)
+	albID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2LoadBalancer, albARN, testRegion, `{}`)
+	nlbARN := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/net/edge/73e2d6bc24d8a067", testRegion, acct.ID)
+	nlbID := upsertTestResource(t, st, "aws", acct.ID, TypeELBv2LoadBalancer, nlbARN, testRegion, `{}`)
+	clbARN := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/legacy-web", testRegion, acct.ID)
+	clbID := upsertTestResource(t, st, "aws", acct.ID, TypeELBClassicLoadBalancer, clbARN, testRegion, `{}`)
 
 	// CloudFront distribution target.
 	cfARN := fmt.Sprintf("arn:aws:cloudfront::%s:distribution/E27EXAMPLE51Z", acct.ID)
@@ -50,7 +54,9 @@ func TestResolveShieldProtectionTargets(t *testing.T) {
 		resource string
 		expectTo string
 	}{
-		{"lb", lbARN, lbID},
+		{"alb", albARN, albID},
+		{"nlb", nlbARN, nlbID},
+		{"clb", clbARN, clbID},
 		{"cloudfront", cfARN, cfID},
 		{"route53", zoneARN, zoneID},
 		{"eip", eipShieldArn, eipID},
@@ -73,6 +79,30 @@ func TestResolveShieldProtectionTargets(t *testing.T) {
 			t.Fatalf("RelationshipsFrom %s: %v", c.name, err)
 		}
 		assertRelationship(t, rels, pID, c.expectTo, store.RelAttachedTo)
+	}
+}
+
+// Every load balancer generation in the elasticloadbalancing namespace maps to
+// its own ARN; other elasticloadbalancing resources are not targets.
+func TestClassifyShieldProtectedResource_LoadBalancers(t *testing.T) {
+	const prefix = "arn:aws:elasticloadbalancing:us-east-1:123456789012:"
+	cases := []struct {
+		arn    string
+		wantID string
+		wantOK bool
+	}{
+		{prefix + "loadbalancer/app/web/50dc6c495c0c9188", prefix + "loadbalancer/app/web/50dc6c495c0c9188", true},
+		{prefix + "loadbalancer/net/edge/73e2d6bc24d8a067", prefix + "loadbalancer/net/edge/73e2d6bc24d8a067", true},
+		{prefix + "loadbalancer/gwy/inspect/1a2b3c4d5e6f7a8b", prefix + "loadbalancer/gwy/inspect/1a2b3c4d5e6f7a8b", true},
+		{prefix + "loadbalancer/legacy-web", prefix + "loadbalancer/legacy-web", true},
+		{prefix + "targetgroup/web/6d0ecf831eec9f09", "", false},
+		{prefix + "listener/app/web/50dc6c495c0c9188/f2f7dc8efc522ab2", "", false},
+	}
+	for _, c := range cases {
+		gotID, gotOK := classifyShieldProtectedResource(c.arn)
+		if gotID != c.wantID || gotOK != c.wantOK {
+			t.Errorf("classifyShieldProtectedResource(%q) = (%q, %v); want (%q, %v)", c.arn, gotID, gotOK, c.wantID, c.wantOK)
+		}
 	}
 }
 

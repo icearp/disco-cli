@@ -41,10 +41,10 @@ type shieldProtectionGroupAttrs struct {
 
 // resolveShieldProtectionTargets emits an attached-to edge from each Shield
 // protection to the resource it protects. ResourceArn is classified by ARN
-// segment; the four target types currently scanned are ELBv2 load balancer,
-// CloudFront distribution, Route 53 hosted zone, and EC2 Elastic IP. Other
-// shapes (Global Accelerator, AppSync, etc.) skip without error. FK-safe via
-// a single combined target id-set query.
+// segment; the target types are ELBv2 and classic load balancers, CloudFront
+// distribution, Route 53 hosted zone, and EC2 Elastic IP. Other shapes
+// (Global Accelerator, AppSync, etc.) skip without error. FK-safe via a single
+// combined target id-set query.
 func resolveShieldProtectionTargets(acct *account, st *store.Store) error {
 	protections, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
@@ -76,7 +76,7 @@ func resolveShieldProtectionTargets(acct *account, st *store.Store) error {
 		if ref == "" {
 			continue
 		}
-		_, targetNativeID, ok := classifyShieldProtectedResource(ref)
+		targetNativeID, ok := classifyShieldProtectedResource(ref)
 		if !ok {
 			continue
 		}
@@ -142,28 +142,27 @@ func resolveShieldProtectionGroupMembers(acct *account, st *store.Store) error {
 	return errors.Join(decodeErrs...)
 }
 
-// classifyShieldProtectedResource maps a Shield ResourceArn to (disco type,
-// canonical NativeID, ok). ok=false means the ARN matches no scanned target
-// type. EIPs are normalised: Shield emits `:eip-allocation/`, disco's EC2
-// scanner stores `:elastic-ip/` — rewritten to match so the FK-safe lookup
-// succeeds.
-func classifyShieldProtectedResource(arn string) (rtype, nativeID string, ok bool) {
+// classifyShieldProtectedResource maps a Shield ResourceArn to the NativeID
+// disco stores its target under. ok=false means the ARN is of no target type
+// disco stores. ELBv2 and classic load balancers share the
+// elasticloadbalancing ARN namespace and both store the ARN itself, so one
+// case serves both. EIPs are normalised: Shield emits `:eip-allocation/`,
+// disco's EC2 scanner stores `:elastic-ip/` — rewritten to match so the
+// FK-safe lookup succeeds.
+func classifyShieldProtectedResource(arn string) (nativeID string, ok bool) {
 	switch {
-	case strings.Contains(arn, ":elasticloadbalancingv2:") && strings.Contains(arn, ":loadbalancer/"):
-		return TypeELBv2LoadBalancer, arn, true
 	case strings.Contains(arn, ":elasticloadbalancing:") && strings.Contains(arn, ":loadbalancer/"):
-		// Classic ELB protections — historically rare, but Shield supports them.
-		return TypeELBClassicLoadBalancer, arn, true
+		return arn, true
 	case strings.Contains(arn, ":cloudfront::") && strings.Contains(arn, ":distribution/"):
-		return TypeCloudFrontDistribution, arn, true
+		return arn, true
 	case strings.Contains(arn, ":route53:::hostedzone/"):
-		return TypeRoute53HostedZone, arn, true
+		return arn, true
 	case strings.Contains(arn, ":ec2:") && strings.Contains(arn, ":eip-allocation/"):
-		return TypeEC2EIP, strings.Replace(arn, ":eip-allocation/", ":elastic-ip/", 1), true
+		return strings.Replace(arn, ":eip-allocation/", ":elastic-ip/", 1), true
 	case strings.Contains(arn, ":ec2:") && strings.Contains(arn, ":elastic-ip/"):
-		return TypeEC2EIP, arn, true
+		return arn, true
 	}
-	return "", "", false
+	return "", false
 }
 
 func shieldProtectionTargetIDSet(acct *account, st *store.Store) (map[string]bool, error) {

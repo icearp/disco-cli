@@ -191,17 +191,7 @@ func resolveEC2VolumeOwners(acct *account, st *store.Store) error {
 
 	placeholders := make([]*store.Resource, 0, len(owners))
 	for owner := range owners {
-		name := owner
-		placeholders = append(placeholders, &store.Resource{
-			Provider:       "aws",
-			AccountID:      owner,
-			Type:           TypeIAMAccount,
-			NativeID:       iamAccountNativeID(owner),
-			Name:           &name,
-			Region:         regionGlobal,
-			AttributesJSON: "{}",
-			DiscoveredBy:   volumes[0].DiscoveredBy,
-		})
+		placeholders = append(placeholders, iamAccountPlaceholder(owner, volumes[0].DiscoveredBy))
 	}
 	if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
 		return fmt.Errorf("insert volume-owner account placeholders: %w", err)

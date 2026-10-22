@@ -173,11 +173,28 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 	return int(t.Load()), int(n.Load()), errs.join(st, acct, "global")
 }
 
-// iamAccountNativeID builds the aws:iam:account self-node key. scanIAMAccount
-// and resolveIAMDelegationRequestRequestors use it, so the requestor
+// iamAccountNativeID builds the aws:iam:account self-node key, shared by
+// scanIAMAccount and every resolver that references an account, so a
 // placeholder and the scanned row share one identity.
 func iamAccountNativeID(accountID string) string {
 	return "arn:aws:iam::" + accountID + ":root"
+}
+
+// iamAccountPlaceholder builds the aws:iam:account row a resolver inserts with
+// InsertResourcesIfAbsent for an account it references but did not scan. The
+// first resolver to insert wins, so every resolver must build the same row.
+func iamAccountPlaceholder(accountID, scanID string) *store.Resource {
+	name := accountID
+	return &store.Resource{
+		Provider:       "aws",
+		AccountID:      accountID,
+		Type:           TypeIAMAccount,
+		NativeID:       iamAccountNativeID(accountID),
+		Name:           &name,
+		Region:         regionGlobal,
+		AttributesJSON: "{}",
+		DiscoveredBy:   scanID,
+	}
 }
 
 // scanIAMAccount upserts the account self-node (aws:iam:account) carrying
