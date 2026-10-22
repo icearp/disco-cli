@@ -33,35 +33,40 @@ type connectWorkspaceAPI interface {
 	DescribePrompt(context.Context, *connect.DescribePromptInput, ...func(*connect.Options)) (*connect.DescribePromptOutput, error)
 }
 
-// scanConnectWorkspace runs Workspace-family phases per instance.
+// scanConnectWorkspace runs Workspace-family phases per instance. Views are
+// listed once: the view-version phase walks the same listing, so a listing
+// error is returned once, by the view phase.
 func scanConnectWorkspace(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(instances) == 0 {
 		return 0, 0, nil
 	}
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) {
+	views := connectListPerInstance(ctx, st, acct, region, "connect:ListViews", instances,
+		func(instID string) connectPager[*connect.ListViewsOutput] {
+			return connect.NewListViewsPaginator(client, &connect.ListViewsInput{InstanceId: &instID},
+				func(o *connect.ListViewsPaginatorOptions) { o.Limit = 100 })
+		},
+		func(o *connect.ListViewsOutput) []cttypes.ViewSummary { return o.ViewsSummaryList },
+		func(s cttypes.ViewSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
+	return connectRunPhases(st, acct, region,
+		connectPhase{"connect task templates", func() (int, int, error) {
 			return scanConnectTaskTemplates(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect evaluation forms", func() (int, int, error) {
 			return scanConnectEvaluationForms(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) { return scanConnectViews(ctx, client, instances, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanConnectViewVersions(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect views", func() (int, int, error) {
+			return scanConnectViews(ctx, client, views, acct, region, st, scanID)
+		}},
+		connectPhase{"connect view versions", func() (int, int, error) {
+			return scanConnectViewVersions(ctx, client, views.items, acct, region, st, scanID)
+		}},
+		connectPhase{"connect workspaces", func() (int, int, error) {
 			return scanConnectWorkspaces(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) { return scanConnectPrompts(ctx, client, instances, acct, region, st, scanID) },
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+		}},
+		connectPhase{"connect prompts", func() (int, int, error) {
+			return scanConnectPrompts(ctx, client, instances, acct, region, st, scanID)
+		}},
+	)
 }
 
 // scanConnectTaskTemplates is list-only (no Describe op); stores
@@ -112,134 +117,71 @@ func scanConnectTaskTemplates(ctx context.Context, client connectWorkspaceAPI, i
 }
 
 func scanConnectEvaluationForms(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListEvaluationFormsPaginator(client, &connect.ListEvaluationFormsInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListEvaluationForms", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListEvaluationForms %s: %w", instID, perr)
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListEvaluationForms", instances,
+		func(instID string) connectPager[*connect.ListEvaluationFormsOutput] {
+			return connect.NewListEvaluationFormsPaginator(client, &connect.ListEvaluationFormsInput{InstanceId: &instID},
+				func(o *connect.ListEvaluationFormsPaginatorOptions) { o.Limit = 100 })
+		},
+		func(o *connect.ListEvaluationFormsOutput) []cttypes.EvaluationFormSummary {
+			return o.EvaluationFormSummaryList
+		},
+		func(s cttypes.EvaluationFormSummary) (string, string) {
+			return sv(s.EvaluationFormId), sv(s.EvaluationFormArn)
+		})
+	return connectDescribe[cttypes.EvaluationFormSummary]{
+		rtype: TypeConnectEvaluationForm, op: "connect:DescribeEvaluationForm", label: "connect evaluation forms",
+		describe: func(ctx context.Context, it connectListed[cttypes.EvaluationFormSummary], r *store.Resource) error {
+			out, err := client.DescribeEvaluationForm(ctx, &connect.DescribeEvaluationFormInput{InstanceId: &it.instanceID, EvaluationFormId: &it.id})
+			if err != nil {
+				return err
 			}
-			for _, f := range out.EvaluationFormSummaryList {
-				if f.EvaluationFormId != nil {
-					items = append(items, connectInstanceItem{instID, *f.EvaluationFormId})
-				}
+			f := out.EvaluationForm
+			if f == nil {
+				return errConnectNoBody
 			}
-		}
-	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribeEvaluationForm(gctx, &connect.DescribeEvaluationFormInput{InstanceId: &k.instanceID, EvaluationFormId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribeEvaluationForm %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.EvaluationForm == nil {
-			return nil, nil
-		}
-		arn := sv(out.EvaluationForm.EvaluationFormArn)
-		if arn == "" {
-			return nil, nil
-		}
-		title := sv(out.EvaluationForm.Title)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectEvaluationForm,
-			NativeID:       arn,
-			Name:           &title,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect evaluation forms")
+			title := sv(f.Title)
+			r.Name = &title
+			r.TagsJSON = mapTagsJSON(f.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.EvaluationFormSummary) {
+			title := sv(s.Title)
+			r.Name = &title
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }
 
-func scanConnectViews(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	items, err := listViewsByInstance(ctx, client, instances, acct, region, st)
-	if err != nil {
-		return 0, 0, err
-	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribeView(gctx, &connect.DescribeViewInput{InstanceId: &k.instanceID, ViewId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
+func scanConnectViews(ctx context.Context, client connectWorkspaceAPI, listed *connectListing[cttypes.ViewSummary], acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return connectDescribe[cttypes.ViewSummary]{
+		rtype: TypeConnectView, op: "connect:DescribeView", label: "connect views",
+		describe: func(ctx context.Context, it connectListed[cttypes.ViewSummary], r *store.Resource) error {
+			out, err := client.DescribeView(ctx, &connect.DescribeViewInput{InstanceId: &it.instanceID, ViewId: &it.id})
+			if err != nil {
+				return err
 			}
-			return nil, fmt.Errorf("connect:DescribeView %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.View == nil {
-			return nil, nil
-		}
-		arn := sv(out.View.Arn)
-		if arn == "" {
-			return nil, nil
-		}
-		name := sv(out.View.Name)
-		status := string(out.View.Status)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectView,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			Status:         &status,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect views")
+			v := out.View
+			if v == nil {
+				return errConnectNoBody
+			}
+			name, status := sv(v.Name), string(v.Status)
+			r.Name, r.Status = &name, &status
+			r.TagsJSON = mapTagsJSON(v.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.ViewSummary) {
+			name, status := sv(s.Name), string(s.Status)
+			r.Name, r.Status = &name, &status
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }
 
-func listViewsByInstance(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store) ([]connectInstanceItem, error) {
-	var items []connectInstanceItem
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		var token *string
-		for {
-			out, perr := client.ListViews(ctx, &connect.ListViewsInput{InstanceId: &instID, NextToken: token})
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListViews", acct.ID, region, perr)
-					break
-				}
-				return nil, fmt.Errorf("connect:ListViews %s: %w", instID, perr)
-			}
-			for _, v := range out.ViewsSummaryList {
-				if v.Id != nil {
-					items = append(items, connectInstanceItem{instID, *v.Id})
-				}
-			}
-			if out.NextToken == nil || *out.NextToken == "" {
-				break
-			}
-			token = out.NextToken
-		}
-	}
-	return items, nil
-}
-
-// scanConnectViewVersions — list-only per view (no Describe). Two-stage:
-// list views per instance, then list versions per view.
-func scanConnectViewVersions(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	views, err := listViewsByInstance(ctx, client, instances, acct, region, st)
-	if err != nil {
-		return 0, 0, err
-	}
+// scanConnectViewVersions — list-only per view (no Describe): lists the
+// versions of each view scanConnectWorkspace listed.
+func scanConnectViewVersions(ctx context.Context, client connectWorkspaceAPI, views []connectListed[cttypes.ViewSummary], acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	for _, v := range views {
 		instID := v.instanceID
@@ -281,109 +223,67 @@ func scanConnectViewVersions(ctx context.Context, client connectWorkspaceAPI, in
 }
 
 func scanConnectWorkspaces(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListWorkspacesPaginator(client, &connect.ListWorkspacesInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListWorkspaces", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListWorkspaces %s: %w", instID, perr)
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListWorkspaces", instances,
+		func(instID string) connectPager[*connect.ListWorkspacesOutput] {
+			return connect.NewListWorkspacesPaginator(client, &connect.ListWorkspacesInput{InstanceId: &instID},
+				func(o *connect.ListWorkspacesPaginatorOptions) { o.Limit = 100 })
+		},
+		func(o *connect.ListWorkspacesOutput) []cttypes.WorkspaceSummary { return o.WorkspaceSummaryList },
+		func(s cttypes.WorkspaceSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
+	return connectDescribe[cttypes.WorkspaceSummary]{
+		rtype: TypeConnectWorkspace, op: "connect:DescribeWorkspace", label: "connect workspaces",
+		describe: func(ctx context.Context, it connectListed[cttypes.WorkspaceSummary], r *store.Resource) error {
+			out, err := client.DescribeWorkspace(ctx, &connect.DescribeWorkspaceInput{InstanceId: &it.instanceID, WorkspaceId: &it.id})
+			if err != nil {
+				return err
 			}
-			for _, w := range out.WorkspaceSummaryList {
-				if w.Id != nil {
-					items = append(items, connectInstanceItem{instID, *w.Id})
-				}
+			w := out.Workspace
+			if w == nil {
+				return errConnectNoBody
 			}
-		}
-	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribeWorkspace(gctx, &connect.DescribeWorkspaceInput{InstanceId: &k.instanceID, WorkspaceId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribeWorkspace %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.Workspace == nil {
-			return nil, nil
-		}
-		arn := sv(out.Workspace.Arn)
-		if arn == "" {
-			return nil, nil
-		}
-		name := sv(out.Workspace.Name)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectWorkspace,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect workspaces")
+			name := sv(w.Name)
+			r.Name = &name
+			r.TagsJSON = mapTagsJSON(w.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.WorkspaceSummary) {
+			name := sv(s.Name)
+			r.Name = &name
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }
 
 func scanConnectPrompts(ctx context.Context, client connectWorkspaceAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListPromptsPaginator(client, &connect.ListPromptsInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListPrompts", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListPrompts %s: %w", instID, perr)
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListPrompts", instances,
+		func(instID string) connectPager[*connect.ListPromptsOutput] {
+			return connect.NewListPromptsPaginator(client, &connect.ListPromptsInput{InstanceId: &instID},
+				func(o *connect.ListPromptsPaginatorOptions) { o.Limit = 1000 })
+		},
+		func(o *connect.ListPromptsOutput) []cttypes.PromptSummary { return o.PromptSummaryList },
+		func(s cttypes.PromptSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
+	return connectDescribe[cttypes.PromptSummary]{
+		rtype: TypeConnectPrompt, op: "connect:DescribePrompt", label: "connect prompts",
+		describe: func(ctx context.Context, it connectListed[cttypes.PromptSummary], r *store.Resource) error {
+			out, err := client.DescribePrompt(ctx, &connect.DescribePromptInput{InstanceId: &it.instanceID, PromptId: &it.id})
+			if err != nil {
+				return err
 			}
-			for _, p := range out.PromptSummaryList {
-				if p.Id != nil {
-					items = append(items, connectInstanceItem{instID, *p.Id})
-				}
+			p := out.Prompt
+			if p == nil {
+				return errConnectNoBody
 			}
-		}
-	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribePrompt(gctx, &connect.DescribePromptInput{InstanceId: &k.instanceID, PromptId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribePrompt %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.Prompt == nil {
-			return nil, nil
-		}
-		arn := sv(out.Prompt.PromptARN)
-		if arn == "" {
-			return nil, nil
-		}
-		name := sv(out.Prompt.Name)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectPrompt,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect prompts")
+			name := sv(p.Name)
+			r.Name = &name
+			r.TagsJSON = mapTagsJSON(p.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.PromptSummary) {
+			name := sv(s.Name)
+			r.Name = &name
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }

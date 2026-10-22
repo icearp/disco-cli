@@ -78,7 +78,7 @@ func TestScanConnectCore(t *testing.T) {
 		},
 		phoneNumbers: []cttypes.ListPhoneNumbersSummary{{PhoneNumberId: &pnID, PhoneNumberArn: &pnARN, PhoneNumber: &pnNum, InstanceId: &instID}},
 		phoneOut: map[string]*connect.DescribePhoneNumberOutput{
-			pnID: {ClaimedPhoneNumberSummary: &cttypes.ClaimedPhoneNumberSummary{PhoneNumberId: &pnID, PhoneNumberArn: &pnARN, PhoneNumber: &pnNum, InstanceId: &instID}},
+			pnARN: {ClaimedPhoneNumberSummary: &cttypes.ClaimedPhoneNumberSummary{PhoneNumberId: &pnID, PhoneNumberArn: &pnARN, PhoneNumber: &pnNum, InstanceId: &instID}},
 		},
 		emailByInst: map[string][]cttypes.EmailAddressMetadata{
 			instID: {{EmailAddressId: &emailID, EmailAddressArn: &emailARN, EmailAddress: &email}},

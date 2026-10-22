@@ -36,137 +36,91 @@ func scanConnectUsers(ctx context.Context, client connectUsersAPI, instances []c
 	if len(instances) == 0 {
 		return 0, 0, nil
 	}
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanConnectUserList(ctx, client, instances, acct, region, st, scanID) },
-		func() (int, int, error) {
+	return connectRunPhases(st, acct, region,
+		connectPhase{"connect users", func() (int, int, error) {
+			return scanConnectUserList(ctx, client, instances, acct, region, st, scanID)
+		}},
+		connectPhase{"connect user hierarchy groups", func() (int, int, error) {
 			return scanConnectUserHierarchyGroups(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect user hierarchy structures", func() (int, int, error) {
 			return scanConnectUserHierarchyStructures(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect security profiles", func() (int, int, error) {
 			return scanConnectSecurityProfiles(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect predefined attributes", func() (int, int, error) {
 			return scanConnectPredefinedAttributes(ctx, client, instances, acct, region, st, scanID)
-		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+		}},
+	)
 }
 
 func scanConnectUserList(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListUsersPaginator(client, &connect.ListUsersInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListUsers", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListUsers %s: %w", instID, perr)
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListUsers", instances,
+		func(instID string) connectPager[*connect.ListUsersOutput] {
+			return connect.NewListUsersPaginator(client, &connect.ListUsersInput{InstanceId: &instID},
+				func(o *connect.ListUsersPaginatorOptions) { o.Limit = 1000 })
+		},
+		func(o *connect.ListUsersOutput) []cttypes.UserSummary { return o.UserSummaryList },
+		func(s cttypes.UserSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
+	return connectDescribe[cttypes.UserSummary]{
+		rtype: TypeConnectUser, op: "connect:DescribeUser", label: "connect users",
+		describe: func(ctx context.Context, it connectListed[cttypes.UserSummary], r *store.Resource) error {
+			out, err := client.DescribeUser(ctx, &connect.DescribeUserInput{InstanceId: &it.instanceID, UserId: &it.id})
+			if err != nil {
+				return err
 			}
-			for _, u := range out.UserSummaryList {
-				if u.Id != nil {
-					items = append(items, connectInstanceItem{instID, *u.Id})
-				}
+			u := out.User
+			if u == nil {
+				return errConnectNoBody
 			}
-		}
-	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribeUser(gctx, &connect.DescribeUserInput{InstanceId: &k.instanceID, UserId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribeUser %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.User == nil {
-			return nil, nil
-		}
-		arn := sv(out.User.Arn)
-		if arn == "" {
-			return nil, nil
-		}
-		username := sv(out.User.Username)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectUser,
-			NativeID:       arn,
-			Name:           &username,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect users")
+			username := sv(u.Username)
+			r.Name = &username
+			r.TagsJSON = mapTagsJSON(u.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.UserSummary) {
+			username := sv(s.Username)
+			r.Name = &username
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }
 
 func scanConnectUserHierarchyGroups(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListUserHierarchyGroupsPaginator(client, &connect.ListUserHierarchyGroupsInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListUserHierarchyGroups", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListUserHierarchyGroups %s: %w", instID, perr)
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListUserHierarchyGroups", instances,
+		func(instID string) connectPager[*connect.ListUserHierarchyGroupsOutput] {
+			return connect.NewListUserHierarchyGroupsPaginator(client, &connect.ListUserHierarchyGroupsInput{InstanceId: &instID},
+				func(o *connect.ListUserHierarchyGroupsPaginatorOptions) { o.Limit = 1000 })
+		},
+		func(o *connect.ListUserHierarchyGroupsOutput) []cttypes.HierarchyGroupSummary {
+			return o.UserHierarchyGroupSummaryList
+		},
+		func(s cttypes.HierarchyGroupSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
+	return connectDescribe[cttypes.HierarchyGroupSummary]{
+		rtype: TypeConnectUserHierarchyGroup, op: "connect:DescribeUserHierarchyGroup", label: "connect user hierarchy groups",
+		describe: func(ctx context.Context, it connectListed[cttypes.HierarchyGroupSummary], r *store.Resource) error {
+			out, err := client.DescribeUserHierarchyGroup(ctx, &connect.DescribeUserHierarchyGroupInput{InstanceId: &it.instanceID, HierarchyGroupId: &it.id})
+			if err != nil {
+				return err
 			}
-			for _, g := range out.UserHierarchyGroupSummaryList {
-				if g.Id != nil {
-					items = append(items, connectInstanceItem{instID, *g.Id})
-				}
+			g := out.HierarchyGroup
+			if g == nil {
+				return errConnectNoBody
 			}
-		}
-	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribeUserHierarchyGroup(gctx, &connect.DescribeUserHierarchyGroupInput{InstanceId: &k.instanceID, HierarchyGroupId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribeUserHierarchyGroup %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.HierarchyGroup == nil {
-			return nil, nil
-		}
-		arn := sv(out.HierarchyGroup.Arn)
-		if arn == "" {
-			return nil, nil
-		}
-		name := sv(out.HierarchyGroup.Name)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectUserHierarchyGroup,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect user hierarchy groups")
+			name := sv(g.Name)
+			r.Name = &name
+			r.TagsJSON = mapTagsJSON(g.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.HierarchyGroupSummary) {
+			name := sv(s.Name)
+			r.Name = &name
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }
 
 // scanConnectUserHierarchyStructures emits one row per instance: a
@@ -214,112 +168,84 @@ func scanConnectUserHierarchyStructures(ctx context.Context, client connectUsers
 }
 
 func scanConnectSecurityProfiles(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListSecurityProfilesPaginator(client, &connect.ListSecurityProfilesInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListSecurityProfiles", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListSecurityProfiles %s: %w", instID, perr)
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListSecurityProfiles", instances,
+		func(instID string) connectPager[*connect.ListSecurityProfilesOutput] {
+			return connect.NewListSecurityProfilesPaginator(client, &connect.ListSecurityProfilesInput{InstanceId: &instID},
+				func(o *connect.ListSecurityProfilesPaginatorOptions) { o.Limit = 1000 })
+		},
+		func(o *connect.ListSecurityProfilesOutput) []cttypes.SecurityProfileSummary {
+			return o.SecurityProfileSummaryList
+		},
+		func(s cttypes.SecurityProfileSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
+	return connectDescribe[cttypes.SecurityProfileSummary]{
+		rtype: TypeConnectSecurityProfile, op: "connect:DescribeSecurityProfile", label: "connect security profiles",
+		describe: func(ctx context.Context, it connectListed[cttypes.SecurityProfileSummary], r *store.Resource) error {
+			out, err := client.DescribeSecurityProfile(ctx, &connect.DescribeSecurityProfileInput{InstanceId: &it.instanceID, SecurityProfileId: &it.id})
+			if err != nil {
+				return err
 			}
-			for _, p := range out.SecurityProfileSummaryList {
-				if p.Id != nil {
-					items = append(items, connectInstanceItem{instID, *p.Id})
-				}
+			p := out.SecurityProfile
+			if p == nil {
+				return errConnectNoBody
 			}
-		}
-	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribeSecurityProfile(gctx, &connect.DescribeSecurityProfileInput{InstanceId: &k.instanceID, SecurityProfileId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribeSecurityProfile %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.SecurityProfile == nil {
-			return nil, nil
-		}
-		arn := sv(out.SecurityProfile.Arn)
-		if arn == "" {
-			return nil, nil
-		}
-		name := sv(out.SecurityProfile.SecurityProfileName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectSecurityProfile,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect security profiles")
+			name := sv(p.SecurityProfileName)
+			r.Name = &name
+			r.TagsJSON = mapTagsJSON(p.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.SecurityProfileSummary) {
+			name := sv(s.Name)
+			r.Name = &name
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }
 
 // scanConnectPredefinedAttributes — PredefinedAttribute lacks an SDK ARN
 // field; synthesize as
 // arn:aws:connect:{region}:{acct}:instance/{instID}/predefined-attribute/{name}.
 func scanConnectPredefinedAttributes(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
+	parents := make([]connectListed[cttypes.InstanceSummary], 0, len(instances))
 	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListPredefinedAttributesPaginator(client, &connect.ListPredefinedAttributesInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListPredefinedAttributes", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListPredefinedAttributes %s: %w", instID, perr)
-			}
-			for _, a := range out.PredefinedAttributeSummaryList {
-				if a.Name != nil {
-					items = append(items, connectInstanceItem{instID, *a.Name})
-				}
-			}
+		if id := sv(inst.Id); id != "" {
+			parents = append(parents, connectListed[cttypes.InstanceSummary]{instanceID: id, id: id, arn: sv(inst.Arn), summary: inst})
 		}
 	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribePredefinedAttribute(gctx, &connect.DescribePredefinedAttributeInput{InstanceId: &k.instanceID, Name: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
+	listed := connectListUnder(ctx, st, acct, region, "connect:ListPredefinedAttributes", parents,
+		func(p connectListed[cttypes.InstanceSummary]) connectPager[*connect.ListPredefinedAttributesOutput] {
+			return connect.NewListPredefinedAttributesPaginator(client, &connect.ListPredefinedAttributesInput{InstanceId: &p.id},
+				func(o *connect.ListPredefinedAttributesPaginatorOptions) { o.Limit = 100 })
+		},
+		func(o *connect.ListPredefinedAttributesOutput) []cttypes.PredefinedAttributeSummary {
+			return o.PredefinedAttributeSummaryList
+		},
+		func(instID string, a cttypes.PredefinedAttributeSummary) (string, string) {
+			name := sv(a.Name)
+			if name == "" {
+				return "", ""
 			}
-			return nil, fmt.Errorf("connect:DescribePredefinedAttribute %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.PredefinedAttribute == nil {
-			return nil, nil
-		}
-		name := sv(out.PredefinedAttribute.Name)
-		if name == "" {
-			return nil, nil
-		}
-		arn := fmt.Sprintf("arn:aws:connect:%s:%s:instance/%s/predefined-attribute/%s", region, acct.ID, k.instanceID, name)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectPredefinedAttribute,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect predefined attributes")
+			return name, fmt.Sprintf("arn:aws:connect:%s:%s:instance/%s/predefined-attribute/%s", region, acct.ID, instID, name)
+		})
+	type attrSummary = connectChild[cttypes.PredefinedAttributeSummary]
+	return connectDescribe[attrSummary]{
+		rtype: TypeConnectPredefinedAttribute, op: "connect:DescribePredefinedAttribute", label: "connect predefined attributes",
+		describe: func(ctx context.Context, it connectListed[attrSummary], r *store.Resource) error {
+			out, err := client.DescribePredefinedAttribute(ctx, &connect.DescribePredefinedAttributeInput{InstanceId: &it.instanceID, Name: &it.id})
+			if err != nil {
+				return err
+			}
+			if out.PredefinedAttribute == nil {
+				return errConnectNoBody
+			}
+			r.Name = &it.id
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s attrSummary) {
+			name := sv(s.summary.Name)
+			r.Name = &name
+			r.AttributesJSON = mustJSON(s.summary)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }

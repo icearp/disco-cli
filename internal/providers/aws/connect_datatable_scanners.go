@@ -16,8 +16,9 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeConnectDataTableRecord, Service: "connect"})
 }
 
-// connectDataTableAPI is the narrow surface for the DataTable family. SDK
-// has no DescribeDataTable — the list summary serves as parent attrs.
+// connectDataTableAPI is the narrow surface for the DataTable family. The
+// scanner does not call DescribeDataTable, so the list summary serves as
+// parent attrs and data tables carry no tags until a tag-read phase adds them.
 // Attributes and Records are per-table sub-resources, also list-only.
 type connectDataTableAPI interface {
 	ListDataTables(context.Context, *connect.ListDataTablesInput, ...func(*connect.Options)) (*connect.ListDataTablesOutput, error)

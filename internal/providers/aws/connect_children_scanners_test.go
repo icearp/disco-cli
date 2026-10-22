@@ -549,7 +549,7 @@ func connectFamilyHandlers() map[string]func(any) (any, error) {
 			return &connect.DescribeInstanceOutput{Instance: &cttypes.Instance{Id: ptrStr("i-1"), Arn: ptrStr(connectTestInstanceARN)}}, nil
 		},
 		"ListHoursOfOperations": func(any) (any, error) {
-			return &connect.ListHoursOfOperationsOutput{HoursOfOperationSummaryList: []cttypes.HoursOfOperationSummary{{Id: ptrStr("h-1")}}}, nil
+			return &connect.ListHoursOfOperationsOutput{HoursOfOperationSummaryList: []cttypes.HoursOfOperationSummary{{Id: ptrStr("h-1"), Arn: ptrStr(connectTestInstanceARN + "/operating-hours/h-1")}}}, nil
 		},
 		"DescribeHoursOfOperation": func(any) (any, error) {
 			return &connect.DescribeHoursOfOperationOutput{HoursOfOperation: &cttypes.HoursOfOperation{HoursOfOperationArn: ptrStr(connectTestInstanceARN + "/operating-hours/h-1")}}, nil
@@ -560,13 +560,13 @@ func connectFamilyHandlers() map[string]func(any) (any, error) {
 			}}, nil
 		},
 		"ListEvaluationForms": func(any) (any, error) {
-			return &connect.ListEvaluationFormsOutput{EvaluationFormSummaryList: []cttypes.EvaluationFormSummary{{EvaluationFormId: ptrStr("f-1")}}}, nil
+			return &connect.ListEvaluationFormsOutput{EvaluationFormSummaryList: []cttypes.EvaluationFormSummary{{EvaluationFormId: ptrStr("f-1"), EvaluationFormArn: ptrStr(connectTestInstanceARN + "/evaluation-form/f-1")}}}, nil
 		},
 		"DescribeEvaluationForm": func(any) (any, error) {
 			return &connect.DescribeEvaluationFormOutput{EvaluationForm: &cttypes.EvaluationForm{EvaluationFormArn: ptrStr(connectTestInstanceARN + "/evaluation-form/f-1")}}, nil
 		},
 		"ListWorkspaces": func(any) (any, error) {
-			return &connect.ListWorkspacesOutput{WorkspaceSummaryList: []cttypes.WorkspaceSummary{{Id: ptrStr("w-1")}}}, nil
+			return &connect.ListWorkspacesOutput{WorkspaceSummaryList: []cttypes.WorkspaceSummary{{Id: ptrStr("w-1"), Arn: ptrStr(connectTestInstanceARN + "/workspace/w-1")}}}, nil
 		},
 		"DescribeWorkspace": func(any) (any, error) {
 			return &connect.DescribeWorkspaceOutput{Workspace: &cttypes.Workspace{Arn: ptrStr(connectTestInstanceARN + "/workspace/w-1")}}, nil

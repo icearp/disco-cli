@@ -52,7 +52,8 @@ func scanConnectVocabularies(ctx context.Context, client connectExtraAPI, instan
 			continue
 		}
 		instID := *inst.Id
-		pager := connect.NewSearchVocabulariesPaginator(client, &connect.SearchVocabulariesInput{InstanceId: &instID})
+		pager := connect.NewSearchVocabulariesPaginator(client, &connect.SearchVocabulariesInput{InstanceId: &instID},
+			func(o *connect.SearchVocabulariesPaginatorOptions) { o.Limit = 100 })
 		for pager.HasMorePages() {
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {
@@ -88,7 +89,8 @@ func scanConnectAuthenticationProfiles(ctx context.Context, client connectExtraA
 			continue
 		}
 		instID := *inst.Id
-		pager := connect.NewListAuthenticationProfilesPaginator(client, &connect.ListAuthenticationProfilesInput{InstanceId: &instID})
+		pager := connect.NewListAuthenticationProfilesPaginator(client, &connect.ListAuthenticationProfilesInput{InstanceId: &instID},
+			func(o *connect.ListAuthenticationProfilesPaginatorOptions) { o.Limit = 1000 })
 		for pager.HasMorePages() {
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {

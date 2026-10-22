@@ -88,7 +88,8 @@ func scanConnectChildren(ctx context.Context, client connectChildrenAPI, instanc
 func scanConnectTestCases(ctx context.Context, client connectChildrenAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	return connectListDescribe(ctx, st, acct, region, "connect:ListTestCases", "connect:DescribeTestCase", "connect test cases", instances,
 		func(ctx context.Context, instID string, emit func(string, string)) error {
-			pager := connect.NewListTestCasesPaginator(client, &connect.ListTestCasesInput{InstanceId: &instID})
+			pager := connect.NewListTestCasesPaginator(client, &connect.ListTestCasesInput{InstanceId: &instID},
+				func(o *connect.ListTestCasesPaginatorOptions) { o.Limit = 1000 })
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(ctx)
 				if err != nil {
@@ -131,7 +132,8 @@ func scanConnectAttachedFilesConfigurations(ctx context.Context, client connectC
 	return childFanOut(ctx, st, acct, region, "connect:ListAttachedFilesConfigurations", parents, isConnectNotFound,
 		func(gctx context.Context, p childParent) ([]*store.Resource, error) {
 			var rows []*store.Resource
-			pager := connect.NewListAttachedFilesConfigurationsPaginator(client, &connect.ListAttachedFilesConfigurationsInput{InstanceId: &p.id})
+			pager := connect.NewListAttachedFilesConfigurationsPaginator(client, &connect.ListAttachedFilesConfigurationsInput{InstanceId: &p.id},
+				func(o *connect.ListAttachedFilesConfigurationsPaginatorOptions) { o.Limit = 100 })
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(gctx)
 				if err != nil {
@@ -163,7 +165,8 @@ func scanConnectHoursOfOperationOverrides(ctx context.Context, client connectChi
 		func(gctx context.Context, p childParent) ([]*store.Resource, error) {
 			instID, hoursID := connectChildARNIDs(p.arn)
 			var rows []*store.Resource
-			pager := connect.NewListHoursOfOperationOverridesPaginator(client, &connect.ListHoursOfOperationOverridesInput{InstanceId: &instID, HoursOfOperationId: &hoursID})
+			pager := connect.NewListHoursOfOperationOverridesPaginator(client, &connect.ListHoursOfOperationOverridesInput{InstanceId: &instID, HoursOfOperationId: &hoursID},
+				func(o *connect.ListHoursOfOperationOverridesPaginatorOptions) { o.Limit = 100 })
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(gctx)
 				if err != nil {
@@ -195,7 +198,8 @@ func scanConnectUseCases(ctx context.Context, client connectChildrenAPI, acct *a
 		func(gctx context.Context, p childParent) ([]*store.Resource, error) {
 			instID, assocID := connectChildARNIDs(p.arn)
 			var rows []*store.Resource
-			pager := connect.NewListUseCasesPaginator(client, &connect.ListUseCasesInput{InstanceId: &instID, IntegrationAssociationId: &assocID})
+			pager := connect.NewListUseCasesPaginator(client, &connect.ListUseCasesInput{InstanceId: &instID, IntegrationAssociationId: &assocID},
+				func(o *connect.ListUseCasesPaginatorOptions) { o.Limit = 100 })
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(gctx)
 				if err != nil {
@@ -227,7 +231,8 @@ func scanConnectEvaluationFormVersions(ctx context.Context, client connectChildr
 		func(gctx context.Context, p childParent) ([]*store.Resource, error) {
 			instID, formID := connectChildARNIDs(p.arn)
 			var rows []*store.Resource
-			pager := connect.NewListEvaluationFormVersionsPaginator(client, &connect.ListEvaluationFormVersionsInput{InstanceId: &instID, EvaluationFormId: &formID})
+			pager := connect.NewListEvaluationFormVersionsPaginator(client, &connect.ListEvaluationFormVersionsInput{InstanceId: &instID, EvaluationFormId: &formID},
+				func(o *connect.ListEvaluationFormVersionsPaginatorOptions) { o.Limit = 100 })
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(gctx)
 				if err != nil {
@@ -255,7 +260,8 @@ func scanConnectWorkspacePages(ctx context.Context, client connectChildrenAPI, a
 		func(gctx context.Context, p childParent) ([]*store.Resource, error) {
 			instID, workspaceID := connectChildARNIDs(p.arn)
 			var rows []*store.Resource
-			pager := connect.NewListWorkspacePagesPaginator(client, &connect.ListWorkspacePagesInput{InstanceId: &instID, WorkspaceId: &workspaceID})
+			pager := connect.NewListWorkspacePagesPaginator(client, &connect.ListWorkspacePagesInput{InstanceId: &instID, WorkspaceId: &workspaceID},
+				func(o *connect.ListWorkspacePagesPaginatorOptions) { o.Limit = 100 })
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(gctx)
 				if err != nil {

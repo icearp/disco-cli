@@ -2,15 +2,11 @@ package aws
 
 import (
 	"context"
-	"fmt"
-	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/connect"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -37,363 +33,197 @@ type connectRoutingAPI interface {
 	DescribeQuickConnect(context.Context, *connect.DescribeQuickConnectInput, ...func(*connect.Options)) (*connect.DescribeQuickConnectOutput, error)
 }
 
-// scanConnectRouting fans out the five Routing-family phases per instance.
+// scanConnectRouting runs the five Routing-family phases per instance.
 func scanConnectRouting(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	if len(instances) == 0 {
 		return 0, 0, nil
 	}
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanConnectQueues(ctx, client, instances, acct, region, st, scanID) },
-		func() (int, int, error) {
+	return connectRunPhases(st, acct, region,
+		connectPhase{"connect queues", func() (int, int, error) {
+			return scanConnectQueues(ctx, client, instances, acct, region, st, scanID)
+		}},
+		connectPhase{"connect routing profiles", func() (int, int, error) {
 			return scanConnectRoutingProfiles(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect hours of operations", func() (int, int, error) {
 			return scanConnectHoursOfOperations(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect agent statuses", func() (int, int, error) {
 			return scanConnectAgentStatuses(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect quick connects", func() (int, int, error) {
 			return scanConnectQuickConnects(ctx, client, instances, acct, region, st, scanID)
-		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
-}
-
-// connectInstanceItem carries (instanceID, resourceID) for per-instance
-// Describe fan-out.
-type connectInstanceItem struct {
-	instanceID, id string
-}
-
-// connectPerInstanceFanout runs build per (instanceID, id) concurrently and
-// upserts the batch. Mirrors connectDescribeFanout but with two-tuple keys.
-func connectPerInstanceFanout(
-	ctx context.Context,
-	items []connectInstanceItem,
-	weight int64,
-	build func(context.Context, connectInstanceItem) (*store.Resource, error),
-	st *store.Store,
-	label string,
-) (int, int, error) {
-	if len(items) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(weight)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
+		}},
 	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, k := range items {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			r, err := build(gctx, k)
-			if err != nil {
-				return err
-			}
-			if r == nil {
-				return nil
-			}
-			mu.Lock()
-			batch = append(batch, r)
-			mu.Unlock()
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert %s: %w", label, uerr)
-	}
-	return len(batch), n, nil
 }
 
 func scanConnectQueues(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListQueuesPaginator(client, &connect.ListQueuesInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListQueues", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListQueues %s: %w", instID, perr)
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListQueues", instances,
+		func(instID string) connectPager[*connect.ListQueuesOutput] {
+			return connect.NewListQueuesPaginator(client, &connect.ListQueuesInput{InstanceId: &instID},
+				func(o *connect.ListQueuesPaginatorOptions) { o.Limit = 1000 })
+		},
+		func(o *connect.ListQueuesOutput) []cttypes.QueueSummary { return o.QueueSummaryList },
+		func(s cttypes.QueueSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
+	return connectDescribe[cttypes.QueueSummary]{
+		rtype: TypeConnectQueue, op: "connect:DescribeQueue", label: "connect queues",
+		describe: func(ctx context.Context, it connectListed[cttypes.QueueSummary], r *store.Resource) error {
+			out, err := client.DescribeQueue(ctx, &connect.DescribeQueueInput{InstanceId: &it.instanceID, QueueId: &it.id})
+			if err != nil {
+				return err
 			}
-			for _, q := range out.QueueSummaryList {
-				if q.Id != nil {
-					items = append(items, connectInstanceItem{instID, *q.Id})
-				}
+			q := out.Queue
+			if q == nil {
+				return errConnectNoBody
 			}
-		}
-	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribeQueue(gctx, &connect.DescribeQueueInput{InstanceId: &k.instanceID, QueueId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribeQueue %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.Queue == nil {
-			return nil, nil
-		}
-		arn := sv(out.Queue.QueueArn)
-		if arn == "" {
-			return nil, nil
-		}
-		name := sv(out.Queue.Name)
-		status := string(out.Queue.Status)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectQueue,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			Status:         &status,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect queues")
+			name, status := sv(q.Name), string(q.Status)
+			r.Name, r.Status = &name, &status
+			r.TagsJSON = mapTagsJSON(q.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.QueueSummary) {
+			name := sv(s.Name)
+			r.Name = &name
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }
 
 func scanConnectRoutingProfiles(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListRoutingProfilesPaginator(client, &connect.ListRoutingProfilesInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListRoutingProfiles", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListRoutingProfiles %s: %w", instID, perr)
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListRoutingProfiles", instances,
+		func(instID string) connectPager[*connect.ListRoutingProfilesOutput] {
+			return connect.NewListRoutingProfilesPaginator(client, &connect.ListRoutingProfilesInput{InstanceId: &instID},
+				func(o *connect.ListRoutingProfilesPaginatorOptions) { o.Limit = 1000 })
+		},
+		func(o *connect.ListRoutingProfilesOutput) []cttypes.RoutingProfileSummary {
+			return o.RoutingProfileSummaryList
+		},
+		func(s cttypes.RoutingProfileSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
+	return connectDescribe[cttypes.RoutingProfileSummary]{
+		rtype: TypeConnectRoutingProfile, op: "connect:DescribeRoutingProfile", label: "connect routing profiles",
+		describe: func(ctx context.Context, it connectListed[cttypes.RoutingProfileSummary], r *store.Resource) error {
+			out, err := client.DescribeRoutingProfile(ctx, &connect.DescribeRoutingProfileInput{InstanceId: &it.instanceID, RoutingProfileId: &it.id})
+			if err != nil {
+				return err
 			}
-			for _, r := range out.RoutingProfileSummaryList {
-				if r.Id != nil {
-					items = append(items, connectInstanceItem{instID, *r.Id})
-				}
+			p := out.RoutingProfile
+			if p == nil {
+				return errConnectNoBody
 			}
-		}
-	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribeRoutingProfile(gctx, &connect.DescribeRoutingProfileInput{InstanceId: &k.instanceID, RoutingProfileId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribeRoutingProfile %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.RoutingProfile == nil {
-			return nil, nil
-		}
-		arn := sv(out.RoutingProfile.RoutingProfileArn)
-		if arn == "" {
-			return nil, nil
-		}
-		name := sv(out.RoutingProfile.Name)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectRoutingProfile,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect routing profiles")
+			name := sv(p.Name)
+			r.Name = &name
+			r.TagsJSON = mapTagsJSON(p.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.RoutingProfileSummary) {
+			name := sv(s.Name)
+			r.Name = &name
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }
 
 func scanConnectHoursOfOperations(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListHoursOfOperationsPaginator(client, &connect.ListHoursOfOperationsInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListHoursOfOperations", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListHoursOfOperations %s: %w", instID, perr)
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListHoursOfOperations", instances,
+		func(instID string) connectPager[*connect.ListHoursOfOperationsOutput] {
+			return connect.NewListHoursOfOperationsPaginator(client, &connect.ListHoursOfOperationsInput{InstanceId: &instID},
+				func(o *connect.ListHoursOfOperationsPaginatorOptions) { o.Limit = 1000 })
+		},
+		func(o *connect.ListHoursOfOperationsOutput) []cttypes.HoursOfOperationSummary {
+			return o.HoursOfOperationSummaryList
+		},
+		func(s cttypes.HoursOfOperationSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
+	return connectDescribe[cttypes.HoursOfOperationSummary]{
+		rtype: TypeConnectHoursOfOperation, op: "connect:DescribeHoursOfOperation", label: "connect hours of operations",
+		describe: func(ctx context.Context, it connectListed[cttypes.HoursOfOperationSummary], r *store.Resource) error {
+			out, err := client.DescribeHoursOfOperation(ctx, &connect.DescribeHoursOfOperationInput{InstanceId: &it.instanceID, HoursOfOperationId: &it.id})
+			if err != nil {
+				return err
 			}
-			for _, h := range out.HoursOfOperationSummaryList {
-				if h.Id != nil {
-					items = append(items, connectInstanceItem{instID, *h.Id})
-				}
+			h := out.HoursOfOperation
+			if h == nil {
+				return errConnectNoBody
 			}
-		}
-	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribeHoursOfOperation(gctx, &connect.DescribeHoursOfOperationInput{InstanceId: &k.instanceID, HoursOfOperationId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribeHoursOfOperation %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.HoursOfOperation == nil {
-			return nil, nil
-		}
-		arn := sv(out.HoursOfOperation.HoursOfOperationArn)
-		if arn == "" {
-			return nil, nil
-		}
-		name := sv(out.HoursOfOperation.Name)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectHoursOfOperation,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect hours of operations")
+			name := sv(h.Name)
+			r.Name = &name
+			r.TagsJSON = mapTagsJSON(h.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.HoursOfOperationSummary) {
+			name := sv(s.Name)
+			r.Name = &name
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }
 
 func scanConnectAgentStatuses(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListAgentStatusesPaginator(client, &connect.ListAgentStatusesInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListAgentStatuses", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListAgentStatuses %s: %w", instID, perr)
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListAgentStatuses", instances,
+		func(instID string) connectPager[*connect.ListAgentStatusesOutput] {
+			return connect.NewListAgentStatusesPaginator(client, &connect.ListAgentStatusesInput{InstanceId: &instID},
+				func(o *connect.ListAgentStatusesPaginatorOptions) { o.Limit = 1000 })
+		},
+		func(o *connect.ListAgentStatusesOutput) []cttypes.AgentStatusSummary { return o.AgentStatusSummaryList },
+		func(s cttypes.AgentStatusSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
+	return connectDescribe[cttypes.AgentStatusSummary]{
+		rtype: TypeConnectAgentStatus, op: "connect:DescribeAgentStatus", label: "connect agent statuses",
+		describe: func(ctx context.Context, it connectListed[cttypes.AgentStatusSummary], r *store.Resource) error {
+			out, err := client.DescribeAgentStatus(ctx, &connect.DescribeAgentStatusInput{InstanceId: &it.instanceID, AgentStatusId: &it.id})
+			if err != nil {
+				return err
 			}
-			for _, a := range out.AgentStatusSummaryList {
-				if a.Id != nil {
-					items = append(items, connectInstanceItem{instID, *a.Id})
-				}
+			a := out.AgentStatus
+			if a == nil {
+				return errConnectNoBody
 			}
-		}
-	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribeAgentStatus(gctx, &connect.DescribeAgentStatusInput{InstanceId: &k.instanceID, AgentStatusId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribeAgentStatus %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.AgentStatus == nil {
-			return nil, nil
-		}
-		arn := sv(out.AgentStatus.AgentStatusARN)
-		if arn == "" {
-			return nil, nil
-		}
-		name := sv(out.AgentStatus.Name)
-		state := string(out.AgentStatus.State)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectAgentStatus,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			Status:         &state,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect agent statuses")
+			name, state := sv(a.Name), string(a.State)
+			r.Name, r.Status = &name, &state
+			r.TagsJSON = mapTagsJSON(a.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.AgentStatusSummary) {
+			name := sv(s.Name)
+			r.Name = &name
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }
 
 func scanConnectQuickConnects(ctx context.Context, client connectRoutingAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		pager := connect.NewListQuickConnectsPaginator(client, &connect.ListQuickConnectsInput{InstanceId: &instID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "connect:ListQuickConnects", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListQuickConnects %s: %w", instID, perr)
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListQuickConnects", instances,
+		func(instID string) connectPager[*connect.ListQuickConnectsOutput] {
+			return connect.NewListQuickConnectsPaginator(client, &connect.ListQuickConnectsInput{InstanceId: &instID},
+				func(o *connect.ListQuickConnectsPaginatorOptions) { o.Limit = 1000 })
+		},
+		func(o *connect.ListQuickConnectsOutput) []cttypes.QuickConnectSummary {
+			return o.QuickConnectSummaryList
+		},
+		func(s cttypes.QuickConnectSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
+	return connectDescribe[cttypes.QuickConnectSummary]{
+		rtype: TypeConnectQuickConnect, op: "connect:DescribeQuickConnect", label: "connect quick connects",
+		describe: func(ctx context.Context, it connectListed[cttypes.QuickConnectSummary], r *store.Resource) error {
+			out, err := client.DescribeQuickConnect(ctx, &connect.DescribeQuickConnectInput{InstanceId: &it.instanceID, QuickConnectId: &it.id})
+			if err != nil {
+				return err
 			}
-			for _, q := range out.QuickConnectSummaryList {
-				if q.Id != nil {
-					items = append(items, connectInstanceItem{instID, *q.Id})
-				}
+			q := out.QuickConnect
+			if q == nil {
+				return errConnectNoBody
 			}
-		}
-	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribeQuickConnect(gctx, &connect.DescribeQuickConnectInput{InstanceId: &k.instanceID, QuickConnectId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribeQuickConnect %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.QuickConnect == nil {
-			return nil, nil
-		}
-		arn := sv(out.QuickConnect.QuickConnectARN)
-		if arn == "" {
-			return nil, nil
-		}
-		name := sv(out.QuickConnect.Name)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectQuickConnect,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect quick connects")
+			name := sv(q.Name)
+			r.Name = &name
+			r.TagsJSON = mapTagsJSON(q.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.QuickConnectSummary) {
+			name := sv(s.Name)
+			r.Name = &name
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }

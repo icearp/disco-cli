@@ -420,13 +420,13 @@ func connectAccessFamilyHandlers() map[string]func(any) (any, error) {
 	h := connectFamilyHandlers()
 	maps.Copy(h, map[string]func(any) (any, error){
 		"ListSecurityProfiles": func(any) (any, error) {
-			return &connect.ListSecurityProfilesOutput{SecurityProfileSummaryList: []cttypes.SecurityProfileSummary{{Id: ptrStr("sp-1")}}}, nil
+			return &connect.ListSecurityProfilesOutput{SecurityProfileSummaryList: []cttypes.SecurityProfileSummary{{Id: ptrStr("sp-1"), Arn: ptrStr(connectTestInstanceARN + "/security-profile/sp-1")}}}, nil
 		},
 		"DescribeSecurityProfile": func(any) (any, error) {
 			return &connect.DescribeSecurityProfileOutput{SecurityProfile: &cttypes.SecurityProfile{Arn: ptrStr(connectTestInstanceARN + "/security-profile/sp-1"), SecurityProfileName: ptrStr("Agent")}}, nil
 		},
 		"ListRoutingProfiles": func(any) (any, error) {
-			return &connect.ListRoutingProfilesOutput{RoutingProfileSummaryList: []cttypes.RoutingProfileSummary{{Id: ptrStr("rp-1")}}}, nil
+			return &connect.ListRoutingProfilesOutput{RoutingProfileSummaryList: []cttypes.RoutingProfileSummary{{Id: ptrStr("rp-1"), Arn: ptrStr(connectTestInstanceARN + "/routing-profile/rp-1")}}}, nil
 		},
 		"DescribeRoutingProfile": func(any) (any, error) {
 			return &connect.DescribeRoutingProfileOutput{RoutingProfile: &cttypes.RoutingProfile{RoutingProfileArn: ptrStr(connectTestInstanceARN + "/routing-profile/rp-1"), Name: ptrStr("Basic")}}, nil

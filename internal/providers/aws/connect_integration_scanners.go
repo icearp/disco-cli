@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+
 	"github.com/aws/aws-sdk-go-v2/service/connect"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -35,32 +37,26 @@ func scanConnectIntegration(ctx context.Context, client connectIntegrationAPI, i
 	if len(instances) == 0 {
 		return 0, 0, nil
 	}
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) {
+	return connectRunPhases(st, acct, region,
+		connectPhase{"connect approved origins", func() (int, int, error) {
 			return scanConnectApprovedOrigins(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect security keys", func() (int, int, error) {
 			return scanConnectSecurityKeys(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect instance storage configs", func() (int, int, error) {
 			return scanConnectInstanceStorageConfigs(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect integration associations", func() (int, int, error) {
 			return scanConnectIntegrationAssociations(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect notifications", func() (int, int, error) {
 			return scanConnectNotifications(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) { return scanConnectRules(ctx, client, instances, acct, region, st, scanID) },
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+		}},
+		connectPhase{"connect rules", func() (int, int, error) {
+			return scanConnectRules(ctx, client, instances, acct, region, st, scanID)
+		}},
+	)
 }
 
 // scanConnectApprovedOrigins emits one row per (instance, origin) pair. SDK
@@ -73,7 +69,8 @@ func scanConnectApprovedOrigins(ctx context.Context, client connectIntegrationAP
 			continue
 		}
 		instID := *inst.Id
-		pager := connect.NewListApprovedOriginsPaginator(client, &connect.ListApprovedOriginsInput{InstanceId: &instID})
+		pager := connect.NewListApprovedOriginsPaginator(client, &connect.ListApprovedOriginsInput{InstanceId: &instID},
+			func(o *connect.ListApprovedOriginsPaginatorOptions) { o.Limit = 25 })
 		for pager.HasMorePages() {
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {
@@ -110,7 +107,8 @@ func scanConnectSecurityKeys(ctx context.Context, client connectIntegrationAPI, 
 			continue
 		}
 		instID := *inst.Id
-		pager := connect.NewListSecurityKeysPaginator(client, &connect.ListSecurityKeysInput{InstanceId: &instID})
+		pager := connect.NewListSecurityKeysPaginator(client, &connect.ListSecurityKeysInput{InstanceId: &instID},
+			func(o *connect.ListSecurityKeysPaginatorOptions) { o.Limit = 2 })
 		for pager.HasMorePages() {
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {
@@ -155,7 +153,8 @@ func scanConnectInstanceStorageConfigs(ctx context.Context, client connectIntegr
 		instID := *inst.Id
 		for _, rt := range cttypes.InstanceStorageResourceType("").Values() {
 			rt := rt
-			pager := connect.NewListInstanceStorageConfigsPaginator(client, &connect.ListInstanceStorageConfigsInput{InstanceId: &instID, ResourceType: rt})
+			pager := connect.NewListInstanceStorageConfigsPaginator(client, &connect.ListInstanceStorageConfigsInput{InstanceId: &instID, ResourceType: rt},
+				func(o *connect.ListInstanceStorageConfigsPaginatorOptions) { o.Limit = 10 })
 			for pager.HasMorePages() {
 				out, perr := pager.NextPage(ctx)
 				if perr != nil {
@@ -196,7 +195,8 @@ func scanConnectIntegrationAssociations(ctx context.Context, client connectInteg
 			continue
 		}
 		instID := *inst.Id
-		pager := connect.NewListIntegrationAssociationsPaginator(client, &connect.ListIntegrationAssociationsInput{InstanceId: &instID})
+		pager := connect.NewListIntegrationAssociationsPaginator(client, &connect.ListIntegrationAssociationsInput{InstanceId: &instID},
+			func(o *connect.ListIntegrationAssociationsPaginatorOptions) { o.Limit = 100 })
 		for pager.HasMorePages() {
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {
@@ -229,106 +229,71 @@ func scanConnectIntegrationAssociations(ctx context.Context, client connectInteg
 	return upsertConnectBatch(st, batch, "connect integration associations")
 }
 
+// scanConnectNotifications stores each listed notification with its tags.
 func scanConnectNotifications(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		var token *string
-		for {
-			out, perr := client.ListNotifications(ctx, &connect.ListNotificationsInput{InstanceId: &instID, NextToken: token})
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:ListNotifications %s: %w", instID, perr)
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:ListNotifications", instances,
+		func(instID string) connectPager[*connect.ListNotificationsOutput] {
+			return &connectTokenPager[*connect.ListNotificationsOutput]{
+				call: func(ctx context.Context, token *string) (*connect.ListNotificationsOutput, error) {
+					return client.ListNotifications(ctx, &connect.ListNotificationsInput{InstanceId: &instID, NextToken: token, MaxResults: sdkaws.Int32(100)})
+				},
+				next: func(o *connect.ListNotificationsOutput) *string { return o.NextToken },
 			}
-			for _, n := range out.NotificationSummaryList {
-				arn := sv(n.Arn)
-				if arn == "" {
-					continue
-				}
-				id := sv(n.Id)
-				batch = append(batch, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeConnectNotification,
-					NativeID:       arn,
-					Name:           &id,
-					Region:         &region,
-					CreatedAt:      tp(n.CreatedAt),
-					AttributesJSON: mustJSON(n),
-					DiscoveredBy:   scanID,
-				})
-			}
-			if out.NextToken == nil || *out.NextToken == "" {
-				break
-			}
-			token = out.NextToken
-		}
-	}
-	return upsertConnectBatch(st, batch, "connect notifications")
+		},
+		func(o *connect.ListNotificationsOutput) []cttypes.Notification { return o.NotificationSummaryList },
+		func(n cttypes.Notification) (string, string) { return sv(n.Id), sv(n.Arn) })
+	return connectStoreListed(st, acct, region, scanID, TypeConnectNotification, "connect notifications", listed,
+		func(r *store.Resource, it connectListed[cttypes.Notification]) {
+			r.Name = &it.id
+			r.CreatedAt = tp(it.summary.CreatedAt)
+			r.TagsJSON = mapTagsJSON(it.summary.Tags)
+			r.AttributesJSON = mustJSON(it.summary)
+		})
 }
 
 // scanConnectRules iterates every EventSourceName per instance — ListRules
 // is event-source-scoped.
 func scanConnectRules(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var items []connectInstanceItem
+	listed := &connectListing[cttypes.RuleSummary]{op: "connect:ListRules"}
 	for _, inst := range instances {
 		if inst.Id == nil {
 			continue
 		}
 		instID := *inst.Id
 		for _, src := range cttypes.EventSourceName("").Values() {
-			src := src
-			pager := connect.NewListRulesPaginator(client, &connect.ListRulesInput{InstanceId: &instID, EventSourceName: src})
-			for pager.HasMorePages() {
-				out, perr := pager.NextPage(ctx)
-				if perr != nil {
-					if isAccessDenied(perr) {
-						break
-					}
-					return 0, 0, fmt.Errorf("connect:ListRules %s/%s: %w", instID, src, perr)
-				}
-				for _, r := range out.RuleSummaryList {
-					if r.RuleId != nil {
-						items = append(items, connectInstanceItem{instID, *r.RuleId})
-					}
-				}
+			err := connectReadPages(ctx, instID, listed,
+				connect.NewListRulesPaginator(client, &connect.ListRulesInput{InstanceId: &instID, EventSourceName: src},
+					func(o *connect.ListRulesPaginatorOptions) { o.Limit = 200 }),
+				func(o *connect.ListRulesOutput) []cttypes.RuleSummary { return o.RuleSummaryList },
+				func(s cttypes.RuleSummary) (string, string) { return sv(s.RuleId), sv(s.RuleArn) })
+			if err != nil {
+				listed.failed(st, acct, region, instID+"/"+string(src), err)
 			}
 		}
 	}
-	return connectPerInstanceFanout(ctx, items, fanoutMed, func(gctx context.Context, k connectInstanceItem) (*store.Resource, error) {
-		out, derr := client.DescribeRule(gctx, &connect.DescribeRuleInput{InstanceId: &k.instanceID, RuleId: &k.id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
+	return connectDescribe[cttypes.RuleSummary]{
+		rtype: TypeConnectRule, op: "connect:DescribeRule", label: "connect rules",
+		describe: func(ctx context.Context, it connectListed[cttypes.RuleSummary], r *store.Resource) error {
+			out, err := client.DescribeRule(ctx, &connect.DescribeRuleInput{InstanceId: &it.instanceID, RuleId: &it.id})
+			if err != nil {
+				return err
 			}
-			return nil, fmt.Errorf("connect:DescribeRule %s/%s: %w", k.instanceID, k.id, derr)
-		}
-		if out.Rule == nil {
-			return nil, nil
-		}
-		arn := sv(out.Rule.RuleArn)
-		if arn == "" {
-			return nil, nil
-		}
-		name := sv(out.Rule.Name)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectRule,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect rules")
+			rule := out.Rule
+			if rule == nil {
+				return errConnectNoBody
+			}
+			name := sv(rule.Name)
+			r.Name = &name
+			r.TagsJSON = mapTagsJSON(rule.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.RuleSummary) {
+			name := sv(s.Name)
+			r.Name = &name
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
 }
 
 func upsertConnectBatch(st *store.Store, batch []*store.Resource, label string) (int, int, error) {

@@ -2,15 +2,13 @@ package aws
 
 import (
 	"context"
-	"fmt"
-	"sync"
+
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/aws/aws-sdk-go-v2/service/connect"
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -36,287 +34,164 @@ type connectCoreAPI interface {
 // scanConnectCore runs the Core phases: instances, traffic distribution
 // groups, claimed phone numbers, and per-instance email addresses.
 func scanConnectCore(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) {
+	return connectRunPhases(st, acct, region,
+		connectPhase{"connect instances", func() (int, int, error) {
 			return scanConnectInstances(ctx, client, instances, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect traffic distribution groups", func() (int, int, error) {
 			return scanConnectTrafficDistributionGroups(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) { return scanConnectPhoneNumbers(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+		}},
+		connectPhase{"connect phone numbers", func() (int, int, error) {
+			return scanConnectPhoneNumbers(ctx, client, acct, region, st, scanID)
+		}},
+		connectPhase{"connect email addresses", func() (int, int, error) {
 			return scanConnectEmailAddresses(ctx, client, instances, acct, region, st, scanID)
-		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
-}
-
-// scanConnectInstances fans out DescribeInstance for each instance summary
-// from the pre-fetched list. NativeID = Instance ARN.
-func scanConnectInstances(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	if len(instances) == 0 {
-		return 0, 0, nil
-	}
-	ids := make([]string, 0, len(instances))
-	for _, i := range instances {
-		if i.Id != nil {
-			ids = append(ids, *i.Id)
-		}
-	}
-	return connectDescribeFanout(ctx, ids, fanoutMed, func(gctx context.Context, id string) (*store.Resource, error) {
-		out, derr := client.DescribeInstance(gctx, &connect.DescribeInstanceInput{InstanceId: &id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribeInstance %s: %w", id, derr)
-		}
-		if out.Instance == nil {
-			return nil, nil
-		}
-		arn := sv(out.Instance.Arn)
-		if arn == "" {
-			return nil, nil
-		}
-		alias := sv(out.Instance.InstanceAlias)
-		status := string(out.Instance.InstanceStatus)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectInstance,
-			NativeID:       arn,
-			Name:           &alias,
-			Region:         &region,
-			Status:         &status,
-			CreatedAt:      tp(out.Instance.CreatedTime),
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect instances")
-}
-
-// scanConnectTrafficDistributionGroups lists account-scoped TDGs then fans
-// out Describe.
-func scanConnectTrafficDistributionGroups(ctx context.Context, client connectCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := connect.NewListTrafficDistributionGroupsPaginator(client, &connect.ListTrafficDistributionGroupsInput{})
-	var ids []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			// Global-Resiliency TDGs need a provisioned Connect instance; without
-			// one AWS denies via resource-based-policy explicit deny — expected
-			// env state, silent-skip. (Distinct from isSCPExplicitDeny, which
-			// matches "service control policy".)
-			if isAccessDeniedWithMessage(perr, "explicit deny in a resource-based policy") {
-				return 0, 0, nil
-			}
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "connect:ListTrafficDistributionGroups", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("connect:ListTrafficDistributionGroups: %w", perr)
-		}
-		for _, t := range out.TrafficDistributionGroupSummaryList {
-			if t.Id != nil {
-				ids = append(ids, *t.Id)
-			}
-		}
-	}
-	return connectDescribeFanout(ctx, ids, fanoutMed, func(gctx context.Context, id string) (*store.Resource, error) {
-		out, derr := client.DescribeTrafficDistributionGroup(gctx, &connect.DescribeTrafficDistributionGroupInput{TrafficDistributionGroupId: &id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribeTrafficDistributionGroup %s: %w", id, derr)
-		}
-		if out.TrafficDistributionGroup == nil {
-			return nil, nil
-		}
-		arn := sv(out.TrafficDistributionGroup.Arn)
-		if arn == "" {
-			return nil, nil
-		}
-		name := sv(out.TrafficDistributionGroup.Name)
-		status := string(out.TrafficDistributionGroup.Status)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectTrafficDistributionGroup,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			Status:         &status,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect traffic distribution groups")
-}
-
-// scanConnectPhoneNumbers lists account-scoped phone numbers via V2 then
-// fans out DescribePhoneNumber. ListPhoneNumbersV2 lists across all
-// instances + TDGs in the region without an InstanceId filter.
-func scanConnectPhoneNumbers(ctx context.Context, client connectCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := connect.NewListPhoneNumbersV2Paginator(client, &connect.ListPhoneNumbersV2Input{})
-	var ids []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "connect:ListPhoneNumbersV2", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("connect:ListPhoneNumbersV2: %w", perr)
-		}
-		for _, p := range out.ListPhoneNumbersSummaryList {
-			if p.PhoneNumberId != nil {
-				ids = append(ids, *p.PhoneNumberId)
-			}
-		}
-	}
-	return connectDescribeFanout(ctx, ids, fanoutMed, func(gctx context.Context, id string) (*store.Resource, error) {
-		out, derr := client.DescribePhoneNumber(gctx, &connect.DescribePhoneNumberInput{PhoneNumberId: &id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("connect:DescribePhoneNumber %s: %w", id, derr)
-		}
-		if out.ClaimedPhoneNumberSummary == nil {
-			return nil, nil
-		}
-		arn := sv(out.ClaimedPhoneNumberSummary.PhoneNumberArn)
-		if arn == "" {
-			return nil, nil
-		}
-		num := sv(out.ClaimedPhoneNumberSummary.PhoneNumber)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeConnectPhoneNumber,
-			NativeID:       arn,
-			Name:           &num,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "connect phone numbers")
-}
-
-// scanConnectEmailAddresses fans out per instance — SearchEmailAddresses
-// requires InstanceId. EmailAddressArn is in the search summary; no Describe
-// op exists, so AttributesJSON = the search-summary entry.
-func scanConnectEmailAddresses(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	if len(instances) == 0 {
-		return 0, 0, nil
-	}
-	var batch []*store.Resource
-	for _, inst := range instances {
-		if inst.Id == nil {
-			continue
-		}
-		instID := *inst.Id
-		var token *string
-		for {
-			out, perr := client.SearchEmailAddresses(ctx, &connect.SearchEmailAddressesInput{InstanceId: &instID, NextToken: token})
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("connect:SearchEmailAddresses %s: %w", instID, perr)
-			}
-			for _, e := range out.EmailAddresses {
-				arn := sv(e.EmailAddressArn)
-				if arn == "" {
-					continue
-				}
-				addr := sv(e.EmailAddress)
-				batch = append(batch, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeConnectEmailAddress,
-					NativeID:       arn,
-					Name:           &addr,
-					Region:         &region,
-					AttributesJSON: mustJSON(e),
-					DiscoveredBy:   scanID,
-				})
-			}
-			if out.NextToken == nil || *out.NextToken == "" {
-				break
-			}
-			token = out.NextToken
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert connect email addresses: %w", uerr)
-	}
-	return len(batch), n, nil
-}
-
-// connectDescribeFanout mirrors sagemakerDescribeFanout — name-keyed
-// concurrent Describe + collect + upsert. Kept distinct so the two
-// services don't share an identifier helper across SDK boundaries.
-func connectDescribeFanout(
-	ctx context.Context,
-	keys []string,
-	weight int64,
-	build func(context.Context, string) (*store.Resource, error),
-	st *store.Store,
-	label string,
-) (int, int, error) {
-	if len(keys) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(weight)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
+		}},
 	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, k := range keys {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			r, err := build(gctx, k)
+}
+
+// scanConnectInstances describes each instance from the pre-fetched list.
+// NativeID = Instance ARN.
+func scanConnectInstances(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	listed := &connectListing[cttypes.InstanceSummary]{op: "connect:ListInstances"}
+	for _, i := range instances {
+		listed.add("", sv(i.Id), sv(i.Arn), i)
+	}
+	return connectDescribe[cttypes.InstanceSummary]{
+		rtype: TypeConnectInstance, op: "connect:DescribeInstance", label: "connect instances",
+		describe: func(ctx context.Context, it connectListed[cttypes.InstanceSummary], r *store.Resource) error {
+			out, err := client.DescribeInstance(ctx, &connect.DescribeInstanceInput{InstanceId: &it.id})
 			if err != nil {
 				return err
 			}
-			if r == nil {
-				return nil
+			inst := out.Instance
+			if inst == nil {
+				return errConnectNoBody
 			}
-			mu.Lock()
-			batch = append(batch, r)
-			mu.Unlock()
+			alias, status := sv(inst.InstanceAlias), string(inst.InstanceStatus)
+			r.Name, r.Status, r.CreatedAt = &alias, &status, tp(inst.CreatedTime)
+			r.TagsJSON = mapTagsJSON(inst.Tags)
+			r.AttributesJSON = mustJSON(out)
 			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.InstanceSummary) {
+			alias, status := sv(s.InstanceAlias), string(s.InstanceStatus)
+			r.Name, r.Status, r.CreatedAt = &alias, &status, tp(s.CreatedTime)
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
+}
+
+// scanConnectTrafficDistributionGroups lists account-scoped TDGs then
+// describes each.
+func scanConnectTrafficDistributionGroups(ctx context.Context, client connectCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	listed := &connectListing[cttypes.TrafficDistributionGroupSummary]{op: "connect:ListTrafficDistributionGroups"}
+	err := connectReadPages(ctx, "", listed,
+		connect.NewListTrafficDistributionGroupsPaginator(client, &connect.ListTrafficDistributionGroupsInput{},
+			func(o *connect.ListTrafficDistributionGroupsPaginatorOptions) { o.Limit = 10 }),
+		func(o *connect.ListTrafficDistributionGroupsOutput) []cttypes.TrafficDistributionGroupSummary {
+			return o.TrafficDistributionGroupSummaryList
+		},
+		func(s cttypes.TrafficDistributionGroupSummary) (string, string) { return sv(s.Id), sv(s.Arn) })
+	// Global-Resiliency TDGs need a provisioned Connect instance; without
+	// one AWS denies via resource-based-policy explicit deny — expected
+	// env state, silent-skip. (Distinct from isSCPExplicitDeny, which
+	// matches "service control policy".)
+	if err != nil && !isAccessDeniedWithMessage(err, "explicit deny in a resource-based policy") {
+		listed.failed(st, acct, region, region, err)
+	}
+	return connectDescribe[cttypes.TrafficDistributionGroupSummary]{
+		rtype: TypeConnectTrafficDistributionGroup, op: "connect:DescribeTrafficDistributionGroup", label: "connect traffic distribution groups",
+		describe: func(ctx context.Context, it connectListed[cttypes.TrafficDistributionGroupSummary], r *store.Resource) error {
+			out, err := client.DescribeTrafficDistributionGroup(ctx, &connect.DescribeTrafficDistributionGroupInput{TrafficDistributionGroupId: &it.id})
+			if err != nil {
+				return err
+			}
+			tdg := out.TrafficDistributionGroup
+			if tdg == nil {
+				return errConnectNoBody
+			}
+			name, status := sv(tdg.Name), string(tdg.Status)
+			r.Name, r.Status = &name, &status
+			r.TagsJSON = mapTagsJSON(tdg.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.TrafficDistributionGroupSummary) {
+			name, status := sv(s.Name), string(s.Status)
+			r.Name, r.Status = &name, &status
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
+}
+
+// scanConnectPhoneNumbers lists account-scoped phone numbers via V2 then
+// describes each. ListPhoneNumbersV2 lists across all instances + TDGs in the
+// region without an InstanceId filter.
+func scanConnectPhoneNumbers(ctx context.Context, client connectCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	listed := &connectListing[cttypes.ListPhoneNumbersSummary]{op: "connect:ListPhoneNumbersV2"}
+	if err := connectReadPages(ctx, "", listed,
+		connect.NewListPhoneNumbersV2Paginator(client, &connect.ListPhoneNumbersV2Input{},
+			func(o *connect.ListPhoneNumbersV2PaginatorOptions) { o.Limit = 1000 }),
+		func(o *connect.ListPhoneNumbersV2Output) []cttypes.ListPhoneNumbersSummary {
+			return o.ListPhoneNumbersSummaryList
+		},
+		func(s cttypes.ListPhoneNumbersSummary) (string, string) {
+			return sv(s.PhoneNumberId), sv(s.PhoneNumberArn)
+		},
+	); err != nil {
+		listed.failed(st, acct, region, region, err)
+	}
+	return connectDescribe[cttypes.ListPhoneNumbersSummary]{
+		rtype: TypeConnectPhoneNumber, op: "connect:DescribePhoneNumber", label: "connect phone numbers",
+		describe: func(ctx context.Context, it connectListed[cttypes.ListPhoneNumbersSummary], r *store.Resource) error {
+			// The ARN, not the UUID: a number claimed to a traffic distribution
+			// group, described by UUID from the group's alternate region, is
+			// ResourceNotFoundException, which would skip it.
+			out, err := client.DescribePhoneNumber(ctx, &connect.DescribePhoneNumberInput{PhoneNumberId: &it.arn})
+			if err != nil {
+				return err
+			}
+			pn := out.ClaimedPhoneNumberSummary
+			if pn == nil {
+				return errConnectNoBody
+			}
+			num := sv(pn.PhoneNumber)
+			r.Name = &num
+			r.TagsJSON = mapTagsJSON(pn.Tags)
+			r.AttributesJSON = mustJSON(out)
+			return nil
+		},
+		summary: func(r *store.Resource, s cttypes.ListPhoneNumbersSummary) {
+			num := sv(s.PhoneNumber)
+			r.Name = &num
+			r.AttributesJSON = mustJSON(s)
+		},
+	}.store(ctx, st, acct, region, scanID, listed)
+}
+
+// scanConnectEmailAddresses searches per instance — SearchEmailAddresses
+// requires InstanceId — and stores each search-summary entry as AttributesJSON.
+// The search summary has no tags and the scanner does not call
+// DescribeEmailAddress or ListTagsForResource, so these rows carry no tags.
+func scanConnectEmailAddresses(ctx context.Context, client connectCoreAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	listed := connectListPerInstance(ctx, st, acct, region, "connect:SearchEmailAddresses", instances,
+		func(instID string) connectPager[*connect.SearchEmailAddressesOutput] {
+			return &connectTokenPager[*connect.SearchEmailAddressesOutput]{
+				call: func(ctx context.Context, token *string) (*connect.SearchEmailAddressesOutput, error) {
+					return client.SearchEmailAddresses(ctx, &connect.SearchEmailAddressesInput{InstanceId: &instID, NextToken: token, MaxResults: sdkaws.Int32(100)})
+				},
+				next: func(o *connect.SearchEmailAddressesOutput) *string { return o.NextToken },
+			}
+		},
+		func(o *connect.SearchEmailAddressesOutput) []cttypes.EmailAddressMetadata { return o.EmailAddresses },
+		func(e cttypes.EmailAddressMetadata) (string, string) {
+			return sv(e.EmailAddressId), sv(e.EmailAddressArn)
 		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert %s: %w", label, uerr)
-	}
-	return len(batch), n, nil
+	return connectStoreListed(st, acct, region, scanID, TypeConnectEmailAddress, "connect email addresses", listed,
+		func(r *store.Resource, it connectListed[cttypes.EmailAddressMetadata]) {
+			addr := sv(it.summary.EmailAddress)
+			r.Name = &addr
+			r.AttributesJSON = mustJSON(it.summary)
+		})
 }
