@@ -44,13 +44,11 @@ func assertAPICode(t *testing.T, err error, code string) {
 	}
 }
 
-// rsListCase drives one region-wide list phase: page one holds one element,
-// page two another plus one without an id. Phases without pagination return
-// all three in one page.
+// rsListCase drives one unpaginated list phase: its one page holds two
+// elements and one without an id.
 type rsListCase struct {
 	op, typ              string
 	skipCodes, warnCodes []string
-	paged                bool
 	handler              func(fail error) func(in any) (any, error)
 	empty                any
 	wantIDs              []string
@@ -88,64 +86,48 @@ func rsListCases() []rsListCase {
 			},
 			run: runner(scanRedshiftAuthenticationProfiles),
 		},
-		{
-			op: "DescribeReservedNodes", typ: TypeRedshiftReservedNode, paged: true,
-			skipCodes: []string{"ReservedNodeNotFound"}, warnCodes: []string{"DependentServiceUnavailableFault"},
-			handler: func(fail error) func(in any) (any, error) {
-				return func(in any) (any, error) {
-					if in.(*redshift.DescribeReservedNodesInput).Marker == nil {
-						return &redshift.DescribeReservedNodesOutput{Marker: ptrStr("p2"), ReservedNodes: []redshifttypes.ReservedNode{
-							{ReservedNodeId: ptrStr("rn-1"), State: ptrStr("active"), StartTime: &rsStart, NodeType: ptrStr("ra3.xlplus")},
-						}}, nil
-					}
-					if fail != nil {
-						return nil, fail
-					}
-					return &redshift.DescribeReservedNodesOutput{ReservedNodes: []redshifttypes.ReservedNode{
-						{ReservedNodeId: ptrStr("rn-2")}, {State: ptrStr("active")},
-					}}, nil
-				}
-			},
-			empty: &redshift.DescribeReservedNodesOutput{},
-			wantIDs: []string{
-				redshiftARN(testRegion, testAccountID, "reservednode", "rn-1"),
-				redshiftARN(testRegion, testAccountID, "reservednode", "rn-2"),
-			},
-			run: runner(scanRedshiftReservedNodes),
-		},
-		{
-			op: "DescribeQev2IdcApplications", typ: TypeRedshiftQev2IdcApplication, paged: true,
-			skipCodes: []string{"Qev2IdcApplicationNotExists", "UnsupportedOperation"},
-			warnCodes: []string{"DependentServiceAccessDenied", "DependentServiceUnavailableFault"},
-			handler: func(fail error) func(in any) (any, error) {
-				return func(in any) (any, error) {
-					if in.(*redshift.DescribeQev2IdcApplicationsInput).Marker == nil {
-						return &redshift.DescribeQev2IdcApplicationsOutput{Marker: ptrStr("p2"), Qev2IdcApplications: []redshifttypes.Qev2IdcApplication{
-							{Qev2IdcApplicationArn: ptrStr("arn:aws:redshift:us-east-1:123456789012:qev2idcapplication:q1"), Qev2IdcApplicationName: ptrStr("q1"), IdcOnboardStatus: ptrStr("Completed"), IdcInstanceArn: ptrStr("arn:aws:sso:::instance/ssoins-1")},
-						}}, nil
-					}
-					if fail != nil {
-						return nil, fail
-					}
-					return &redshift.DescribeQev2IdcApplicationsOutput{Qev2IdcApplications: []redshifttypes.Qev2IdcApplication{
-						{Qev2IdcApplicationArn: ptrStr("arn:aws:redshift:us-east-1:123456789012:qev2idcapplication:q2")}, {Qev2IdcApplicationName: ptrStr("no-arn")},
-					}}, nil
-				}
-			},
-			empty: &redshift.DescribeQev2IdcApplicationsOutput{},
-			wantIDs: []string{
-				"arn:aws:redshift:us-east-1:123456789012:qev2idcapplication:q1",
-				"arn:aws:redshift:us-east-1:123456789012:qev2idcapplication:q2",
-			},
-			run: runner(scanRedshiftQev2IdcApplications),
-		},
 	}
 }
 
-func TestScanRedshiftListPhases_StoreEveryPageSkipIDless(t *testing.T) {
+// rsReservedNodesHandler answers DescribeReservedNodes with one node on page
+// one and, on page two (Marker p2), one more plus one without an id.
+func rsReservedNodesHandler(in any) (any, error) {
+	switch sv(in.(*redshift.DescribeReservedNodesInput).Marker) {
+	case "":
+		return &redshift.DescribeReservedNodesOutput{Marker: ptrStr("p2"), ReservedNodes: []redshifttypes.ReservedNode{
+			{ReservedNodeId: ptrStr("rn-1"), State: ptrStr("active"), StartTime: &rsStart, NodeType: ptrStr("ra3.xlplus")},
+		}}, nil
+	case "p2":
+		return &redshift.DescribeReservedNodesOutput{ReservedNodes: []redshifttypes.ReservedNode{
+			{ReservedNodeId: ptrStr("rn-2")}, {State: ptrStr("active")},
+		}}, nil
+	default:
+		return nil, rsBadInput
+	}
+}
+
+// rsQev2Handler answers DescribeQev2IdcApplications with one application on
+// page one and, on page two (Marker p2), one more plus one without an ARN.
+func rsQev2Handler(in any) (any, error) {
+	switch sv(in.(*redshift.DescribeQev2IdcApplicationsInput).Marker) {
+	case "":
+		return &redshift.DescribeQev2IdcApplicationsOutput{Marker: ptrStr("p2"), Qev2IdcApplications: []redshifttypes.Qev2IdcApplication{
+			{Qev2IdcApplicationArn: ptrStr("arn:aws:redshift:us-east-1:123456789012:qev2idcapplication:q1"), Qev2IdcApplicationName: ptrStr("q1"), IdcOnboardStatus: ptrStr("Completed"), IdcInstanceArn: ptrStr("arn:aws:sso:::instance/ssoins-1")},
+		}}, nil
+	case "p2":
+		return &redshift.DescribeQev2IdcApplicationsOutput{Qev2IdcApplications: []redshifttypes.Qev2IdcApplication{
+			{Qev2IdcApplicationArn: ptrStr("arn:aws:redshift:us-east-1:123456789012:qev2idcapplication:q2")}, {Qev2IdcApplicationName: ptrStr("no-arn")},
+		}}, nil
+	default:
+		return nil, rsBadInput
+	}
+}
+
+func TestScanRedshiftListPhases_StoreEveryElementWarnIDless(t *testing.T) {
 	for _, c := range rsListCases() {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
+			warns := countOpWarnings(st, "redshift:"+c.op)
 			total, err := c.run(context.Background(), rsClient(map[string]func(any) (any, error){c.op: c.handler(nil)}), st)
 			if err != nil {
 				t.Fatalf("scan: %v", err)
@@ -161,6 +143,9 @@ func TestScanRedshiftListPhases_StoreEveryPageSkipIDless(t *testing.T) {
 			slices.Sort(got)
 			if total != len(c.wantIDs) || !slices.Equal(got, c.wantIDs) {
 				t.Fatalf("total = %d, rows = %v, want %v", total, got, c.wantIDs)
+			}
+			if *warns != 1 {
+				t.Errorf("warnings = %d, want 1 for the element without an id", *warns)
 			}
 		})
 	}
@@ -199,8 +184,8 @@ func rsFailCases(skip, warn []string) []rsFailCase {
 	return append(cases, rsFailCase{name: "other", err: rsBadInput, wantErr: true})
 }
 
-// A denial or warn code warns once, a skip code is silent; both keep the rows
-// of the pages before it. Any other error fails the phase.
+// A denial or warn code warns once, a skip code is silent; neither stores a
+// row. Any other error fails the phase.
 func TestScanRedshiftListPhases_FailedPage(t *testing.T) {
 	for _, c := range rsListCases() {
 		for _, tc := range rsFailCases(c.skipCodes, c.warnCodes) {
@@ -218,12 +203,8 @@ func TestScanRedshiftListPhases_FailedPage(t *testing.T) {
 				if err != nil {
 					t.Fatalf("err = %v, want nil", err)
 				}
-				wantKept := 0
-				if c.paged {
-					wantKept = 1
-				}
-				if total != wantKept || len(rowsByNativeID(t, st, c.typ)) != wantKept {
-					t.Errorf("total = %d, want %d rows from the pages before the failure", total, wantKept)
+				if total != 0 || len(rowsByNativeID(t, st, c.typ)) != 0 {
+					t.Errorf("total = %d, want no rows", total)
 				}
 			})
 		}
@@ -235,8 +216,8 @@ func TestScanRedshiftListPhases_RowFields(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	client := rsClient(map[string]func(any) (any, error){
 		"DescribeAuthenticationProfiles": rsListCases()[0].handler(nil),
-		"DescribeReservedNodes":          rsListCases()[1].handler(nil),
-		"DescribeQev2IdcApplications":    rsListCases()[2].handler(nil),
+		"DescribeReservedNodes":          rsReservedNodesHandler,
+		"DescribeQev2IdcApplications":    rsQev2Handler,
 	})
 	for _, f := range []func(context.Context, redshiftSatelliteAPI, *account, string, *store.Store, string) (int, int, error){
 		scanRedshiftAuthenticationProfiles, scanRedshiftReservedNodes, scanRedshiftQev2IdcApplications,
@@ -297,8 +278,12 @@ const rsCert = "arn:aws:acm:us-east-1:123456789012:certificate/c1"
 
 func rsDomainHandler(fail error) func(in any) (any, error) {
 	return func(in any) (any, error) {
-		if in.(*redshift.DescribeCustomDomainAssociationsInput).Marker == nil {
+		switch sv(in.(*redshift.DescribeCustomDomainAssociationsInput).Marker) {
+		case "":
 			return rsDomainPage(ptrStr("p2"), rsAssoc(rsCert, [2]string{"c1", "a.example.com"}, [2]string{"c2", "b.example.com"})), nil
+		case "p2":
+		default:
+			return nil, rsBadInput
 		}
 		if fail != nil {
 			return nil, fail
@@ -313,6 +298,7 @@ func TestScanRedshiftCustomDomainAssociations_PairsUnderStoredClusters(t *testin
 	upsertTestResource(t, st, "aws", testAccountID, TypeRedshiftCluster, rsClusterARN("c1"), testRegion, "{}")
 	upsertTestResource(t, st, "aws", testAccountID, TypeRedshiftCluster, rsClusterARN("c2"), testRegion, "{}")
 	client := rsClient(map[string]func(any) (any, error){"DescribeCustomDomainAssociations": rsDomainHandler(nil)})
+	warns := countOpWarnings(st, "redshift:DescribeCustomDomainAssociations")
 
 	total, _, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1", "c2"))
 	if err != nil {
@@ -334,6 +320,9 @@ func TestScanRedshiftCustomDomainAssociations_PairsUnderStoredClusters(t *testin
 	}
 	assertContainsNative(t, st, rsClusterARN("c1"), want[0])
 	assertContainsNative(t, st, rsClusterARN("c2"), want[2])
+	if *warns != 1 {
+		t.Errorf("warnings = %d, want 1 for the pair without a domain", *warns)
+	}
 
 	row := rows[want[0]]
 	var attrs redshifttypes.Association
@@ -358,8 +347,38 @@ func TestScanRedshiftCustomDomainAssociations_NoClustersNoCall(t *testing.T) {
 	}
 }
 
-func TestScanRedshiftCustomDomainAssociations_FailedPage(t *testing.T) {
+// A failed first page stores nothing: a skip code is silent, a denial warns,
+// any other error fails the phase.
+func TestScanRedshiftCustomDomainAssociations_FailedFirstPage(t *testing.T) {
 	for _, tc := range rsFailCases([]string{"CustomDomainAssociationNotFoundFault", "UnsupportedOperation"}, nil) {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "redshift:DescribeCustomDomainAssociations")
+			client := rsClient(map[string]func(any) (any, error){"DescribeCustomDomainAssociations": func(any) (any, error) { return nil, tc.err }})
+			total, _, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1"))
+			if *warns != tc.wantWarn {
+				t.Errorf("warnings = %d, want %d", *warns, tc.wantWarn)
+			}
+			if tc.wantErr {
+				assertAPICode(t, err, "InvalidParameterValue")
+			} else if err != nil {
+				t.Errorf("err = %v, want nil", err)
+			}
+			if total != 0 {
+				t.Errorf("total = %d, want 0", total)
+			}
+		})
+	}
+}
+
+// A page failing after one was read keeps page one's pairs. A denial warns;
+// anything else, a first-page skip code included, fails the phase.
+func TestScanRedshiftCustomDomainAssociations_FailedLaterPageKeepsPairs(t *testing.T) {
+	for _, tc := range []rsFailCase{
+		{name: "denied", err: rsDenied, wantWarn: 1},
+		{name: "skip code", err: &smithy.GenericAPIError{Code: "CustomDomainAssociationNotFoundFault"}, wantErr: true},
+		{name: "other", err: rsBadInput, wantErr: true},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
 			upsertTestResource(t, st, "aws", testAccountID, TypeRedshiftCluster, rsClusterARN("c1"), testRegion, "{}")
@@ -370,14 +389,34 @@ func TestScanRedshiftCustomDomainAssociations_FailedPage(t *testing.T) {
 			if *warns != tc.wantWarn {
 				t.Errorf("warnings = %d, want %d", *warns, tc.wantWarn)
 			}
-			if tc.wantErr {
-				assertAPICode(t, err, "InvalidParameterValue")
-				return
+			var ae smithy.APIError
+			if tc.wantErr != (err != nil) || (tc.wantErr && !errors.As(err, &ae)) {
+				t.Errorf("err = %v, want error %v", err, tc.wantErr)
 			}
-			if err != nil || total != 2 {
-				t.Errorf("total = %d, err = %v; want page one's 2 rows, nil", total, err)
+			if total != 2 || len(rowsByNativeID(t, st, TypeRedshiftCustomDomainAssociation)) != 2 {
+				t.Errorf("total = %d, want page one's 2 rows", total)
 			}
 		})
+	}
+}
+
+// A Marker repeated by the service ends the listing as incomplete instead of
+// looping, after storing what was read.
+func TestScanRedshiftCustomDomainAssociations_RepeatedMarker(t *testing.T) {
+	st := newTestStore(t)
+	upsertTestResource(t, st, "aws", testAccountID, TypeRedshiftCluster, rsClusterARN("c1"), testRegion, "{}")
+	client := rsClient(map[string]func(any) (any, error){"DescribeCustomDomainAssociations": func(in any) (any, error) {
+		if in.(*redshift.DescribeCustomDomainAssociationsInput).Marker == nil {
+			return rsDomainPage(ptrStr("p2"), rsAssoc(rsCert, [2]string{"c1", "a.example.com"})), nil
+		}
+		return rsDomainPage(ptrStr("p2"), rsAssoc(rsCert, [2]string{"c1", "c.example.com"})), nil
+	}})
+	total, _, err := scanRedshiftCustomDomainAssociations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, rsClusters("c1"))
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Errorf("err = %v, want errRepeatedNextToken", err)
+	}
+	if total != 2 || len(rowsByNativeID(t, st, TypeRedshiftCustomDomainAssociation)) != 2 {
+		t.Errorf("total = %d, want the 2 pairs read up to the repeat", total)
 	}
 }
 
@@ -484,8 +523,8 @@ func rsTopLevelHandlers(calls *parentCalls) map[string]func(in any) (any, error)
 			return &redshift.DescribeDataSharesOutput{DataShares: []redshifttypes.DataShare{{DataShareArn: ptrStr("arn:aws:redshift:us-east-1:123456789012:datashare:ns/share1")}}}, nil
 		},
 		"DescribeAuthenticationProfiles": rsListCases()[0].handler(nil),
-		"DescribeReservedNodes":          rsListCases()[1].handler(nil),
-		"DescribeQev2IdcApplications":    rsListCases()[2].handler(nil),
+		"DescribeReservedNodes":          rsReservedNodesHandler,
+		"DescribeQev2IdcApplications":    rsQev2Handler,
 		"DescribeCustomDomainAssociations": func(any) (any, error) {
 			return rsDomainPage(nil, rsAssoc(rsCert, [2]string{"c1", "a.example.com"})), nil
 		},

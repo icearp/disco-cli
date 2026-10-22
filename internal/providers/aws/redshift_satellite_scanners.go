@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -42,87 +43,69 @@ func redshiftPageErr(st *store.Store, acct *account, region, op string, err erro
 	}
 }
 
+// scanRedshiftAuthenticationProfiles reads the op's single, unpaginated page.
 func scanRedshiftAuthenticationProfiles(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	const op = "redshift:DescribeAuthenticationProfiles"
-	out, err := client.DescribeAuthenticationProfiles(ctx, &redshift.DescribeAuthenticationProfilesInput{})
-	if err != nil {
-		return 0, 0, redshiftPageErr(st, acct, region, op, err, redshiftListCodes{skip: []string{"AuthenticationProfileNotFoundFault"}})
-	}
-	var batch []*store.Resource
-	for _, p := range out.AuthenticationProfiles {
-		name := sv(p.AuthenticationProfileName)
-		if name == "" {
-			continue
-		}
-		batch = append(batch, &store.Resource{
-			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-			Type: TypeRedshiftAuthenticationProfile, NativeID: redshiftARN(region, acct.ID, "authenticationprofile", name),
-			Name: &name, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-		})
-	}
-	return upsertBatch(st, batch, "redshift authentication profiles")
+	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeAuthenticationProfiles",
+		redshiftListCodes{skip: []string{"AuthenticationProfileNotFoundFault"}},
+		func(ctx context.Context, _ *string) (*redshift.DescribeAuthenticationProfilesOutput, error) {
+			return client.DescribeAuthenticationProfiles(ctx, &redshift.DescribeAuthenticationProfilesInput{})
+		},
+		func(o *redshift.DescribeAuthenticationProfilesOutput) ([]redshifttypes.AuthenticationProfile, *string) {
+			return o.AuthenticationProfiles, nil
+		},
+		func(p redshifttypes.AuthenticationProfile) *store.Resource {
+			name := sv(p.AuthenticationProfileName)
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRedshiftAuthenticationProfile, NativeID: redshiftIDARN(region, acct.ID, "authenticationprofile", name),
+				Name: &name, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			}
+		}, "authentication profiles", "AuthenticationProfileName")
+	return total, inserted, err
 }
 
 func scanRedshiftReservedNodes(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	const op = "redshift:DescribeReservedNodes"
-	pager := redshift.NewDescribeReservedNodesPaginator(client, &redshift.DescribeReservedNodesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if ferr := redshiftPageErr(st, acct, region, op, err, redshiftListCodes{
-				skip: []string{"ReservedNodeNotFound"},
-				warn: []string{"DependentServiceUnavailableFault"},
-			}); ferr != nil {
-				return 0, 0, ferr
-			}
-			break
-		}
-		for _, n := range out.ReservedNodes {
+	codes := redshiftListCodes{skip: []string{"ReservedNodeNotFound"}, warn: []string{"DependentServiceUnavailableFault"}}
+	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeReservedNodes", codes,
+		func(ctx context.Context, marker *string) (*redshift.DescribeReservedNodesOutput, error) {
+			return client.DescribeReservedNodes(ctx, &redshift.DescribeReservedNodesInput{Marker: marker})
+		},
+		func(o *redshift.DescribeReservedNodesOutput) ([]redshifttypes.ReservedNode, *string) {
+			return o.ReservedNodes, o.Marker
+		},
+		func(n redshifttypes.ReservedNode) *store.Resource {
 			id := sv(n.ReservedNodeId)
-			if id == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftReservedNode, NativeID: redshiftARN(region, acct.ID, "reservednode", id),
+				Type: TypeRedshiftReservedNode, NativeID: redshiftIDARN(region, acct.ID, "reservednode", id),
 				Name: &id, Region: &region, Status: nonEmptyPtr(sv(n.State)), CreatedAt: tp(n.StartTime),
 				AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "redshift reserved nodes")
+			}
+		}, "reserved nodes", "ReservedNodeId")
+	return total, inserted, err
 }
 
 func scanRedshiftQev2IdcApplications(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	const op = "redshift:DescribeQev2IdcApplications"
-	pager := redshift.NewDescribeQev2IdcApplicationsPaginator(client, &redshift.DescribeQev2IdcApplicationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if ferr := redshiftPageErr(st, acct, region, op, err, redshiftListCodes{
-				skip: []string{"Qev2IdcApplicationNotExists", "UnsupportedOperation"},
-				warn: []string{"DependentServiceAccessDenied", "DependentServiceUnavailableFault"},
-			}); ferr != nil {
-				return 0, 0, ferr
-			}
-			break
-		}
-		for _, a := range out.Qev2IdcApplications {
-			arn := sv(a.Qev2IdcApplicationArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftQev2IdcApplication, NativeID: arn,
-				Name: a.Qev2IdcApplicationName, Region: &region, Status: nonEmptyPtr(sv(a.IdcOnboardStatus)),
-				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
+	codes := redshiftListCodes{
+		skip: []string{"Qev2IdcApplicationNotExists", "UnsupportedOperation"},
+		warn: []string{"DependentServiceAccessDenied", "DependentServiceUnavailableFault"},
 	}
-	return upsertBatch(st, batch, "redshift qev2 idc applications")
+	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeQev2IdcApplications", codes,
+		func(ctx context.Context, marker *string) (*redshift.DescribeQev2IdcApplicationsOutput, error) {
+			return client.DescribeQev2IdcApplications(ctx, &redshift.DescribeQev2IdcApplicationsInput{Marker: marker})
+		},
+		func(o *redshift.DescribeQev2IdcApplicationsOutput) ([]redshifttypes.Qev2IdcApplication, *string) {
+			return o.Qev2IdcApplications, o.Marker
+		},
+		func(a redshifttypes.Qev2IdcApplication) *store.Resource {
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRedshiftQev2IdcApplication, NativeID: sv(a.Qev2IdcApplicationArn),
+				Name: a.Qev2IdcApplicationName, Region: &region, Status: nonEmptyPtr(sv(a.IdcOnboardStatus)),
+				AttributesJSON: mustJSON(a), TagsJSON: kvTagsJSON(a.Tags, redshiftTagKV), DiscoveredBy: scanID,
+			}
+		}, "Query Editor v2 IdC applications", "Qev2IdcApplicationArn")
+	return total, inserted, err
 }
 
 // scanRedshiftCustomDomainAssociations lists the region's custom domain
@@ -131,31 +114,37 @@ func scanRedshiftQev2IdcApplications(ctx context.Context, client redshiftSatelli
 // keyed {clusterARN}/custom-domain-association/{domain} under a cluster this
 // scan stored. Its row holds the Association narrowed to that pair, so a
 // change to a sibling pair cannot version-split it. A pair whose cluster was
-// not stored cannot be keyed and is skipped; with no stored clusters the call
-// is not made.
+// not stored cannot be keyed and is skipped; a pair with no domain is warned
+// about. With no stored clusters the call is not made. Pages fail as in
+// redshiftList, keeping the pairs already read.
 func scanRedshiftCustomDomainAssociations(ctx context.Context, client redshiftSatelliteAPI, acct *account, region string, st *store.Store, scanID string, clusters []childParent) (int, int, error) {
 	const op = "redshift:DescribeCustomDomainAssociations"
 	if len(clusters) == 0 {
 		return 0, 0, nil
 	}
 	clusterARN := parentARNByName(clusters)
-	var children []containedChild
-	pager := redshift.NewDescribeCustomDomainAssociationsPaginator(client, &redshift.DescribeCustomDomainAssociationsInput{})
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
+	codes := redshiftListCodes{skip: []string{"CustomDomainAssociationNotFoundFault", "UnsupportedOperation"}}
+	var (
+		children []containedChild
+		noDomain skipTally
+		marker   *string
+		listErr  error
+	)
+	for {
+		out, err := client.DescribeCustomDomainAssociations(ctx, &redshift.DescribeCustomDomainAssociationsInput{Marker: marker})
 		if err != nil {
-			if ferr := redshiftPageErr(st, acct, region, op, err, redshiftListCodes{
-				skip: []string{"CustomDomainAssociationNotFoundFault", "UnsupportedOperation"},
-			}); ferr != nil {
-				return 0, 0, ferr
-			}
+			listErr = redshiftListPageErr(st, acct, region, op, "custom domain associations", marker != nil, err, codes)
 			break
 		}
 		for _, a := range out.Associations {
 			for _, pair := range a.CertificateAssociations {
-				domain := sv(pair.CustomDomainName)
-				parent, ok := clusterARN[sv(pair.ClusterIdentifier)]
-				if domain == "" || !ok {
+				domain, cluster := sv(pair.CustomDomainName), sv(pair.ClusterIdentifier)
+				if domain == "" {
+					noDomain.skipped(fmt.Sprintf("cluster %q certificate %q", cluster, sv(a.CustomDomainCertificateArn)), nil)
+					continue
+				}
+				parent, ok := clusterARN[cluster]
+				if !ok {
 					continue
 				}
 				one := a
@@ -168,8 +157,18 @@ func scanRedshiftCustomDomainAssociations(ctx context.Context, client redshiftSa
 				}})
 			}
 		}
+		last, terr := lastPage(marker, out.Marker)
+		if last {
+			if terr != nil {
+				listErr = fmt.Errorf("%s: %w", op, terr)
+			}
+			break
+		}
+		marker = out.Marker
 	}
-	return upsertContained(st, op, children)
+	warnNotStored(st, op, acct, region, &noDomain, "custom domain associations have no CustomDomainName")
+	total, inserted, uerr := upsertContained(st, op, children)
+	return total, inserted, errors.Join(listErr, uerr)
 }
 
 // scanRedshiftPartners lists each stored cluster's partner integrations, keyed

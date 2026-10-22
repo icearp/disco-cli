@@ -5,13 +5,11 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
+	redshifttypes "github.com/aws/aws-sdk-go-v2/service/redshift/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// redshiftExtAPI lists ops for the seven extended Redshift resource types.
-// All seven Describe* ops expose Marker pagination but only some have
-// SDK-generated Paginator helpers; the ones missing paginators (EndpointAuth)
-// use a manual Marker loop.
+// redshiftExtAPI lists the ops of scanRedshift's extended list phases.
 type redshiftExtAPI interface {
 	DescribeClusterParameterGroups(context.Context, *redshift.DescribeClusterParameterGroupsInput, ...func(*redshift.Options)) (*redshift.DescribeClusterParameterGroupsOutput, error)
 	DescribeEndpointAccess(context.Context, *redshift.DescribeEndpointAccessInput, ...func(*redshift.Options)) (*redshift.DescribeEndpointAccessOutput, error)
@@ -26,184 +24,129 @@ func redshiftARN(region, acct, kind, id string) string {
 }
 
 func scanRedshiftClusterParameterGroups(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := redshift.NewDescribeClusterParameterGroupsPaginator(client, &redshift.DescribeClusterParameterGroupsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "redshift:DescribeClusterParameterGroups", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("redshift:DescribeClusterParameterGroups: %w", perr)
-		}
-		for _, p := range out.ParameterGroups {
+	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeClusterParameterGroups", redshiftListCodes{},
+		func(ctx context.Context, marker *string) (*redshift.DescribeClusterParameterGroupsOutput, error) {
+			return client.DescribeClusterParameterGroups(ctx, &redshift.DescribeClusterParameterGroupsInput{Marker: marker})
+		},
+		func(o *redshift.DescribeClusterParameterGroupsOutput) ([]redshifttypes.ClusterParameterGroup, *string) {
+			return o.ParameterGroups, o.Marker
+		},
+		func(p redshifttypes.ClusterParameterGroup) *store.Resource {
 			name := sv(p.ParameterGroupName)
-			if name == "" {
-				continue
-			}
-			arn := redshiftARN(region, acct.ID, "parametergroup", name)
-			label := name
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftClusterParameterGroup, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "redshift cluster-parameter-groups")
+				Type: TypeRedshiftClusterParameterGroup, NativeID: redshiftIDARN(region, acct.ID, "parametergroup", name),
+				Name: &name, Region: &region, AttributesJSON: mustJSON(p), TagsJSON: kvTagsJSON(p.Tags, redshiftTagKV),
+				DiscoveredBy: scanID,
+			}
+		}, "cluster parameter groups", "ParameterGroupName")
+	return total, inserted, err
 }
 
 func scanRedshiftEndpointAccess(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := redshift.NewDescribeEndpointAccessPaginator(client, &redshift.DescribeEndpointAccessInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "redshift:DescribeEndpointAccess", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("redshift:DescribeEndpointAccess: %w", perr)
-		}
-		for _, e := range out.EndpointAccessList {
+	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeEndpointAccess", redshiftListCodes{},
+		func(ctx context.Context, marker *string) (*redshift.DescribeEndpointAccessOutput, error) {
+			return client.DescribeEndpointAccess(ctx, &redshift.DescribeEndpointAccessInput{Marker: marker})
+		},
+		func(o *redshift.DescribeEndpointAccessOutput) ([]redshifttypes.EndpointAccess, *string) {
+			return o.EndpointAccessList, o.Marker
+		},
+		func(e redshifttypes.EndpointAccess) *store.Resource {
 			name := sv(e.EndpointName)
-			if name == "" {
-				continue
-			}
-			arn := redshiftARN(region, acct.ID, "endpointaccess", name)
-			label := name
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftEndpointAccess, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "redshift endpoint-access")
+				Type: TypeRedshiftEndpointAccess, NativeID: redshiftIDARN(region, acct.ID, "endpointaccess", name),
+				Name: &name, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
+			}
+		}, "endpoint accesses", "EndpointName")
+	return total, inserted, err
 }
 
-// scanRedshiftEndpointAuthorization uses manual Marker pagination (no SDK paginator helper).
+// scanRedshiftEndpointAuthorization keys an authorization by its cluster,
+// grantor and grantee; one missing any of the three is warned about.
 func scanRedshiftEndpointAuthorization(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	input := &redshift.DescribeEndpointAuthorizationInput{}
-	var batch []*store.Resource
-	for {
-		out, err := client.DescribeEndpointAuthorization(ctx, input)
-		if err != nil {
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "redshift:DescribeEndpointAuthorization", acct.ID, region, err)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("redshift:DescribeEndpointAuthorization: %w", err)
-		}
-		for _, a := range out.EndpointAuthorizationList {
-			grantor := sv(a.Grantor)
-			grantee := sv(a.Grantee)
-			cluster := sv(a.ClusterIdentifier)
-			if grantor == "" || grantee == "" || cluster == "" {
-				continue
-			}
-			arn := redshiftARN(region, acct.ID, "endpointauthorization", fmt.Sprintf("%s/%s/%s", cluster, grantor, grantee))
+	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeEndpointAuthorization", redshiftListCodes{},
+		func(ctx context.Context, marker *string) (*redshift.DescribeEndpointAuthorizationOutput, error) {
+			return client.DescribeEndpointAuthorization(ctx, &redshift.DescribeEndpointAuthorizationInput{Marker: marker})
+		},
+		func(o *redshift.DescribeEndpointAuthorizationOutput) ([]redshifttypes.EndpointAuthorization, *string) {
+			return o.EndpointAuthorizationList, o.Marker
+		},
+		func(a redshifttypes.EndpointAuthorization) *store.Resource {
+			grantor, grantee, cluster := sv(a.Grantor), sv(a.Grantee), sv(a.ClusterIdentifier)
 			label := fmt.Sprintf("%s→%s", grantor, grantee)
-			batch = append(batch, &store.Resource{
+			var arn string
+			if grantor != "" && grantee != "" && cluster != "" {
+				arn = redshiftARN(region, acct.ID, "endpointauthorization", fmt.Sprintf("%s/%s/%s", cluster, grantor, grantee))
+			}
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRedshiftEndpointAuthorization, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-		if out.Marker == nil || *out.Marker == "" {
-			break
-		}
-		input.Marker = out.Marker
-	}
-	return upsertBatch(st, batch, "redshift endpoint-authorizations")
+			}
+		}, "endpoint authorizations", "ClusterIdentifier, Grantor or Grantee")
+	return total, inserted, err
 }
 
 func scanRedshiftEventSubscriptions(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := redshift.NewDescribeEventSubscriptionsPaginator(client, &redshift.DescribeEventSubscriptionsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "redshift:DescribeEventSubscriptions", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("redshift:DescribeEventSubscriptions: %w", perr)
-		}
-		for _, e := range out.EventSubscriptionsList {
+	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeEventSubscriptions", redshiftListCodes{},
+		func(ctx context.Context, marker *string) (*redshift.DescribeEventSubscriptionsOutput, error) {
+			return client.DescribeEventSubscriptions(ctx, &redshift.DescribeEventSubscriptionsInput{Marker: marker})
+		},
+		func(o *redshift.DescribeEventSubscriptionsOutput) ([]redshifttypes.EventSubscription, *string) {
+			return o.EventSubscriptionsList, o.Marker
+		},
+		func(e redshifttypes.EventSubscription) *store.Resource {
 			id := sv(e.CustSubscriptionId)
-			if id == "" {
-				continue
-			}
-			arn := redshiftARN(region, acct.ID, "eventsubscription", id)
-			label := id
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftEventSubscription, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "redshift event-subscriptions")
+				Type: TypeRedshiftEventSubscription, NativeID: redshiftIDARN(region, acct.ID, "eventsubscription", id),
+				Name: &id, Region: &region, AttributesJSON: mustJSON(e), TagsJSON: kvTagsJSON(e.Tags, redshiftTagKV),
+				DiscoveredBy: scanID,
+			}
+		}, "event subscriptions", "CustSubscriptionId")
+	return total, inserted, err
 }
 
 func scanRedshiftIntegrations(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := redshift.NewDescribeIntegrationsPaginator(client, &redshift.DescribeIntegrationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "redshift:DescribeIntegrations", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("redshift:DescribeIntegrations: %w", perr)
-		}
-		for _, integration := range out.Integrations {
+	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeIntegrations", redshiftListCodes{},
+		func(ctx context.Context, marker *string) (*redshift.DescribeIntegrationsOutput, error) {
+			return client.DescribeIntegrations(ctx, &redshift.DescribeIntegrationsInput{Marker: marker})
+		},
+		func(o *redshift.DescribeIntegrationsOutput) ([]redshifttypes.Integration, *string) {
+			return o.Integrations, o.Marker
+		},
+		func(integration redshifttypes.Integration) *store.Resource {
 			arn := sv(integration.IntegrationArn)
-			if arn == "" {
-				continue
-			}
 			label := sv(integration.IntegrationName)
 			if label == "" {
 				label = arn
 			}
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRedshiftIntegration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(integration), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "redshift integrations")
+				Name: &label, Region: &region, AttributesJSON: mustJSON(integration),
+				TagsJSON: kvTagsJSON(integration.Tags, redshiftTagKV), DiscoveredBy: scanID,
+			}
+		}, "integrations", "IntegrationArn")
+	return total, inserted, err
 }
 
 func scanRedshiftScheduledActions(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := redshift.NewDescribeScheduledActionsPaginator(client, &redshift.DescribeScheduledActionsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "redshift:DescribeScheduledActions", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("redshift:DescribeScheduledActions: %w", perr)
-		}
-		for _, s := range out.ScheduledActions {
+	_, total, inserted, err := redshiftList(ctx, st, acct, region, "redshift:DescribeScheduledActions", redshiftListCodes{},
+		func(ctx context.Context, marker *string) (*redshift.DescribeScheduledActionsOutput, error) {
+			return client.DescribeScheduledActions(ctx, &redshift.DescribeScheduledActionsInput{Marker: marker})
+		},
+		func(o *redshift.DescribeScheduledActionsOutput) ([]redshifttypes.ScheduledAction, *string) {
+			return o.ScheduledActions, o.Marker
+		},
+		func(s redshifttypes.ScheduledAction) *store.Resource {
 			name := sv(s.ScheduledActionName)
-			if name == "" {
-				continue
-			}
-			arn := redshiftARN(region, acct.ID, "scheduledaction", name)
-			label := name
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftScheduledAction, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "redshift scheduled-actions")
+				Type: TypeRedshiftScheduledAction, NativeID: redshiftIDARN(region, acct.ID, "scheduledaction", name),
+				Name: &name, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+			}
+		}, "scheduled actions", "ScheduledActionName")
+	return total, inserted, err
 }
