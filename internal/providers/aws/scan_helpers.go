@@ -776,3 +776,184 @@ func (p phaseErrs) join(st *store.Store, acct *account, region string) error {
 	}
 	return errors.Join(errs...)
 }
+
+// readTokenPages reads every page of one listing. On a failed page it returns the
+// items already read with the error, so the caller can keep them. A repeated
+// NextToken ends the listing with errRepeatedNextToken.
+func readTokenPages[Item any](ctx context.Context, page func(ctx context.Context, token *string) ([]Item, *string, error)) ([]Item, error) {
+	var (
+		items []Item
+		token *string
+	)
+	for {
+		got, next, err := page(ctx, token)
+		if err != nil {
+			return items, err
+		}
+		items = append(items, got...)
+		done, err := lastPage(token, next)
+		if done {
+			return items, err
+		}
+		token = next
+	}
+}
+
+// notStoredSkips tallies the listed items not stored, one tally per reason, so each
+// reason is warned about once.
+type notStoredSkips struct {
+	whys    []string
+	tallies map[string]*skipTally
+}
+
+func (s *notStoredSkips) skipped(why, key string) {
+	if s.tallies == nil {
+		s.tallies = map[string]*skipTally{}
+	}
+	t, ok := s.tallies[why]
+	if !ok {
+		t = &skipTally{}
+		s.tallies[why] = t
+		s.whys = append(s.whys, why)
+	}
+	t.skipped(key, nil)
+}
+
+func (s *notStoredSkips) warn(st *store.Store, op string, acct *account, region string) {
+	for _, why := range s.whys {
+		warnNotStored(st, op, acct, region, s.tallies[why], why)
+	}
+}
+
+// buildListedRows turns listed items into rows. row returns nil with the reason and a
+// key naming the item when the item cannot be stored.
+func buildListedRows[Item any](items []Item, row func(Item) (r *store.Resource, why, key string), rows []*store.Resource, skips *notStoredSkips) []*store.Resource {
+	for _, it := range items {
+		r, why, key := row(it)
+		if r == nil {
+			skips.skipped(why, key)
+			continue
+		}
+		rows = append(rows, r)
+	}
+	return rows
+}
+
+// storeTokenList stores the rows of an account-wide listing, those read before a
+// failed page included. A denial is warned about rather than returned; any
+// other error is returned after the rows are stored. Warnings are reported only
+// once the write succeeded, so none claims rows a failed write lost.
+func storeTokenList[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (r *store.Resource, why, key string),
+) (int, int, error) {
+	var skips notStoredSkips
+	items, err := readTokenPages(ctx, page)
+	rows := buildListedRows(items, row, nil, &skips)
+	var denied error
+	if isAccessDenied(err) {
+		denied, err = err, nil
+	}
+	total, inserted, err := upsertListed(st, rows, op, err)
+	if errors.Is(err, store.ErrStoreWrite) {
+		return total, inserted, err
+	}
+	if denied != nil {
+		_ = skipIfAccessDenied(st, op, acct.ID, region, denied)
+	}
+	skips.warn(st, op, acct, region)
+	return total, inserted, err
+}
+
+// storeTokenPerParent lists op's items for each parent in turn and stores the
+// rows of every parent read. One parent's failure does not stop the others:
+// a parent the service no longer finds (an error code in notFound, the codes
+// op models for a parent deleted since it was listed; nil when it models
+// none) is skipped silently when nothing was read from it and with a warning
+// otherwise; a denied parent is warned about once for the op;
+// any other error is returned after the rows are stored. Rows read before a
+// failed page are kept in every case.
+func storeTokenPerParent[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound, parents []string,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (r *store.Resource, why, key string),
+) (int, int, error) {
+	var (
+		rows             []*store.Resource
+		errs             []error
+		denied, vanished skipTally
+		skips            notStoredSkips
+	)
+	for _, p := range parents {
+		if err := ctx.Err(); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", op, err))
+			break
+		}
+		items, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]Item, *string, error) {
+			return page(ctx, p, token)
+		})
+		rows = buildListedRows(items, func(it Item) (*store.Resource, string, string) { return row(p, it) }, rows, &skips)
+		switch {
+		case err == nil:
+		case isAPIErrorCode(err, notFound...) && len(items) == 0:
+		case isAPIErrorCode(err, notFound...):
+			vanished.skipped(p, err)
+		case isAccessDenied(err):
+			denied.skipped(p, err)
+		default:
+			errs = append(errs, fmt.Errorf("%s %s: %w", op, p, err))
+		}
+	}
+	total, inserted, uerr := upsertBatch(st, rows, op)
+	if uerr != nil {
+		return total, inserted, errors.Join(append(errs, uerr)...)
+	}
+	if denied.count > 0 {
+		_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf("%d parent(s) denied, first %s: %w", denied.count, denied.first, denied.err))
+	}
+	if vanished.count > 0 {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
+			Message: fmt.Sprintf("%d parent(s) were deleted while their listing was read, so only part of it was stored; first %s: %v", vanished.count, vanished.first, vanished.err),
+		})
+	}
+	skips.warn(st, op, acct, region)
+	return total, inserted, errors.Join(errs...)
+}
+
+// warnNoChildID warns once for the parents stored without the id their
+// child listings key on, so those children were not read.
+func warnNoChildID(st *store.Store, op string, acct *account, region string, t *skipTally, what, field string) {
+	if t.count == 0 {
+		return
+	}
+	st.ReportWarning(store.ScanWarning{
+		Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
+		Message: fmt.Sprintf("%d %s stored with an empty %s, so their children were not read; first %s", t.count, what, field, t.first),
+	})
+}
+
+// phaseTotals sums the counts of a scanner's independent phases and collects
+// their errors, so every phase runs and only a store write failure stops the
+// scanner.
+type phaseTotals struct {
+	total, inserted int
+	errs            phaseErrs
+}
+
+// addPhase adds one phase's counts and error under op, and reports whether
+// that error is a store write failure, after which the scanner must stop:
+// every later write would fail too.
+func (p *phaseTotals) addPhase(op string, total, inserted int, err error) (storeWriteFailed bool) {
+	p.total += total
+	p.inserted += inserted
+	p.errs.add(op, err)
+	return errors.Is(err, store.ErrStoreWrite)
+}
+
+// result returns the summed counts and the phases' errors joined by
+// phaseErrs.join.
+func (p *phaseTotals) result(st *store.Store, acct *account, region string) (int, int, error) {
+	return p.total, p.inserted, p.errs.join(st, acct, region)
+}

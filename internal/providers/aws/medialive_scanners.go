@@ -1,11 +1,14 @@
 package aws
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/medialive"
+	medialivetypes "github.com/aws/aws-sdk-go-v2/service/medialive/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -54,623 +57,461 @@ type mediaLiveAPI interface {
 	ListSignalMaps(context.Context, *medialive.ListSignalMapsInput, ...func(*medialive.Options)) (*medialive.ListSignalMapsOutput, error)
 }
 
+const (
+	mediaLiveListChannelsOp                = "medialive:ListChannels"
+	mediaLiveListClustersOp                = "medialive:ListClusters"
+	mediaLiveListPlacementGroupsOp         = "medialive:ListChannelPlacementGroups"
+	mediaLiveListAlarmTemplatesOp          = "medialive:ListCloudWatchAlarmTemplates"
+	mediaLiveListAlarmTemplateGroupsOp     = "medialive:ListCloudWatchAlarmTemplateGroups"
+	mediaLiveListEBRuleTemplatesOp         = "medialive:ListEventBridgeRuleTemplates"
+	mediaLiveListEBRuleTemplateGroupsOp    = "medialive:ListEventBridgeRuleTemplateGroups"
+	mediaLiveListInputsOp                  = "medialive:ListInputs"
+	mediaLiveListInputDevicesOp            = "medialive:ListInputDevices"
+	mediaLiveListInputSecurityGroupsOp     = "medialive:ListInputSecurityGroups"
+	mediaLiveListNodesOp                   = "medialive:ListNodes"
+	mediaLiveListReservationsOp            = "medialive:ListReservations"
+	mediaLiveListMultiplexesOp             = "medialive:ListMultiplexes"
+	mediaLiveListMultiplexProgramsOp       = "medialive:ListMultiplexPrograms"
+	mediaLiveListNetworksOp                = "medialive:ListNetworks"
+	mediaLiveListSdiSourcesOp              = "medialive:ListSdiSources"
+	mediaLiveListSignalMapsOp              = "medialive:ListSignalMaps"
+	mediaLiveMultiplexProgramNotFoundError = "NotFoundException"
+)
+
 func scanMediaLive(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := medialive.NewFromConfig(acct.cfg, func(o *medialive.Options) { o.Region = region })
+	return scanMLAll(ctx, client, acct, region, st, scanID)
+}
 
+// scanMLAll runs every phase and joins their errors; only a store write
+// failure stops it. A failed cluster or multiplex listing leaves its child
+// phases fewer parents to list.
+//
+// Every list call leaves MaxResults unset, so the service picks the page
+// size: MediaLive's model gives MaxResults no range, so there is no
+// documented cap to ask for.
+func scanMLAll(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var phases phaseTotals
 	clusterIDs, t, i, ferr := scanMLClusters(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return 0, 0, ferr
+	if phases.addPhase(mediaLiveListClustersOp, t, i, ferr) {
+		return phases.result(st, acct, region)
 	}
-	total += t
-	inserted += i
-
 	multiplexIDs, t, i, ferr := scanMLMultiplexes(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
+	if phases.addPhase(mediaLiveListMultiplexesOp, t, i, ferr) {
+		return phases.result(st, acct, region)
 	}
-	total += t
-	inserted += i
-
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanMLChannels(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+	for _, phase := range []struct {
+		op string
+		fn func() (int, int, error)
+	}{
+		{mediaLiveListChannelsOp, func() (int, int, error) { return scanMLChannels(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListPlacementGroupsOp, func() (int, int, error) {
 			return scanMLChannelPlacementGroups(ctx, client, acct, region, st, scanID, clusterIDs)
-		},
-		func() (int, int, error) { return scanMLAlarmTemplates(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanMLAlarmTemplateGroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanMLEBTemplates(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanMLEBTemplateGroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanMLInputs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanMLInputDevices(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanMLInputSecurityGroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanMLNodes(ctx, client, acct, region, st, scanID, clusterIDs) },
-		func() (int, int, error) { return scanMLReservations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+		}},
+		{mediaLiveListAlarmTemplatesOp, func() (int, int, error) { return scanMLAlarmTemplates(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListAlarmTemplateGroupsOp, func() (int, int, error) {
+			return scanMLAlarmTemplateGroups(ctx, client, acct, region, st, scanID)
+		}},
+		{mediaLiveListEBRuleTemplatesOp, func() (int, int, error) { return scanMLEBTemplates(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListEBRuleTemplateGroupsOp, func() (int, int, error) {
+			return scanMLEBTemplateGroups(ctx, client, acct, region, st, scanID)
+		}},
+		{mediaLiveListInputsOp, func() (int, int, error) { return scanMLInputs(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListInputDevicesOp, func() (int, int, error) { return scanMLInputDevices(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListInputSecurityGroupsOp, func() (int, int, error) {
+			return scanMLInputSecurityGroups(ctx, client, acct, region, st, scanID)
+		}},
+		{mediaLiveListNodesOp, func() (int, int, error) { return scanMLNodes(ctx, client, acct, region, st, scanID, clusterIDs) }},
+		{mediaLiveListReservationsOp, func() (int, int, error) { return scanMLReservations(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListMultiplexProgramsOp, func() (int, int, error) {
 			return scanMLMultiplexPrograms(ctx, client, acct, region, st, scanID, multiplexIDs)
-		},
-		func() (int, int, error) { return scanMLNetworks(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanMLSdiSources(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanMLSignalMaps(ctx, client, acct, region, st, scanID) },
+		}},
+		{mediaLiveListNetworksOp, func() (int, int, error) { return scanMLNetworks(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListSdiSourcesOp, func() (int, int, error) { return scanMLSdiSources(ctx, client, acct, region, st, scanID) }},
+		{mediaLiveListSignalMapsOp, func() (int, int, error) { return scanMLSignalMaps(ctx, client, acct, region, st, scanID) }},
 	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
+		t, i, ferr := phase.fn()
+		if phases.addPhase(phase.op, t, i, ferr) {
+			break
 		}
-		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return phases.result(st, acct, region)
 }
 
 func mlARN(region, acct, kind, id string) string {
 	return fmt.Sprintf("arn:aws:medialive:%s:%s:%s/%s", region, acct, kind, id)
 }
 
-func scanMLChannels(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := medialive.NewListChannelsPaginator(client, &medialive.ListChannelsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListChannels", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("medialive:ListChannels: %w", perr)
-		}
-		for _, c := range out.Channels {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(c.Name)
-			if label == "" {
-				label = sv(c.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveChannel, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
+// mediaLiveRow builds the row of a listed MediaLive element.
+func mediaLiveRow(acct *account, region, scanID, rtype, nativeID, name string, element any, tags *string) *store.Resource {
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: rtype, NativeID: nativeID, Name: &name, Region: &region,
+		AttributesJSON: mustJSON(element), TagsJSON: tags, DiscoveredBy: scanID,
 	}
-	return upsertBatch(st, batch, "medialive channels")
 }
 
-func scanMLClusters(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := medialive.NewListClustersPaginator(client, &medialive.ListClustersInput{})
-	var ids []string
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListClusters", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			// MediaLive Anywhere (clusters) isn't offered in every region —
-			// those reject ListClusters with 404 NotFoundException. Per-region
-			// gap, silent-skip.
-			if isAPIErrorCode(perr, "NotFoundException") {
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("medialive:ListClusters: %w", perr)
+// mediaLiveSkipOpNotDeployed makes list read as empty when its first page
+// fails with isOpNotDeployed: MediaLive Anywhere (clusters, networks) is not
+// offered in every MediaLive region, and those regions reject its list calls
+// with HTTP 404. Once a page was read the endpoint serves the op, so a later
+// failure is returned.
+func mediaLiveSkipOpNotDeployed[Item any](list func(context.Context, *string) ([]Item, *string, error)) func(context.Context, *string) ([]Item, *string, error) {
+	return func(ctx context.Context, token *string) ([]Item, *string, error) {
+		items, next, err := list(ctx, token)
+		if err != nil && token == nil && isOpNotDeployed(err) {
+			return nil, nil, nil
 		}
-		for _, c := range out.Clusters {
+		return items, next, err
+	}
+}
+
+func scanMLChannels(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, mediaLiveListChannelsOp,
+		func(ctx context.Context, token *string) ([]medialivetypes.ChannelSummary, *string, error) {
+			out, err := client.ListChannels(ctx, &medialive.ListChannelsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Channels, out.NextToken, nil
+		},
+		func(c medialivetypes.ChannelSummary) (*store.Resource, string, string) {
 			arn := sv(c.Arn)
 			if arn == "" {
-				continue
+				return nil, "channels have an empty Arn", sv(c.Id)
 			}
-			id := sv(c.Id)
-			ids = append(ids, id)
-			label := sv(c.Name)
-			if label == "" {
-				label = id
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveChannel, arn, cmp.Or(sv(c.Name), sv(c.Id)), c, mapTagsJSON(c.Tags)), "", ""
+		})
+}
+
+// scanMLClusters stores the clusters and returns the ids of those stored,
+// for the per-cluster phases.
+func scanMLClusters(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+	var (
+		ids       []string
+		noChildID skipTally
+	)
+	t, i, err := storeTokenList(ctx, st, acct, region, mediaLiveListClustersOp,
+		mediaLiveSkipOpNotDeployed(func(ctx context.Context, token *string) ([]medialivetypes.DescribeClusterSummary, *string, error) {
+			out, err := client.ListClusters(ctx, &medialive.ListClustersInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveCluster, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
+			return out.Clusters, out.NextToken, nil
+		}),
+		func(c medialivetypes.DescribeClusterSummary) (*store.Resource, string, string) {
+			arn, id := sv(c.Arn), sv(c.Id)
+			if arn == "" {
+				return nil, "clusters have an empty Arn, and their nodes and channel placement groups were not read either", id
+			}
+			if id == "" {
+				noChildID.skipped(arn, nil)
+			} else {
+				ids = append(ids, id)
+			}
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveCluster, arn, cmp.Or(sv(c.Name), id), c, nil), "", ""
+		})
+	if !errors.Is(err, store.ErrStoreWrite) {
+		warnNoChildID(st, mediaLiveListClustersOp, acct, region, &noChildID, "cluster(s)", "Id")
 	}
-	t, i, err := upsertBatch(st, batch, "medialive clusters")
 	return ids, t, i, err
 }
 
 func scanMLChannelPlacementGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string, clusterIDs []string) (int, int, error) {
-	if len(clusterIDs) == 0 {
-		return 0, 0, nil
-	}
-	var batch []*store.Resource
-	for _, cid := range clusterIDs {
-		id := cid
-		pager := medialive.NewListChannelPlacementGroupsPaginator(client, &medialive.ListChannelPlacementGroupsInput{ClusterId: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("medialive:ListChannelPlacementGroups %s: %w", cid, perr)
+	return storeTokenPerParent(ctx, st, acct, region, mediaLiveListPlacementGroupsOp, nil, clusterIDs,
+		func(ctx context.Context, cid string, token *string) ([]medialivetypes.DescribeChannelPlacementGroupSummary, *string, error) {
+			out, err := client.ListChannelPlacementGroups(ctx, &medialive.ListChannelPlacementGroupsInput{ClusterId: &cid, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, p := range out.ChannelPlacementGroups {
-				arn := sv(p.Arn)
-				if arn == "" {
-					continue
-				}
-				label := sv(p.Name)
-				if label == "" {
-					label = sv(p.Id)
-				}
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeMediaLiveChannelPlacementGroup, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-				})
+			return out.ChannelPlacementGroups, out.NextToken, nil
+		},
+		func(cid string, p medialivetypes.DescribeChannelPlacementGroupSummary) (*store.Resource, string, string) {
+			arn := sv(p.Arn)
+			if arn == "" {
+				return nil, "channel placement groups have an empty Arn (first names their cluster)", cid
 			}
-		}
-	}
-	return upsertBatch(st, batch, "medialive channel-placement-groups")
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveChannelPlacementGroup, arn, cmp.Or(sv(p.Name), sv(p.Id)), p, nil), "", ""
+		})
 }
 
 func scanMLAlarmTemplates(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := medialive.NewListCloudWatchAlarmTemplatesPaginator(client, &medialive.ListCloudWatchAlarmTemplatesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListCloudWatchAlarmTemplates", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, mediaLiveListAlarmTemplatesOp,
+		func(ctx context.Context, token *string) ([]medialivetypes.CloudWatchAlarmTemplateSummary, *string, error) {
+			out, err := client.ListCloudWatchAlarmTemplates(ctx, &medialive.ListCloudWatchAlarmTemplatesInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("medialive:ListCloudWatchAlarmTemplates: %w", perr)
-		}
-		for _, a := range out.CloudWatchAlarmTemplates {
+			return out.CloudWatchAlarmTemplates, out.NextToken, nil
+		},
+		func(a medialivetypes.CloudWatchAlarmTemplateSummary) (*store.Resource, string, string) {
 			arn := sv(a.Arn)
 			if arn == "" {
-				continue
+				return nil, "CloudWatch alarm templates have an empty Arn", sv(a.Id)
 			}
-			label := sv(a.Name)
-			if label == "" {
-				label = sv(a.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveCloudWatchAlarmTemplate, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-				// AWS-supplied default templates carry an Id prefixed "aws-".
-				ManagedByProvider: strings.HasPrefix(sv(a.Id), "aws-"),
-			})
-		}
-	}
-	return upsertBatch(st, batch, "medialive cloudwatch-alarm-templates")
+			r := mediaLiveRow(acct, region, scanID, TypeMediaLiveCloudWatchAlarmTemplate, arn, cmp.Or(sv(a.Name), sv(a.Id)), a, mapTagsJSON(a.Tags))
+			// AWS-supplied default templates carry an Id prefixed "aws-".
+			r.ManagedByProvider = strings.HasPrefix(sv(a.Id), "aws-")
+			return r, "", ""
+		})
 }
 
 func scanMLAlarmTemplateGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := medialive.NewListCloudWatchAlarmTemplateGroupsPaginator(client, &medialive.ListCloudWatchAlarmTemplateGroupsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListCloudWatchAlarmTemplateGroups", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, mediaLiveListAlarmTemplateGroupsOp,
+		func(ctx context.Context, token *string) ([]medialivetypes.CloudWatchAlarmTemplateGroupSummary, *string, error) {
+			out, err := client.ListCloudWatchAlarmTemplateGroups(ctx, &medialive.ListCloudWatchAlarmTemplateGroupsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("medialive:ListCloudWatchAlarmTemplateGroups: %w", perr)
-		}
-		for _, g := range out.CloudWatchAlarmTemplateGroups {
+			return out.CloudWatchAlarmTemplateGroups, out.NextToken, nil
+		},
+		func(g medialivetypes.CloudWatchAlarmTemplateGroupSummary) (*store.Resource, string, string) {
 			arn := sv(g.Arn)
 			if arn == "" {
-				continue
+				return nil, "CloudWatch alarm template groups have an empty Arn", sv(g.Id)
 			}
-			label := sv(g.Name)
-			if label == "" {
-				label = sv(g.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveCloudWatchAlarmTemplateGroup, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-				// AWS-supplied default groups carry an Id prefixed "aws-";
-				// customer groups get a generated alphanumeric Id.
-				ManagedByProvider: strings.HasPrefix(sv(g.Id), "aws-"),
-			})
-		}
-	}
-	return upsertBatch(st, batch, "medialive cloudwatch-alarm-template-groups")
+			r := mediaLiveRow(acct, region, scanID, TypeMediaLiveCloudWatchAlarmTemplateGroup, arn, cmp.Or(sv(g.Name), sv(g.Id)), g, mapTagsJSON(g.Tags))
+			// AWS-supplied default groups carry an Id prefixed "aws-";
+			// customer groups get a generated alphanumeric Id.
+			r.ManagedByProvider = strings.HasPrefix(sv(g.Id), "aws-")
+			return r, "", ""
+		})
 }
 
 func scanMLEBTemplates(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := medialive.NewListEventBridgeRuleTemplatesPaginator(client, &medialive.ListEventBridgeRuleTemplatesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListEventBridgeRuleTemplates", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, mediaLiveListEBRuleTemplatesOp,
+		func(ctx context.Context, token *string) ([]medialivetypes.EventBridgeRuleTemplateSummary, *string, error) {
+			out, err := client.ListEventBridgeRuleTemplates(ctx, &medialive.ListEventBridgeRuleTemplatesInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("medialive:ListEventBridgeRuleTemplates: %w", perr)
-		}
-		for _, e := range out.EventBridgeRuleTemplates {
+			return out.EventBridgeRuleTemplates, out.NextToken, nil
+		},
+		func(e medialivetypes.EventBridgeRuleTemplateSummary) (*store.Resource, string, string) {
 			arn := sv(e.Arn)
 			if arn == "" {
-				continue
+				return nil, "EventBridge rule templates have an empty Arn", sv(e.Id)
 			}
-			label := sv(e.Name)
-			if label == "" {
-				label = sv(e.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveEventBridgeRuleTemplate, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "medialive eventbridge-rule-templates")
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveEventBridgeRuleTemplate, arn, cmp.Or(sv(e.Name), sv(e.Id)), e, mapTagsJSON(e.Tags)), "", ""
+		})
 }
 
 func scanMLEBTemplateGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := medialive.NewListEventBridgeRuleTemplateGroupsPaginator(client, &medialive.ListEventBridgeRuleTemplateGroupsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListEventBridgeRuleTemplateGroups", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, mediaLiveListEBRuleTemplateGroupsOp,
+		func(ctx context.Context, token *string) ([]medialivetypes.EventBridgeRuleTemplateGroupSummary, *string, error) {
+			out, err := client.ListEventBridgeRuleTemplateGroups(ctx, &medialive.ListEventBridgeRuleTemplateGroupsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("medialive:ListEventBridgeRuleTemplateGroups: %w", perr)
-		}
-		for _, g := range out.EventBridgeRuleTemplateGroups {
+			return out.EventBridgeRuleTemplateGroups, out.NextToken, nil
+		},
+		func(g medialivetypes.EventBridgeRuleTemplateGroupSummary) (*store.Resource, string, string) {
 			arn := sv(g.Arn)
 			if arn == "" {
-				continue
+				return nil, "EventBridge rule template groups have an empty Arn", sv(g.Id)
 			}
-			label := sv(g.Name)
-			if label == "" {
-				label = sv(g.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveEventBridgeRuleTemplateGroup, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "medialive eventbridge-rule-template-groups")
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveEventBridgeRuleTemplateGroup, arn, cmp.Or(sv(g.Name), sv(g.Id)), g, mapTagsJSON(g.Tags)), "", ""
+		})
 }
 
 func scanMLInputs(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := medialive.NewListInputsPaginator(client, &medialive.ListInputsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListInputs", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, mediaLiveListInputsOp,
+		func(ctx context.Context, token *string) ([]medialivetypes.Input, *string, error) {
+			out, err := client.ListInputs(ctx, &medialive.ListInputsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("medialive:ListInputs: %w", perr)
-		}
-		for _, i := range out.Inputs {
-			arn := sv(i.Arn)
+			return out.Inputs, out.NextToken, nil
+		},
+		func(in medialivetypes.Input) (*store.Resource, string, string) {
+			arn := sv(in.Arn)
 			if arn == "" {
-				continue
+				return nil, "inputs have an empty Arn", sv(in.Id)
 			}
-			label := sv(i.Name)
-			if label == "" {
-				label = sv(i.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveInput, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(i), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "medialive inputs")
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveInput, arn, cmp.Or(sv(in.Name), sv(in.Id)), in, mapTagsJSON(in.Tags)), "", ""
+		})
 }
 
 func scanMLInputDevices(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := medialive.NewListInputDevicesPaginator(client, &medialive.ListInputDevicesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListInputDevices", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, mediaLiveListInputDevicesOp,
+		func(ctx context.Context, token *string) ([]medialivetypes.InputDeviceSummary, *string, error) {
+			out, err := client.ListInputDevices(ctx, &medialive.ListInputDevicesInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("medialive:ListInputDevices: %w", perr)
-		}
-		for _, d := range out.InputDevices {
+			return out.InputDevices, out.NextToken, nil
+		},
+		func(d medialivetypes.InputDeviceSummary) (*store.Resource, string, string) {
 			arn := sv(d.Arn)
 			if arn == "" {
-				continue
+				return nil, "input devices have an empty Arn", sv(d.Id)
 			}
-			label := sv(d.Name)
-			if label == "" {
-				label = sv(d.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveInputDevice, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "medialive input-devices")
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveInputDevice, arn, cmp.Or(sv(d.Name), sv(d.Id)), d, mapTagsJSON(d.Tags)), "", ""
+		})
 }
 
-// scanMLNodes fans ListNodes out over the clusters from scanMLClusters
+// scanMLNodes lists the nodes of each cluster scanMLClusters stored
 // (ListNodes requires a ClusterId). DescribeNodeSummary carries a real
 // distinct node ARN, used directly as NativeID (edge-less).
 func scanMLNodes(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string, clusterIDs []string) (int, int, error) {
-	if len(clusterIDs) == 0 {
-		return 0, 0, nil
-	}
-	var batch []*store.Resource
-	for _, cid := range clusterIDs {
-		id := cid
-		pager := medialive.NewListNodesPaginator(client, &medialive.ListNodesInput{ClusterId: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("medialive:ListNodes %s: %w", cid, perr)
+	return storeTokenPerParent(ctx, st, acct, region, mediaLiveListNodesOp, nil, clusterIDs,
+		func(ctx context.Context, cid string, token *string) ([]medialivetypes.DescribeNodeSummary, *string, error) {
+			out, err := client.ListNodes(ctx, &medialive.ListNodesInput{ClusterId: &cid, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, n := range out.Nodes {
-				arn := sv(n.Arn)
-				if arn == "" {
-					continue
-				}
-				label := sv(n.Name)
-				if label == "" {
-					label = sv(n.Id)
-				}
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeMediaLiveNode, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
-				})
+			return out.Nodes, out.NextToken, nil
+		},
+		func(cid string, n medialivetypes.DescribeNodeSummary) (*store.Resource, string, string) {
+			arn := sv(n.Arn)
+			if arn == "" {
+				return nil, "nodes have an empty Arn (first names their cluster)", cid
 			}
-		}
-	}
-	return upsertBatch(st, batch, "medialive nodes")
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveNode, arn, cmp.Or(sv(n.Name), sv(n.Id)), n, nil), "", ""
+		})
 }
 
 func scanMLReservations(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := medialive.NewListReservationsPaginator(client, &medialive.ListReservationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListReservations", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, mediaLiveListReservationsOp,
+		func(ctx context.Context, token *string) ([]medialivetypes.Reservation, *string, error) {
+			out, err := client.ListReservations(ctx, &medialive.ListReservationsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("medialive:ListReservations: %w", perr)
-		}
-		for _, r := range out.Reservations {
+			return out.Reservations, out.NextToken, nil
+		},
+		func(r medialivetypes.Reservation) (*store.Resource, string, string) {
 			arn := sv(r.Arn)
 			if arn == "" {
-				continue
+				return nil, "reservations have an empty Arn", sv(r.ReservationId)
 			}
-			label := sv(r.Name)
-			if label == "" {
-				label = arn
-			}
-			status := string(r.State)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveReservation, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "medialive reservations")
+			row := mediaLiveRow(acct, region, scanID, TypeMediaLiveReservation, arn, cmp.Or(sv(r.Name), arn), r, mapTagsJSON(r.Tags))
+			row.Status = nonEmptyPtr(string(r.State))
+			return row, "", ""
+		})
 }
 
 func scanMLInputSecurityGroups(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := medialive.NewListInputSecurityGroupsPaginator(client, &medialive.ListInputSecurityGroupsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListInputSecurityGroups", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, mediaLiveListInputSecurityGroupsOp,
+		func(ctx context.Context, token *string) ([]medialivetypes.InputSecurityGroup, *string, error) {
+			out, err := client.ListInputSecurityGroups(ctx, &medialive.ListInputSecurityGroupsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("medialive:ListInputSecurityGroups: %w", perr)
-		}
-		for _, g := range out.InputSecurityGroups {
+			return out.InputSecurityGroups, out.NextToken, nil
+		},
+		func(g medialivetypes.InputSecurityGroup) (*store.Resource, string, string) {
 			arn := sv(g.Arn)
 			if arn == "" {
-				continue
+				return nil, "input security groups have an empty Arn", sv(g.Id)
 			}
-			label := sv(g.Id)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveInputSecurityGroup, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "medialive input-security-groups")
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveInputSecurityGroup, arn, sv(g.Id), g, mapTagsJSON(g.Tags)), "", ""
+		})
 }
 
+// scanMLMultiplexes stores the multiplexes and returns the ids of those
+// stored, for the multiplex program phase.
 func scanMLMultiplexes(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := medialive.NewListMultiplexesPaginator(client, &medialive.ListMultiplexesInput{})
-	var ids []string
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListMultiplexes", acct.ID, region, perr)
-				return nil, 0, 0, nil
+	var (
+		ids       []string
+		noChildID skipTally
+	)
+	t, i, err := storeTokenList(ctx, st, acct, region, mediaLiveListMultiplexesOp,
+		func(ctx context.Context, token *string) ([]medialivetypes.MultiplexSummary, *string, error) {
+			out, err := client.ListMultiplexes(ctx, &medialive.ListMultiplexesInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("medialive:ListMultiplexes: %w", perr)
-		}
-		for _, m := range out.Multiplexes {
-			arn := sv(m.Arn)
+			return out.Multiplexes, out.NextToken, nil
+		},
+		func(m medialivetypes.MultiplexSummary) (*store.Resource, string, string) {
+			arn, id := sv(m.Arn), sv(m.Id)
 			if arn == "" {
-				continue
+				return nil, "multiplexes have an empty Arn, and their programs were not read either", id
 			}
-			id := sv(m.Id)
-			ids = append(ids, id)
-			label := sv(m.Name)
-			if label == "" {
-				label = id
+			if id == "" {
+				noChildID.skipped(arn, nil)
+			} else {
+				ids = append(ids, id)
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveMultiplex, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
-			})
-		}
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveMultiplex, arn, cmp.Or(sv(m.Name), id), m, mapTagsJSON(m.Tags)), "", ""
+		})
+	if !errors.Is(err, store.ErrStoreWrite) {
+		warnNoChildID(st, mediaLiveListMultiplexesOp, acct, region, &noChildID, "multiplex(es)", "Id")
 	}
-	t, i, err := upsertBatch(st, batch, "medialive multiplexes")
 	return ids, t, i, err
 }
 
 // scanMLMultiplexPrograms — MultiplexProgramSummary has no ARN; synth from
 // (multiplexId, programName).
 func scanMLMultiplexPrograms(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string, multiplexIDs []string) (int, int, error) {
-	if len(multiplexIDs) == 0 {
-		return 0, 0, nil
-	}
-	var batch []*store.Resource
-	for _, mid := range multiplexIDs {
-		id := mid
-		pager := medialive.NewListMultiplexProgramsPaginator(client, &medialive.ListMultiplexProgramsInput{MultiplexId: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("medialive:ListMultiplexPrograms %s: %w", mid, perr)
+	return storeTokenPerParent(ctx, st, acct, region, mediaLiveListMultiplexProgramsOp, []string{mediaLiveMultiplexProgramNotFoundError}, multiplexIDs,
+		func(ctx context.Context, mid string, token *string) ([]medialivetypes.MultiplexProgramSummary, *string, error) {
+			out, err := client.ListMultiplexPrograms(ctx, &medialive.ListMultiplexProgramsInput{MultiplexId: &mid, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, p := range out.MultiplexPrograms {
-				name := sv(p.ProgramName)
-				if name == "" {
-					continue
-				}
-				arn := mlARN(region, acct.ID, "multiplexprogram", mid+"/"+name)
-				label := name
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeMediaLiveMultiplexProgram, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-				})
+			return out.MultiplexPrograms, out.NextToken, nil
+		},
+		func(mid string, p medialivetypes.MultiplexProgramSummary) (*store.Resource, string, string) {
+			name := sv(p.ProgramName)
+			if name == "" {
+				return nil, "multiplex programs have an empty ProgramName (first names their multiplex)", mid
 			}
-		}
-	}
-	return upsertBatch(st, batch, "medialive multiplex-programs")
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveMultiplexProgram, mlARN(region, acct.ID, "multiplexprogram", mid+"/"+name), name, p, nil), "", ""
+		})
 }
 
 func scanMLNetworks(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := medialive.NewListNetworksPaginator(client, &medialive.ListNetworksInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListNetworks", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, mediaLiveListNetworksOp,
+		mediaLiveSkipOpNotDeployed(func(ctx context.Context, token *string) ([]medialivetypes.DescribeNetworkSummary, *string, error) {
+			out, err := client.ListNetworks(ctx, &medialive.ListNetworksInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			// MediaLive Anywhere (networks) isn't offered in every MediaLive
-			// region — the gateway 404s with "Unable to determine service/operation
-			// name". Region gap, silent-skip.
-			if isServiceNotAvailableInRegion(perr) {
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("medialive:ListNetworks: %w", perr)
-		}
-		for _, n := range out.Networks {
+			return out.Networks, out.NextToken, nil
+		}),
+		func(n medialivetypes.DescribeNetworkSummary) (*store.Resource, string, string) {
 			arn := sv(n.Arn)
 			if arn == "" {
-				continue
+				return nil, "networks have an empty Arn", sv(n.Id)
 			}
-			label := sv(n.Name)
-			if label == "" {
-				label = sv(n.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveNetwork, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "medialive networks")
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveNetwork, arn, cmp.Or(sv(n.Name), sv(n.Id)), n, nil), "", ""
+		})
 }
 
 func scanMLSdiSources(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := medialive.NewListSdiSourcesPaginator(client, &medialive.ListSdiSourcesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListSdiSources", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, mediaLiveListSdiSourcesOp,
+		func(ctx context.Context, token *string) ([]medialivetypes.SdiSourceSummary, *string, error) {
+			out, err := client.ListSdiSources(ctx, &medialive.ListSdiSourcesInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("medialive:ListSdiSources: %w", perr)
-		}
-		for _, s := range out.SdiSources {
+			return out.SdiSources, out.NextToken, nil
+		},
+		func(s medialivetypes.SdiSourceSummary) (*store.Resource, string, string) {
 			arn := sv(s.Arn)
 			if arn == "" {
-				continue
+				return nil, "SDI sources have an empty Arn", sv(s.Id)
 			}
-			label := sv(s.Name)
-			if label == "" {
-				label = sv(s.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveSdiSource, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "medialive sdi-sources")
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveSdiSource, arn, cmp.Or(sv(s.Name), sv(s.Id)), s, nil), "", ""
+		})
 }
 
 func scanMLSignalMaps(ctx context.Context, client mediaLiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := medialive.NewListSignalMapsPaginator(client, &medialive.ListSignalMapsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "medialive:ListSignalMaps", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, mediaLiveListSignalMapsOp,
+		func(ctx context.Context, token *string) ([]medialivetypes.SignalMapSummary, *string, error) {
+			out, err := client.ListSignalMaps(ctx, &medialive.ListSignalMapsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("medialive:ListSignalMaps: %w", perr)
-		}
-		for _, s := range out.SignalMaps {
+			return out.SignalMaps, out.NextToken, nil
+		},
+		func(s medialivetypes.SignalMapSummary) (*store.Resource, string, string) {
 			arn := sv(s.Arn)
 			if arn == "" {
-				continue
+				return nil, "signal maps have an empty Arn", sv(s.Id)
 			}
-			label := sv(s.Name)
-			if label == "" {
-				label = sv(s.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaLiveSignalMap, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "medialive signal-maps")
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveSignalMap, arn, cmp.Or(sv(s.Name), sv(s.Id)), s, mapTagsJSON(s.Tags)), "", ""
+		})
 }

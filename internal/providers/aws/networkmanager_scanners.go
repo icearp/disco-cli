@@ -73,6 +73,10 @@ const (
 // nmMaxResults is the documented page cap of every list op scanned here.
 var nmMaxResults = sdkaws.Int32(500)
 
+// nmNotFound is the code every per-parent listing here models for a parent
+// deleted since it was listed.
+var nmNotFound = []string{"ResourceNotFoundException"}
+
 // scanNetworkManager runs only in us-west-2 — NetworkManager is a global,
 // single-home-region service; other regions return the same data
 // redundantly.
@@ -85,21 +89,15 @@ func scanNetworkManager(ctx context.Context, acct *account, _ string, st *store.
 // scanNMAll runs every phase and joins their errors; only a store write
 // failure stops it. A failed parent phase leaves its child phases fewer
 // parents to list.
-func scanNMAll(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var errs phaseErrs
-	stop := func(op string, t, i int, ferr error) bool {
-		total, inserted = total+t, inserted+i
-		errs.add(op, ferr)
-		return errors.Is(ferr, store.ErrStoreWrite)
-	}
-
+func scanNMAll(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var phases phaseTotals
 	globalIDs, t, i, ferr := scanNMGlobalNetworks(ctx, client, acct, region, st, scanID)
-	if stop(nmDescribeGlobalNetworksOp, t, i, ferr) {
-		return total, inserted, errs.join(st, acct, region)
+	if phases.addPhase(nmDescribeGlobalNetworksOp, t, i, ferr) {
+		return phases.result(st, acct, region)
 	}
 	coreIDs, t, i, ferr := scanNMCoreNetworks(ctx, client, acct, region, st, scanID)
-	if stop(nmListCoreNetworksOp, t, i, ferr) {
-		return total, inserted, errs.join(st, acct, region)
+	if phases.addPhase(nmListCoreNetworksOp, t, i, ferr) {
+		return phases.result(st, acct, region)
 	}
 	for _, phase := range []struct {
 		op string
@@ -128,11 +126,11 @@ func scanNMAll(ctx context.Context, client networkManagerAPI, acct *account, reg
 		}},
 	} {
 		t, i, ferr := phase.fn()
-		if stop(phase.op, t, i, ferr) {
+		if phases.addPhase(phase.op, t, i, ferr) {
 			break
 		}
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return phases.result(st, acct, region)
 }
 
 func nmTagsJSON(tags []nmtypes.Tag) *string {
@@ -148,150 +146,6 @@ func nmRow(acct *account, scanID, rtype, nativeID, name string, element any, tag
 	}
 }
 
-// nmReadPages reads every page of one listing. On a failed page it returns the
-// items already read with the error, so the caller can keep them. A repeated
-// NextToken ends the listing with errRepeatedNextToken.
-func nmReadPages[Item any](ctx context.Context, page func(ctx context.Context, token *string) ([]Item, *string, error)) ([]Item, error) {
-	var (
-		items []Item
-		token *string
-	)
-	for {
-		got, next, err := page(ctx, token)
-		if err != nil {
-			return items, err
-		}
-		items = append(items, got...)
-		done, err := lastPage(token, next)
-		if done {
-			return items, err
-		}
-		token = next
-	}
-}
-
-// nmSkips tallies the listed items not stored, one tally per reason, so each
-// reason is warned about once.
-type nmSkips struct {
-	whys    []string
-	tallies map[string]*skipTally
-}
-
-func (s *nmSkips) skipped(why, key string) {
-	if s.tallies == nil {
-		s.tallies = map[string]*skipTally{}
-	}
-	t, ok := s.tallies[why]
-	if !ok {
-		t = &skipTally{}
-		s.tallies[why] = t
-		s.whys = append(s.whys, why)
-	}
-	t.skipped(key, nil)
-}
-
-func (s *nmSkips) warn(st *store.Store, op string, acct *account, region string) {
-	for _, why := range s.whys {
-		warnNotStored(st, op, acct, region, s.tallies[why], why)
-	}
-}
-
-// nmBuild turns listed items into rows. row returns nil with the reason and a
-// key naming the item when the item cannot be stored.
-func nmBuild[Item any](items []Item, row func(Item) (r *store.Resource, why, key string), rows []*store.Resource, skips *nmSkips) []*store.Resource {
-	for _, it := range items {
-		r, why, key := row(it)
-		if r == nil {
-			skips.skipped(why, key)
-			continue
-		}
-		rows = append(rows, r)
-	}
-	return rows
-}
-
-// nmStoreList stores the rows of an account-wide listing, those read before a
-// failed page included. A denial is warned about rather than returned; any
-// other error is returned after the rows are stored. Warnings are reported only
-// once the write succeeded, so none claims rows a failed write lost.
-func nmStoreList[Item any](
-	ctx context.Context, st *store.Store, acct *account, region, op string,
-	page func(ctx context.Context, token *string) ([]Item, *string, error),
-	row func(Item) (r *store.Resource, why, key string),
-) (int, int, error) {
-	var skips nmSkips
-	items, err := nmReadPages(ctx, page)
-	rows := nmBuild(items, row, nil, &skips)
-	var denied error
-	if isAccessDenied(err) {
-		denied, err = err, nil
-	}
-	total, inserted, err := upsertListed(st, rows, op, err)
-	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
-	}
-	if denied != nil {
-		_ = skipIfAccessDenied(st, op, acct.ID, region, denied)
-	}
-	skips.warn(st, op, acct, region)
-	return total, inserted, err
-}
-
-// nmStorePerParent lists op's items for each parent in turn and stores the
-// rows of every parent read. One parent's failure does not stop the others:
-// a parent the service no longer finds (ResourceNotFoundException, deleted
-// since it was listed) is skipped silently when nothing was read from it and
-// with a warning otherwise; a denied parent is warned about once for the op;
-// any other error is returned after the rows are stored. Rows read before a
-// failed page are kept in every case.
-func nmStorePerParent[Item any](
-	ctx context.Context, st *store.Store, acct *account, region, op string, parents []string,
-	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
-	row func(parent string, it Item) (r *store.Resource, why, key string),
-) (int, int, error) {
-	var (
-		rows             []*store.Resource
-		errs             []error
-		denied, vanished skipTally
-		skips            nmSkips
-	)
-	for _, p := range parents {
-		if err := ctx.Err(); err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", op, err))
-			break
-		}
-		items, err := nmReadPages(ctx, func(ctx context.Context, token *string) ([]Item, *string, error) {
-			return page(ctx, p, token)
-		})
-		rows = nmBuild(items, func(it Item) (*store.Resource, string, string) { return row(p, it) }, rows, &skips)
-		switch {
-		case err == nil:
-		case isAPIErrorCode(err, "ResourceNotFoundException") && len(items) == 0:
-		case isAPIErrorCode(err, "ResourceNotFoundException"):
-			vanished.skipped(p, err)
-		case isAccessDenied(err):
-			denied.skipped(p, err)
-		default:
-			errs = append(errs, fmt.Errorf("%s %s: %w", op, p, err))
-		}
-	}
-	total, inserted, uerr := upsertBatch(st, rows, op)
-	if uerr != nil {
-		return total, inserted, errors.Join(append(errs, uerr)...)
-	}
-	if denied.count > 0 {
-		_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf("%d parent(s) denied, first %s: %w", denied.count, denied.first, denied.err))
-	}
-	if vanished.count > 0 {
-		st.ReportWarning(store.ScanWarning{
-			Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
-			Message: fmt.Sprintf("%d parent(s) were deleted while their listing was read, so only part of it was stored; first %s: %v", vanished.count, vanished.first, vanished.err),
-		})
-	}
-	skips.warn(st, op, acct, region)
-	return total, inserted, errors.Join(errs...)
-}
-
 // scanNMGlobalNetworks stores the global networks and returns the ids of
 // those stored, for the per-global-network phases.
 func scanNMGlobalNetworks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
@@ -299,7 +153,7 @@ func scanNMGlobalNetworks(ctx context.Context, client networkManagerAPI, acct *a
 		ids       []string
 		noChildID skipTally
 	)
-	t, i, err := nmStoreList(ctx, st, acct, region, nmDescribeGlobalNetworksOp,
+	t, i, err := storeTokenList(ctx, st, acct, region, nmDescribeGlobalNetworksOp,
 		func(ctx context.Context, token *string) ([]nmtypes.GlobalNetwork, *string, error) {
 			out, err := client.DescribeGlobalNetworks(ctx, &networkmanager.DescribeGlobalNetworksInput{NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -320,21 +174,9 @@ func scanNMGlobalNetworks(ctx context.Context, client networkManagerAPI, acct *a
 			return nmRow(acct, scanID, TypeNetworkManagerGlobalNetwork, arn, id, g, nmTagsJSON(g.Tags)), "", ""
 		})
 	if !errors.Is(err, store.ErrStoreWrite) {
-		nmWarnNoChildID(st, nmDescribeGlobalNetworksOp, acct, region, &noChildID, "global network(s)", "GlobalNetworkId")
+		warnNoChildID(st, nmDescribeGlobalNetworksOp, acct, region, &noChildID, "global network(s)", "GlobalNetworkId")
 	}
 	return ids, t, i, err
-}
-
-// nmWarnNoChildID warns once for the parents stored without the id their
-// child listings key on, so those children were not read.
-func nmWarnNoChildID(st *store.Store, op string, acct *account, region string, t *skipTally, what, field string) {
-	if t.count == 0 {
-		return
-	}
-	st.ReportWarning(store.ScanWarning{
-		Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
-		Message: fmt.Sprintf("%d %s stored with an empty %s, so their children were not read; first %s", t.count, what, field, t.first),
-	})
 }
 
 // scanNMCoreNetworks stores the core networks and returns the ids of those
@@ -344,7 +186,7 @@ func scanNMCoreNetworks(ctx context.Context, client networkManagerAPI, acct *acc
 		ids       []string
 		noChildID skipTally
 	)
-	t, i, err := nmStoreList(ctx, st, acct, region, nmListCoreNetworksOp,
+	t, i, err := storeTokenList(ctx, st, acct, region, nmListCoreNetworksOp,
 		func(ctx context.Context, token *string) ([]nmtypes.CoreNetworkSummary, *string, error) {
 			out, err := client.ListCoreNetworks(ctx, &networkmanager.ListCoreNetworksInput{NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -365,13 +207,13 @@ func scanNMCoreNetworks(ctx context.Context, client networkManagerAPI, acct *acc
 			return nmRow(acct, scanID, TypeNetworkManagerCoreNetwork, arn, id, c, nmTagsJSON(c.Tags)), "", ""
 		})
 	if !errors.Is(err, store.ErrStoreWrite) {
-		nmWarnNoChildID(st, nmListCoreNetworksOp, acct, region, &noChildID, "core network(s)", "CoreNetworkId")
+		warnNoChildID(st, nmListCoreNetworksOp, acct, region, &noChildID, "core network(s)", "CoreNetworkId")
 	}
 	return ids, t, i, err
 }
 
 func scanNMSites(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	return nmStorePerParent(ctx, st, acct, region, nmGetSitesOp, globalIDs,
+	return storeTokenPerParent(ctx, st, acct, region, nmGetSitesOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.Site, *string, error) {
 			out, err := client.GetSites(ctx, &networkmanager.GetSitesInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -389,7 +231,7 @@ func scanNMSites(ctx context.Context, client networkManagerAPI, acct *account, r
 }
 
 func scanNMDevices(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	return nmStorePerParent(ctx, st, acct, region, nmGetDevicesOp, globalIDs,
+	return storeTokenPerParent(ctx, st, acct, region, nmGetDevicesOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.Device, *string, error) {
 			out, err := client.GetDevices(ctx, &networkmanager.GetDevicesInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -407,7 +249,7 @@ func scanNMDevices(ctx context.Context, client networkManagerAPI, acct *account,
 }
 
 func scanNMLinks(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	return nmStorePerParent(ctx, st, acct, region, nmGetLinksOp, globalIDs,
+	return storeTokenPerParent(ctx, st, acct, region, nmGetLinksOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.Link, *string, error) {
 			out, err := client.GetLinks(ctx, &networkmanager.GetLinksInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -427,7 +269,7 @@ func scanNMLinks(ctx context.Context, client networkManagerAPI, acct *account, r
 // scanNMLinkAssociations — LinkAssociation has no native ARN. Synth from
 // (deviceId, linkId).
 func scanNMLinkAssociations(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	return nmStorePerParent(ctx, st, acct, region, nmGetLinkAssociationsOp, globalIDs,
+	return storeTokenPerParent(ctx, st, acct, region, nmGetLinkAssociationsOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.LinkAssociation, *string, error) {
 			out, err := client.GetLinkAssociations(ctx, &networkmanager.GetLinkAssociationsInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -448,7 +290,7 @@ func scanNMLinkAssociations(ctx context.Context, client networkManagerAPI, acct 
 // scanNMCGWAssociations — CustomerGatewayAssociation synth from (gid,
 // cgwArn).
 func scanNMCGWAssociations(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	return nmStorePerParent(ctx, st, acct, region, nmGetCustomerGatewayAssociationsOp, globalIDs,
+	return storeTokenPerParent(ctx, st, acct, region, nmGetCustomerGatewayAssociationsOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.CustomerGatewayAssociation, *string, error) {
 			out, err := client.GetCustomerGatewayAssociations(ctx, &networkmanager.GetCustomerGatewayAssociationsInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -469,7 +311,7 @@ func scanNMCGWAssociations(ctx context.Context, client networkManagerAPI, acct *
 // scanNMTGWRegistrations — TransitGatewayRegistration synth from (gid,
 // tgwArn).
 func scanNMTGWRegistrations(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	return nmStorePerParent(ctx, st, acct, region, nmGetTGWRegistrationsOp, globalIDs,
+	return storeTokenPerParent(ctx, st, acct, region, nmGetTGWRegistrationsOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.TransitGatewayRegistration, *string, error) {
 			out, err := client.GetTransitGatewayRegistrations(ctx, &networkmanager.GetTransitGatewayRegistrationsInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -491,7 +333,7 @@ func scanNMTGWRegistrations(ctx context.Context, client networkManagerAPI, acct 
 // network (GetConnections requires GlobalNetworkId). Connections carry a
 // native ConnectionArn.
 func scanNMConnections(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, globalIDs []string) (int, int, error) {
-	return nmStorePerParent(ctx, st, acct, region, nmGetConnectionsOp, globalIDs,
+	return storeTokenPerParent(ctx, st, acct, region, nmGetConnectionsOp, nmNotFound, globalIDs,
 		func(ctx context.Context, gid string, token *string) ([]nmtypes.Connection, *string, error) {
 			out, err := client.GetConnections(ctx, &networkmanager.GetConnectionsInput{GlobalNetworkId: &gid, NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -522,7 +364,7 @@ var nmAttachmentTypes = map[nmtypes.AttachmentType]string{
 // and routes each to its disco type via AttachmentType. An AttachmentType
 // newer than this map is warned about, not stored.
 func scanNMAttachments(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	return nmStoreList(ctx, st, acct, region, nmListAttachmentsOp,
+	return storeTokenList(ctx, st, acct, region, nmListAttachmentsOp,
 		func(ctx context.Context, token *string) ([]nmtypes.Attachment, *string, error) {
 			out, err := client.ListAttachments(ctx, &networkmanager.ListAttachmentsInput{NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -547,7 +389,7 @@ func scanNMAttachments(ctx context.Context, client networkManagerAPI, acct *acco
 // scanNMPeerings stores the transit gateway peerings, the only PeeringType
 // disco maps; a newer type is warned about, not stored.
 func scanNMPeerings(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	return nmStoreList(ctx, st, acct, region, nmListPeeringsOp,
+	return storeTokenList(ctx, st, acct, region, nmListPeeringsOp,
 		func(ctx context.Context, token *string) ([]nmtypes.Peering, *string, error) {
 			out, err := client.ListPeerings(ctx, &networkmanager.ListPeeringsInput{NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -569,7 +411,7 @@ func scanNMPeerings(ctx context.Context, client networkManagerAPI, acct *account
 }
 
 func scanNMConnectPeers(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	return nmStoreList(ctx, st, acct, region, nmListConnectPeersOp,
+	return storeTokenList(ctx, st, acct, region, nmListConnectPeersOp,
 		func(ctx context.Context, token *string) ([]nmtypes.ConnectPeerSummary, *string, error) {
 			out, err := client.ListConnectPeers(ctx, &networkmanager.ListConnectPeersInput{NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
@@ -588,7 +430,7 @@ func scanNMConnectPeers(ctx context.Context, client networkManagerAPI, acct *acc
 }
 
 func scanNMPrefixListAssocs(ctx context.Context, client networkManagerAPI, acct *account, region string, st *store.Store, scanID string, coreIDs []string) (int, int, error) {
-	return nmStorePerParent(ctx, st, acct, region, nmListPrefixListAssocsOp, coreIDs,
+	return storeTokenPerParent(ctx, st, acct, region, nmListPrefixListAssocsOp, nmNotFound, coreIDs,
 		func(ctx context.Context, cid string, token *string) ([]nmtypes.PrefixListAssociation, *string, error) {
 			out, err := client.ListCoreNetworkPrefixListAssociations(ctx, &networkmanager.ListCoreNetworkPrefixListAssociationsInput{CoreNetworkId: &cid, NextToken: token, MaxResults: nmMaxResults})
 			if err != nil {
