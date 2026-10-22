@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	cptypes "github.com/aws/aws-sdk-go-v2/service/customerprofiles/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -83,4 +84,27 @@ func TestResolveCPDomainRefs(t *testing.T) {
 	rels, _ := st.RelationshipsFrom(dID)
 	assertRelationship(t, rels, dID, kID, store.RelUses)
 	assertRelationship(t, rels, dID, qID, store.RelRoutesTo)
+}
+
+// TestResolveCPDomainRefs_ListDomainsElement pins that a domain stored as its
+// ListDomains element (GetDomain denied or throttled) resolves without error
+// and gets no edges, though a key and queue exist to point at.
+func TestResolveCPDomainRefs_ListDomainsElement(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	attrs := mustJSON(cptypes.ListDomainItem{DomainName: ptrStr("dom1"), Tags: map[string]string{"team": "crm"}})
+	dID := upsertTestResource(t, st, "aws", acct.ID, TypeCPDomain, cpARN(testRegion, acct.ID, "dom1"), testRegion, attrs)
+	upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, "arn:aws:kms:us-east-1:"+testAccountID+":key/k-cp", testRegion, "{}")
+	upsertTestResource(t, st, "aws", acct.ID, TypeSQSQueue, "arn:aws:sqs:us-east-1:"+testAccountID+":cp-dlq", testRegion, "{}")
+
+	if err := resolveCPDomainRefs(acct, st); err != nil {
+		t.Fatalf("resolveCPDomainRefs: %v", err)
+	}
+	rels, err := st.RelationshipsFrom(dID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("edges = %+v, want none", rels)
+	}
 }

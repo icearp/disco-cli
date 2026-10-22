@@ -32,7 +32,9 @@ func init() {
 }
 
 // resolveCPDomainRefs wires each domain to its CMEK (DefaultEncryptionKey)
-// and SQS dead-letter queue (DeadLetterQueueUrl). GetDomain body shape.
+// and SQS dead-letter queue (DeadLetterQueueUrl), read from the GetDomain body.
+// A domain whose GetDomain read was denied or throttled is stored as its
+// ListDomains element, which carries neither field, so it gets no edges.
 func resolveCPDomainRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCPDomain}, Limit: util.AllResources,
