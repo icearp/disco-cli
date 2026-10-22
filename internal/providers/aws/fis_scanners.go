@@ -71,7 +71,7 @@ func scanFISExperimentTemplates(ctx context.Context, client fisAPI, acct *accoun
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeFISExperimentTemplate, NativeID: arn,
-				Name: &id, Region: &region,
+				Name: &id, Region: &region, TagsJSON: mapTagsJSON(t.Tags),
 				AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
 			})
 		}

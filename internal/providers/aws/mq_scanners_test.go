@@ -230,7 +230,7 @@ func mqTopLevelHandlers(calls *parentCalls) map[string]func(any) (any, error) {
 	return map[string]func(any) (any, error){
 		"ListBrokers": func(any) (any, error) {
 			return &mq.ListBrokersOutput{BrokerSummaries: []mqtypes.BrokerSummary{
-				{BrokerId: sdkaws.String("b-1")}, {BrokerId: sdkaws.String("b-2")},
+				mqBrokerSummary("b-1"), mqBrokerSummary("b-2"),
 			}}, nil
 		},
 		"DescribeBroker": func(in any) (any, error) {
@@ -391,5 +391,246 @@ func TestScanMQSharedResources_NotFound(t *testing.T) {
 				t.Errorf("rows = %d; want %d", n, tc.wantRows)
 			}
 		})
+	}
+}
+
+// Broker tags come from DescribeBroker, configuration tags from the listed
+// Configuration; an untagged broker or configuration stores no tags.
+func TestScanMQ_ReadsBrokerAndConfigurationTags(t *testing.T) {
+	const (
+		taggedCfg   = "arn:aws:mq:" + testRegion + ":" + testAccountID + ":configuration:c-1"
+		untaggedCfg = "arn:aws:mq:" + testRegion + ":" + testAccountID + ":configuration:c-2"
+	)
+	st := newTestStore(t)
+	var calls parentCalls
+	h := mqTopLevelHandlers(&calls)
+	describe := h["DescribeBroker"]
+	h["DescribeBroker"] = func(in any) (any, error) {
+		out, err := describe(in)
+		if err != nil {
+			return nil, err
+		}
+		if b := out.(*mq.DescribeBrokerOutput); sdkaws.ToString(b.BrokerId) == "b-1" {
+			b.Tags = map[string]string{"env": "prod"}
+		}
+		return out, nil
+	}
+	h["ListConfigurations"] = func(any) (any, error) {
+		return &mq.ListConfigurationsOutput{Configurations: []mqtypes.Configuration{
+			{Arn: sdkaws.String(taggedCfg), Name: sdkaws.String("c"), Tags: map[string]string{"team": "mq"}},
+			{Arn: sdkaws.String(untaggedCfg), Name: sdkaws.String("d")},
+		}}, nil
+	}
+	if _, err := runScanMQ(st, h); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	brokers := rowsByNativeID(t, st, TypeMQBroker)
+	assertTagsMap(t, brokers[mqTestBrokerARN("b-1")].TagsJSON, map[string]string{"env": "prod"})
+	if got := brokers[mqTestBrokerARN("b-2")].TagsJSON; got != nil {
+		t.Errorf("untagged broker TagsJSON = %q, want nil", *got)
+	}
+	configs := rowsByNativeID(t, st, TypeMQConfiguration)
+	assertTagsMap(t, configs[taggedCfg].TagsJSON, map[string]string{"team": "mq"})
+	if got := configs[untaggedCfg].TagsJSON; got != nil {
+		t.Errorf("untagged configuration TagsJSON = %q, want nil", *got)
+	}
+}
+
+func mqBrokerSummary(id string) mqtypes.BrokerSummary {
+	return mqtypes.BrokerSummary{
+		BrokerId: sdkaws.String(id), BrokerArn: sdkaws.String(mqTestBrokerARN(id)),
+		BrokerName: sdkaws.String("name-" + id), BrokerState: mqtypes.BrokerStateRunning,
+	}
+}
+
+// A DescribeBroker failure on b-1 keeps b-1 as its ListBrokers summary (no
+// tags, no association) unless the broker is gone; a denial or a throttle
+// warns once, any other error is returned after b-1 and b-2 are stored.
+func TestScanMQBrokers_DescribeBrokerFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		err        error
+		wantStored bool
+		wantWarns  int
+		wantCode   string
+	}{
+		{"denied", mqDenied, true, 1, ""},
+		{"throttled", apiErr("ThrottlingException", "slow down"), true, 1, ""},
+		{"other", apiErr("BadRequestException", "bad"), true, 0, "BadRequestException"},
+		{"gone", apiErr("NotFoundException", "no broker"), false, 0, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, mqDescribeBrokerOp)
+			h := mqTopLevelHandlers(&parentCalls{})
+			describe := h["DescribeBroker"]
+			h["DescribeBroker"] = func(in any) (any, error) {
+				if sdkaws.ToString(in.(*mq.DescribeBrokerInput).BrokerId) == "b-1" {
+					return nil, tc.err
+				}
+				out, err := describe(in)
+				if err == nil {
+					out.(*mq.DescribeBrokerOutput).Tags = map[string]string{"env": "prod"}
+				}
+				return out, err
+			}
+			client := newMQTestClient(h)
+			total, inserted, brokers, assocs, err := scanMQBrokers(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+			if tc.wantCode != "" {
+				assertAPICode(t, err, tc.wantCode)
+			} else if err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			if *warns != tc.wantWarns {
+				t.Errorf("DescribeBroker warnings = %d, want %d", *warns, tc.wantWarns)
+			}
+			if len(assocs) != 0 {
+				t.Errorf("assocs = %v, want none (b-1 carries the only configuration)", assocs)
+			}
+			wantRows := 1
+			if tc.wantStored {
+				wantRows = 2
+			}
+			if total != wantRows || inserted != wantRows || len(brokers) != wantRows {
+				t.Errorf("total, inserted, brokers = %d, %d, %d; want %d each", total, inserted, len(brokers), wantRows)
+			}
+			rows := rowsByNativeID(t, st, TypeMQBroker)
+			assertTagsMap(t, rows[mqTestBrokerARN("b-2")].TagsJSON, map[string]string{"env": "prod"})
+			b1, ok := rows[mqTestBrokerARN("b-1")]
+			if ok != tc.wantStored {
+				t.Fatalf("b-1 stored = %v, want %v", ok, tc.wantStored)
+			}
+			if !ok {
+				return
+			}
+			if b1.TagsJSON != nil {
+				t.Errorf("b-1 TagsJSON = %q, want nil from the summary", *b1.TagsJSON)
+			}
+			var attrs mqtypes.BrokerSummary
+			if err := json.Unmarshal([]byte(b1.AttributesJSON), &attrs); err != nil || sv(attrs.BrokerId) != "b-1" || sv(b1.Name) != "name-b-1" || sv(b1.Status) != "RUNNING" {
+				t.Errorf("b-1 row = name %q status %q attrs %s; want the summary", sv(b1.Name), sv(b1.Status), b1.AttributesJSON)
+			}
+		})
+	}
+}
+
+// A listed broker without a BrokerArn or a BrokerId is not stored and is
+// warned about once; it is no error.
+func TestScanMQBrokers_MissingIDWarns(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		strip func(*mqtypes.BrokerSummary)
+	}{
+		{"no ARN", func(b *mqtypes.BrokerSummary) { b.BrokerArn = nil }},
+		{"no id", func(b *mqtypes.BrokerSummary) { b.BrokerId = nil }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "mq:ListBrokers")
+			h := mqTopLevelHandlers(&parentCalls{})
+			h["ListBrokers"] = func(any) (any, error) {
+				b2 := mqBrokerSummary("b-2")
+				tc.strip(&b2)
+				return &mq.ListBrokersOutput{BrokerSummaries: []mqtypes.BrokerSummary{mqBrokerSummary("b-1"), b2}}, nil
+			}
+			total, _, _, _, err := scanMQBrokers(context.Background(), newMQTestClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
+			if err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			if total != 1 || *warns != 1 {
+				t.Errorf("total = %d, ListBrokers warnings = %d; want 1, 1", total, *warns)
+			}
+		})
+	}
+}
+
+// A ListBrokers page failing after the first keeps the first page's brokers:
+// a denial warns once, any other error is returned.
+func TestScanMQBrokers_LaterListPageFails(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		err       error
+		wantWarns int
+		wantCode  string
+	}{
+		{"denied", mqDenied, 1, ""},
+		{"other", apiErr("BadRequestException", "bad"), 0, "BadRequestException"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "mq:ListBrokers")
+			h := mqTopLevelHandlers(&parentCalls{})
+			h["ListBrokers"] = func(in any) (any, error) {
+				if in.(*mq.ListBrokersInput).NextToken == nil {
+					return &mq.ListBrokersOutput{BrokerSummaries: []mqtypes.BrokerSummary{mqBrokerSummary("b-1")}, NextToken: sdkaws.String("p2")}, nil
+				}
+				return nil, tc.err
+			}
+			total, _, brokers, _, err := scanMQBrokers(context.Background(), newMQTestClient(h), newTestAccount(testAccountID), testRegion, st, testScanID)
+			if tc.wantCode != "" {
+				assertAPICode(t, err, tc.wantCode)
+			} else if err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			if *warns != tc.wantWarns {
+				t.Errorf("ListBrokers warnings = %d, want %d", *warns, tc.wantWarns)
+			}
+			if _, ok := rowsByNativeID(t, st, TypeMQBroker)[mqTestBrokerARN("b-1")]; total != 1 || len(brokers) != 1 || !ok {
+				t.Errorf("total = %d, brokers = %d, b-1 stored = %v; want 1, 1, true", total, len(brokers), ok)
+			}
+		})
+	}
+}
+
+// A hard DescribeBroker error on b-2 is returned, but the later phases still
+// run: the configuration, b-1's association and both brokers' shared
+// resources are stored.
+func TestScanMQ_DescribeBrokerErrorRunsLaterPhases(t *testing.T) {
+	st := newTestStore(t)
+	var calls parentCalls
+	h := mqTopLevelHandlers(&calls)
+	describe := h["DescribeBroker"]
+	h["DescribeBroker"] = func(in any) (any, error) {
+		if sdkaws.ToString(in.(*mq.DescribeBrokerInput).BrokerId) == "b-2" {
+			return nil, apiErr("BadRequestException", "bad")
+		}
+		return describe(in)
+	}
+	total, err := runScanMQ(st, h)
+	assertAPICode(t, err, "BadRequestException")
+	if total != 6 {
+		t.Errorf("total = %d; want 6 (2 brokers + 1 configuration + 1 association + 2 shared resources)", total)
+	}
+	if n := len(rowsByNativeID(t, st, TypeMQConfiguration)); n != 1 {
+		t.Errorf("configurations = %d, want 1", n)
+	}
+	assertContainsNative(t, st, mqTestBrokerARN("b-1"), mqConfigurationAssociationNativeID(mqTestBrokerARN("b-1"), "c-1"))
+	for broker, share := range map[string]string{"b-1": "rs-1", "b-2": "rs-2"} {
+		assertContainsNative(t, st, mqTestBrokerARN(broker), mqTestBrokerARN(broker)+"/shared-resource/"+mqTestShareARN(share))
+	}
+}
+
+// A failed broker write returns at once: no later phase runs on brokers that
+// were not stored.
+func TestScanMQ_BrokerWriteErrorReturnsAtOnce(t *testing.T) {
+	st := newTestStore(t)
+	if _, err := st.DB().Exec(`CREATE TRIGGER refuse_mq_broker BEFORE INSERT ON resources
+		WHEN NEW.type = '` + TypeMQBroker + `'
+		BEGIN SELECT RAISE(ABORT, 'test: broker write refused'); END`); err != nil {
+		t.Fatalf("create trigger: %v", err)
+	}
+	var calls parentCalls
+	h := mqTopLevelHandlers(&calls)
+	listedConfigs := false
+	h["ListConfigurations"] = func(any) (any, error) {
+		listedConfigs = true
+		return &mq.ListConfigurationsOutput{}, nil
+	}
+	_, err := runScanMQ(st, h)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Errorf("err = %v; want store.ErrStoreWrite from the broker phase", err)
+	}
+	if listedConfigs || len(calls.distinct()) != 0 {
+		t.Errorf("later phases ran: ListConfigurations = %v, DescribeSharedResources brokers = %v", listedConfigs, calls.distinct())
 	}
 }

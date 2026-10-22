@@ -607,6 +607,7 @@ func TestTransientDemotersAreKnown(t *testing.T) {
 			"cloudtrail_extended_scanners.go:settle":                    true,
 			"ec2_network_extra_scanners.go:scanSubnetCidrReservations":  true,
 			"kafka_children_scanners.go:scanKafkaChannels":              true,
+			"mq_scanners.go:warn":                                       true,
 			"ec2_ipam_resolver_scanners.go:scanIPAMPrefixListResolvers": true,
 			"fms_scanners.go:warnFMSListingOnly":                        true,
 			"organizations_scanners.go:scanOrgAccounts":                 true,

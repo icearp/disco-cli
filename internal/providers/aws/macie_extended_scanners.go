@@ -31,7 +31,7 @@ func scanMacieFindingsFilters(ctx context.Context, client macie2API, acct *accou
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeMacieFindingsFilter, NativeID: arn,
-				Name: f.Name, Region: &region, Status: &status,
+				Name: f.Name, Region: &region, Status: &status, TagsJSON: mapTagsJSON(f.Tags),
 				AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
 			})
 		}

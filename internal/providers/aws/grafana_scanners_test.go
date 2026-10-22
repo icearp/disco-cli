@@ -780,3 +780,25 @@ func TestScanGrafanaPermissions_FailedWorkspace(t *testing.T) {
 		assertAPICode(t, err, "ConflictException")
 	})
 }
+
+func TestScanGrafanaWorkspaces_ReadsListedTags(t *testing.T) {
+	st := newTestStore(t)
+	client := gfClient(map[string]func(any) (any, error){"ListWorkspaces": func(any) (any, error) {
+		return &grafana.ListWorkspacesOutput{Workspaces: []grafanatypes.WorkspaceSummary{
+			{Id: ptrStr("g-a"), Status: grafanatypes.WorkspaceStatusActive, Tags: map[string]string{"env": "prod"}},
+			{Id: ptrStr("g-b"), Status: grafanatypes.WorkspaceStatusActive},
+		}}, nil
+	}})
+	_, total, inserted, err := scanGrafanaWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != 2 || inserted != 2 {
+		t.Errorf("total, inserted = %d, %d; want 2, 2", total, inserted)
+	}
+	rows := rowsByNativeID(t, st, TypeGrafanaWorkspace)
+	assertTagsMap(t, rows[gfWsA].TagsJSON, map[string]string{"env": "prod"})
+	if got := rows[gfWsB].TagsJSON; got != nil {
+		t.Errorf("untagged workspace TagsJSON = %q, want nil", *got)
+	}
+}

@@ -2,10 +2,12 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/mq"
+	mqtypes "github.com/aws/aws-sdk-go-v2/service/mq/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -22,6 +24,7 @@ func init() {
 }
 
 const (
+	mqDescribeBrokerOp          = "mq:DescribeBroker"
 	mqDescribeSharedResourcesOp = "mq:DescribeSharedResources"
 	// mqSharedResourcesPageLimit is the documented MaxResults cap (5..100).
 	mqSharedResourcesPageLimit = 100
@@ -54,23 +57,26 @@ type mqAPI interface {
 }
 
 // scanMQ runs the broker phase first because the association and
-// shared-resource phases need its brokers; a broker-phase error returns at
-// once. The later phases are independent, so each runs whatever the others
-// return and their errors are joined. Only the configurations phase can return
-// a transient error, so only it can be demoted to a warning, and only beside a
-// hard error, which keeps it from hiding another phase's hard error. The association
-// phase fails only on store writes, and the shared-resource phase already skips
-// transient brokers.
+// shared-resource phases need the brokers it stored. Only a failed store
+// write in the broker phase returns at once: after any other broker error the
+// later phases run with the brokers that were stored. The later phases are
+// independent, so each runs whatever the others return, and all the phases'
+// errors are joined. The broker phase (a ListBrokers error) and the
+// configurations phase can return a transient error, which is demoted to a
+// warning only beside a hard error, so it cannot hide another phase's hard
+// error. The association phase fails only on store writes, and the
+// shared-resource phase already skips transient brokers.
 func scanMQ(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := mq.NewFromConfig(acct.cfg, func(o *mq.Options) { o.Region = region })
-	bTotal, bInserted, brokers, assocs, err := scanMQBrokers(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return bTotal, bInserted, err
+	bTotal, bInserted, brokers, assocs, bErr := scanMQBrokers(ctx, client, acct, region, st, scanID)
+	if errors.Is(bErr, store.ErrStoreWrite) {
+		return bTotal, bInserted, bErr
 	}
 	cTotal, cInserted, cErr := scanMQConfigurations(ctx, client, acct, region, st, scanID)
 	aTotal, aInserted, aErr := scanMQConfigurationAssociations(acct, region, st, scanID, assocs)
 	sTotal, sInserted, sErr := scanMQSharedResources(ctx, client, acct, region, st, scanID, brokers)
 	var errs phaseErrs
+	errs.add("mq:ListBrokers", bErr)
 	errs.add("mq:ListConfigurations", cErr)
 	errs.add("mq configuration associations", aErr)
 	errs.add("mq shared resources", sErr)
@@ -85,67 +91,152 @@ type mqBrokerAssoc struct {
 	configID  string
 }
 
-// scanMQBrokers stores the brokers and returns them with their configuration
-// associations. The returned brokers are all stored only when err is nil:
-// pageScanConcurrent upserts every page it lists and returns on the first
-// failure, so scanMQ uses them only then.
+// mqBrokerReads tallies the listed brokers that have no identifiers or that
+// DescribeBroker could not read, for one warning per cause after the rows
+// are stored.
+type mqBrokerReads struct {
+	denied    skipTally
+	transient transientTally
+	noID      skipTally
+	mu        sync.Mutex
+	errs      []error
+}
+
+func (r *mqBrokerReads) failed(err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.errs = append(r.errs, err)
+}
+
+// warn reports each tally once; call it only after the brokers are stored.
+func (r *mqBrokerReads) warn(st *store.Store, acct *account, region string) {
+	const kept = "%d broker(s) stored as their ListBrokers summary, without the DescribeBroker body (tags, configuration, " +
+		"security groups, subnets, KMS key), first %s: %w"
+	if r.denied.count > 0 {
+		_ = skipIfAccessDenied(st, mqDescribeBrokerOp, acct.ID, region, fmt.Errorf(kept, r.denied.count, r.denied.first, r.denied.err))
+	}
+	if r.transient.count > 0 {
+		_ = skipIfTransient(st, mqDescribeBrokerOp, acct.ID, region, fmt.Errorf(kept, r.transient.count, r.transient.first, r.transient.err))
+	}
+}
+
+// scanMQBrokers stores every listed broker and returns the stored brokers with
+// their configuration associations. A broker's row is its DescribeBroker body.
+// When DescribeBroker fails with anything but NotFoundException, the broker is
+// stored as its ListBrokers summary instead. The summary lacks the tags, the
+// configuration (so there is no association) and the security-group, subnet
+// and KMS references the resolver reads. A denied or still-throttled read is
+// warned once per cause. Any other DescribeBroker error is returned after the
+// rows are stored. NotFoundException (in the op's model) means the broker was
+// deleted after it was listed, so it is skipped. A broker listed without a
+// BrokerArn or BrokerId is warned about and not stored. A denied listing keeps
+// the pages read before it and warns. Any other listing error, transient
+// included, is returned after those pages are stored. The returned brokers
+// and associations are nil only when the store write fails.
 func scanMQBrokers(ctx context.Context, client mqAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, []mqBrokerAssoc, error) {
-	p := mq.NewListBrokersPaginator(client, &mq.ListBrokersInput{})
 	var (
+		summaries []mqtypes.BrokerSummary
+		listErr   error
+	)
+	p := mq.NewListBrokersPaginator(client, &mq.ListBrokersInput{})
+	for p.HasMorePages() {
+		page, err := p.NextPage(ctx)
+		if err != nil {
+			if isAccessDenied(err) {
+				_ = skipIfAccessDenied(st, "mq:ListBrokers", acct.ID, region, err)
+			} else {
+				listErr = fmt.Errorf("mq:ListBrokers: %w", err)
+			}
+			break
+		}
+		summaries = append(summaries, page.BrokerSummaries...)
+	}
+
+	var (
+		reads   mqBrokerReads
 		mu      sync.Mutex
+		rows    []*store.Resource
 		brokers []childParent
 		assocs  []mqBrokerAssoc
+		wg      sync.WaitGroup
 	)
-	total, inserted, err := pageScanConcurrent(ctx, "mq:ListBrokers", acct, region, st,
-		p.HasMorePages,
-		func(c context.Context) (*mq.ListBrokersOutput, error) { return p.NextPage(c) },
-		func(o *mq.ListBrokersOutput) []string {
-			out := make([]string, 0, len(o.BrokerSummaries))
-			for _, b := range o.BrokerSummaries {
-				out = append(out, sv(b.BrokerId))
+	sem := make(chan struct{}, fanoutMed)
+	for _, b := range summaries {
+		arn, id := sv(b.BrokerArn), sv(b.BrokerId)
+		if arn == "" || id == "" {
+			reads.noID.skipped(fmt.Sprintf("%q", sv(b.BrokerName)), nil)
+			continue
+		}
+		wg.Go(func() {
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			row, assoc, stored := mqBrokerRow(ctx, client, acct, region, scanID, b, &reads)
+			if !stored {
+				return
 			}
-			return out
-		},
-		func(gctx context.Context, brokerID string) (*store.Resource, error) {
-			if brokerID == "" {
-				return nil, nil
-			}
-			out, err := client.DescribeBroker(gctx, &mq.DescribeBrokerInput{BrokerId: &brokerID})
-			if err != nil {
-				if isAccessDenied(err) {
-					return nil, nil
-				}
-				return nil, err
-			}
-			arn := sv(out.BrokerArn)
-			if arn == "" {
-				return nil, nil
-			}
-			name := sv(out.BrokerName)
-			status := string(out.BrokerState)
 			mu.Lock()
-			brokers = append(brokers, childParent{id: brokerID, arn: arn})
-			if out.Configurations != nil && out.Configurations.Current != nil {
-				if cid := sv(out.Configurations.Current.Id); cid != "" {
-					assocs = append(assocs, mqBrokerAssoc{brokerARN: arn, configID: cid})
-				}
+			defer mu.Unlock()
+			rows = append(rows, row)
+			brokers = append(brokers, childParent{id: id, arn: arn})
+			if assoc != nil {
+				assocs = append(assocs, *assoc)
 			}
-			mu.Unlock()
-			return &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeMQBroker,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				Status:         &status,
-				CreatedAt:      tp(out.Created),
-				AttributesJSON: mustJSON(out),
-				DiscoveredBy:   scanID,
-			}, nil
-		}, fanoutMed)
-	return total, inserted, brokers, assocs, err
+		})
+	}
+	wg.Wait()
+
+	readErr := errors.Join(append([]error{listErr}, reads.errs...)...)
+	total, inserted, err := upsertBatch(st, rows, "mq brokers")
+	if err != nil {
+		return total, inserted, nil, nil, errors.Join(readErr, err)
+	}
+	reads.warn(st, acct, region)
+	warnNotStored(st, "mq:ListBrokers", acct, region, &reads.noID, "brokers have no BrokerArn or BrokerId")
+	return total, inserted, brokers, assocs, readErr
+}
+
+// mqBrokerRow builds a listed broker's row from DescribeBroker, or from its
+// summary when that read fails (see scanMQBrokers). stored is false only for
+// a broker DescribeBroker no longer finds.
+func mqBrokerRow(ctx context.Context, client mqAPI, acct *account, region, scanID string, b mqtypes.BrokerSummary, reads *mqBrokerReads) (row *store.Resource, assoc *mqBrokerAssoc, stored bool) {
+	arn := sv(b.BrokerArn)
+	row = &store.Resource{
+		Provider:     "aws",
+		AccountID:    acct.ID,
+		AccountName:  &acct.Name,
+		Type:         TypeMQBroker,
+		NativeID:     arn,
+		Region:       &region,
+		DiscoveredBy: scanID,
+	}
+	out, err := client.DescribeBroker(ctx, &mq.DescribeBrokerInput{BrokerId: b.BrokerId})
+	switch {
+	case err == nil:
+		row.Name = out.BrokerName
+		row.Status = nonEmptyPtr(string(out.BrokerState))
+		row.CreatedAt = tp(out.Created)
+		row.TagsJSON = mapTagsJSON(out.Tags)
+		row.AttributesJSON = mustJSON(out)
+		if out.Configurations != nil && out.Configurations.Current != nil {
+			if cid := sv(out.Configurations.Current.Id); cid != "" {
+				assoc = &mqBrokerAssoc{brokerARN: arn, configID: cid}
+			}
+		}
+		return row, assoc, true
+	case isAPIErrorCode(err, "NotFoundException"):
+		return nil, nil, false
+	case reads.transient.drop(arn, err):
+		// tallied by drop
+	case isAccessDenied(err):
+		reads.denied.skipped(arn, err)
+	default:
+		reads.failed(fmt.Errorf("%s %s: %w", mqDescribeBrokerOp, sv(b.BrokerId), err))
+	}
+	row.Name = b.BrokerName
+	row.Status = nonEmptyPtr(string(b.BrokerState))
+	row.CreatedAt = tp(b.Created)
+	row.AttributesJSON = mustJSON(b)
+	return row, nil, true
 }
 
 // scanMQConfigurationAssociations emits one ConfigurationAssociation row per
@@ -219,6 +310,7 @@ func scanMQConfigurations(ctx context.Context, client mqAPI, acct *account, regi
 				Name:           &name,
 				Region:         &region,
 				CreatedAt:      tp(c.Created),
+				TagsJSON:       mapTagsJSON(c.Tags),
 				AttributesJSON: mustJSON(c),
 				DiscoveredBy:   scanID,
 			})

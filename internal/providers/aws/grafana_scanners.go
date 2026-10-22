@@ -128,7 +128,7 @@ func scanGrafanaWorkspaces(ctx context.Context, client grafanaAPI, acct *account
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeGrafanaWorkspace, NativeID: arn,
-				Name: w.Name, Region: &region, Status: &status,
+				Name: w.Name, Region: &region, Status: &status, TagsJSON: mapTagsJSON(w.Tags),
 				AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
 			})
 			if grafanaHasServiceAccounts(sv(w.GrafanaVersion)) && grafanaHasInstance(w.Status) {

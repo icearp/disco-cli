@@ -62,7 +62,7 @@ func scanIVSChatRooms(ctx context.Context, client ivsChatAPI, acct *account, reg
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeIVSChatRoom, NativeID: arn,
-				Name: r.Name, Region: &region,
+				Name: r.Name, Region: &region, TagsJSON: mapTagsJSON(r.Tags),
 				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
 		}
@@ -94,7 +94,7 @@ func scanIVSChatLoggingConfigs(ctx context.Context, client ivsChatAPI, acct *acc
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeIVSChatLoggingConfiguration, NativeID: arn,
-				Name: l.Name, Region: &region, Status: &status,
+				Name: l.Name, Region: &region, Status: &status, TagsJSON: mapTagsJSON(l.Tags),
 				AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
 			})
 		}

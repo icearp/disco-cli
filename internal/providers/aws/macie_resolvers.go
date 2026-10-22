@@ -21,6 +21,19 @@ func init() {
 		resolveMacieMemberOrgAccount,
 		EdgeDecl{TypeMacieMember, TypeOrganizationsAccount, store.RelAttachedTo},
 	)
+	registerResolver(
+		noopMacieHierarchy,
+		EdgeDecl{TypeMacieSession, TypeMacieClassificationJob, store.RelContains},
+		EdgeDecl{TypeMacieSession, TypeMacieCustomDataIdentifier, store.RelContains},
+		EdgeDecl{TypeMacieSession, TypeMacieAllowList, store.RelContains},
+		EdgeDecl{TypeMacieSession, TypeMacieFindingsFilter, store.RelContains},
+	)
+}
+
+// noopMacieHierarchy only declares the session→child contains edges that
+// upsertMacieChildren records through RecordHierarchyBatch.
+func noopMacieHierarchy(_ *account, _ *store.Store) error {
+	return nil
 }
 
 // macieMemberAttrs mirrors the verbatim Member fields used by the resolver.
