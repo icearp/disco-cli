@@ -24,9 +24,13 @@ type cogFake struct {
 	calls parentCalls
 	errs  map[string]error // "<Op> <key>"
 
-	pools        []cognitoidptypes.UserPoolDescriptionType
-	clients      map[string][]string // pool ID → client IDs
-	confidential map[string]bool     // client ID → has a secret
+	pools        []cognitoidptypes.UserPoolDescriptionType   // ListUserPools page 0
+	morePools    [][]cognitoidptypes.UserPoolDescriptionType // pages 1..n
+	poolTags     map[string]map[string]string                // pool ID → UserPoolTags
+	afterList    func()                                      // runs as ListUserPools returns
+	bodiless     string                                      // pool whose DescribeUserPool has no UserPool
+	clients      map[string][]string                         // pool ID → client IDs
+	confidential map[string]bool                             // client ID → has a secret
 	replicas     map[string][][]cognitoidptypes.UserPoolReplicaType
 	secrets      map[string][][]cognitoidptypes.ClientSecretDescriptorType // client ID → pages
 	groupsErr    error
@@ -71,21 +75,37 @@ func cogTestClientARN(poolID, clientID string) string {
 
 func (f *cogFake) client() *cognitoidp.Client {
 	handlers := map[string]func(in any) (any, error){
-		"ListUserPools": func(any) (any, error) {
-			return &cognitoidp.ListUserPoolsOutput{UserPools: f.pools}, nil
+		"ListUserPools": func(in any) (any, error) {
+			i := in.(*cognitoidp.ListUserPoolsInput)
+			if sdkaws.ToInt32(i.MaxResults) != 60 {
+				return nil, bcmPCAPIErr("InvalidParameterException", "MaxResults must be the documented cap 60")
+			}
+			if err := f.errs["ListUserPools "+sv(i.NextToken)]; err != nil {
+				return nil, err
+			}
+			if f.afterList != nil {
+				defer f.afterList()
+			}
+			page, next := cogPage(append([][]cognitoidptypes.UserPoolDescriptionType{f.pools}, f.morePools...), sv(i.NextToken))
+			return &cognitoidp.ListUserPoolsOutput{UserPools: page, NextToken: next}, nil
 		},
 		"DescribeUserPool": func(in any) (any, error) {
 			id := sv(in.(*cognitoidp.DescribeUserPoolInput).UserPoolId)
 			if err := f.errs["DescribeUserPool "+id]; err != nil {
 				return nil, err
 			}
-			return &cognitoidp.DescribeUserPoolOutput{UserPool: &cognitoidptypes.UserPoolType{
-				Id: &id, Name: &id, Arn: sdkaws.String(cogTestPoolARN(testRegion, id)),
-			}}, nil
+			if id == f.bodiless {
+				return &cognitoidp.DescribeUserPoolOutput{}, nil
+			}
+			return &cognitoidp.DescribeUserPoolOutput{UserPool: cogDescribedPool(id, f.poolTags[id])}, nil
 		},
 		"ListUserPoolClients": func(in any) (any, error) {
+			poolID := sv(in.(*cognitoidp.ListUserPoolClientsInput).UserPoolId)
+			if err := f.errs["ListUserPoolClients "+poolID]; err != nil {
+				return nil, err
+			}
 			var out []cognitoidptypes.UserPoolClientDescription
-			for _, c := range f.clients[sv(in.(*cognitoidp.ListUserPoolClientsInput).UserPoolId)] {
+			for _, c := range f.clients[poolID] {
 				out = append(out, cognitoidptypes.UserPoolClientDescription{ClientId: sdkaws.String(c)})
 			}
 			return &cognitoidp.ListUserPoolClientsOutput{UserPoolClients: out}, nil
@@ -132,6 +152,14 @@ func (f *cogFake) client() *cognitoidp.Client {
 		},
 	}
 	return cognitoidp.NewFromConfig(opStubConfig(handlers, bcmPCAPIErr("AccessDeniedException", "User: x is not authorized to perform: cognito-idp:Op")))
+}
+
+// cogDescribedPool is the DescribeUserPool body the fake returns for id.
+func cogDescribedPool(id string, tags map[string]string) *cognitoidptypes.UserPoolType {
+	return &cognitoidptypes.UserPoolType{
+		Id: sdkaws.String(id), Name: sdkaws.String(id), Arn: sdkaws.String(cogTestPoolARN(testRegion, id)),
+		MfaConfiguration: cognitoidptypes.UserPoolMfaTypeOptional, UserPoolTags: tags,
+	}
 }
 
 func cogIdentityClient() *cognitoidentity.Client {
@@ -597,9 +625,10 @@ func TestScanCognitoAll_OlderTransientDoesNotHideChildHardError(t *testing.T) {
 	}
 }
 
-// TestScanCognitoAll_PoolPhaseFailureSkipsChildren pins that the child phases
-// only run over parents the pool phase stored.
-func TestScanCognitoAll_PoolPhaseFailureSkipsChildren(t *testing.T) {
+// TestScanCognitoAll_PoolDescribeFailureKeepsChildren pins that one pool's
+// failed DescribeUserPool is returned without costing the other pools, their
+// children or the pool's own row.
+func TestScanCognitoAll_PoolDescribeFailureKeepsChildren(t *testing.T) {
 	st := newTestStore(t)
 	f := cogTopLevelFake()
 	f.errs["DescribeUserPool p2"] = bcmPCAPIErr("InvalidParameterException", "bad")
@@ -607,7 +636,10 @@ func TestScanCognitoAll_PoolPhaseFailureSkipsChildren(t *testing.T) {
 	if !isAPIErrorCode(err, "InvalidParameterException") {
 		t.Errorf("err = %v; want the DescribeUserPool InvalidParameterException", err)
 	}
-	if calls := f.calls.distinct(); len(calls) != 0 {
-		t.Errorf("child calls = %v; want none", calls)
+	if pools := rowsByNativeID(t, st, TypeCognitoUserPool); len(pools) != 3 {
+		t.Errorf("stored %d pools; want 3", len(pools))
+	}
+	if replica, secret := cogChildRowsStored(t, st); !replica || !secret {
+		t.Errorf("replica stored = %v, secret stored = %v; want both", replica, secret)
 	}
 }

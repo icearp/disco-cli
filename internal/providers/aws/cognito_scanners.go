@@ -3,17 +3,19 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentity"
+	cognitoidentitytypes "github.com/aws/aws-sdk-go-v2/service/cognitoidentity/types"
 	cognitoidp "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
+	cognitoidptypes "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider/types"
 	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
 )
 
 func init() {
@@ -83,83 +85,70 @@ func scanCognito(ctx context.Context, acct *account, region string, st *store.St
 	return scanCognitoAll(ctx, idpClient, idClient, acct, region, st, scanID)
 }
 
+const (
+	cognitoListPoolsOp      = "cognito-idp:ListUserPools"
+	cognitoDescribePoolOp   = "cognito-idp:DescribeUserPool"
+	cognitoListClientsOp    = "cognito-idp:ListUserPoolClients"
+	cognitoListIDPoolsOp    = "cognito-identity:ListIdentityPools"
+	cognitoDescribeIDPoolOp = "cognito-identity:DescribeIdentityPool"
+	cognitoIDPoolRolesOp    = "cognito-identity:GetIdentityPoolRoles"
+)
+
 // scanCognitoAll holds the testable scan body — accepts both narrow ifaces
 // so unit tests can swap in stubs without touching production wiring.
 //
-// The replica and client-secret phases run after every older phase, over the
-// pools and clients the pool phase stored, so an identity-pool or extended
-// phase failure does not skip them and their failure costs no older phase its
-// rows. The older phases' transient error is demoted to a warning only beside a
-// hard error: joined, it would be buried in the hard error instead of reported
-// under its op; the errors are joined and the counts summed.
+// Every phase runs whatever an earlier one returned, except after a failed
+// store write: the later phases get the parents the earlier ones stored. The
+// counts are summed and the errors joined through phaseTotals, which demotes
+// a transient error to a warning only beside a hard one.
 func scanCognitoAll(ctx context.Context, idpClient cognitoidpAPI, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pools, ferr := listCognitoUserPoolIDs(ctx, idpClient, acct, region, st)
-	if ferr != nil {
-		return 0, 0, ferr
-	}
-	total, inserted, stored, err := scanCognitoOlderPhases(ctx, idpClient, idClient, acct, region, st, scanID, pools.ids)
-	var errs phaseErrs
-	errs.add("cognito-idp", err)
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) {
-			return scanCognitoUserPoolReplicas(ctx, idpClient, acct, region, st, scanID, stored.replicatedPools(pools.replicated))
-		},
-		func() (int, int, error) {
-			return scanCognitoUserPoolClientSecrets(ctx, idpClient, acct, region, st, scanID, stored.confidentialClients)
-		},
-	} {
-		t, i, perr := phase()
-		total += t
-		inserted += i
-		errs.add("cognito-idp", perr)
-	}
-	return total, inserted, errs.join(st, acct, region)
-}
-
-// scanCognitoOlderPhases runs the phases that predate the replica and
-// client-secret phases, stopping at the first hard error. It also returns the
-// pools and app clients the pool phase stored.
-func scanCognitoOlderPhases(ctx context.Context, idpClient cognitoidpAPI, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (total, inserted int, stored cognitoStoredParents, err error) {
-	stored, total, inserted, err = scanCognitoUserPoolsAndClients(ctx, idpClient, acct, region, st, scanID, poolIDs)
-	if err != nil {
-		return total, inserted, stored, err
+	var p phaseTotals
+	pools, t, i, err := scanCognitoUserPoolsAndClients(ctx, idpClient, acct, region, st, scanID)
+	if p.addPhase("cognito-idp", t, i, err) {
+		return p.result(st, acct, region)
 	}
 	idPoolIDs, t, i, err := scanCognitoIdentityPools(ctx, idClient, acct, region, st, scanID)
-	total += t
-	inserted += i
-	if err != nil {
-		return total, inserted, stored, err
+	if p.addPhase("cognito-identity", t, i, err) {
+		return p.result(st, acct, region)
 	}
-	t, i, err = scanCognitoExtended(ctx, idpClient, idClient, acct, region, st, scanID, poolIDs, idPoolIDs)
-	return total + t, inserted + i, stored, err
+	for _, phase := range []func() (int, int, error){
+		func() (int, int, error) {
+			return scanCognitoExtended(ctx, idpClient, idClient, acct, region, st, scanID, pools.poolIDs(), idPoolIDs)
+		},
+		func() (int, int, error) {
+			return scanCognitoUserPoolReplicas(ctx, idpClient, acct, region, st, scanID, pools.replicated)
+		},
+		func() (int, int, error) {
+			return scanCognitoUserPoolClientSecrets(ctx, idpClient, acct, region, st, scanID, pools.confidentialClients)
+		},
+	} {
+		t, i, err := phase()
+		if p.addPhase("cognito-idp", t, i, err) {
+			break
+		}
+	}
+	return p.result(st, acct, region)
 }
 
-// cognitoListedPools is the ListUserPools result: every pool ID, and the IDs
-// whose ReplicaRegions names at least one region.
-type cognitoListedPools struct {
-	ids        []string
-	replicated map[string]bool
-}
-
-func listCognitoUserPoolIDs(ctx context.Context, idpClient cognitoidpAPI, acct *account, region string, st *store.Store) (cognitoListedPools, error) {
-	pools := cognitoListedPools{replicated: map[string]bool{}}
-	pager := cognitoidp.NewListUserPoolsPaginator(idpClient, &cognitoidp.ListUserPoolsInput{MaxResults: aws.Int32(60)})
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
+// listCognitoUserPools reads every ListUserPools page; on a failed page it
+// returns the pools read before it with the error.
+func listCognitoUserPools(ctx context.Context, idpClient cognitoidpAPI) ([]cognitoidptypes.UserPoolDescriptionType, error) {
+	return readTokenPages(ctx, func(ctx context.Context, token *string) ([]cognitoidptypes.UserPoolDescriptionType, *string, error) {
+		out, err := idpClient.ListUserPools(ctx, &cognitoidp.ListUserPoolsInput{MaxResults: aws.Int32(60), NextToken: token})
 		if err != nil {
-			if isAccessDenied(err) {
-				return cognitoListedPools{}, skipIfAccessDenied(st, "cognito-idp:ListUserPools", acct.ID, region, err)
-			}
-			return cognitoListedPools{}, fmt.Errorf("cognito-idp:ListUserPools: %w", err)
+			return nil, nil, laterPageErr(token, "user pools", err)
 		}
-		for _, p := range out.UserPools {
-			pools.ids = append(pools.ids, sv(p.Id))
-			if len(p.ReplicaRegions) > 0 && cognitoPoolCreatedIn(sv(p.Id), region) {
-				pools.replicated[sv(p.Id)] = true
-			}
-		}
+		return out.UserPools, out.NextToken, nil
+	})
+}
+
+// laterPageErr says, for a listing that failed on a page after the first,
+// that what and their children on that page and later ones were not read.
+func laterPageErr(token *string, what string, err error) error {
+	if token == nil {
+		return err
 	}
-	return pools, nil
+	return fmt.Errorf("the listing stopped at a page after the first; %s on it and later pages, and their children, were not read: %w", what, err)
 }
 
 // cognitoPoolCreatedIn reports whether the pool ID's "<region>_" prefix names
@@ -173,14 +162,24 @@ func cognitoPoolCreatedIn(poolID, region string) bool {
 }
 
 // cognitoStoredParents is what the pool phase stored: each user pool (id =
-// pool ID, arn = its NativeID) and each app client that has a secret. Only
-// those clients are asked for client secrets: the docs describe secrets as
-// belonging to confidential clients, inferred here from a non-empty
-// ClientSecret on DescribeUserPoolClient. Unverified for clients managed with
-// the multi-secret APIs, which might not populate that field.
+// pool ID, arn = its NativeID), the stored pools that ListUserPools reported
+// replicas for, and each app client that has a secret. Only those clients are
+// asked for client secrets: the docs describe secrets as belonging to
+// confidential clients, inferred here from a non-empty ClientSecret on
+// DescribeUserPoolClient. Unverified for clients managed with the
+// multi-secret APIs, which might not populate that field.
 type cognitoStoredParents struct {
 	pools               []childParent
+	replicated          []childParent
 	confidentialClients []cognitoAppClientRef
+}
+
+func (s cognitoStoredParents) poolIDs() []string {
+	ids := make([]string, len(s.pools))
+	for i, p := range s.pools {
+		ids[i] = p.id
+	}
+	return ids
 }
 
 // cognitoAppClientRef is a stored app client: ListUserPoolClientSecrets keys
@@ -191,89 +190,187 @@ type cognitoAppClientRef struct {
 	arn      string
 }
 
-// replicatedPools returns the stored pools that ListUserPools reported
-// replicas for.
-func (s cognitoStoredParents) replicatedPools(replicated map[string]bool) []childParent {
-	var out []childParent
-	for _, p := range s.pools {
-		if replicated[p.id] {
-			out = append(out, p)
-		}
-	}
-	return out
-}
-
-// cognitoPoolBatches collects the pool phase's rows from its per-pool
-// goroutines.
+// cognitoPoolBatches collects the app-client and branding rows from the
+// pool phase's per-pool goroutines.
 type cognitoPoolBatches struct {
-	mu        sync.Mutex
-	pools     []*store.Resource
-	clients   []*store.Resource
-	brandings []*store.Resource
-	stored    cognitoStoredParents
+	mu                  sync.Mutex
+	clients             []*store.Resource
+	brandings           []*store.Resource
+	confidentialClients []cognitoAppClientRef
 }
 
-func scanCognitoUserPoolsAndClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region string, st *store.Store, scanID string, poolIDs []string) (cognitoStoredParents, int, int, error) {
-	var b cognitoPoolBatches
-	g, gctx := errgroup.WithContext(ctx)
-	for _, poolID := range poolIDs {
-		g.Go(func() error {
-			return collectCognitoPoolAndClients(gctx, idpClient, acct, region, scanID, poolID, &b)
-		})
+// cognitoKeptReads tallies, for one per-item op, the failed reads whose item
+// was still stored, without what the op would have added: denials and
+// transient failures each in one tally, any other error kept with its item.
+type cognitoKeptReads struct {
+	op                string
+	denied, transient skipTally
+	errs              []error
+}
+
+func (k *cognitoKeptReads) add(key string, err error) {
+	switch {
+	case err == nil:
+	case isAccessDenied(err):
+		k.denied.skipped(key, err)
+	case isTransientNetworkError(err):
+		k.transient.skipped(key, err)
+	default:
+		k.errs = append(k.errs, fmt.Errorf("%s %s: %w", k.op, key, err))
 	}
-	if err := g.Wait(); err != nil {
-		return cognitoStoredParents{}, 0, 0, err
+}
+
+// warnDenied warns once for the denied reads; kept says how their items were
+// stored. Call it only after the items were written.
+func (k *cognitoKeptReads) warnDenied(st *store.Store, acct *account, region, kept string) {
+	if k.denied.count > 0 {
+		_ = skipIfAccessDenied(st, k.op, acct.ID, region, fmt.Errorf("%d %s, first %s: %w", k.denied.count, kept, k.denied.first, k.denied.err))
 	}
-	var total, inserted int
-	for _, kb := range []struct {
-		label string
-		batch []*store.Resource
-	}{
-		{"Cognito user pools", b.pools},
-		{"Cognito app clients", b.clients},
-		{"Cognito managed-login-branding", b.brandings},
-	} {
-		if len(kb.batch) == 0 {
+}
+
+// addFailed adds the reads' errors other than denials to errs under op, the
+// transient ones as one error of their own, so that errs.join demotes it to a
+// warning beside a hard error instead of burying it in the join; kept says how
+// their items were stored. Call it only after the items were written.
+func (k *cognitoKeptReads) addFailed(errs *phaseErrs, kept string) {
+	errs.add(k.op, errors.Join(k.errs...))
+	if k.transient.count > 0 {
+		errs.add(k.op, fmt.Errorf("%d %s, first %s: %w", k.transient.count, kept, k.transient.first, k.transient.err))
+	}
+}
+
+// cognitoPoolRead is what one listed pool's reads returned: its row (nil when
+// DescribeUserPool no longer finds the pool), the DescribeUserPool error the
+// row was built despite, whether DescribeUserPool succeeded with no UserPool,
+// and the app-client listing's error.
+type cognitoPoolRead struct {
+	row                     *store.Resource
+	describeErr, clientsErr error
+	noBody                  bool
+}
+
+// scanCognitoUserPoolsAndClients stores every listed user pool with its app
+// clients and their branding, those read before a failed ListUserPools page
+// included, and returns the stored parents (none after a failed write). Each
+// pool is stored from its DescribeUserPool body, the only source of its tags.
+// A pool DescribeUserPool no longer finds (ResourceNotFoundException, in the
+// op's model) was deleted since it was listed: no row, no error. A pool whose
+// DescribeUserPool fails any other way is stored as its ListUserPools element,
+// without tags, and its app clients are still read: a denial is warned about
+// once; every other error is returned after the rows are stored, except that a
+// transient one beside a hard error is warned about under its op. A pool whose
+// DescribeUserPool returns no UserPool is stored the same way and warned
+// about. A listed pool with no Id is not stored and is warned about.
+func scanCognitoUserPoolsAndClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region string, st *store.Store, scanID string) (cognitoStoredParents, int, int, error) {
+	listed, listErr := listCognitoUserPools(ctx, idpClient)
+	var (
+		keyed   []cognitoidptypes.UserPoolDescriptionType
+		unkeyed skipTally
+	)
+	for _, p := range listed {
+		if sv(p.Id) == "" {
+			unkeyed.skipped(sv(p.Name), nil)
 			continue
 		}
-		n, err := st.UpsertResources(kb.batch)
-		if err != nil {
-			return cognitoStoredParents{}, total, inserted, fmt.Errorf("upsert %s: %w", kb.label, err)
-		}
-		total += len(kb.batch)
-		inserted += n
+		keyed = append(keyed, p)
 	}
-	return b.stored, total, inserted, nil
+	var b cognitoPoolBatches
+	reads, stopErr := readEachKey(ctx, keyed, func(ctx context.Context, p cognitoidptypes.UserPoolDescriptionType) cognitoPoolRead {
+		return readCognitoUserPool(ctx, idpClient, acct, region, scanID, p, &b)
+	})
+	var (
+		stored     cognitoStoredParents
+		rows       []*store.Resource
+		errs       []error
+		clientErrs []error
+	)
+	if stopErr != nil {
+		errs = append(errs, fmt.Errorf("%s: %w", cognitoDescribePoolOp, stopErr))
+	}
+	described := cognitoKeptReads{op: cognitoDescribePoolOp}
+	var noBody skipTally
+	for i, r := range reads {
+		if r.row == nil {
+			continue
+		}
+		p := keyed[i]
+		rows = append(rows, r.row)
+		parent := childParent{id: sv(p.Id), arn: r.row.NativeID}
+		stored.pools = append(stored.pools, parent)
+		if len(p.ReplicaRegions) > 0 && cognitoPoolCreatedIn(parent.id, region) {
+			stored.replicated = append(stored.replicated, parent)
+		}
+		described.add(parent.id, r.describeErr)
+		if r.noBody {
+			noBody.skipped(parent.id, nil)
+		}
+		clientErrs = append(clientErrs, r.clientsErr)
+	}
+	rows = append(append(rows, b.clients...), b.brandings...)
+	const kept = "user pool(s) stored as their ListUserPools element, without tags"
+	total, inserted, err := storeReadRows(st, acct, region, cognitoListPoolsOp, rows, listErr, func() {
+		described.warnDenied(st, acct, region, kept)
+		if noBody.count > 0 {
+			st.ReportWarning(store.ScanWarning{
+				Provider: "aws", Service: cognitoDescribePoolOp, Scope: acct.ID + "/" + region,
+				Message: fmt.Sprintf("%d %s: DescribeUserPool returned no UserPool, first %s", noBody.count, kept, noBody.first),
+			})
+		}
+		warnNotStored(st, cognitoListPoolsOp, acct, region, &unkeyed, "user pools have an empty Id")
+	}, errs...)
+	if errors.Is(err, store.ErrStoreWrite) {
+		return cognitoStoredParents{}, total, inserted, errors.Join(append([]error{err}, clientErrs...)...)
+	}
+	stored.confidentialClients = b.confidentialClients
+	var phase phaseErrs
+	phase.add(cognitoListPoolsOp, err)
+	phase.add(cognitoListClientsOp, errors.Join(clientErrs...))
+	described.addFailed(&phase, kept)
+	return stored, total, inserted, phase.join(st, acct, region)
 }
 
-func collectCognitoPoolAndClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region, scanID, poolID string, b *cognitoPoolBatches) error {
-	poolOut, err := idpClient.DescribeUserPool(ctx, &cognitoidp.DescribeUserPoolInput{UserPoolId: &poolID})
-	if err != nil {
-		if isAccessDenied(err) {
-			return nil
-		}
-		return fmt.Errorf("cognito-idp:DescribeUserPool %s: %w", poolID, err)
+// readCognitoUserPool describes one listed pool and builds its row, then
+// collects its app clients into b unless the pool is gone.
+func readCognitoUserPool(ctx context.Context, idpClient cognitoidpAPI, acct *account, region, scanID string, listed cognitoidptypes.UserPoolDescriptionType, b *cognitoPoolBatches) cognitoPoolRead {
+	poolID := sv(listed.Id)
+	out, err := idpClient.DescribeUserPool(ctx, &cognitoidp.DescribeUserPoolInput{UserPoolId: &poolID})
+	if isAPIErrorCode(err, "ResourceNotFoundException") {
+		return cognitoPoolRead{}
 	}
-	poolARN := sv(poolOut.UserPool.Arn)
-	if poolARN == "" {
-		poolARN = fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, poolID)
+	var described *cognitoidptypes.UserPoolType
+	if err == nil {
+		described = out.UserPool
 	}
-	pr := &store.Resource{
+	return cognitoPoolRead{
+		row:         cognitoUserPoolRow(acct, region, scanID, listed, described),
+		describeErr: err,
+		noBody:      err == nil && described == nil,
+		clientsErr:  collectCognitoAppClients(ctx, idpClient, acct, region, scanID, poolID, b),
+	}
+}
+
+// cognitoUserPoolRow builds a pool's row from its DescribeUserPool body, or
+// from its ListUserPools element when described is nil.
+func cognitoUserPoolRow(acct *account, region, scanID string, listed cognitoidptypes.UserPoolDescriptionType, described *cognitoidptypes.UserPoolType) *store.Resource {
+	r := &store.Resource{
 		Provider:       "aws",
 		AccountID:      acct.ID,
 		AccountName:    &acct.Name,
 		Type:           TypeCognitoUserPool,
-		NativeID:       poolARN,
-		Name:           poolOut.UserPool.Name,
+		NativeID:       fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, sv(listed.Id)),
+		Name:           listed.Name,
 		Region:         &region,
-		AttributesJSON: mustJSON(poolOut.UserPool),
+		AttributesJSON: mustJSON(listed),
 		DiscoveredBy:   scanID,
 	}
-	b.mu.Lock()
-	b.pools = append(b.pools, pr)
-	b.stored.pools = append(b.stored.pools, childParent{id: poolID, arn: poolARN})
-	b.mu.Unlock()
-	return collectCognitoAppClients(ctx, idpClient, acct, region, scanID, poolID, b)
+	if described == nil {
+		return r
+	}
+	if arn := sv(described.Arn); arn != "" {
+		r.NativeID = arn
+	}
+	r.Name, r.AttributesJSON, r.TagsJSON = described.Name, mustJSON(described), mapTagsJSON(described.UserPoolTags)
+	return r
 }
 
 func collectCognitoAppClients(ctx context.Context, idpClient cognitoidpAPI, acct *account, region, scanID, poolID string, b *cognitoPoolBatches) error {
@@ -314,7 +411,7 @@ func collectCognitoAppClients(ctx context.Context, idpClient cognitoidpAPI, acct
 			b.clients = append(b.clients, cr)
 			// Inferred confidential-client gate; see cognitoStoredParents.
 			if sv(descOut.UserPoolClient.ClientSecret) != "" {
-				b.stored.confidentialClients = append(b.stored.confidentialClients, cognitoAppClientRef{poolID: poolID, clientID: clientID, arn: arn})
+				b.confidentialClients = append(b.confidentialClients, cognitoAppClientRef{poolID: poolID, clientID: clientID, arn: arn})
 			}
 			b.mu.Unlock()
 			collectCognitoManagedLoginBranding(ctx, idpClient, acct, region, scanID, poolID, clientID, b)
@@ -350,53 +447,137 @@ func collectCognitoManagedLoginBranding(ctx context.Context, idpClient cognitoid
 	b.mu.Unlock()
 }
 
+// idPoolAttrs is an identity pool's AttributesJSON: Pool is its
+// DescribeIdentityPool body, or its ListIdentityPools element when that read
+// failed, and Roles its GetIdentityPoolRoles role map.
+type idPoolAttrs struct {
+	Pool  any               `json:"Pool"`
+	Roles map[string]string `json:"Roles"`
+}
+
+// cognitoIDPoolRead is what one listed identity pool's reads returned; gone
+// is set when either read no longer found the pool.
+type cognitoIDPoolRead struct {
+	described             *cognitoidentity.DescribeIdentityPoolOutput
+	roles                 map[string]string
+	describeErr, rolesErr error
+	gone                  bool
+}
+
+// scanCognitoIdentityPools stores every listed identity pool, those read
+// before a failed ListIdentityPools page included, and returns the IDs of the
+// pools stored (none after a failed write). Each pool is stored from its
+// DescribeIdentityPool body, the only source of its tags, with its
+// GetIdentityPoolRoles role map. A pool either read no longer finds
+// (ResourceNotFoundException, in both ops' models) was deleted since it was
+// listed: no row, no error. A pool whose DescribeIdentityPool fails any other
+// way is stored as its ListIdentityPools element, without tags; one whose
+// GetIdentityPoolRoles fails is stored without Roles. A denial is warned about
+// once per op; every other error is returned after the rows are stored, except
+// that a transient one beside a hard error is warned about under its op. A
+// listed pool with no IdentityPoolId is not stored and is warned about.
 func scanCognitoIdentityPools(ctx context.Context, idClient cognitoidentityAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	type idPoolAttrs struct {
-		Pool  any               `json:"Pool"`
-		Roles map[string]string `json:"Roles"`
-	}
-	var batch []*store.Resource
-	var idPoolIDs []string
-	pager := cognitoidentity.NewListIdentityPoolsPaginator(idClient, &cognitoidentity.ListIdentityPoolsInput{MaxResults: aws.Int32(60)})
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
+	listed, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]cognitoidentitytypes.IdentityPoolShortDescription, *string, error) {
+		out, err := idClient.ListIdentityPools(ctx, &cognitoidentity.ListIdentityPoolsInput{MaxResults: aws.Int32(60), NextToken: token})
 		if err != nil {
-			if isAccessDenied(err) {
-				break
-			}
-			return nil, 0, 0, fmt.Errorf("cognito-identity:ListIdentityPools: %w", err)
+			return nil, nil, laterPageErr(token, "identity pools", err)
 		}
-		for _, p := range out.IdentityPools {
-			ipID := sv(p.IdentityPoolId)
-			idPoolIDs = append(idPoolIDs, ipID)
-			descOut, err := idClient.DescribeIdentityPool(ctx, &cognitoidentity.DescribeIdentityPoolInput{IdentityPoolId: &ipID})
-			if err != nil {
-				continue
-			}
-			var roles map[string]string
-			if rOut, rErr := idClient.GetIdentityPoolRoles(ctx, &cognitoidentity.GetIdentityPoolRolesInput{IdentityPoolId: &ipID}); rErr == nil {
-				roles = rOut.Roles
-			}
-			arn := fmt.Sprintf("arn:aws:cognito-identity:%s:%s:identitypool/%s", region, acct.ID, ipID)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeCognitoIdentityPool,
-				NativeID:       arn,
-				Name:           descOut.IdentityPoolName,
-				Region:         &region,
-				AttributesJSON: mustJSON(idPoolAttrs{Pool: json.RawMessage(mustJSON(descOut)), Roles: roles}),
-				DiscoveredBy:   scanID,
-			})
+		return out.IdentityPools, out.NextToken, nil
+	})
+	var (
+		keyed   []cognitoidentitytypes.IdentityPoolShortDescription
+		unkeyed skipTally
+	)
+	for _, p := range listed {
+		if sv(p.IdentityPoolId) == "" {
+			unkeyed.skipped(sv(p.IdentityPoolName), nil)
+			continue
 		}
+		keyed = append(keyed, p)
 	}
-	if len(batch) == 0 {
-		return idPoolIDs, 0, 0, nil
+	reads, stopErr := readEachKey(ctx, keyed, func(ctx context.Context, p cognitoidentitytypes.IdentityPoolShortDescription) cognitoIDPoolRead {
+		return readCognitoIdentityPool(ctx, idClient, sv(p.IdentityPoolId))
+	})
+	var (
+		ids  []string
+		rows []*store.Resource
+		errs []error
+	)
+	if stopErr != nil {
+		errs = append(errs, fmt.Errorf("%s: %w", cognitoDescribeIDPoolOp, stopErr))
 	}
-	n, err := st.UpsertResources(batch)
-	if err != nil {
-		return idPoolIDs, 0, 0, fmt.Errorf("upsert Cognito identity pools: %w", err)
+	described := cognitoKeptReads{op: cognitoDescribeIDPoolOp}
+	roles := cognitoKeptReads{op: cognitoIDPoolRolesOp}
+	for i, r := range reads {
+		if r.gone {
+			continue
+		}
+		p := keyed[i]
+		ipID := sv(p.IdentityPoolId)
+		ids = append(ids, ipID)
+		rows = append(rows, cognitoIdentityPoolRow(acct, region, scanID, p, r))
+		described.add(ipID, r.describeErr)
+		roles.add(ipID, r.rolesErr)
 	}
-	return idPoolIDs, len(batch), n, nil
+	const (
+		keptListed  = "identity pool(s) stored as their ListIdentityPools element, without tags"
+		keptNoRoles = "identity pool(s) stored without Roles"
+	)
+	total, inserted, err := storeReadRows(st, acct, region, cognitoListIDPoolsOp, rows, listErr, func() {
+		described.warnDenied(st, acct, region, keptListed)
+		roles.warnDenied(st, acct, region, keptNoRoles)
+		warnNotStored(st, cognitoListIDPoolsOp, acct, region, &unkeyed, "identity pools have an empty IdentityPoolId")
+	}, errs...)
+	if errors.Is(err, store.ErrStoreWrite) {
+		return nil, total, inserted, err
+	}
+	var phase phaseErrs
+	phase.add(cognitoListIDPoolsOp, err)
+	described.addFailed(&phase, keptListed)
+	roles.addFailed(&phase, keptNoRoles)
+	return ids, total, inserted, phase.join(st, acct, region)
+}
+
+// readCognitoIdentityPool reads one listed identity pool's description and
+// role map, stopping once either read no longer finds the pool.
+func readCognitoIdentityPool(ctx context.Context, idClient cognitoidentityAPI, ipID string) cognitoIDPoolRead {
+	var r cognitoIDPoolRead
+	r.described, r.describeErr = idClient.DescribeIdentityPool(ctx, &cognitoidentity.DescribeIdentityPoolInput{IdentityPoolId: &ipID})
+	if isAPIErrorCode(r.describeErr, "ResourceNotFoundException") {
+		return cognitoIDPoolRead{gone: true}
+	}
+	out, err := idClient.GetIdentityPoolRoles(ctx, &cognitoidentity.GetIdentityPoolRolesInput{IdentityPoolId: &ipID})
+	switch {
+	case err == nil:
+		r.roles = out.Roles
+	case isAPIErrorCode(err, "ResourceNotFoundException"):
+		return cognitoIDPoolRead{gone: true}
+	default:
+		r.rolesErr = err
+	}
+	return r
+}
+
+// cognitoIdentityPoolRow builds a pool's row from its reads, falling back to
+// its ListIdentityPools element when DescribeIdentityPool failed.
+func cognitoIdentityPoolRow(acct *account, region, scanID string, listed cognitoidentitytypes.IdentityPoolShortDescription, r cognitoIDPoolRead) *store.Resource {
+	attrs := idPoolAttrs{Pool: listed, Roles: r.roles}
+	name := listed.IdentityPoolName
+	var tags *string
+	if r.describeErr == nil {
+		attrs.Pool = json.RawMessage(mustJSON(r.described))
+		name, tags = r.described.IdentityPoolName, mapTagsJSON(r.described.IdentityPoolTags)
+	}
+	return &store.Resource{
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		AccountName:    &acct.Name,
+		Type:           TypeCognitoIdentityPool,
+		NativeID:       fmt.Sprintf("arn:aws:cognito-identity:%s:%s:identitypool/%s", region, acct.ID, sv(listed.IdentityPoolId)),
+		Name:           name,
+		Region:         &region,
+		AttributesJSON: mustJSON(attrs),
+		TagsJSON:       tags,
+		DiscoveredBy:   scanID,
+	}
 }

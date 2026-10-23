@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 61.0% (2031/3331 listable) · depth0 72.9% · depth1 43.8% · depth2 35.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 444 · disco-only 0 (0 unexplained)
+**Coverage:** 61.0% (2031/3331 listable) · depth0 72.9% · depth1 43.8% · depth2 35.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 444 · disco-only 1 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
