@@ -1,6 +1,8 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -132,7 +134,10 @@ func TestResolveBatchQuotaShareJobQueue(t *testing.T) {
 	if err := resolveBatchQuotaShareJobQueue(acct, st); err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	rels, _ := st.RelationshipsFrom(sID)
+	rels, err := st.RelationshipsFrom(sID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
 	assertRelationship(t, rels, sID, qID, store.RelAttachedTo)
 }
 
@@ -148,8 +153,74 @@ func TestResolveBatchQuotaShareJobQueue_UnscannedQueue(t *testing.T) {
 	if err := resolveBatchQuotaShareJobQueue(acct, st); err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
-	rels, _ := st.RelationshipsFrom(sID)
+	rels, err := st.RelationshipsFrom(sID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
 	if len(rels) != 0 {
 		t.Errorf("expected no rels, got %+v", rels)
+	}
+}
+
+// A row whose attributes do not decode is returned as an error after the
+// walk, and costs the rows on either side of it none of their edges.
+func TestResolveBatch_DecodeErrorKeepsOtherRows(t *testing.T) {
+	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/%s", testAccountID, testBatchJobRole)
+	for _, tc := range []struct {
+		name                string
+		resolve             func(*account, *store.Store) error
+		srcType, targetType string
+		target              string
+		attrs               func(target string) string
+		kind                string
+	}{
+		{
+			name: "compute environment", resolve: resolveBatchComputeEnvironmentTargets,
+			srcType: TypeBatchComputeEnvironment, targetType: TypeIAMRole, target: roleARN, kind: store.RelAssumes,
+			attrs: func(target string) string { return fmt.Sprintf(`{"ServiceRole":%q}`, target) },
+		},
+		{
+			name: "job queue", resolve: resolveBatchJobQueueComputeEnvs,
+			srcType: TypeBatchJobQueue, targetType: TypeBatchComputeEnvironment, target: batchCEArN(), kind: store.RelUses,
+			attrs: func(target string) string {
+				return fmt.Sprintf(`{"ComputeEnvironmentOrder":[{"Order":1,"ComputeEnvironment":%q}]}`, target)
+			},
+		},
+		{
+			name: "job definition", resolve: resolveBatchJobDefinitionTargets,
+			srcType: TypeBatchJobDefinition, targetType: TypeIAMRole, target: roleARN, kind: store.RelAssumes,
+			attrs: func(target string) string { return fmt.Sprintf(`{"ContainerProperties":{"JobRoleArn":%q}}`, target) },
+		},
+		{
+			name: "quota share", resolve: resolveBatchQuotaShareJobQueue,
+			srcType: TypeBatchQuotaShare, targetType: TypeBatchJobQueue, target: batchQueueARN(), kind: store.RelAttachedTo,
+			attrs: func(target string) string { return fmt.Sprintf(`{"JobQueueArn":%q}`, target) },
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			acct := newTestAccount(testAccountID)
+			targetID := upsertTestResource(t, st, "aws", acct.ID, tc.targetType, tc.target, testRegion, "{}")
+			src := func(name, attrs string) string {
+				arn := fmt.Sprintf("arn:aws:batch:%s:%s:src/%s", testRegion, testAccountID, name)
+				return upsertTestResourceNamed(t, st, tc.srcType, arn, testRegion, attrs, name)
+			}
+			aID := src("a", tc.attrs(tc.target))
+			src("b", `[1]`)
+			cID := src("c", tc.attrs(tc.target))
+
+			err := tc.resolve(acct, st)
+			var typeErr *json.UnmarshalTypeError
+			if !errors.As(err, &typeErr) {
+				t.Fatalf("err = %v; want the bad row's decode error", err)
+			}
+			for _, id := range []string{aID, cID} {
+				rels, err := st.RelationshipsFrom(id)
+				if err != nil {
+					t.Fatalf("RelationshipsFrom: %v", err)
+				}
+				assertRelationship(t, rels, id, targetID, tc.kind)
+			}
+		})
 	}
 }

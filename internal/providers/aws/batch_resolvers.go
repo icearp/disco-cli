@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -76,9 +77,13 @@ func resolveBatchComputeEnvironmentTargets(acct *account, st *store.Store) error
 		return err
 	}
 
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, e := range envs {
 		var attrs batchComputeEnvAttrs
 		if err := json.Unmarshal([]byte(e.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeBatchComputeEnvironment, e.NativeID, err))
 			continue
 		}
 		region := ""
@@ -136,7 +141,7 @@ func resolveBatchComputeEnvironmentTargets(acct *account, st *store.Store) error
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // batchJobQueueAttrs mirrors verbatim JobQueueDetail fields.
@@ -172,9 +177,13 @@ func resolveBatchJobQueueComputeEnvs(acct *account, st *store.Store) error {
 		return nil
 	}
 
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, q := range queues {
 		var attrs batchJobQueueAttrs
 		if err := json.Unmarshal([]byte(q.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeBatchJobQueue, q.NativeID, err))
 			continue
 		}
 		for _, ceo := range attrs.ComputeEnvironmentOrder {
@@ -196,7 +205,7 @@ func resolveBatchJobQueueComputeEnvs(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // batchJobDefAttrs mirrors verbatim JobDefinition fields the resolver uses,
@@ -241,9 +250,13 @@ func resolveBatchJobDefinitionTargets(acct *account, st *store.Store) error {
 		return err
 	}
 
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, d := range defs {
 		var attrs batchJobDefAttrs
 		if err := json.Unmarshal([]byte(d.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeBatchJobDefinition, d.NativeID, err))
 			continue
 		}
 		if attrs.ContainerProperties == nil {
@@ -272,7 +285,7 @@ func resolveBatchJobDefinitionTargets(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // batchQuotaShareAttrs mirrors verbatim QuotaShareDetail fields.
@@ -300,9 +313,13 @@ func resolveBatchQuotaShareJobQueue(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, s := range shares {
 		var attrs batchQuotaShareAttrs
 		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeBatchQuotaShare, s.NativeID, err))
 			continue
 		}
 		qARN := sv(attrs.JobQueueArn)
@@ -317,5 +334,5 @@ func resolveBatchQuotaShareJobQueue(acct *account, st *store.Store) error {
 			return fmt.Errorf("upsert batch quota-share→job-queue: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }

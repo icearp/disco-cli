@@ -1,10 +1,13 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/batch"
+	batchtypes "github.com/aws/aws-sdk-go-v2/service/batch/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -35,433 +38,273 @@ type batchAPI interface {
 	ListQuotaShares(context.Context, *batch.ListQuotaSharesInput, ...func(*batch.Options)) (*batch.ListQuotaSharesOutput, error)
 }
 
-// scanBatch discovers AWS Batch compute environments, job queues, and
-// active job definitions in one region. Three phases run sequentially,
-// each Describe* paginator-native with full body on List. Per-phase
-// AccessDenied tolerated. Inactive job-definition revisions filtered
-// out (Status=ACTIVE) — historical revisions are unbounded and
-// graph-irrelevant. Job runs (ListJobs) are event data, deferred per
-// the Macie/Detective/SecurityHub event-data precedent.
-func scanBatch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// batchPageLimit is the maxResults cap the Batch model documents for
+// DescribeComputeEnvironments, DescribeJobQueues and DescribeJobDefinitions.
+const batchPageLimit = 100
+
+// scanBatch discovers AWS Batch compute environments, job queues, job
+// definitions, scheduling policies, consumable resources, service
+// environments and quota shares in one region. Job runs (ListJobs) are event
+// data, deferred per the Macie/Detective/SecurityHub event-data precedent.
+func scanBatch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := batch.NewFromConfig(acct.cfg, func(o *batch.Options) { o.Region = region })
-
-	{
-		t, i, ferr := scanBatchComputeEnvironments(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanBatchJobQueues(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanBatchJobDefinitions(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanBatchSchedulingPolicies(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanBatchConsumableResources(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanBatchServiceEnvironments(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanBatchQuotaShares(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	return total, inserted, nil
+	return scanBatchAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanBatchSchedulingPolicies enumerates fair-share / quota-share scheduling
-// policies. ListSchedulingPolicies returns ARNs only; DescribeSchedulingPolicies
-// fans them in (max 100 per call) for the full body with FairsharePolicy /
-// QuotaSharePolicy / Tags. No edges to other resources.
-func scanBatchSchedulingPolicies(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var arns []string
-	pager := batch.NewListSchedulingPoliciesPaginator(client, &batch.ListSchedulingPoliciesInput{})
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "batch:ListSchedulingPolicies", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("batch:ListSchedulingPolicies: %w", perr)
-		}
-		for _, p := range out.SchedulingPolicies {
-			if a := sv(p.Arn); a != "" {
-				arns = append(arns, a)
-			}
+// scanBatchAll runs every Batch phase in turn and joins their errors; only a
+// store write failure stops it, since every later write would fail too. The
+// quota shares are read for the job queues the job-queue phase stored, so a
+// failed queue listing leaves them fewer queues rather than none.
+func scanBatchAll(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var (
+		phases phaseTotals
+		queues []string
+	)
+	for _, phase := range []struct {
+		op string
+		fn func() (int, int, error)
+	}{
+		{"batch:DescribeComputeEnvironments", func() (int, int, error) {
+			return scanBatchComputeEnvironments(ctx, client, acct, region, st, scanID)
+		}},
+		{"batch:DescribeJobQueues", func() (t, i int, err error) {
+			queues, t, i, err = scanBatchJobQueues(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		}},
+		{"batch:DescribeJobDefinitions", func() (int, int, error) {
+			return scanBatchJobDefinitions(ctx, client, acct, region, st, scanID)
+		}},
+		{"batch:ListSchedulingPolicies", func() (int, int, error) {
+			return scanBatchSchedulingPolicies(ctx, client, acct, region, st, scanID)
+		}},
+		{"batch:ListConsumableResources", func() (int, int, error) {
+			return scanBatchConsumableResources(ctx, client, acct, region, st, scanID)
+		}},
+		{"batch:DescribeServiceEnvironments", func() (int, int, error) {
+			return scanBatchServiceEnvironments(ctx, client, acct, region, st, scanID)
+		}},
+		{"batch:ListQuotaShares", func() (int, int, error) {
+			return scanBatchQuotaShares(ctx, client, acct, region, st, scanID, queues)
+		}},
+	} {
+		t, i, err := phase.fn()
+		if phases.addPhase(phase.op, t, i, err) {
+			break
 		}
 	}
-	if len(arns) == 0 {
-		return 0, 0, nil
+	return phases.result(st, acct, region)
+}
+
+// scanBatchSchedulingPolicies lists the scheduling policies' ARNs, then reads
+// their full bodies (FairsharePolicy, QuotaSharePolicy, Tags) up to 100 ARNs
+// per DescribeSchedulingPolicies call. The policies read before a failed
+// listing page are still described, and a failed describe call costs only its
+// own ARNs: every row read is stored before the errors are returned.
+func scanBatchSchedulingPolicies(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	listed, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]batchtypes.SchedulingPolicyListingDetail, *string, error) {
+		out, err := client.ListSchedulingPolicies(ctx, &batch.ListSchedulingPoliciesInput{MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token})
+		if err != nil {
+			return nil, nil, err
+		}
+		return out.SchedulingPolicies, out.NextToken, nil
+	})
+	var (
+		arns                 []string
+		listSkips, descSkips notStoredSkips
+		rows                 []*store.Resource
+		descDenied           error
+		descErrs             []error
+	)
+	for _, p := range listed {
+		if a := sv(p.Arn); a != "" {
+			arns = append(arns, a)
+			continue
+		}
+		listSkips.skipped("scheduling policies have an empty Arn", "one without an Arn")
 	}
-	var rows []*store.Resource
 	// DescribeSchedulingPolicies takes up to 100 ARNs per call.
 	for start := 0; start < len(arns); start += 100 {
-		end := min(start+100, len(arns))
-		out, derr := client.DescribeSchedulingPolicies(ctx, &batch.DescribeSchedulingPoliciesInput{Arns: arns[start:end]})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				_ = skipIfAccessDenied(st, "batch:DescribeSchedulingPolicies", acct.ID, region, derr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("batch:DescribeSchedulingPolicies: %w", derr)
+		chunk := arns[start:min(start+100, len(arns))]
+		out, err := client.DescribeSchedulingPolicies(ctx, &batch.DescribeSchedulingPoliciesInput{Arns: chunk})
+		if isAccessDenied(err) {
+			// The later chunks would be refused the same way, so they are not tried.
+			descDenied = fmt.Errorf("scheduling policies not described: %d, first %s (later chunks not tried): %w", len(arns)-start, chunk[0], err)
+			break
 		}
-		for _, p := range out.SchedulingPolicies {
+		if err != nil {
+			descErrs = append(descErrs, fmt.Errorf("batch:DescribeSchedulingPolicies %s: %w", chunk[0], err))
+			continue
+		}
+		rows = buildListedRows(out.SchedulingPolicies, func(p batchtypes.SchedulingPolicyDetail) (*store.Resource, string, string) {
 			arn := sv(p.Arn)
 			if arn == "" {
-				continue
+				return nil, "scheduling policies have an empty Arn", cmp.Or(sv(p.Name), "one without a Name")
 			}
-			name := sv(p.Name)
-			rows = append(rows, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBatchSchedulingPolicy,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(p),
-				TagsJSON:       mapTagsJSON(p.Tags),
-				DiscoveredBy:   scanID,
-			})
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeBatchSchedulingPolicy, NativeID: arn, Name: p.Name, Region: &region,
+				AttributesJSON: mustJSON(p), TagsJSON: mapTagsJSON(p.Tags), DiscoveredBy: scanID,
+			}, "", ""
+		}, rows, &descSkips)
+	}
+	return storeReadRows(st, acct, region, "batch:ListSchedulingPolicies", rows, listErr, func() {
+		listSkips.warn(st, "batch:ListSchedulingPolicies", acct, region)
+		descSkips.warn(st, "batch:DescribeSchedulingPolicies", acct, region)
+		if descDenied != nil {
+			_ = skipIfAccessDenied(st, "batch:DescribeSchedulingPolicies", acct.ID, region, descDenied)
 		}
-	}
-	if len(rows) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(rows)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert batch scheduling policies: %w", uerr)
-	}
-	return len(rows), n, nil
+	}, descErrs...)
 }
 
-// scanBatchConsumableResources enumerates account-level consumable resource
-// pools used to gate per-job concurrency. Summary body carries ARN + name +
-// in-use / total quantity; no Describe fan-out needed for graph data.
-func scanBatchConsumableResources(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := batch.NewListConsumableResourcesPaginator(client, &batch.ListConsumableResourcesInput{})
-	var rows []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "batch:ListConsumableResources", acct.ID, region, perr)
-				return 0, 0, nil
+// scanBatchConsumableResources stores the account's consumable resource pools,
+// which gate per-job concurrency, from their list summaries.
+func scanBatchConsumableResources(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, "batch:ListConsumableResources",
+		func(ctx context.Context, token *string) ([]batchtypes.ConsumableResourceSummary, *string, error) {
+			out, err := client.ListConsumableResources(ctx, &batch.ListConsumableResourcesInput{MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("batch:ListConsumableResources: %w", perr)
-		}
-		for _, c := range out.ConsumableResources {
+			return out.ConsumableResources, out.NextToken, nil
+		},
+		func(c batchtypes.ConsumableResourceSummary) (*store.Resource, string, string) {
 			arn := sv(c.ConsumableResourceArn)
 			if arn == "" {
-				continue
+				return nil, "consumable resources have an empty ConsumableResourceArn", cmp.Or(sv(c.ConsumableResourceName), "one without a ConsumableResourceName")
 			}
-			name := sv(c.ConsumableResourceName)
-			rows = append(rows, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBatchConsumableResource,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(c),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(rows) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(rows)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert batch consumable resources: %w", uerr)
-	}
-	return len(rows), n, nil
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeBatchConsumableResource, NativeID: arn, Name: c.ConsumableResourceName, Region: &region,
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			}, "", ""
+		})
 }
 
-// scanBatchServiceEnvironments enumerates SageMaker-Training / similar
-// managed-service capacity pools attached to job queues. DescribeServiceEnvironments
-// with empty filter returns full bodies in one paginated call.
-func scanBatchServiceEnvironments(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := batch.NewDescribeServiceEnvironmentsPaginator(client, &batch.DescribeServiceEnvironmentsInput{})
-	var rows []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "batch:DescribeServiceEnvironments", acct.ID, region, perr)
-				return 0, 0, nil
+// scanBatchServiceEnvironments stores the service environments (SageMaker
+// Training and similar managed capacity pools job queues can attach).
+func scanBatchServiceEnvironments(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, "batch:DescribeServiceEnvironments",
+		func(ctx context.Context, token *string) ([]batchtypes.ServiceEnvironmentDetail, *string, error) {
+			out, err := client.DescribeServiceEnvironments(ctx, &batch.DescribeServiceEnvironmentsInput{MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("batch:DescribeServiceEnvironments: %w", perr)
-		}
-		for _, e := range out.ServiceEnvironments {
+			return out.ServiceEnvironments, out.NextToken, nil
+		},
+		func(e batchtypes.ServiceEnvironmentDetail) (*store.Resource, string, string) {
 			arn := sv(e.ServiceEnvironmentArn)
 			if arn == "" {
-				continue
+				return nil, "service environments have an empty ServiceEnvironmentArn", cmp.Or(sv(e.ServiceEnvironmentName), "one without a ServiceEnvironmentName")
 			}
-			name := sv(e.ServiceEnvironmentName)
-			status := string(e.State)
-			rows = append(rows, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBatchServiceEnvironment,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				Status:         &status,
-				AttributesJSON: mustJSON(e),
-				TagsJSON:       mapTagsJSON(e.Tags),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(rows) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(rows)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert batch service environments: %w", uerr)
-	}
-	return len(rows), n, nil
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeBatchServiceEnvironment, NativeID: arn, Name: e.ServiceEnvironmentName, Region: &region,
+				Status: nonEmptyPtr(string(e.State)), AttributesJSON: mustJSON(e), TagsJSON: mapTagsJSON(e.Tags), DiscoveredBy: scanID,
+			}, "", ""
+		})
 }
 
-// scanBatchQuotaShares fans out per-JobQueue: ListQuotaShares requires a
-// JobQueue input. Reuses the queues already enumerated by
-// scanBatchJobQueues via a fresh DescribeJobQueues paginator (cheap; no
-// shared cache on the account struct). Per-queue AccessDenied tolerated.
-func scanBatchQuotaShares(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var queueARNs []string
-	qpager := batch.NewDescribeJobQueuesPaginator(client, &batch.DescribeJobQueuesInput{})
-	for qpager.HasMorePages() {
-		out, perr := qpager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "batch:DescribeJobQueues(quota-share fan-out)", acct.ID, region, perr)
-				return 0, 0, nil
+// scanBatchQuotaShares lists the quota shares of each job queue the job-queue
+// phase stored this scan, the queues read concurrently. ListQuotaShares models
+// no not-found code, so a queue deleted since it was listed fails the phase
+// after the other queues' shares are stored.
+func scanBatchQuotaShares(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string, queueARNs []string) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, "batch:ListQuotaShares", nil, queueARNs,
+		func(ctx context.Context, queue string, token *string) ([]batchtypes.QuotaShareDetail, *string, error) {
+			out, err := client.ListQuotaShares(ctx, &batch.ListQuotaSharesInput{JobQueue: &queue, MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("batch:DescribeJobQueues(quota-share fan-out): %w", perr)
-		}
-		for _, q := range out.JobQueues {
-			if a := sv(q.JobQueueArn); a != "" {
-				queueARNs = append(queueARNs, a)
+			return out.QuotaShares, out.NextToken, nil
+		},
+		func(_ string, s batchtypes.QuotaShareDetail) (*store.Resource, string, string) {
+			arn := sv(s.QuotaShareArn)
+			if arn == "" {
+				return nil, "quota shares have an empty QuotaShareArn", cmp.Or(sv(s.QuotaShareName), "one without a QuotaShareName")
 			}
-		}
-	}
-	var rows []*store.Resource
-	for _, qarn := range queueARNs {
-		qa := qarn
-		spager := batch.NewListQuotaSharesPaginator(client, &batch.ListQuotaSharesInput{JobQueue: &qa})
-		for spager.HasMorePages() {
-			out, perr := spager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "batch:ListQuotaShares", acct.ID, region, perr)
-					break
-				}
-				return 0, 0, fmt.Errorf("batch:ListQuotaShares %s: %w", qa, perr)
-			}
-			for _, s := range out.QuotaShares {
-				arn := sv(s.QuotaShareArn)
-				if arn == "" {
-					continue
-				}
-				name := sv(s.QuotaShareName)
-				status := string(s.State)
-				rows = append(rows, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeBatchQuotaShare,
-					NativeID:       arn,
-					Name:           &name,
-					Region:         &region,
-					Status:         &status,
-					AttributesJSON: mustJSON(s),
-					DiscoveredBy:   scanID,
-				})
-			}
-		}
-	}
-	if len(rows) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(rows)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert batch quota shares: %w", uerr)
-	}
-	return len(rows), n, nil
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeBatchQuotaShare, NativeID: arn, Name: s.QuotaShareName, Region: &region,
+				Status: nonEmptyPtr(string(s.State)), AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+			}, "", ""
+		})
 }
 
-func scanBatchComputeEnvironments(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := batch.NewDescribeComputeEnvironmentsPaginator(client, &batch.DescribeComputeEnvironmentsInput{})
-	var batchRows []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "batch:DescribeComputeEnvironments", acct.ID, region, perr)
-				return 0, 0, nil
+func scanBatchComputeEnvironments(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, "batch:DescribeComputeEnvironments",
+		func(ctx context.Context, token *string) ([]batchtypes.ComputeEnvironmentDetail, *string, error) {
+			out, err := client.DescribeComputeEnvironments(ctx, &batch.DescribeComputeEnvironmentsInput{MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("batch:DescribeComputeEnvironments: %w", perr)
-		}
-		for _, c := range out.ComputeEnvironments {
+			return out.ComputeEnvironments, out.NextToken, nil
+		},
+		func(c batchtypes.ComputeEnvironmentDetail) (*store.Resource, string, string) {
 			arn := sv(c.ComputeEnvironmentArn)
 			if arn == "" {
-				continue
+				return nil, "compute environments have an empty ComputeEnvironmentArn", cmp.Or(sv(c.ComputeEnvironmentName), "one without a ComputeEnvironmentName")
 			}
-			name := sv(c.ComputeEnvironmentName)
-			status := string(c.State)
-			batchRows = append(batchRows, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBatchComputeEnvironment,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				Status:         &status,
-				AttributesJSON: mustJSON(c),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batchRows) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batchRows)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert batch compute environments: %w", uerr)
-	}
-	return len(batchRows), n, nil
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeBatchComputeEnvironment, NativeID: arn, Name: c.ComputeEnvironmentName, Region: &region,
+				Status: nonEmptyPtr(string(c.State)), AttributesJSON: mustJSON(c), TagsJSON: mapTagsJSON(c.Tags), DiscoveredBy: scanID,
+			}, "", ""
+		})
 }
 
-func scanBatchJobQueues(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := batch.NewDescribeJobQueuesPaginator(client, &batch.DescribeJobQueuesInput{})
-	var batchRows []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "batch:DescribeJobQueues", acct.ID, region, perr)
-				return 0, 0, nil
+// scanBatchJobQueues stores the job queues and returns the ARNs of those
+// stored, the parents of the quota-share phase.
+func scanBatchJobQueues(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+	total, inserted, parents, err := storeParentList(ctx, st, acct, region, "batch:DescribeJobQueues", "job queues", "JobQueueArn",
+		func(ctx context.Context, token *string) ([]batchtypes.JobQueueDetail, *string, error) {
+			out, err := client.DescribeJobQueues(ctx, &batch.DescribeJobQueuesInput{MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("batch:DescribeJobQueues: %w", perr)
-		}
-		for _, q := range out.JobQueues {
+			return out.JobQueues, out.NextToken, nil
+		},
+		func(q batchtypes.JobQueueDetail) (*store.Resource, string, string) {
 			arn := sv(q.JobQueueArn)
 			if arn == "" {
-				continue
+				return nil, "job queues have an empty JobQueueArn", cmp.Or(sv(q.JobQueueName), "one without a JobQueueName")
 			}
-			name := sv(q.JobQueueName)
-			status := string(q.State)
-			batchRows = append(batchRows, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBatchJobQueue,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				Status:         &status,
-				AttributesJSON: mustJSON(q),
-				DiscoveredBy:   scanID,
-			})
-		}
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeBatchJobQueue, NativeID: arn, Name: q.JobQueueName, Region: &region,
+				Status: nonEmptyPtr(string(q.State)), AttributesJSON: mustJSON(q), TagsJSON: mapTagsJSON(q.Tags), DiscoveredBy: scanID,
+			}, "", ""
+		},
+		func(q batchtypes.JobQueueDetail) string { return sv(q.JobQueueArn) })
+	arns := make([]string, len(parents))
+	for i, p := range parents {
+		arns[i] = p.id
 	}
-	if len(batchRows) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batchRows)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert batch job queues: %w", uerr)
-	}
-	return len(batchRows), n, nil
+	return arns, total, inserted, err
 }
 
-func scanBatchJobDefinitions(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	active := "ACTIVE"
-	pager := batch.NewDescribeJobDefinitionsPaginator(client, &batch.DescribeJobDefinitionsInput{Status: &active})
-	var batchRows []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "batch:DescribeJobDefinitions", acct.ID, region, perr)
-				return 0, 0, nil
+// scanBatchJobDefinitions stores every ACTIVE job definition revision.
+// Deregistered (INACTIVE) revisions are not listed; the model says Batch
+// deletes them 180 days after deregistration.
+func scanBatchJobDefinitions(ctx context.Context, client batchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, "batch:DescribeJobDefinitions",
+		func(ctx context.Context, token *string) ([]batchtypes.JobDefinition, *string, error) {
+			out, err := client.DescribeJobDefinitions(ctx, &batch.DescribeJobDefinitionsInput{
+				Status: sdkaws.String("ACTIVE"), MaxResults: sdkaws.Int32(batchPageLimit), NextToken: token,
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("batch:DescribeJobDefinitions: %w", perr)
-		}
-		for _, j := range out.JobDefinitions {
+			return out.JobDefinitions, out.NextToken, nil
+		},
+		func(j batchtypes.JobDefinition) (*store.Resource, string, string) {
 			arn := sv(j.JobDefinitionArn)
 			if arn == "" {
-				continue
+				return nil, "job definitions have an empty JobDefinitionArn", cmp.Or(sv(j.JobDefinitionName), "one without a JobDefinitionName")
 			}
-			name := sv(j.JobDefinitionName)
-			status := sv(j.Status)
-			batchRows = append(batchRows, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBatchJobDefinition,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				Status:         &status,
-				AttributesJSON: mustJSON(j),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batchRows) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batchRows)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert batch job definitions: %w", uerr)
-	}
-	return len(batchRows), n, nil
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeBatchJobDefinition, NativeID: arn, Name: j.JobDefinitionName, Region: &region,
+				Status: nonEmptyPtr(sv(j.Status)), AttributesJSON: mustJSON(j), TagsJSON: mapTagsJSON(j.Tags), DiscoveredBy: scanID,
+			}, "", ""
+		})
 }
