@@ -2,9 +2,10 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/route53recoveryreadiness"
+	r53rrtypes "github.com/aws/aws-sdk-go-v2/service/route53recoveryreadiness/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -21,6 +22,16 @@ func init() {
 	})
 }
 
+const (
+	r53rrListCellsOp           = "route53recoveryreadiness:ListCells"
+	r53rrListReadinessChecksOp = "route53recoveryreadiness:ListReadinessChecks"
+	r53rrListRecoveryGroupsOp  = "route53recoveryreadiness:ListRecoveryGroups"
+	r53rrListResourceSetsOp    = "route53recoveryreadiness:ListResourceSets"
+)
+
+// r53rrPageMax is the MaxResults cap every List op here models.
+const r53rrPageMax int32 = 1000
+
 type r53rrAPI interface {
 	ListCells(context.Context, *route53recoveryreadiness.ListCellsInput, ...func(*route53recoveryreadiness.Options)) (*route53recoveryreadiness.ListCellsOutput, error)
 	ListReadinessChecks(context.Context, *route53recoveryreadiness.ListReadinessChecksInput, ...func(*route53recoveryreadiness.Options)) (*route53recoveryreadiness.ListReadinessChecksOutput, error)
@@ -29,133 +40,102 @@ type r53rrAPI interface {
 }
 
 // scanR53RecoveryReadiness discovers Route53 Recovery Readiness cells, readiness
-// checks, recovery groups, and resource sets via paginated List* calls; ARNs are
-// native on every type. Global service, single us-west-2 endpoint — gated to skip
-// the DNS-lookup-failure warnings other regions would otherwise raise.
-func scanR53RecoveryReadiness(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+// checks, recovery groups, and resource sets; ARNs are native on every type.
+// The service is account-wide with its only endpoint in us-west-2, so it is
+// registered global and the client is pinned there.
+func scanR53RecoveryReadiness(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
 	region := "us-west-2"
 	client := route53recoveryreadiness.NewFromConfig(acct.cfg, func(o *route53recoveryreadiness.Options) { o.Region = region })
+	return scanR53RRAll(ctx, client, acct, region, st, scanID)
+}
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanR53RRCells(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanR53RRReadinessChecks(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanR53RRRecoveryGroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanR53RRResourceSets(ctx, client, acct, region, st, scanID) },
+// scanR53RRAll runs every listing and joins their errors; the listings are
+// independent, so only a store write failure stops the rest.
+func scanR53RRAll(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var p phaseTotals
+	for _, ph := range []struct {
+		op  string
+		run func() (int, int, error)
+	}{
+		{r53rrListCellsOp, func() (int, int, error) { return scanR53RRCells(ctx, client, acct, region, st, scanID) }},
+		{r53rrListReadinessChecksOp, func() (int, int, error) { return scanR53RRReadinessChecks(ctx, client, acct, region, st, scanID) }},
+		{r53rrListRecoveryGroupsOp, func() (int, int, error) { return scanR53RRRecoveryGroups(ctx, client, acct, region, st, scanID) }},
+		{r53rrListResourceSetsOp, func() (int, int, error) { return scanR53RRResourceSets(ctx, client, acct, region, st, scanID) }},
 	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
+		t, i, err := ph.run()
+		if p.addPhase(ph.op, t, i, err) {
+			break
 		}
-		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return p.result(st, acct, region)
+}
+
+// r53rrRow builds the row of a readiness resource, or returns why it cannot be
+// stored (what names the resources, field the ARN member) keyed by its name
+// when the ARN is empty.
+func r53rrRow(acct *account, scanID, rtype, what, field string, arn, name *string, attrs any, tags map[string]string) (*store.Resource, string, string) {
+	if sv(arn) == "" {
+		return nil, what + " have an empty " + field, sv(name)
+	}
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: rtype, NativeID: *arn, Name: name, Region: regionGlobal,
+		AttributesJSON: mustJSON(attrs), TagsJSON: mapTagsJSON(tags), DiscoveredBy: scanID,
+	}, "", ""
 }
 
 func scanR53RRCells(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := route53recoveryreadiness.NewListCellsPaginator(client, &route53recoveryreadiness.ListCellsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53recoveryreadiness:ListCells", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, r53rrListCellsOp,
+		func(ctx context.Context, token *string) ([]r53rrtypes.CellOutput, *string, error) {
+			out, err := client.ListCells(ctx, &route53recoveryreadiness.ListCellsInput{NextToken: token, MaxResults: sdkaws.Int32(r53rrPageMax)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("route53recoveryreadiness:ListCells: %w", err)
-		}
-		for _, c := range out.Cells {
-			arn := sv(c.CellArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeR53RRCell, NativeID: arn,
-				Name: c.CellName, Region: regionGlobal,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "r53rr cells")
+			return out.Cells, out.NextToken, nil
+		},
+		func(c r53rrtypes.CellOutput) (*store.Resource, string, string) {
+			return r53rrRow(acct, scanID, TypeR53RRCell, "cells", "CellArn", c.CellArn, c.CellName, c, c.Tags)
+		})
 }
 
 func scanR53RRReadinessChecks(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := route53recoveryreadiness.NewListReadinessChecksPaginator(client, &route53recoveryreadiness.ListReadinessChecksInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53recoveryreadiness:ListReadinessChecks", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, r53rrListReadinessChecksOp,
+		func(ctx context.Context, token *string) ([]r53rrtypes.ReadinessCheckOutput, *string, error) {
+			out, err := client.ListReadinessChecks(ctx, &route53recoveryreadiness.ListReadinessChecksInput{NextToken: token, MaxResults: sdkaws.Int32(r53rrPageMax)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("route53recoveryreadiness:ListReadinessChecks: %w", err)
-		}
-		for _, c := range out.ReadinessChecks {
-			arn := sv(c.ReadinessCheckArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeR53RRReadinessCheck, NativeID: arn,
-				Name: c.ReadinessCheckName, Region: regionGlobal,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "r53rr readiness-checks")
+			return out.ReadinessChecks, out.NextToken, nil
+		},
+		func(c r53rrtypes.ReadinessCheckOutput) (*store.Resource, string, string) {
+			return r53rrRow(acct, scanID, TypeR53RRReadinessCheck, "readiness checks", "ReadinessCheckArn", c.ReadinessCheckArn, c.ReadinessCheckName, c, c.Tags)
+		})
 }
 
 func scanR53RRRecoveryGroups(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := route53recoveryreadiness.NewListRecoveryGroupsPaginator(client, &route53recoveryreadiness.ListRecoveryGroupsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53recoveryreadiness:ListRecoveryGroups", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, r53rrListRecoveryGroupsOp,
+		func(ctx context.Context, token *string) ([]r53rrtypes.RecoveryGroupOutput, *string, error) {
+			out, err := client.ListRecoveryGroups(ctx, &route53recoveryreadiness.ListRecoveryGroupsInput{NextToken: token, MaxResults: sdkaws.Int32(r53rrPageMax)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("route53recoveryreadiness:ListRecoveryGroups: %w", err)
-		}
-		for _, g := range out.RecoveryGroups {
-			arn := sv(g.RecoveryGroupArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeR53RRRecoveryGroup, NativeID: arn,
-				Name: g.RecoveryGroupName, Region: regionGlobal,
-				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "r53rr recovery-groups")
+			return out.RecoveryGroups, out.NextToken, nil
+		},
+		func(g r53rrtypes.RecoveryGroupOutput) (*store.Resource, string, string) {
+			return r53rrRow(acct, scanID, TypeR53RRRecoveryGroup, "recovery groups", "RecoveryGroupArn", g.RecoveryGroupArn, g.RecoveryGroupName, g, g.Tags)
+		})
 }
 
 func scanR53RRResourceSets(ctx context.Context, client r53rrAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := route53recoveryreadiness.NewListResourceSetsPaginator(client, &route53recoveryreadiness.ListResourceSetsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "route53recoveryreadiness:ListResourceSets", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, r53rrListResourceSetsOp,
+		func(ctx context.Context, token *string) ([]r53rrtypes.ResourceSetOutput, *string, error) {
+			out, err := client.ListResourceSets(ctx, &route53recoveryreadiness.ListResourceSetsInput{NextToken: token, MaxResults: sdkaws.Int32(r53rrPageMax)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("route53recoveryreadiness:ListResourceSets: %w", err)
-		}
-		for _, rs := range out.ResourceSets {
-			arn := sv(rs.ResourceSetArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeR53RRResourceSet, NativeID: arn,
-				Name: rs.ResourceSetName, Region: regionGlobal,
-				AttributesJSON: mustJSON(rs), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "r53rr resource-sets")
+			return out.ResourceSets, out.NextToken, nil
+		},
+		func(rs r53rrtypes.ResourceSetOutput) (*store.Resource, string, string) {
+			return r53rrRow(acct, scanID, TypeR53RRResourceSet, "resource sets", "ResourceSetArn", rs.ResourceSetArn, rs.ResourceSetName, rs, rs.Tags)
+		})
 }
