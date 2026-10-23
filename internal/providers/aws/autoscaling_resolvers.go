@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -37,6 +38,11 @@ func init() {
 	)
 }
 
+// autoScalingGroupKey names a group within the account being resolved: group
+// names are unique per account and region only, so a child names its group
+// in its own region.
+type autoScalingGroupKey struct{ region, name string }
+
 // resolveAutoScalingRelationships wires edges among the EC2 Auto Scaling
 // resource family. ASGs anchor most edges (instances, target groups,
 // launch templates / configs, subnets, service-linked role); the child types
@@ -51,10 +57,10 @@ func resolveAutoScalingRelationships(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	asgIDByName := make(map[string]string, len(groups))
+	asgIDByName := make(map[autoScalingGroupKey]string, len(groups))
 	for _, g := range groups {
 		if g.Name != nil {
-			asgIDByName[*g.Name] = g.ID
+			asgIDByName[autoScalingGroupKey{region: sv(g.Region), name: *g.Name}] = g.ID
 		}
 	}
 
@@ -99,16 +105,14 @@ func resolveAutoScalingRelationships(acct *account, st *store.Store) error {
 		return err
 	}
 
-	if err := resolveAutoScalingGroupEdges(acct, st, groups, roleIDs, instanceIDs, tgIDs, lcIDs, ltIDs, subnetIDs); err != nil {
-		return err
-	}
-	if err := resolveAutoScalingLaunchConfigEdges(acct, st, instProfileIDs, sgIDs); err != nil {
-		return err
-	}
-	if err := resolveAutoScalingChildEdges(acct, st, asgIDByName, roleIDs, topicIDs, queueIDs); err != nil {
-		return err
-	}
-	return resolveAutoScalingNotificationTopicEdges(acct, st, topicIDs)
+	// Each family runs whatever another returns, so a row that fails to decode
+	// costs no other family its edges.
+	return errors.Join(
+		resolveAutoScalingGroupEdges(acct, st, groups, roleIDs, instanceIDs, tgIDs, lcIDs, ltIDs, subnetIDs),
+		resolveAutoScalingLaunchConfigEdges(acct, st, instProfileIDs, sgIDs),
+		resolveAutoScalingChildEdges(acct, st, asgIDByName, roleIDs, topicIDs, queueIDs),
+		resolveAutoScalingNotificationTopicEdges(acct, st, topicIDs),
+	)
 }
 
 // resolveAutoScalingNotificationTopicEdges links each notification
@@ -121,10 +125,14 @@ func resolveAutoScalingNotificationTopicEdges(acct *account, st *store.Store, to
 	if err != nil {
 		return err
 	}
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, r := range rs {
 		var a autoScalingNotificationConfiguration
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
-			return fmt.Errorf("decode %s %s: %w", TypeAutoScalingNotificationConfiguration, r.NativeID, err)
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeAutoScalingNotificationConfiguration, r.NativeID, err))
+			continue
 		}
 		topicID := store.ResourceID("aws", acct.ID, a.TopicARN)
 		if !topicIDs[topicID] {
@@ -134,7 +142,7 @@ func resolveAutoScalingNotificationTopicEdges(acct *account, st *store.Store, to
 			return fmt.Errorf("upsert notification-configuration→sns: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store.Resource, roleIDs, instanceIDs, tgIDs, lcIDs, ltIDs, subnetIDs map[string]bool) error {
@@ -152,9 +160,11 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 		Instances               []instance `json:"Instances"`
 		VPCZoneIdentifier       *string    `json:"VPCZoneIdentifier"`
 	}
+	var decodeErrs []error
 	for _, g := range groups {
 		var a asgAttrs
 		if err := json.Unmarshal([]byte(g.AttributesJSON), &a); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeAutoScalingGroup, g.NativeID, err))
 			continue
 		}
 		region := sv(g.Region)
@@ -223,7 +233,7 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 func resolveAutoScalingLaunchConfigEdges(acct *account, st *store.Store, instProfileIDs, sgIDs map[string]bool) error {
@@ -238,9 +248,11 @@ func resolveAutoScalingLaunchConfigEdges(acct *account, st *store.Store, instPro
 		IamInstanceProfile *string  `json:"IamInstanceProfile"`
 		SecurityGroups     []string `json:"SecurityGroups"`
 	}
+	var decodeErrs []error
 	for _, lc := range lcs {
 		var a lcAttrs
 		if err := json.Unmarshal([]byte(lc.AttributesJSON), &a); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeAutoScalingLaunchConfiguration, lc.NativeID, err))
 			continue
 		}
 		region := sv(lc.Region)
@@ -271,10 +283,11 @@ func resolveAutoScalingLaunchConfigEdges(acct *account, st *store.Store, instPro
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
-func resolveAutoScalingChildEdges(acct *account, st *store.Store, asgIDByName map[string]string, roleIDs, topicIDs, queueIDs map[string]bool) error {
+func resolveAutoScalingChildEdges(acct *account, st *store.Store, asgIDByName map[autoScalingGroupKey]string, roleIDs, topicIDs, queueIDs map[string]bool) error {
+	var decodeErrs []error
 	for _, ct := range []string{
 		TypeAutoScalingLifecycleHook,
 		TypeAutoScalingScalingPolicy,
@@ -296,10 +309,17 @@ func resolveAutoScalingChildEdges(acct *account, st *store.Store, asgIDByName ma
 		for _, r := range rs {
 			var a childAttrs
 			if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
+				decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", ct, r.NativeID, err))
 				continue
 			}
-			if asgName := sv(a.AutoScalingGroupName); asgName != "" {
-				if asgID, ok := asgIDByName[asgName]; ok {
+			asgName := sv(a.AutoScalingGroupName)
+			if ct == TypeAutoScalingWarmPool {
+				// The stored WarmPoolConfiguration names no group; the
+				// scanner keys the warm pool's NativeID on it instead.
+				asgName = autoScalingWarmPoolGroup(r.NativeID)
+			}
+			if asgName != "" {
+				if asgID, ok := asgIDByName[autoScalingGroupKey{region: sv(r.Region), name: asgName}]; ok {
 					if err := st.UpsertRelationship(r.ID, asgID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert %s→asg: %w", ct, err)
 					}
@@ -336,5 +356,5 @@ func resolveAutoScalingChildEdges(acct *account, st *store.Store, asgIDByName ma
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }

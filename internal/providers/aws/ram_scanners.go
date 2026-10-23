@@ -1,9 +1,11 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
-	"strings"
+	"slices"
+
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/aws/aws-sdk-go-v2/service/ram"
 	"github.com/aws/aws-sdk-go-v2/service/ram/types"
@@ -31,9 +33,9 @@ const (
 	ramResourceSharesOp = "ram:GetResourceShares"
 	ramPermissionsOp    = "ram:ListPermissions"
 	ramAssociationsOp   = "ram:GetResourceShareAssociations"
-	// ramAssociationsPageCap is the model's MaxResults maximum for
-	// GetResourceShareAssociations.
-	ramAssociationsPageCap = 500
+	// ramPageCap is the model's MaxResults maximum (range 1-500) for
+	// GetResourceShares, ListPermissions and GetResourceShareAssociations.
+	ramPageCap = 500
 )
 
 func scanRAM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -45,113 +47,107 @@ func scanRAM(ctx context.Context, acct *account, region string, st *store.Store,
 // (ResourceOwner=SELF only — OTHER-ACCOUNTS are inbound shares we don't own),
 // the managed permission catalogue (AWS-managed permissions flagged
 // ManagedByProvider), and the principals and resources each owned share covers.
-// The phases are independent: each runs whatever another returns, and every
-// error is joined by phaseErrs, which demotes a transient one to a warning only
-// beside a hard one, so a throttle on one phase is reported under its op
-// instead of buried in the other's hard error.
+// The phases are independent: each runs whatever another returns, except
+// after a store write failure, and every error is joined by phaseErrs, which
+// demotes a transient one to a warning only beside a hard one, so a throttle
+// on one phase is reported under its op instead of buried in the other's hard
+// error.
 func scanRAMAll(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	shares, t1, i1, serr := scanRAMResourceShares(ctx, client, acct, region, st, scanID)
-	t2, i2, perr := scanRAMPermissions(ctx, client, acct, region, st, scanID)
-	t3, i3, aerr := scanRAMResourceShareAssociations(ctx, client, acct, region, st, scanID, shares)
-	var errs phaseErrs
-	errs.add(ramResourceSharesOp, serr)
-	errs.add(ramPermissionsOp, perr)
-	errs.add(ramAssociationsOp, aerr)
-	return t1 + t2 + t3, i1 + i2 + i3, errs.join(st, acct, region)
+	var phases phaseTotals
+	shares, t, i, err := scanRAMResourceShares(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(ramResourceSharesOp, t, i, err) {
+		return phases.result(st, acct, region)
+	}
+	t, i, err = scanRAMPermissions(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(ramPermissionsOp, t, i, err) {
+		return phases.result(st, acct, region)
+	}
+	t, i, err = scanRAMResourceShareAssociations(ctx, client, acct, region, st, scanID, shares)
+	phases.addPhase(ramAssociationsOp, t, i, err)
+	return phases.result(st, acct, region)
 }
 
-// scanRAMResourceShares stores the shares the account owns and returns the
-// ARNs of the shares it stored; it returns none when the listing or the
-// upsert fails.
+// scanRAMResourceShares stores the shares the account owns, those read before
+// a failed page included, and returns the ARNs of the rows it built; the
+// caller stops before using them when their write failed. The listing leaves
+// every filter but ResourceOwner unset, so it reads every owned share.
 func scanRAMResourceShares(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string) (map[string]bool, int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.GetResourceShares(ctx, &ram.GetResourceSharesInput{
-			ResourceOwner: types.ResourceOwnerSelf,
-			NextToken:     nextToken,
-		})
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, ramResourceSharesOp, acct.ID, region, err)
+	shares := map[string]bool{}
+	total, inserted, err := storeTokenList(ctx, st, acct, region, ramResourceSharesOp,
+		func(ctx context.Context, token *string) ([]types.ResourceShare, *string, error) {
+			out, err := client.GetResourceShares(ctx, &ram.GetResourceSharesInput{
+				ResourceOwner: types.ResourceOwnerSelf,
+				MaxResults:    sdkaws.Int32(ramPageCap),
+				NextToken:     token,
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("%s: %w", ramResourceSharesOp, err)
-		}
-		for _, s := range out.ResourceShares {
+			return out.ResourceShares, out.NextToken, nil
+		},
+		func(s types.ResourceShare) (*store.Resource, string, string) {
 			arn := sv(s.ResourceShareArn)
 			if arn == "" {
-				continue
+				return nil, "resource shares have an empty ResourceShareArn", cmp.Or(sv(s.Name), "one without a Name")
 			}
-			status := string(s.Status)
-			batch = append(batch, &store.Resource{
+			shares[arn] = true
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRAMResourceShare, NativeID: arn,
-				Name: s.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	total, inserted, err := upsertBatch(st, batch, "ram resource-shares")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	shares := make(map[string]bool, len(batch))
-	for _, r := range batch {
-		shares[r.NativeID] = true
-	}
-	return shares, total, inserted, nil
+				Name: s.Name, Region: &region, Status: nonEmptyPtr(string(s.Status)),
+				AttributesJSON: mustJSON(s), TagsJSON: kvTagsJSON(s.Tags, ramTagKV), DiscoveredBy: scanID,
+			}, "", ""
+		})
+	return shares, total, inserted, err
 }
 
+// scanRAMPermissions stores the region's customer-managed permissions and,
+// from us-east-1 only, the AWS-managed catalogue. PermissionType and
+// ResourceType are left unset, so the listing reads both kinds for every
+// resource type.
 func scanRAMPermissions(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListPermissions(ctx, &ram.ListPermissionsInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, ramPermissionsOp, acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, ramPermissionsOp,
+		func(ctx context.Context, token *string) ([]types.ResourceSharePermissionSummary, *string, error) {
+			out, err := client.ListPermissions(ctx, &ram.ListPermissionsInput{MaxResults: sdkaws.Int32(ramPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("%s: %w", ramPermissionsOp, err)
-		}
-		for _, p := range out.Permissions {
+			// The AWS-managed catalogue is partition-global with region-less
+			// ARNs; emitted from every region's concurrent upsert it collides
+			// on the region-excluded natural key, so only us-east-1 keeps it.
+			if region != "us-east-1" {
+				return slices.DeleteFunc(out.Permissions, ramManagedPermission), out.NextToken, nil
+			}
+			return out.Permissions, out.NextToken, nil
+		},
+		func(p types.ResourceSharePermissionSummary) (*store.Resource, string, string) {
 			arn := sv(p.Arn)
 			if arn == "" {
-				continue
+				return nil, "permissions have an empty Arn", cmp.Or(sv(p.Name), "one without a Name")
 			}
-			// AWS-managed permission ARNs use account "aws": arn:aws:ram::aws:permission/...
-			managed := strings.HasPrefix(arn, "arn:aws:ram::aws:permission/")
-			// The AWS-managed permission catalogue is partition-global with
-			// region-less ARNs; emitting from every region's concurrent upsert
-			// collides on the region-excluded natural key. Emit once (us-east-1),
-			// tag global. Customer-managed permissions carry region in the ARN,
-			// so stay per-region.
+			managed := ramManagedPermission(p)
 			permRegion := &region
 			if managed {
-				if region != "us-east-1" {
-					continue
-				}
 				permRegion = regionGlobal
 			}
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRAMPermission, NativeID: arn,
 				Name: p.Name, Region: permRegion,
 				AttributesJSON:    mustJSON(p),
+				TagsJSON:          kvTagsJSON(p.Tags, ramTagKV),
 				DiscoveredBy:      scanID,
 				ManagedByProvider: managed,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "ram permissions")
+			}, "", ""
+		})
 }
+
+// ramManagedPermission reports whether AWS created and manages p.
+func ramManagedPermission(p types.ResourceSharePermissionSummary) bool {
+	return p.PermissionType == types.PermissionTypeAwsManaged
+}
+
+func ramTagKV(t types.Tag) (key, value *string) { return t.Key, t.Value }
 
 // ramAssociationKinds are the association types GetResourceShareAssociations
 // documents, each with the NativeID segment its rows carry. Source
@@ -186,7 +182,7 @@ func scanRAMResourceShareAssociations(ctx context.Context, client ramAPI, acct *
 		pager := ram.NewGetResourceShareAssociationsPaginator(client,
 			&ram.GetResourceShareAssociationsInput{AssociationType: k.typ},
 			func(o *ram.GetResourceShareAssociationsPaginatorOptions) {
-				o.Limit = ramAssociationsPageCap
+				o.Limit = ramPageCap
 				o.StopOnDuplicateToken = true
 			})
 		for pager.HasMorePages() {

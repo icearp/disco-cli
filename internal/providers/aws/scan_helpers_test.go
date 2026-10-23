@@ -11,6 +11,7 @@ import (
 	"net"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -699,4 +700,118 @@ func TestStoreReadRows_FailedWriteStopsBeforeWarnings(t *testing.T) {
 			t.Errorf("warned %v warnings %d after a failed write; want none", warned, *warns)
 		}
 	})
+}
+
+// readEachKey returns each key's result in its key's slot, whichever read
+// finished first: key 0's read finishes only after key 1's.
+func TestReadEachKey_ResultsInKeyOrder(t *testing.T) {
+	keyOneDone := make(chan struct{})
+	got, err := readEachKey(context.Background(), []int{0, 1, 2}, func(_ context.Context, k int) string {
+		switch k {
+		case 0:
+			<-keyOneDone
+		case 1:
+			defer close(keyOneDone)
+		}
+		return strconv.Itoa(k)
+	})
+	if err != nil || !slices.Equal(got, []string{"0", "1", "2"}) {
+		t.Errorf("readEachKey = %q, %v; want [0 1 2], nil", got, err)
+	}
+}
+
+// Once ctx is done no key is read, and the error says the keys were not
+// read.
+func TestReadEachKey_StopsWhenContextDone(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	// A free slot and a done ctx are both ready, and select picks between them
+	// at random; repeating makes a read that slips through a near certainty.
+	for range 64 {
+		var reads atomic.Int32
+		got, err := readEachKey(ctx, []int{0, 1, 2}, func(_ context.Context, k int) int {
+			reads.Add(1)
+			return k
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("err = %v, want context.Canceled", err)
+		}
+		if n := reads.Load(); n != 0 || len(got) != 0 {
+			t.Fatalf("reads = %d, results = %v; want none", n, got)
+		}
+	}
+}
+
+// When ctx ends while reads are running, readEachKey returns only after they
+// finish. The reads cancel ctx and then wait to be released, so a return
+// before the release is a return with reads still running.
+func TestReadEachKey_WaitsForRunningReadsWhenContextEnds(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	release := make(chan struct{})
+	var running atomic.Int32
+	done := make(chan error)
+	go func() {
+		_, err := readEachKey(ctx, make([]int, 2*fanoutMed), func(context.Context, int) int {
+			running.Add(1)
+			defer running.Add(-1)
+			cancel()
+			<-release
+			return 0
+		})
+		done <- err
+	}()
+	// The bound only limits how long a wrong return is looked for; the right
+	// code cannot return before the release whatever the timing.
+	select {
+	case <-done:
+		close(release)
+		t.Fatal("readEachKey returned while its reads were still running")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(release)
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Errorf("err = %v, want context.Canceled", err)
+	}
+	if n := running.Load(); n != 0 {
+		t.Errorf("%d reads still running after readEachKey returned", n)
+	}
+}
+
+// At most fanoutMed reads run at once, and that many do. Every read blocks
+// until released; once fanoutMed are running the test gives a cap that is too
+// high time to start more, and a cap that is too low never gets that far.
+func TestReadEachKey_RunsFanoutMedReadsAtOnce(t *testing.T) {
+	release := make(chan struct{})
+	var running atomic.Int32
+	done := make(chan error)
+	go func() {
+		_, err := readEachKey(context.Background(), make([]int, 3*fanoutMed), func(context.Context, int) int {
+			running.Add(1)
+			defer running.Add(-1)
+			<-release
+			return 0
+		})
+		done <- err
+	}()
+	defer func() {
+		close(release)
+		if err := <-done; err != nil {
+			t.Errorf("readEachKey: %v", err)
+		}
+	}()
+	deadline := time.After(5 * time.Second)
+	for running.Load() < fanoutMed {
+		select {
+		case <-deadline:
+			t.Fatalf("running reads = %d after 5s, want %d", running.Load(), fanoutMed)
+		case <-time.After(time.Millisecond):
+		}
+	}
+	// The wait only bounds how long extra reads are looked for; the right
+	// code never starts one whatever the timing.
+	time.Sleep(50 * time.Millisecond)
+	if n := running.Load(); n != fanoutMed {
+		t.Errorf("running reads = %d, want %d", n, fanoutMed)
+	}
 }

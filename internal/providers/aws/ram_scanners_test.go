@@ -38,6 +38,13 @@ func (s *stubRAM) GetResourceShareAssociations(_ context.Context, _ *ram.GetReso
 func TestScanRAMPermissions_ManagedCatalogueDedup(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
+	// The managed entry skipped outside us-east-1 is not a row lost.
+	warnings := countOpWarnings(st, ramPermissionsOp)
+	defer func() {
+		if *warnings != 0 {
+			t.Errorf("%s warnings = %d, want 0", ramPermissionsOp, *warnings)
+		}
+	}()
 
 	managedARN := "arn:aws:ram::aws:permission/AWSRAMDefaultPermissionVPC"
 	managedName := "AWSRAMDefaultPermissionVPC"
@@ -46,12 +53,12 @@ func TestScanRAMPermissions_ManagedCatalogueDedup(t *testing.T) {
 	custWestARN := "arn:aws:ram:us-west-2:" + acct.ID + ":permission/my-west-perm"
 	custWestName := "my-west-perm"
 
-	managed := ramtypes.ResourceSharePermissionSummary{Arn: &managedARN, Name: &managedName}
+	managed := ramtypes.ResourceSharePermissionSummary{Arn: &managedARN, Name: &managedName, PermissionType: ramtypes.PermissionTypeAwsManaged}
 
 	// us-east-1: managed catalogue entry + a regional customer permission.
 	eastStub := &stubRAM{perms: []ramtypes.ResourceSharePermissionSummary{
 		managed,
-		{Arn: &custEastARN, Name: &custEastName},
+		{Arn: &custEastARN, Name: &custEastName, PermissionType: ramtypes.PermissionTypeCustomerManaged},
 	}}
 	if _, _, err := scanRAMPermissions(context.Background(), eastStub, acct, "us-east-1", st, testScanID); err != nil {
 		t.Fatalf("us-east-1 scan: %v", err)
@@ -61,10 +68,14 @@ func TestScanRAMPermissions_ManagedCatalogueDedup(t *testing.T) {
 	// different regional customer permission.
 	westStub := &stubRAM{perms: []ramtypes.ResourceSharePermissionSummary{
 		managed,
-		{Arn: &custWestARN, Name: &custWestName},
+		{Arn: &custWestARN, Name: &custWestName, PermissionType: ramtypes.PermissionTypeCustomerManaged},
 	}}
-	if _, _, err := scanRAMPermissions(context.Background(), westStub, acct, "us-west-2", st, testScanID); err != nil {
+	westTotal, _, err := scanRAMPermissions(context.Background(), westStub, acct, "us-west-2", st, testScanID)
+	if err != nil {
 		t.Fatalf("us-west-2 scan (managed-key collision regression): %v", err)
+	}
+	if westTotal != 1 {
+		t.Errorf("us-west-2 total = %d, want 1: only the customer permission, not the managed entry", westTotal)
 	}
 
 	// Managed row exists exactly once and is tagged global.
@@ -250,8 +261,8 @@ func TestScanRAM_StoresShareAssociations(t *testing.T) {
 	// listing every owned share (no ResourceShareArns filter).
 	var principal, resource int
 	for _, c := range rec.calls {
-		if sdkaws.ToInt32(c.MaxResults) != ramAssociationsPageCap || c.ResourceShareArns != nil {
-			t.Errorf("call %+v: want MaxResults %d and no ResourceShareArns", c, ramAssociationsPageCap)
+		if sdkaws.ToInt32(c.MaxResults) != ramPageCap || c.ResourceShareArns != nil {
+			t.Errorf("call %+v: want MaxResults %d and no ResourceShareArns", c, ramPageCap)
 		}
 		switch c.AssociationType {
 		case ramtypes.ResourceShareAssociationTypePrincipal:
@@ -446,6 +457,251 @@ func TestScanRAM_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 			}
 			if *warnings != 1 {
 				t.Errorf("%s warnings = %d, want 1", c.warnOp, *warnings)
+			}
+		})
+	}
+}
+
+const (
+	ramTaggedShareARN = "arn:aws:ram:us-east-1:123456789012:resource-share/22222222-aaaa-bbbb-cccc-000000000001"
+	ramPlainShareARN  = "arn:aws:ram:us-east-1:123456789012:resource-share/22222222-aaaa-bbbb-cccc-000000000002"
+	ramTaggedPermARN  = "arn:aws:ram:us-east-1:123456789012:permission/tagged"
+	ramPlainPermARN   = "arn:aws:ram:us-east-1:123456789012:permission/plain"
+)
+
+// ramListInputs records the inputs of each GetResourceShares and
+// ListPermissions call.
+type ramListInputs struct {
+	mu     sync.Mutex
+	shares []ram.GetResourceSharesInput
+	perms  []ram.ListPermissionsInput
+}
+
+// ramTwoPageListHandlers answers GetResourceShares and ListPermissions with
+// two pages each: the first holds a tagged element and one without an ARN,
+// the second an untagged element. page2Err, when set, fails both second pages.
+func ramTwoPageListHandlers(rec *ramListInputs, page2Err error) map[string]func(any) (any, error) {
+	h := ramHandlers(&ramCallRecorder{})
+	h["GetResourceShareAssociations"] = func(any) (any, error) { return &ram.GetResourceShareAssociationsOutput{}, nil }
+	h["GetResourceShares"] = func(in any) (any, error) {
+		req := in.(*ram.GetResourceSharesInput)
+		rec.mu.Lock()
+		rec.shares = append(rec.shares, *req)
+		rec.mu.Unlock()
+		if req.NextToken == nil {
+			return &ram.GetResourceSharesOutput{
+				ResourceShares: []ramtypes.ResourceShare{
+					{
+						ResourceShareArn: ptrStr(ramTaggedShareARN), Name: ptrStr("tagged"), Status: ramtypes.ResourceShareStatusActive,
+						AllowExternalPrincipals: sdkaws.Bool(true),
+						Tags:                    []ramtypes.Tag{{Key: ptrStr("env"), Value: ptrStr("prod")}, {Key: ptrStr("team"), Value: ptrStr("net")}},
+					},
+					{Name: ptrStr("no-arn")},
+				},
+				NextToken: ptrStr("s2"),
+			}, nil
+		}
+		if page2Err != nil {
+			return nil, page2Err
+		}
+		return &ram.GetResourceSharesOutput{ResourceShares: []ramtypes.ResourceShare{
+			{ResourceShareArn: ptrStr(ramPlainShareARN), Name: ptrStr("plain")},
+		}}, nil
+	}
+	h["ListPermissions"] = func(in any) (any, error) {
+		req := in.(*ram.ListPermissionsInput)
+		rec.mu.Lock()
+		rec.perms = append(rec.perms, *req)
+		rec.mu.Unlock()
+		if req.NextToken == nil {
+			return &ram.ListPermissionsOutput{
+				Permissions: []ramtypes.ResourceSharePermissionSummary{
+					{
+						Arn: ptrStr(ramTaggedPermARN), Name: ptrStr("tagged-perm"), ResourceType: ptrStr("ec2:subnet"),
+						Tags: []ramtypes.Tag{{Key: ptrStr("owner"), Value: ptrStr("ops")}},
+					},
+					{Name: ptrStr("no-arn-perm")},
+				},
+				NextToken: ptrStr("p2"),
+			}, nil
+		}
+		if page2Err != nil {
+			return nil, page2Err
+		}
+		return &ram.ListPermissionsOutput{Permissions: []ramtypes.ResourceSharePermissionSummary{
+			{Arn: ptrStr(ramPlainPermARN), Name: ptrStr("plain-perm")},
+		}}, nil
+	}
+	return h
+}
+
+// Shares and permissions store the Tags their list element carries, read
+// every page with the page cap and every owned share, and warn once per op
+// for the elements without an ARN.
+func TestScanRAM_SharesAndPermissionsStoreTags(t *testing.T) {
+	st := newTestStore(t)
+	shareWarns := countOpWarnings(st, ramResourceSharesOp)
+	permWarns := countOpWarnings(st, ramPermissionsOp)
+	rec := &ramListInputs{}
+	total, inserted, err := scanRAMTopLevel(t, st, ramTwoPageListHandlers(rec, nil))
+	if err != nil {
+		t.Fatalf("scanRAM: %v", err)
+	}
+	if total != 4 || inserted != 4 {
+		t.Errorf("total, inserted = %d, %d; want 4, 4 (two shares, two permissions)", total, inserted)
+	}
+	if *shareWarns != 1 || *permWarns != 1 {
+		t.Errorf("warnings: shares %d, permissions %d; want 1 each for the element without an ARN", *shareWarns, *permWarns)
+	}
+
+	shares := rowsByNativeID(t, st, TypeRAMResourceShare)
+	if len(shares) != 2 {
+		t.Fatalf("share rows = %v, want %s and %s", shares, ramTaggedShareARN, ramPlainShareARN)
+	}
+	tagged := shares[ramTaggedShareARN]
+	if sv(tagged.Name) != "tagged" || sv(tagged.Status) != "ACTIVE" || sv(tagged.Region) != testRegion {
+		t.Errorf("tagged share name, status, region = %q, %q, %q; want tagged, ACTIVE, %s", sv(tagged.Name), sv(tagged.Status), sv(tagged.Region), testRegion)
+	}
+	var shareAttrs ramtypes.ResourceShare
+	if err := json.Unmarshal([]byte(tagged.AttributesJSON), &shareAttrs); err != nil {
+		t.Fatalf("share attrs: %v", err)
+	}
+	if sv(shareAttrs.ResourceShareArn) != ramTaggedShareARN || !sdkaws.ToBool(shareAttrs.AllowExternalPrincipals) || len(shareAttrs.Tags) != 2 {
+		t.Errorf("share attrs = %s; want the SDK element verbatim, Tags included", tagged.AttributesJSON)
+	}
+	assertTagsMap(t, tagged.TagsJSON, map[string]string{"env": "prod", "team": "net"})
+	plain := shares[ramPlainShareARN]
+	if sv(plain.Name) != "plain" || plain.TagsJSON != nil || plain.Status != nil {
+		t.Errorf("untagged share name, tags, status = %q, %v, %v; want plain, nil, nil", sv(plain.Name), plain.TagsJSON, plain.Status)
+	}
+
+	perms := rowsByNativeID(t, st, TypeRAMPermission)
+	if len(perms) != 2 {
+		t.Fatalf("permission rows = %v, want %s and %s", perms, ramTaggedPermARN, ramPlainPermARN)
+	}
+	tp := perms[ramTaggedPermARN]
+	if sv(tp.Name) != "tagged-perm" || sv(tp.Region) != testRegion || tp.ManagedByProvider {
+		t.Errorf("tagged permission name, region, managed = %q, %q, %v; want tagged-perm, %s, false", sv(tp.Name), sv(tp.Region), tp.ManagedByProvider, testRegion)
+	}
+	var permAttrs ramtypes.ResourceSharePermissionSummary
+	if err := json.Unmarshal([]byte(tp.AttributesJSON), &permAttrs); err != nil {
+		t.Fatalf("permission attrs: %v", err)
+	}
+	if sv(permAttrs.Arn) != ramTaggedPermARN || sv(permAttrs.ResourceType) != "ec2:subnet" || len(permAttrs.Tags) != 1 {
+		t.Errorf("permission attrs = %s; want the SDK element verbatim, Tags included", tp.AttributesJSON)
+	}
+	assertTagsMap(t, tp.TagsJSON, map[string]string{"owner": "ops"})
+	if pp := perms[ramPlainPermARN]; sv(pp.Name) != "plain-perm" || pp.TagsJSON != nil {
+		t.Errorf("untagged permission name, tags = %q, %v; want plain-perm, nil", sv(pp.Name), pp.TagsJSON)
+	}
+
+	if len(rec.shares) != 2 || len(rec.perms) != 2 {
+		t.Fatalf("calls: %d GetResourceShares, %d ListPermissions; want 2 each", len(rec.shares), len(rec.perms))
+	}
+	for i, wantToken := range []string{"", "s2"} {
+		in := rec.shares[i]
+		if sv(in.NextToken) != wantToken || sdkaws.ToInt32(in.MaxResults) != ramPageCap || in.ResourceOwner != ramtypes.ResourceOwnerSelf ||
+			in.Name != nil || in.PermissionArn != nil || in.PermissionVersion != nil || in.ResourceShareArns != nil || in.ResourceShareStatus != "" || in.TagFilters != nil {
+			t.Errorf("GetResourceShares call %d = %+v; want NextToken %q, MaxResults %d, ResourceOwner SELF and no other filter", i, in, wantToken, ramPageCap)
+		}
+	}
+	for i, wantToken := range []string{"", "p2"} {
+		in := rec.perms[i]
+		if sv(in.NextToken) != wantToken || sdkaws.ToInt32(in.MaxResults) != ramPageCap || in.PermissionType != "" || in.ResourceType != nil {
+			t.Errorf("ListPermissions call %d = %+v; want NextToken %q, MaxResults %d, no PermissionType or ResourceType", i, in, wantToken, ramPageCap)
+		}
+	}
+}
+
+// A failed later page keeps the rows of the pages read before it: a denial
+// warns once per op, any other error is returned.
+func TestScanRAM_SharesAndPermissionsKeepRowsPastFailedPage(t *testing.T) {
+	for _, c := range []struct {
+		name      string
+		page2Err  error
+		wantErr   error
+		wantWarns int // per op: the element without an ARN, plus the denial
+	}{
+		{"denied", ramTestDenied, nil, 2},
+		{"hard error", errRAMTest, errRAMTest, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			shareWarns := countOpWarnings(st, ramResourceSharesOp)
+			permWarns := countOpWarnings(st, ramPermissionsOp)
+			total, inserted, err := scanRAMTopLevel(t, st, ramTwoPageListHandlers(&ramListInputs{}, c.page2Err))
+			if !errors.Is(err, c.wantErr) || (c.wantErr == nil && err != nil) {
+				t.Fatalf("err = %v, want %v", err, c.wantErr)
+			}
+			if total != 2 || inserted != 2 {
+				t.Errorf("total, inserted = %d, %d; want 2, 2 (the first page's share and permission)", total, inserted)
+			}
+			if _, ok := rowsByNativeID(t, st, TypeRAMResourceShare)[ramTaggedShareARN]; !ok {
+				t.Errorf("share %s from the first page missing", ramTaggedShareARN)
+			}
+			if _, ok := rowsByNativeID(t, st, TypeRAMPermission)[ramTaggedPermARN]; !ok {
+				t.Errorf("permission %s from the first page missing", ramTaggedPermARN)
+			}
+			if *shareWarns != c.wantWarns || *permWarns != c.wantWarns {
+				t.Errorf("warnings: shares %d, permissions %d; want %d each", *shareWarns, *permWarns, c.wantWarns)
+			}
+		})
+	}
+}
+
+// A page that repeats its NextToken ends the listing as an error, keeping the
+// rows read.
+func TestScanRAM_SharesAndPermissionsStopOnRepeatedToken(t *testing.T) {
+	st := newTestStore(t)
+	h := ramTwoPageListHandlers(&ramListInputs{}, nil)
+	shares, perms := h["GetResourceShares"], h["ListPermissions"]
+	h["GetResourceShares"] = func(in any) (any, error) {
+		out, err := shares(in)
+		if err == nil {
+			out.(*ram.GetResourceSharesOutput).NextToken = ptrStr("same")
+		}
+		return out, err
+	}
+	h["ListPermissions"] = func(in any) (any, error) {
+		out, err := perms(in)
+		if err == nil {
+			out.(*ram.ListPermissionsOutput).NextToken = ptrStr("same")
+		}
+		return out, err
+	}
+	total, _, err := scanRAMTopLevel(t, st, h)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
+	}
+	// Both pages of each listing: the second was asked with "same" and answered "same".
+	if total != 4 {
+		t.Errorf("total = %d, want 4", total)
+	}
+}
+
+// A store write failure stops the later phases: every later write would fail
+// too.
+func TestScanRAM_StoreWriteStopsLaterPhases(t *testing.T) {
+	for _, failing := range []string{"GetResourceShares", "ListPermissions"} {
+		t.Run(failing, func(t *testing.T) {
+			st, closeStore := openClosingStore(t)
+			h := ramHandlers(&ramCallRecorder{})
+			var called []string
+			for op, next := range h {
+				h[op] = func(in any) (any, error) {
+					called = append(called, op)
+					if op == failing {
+						closeStore()
+					}
+					return next(in)
+				}
+			}
+			_, _, err := scanRAMTopLevel(t, st, h)
+			if !errors.Is(err, store.ErrStoreWrite) {
+				t.Fatalf("err = %v, want ErrStoreWrite", err)
+			}
+			if last := called[len(called)-1]; last != failing {
+				t.Errorf("ops called = %v; want none after %s", called, failing)
 			}
 		})
 	}

@@ -1,9 +1,12 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
+	cfntypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -243,16 +246,70 @@ func TestResolveCloudFormationStackSetInstances(t *testing.T) {
 	}
 }
 
-// TestResolveCloudFormationStackResources_MalformedAttrs verifies a row with
-// invalid attrs JSON does not panic or error — it simply yields no edges.
-func TestResolveCloudFormationStackResources_MalformedAttrs(t *testing.T) {
+// TestResolveCloudFormationStackResources_DecodeErrorKeepsOtherStacks: a stack
+// whose attrs do not decode is returned as an error, and the stacks on either
+// side of it (rows are read in name order) keep their edges.
+func TestResolveCloudFormationStackResources_DecodeErrorKeepsOtherStacks(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	stackARN := cfnStackARN(testRegion, acct.ID, "m", "id")
-	upsertTestResource(t, st, "aws", acct.ID, TypeCloudFormationStack, stackARN, testRegion, `not json`)
+	stackIDs := map[string]string{}
+	bucketIDs := map[string]string{}
+	for _, name := range []string{"a-good", "c-good"} {
+		bucket := name + "-bucket"
+		bucketIDs[name] = upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::"+bucket, testRegion, `{}`)
+		attrs := mustJSON(stackWithResources{Resources: []cfntypes.StackResourceSummary{{
+			LogicalResourceId: ptrStr("Bucket"), PhysicalResourceId: ptrStr(bucket), ResourceType: ptrStr("AWS::S3::Bucket"),
+			ResourceStatus: cfntypes.ResourceStatusCreateComplete,
+		}}})
+		stackIDs[name] = upsertTestResourceNamed(t, st, TypeCloudFormationStack, cfnStackARN(testRegion, acct.ID, name, "id"), testRegion, attrs, name)
+	}
+	upsertTestResourceNamed(t, st, TypeCloudFormationStack, cfnStackARN(testRegion, acct.ID, "b-bad", "id"), testRegion, `not json`, "b-bad")
 
-	if err := resolveCloudFormationStackResources(acct, st); err != nil {
-		t.Fatalf("resolveCloudFormationStackResources: %v", err)
+	err := resolveCloudFormationStackResources(acct, st)
+	var syntaxErr *json.SyntaxError
+	if !errors.As(err, &syntaxErr) {
+		t.Fatalf("err = %v, want the bad stack's *json.SyntaxError", err)
+	}
+	for name, stackID := range stackIDs {
+		rels, err := st.RelationshipsFrom(stackID)
+		if err != nil {
+			t.Fatalf("RelationshipsFrom(%s): %v", name, err)
+		}
+		assertRelationship(t, rels, stackID, bucketIDs[name], store.RelContains)
+	}
+}
+
+// TestResolveCloudFormationStackSetInstances_DecodeErrorKeepsOtherSets: a
+// stack-set whose attrs do not decode is returned as an error, and the sets on
+// either side of it keep their edges.
+func TestResolveCloudFormationStackSetInstances_DecodeErrorKeepsOtherSets(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+
+	setIDs := map[string]string{}
+	deployedIDs := map[string]string{}
+	for _, name := range []string{"a-good", "c-good"} {
+		deployedARN := cfnStackARN("us-west-2", acct.ID, name+"-deployed", "id")
+		deployedIDs[name] = upsertTestResource(t, st, "aws", acct.ID, TypeCloudFormationStack, deployedARN, "us-west-2", `{}`)
+		attrs := mustJSON(stackSetWithInstances{
+			StackSet:  &cfntypes.StackSet{StackSetName: ptrStr(name)},
+			Instances: []cfntypes.StackInstanceSummary{{StackId: ptrStr(deployedARN), Account: ptrStr(acct.ID), Region: ptrStr("us-west-2")}},
+		})
+		setIDs[name] = upsertTestResourceNamed(t, st, TypeCloudFormationStackSet, cfnStackSetARN(testRegion, acct.ID, name), testRegion, attrs, name)
+	}
+	upsertTestResourceNamed(t, st, TypeCloudFormationStackSet, cfnStackSetARN(testRegion, acct.ID, "b-bad"), testRegion, `not json`, "b-bad")
+
+	err := resolveCloudFormationStackSetInstances(acct, st)
+	var syntaxErr *json.SyntaxError
+	if !errors.As(err, &syntaxErr) {
+		t.Fatalf("err = %v, want the bad stack-set's *json.SyntaxError", err)
+	}
+	for name, setID := range setIDs {
+		rels, err := st.RelationshipsFrom(setID)
+		if err != nil {
+			t.Fatalf("RelationshipsFrom(%s): %v", name, err)
+		}
+		assertRelationship(t, rels, setID, deployedIDs[name], store.RelContains)
 	}
 }

@@ -1,18 +1,18 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"maps"
 	"slices"
-	"sync"
+	"strings"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/autoscaling"
 	astypes "github.com/aws/aws-sdk-go-v2/service/autoscaling/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -28,6 +28,19 @@ func init() {
 		fn:   scanAutoScaling,
 	})
 }
+
+const (
+	autoScalingGroupsOp               = "autoscaling:DescribeAutoScalingGroups"
+	autoScalingLaunchConfigurationsOp = "autoscaling:DescribeLaunchConfigurations"
+	autoScalingPoliciesOp             = "autoscaling:DescribePolicies"
+	autoScalingScheduledActionsOp     = "autoscaling:DescribeScheduledActions"
+	autoScalingLifecycleHooksOp       = "autoscaling:DescribeLifecycleHooks"
+	autoScalingWarmPoolOp             = "autoscaling:DescribeWarmPool"
+	// autoScalingPageCap is the documented MaxRecords maximum of
+	// DescribeAutoScalingGroups, DescribeLaunchConfigurations,
+	// DescribePolicies and DescribeScheduledActions.
+	autoScalingPageCap = 100
+)
 
 // autoScalingAPI is the narrow set of EC2 Auto Scaling operations called by
 // the scanAutoScaling sub-phases.
@@ -55,6 +68,13 @@ func autoScalingWarmPoolARN(region, accountID, asgName string) string {
 	return fmt.Sprintf("arn:aws:autoscaling:%s:%s:warm-pool/%s", region, accountID, asgName)
 }
 
+// autoScalingWarmPoolGroup returns the group name autoScalingWarmPoolARN put
+// in nativeID, or "" when nativeID is not a warm pool's.
+func autoScalingWarmPoolGroup(nativeID string) string {
+	_, group, _ := strings.Cut(nativeID, ":warm-pool/")
+	return group
+}
+
 // autoScalingNotificationConfigurationARN synthesizes the NativeID of one
 // group's notification configuration for one SNS topic. AWS returns no ARN;
 // the form mirrors autoScalingLifecycleHookARN (group name, not group ARN) so
@@ -65,85 +85,83 @@ func autoScalingNotificationConfigurationARN(region, accountID, asgName, topicAR
 
 // scanAutoScaling discovers EC2 Auto Scaling primitives in one region.
 //
-// The older phases stop at their first hard error. The notification
-// configuration phase runs after them whatever they returned, so its failure
-// costs no older phase its rows and theirs does not skip it. Each side's
-// transient error is demoted to a warning only beside a hard error: joined, it
-// would be buried in the hard error instead of reported under its op; the
-// counts are summed.
+// The phases are independent: each runs whatever another returns, except
+// after a store write failure. The per-group fan-outs (lifecycle hooks, warm
+// pools) and the notification configurations' contains pairs use the groups
+// the group phase stored, so a failed group listing leaves them fewer groups.
+// Each phase's transient error is demoted to a warning only beside a hard
+// error (phaseErrs.join); the counts are summed.
 func scanAutoScaling(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := autoscaling.NewFromConfig(acct.cfg, func(o *autoscaling.Options) { o.Region = region })
-	total, inserted, groupIDs, err := scanAutoScalingOlderPhases(ctx, client, acct, region, st, scanID)
-	t, i, nerr := scanAutoScalingNotificationConfigurations(ctx, client, acct, region, st, scanID, groupIDs)
-	var errs phaseErrs
-	errs.add("autoscaling", err)
-	errs.add("autoscaling:DescribeNotificationConfigurations", nerr)
-	return total + t, inserted + i, errs.join(st, acct, region)
+	return scanAutoScalingAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanAutoScalingOlderPhases runs the phases that predate notification
-// configurations sequentially, stopping at the first hard error. ASGs are
-// captured during the first phase for the per-ASG fan-outs (LifecycleHook,
-// WarmPool) that follow, and returned as name → stored row ID.
-func scanAutoScalingOlderPhases(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, groupIDs map[string]string, err error) {
-	groupIDs, t, i, ferr := scanAutoScalingGroups(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, groupIDs, ferr
+func scanAutoScalingAll(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var phases phaseTotals
+	groupIDs, t, i, err := scanAutoScalingGroups(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(autoScalingGroupsOp, t, i, err) {
+		return phases.result(st, acct, region)
 	}
-	total += t
-	inserted += i
-	asgNames := slices.Collect(maps.Keys(groupIDs))
-
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) {
+	asgNames := slices.Sorted(maps.Keys(groupIDs))
+	for _, phase := range []struct {
+		op string
+		fn func() (int, int, error)
+	}{
+		{autoScalingLaunchConfigurationsOp, func() (int, int, error) {
 			return scanAutoScalingLaunchConfigurations(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) { return scanAutoScalingScalingPolicies(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+		}},
+		{autoScalingPoliciesOp, func() (int, int, error) {
+			return scanAutoScalingScalingPolicies(ctx, client, acct, region, st, scanID)
+		}},
+		{autoScalingScheduledActionsOp, func() (int, int, error) {
 			return scanAutoScalingScheduledActions(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		{autoScalingLifecycleHooksOp, func() (int, int, error) {
 			return scanAutoScalingLifecycleHooks(ctx, client, acct, region, st, scanID, asgNames)
-		},
-		func() (int, int, error) {
+		}},
+		{autoScalingWarmPoolOp, func() (int, int, error) {
 			return scanAutoScalingWarmPools(ctx, client, acct, region, st, scanID, asgNames)
-		},
+		}},
+		{"autoscaling:DescribeNotificationConfigurations", func() (int, int, error) {
+			return scanAutoScalingNotificationConfigurations(ctx, client, acct, region, st, scanID, groupIDs)
+		}},
 	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, groupIDs, ferr
+		t, i, err := phase.fn()
+		if phases.addPhase(phase.op, t, i, err) {
+			break
 		}
-		total += t
-		inserted += i
 	}
-	return total, inserted, groupIDs, nil
+	return phases.result(st, acct, region)
 }
 
-// scanAutoScalingGroups paginates DescribeAutoScalingGroups, persists each
-// group, and returns the stored row ID of every group by name for downstream
-// fan-outs and hierarchy pairs.
+// scanAutoScalingGroups lists every group (no name or Filters filter;
+// IncludeInstances unset, so instances are included), stores each with the
+// Tags its element carries, and returns the stored row ID of every group by
+// name for the per-group fan-outs and hierarchy pairs. Groups read before a
+// failed page are stored and returned.
 func scanAutoScalingGroups(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (groupIDs map[string]string, total, inserted int, err error) {
 	groupIDs = map[string]string{}
-	pager := autoscaling.NewDescribeAutoScalingGroupsPaginator(client, &autoscaling.DescribeAutoScalingGroupsInput{})
-	t, i, perr := pageScan(ctx, "autoscaling:DescribeAutoScalingGroups", acct, region, st,
-		pager.HasMorePages,
-		func(c context.Context) (*autoscaling.DescribeAutoScalingGroupsOutput, error) {
-			return pager.NextPage(c)
+	total, inserted, err = storeTokenList(ctx, st, acct, region, autoScalingGroupsOp,
+		func(ctx context.Context, token *string) ([]astypes.AutoScalingGroup, *string, error) {
+			out, err := client.DescribeAutoScalingGroups(ctx, &autoscaling.DescribeAutoScalingGroupsInput{
+				MaxRecords: sdkaws.Int32(autoScalingPageCap),
+				NextToken:  token,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.AutoScalingGroups, out.NextToken, nil
 		},
-		func(o *autoscaling.DescribeAutoScalingGroupsOutput) []astypes.AutoScalingGroup {
-			return o.AutoScalingGroups
-		},
-		func(g astypes.AutoScalingGroup) *store.Resource {
+		func(g astypes.AutoScalingGroup) (*store.Resource, string, string) {
 			name := sv(g.AutoScalingGroupName)
 			if name == "" {
-				return nil
+				return nil, "groups have an empty AutoScalingGroupName", cmp.Or(sv(g.AutoScalingGroupARN), "one without an AutoScalingGroupARN")
 			}
 			arn := sv(g.AutoScalingGroupARN)
 			if arn == "" {
 				arn = fmt.Sprintf("arn:aws:autoscaling:%s:%s:autoScalingGroup:*:autoScalingGroupName/%s", region, acct.ID, name)
 			}
 			groupIDs[name] = store.ResourceID("aws", acct.ID, arn)
-			status := sv(g.Status)
 			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -152,29 +170,34 @@ func scanAutoScalingGroups(ctx context.Context, client autoScalingAPI, acct *acc
 				NativeID:       arn,
 				Name:           &name,
 				Region:         &region,
-				Status:         &status,
+				Status:         nonEmptyPtr(sv(g.Status)),
 				CreatedAt:      tp(g.CreatedTime),
 				AttributesJSON: mustJSON(g),
+				TagsJSON:       kvTagsJSON(g.Tags, func(t astypes.TagDescription) (*string, *string) { return t.Key, t.Value }),
 				DiscoveredBy:   scanID,
-			}
+			}, "", ""
 		})
-	return groupIDs, t, i, perr
+	return groupIDs, total, inserted, err
 }
 
+// scanAutoScalingLaunchConfigurations stores every launch configuration (no
+// names filter), those read before a failed page included.
 func scanAutoScalingLaunchConfigurations(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := autoscaling.NewDescribeLaunchConfigurationsPaginator(client, &autoscaling.DescribeLaunchConfigurationsInput{})
-	return pageScan(ctx, "autoscaling:DescribeLaunchConfigurations", acct, region, st,
-		pager.HasMorePages,
-		func(c context.Context) (*autoscaling.DescribeLaunchConfigurationsOutput, error) {
-			return pager.NextPage(c)
+	return storeTokenList(ctx, st, acct, region, autoScalingLaunchConfigurationsOp,
+		func(ctx context.Context, token *string) ([]astypes.LaunchConfiguration, *string, error) {
+			out, err := client.DescribeLaunchConfigurations(ctx, &autoscaling.DescribeLaunchConfigurationsInput{
+				MaxRecords: sdkaws.Int32(autoScalingPageCap),
+				NextToken:  token,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.LaunchConfigurations, out.NextToken, nil
 		},
-		func(o *autoscaling.DescribeLaunchConfigurationsOutput) []astypes.LaunchConfiguration {
-			return o.LaunchConfigurations
-		},
-		func(lc astypes.LaunchConfiguration) *store.Resource {
+		func(lc astypes.LaunchConfiguration) (*store.Resource, string, string) {
 			name := sv(lc.LaunchConfigurationName)
 			if name == "" {
-				return nil
+				return nil, "launch configurations have an empty LaunchConfigurationName", cmp.Or(sv(lc.LaunchConfigurationARN), "one without a LaunchConfigurationARN")
 			}
 			arn := sv(lc.LaunchConfigurationARN)
 			if arn == "" {
@@ -191,21 +214,32 @@ func scanAutoScalingLaunchConfigurations(ctx context.Context, client autoScaling
 				CreatedAt:      tp(lc.CreatedTime),
 				AttributesJSON: mustJSON(lc),
 				DiscoveredBy:   scanID,
-			}
+			}, "", ""
 		})
 }
 
+// scanAutoScalingScalingPolicies stores every scaling policy (no group,
+// name or type filter), those read before a failed page included.
 func scanAutoScalingScalingPolicies(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := autoscaling.NewDescribePoliciesPaginator(client, &autoscaling.DescribePoliciesInput{})
-	return pageScan(ctx, "autoscaling:DescribePolicies", acct, region, st,
-		pager.HasMorePages,
-		func(c context.Context) (*autoscaling.DescribePoliciesOutput, error) { return pager.NextPage(c) },
-		func(o *autoscaling.DescribePoliciesOutput) []astypes.ScalingPolicy { return o.ScalingPolicies },
-		func(p astypes.ScalingPolicy) *store.Resource {
+	return storeTokenList(ctx, st, acct, region, autoScalingPoliciesOp,
+		func(ctx context.Context, token *string) ([]astypes.ScalingPolicy, *string, error) {
+			out, err := client.DescribePolicies(ctx, &autoscaling.DescribePoliciesInput{
+				MaxRecords: sdkaws.Int32(autoScalingPageCap),
+				NextToken:  token,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ScalingPolicies, out.NextToken, nil
+		},
+		func(p astypes.ScalingPolicy) (*store.Resource, string, string) {
 			arn := sv(p.PolicyARN)
 			name := sv(p.PolicyName)
-			if arn == "" || name == "" {
-				return nil
+			if arn == "" {
+				return nil, "scaling policies have an empty PolicyARN", cmp.Or(name, "one without a PolicyName")
+			}
+			if name == "" {
+				return nil, "scaling policies have an empty PolicyName", arn
 			}
 			return &store.Resource{
 				Provider:       "aws",
@@ -217,25 +251,32 @@ func scanAutoScalingScalingPolicies(ctx context.Context, client autoScalingAPI, 
 				Region:         &region,
 				AttributesJSON: mustJSON(p),
 				DiscoveredBy:   scanID,
-			}
+			}, "", ""
 		})
 }
 
+// scanAutoScalingScheduledActions stores every scheduled action (no group,
+// name or time filter), those read before a failed page included.
 func scanAutoScalingScheduledActions(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := autoscaling.NewDescribeScheduledActionsPaginator(client, &autoscaling.DescribeScheduledActionsInput{})
-	return pageScan(ctx, "autoscaling:DescribeScheduledActions", acct, region, st,
-		pager.HasMorePages,
-		func(c context.Context) (*autoscaling.DescribeScheduledActionsOutput, error) {
-			return pager.NextPage(c)
+	return storeTokenList(ctx, st, acct, region, autoScalingScheduledActionsOp,
+		func(ctx context.Context, token *string) ([]astypes.ScheduledUpdateGroupAction, *string, error) {
+			out, err := client.DescribeScheduledActions(ctx, &autoscaling.DescribeScheduledActionsInput{
+				MaxRecords: sdkaws.Int32(autoScalingPageCap),
+				NextToken:  token,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ScheduledUpdateGroupActions, out.NextToken, nil
 		},
-		func(o *autoscaling.DescribeScheduledActionsOutput) []astypes.ScheduledUpdateGroupAction {
-			return o.ScheduledUpdateGroupActions
-		},
-		func(a astypes.ScheduledUpdateGroupAction) *store.Resource {
+		func(a astypes.ScheduledUpdateGroupAction) (*store.Resource, string, string) {
 			arn := sv(a.ScheduledActionARN)
 			name := sv(a.ScheduledActionName)
-			if arn == "" || name == "" {
-				return nil
+			if arn == "" {
+				return nil, "scheduled actions have an empty ScheduledActionARN", cmp.Or(name, "one without a ScheduledActionName")
+			}
+			if name == "" {
+				return nil, "scheduled actions have an empty ScheduledActionName", arn
 			}
 			return &store.Resource{
 				Provider:       "aws",
@@ -248,135 +289,115 @@ func scanAutoScalingScheduledActions(ctx context.Context, client autoScalingAPI,
 				CreatedAt:      tp(a.StartTime),
 				AttributesJSON: mustJSON(a),
 				DiscoveredBy:   scanID,
-			}
+			}, "", ""
 		})
 }
 
-// scanAutoScalingLifecycleHooks fans out per-ASG calls to DescribeLifecycleHooks
-// (no paginator on this op) under fanoutMed concurrency. NativeIDs are
-// synthesized via autoScalingLifecycleHookARN (no SDK ARN field).
-func scanAutoScalingLifecycleHooks(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string, asgNames []string) (total, inserted int, err error) {
-	if len(asgNames) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, name := range asgNames {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+// scanAutoScalingLifecycleHooks reads each group's lifecycle hooks
+// (DescribeLifecycleHooks, which does not paginate) concurrently and stores
+// them. NativeIDs are synthesized via autoScalingLifecycleHookARN (no SDK ARN
+// field). No group's failure cancels another: a denied group is warned about
+// once, and any other error is returned after the other groups' hooks are
+// stored.
+func scanAutoScalingLifecycleHooks(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string, asgNames []string) (int, int, error) {
+	reads, stopped := readEachKey(ctx, asgNames, func(ctx context.Context, group string) autoScalingGroupRead {
+		out, err := client.DescribeLifecycleHooks(ctx, &autoscaling.DescribeLifecycleHooksInput{AutoScalingGroupName: &group})
+		if err != nil {
+			return autoScalingGroupRead{err: err}
 		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			out, derr := client.DescribeLifecycleHooks(gctx, &autoscaling.DescribeLifecycleHooksInput{AutoScalingGroupName: &name})
-			if derr != nil {
-				if isAccessDenied(derr) {
-					return nil
-				}
-				return fmt.Errorf("autoscaling:DescribeLifecycleHooks %s: %w", name, derr)
+		var read autoScalingGroupRead
+		for _, h := range out.LifecycleHooks {
+			hookName := sv(h.LifecycleHookName)
+			if hookName == "" {
+				read.nameless++
+				continue
 			}
-			local := make([]*store.Resource, 0, len(out.LifecycleHooks))
-			for _, h := range out.LifecycleHooks {
-				hookName := sv(h.LifecycleHookName)
-				if hookName == "" {
-					continue
-				}
-				arn := autoScalingLifecycleHookARN(region, acct.ID, name, hookName)
-				local = append(local, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeAutoScalingLifecycleHook,
-					NativeID:       arn,
-					Name:           &hookName,
-					Region:         &region,
-					AttributesJSON: mustJSON(h),
-					DiscoveredBy:   scanID,
-				})
-			}
-			if len(local) == 0 {
-				return nil
-			}
-			mu.Lock()
-			batch = append(batch, local...)
-			mu.Unlock()
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert autoscaling lifecycle hooks: %w", uerr)
-	}
-	return len(batch), n, nil
-}
-
-// scanAutoScalingWarmPools fans out per-ASG calls to DescribeWarmPool. Most
-// ASGs do not have a warm pool — DescribeWarmPool returns an empty
-// WarmPoolConfiguration in that case, which is silently skipped.
-func scanAutoScalingWarmPools(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string, asgNames []string) (total, inserted int, err error) {
-	if len(asgNames) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, name := range asgNames {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			out, derr := client.DescribeWarmPool(gctx, &autoscaling.DescribeWarmPoolInput{AutoScalingGroupName: &name})
-			if derr != nil {
-				if isAccessDenied(derr) {
-					return nil
-				}
-				return fmt.Errorf("autoscaling:DescribeWarmPool %s: %w", name, derr)
-			}
-			if out.WarmPoolConfiguration == nil {
-				return nil
-			}
-			arn := autoScalingWarmPoolARN(region, acct.ID, name)
-			r := &store.Resource{
+			read.rows = append(read.rows, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
-				Type:           TypeAutoScalingWarmPool,
-				NativeID:       arn,
-				Name:           &name,
+				Type:           TypeAutoScalingLifecycleHook,
+				NativeID:       autoScalingLifecycleHookARN(region, acct.ID, group, hookName),
+				Name:           &hookName,
 				Region:         &region,
-				AttributesJSON: mustJSON(out.WarmPoolConfiguration),
+				AttributesJSON: mustJSON(h),
 				DiscoveredBy:   scanID,
-			}
-			mu.Lock()
-			batch = append(batch, r)
-			mu.Unlock()
-			return nil
-		})
+			})
+		}
+		return read
+	})
+	return storeGroupReads(st, acct, region, autoScalingLifecycleHooksOp, asgNames, reads, stopped)
+}
+
+// scanAutoScalingWarmPools reads each group's warm pool (DescribeWarmPool)
+// concurrently and stores its WarmPoolConfiguration. Most groups have none:
+// DescribeWarmPool then returns a nil configuration, and the group has no
+// row. The op's NextToken pages only the pool's Instances, which are not
+// stored, so one call per group reads the whole configuration. Failures are
+// handled as in scanAutoScalingLifecycleHooks.
+func scanAutoScalingWarmPools(ctx context.Context, client autoScalingAPI, acct *account, region string, st *store.Store, scanID string, asgNames []string) (int, int, error) {
+	reads, stopped := readEachKey(ctx, asgNames, func(ctx context.Context, group string) autoScalingGroupRead {
+		out, err := client.DescribeWarmPool(ctx, &autoscaling.DescribeWarmPoolInput{AutoScalingGroupName: &group})
+		if err != nil {
+			return autoScalingGroupRead{err: err}
+		}
+		if out.WarmPoolConfiguration == nil {
+			return autoScalingGroupRead{}
+		}
+		return autoScalingGroupRead{rows: []*store.Resource{{
+			Provider:       "aws",
+			AccountID:      acct.ID,
+			AccountName:    &acct.Name,
+			Type:           TypeAutoScalingWarmPool,
+			NativeID:       autoScalingWarmPoolARN(region, acct.ID, group),
+			Name:           &group,
+			Region:         &region,
+			AttributesJSON: mustJSON(out.WarmPoolConfiguration),
+			DiscoveredBy:   scanID,
+		}}}
+	})
+	return storeGroupReads(st, acct, region, autoScalingWarmPoolOp, asgNames, reads, stopped)
+}
+
+// autoScalingGroupRead is one group's read in a per-group fan-out: the rows
+// built, the items read without a name, and the call's error.
+type autoScalingGroupRead struct {
+	rows     []*store.Resource
+	nameless int
+	err      error
+}
+
+// storeGroupReads stores the rows of a per-group fan-out, read for groups in
+// order, and returns the errors of the groups whose call failed other than by
+// a denial, plus stopped. A denied group is warned about once for op, and the
+// items read without a name once, after a successful write.
+func storeGroupReads(st *store.Store, acct *account, region, op string, groups []string, reads []autoScalingGroupRead, stopped error) (int, int, error) {
+	var (
+		rows   []*store.Resource
+		errs   []error
+		denied skipTally
+		skips  notStoredSkips
+	)
+	if stopped != nil {
+		errs = append(errs, fmt.Errorf("%s: groups: %w", op, stopped))
 	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+	for i, r := range reads {
+		rows = append(rows, r.rows...)
+		for range r.nameless {
+			skips.skipped("items have an empty name", "one of group "+groups[i])
+		}
+		switch {
+		case r.err == nil:
+		case isAccessDenied(r.err):
+			denied.skipped(groups[i], r.err)
+		default:
+			errs = append(errs, fmt.Errorf("%s %s: %w", op, groups[i], r.err))
+		}
 	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert autoscaling warm pools: %w", uerr)
-	}
-	return len(batch), n, nil
+	return storeReadRows(st, acct, region, op, rows, nil, func() {
+		denied.warnDeniedIn(st, op, acct, region, "group(s) whose items were not read were")
+		skips.warn(st, op, acct, region)
+	}, errs...)
 }
 
 // autoScalingNotificationConfiguration is one stored notification

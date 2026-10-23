@@ -375,6 +375,36 @@ func describeFanOut(
 	return rows, nil
 }
 
+// readEachKey runs read for each key concurrently (fanoutMed) and returns the
+// results in key order, so what the caller builds from them, its warnings
+// included, does not depend on which read finished first. No key's failure
+// cancels another. Once ctx is done no further key is read: the results then
+// cover only the keys before it, and the error says how many were not read.
+// It returns only after every read it started has finished.
+func readEachKey[Key, Got any](ctx context.Context, keys []Key, read func(context.Context, Key) Got) ([]Got, error) {
+	results := make([]Got, len(keys))
+	slots := make(chan struct{}, fanoutMed)
+	var wg sync.WaitGroup
+	for i, key := range keys {
+		select {
+		case slots <- struct{}{}:
+		case <-ctx.Done():
+		}
+		// Checked after the slot is taken too: ctx may end while waiting for
+		// one, and select picks at random when both cases are ready.
+		if err := ctx.Err(); err != nil {
+			wg.Wait()
+			return results[:i], fmt.Errorf("%d of %d not read: %w", len(keys)-i, len(keys), err)
+		}
+		wg.Go(func() {
+			defer func() { <-slots }()
+			results[i] = read(ctx, key)
+		})
+	}
+	wg.Wait()
+	return results, nil
+}
+
 // skipTally counts the keys of a fan-out skipped for one reason and keeps the
 // first with its error, so that one warning covers them all. Safe for
 // concurrent skipped calls; read it only after the fan-out returns.
@@ -450,6 +480,15 @@ func (t *skipTally) warnDenied(st *store.Store, op, accountID, what string) {
 		return
 	}
 	_ = skipIfAccessDenied(st, op, accountID, "", fmt.Errorf("%d %s denied, first %s: %w", t.count, what, t.first, t.err))
+}
+
+// warnDeniedIn is warnDenied for a regional fan-out: the warning is scoped to
+// region. what says what the keys are and what became of them.
+func (t *skipTally) warnDeniedIn(st *store.Store, op string, acct *account, region, what string) {
+	if t.count == 0 {
+		return
+	}
+	_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf("%d %s denied, first %s: %w", t.count, what, t.first, t.err))
 }
 
 // warnCode warns once for every parent skipped with the error code code,

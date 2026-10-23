@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -356,9 +357,13 @@ func resolveCloudFormationStackResources(acct *account, st *store.Store) error {
 		return err
 	}
 
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, s := range stacks {
 		var attrs cfnStackAttrs
 		if err := json.Unmarshal([]byte(s.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeCloudFormationStack, s.NativeID, err))
 			continue
 		}
 		region := sv(s.Region)
@@ -388,7 +393,7 @@ func resolveCloudFormationStackResources(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveCloudFormationStackSetInstances emits a `contains` edge from each
@@ -414,9 +419,11 @@ func resolveCloudFormationStackSetInstances(acct *account, st *store.Store) erro
 		return err
 	}
 
+	var decodeErrs []error
 	for _, ss := range sets {
 		var attrs cfnStackSetAttrs
 		if err := json.Unmarshal([]byte(ss.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeCloudFormationStackSet, ss.NativeID, err))
 			continue
 		}
 		for _, inst := range attrs.Instances {
@@ -434,7 +441,7 @@ func resolveCloudFormationStackSetInstances(acct *account, st *store.Store) erro
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // cfnTargetIDSet pre-builds the membership set for every disco type
