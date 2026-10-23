@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -52,6 +53,9 @@ func resolveWisdomKMSRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, rtype := range []string{TypeWisdomAssistant, TypeWisdomKnowledgeBase} {
 		rows, err := st.ListResources(store.ResourceFilter{
 			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{rtype}, Limit: util.AllResources,
@@ -66,6 +70,7 @@ func resolveWisdomKMSRefs(acct *account, st *store.Store) error {
 				} `json:"ServerSideEncryptionConfiguration"`
 			}
 			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+				decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", rtype, r.NativeID, err))
 				continue
 			}
 			if attrs.ServerSideEncryptionConfiguration == nil {
@@ -82,7 +87,7 @@ func resolveWisdomKMSRefs(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 func resolveWisdomChildToParentByArnField(acct *account, st *store.Store, ctype, parentType, fieldName, label string) error {
@@ -100,9 +105,13 @@ func resolveWisdomChildToParentByArnField(acct *account, st *store.Store, ctype,
 	if err != nil {
 		return err
 	}
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs map[string]json.RawMessage
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", ctype, r.NativeID, err))
 			continue
 		}
 		raw, ok := attrs[fieldName]
@@ -110,7 +119,11 @@ func resolveWisdomChildToParentByArnField(acct *account, st *store.Store, ctype,
 			continue
 		}
 		var arn string
-		if err := json.Unmarshal(raw, &arn); err != nil || arn == "" {
+		if err := json.Unmarshal(raw, &arn); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s %s: %w", ctype, r.NativeID, fieldName, err))
+			continue
+		}
+		if arn == "" {
 			continue
 		}
 		tgtID := store.ResourceID("aws", acct.ID, arn)
@@ -121,34 +134,35 @@ func resolveWisdomChildToParentByArnField(acct *account, st *store.Store, ctype,
 			return fmt.Errorf("upsert wisdom-%s→%s: %w", label, parentType, err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveWisdomAssistantChildren wires assistant-association, ai-agent,
-// ai-guardrail, ai-prompt → parent assistant via AssistantArn attr.
+// ai-guardrail, ai-prompt → parent assistant via AssistantArn attr. Every
+// child type is resolved and their errors joined, so a row of one type that
+// fails to decode costs the other types none of their edges.
 func resolveWisdomAssistantChildren(acct *account, st *store.Store) error {
+	var errs []error
 	for _, ctype := range []string{
 		TypeWisdomAssistantAssociation,
 		TypeWisdomAIAgent,
 		TypeWisdomAIGuardrail,
 		TypeWisdomAIPrompt,
 	} {
-		if err := resolveWisdomChildToParentByArnField(acct, st, ctype, TypeWisdomAssistant, "AssistantArn", strings.TrimPrefix(ctype, "aws:wisdom:")); err != nil {
-			return err
-		}
+		errs = append(errs, resolveWisdomChildToParentByArnField(acct, st, ctype, TypeWisdomAssistant, "AssistantArn", strings.TrimPrefix(ctype, "aws:wisdom:")))
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
-// resolveWisdomKnowledgeBaseChildren wires message-template + quick-response
-// → knowledge-base via KnowledgeBaseArn attr.
+// resolveWisdomKnowledgeBaseChildren wires message-template, quick-response
+// and content → knowledge-base via KnowledgeBaseArn attr, joining the child
+// types' errors as resolveWisdomAssistantChildren does.
 func resolveWisdomKnowledgeBaseChildren(acct *account, st *store.Store) error {
+	var errs []error
 	for _, ctype := range []string{TypeWisdomMessageTemplate, TypeWisdomQuickResponse, TypeWisdomContent} {
-		if err := resolveWisdomChildToParentByArnField(acct, st, ctype, TypeWisdomKnowledgeBase, "KnowledgeBaseArn", strings.TrimPrefix(ctype, "aws:wisdom:")); err != nil {
-			return err
-		}
+		errs = append(errs, resolveWisdomChildToParentByArnField(acct, st, ctype, TypeWisdomKnowledgeBase, "KnowledgeBaseArn", strings.TrimPrefix(ctype, "aws:wisdom:")))
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // resolveWisdomContentAssociationParent wires each content-association to its
@@ -219,7 +233,10 @@ func resolveWisdomVersionParent(acct *account, st *store.Store) error {
 
 // resolveWisdomAssistantAssociationKnowledgeBase emits a uses edge from each
 // assistant-association whose AssociationData points at a knowledge-base.
-// SDK shape: `AssociationData.KnowledgeBaseAssociation.KnowledgeBaseArn`.
+// AssociationData is an SDK union, which json.Marshal stores as
+// {"Value": ...} without the member's name. Only the KnowledgeBaseAssociation
+// member's value has a KnowledgeBaseArn; the external Bedrock member's ARN is
+// BedrockKnowledgeBaseArn, so it yields no edge here.
 func resolveWisdomAssistantAssociationKnowledgeBase(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeWisdomAssistantAssociation},
@@ -235,21 +252,25 @@ func resolveWisdomAssistantAssociationKnowledgeBase(acct *account, st *store.Sto
 	if err != nil {
 		return err
 	}
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			AssociationData *struct {
-				KnowledgeBaseAssociation *struct {
+				Value *struct {
 					KnowledgeBaseArn *string `json:"KnowledgeBaseArn"`
-				} `json:"KnowledgeBaseAssociation"`
+				} `json:"Value"`
 			} `json:"AssociationData"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeWisdomAssistantAssociation, r.NativeID, err))
 			continue
 		}
-		if attrs.AssociationData == nil || attrs.AssociationData.KnowledgeBaseAssociation == nil {
+		if attrs.AssociationData == nil || attrs.AssociationData.Value == nil {
 			continue
 		}
-		arn := sv(attrs.AssociationData.KnowledgeBaseAssociation.KnowledgeBaseArn)
+		arn := sv(attrs.AssociationData.Value.KnowledgeBaseArn)
 		if arn == "" {
 			continue
 		}
@@ -261,5 +282,5 @@ func resolveWisdomAssistantAssociationKnowledgeBase(acct *account, st *store.Sto
 			return fmt.Errorf("upsert wisdom-aa→kb: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
