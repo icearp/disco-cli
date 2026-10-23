@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/icearp/disco-cli/store"
@@ -84,10 +85,35 @@ func TestResolveChatbotRelationships_NoAttrs(t *testing.T) {
 	}
 }
 
+// A row that fails to decode is reported, and costs no other row its edges.
 func TestResolveChatbotRelationships_DecodeErrorReturned(t *testing.T) {
 	st := newTestStore(t)
-	upsertTestResource(t, st, "aws", testAccountID, TypeChatbotSlackUserIdentity, "bad", "global", `{"IamRoleArn":7}`)
-	if err := resolveChatbotRelationships(newTestAccount(testAccountID), st); err == nil {
-		t.Fatal("resolve err = nil, want the decode error")
+	roleID := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, cbRoleARN, "global", "{}")
+	// ListResources orders by name, so the good row is resolved after the bad one.
+	goodNative := chatbotSlackUserIdentityNativeID(cbSlackARN, "T01", "U1")
+	if _, err := st.UpsertResources([]*store.Resource{
+		{
+			Provider: "aws", AccountID: testAccountID, Type: TypeChatbotSlackUserIdentity, NativeID: "bad", Name: ptrStr("a"),
+			Region: regionGlobal, AttributesJSON: `{"IamRoleArn":7}`, DiscoveredBy: testScanID,
+		},
+		{
+			Provider: "aws", AccountID: testAccountID, Type: TypeChatbotSlackUserIdentity, NativeID: goodNative, Name: ptrStr("b"),
+			Region: regionGlobal, AttributesJSON: cbAttrs(t, cbSlackUser(cbSlackARN, "U1")), DiscoveredBy: testScanID,
+		},
+	}); err != nil {
+		t.Fatalf("UpsertResources: %v", err)
 	}
+	goodID := store.ResourceID("aws", testAccountID, goodNative)
+	var syntaxErr *json.UnmarshalTypeError
+	if err := resolveChatbotRelationships(newTestAccount(testAccountID), st); !errors.As(err, &syntaxErr) {
+		t.Fatalf("resolve err = %v, want the decode error", err)
+	}
+	rels, err := st.RelationshipsFrom(goodID, store.RelUses)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom: %v", err)
+	}
+	if len(rels) != 1 {
+		t.Errorf("uses edges = %v, want 1 to %s", rels, roleID)
+	}
+	assertRelationship(t, rels, goodID, roleID, store.RelUses)
 }

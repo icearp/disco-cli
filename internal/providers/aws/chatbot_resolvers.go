@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -57,10 +58,14 @@ func resolveChatbotRelationships(acct *account, st *store.Store) error {
 		IamRoleArn   *string  `json:"IamRoleArn"`
 		SnsTopicArns []string `json:"SnsTopicArns"`
 	}
+	// A row that fails to decode costs no other row its edges: its error is
+	// joined and returned after the rest are resolved.
+	var decodeErrs []error
 	for _, r := range rows {
 		var a attrs
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
-			return fmt.Errorf("decode %s %s: %w", r.Type, r.NativeID, err)
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s: %w", r.Type, r.NativeID, err))
+			continue
 		}
 		if err := upsertIfScanned(acct, st, roleIDs, r.ID, sv(a.IamRoleArn), store.RelUses, "chatbot→iam-role"); err != nil {
 			return err
@@ -71,5 +76,5 @@ func resolveChatbotRelationships(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
