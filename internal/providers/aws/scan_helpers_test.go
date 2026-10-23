@@ -668,3 +668,35 @@ func TestTransientDemotersAreKnown(t *testing.T) {
 		}
 	}
 }
+
+// storeReadRows warns about a denied listing, and runs warn, only after the
+// rows are written; a failed write is returned at once with neither, since
+// both would describe rows the write lost.
+func TestStoreReadRows_FailedWriteStopsBeforeWarnings(t *testing.T) {
+	denied := apiErr("AccessDeniedException", "User: x is not authorized to perform: svc:ListX")
+	rows := func() []*store.Resource {
+		return []*store.Resource{{Provider: "aws", AccountID: testAccountID, Type: TypeNetworkFirewallProxy, NativeID: "x", DiscoveredBy: testScanID}}
+	}
+	t.Run("write succeeds", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countWarnings(st)
+		warned := false
+		total, _, err := storeReadRows(st, newTestAccount(testAccountID), testRegion, "svc:ListX", rows(), denied, func() { warned = true })
+		if err != nil || total != 1 || !warned || *warns != 1 {
+			t.Errorf("err %v total %d warned %v warnings %d; want nil, 1, true, 1 (the denial)", err, total, warned, *warns)
+		}
+	})
+	t.Run("write fails", func(t *testing.T) {
+		st, closeStore := openClosingStore(t)
+		warns := countWarnings(st)
+		closeStore()
+		warned := false
+		_, _, err := storeReadRows(st, newTestAccount(testAccountID), testRegion, "svc:ListX", rows(), denied, func() { warned = true })
+		if !errors.Is(err, store.ErrStoreWrite) {
+			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
+		}
+		if warned || *warns != 0 {
+			t.Errorf("warned %v warnings %d after a failed write; want none", warned, *warns)
+		}
+	})
+}

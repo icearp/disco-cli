@@ -851,18 +851,30 @@ func storeTokenList[Item any](
 	var skips notStoredSkips
 	items, err := readTokenPages(ctx, page)
 	rows := buildListedRows(items, row, nil, &skips)
+	return storeReadRows(st, acct, region, op, rows, err, func() { skips.warn(st, op, acct, region) })
+}
+
+// storeReadRows stores the rows read from op's listing, which ended with
+// listErr, and returns listErr (wrapped with op) and errs after the write. A
+// denied listing is warned about instead of returned. A failed write is
+// returned at once: the denial warning and warn (nil for none) run only after
+// a successful write, so no warning claims rows a failed write lost.
+func storeReadRows(st *store.Store, acct *account, region, op string, rows []*store.Resource, listErr error, warn func(), errs ...error) (int, int, error) {
 	var denied error
-	if isAccessDenied(err) {
-		denied, err = err, nil
+	if isAccessDenied(listErr) {
+		denied, listErr = listErr, nil
 	}
-	total, inserted, err := upsertListed(st, rows, op, err)
+	total, inserted, err := upsertListed(st, rows, op, listErr)
+	err = errors.Join(append([]error{err}, errs...)...)
 	if errors.Is(err, store.ErrStoreWrite) {
 		return total, inserted, err
 	}
 	if denied != nil {
 		_ = skipIfAccessDenied(st, op, acct.ID, region, denied)
 	}
-	skips.warn(st, op, acct, region)
+	if warn != nil {
+		warn()
+	}
 	return total, inserted, err
 }
 

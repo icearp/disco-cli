@@ -1,9 +1,14 @@
 package aws
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/networkfirewall"
+	nfwtypes "github.com/aws/aws-sdk-go-v2/service/networkfirewall/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -180,4 +185,91 @@ func TestResolveNetworkFirewallTLSInspectionRefs(t *testing.T) {
 	assertRelationship(t, rels, tID, kID, store.RelUses)
 	assertRelationship(t, rels, tID, caID, store.RelUses)
 	assertRelationship(t, rels, tID, cID, store.RelUses)
+}
+
+// nfDecodeCase is a Network Firewall resolver whose rows of srcType link to
+// target (of targetType, by rel) when their attributes are goodAttrs, and
+// whose badAttrs give a field the wrong JSON type.
+type nfDecodeCase struct {
+	name, srcType, srcKind string
+	resolve                func(*account, *store.Store) error
+	target, targetType     string
+	rel                    string
+	goodAttrs, badAttrs    string
+	noEdge                 bool // goodAttrs, as stored, carry no reference
+}
+
+// run pins that a row whose attributes do not decode is reported as a
+// *json.UnmarshalTypeError and costs the other rows none of their edges, and
+// that a row with no references gets none.
+func (c nfDecodeCase) run(t *testing.T) {
+	t.Helper()
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	tgtID := upsertTestResource(t, st, "aws", acct.ID, c.targetType, c.target, testRegion, "{}")
+	// Named so ListResources (ordered by name) reads a good row on each side
+	// of the bad one: an early return on the bad row loses the second.
+	row := func(name, attrs string) string {
+		return upsertTestResourceNamed(t, st, c.srcType, nfARN(c.srcKind, name), testRegion, attrs, name)
+	}
+	goodBefore := row("a-good", c.goodAttrs)
+	bad := row("b-bad", c.badAttrs)
+	goodAfter := row("c-good", c.goodAttrs)
+	empty := row("d-empty", "{}")
+	err := c.resolve(acct, st)
+	var typeErr *json.UnmarshalTypeError
+	if !errors.As(err, &typeErr) {
+		t.Fatalf("err = %v, want a *json.UnmarshalTypeError", err)
+	}
+	quiet := []string{bad, empty}
+	if c.noEdge {
+		quiet = append(quiet, goodBefore, goodAfter)
+	} else {
+		for _, good := range []string{goodBefore, goodAfter} {
+			assertRelationship(t, ibRelsFrom(t, st, good), good, tgtID, c.rel)
+		}
+	}
+	for _, id := range quiet {
+		if rels := ibRelsFrom(t, st, id); len(rels) != 0 {
+			t.Errorf("row %s has edges %v, want none", id, rels)
+		}
+	}
+}
+
+func TestNetworkFirewallResolvers_DecodeErrorKeepsOtherRows(t *testing.T) {
+	keyARN := "arn:aws:kms:" + testRegion + ":" + testAccountID + ":key/k1"
+	rgARN := nfRuleGroupARN(testRegion, testAccountID, "rg")
+	encryption := &nfwtypes.EncryptionConfiguration{KeyId: &keyARN, Type: nfwtypes.EncryptionTypeCustomerKms}
+	for _, c := range []nfDecodeCase{
+		{
+			name: "firewall", srcType: TypeNetworkFirewallFirewall, srcKind: "firewall", resolve: resolveNetworkFirewallFirewallRelationships,
+			target: ec2ARN(testRegion, testAccountID, "vpc", "vpc-1"), targetType: TypeEC2VPC, rel: store.RelAttachedTo,
+			goodAttrs: mustJSON(networkfirewall.DescribeFirewallOutput{Firewall: &nfwtypes.Firewall{VpcId: sdkaws.String("vpc-1")}}),
+			badAttrs:  `{"Firewall":7}`,
+		},
+		{
+			name: "firewall policy", srcType: TypeNetworkFirewallFirewallPolicy, srcKind: "firewall-policy", resolve: resolveNetworkFirewallPolicyRelationships,
+			target: rgARN, targetType: TypeNetworkFirewallRuleGroup, rel: store.RelUses,
+			goodAttrs: mustJSON(networkfirewall.DescribeFirewallPolicyOutput{FirewallPolicy: &nfwtypes.FirewallPolicy{
+				StatefulRuleGroupReferences: []nfwtypes.StatefulRuleGroupReference{{ResourceArn: &rgARN}},
+			}}),
+			badAttrs: `{"FirewallPolicy":7}`,
+		},
+		{
+			name: "rule group", srcType: TypeNetworkFirewallRuleGroup, srcKind: "stateful-rulegroup", resolve: resolveNetworkFirewallRuleGroupKMS,
+			target: keyARN, targetType: TypeKMSKey, rel: store.RelUses,
+			goodAttrs: mustJSON(networkfirewall.DescribeRuleGroupOutput{RuleGroupResponse: &nfwtypes.RuleGroupResponse{EncryptionConfiguration: encryption}}),
+			badAttrs:  `{"RuleGroupResponse":7}`,
+		},
+		{
+			name: "TLS inspection configuration", srcType: TypeNetworkFirewallTLSInspectionConfiguration, srcKind: "tls-configuration",
+			resolve: resolveNetworkFirewallTLSInspectionRefs, target: keyARN, targetType: TypeKMSKey, rel: store.RelUses,
+			goodAttrs: mustJSON(networkfirewall.DescribeTLSInspectionConfigurationOutput{
+				TLSInspectionConfigurationResponse: &nfwtypes.TLSInspectionConfigurationResponse{EncryptionConfiguration: encryption},
+			}),
+			badAttrs: `{"TLSInspectionConfigurationResponse":7}`,
+		},
+	} {
+		t.Run(c.name, c.run)
+	}
 }

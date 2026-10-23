@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -47,6 +48,7 @@ func resolveNetworkFirewallRuleGroupKMS(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			RuleGroupResponse *struct {
@@ -56,6 +58,7 @@ func resolveNetworkFirewallRuleGroupKMS(acct *account, st *store.Store) error {
 			} `json:"RuleGroupResponse"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeNetworkFirewallRuleGroup, r.NativeID, err))
 			continue
 		}
 		if attrs.RuleGroupResponse == nil || attrs.RuleGroupResponse.EncryptionConfiguration == nil {
@@ -71,7 +74,7 @@ func resolveNetworkFirewallRuleGroupKMS(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveNetworkFirewallTLSInspectionRefs wires TLS-inspection configs to
@@ -95,6 +98,7 @@ func resolveNetworkFirewallTLSInspectionRefs(acct *account, st *store.Store) err
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			TLSInspectionConfigurationResponse *struct {
@@ -110,6 +114,7 @@ func resolveNetworkFirewallTLSInspectionRefs(acct *account, st *store.Store) err
 			} `json:"TLSInspectionConfigurationResponse"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeNetworkFirewallTLSInspectionConfiguration, r.NativeID, err))
 			continue
 		}
 		if attrs.TLSInspectionConfigurationResponse == nil {
@@ -145,7 +150,7 @@ func resolveNetworkFirewallTLSInspectionRefs(acct *account, st *store.Store) err
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // nfFirewallAttrs extracts the fields on DescribeFirewall's response needed
@@ -195,9 +200,11 @@ func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store)
 		return err
 	}
 
+	var decodeErrs []error
 	for _, f := range firewalls {
 		var attrs nfFirewallAttrs
 		if err := json.Unmarshal([]byte(f.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeNetworkFirewallFirewall, f.NativeID, err))
 			continue
 		}
 		if attrs.Firewall == nil {
@@ -239,7 +246,7 @@ func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store)
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveNetworkFirewallPolicyRelationships emits edges from each firewall
@@ -262,9 +269,11 @@ func resolveNetworkFirewallPolicyRelationships(acct *account, st *store.Store) e
 		return err
 	}
 
+	var decodeErrs []error
 	for _, p := range policies {
 		var attrs nfPolicyAttrs
 		if err := json.Unmarshal([]byte(p.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeNetworkFirewallFirewallPolicy, p.NativeID, err))
 			continue
 		}
 		if attrs.FirewallPolicy == nil {
@@ -292,7 +301,7 @@ func resolveNetworkFirewallPolicyRelationships(acct *account, st *store.Store) e
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // networkFirewallFirewallTargetIDSet pre-builds the id set covering all

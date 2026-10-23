@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"sync"
 	"testing"
@@ -27,6 +28,7 @@ type stubNFW struct {
 	assocPages    [][]nfwtypes.ContainerAssociationSummary
 	assocListErr  error
 	assocDescErr  map[string]error
+	tags          map[string][]nfwtypes.Tag // Describe tags by ARN
 	mu            sync.Mutex
 	describedARNs []string
 }
@@ -38,6 +40,9 @@ func (s *stubNFW) record(arn string) {
 }
 
 func (s *stubNFW) ListProxies(_ context.Context, in *networkfirewall.ListProxiesInput, _ ...func(*networkfirewall.Options)) (*networkfirewall.ListProxiesOutput, error) {
+	if err := nfCheckMaxResults(in.MaxResults); err != nil {
+		return nil, err
+	}
 	items, next, err := stubPage(s.proxyPages, in.NextToken, s.proxyListErr)
 	if err != nil {
 		return nil, err
@@ -54,10 +59,15 @@ func (s *stubNFW) DescribeProxy(_ context.Context, in *networkfirewall.DescribeP
 	if s.nilProxy[arn] {
 		return &networkfirewall.DescribeProxyOutput{}, nil
 	}
-	return &networkfirewall.DescribeProxyOutput{Proxy: testNFProxy(arn), UpdateToken: sdkaws.String("tok")}, nil
+	p := testNFProxy(arn)
+	p.Tags = s.tags[arn]
+	return &networkfirewall.DescribeProxyOutput{Proxy: p, UpdateToken: sdkaws.String("tok")}, nil
 }
 
 func (s *stubNFW) ListContainerAssociations(_ context.Context, in *networkfirewall.ListContainerAssociationsInput, _ ...func(*networkfirewall.Options)) (*networkfirewall.ListContainerAssociationsOutput, error) {
+	if err := nfCheckMaxResults(in.MaxResults); err != nil {
+		return nil, err
+	}
 	items, next, err := stubPage(s.assocPages, in.NextToken, s.assocListErr)
 	if err != nil {
 		return nil, err
@@ -71,7 +81,23 @@ func (s *stubNFW) DescribeContainerAssociation(_ context.Context, in *networkfir
 	if err := s.assocDescErr[arn]; err != nil {
 		return nil, err
 	}
-	return testNFContainerAssociation(arn), nil
+	out := testNFContainerAssociation(arn)
+	out.Tags = s.tags[arn]
+	return out, nil
+}
+
+// nfModelMaxResults is the MaxResults cap the Smithy model sets on every
+// Network Firewall list op. A literal, not nfListMax, so that a wrong
+// production constant fails the tests.
+const nfModelMaxResults = 100
+
+// nfCheckMaxResults fails a stubbed list call that does not ask for the
+// model's page cap.
+func nfCheckMaxResults(got *int32) error {
+	if got == nil || *got != nfModelMaxResults {
+		return fmt.Errorf("MaxResults = %v; want %d", got, nfModelMaxResults)
+	}
+	return nil
 }
 
 var nfCreateTime = time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
@@ -129,7 +155,7 @@ func testNFContainerAssociation(arn string) *networkfirewall.DescribeContainerAs
 // nfPhase runs one of the two new phases against the shared stub.
 type nfPhase struct {
 	name, rtype string
-	scan        func(context.Context, networkfirewallAPI, *account, string, *store.Store, string) (int, int, error)
+	scan        func(context.Context, networkfirewallAPI, *account, string, *store.Store, string) nfResult
 	arn         func(string) string
 	// set lists the given pages of names, failing the list with listErr once
 	// they run out.
@@ -196,15 +222,17 @@ func storedNativeIDs(t *testing.T, st *store.Store, rtype string) []string {
 func TestScanNFNewPhases_Scenarios(t *testing.T) {
 	denied := apiErr("AccessDeniedException", "User: x is not authorized to perform: network-firewall:Describe")
 	cases := []struct {
-		name      string
-		setup     func(ph nfPhase, s *stubNFW)
-		wantNames []string
-		wantWarns int
-		wantErr   string
+		name          string
+		setup         func(ph nfPhase, s *stubNFW)
+		wantNames     []string
+		wantListed    []string // of wantNames, those stored as their list element
+		wantWarns     int
+		wantErr       string
+		wantTransient bool
 	}{
-		{name: "two pages both described and stored, empty arn skipped", setup: func(ph nfPhase, s *stubNFW) {
+		{name: "two pages both described and stored, empty arn warned", setup: func(ph nfPhase, s *stubNFW) {
 			ph.set(s, nil, []string{"a", ""}, []string{"b"})
-		}, wantNames: []string{"a", "b"}},
+		}, wantNames: []string{"a", "b"}, wantWarns: 1},
 		{name: "empty", setup: func(ph nfPhase, s *stubNFW) {}},
 		{name: "list access denied warns", setup: func(ph nfPhase, s *stubNFW) {
 			ph.set(s, denied)
@@ -212,22 +240,26 @@ func TestScanNFNewPhases_Scenarios(t *testing.T) {
 		{name: "list denied on page two keeps page one", setup: func(ph nfPhase, s *stubNFW) {
 			ph.set(s, denied, []string{"a"})
 		}, wantNames: []string{"a"}, wantWarns: 1},
-		{name: "list other error propagates", setup: func(ph nfPhase, s *stubNFW) {
+		{name: "list other error on page two keeps page one and propagates", setup: func(ph nfPhase, s *stubNFW) {
 			ph.set(s, apiErr("InternalServerError", "boom"), []string{"a"})
-		}, wantErr: "InternalServerError"},
+		}, wantNames: []string{"a"}, wantErr: "InternalServerError"},
 		{name: "describe not found skips that row", setup: func(ph nfPhase, s *stubNFW) {
 			ph.set(s, nil, []string{"a", "gone"})
 			ph.failDescribe(s, "gone", apiErr("ResourceNotFoundException", "gone"))
 		}, wantNames: []string{"a"}},
-		{name: "describe denied warns once and keeps siblings", setup: func(ph nfPhase, s *stubNFW) {
+		{name: "describe denied warns once and keeps the list elements", setup: func(ph nfPhase, s *stubNFW) {
 			ph.set(s, nil, []string{"a", "d1", "d2"})
 			ph.failDescribe(s, "d1", denied)
 			ph.failDescribe(s, "d2", denied)
-		}, wantNames: []string{"a"}, wantWarns: 1},
-		{name: "describe other error propagates", setup: func(ph nfPhase, s *stubNFW) {
+		}, wantNames: []string{"a", "d1", "d2"}, wantListed: []string{"d1", "d2"}, wantWarns: 1},
+		{name: "describe transient keeps the list element and is returned as transient", setup: func(ph nfPhase, s *stubNFW) {
+			ph.set(s, nil, []string{"a", "slow"})
+			ph.failDescribe(s, "slow", apiErr("ThrottlingException", "rate exceeded"))
+		}, wantNames: []string{"a", "slow"}, wantListed: []string{"slow"}, wantTransient: true},
+		{name: "describe other error keeps the list element and propagates", setup: func(ph nfPhase, s *stubNFW) {
 			ph.set(s, nil, []string{"a", "b"})
 			ph.failDescribe(s, "b", apiErr("InvalidRequestException", "bad arn"))
-		}, wantErr: "InvalidRequestException"},
+		}, wantNames: []string{"a", "b"}, wantListed: []string{"b"}, wantErr: "InvalidRequestException"},
 	}
 	for _, ph := range nfPhases {
 		for _, tc := range cases {
@@ -236,25 +268,26 @@ func TestScanNFNewPhases_Scenarios(t *testing.T) {
 				warns := countWarnings(st)
 				stub := &stubNFW{}
 				tc.setup(ph, stub)
-				total, _, err := ph.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
-				if tc.wantErr != "" {
-					if !isAPIErrorCode(err, tc.wantErr) {
-						t.Fatalf("err = %v; want %s", err, tc.wantErr)
-					}
-					if got := storedNativeIDs(t, st, ph.rtype); len(got) != 0 {
-						t.Errorf("stored %v after an error; want none", got)
-					}
-					return
-				}
-				if err != nil {
-					t.Fatalf("err = %v", err)
+				res := ph.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+				switch {
+				case tc.wantErr != "" && !isAPIErrorCode(res.err, tc.wantErr):
+					t.Fatalf("err = %v; want %s", res.err, tc.wantErr)
+				case tc.wantErr == "" && res.err != nil:
+					t.Fatalf("err = %v", res.err)
+				case tc.wantTransient != isAPIErrorCode(res.transient, "ThrottlingException"):
+					t.Fatalf("transient = %v; want it set: %v", res.transient, tc.wantTransient)
 				}
 				var want []string
 				for _, n := range tc.wantNames {
 					want = append(want, ph.arn(n))
 				}
-				if got := storedNativeIDs(t, st, ph.rtype); !slices.Equal(got, want) || total != len(want) {
-					t.Errorf("stored %v (total %d); want %v", got, total, want)
+				if got := storedNativeIDs(t, st, ph.rtype); !slices.Equal(got, want) || res.total != len(want) {
+					t.Errorf("stored %v (total %d); want %v", got, res.total, want)
+				}
+				for _, n := range tc.wantListed {
+					if r, _ := nfStoredRow(t, st, ph.arn(n)); sv(r.Name) != n || r.Status != nil {
+						t.Errorf("row %s = name %q status %v; want the list element", n, sv(r.Name), r.Status)
+					}
 				}
 				if *warns != tc.wantWarns {
 					t.Errorf("warnings = %d; want %d", *warns, tc.wantWarns)
@@ -264,25 +297,33 @@ func TestScanNFNewPhases_Scenarios(t *testing.T) {
 	}
 }
 
-func TestScanNFProxies_PreviewRegionGapIsSilentAndKeepsRows(t *testing.T) {
+// A preview region gap on the first ListProxies page is silent; after a page
+// succeeded the op exists in the region, so a later gap is an error that
+// keeps the rows read.
+func TestScanNFProxies_PreviewRegionGap(t *testing.T) {
 	gap := apiErr("InvalidRequestException", "The API being called does not exist")
-	for name, pages := range map[string][][]string{"first page": nil, "page two": {{"a"}}} {
-		t.Run(name, func(t *testing.T) {
-			st := newTestStore(t)
-			warns := countWarnings(st)
-			stub := &stubNFW{}
-			nfPhases[0].set(stub, gap, pages...)
-			if _, _, err := scanNFProxies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
-				t.Fatalf("err = %v; want the preview gap skipped", err)
-			}
-			if got := storedNativeIDs(t, st, TypeNetworkFirewallProxy); len(got) != len(pages) {
-				t.Errorf("stored %v; want %d rows", got, len(pages))
-			}
-			if *warns != 0 {
-				t.Errorf("warnings = %d; want 0", *warns)
-			}
-		})
-	}
+	t.Run("first page", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countWarnings(st)
+		stub := &stubNFW{}
+		nfPhases[0].set(stub, gap)
+		res := scanNFProxies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+		if res.err != nil || res.total != 0 || *warns != 0 {
+			t.Errorf("err %v total %d warnings %d; want the gap skipped silently", res.err, res.total, *warns)
+		}
+	})
+	t.Run("page two", func(t *testing.T) {
+		st := newTestStore(t)
+		stub := &stubNFW{}
+		nfPhases[0].set(stub, gap, []string{"a"})
+		res := scanNFProxies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+		if !isAPIErrorCode(res.err, "InvalidRequestException") {
+			t.Fatalf("err = %v; want the later-page gap returned", res.err)
+		}
+		if got := storedNativeIDs(t, st, TypeNetworkFirewallProxy); !slices.Equal(got, []string{nfProxyARN("a")}) {
+			t.Errorf("stored %v; want page one's proxy kept", got)
+		}
+	})
 }
 
 // The preview gap is a proxy-feature condition; container associations are a
@@ -290,20 +331,26 @@ func TestScanNFProxies_PreviewRegionGapIsSilentAndKeepsRows(t *testing.T) {
 func TestScanNFContainerAssociations_InvalidRequestPropagates(t *testing.T) {
 	st := newTestStore(t)
 	stub := &stubNFW{assocListErr: apiErr("InvalidRequestException", "The API being called does not exist")}
-	if _, _, err := scanNFContainerAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidRequestException") {
-		t.Fatalf("err = %v; want InvalidRequestException", err)
+	if res := scanNFContainerAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(res.err, "InvalidRequestException") {
+		t.Fatalf("err = %v; want InvalidRequestException", res.err)
 	}
 }
 
-func TestScanNFProxies_NilBodySkipped(t *testing.T) {
+// A DescribeProxy with no Proxy payload keeps the listed proxy as its list
+// element and returns an error, as the other described types do.
+func TestScanNFProxies_NilBodyKeepsListElementAndErrs(t *testing.T) {
 	st := newTestStore(t)
 	stub := &stubNFW{nilProxy: map[string]bool{nfProxyARN("empty"): true}}
 	nfPhases[0].set(stub, nil, []string{"a", "empty"})
-	if _, _, err := scanNFProxies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
-		t.Fatal(err)
+	res := scanNFProxies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if res.err == nil {
+		t.Fatal("err = nil; want the empty payload reported")
 	}
-	if got := storedNativeIDs(t, st, TypeNetworkFirewallProxy); !slices.Equal(got, []string{nfProxyARN("a")}) {
-		t.Errorf("stored %v; want only proxy a", got)
+	if got := storedNativeIDs(t, st, TypeNetworkFirewallProxy); !slices.Equal(got, []string{nfProxyARN("a"), nfProxyARN("empty")}) {
+		t.Errorf("stored %v; want both proxies", got)
+	}
+	if r, _ := nfStoredRow(t, st, nfProxyARN("empty")); sv(r.Name) != "empty" {
+		t.Errorf("empty proxy name = %q; want the list element's", sv(r.Name))
 	}
 }
 
@@ -322,10 +369,10 @@ func nfStoredRow(t *testing.T, st *store.Store, nativeID string) (*store.Resourc
 
 func TestScanNFProxies_StoredRow(t *testing.T) {
 	st := newTestStore(t)
-	stub := &stubNFW{}
-	nfPhases[0].set(stub, nil, []string{"a"})
-	if _, _, err := scanNFProxies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
-		t.Fatal(err)
+	stub := &stubNFW{tags: map[string][]nfwtypes.Tag{nfProxyARN("a"): nfTags("env", "prod")}}
+	nfPhases[0].set(stub, nil, []string{"a", "untagged"})
+	if res := scanNFProxies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); res.err != nil {
+		t.Fatal(res.err)
 	}
 	r, attrs := nfStoredRow(t, st, nfProxyARN("a"))
 	if r.Type != TypeNetworkFirewallProxy || sv(r.Region) != testRegion || sv(r.Name) != "proxy-a" || sv(r.Status) != "ATTACHED" {
@@ -340,14 +387,18 @@ func TestScanNFProxies_StoredRow(t *testing.T) {
 	if _, ok := attrs["UpdateToken"]; ok {
 		t.Error("attrs carry the DescribeProxy envelope's UpdateToken; want the Proxy payload only")
 	}
+	assertTagsMap(t, r.TagsJSON, map[string]string{"env": "prod"})
+	if untagged, _ := nfStoredRow(t, st, nfProxyARN("untagged")); untagged.TagsJSON != nil {
+		t.Errorf("untagged proxy tags = %s; want none", *untagged.TagsJSON)
+	}
 }
 
 func TestScanNFContainerAssociations_StoredRow(t *testing.T) {
 	st := newTestStore(t)
-	stub := &stubNFW{}
-	nfPhases[1].set(stub, nil, []string{"a"})
-	if _, _, err := scanNFContainerAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
-		t.Fatal(err)
+	stub := &stubNFW{tags: map[string][]nfwtypes.Tag{nfAssocARN("a"): nfTags("env", "prod")}}
+	nfPhases[1].set(stub, nil, []string{"a", "untagged"})
+	if res := scanNFContainerAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); res.err != nil {
+		t.Fatal(res.err)
 	}
 	r, attrs := nfStoredRow(t, st, nfAssocARN("a"))
 	if r.Type != TypeNetworkFirewallContainerAssociation || sv(r.Region) != testRegion || sv(r.Name) != "assoc-a" || sv(r.Status) != "ACTIVE" {
@@ -356,6 +407,10 @@ func TestScanNFContainerAssociations_StoredRow(t *testing.T) {
 	cfgs, _ := attrs["ContainerMonitoringConfigurations"].([]any)
 	if len(cfgs) != 1 || cfgs[0].(map[string]any)["ClusterArn"] != nfEKSClusterARN("c1") {
 		t.Errorf("attrs[ContainerMonitoringConfigurations] = %v; want the c1 cluster", attrs["ContainerMonitoringConfigurations"])
+	}
+	assertTagsMap(t, r.TagsJSON, map[string]string{"env": "prod"})
+	if untagged, _ := nfStoredRow(t, st, nfAssocARN("untagged")); untagged.TagsJSON != nil {
+		t.Errorf("untagged container association tags = %s; want none", *untagged.TagsJSON)
 	}
 }
 
@@ -367,7 +422,7 @@ const nfProxyRuleGroupARN = "arn:aws:network-firewall:" + testRegion + ":" + tes
 // replaces the queue for the named ops.
 func nfTopLevelResponses(override map[string][]stubCall) map[string][]stubCall {
 	responses := map[string][]stubCall{
-		"ListFirewalls":        {{Output: &networkfirewall.ListFirewallsOutput{}}, {Output: &networkfirewall.ListFirewallsOutput{}}},
+		"ListFirewalls":        {{Output: &networkfirewall.ListFirewallsOutput{}}},
 		"ListFirewallPolicies": {{Output: &networkfirewall.ListFirewallPoliciesOutput{}}},
 		"ListRuleGroups": {{Output: &networkfirewall.ListRuleGroupsOutput{
 			RuleGroups: []nfwtypes.RuleGroupMetadata{{Arn: sdkaws.String(nfRuleGroupARN(testRegion, testAccountID, "rg")), Name: sdkaws.String("rg")}},

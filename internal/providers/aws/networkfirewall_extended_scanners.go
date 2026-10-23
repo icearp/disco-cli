@@ -4,64 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/networkfirewall"
+	nfwtypes "github.com/aws/aws-sdk-go-v2/service/networkfirewall/types"
 	"github.com/icearp/disco-cli/store"
 )
-
-// scanNetworkFirewallExtended discovers the types beyond firewalls, policies
-// and rule groups. Proxies and container associations run last: they are the
-// newest ops, so an error in either must not cost the older phases' rows.
-func scanNetworkFirewallExtended(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	t, i, ferr := scanNFLoggingConfigurations(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanNFTLSInspectionConfigurations(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanNFVpcEndpointAssociations(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanNFProxyConfigurations(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanNFProxyRuleGroups(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanNFProxies(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanNFContainerAssociations(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	return total, inserted, nil
-}
 
 // isProxyPreviewRegionGap matches the InvalidRequestException ("The API being
 // called does not exist") Network Firewall proxy ops return outside their
@@ -73,264 +20,187 @@ func isProxyPreviewRegionGap(err error) bool {
 	return isAPIErrorWithMessage(err, "InvalidRequestException", "does not exist")
 }
 
+// isFirstPageProxyGap reports whether err, answering the page sent token, is
+// the preview region gap. Only a first page can be: once a page succeeded,
+// the op exists in the region, so a later gap is an error.
+func isFirstPageProxyGap(token *string, err error) bool {
+	return token == nil && isProxyPreviewRegionGap(err)
+}
+
+// nfListedRow is the row of a resource stored as its list element, or nil
+// with the reason when the element has no ARN to key it by.
+func nfListedRow(acct *account, region, scanID, rtype, what string, arn, name *string, elem any) (*store.Resource, string, string) {
+	if sv(arn) == "" {
+		return nil, what + " have an empty ARN", sv(name)
+	}
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: rtype, NativeID: *arn, Name: name, Region: &region,
+		AttributesJSON: mustJSON(elem), DiscoveredBy: scanID,
+	}, "", ""
+}
+
+// scanNFProxyConfigurations stores the proxy configurations as listed; a
+// first-page preview region gap stores none, silently.
 func scanNFProxyConfigurations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := networkfirewall.NewListProxyConfigurationsPaginator(client, &networkfirewall.ListProxyConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isProxyPreviewRegionGap(err) {
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, nfProxyConfigListOp,
+		func(ctx context.Context, token *string) ([]nfwtypes.ProxyConfigurationMetadata, *string, error) {
+			out, err := client.ListProxyConfigurations(ctx, &networkfirewall.ListProxyConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(nfListMax)})
+			if isFirstPageProxyGap(token, err) {
+				return nil, nil, nil
 			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "networkfirewall:ListProxyConfigurations", acct.ID, region, err)
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("networkfirewall:ListProxyConfigurations: %w", err)
-		}
-		for _, c := range out.ProxyConfigurations {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeNetworkFirewallProxyConfiguration, NativeID: arn,
-				Name: c.Name, Region: &region,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "networkfirewall proxy-configurations")
+			return out.ProxyConfigurations, out.NextToken, nil
+		},
+		func(c nfwtypes.ProxyConfigurationMetadata) (*store.Resource, string, string) {
+			return nfListedRow(acct, region, scanID, TypeNetworkFirewallProxyConfiguration, "proxy configurations", c.Arn, c.Name, c)
+		})
 }
 
+// scanNFProxyRuleGroups stores the proxy rule groups as listed; a first-page
+// preview region gap stores none, silently.
 func scanNFProxyRuleGroups(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := networkfirewall.NewListProxyRuleGroupsPaginator(client, &networkfirewall.ListProxyRuleGroupsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isProxyPreviewRegionGap(err) {
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, nfProxyRuleGroupListOp,
+		func(ctx context.Context, token *string) ([]nfwtypes.ProxyRuleGroupMetadata, *string, error) {
+			out, err := client.ListProxyRuleGroups(ctx, &networkfirewall.ListProxyRuleGroupsInput{NextToken: token, MaxResults: sdkaws.Int32(nfListMax)})
+			if isFirstPageProxyGap(token, err) {
+				return nil, nil, nil
 			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "networkfirewall:ListProxyRuleGroups", acct.ID, region, err)
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("networkfirewall:ListProxyRuleGroups: %w", err)
-		}
-		for _, g := range out.ProxyRuleGroups {
-			arn := sv(g.Arn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeNetworkFirewallProxyRuleGroup, NativeID: arn,
-				Name: g.Name, Region: &region,
-				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "networkfirewall proxy-rule-groups")
+			return out.ProxyRuleGroups, out.NextToken, nil
+		},
+		func(g nfwtypes.ProxyRuleGroupMetadata) (*store.Resource, string, string) {
+			return nfListedRow(acct, region, scanID, TypeNetworkFirewallProxyRuleGroup, "proxy rule groups", g.Arn, g.Name, g)
+		})
 }
 
-// scanNFLoggingConfigurations walks ListFirewalls, calls
-// DescribeLoggingConfiguration per firewall, and skips firewalls with no
-// logging configured. Synth ARN: {firewallArn}/logging-configuration.
-func scanNFLoggingConfigurations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := networkfirewall.NewListFirewallsPaginator(client, &networkfirewall.ListFirewallsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "networkfirewall:ListFirewalls(logging)", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("networkfirewall:ListFirewalls(logging): %w", err)
+// scanNFLoggingConfigurations calls DescribeLoggingConfiguration for each
+// firewall the firewalls phase listed, and stores each configured one as
+// {firewallArn}/logging-configuration. A firewall the Describe no longer
+// finds (ResourceNotFoundException, in the op's model) was deleted since it
+// was listed; denied firewalls are warned about once; any other Describe
+// error is returned after the rest are stored.
+func scanNFLoggingConfigurations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string, firewallARNs []string) (int, int, error) {
+	var (
+		batch  []*store.Resource
+		errs   []error
+		denied skipTally
+	)
+	for _, fa := range firewallARNs {
+		lc, err := client.DescribeLoggingConfiguration(ctx, &networkfirewall.DescribeLoggingConfigurationInput{FirewallArn: &fa})
+		switch {
+		case err == nil:
+		case isNFDeletedAfterList(err):
+			continue
+		case isAccessDenied(err):
+			denied.skipped(fa, err)
+			continue
+		default:
+			errs = append(errs, fmt.Errorf("%s %s: %w", nfLoggingOp, fa, err))
+			continue
 		}
-		for _, f := range out.Firewalls {
-			fa := sv(f.FirewallArn)
-			if fa == "" {
-				continue
-			}
-			lc, derr := client.DescribeLoggingConfiguration(ctx, &networkfirewall.DescribeLoggingConfigurationInput{FirewallArn: &fa})
-			if derr != nil {
-				if isAccessDenied(derr) || isAPIErrorCode(derr, "ResourceNotFoundException") {
-					continue
-				}
-				return 0, 0, fmt.Errorf("networkfirewall:DescribeLoggingConfiguration: %w", derr)
-			}
-			if lc.LoggingConfiguration == nil || len(lc.LoggingConfiguration.LogDestinationConfigs) == 0 {
-				continue
-			}
-			arn := fa + "/logging-configuration"
-			label := "logging-configuration"
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeNetworkFirewallLoggingConfiguration, NativeID: arn,
-				Name: &label, Region: &region,
-				AttributesJSON: mustJSON(lc), DiscoveredBy: scanID,
-			})
+		if lc.LoggingConfiguration == nil || len(lc.LoggingConfiguration.LogDestinationConfigs) == 0 {
+			continue
 		}
+		label := "logging-configuration"
+		batch = append(batch, &store.Resource{
+			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+			Type: TypeNetworkFirewallLoggingConfiguration, NativeID: fa + "/logging-configuration",
+			Name: &label, Region: &region,
+			AttributesJSON: mustJSON(lc), DiscoveredBy: scanID,
+		})
 	}
-	return upsertBatch(st, batch, "networkfirewall logging-configurations")
-}
-
-func scanNFTLSInspectionConfigurations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListTLSInspectionConfigurations(ctx, &networkfirewall.ListTLSInspectionConfigurationsInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "networkfirewall:ListTLSInspectionConfigurations", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("networkfirewall:ListTLSInspectionConfigurations: %w", err)
+	return storeReadRows(st, acct, region, nfLoggingOp, batch, nil, func() {
+		if denied.count > 0 {
+			_ = skipIfAccessDenied(st, nfLoggingOp, acct.ID, region, fmt.Errorf("%d firewall(s) denied, so their logging configuration was not stored, first %s: %w", denied.count, denied.first, denied.err))
 		}
-		for _, c := range out.TLSInspectionConfigurations {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
-			}
-			attrsJSON := mustJSON(c)
-			arnLocal := arn
-			if dout, derr := client.DescribeTLSInspectionConfiguration(ctx, &networkfirewall.DescribeTLSInspectionConfigurationInput{TLSInspectionConfigurationArn: &arnLocal}); derr == nil {
-				attrsJSON = mustJSON(dout)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeNetworkFirewallTLSInspectionConfiguration, NativeID: arn,
-				Name: c.Name, Region: &region,
-				AttributesJSON: attrsJSON, DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "networkfirewall tls-inspection-configurations")
+	}, errs...)
 }
 
 func scanNFVpcEndpointAssociations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListVpcEndpointAssociations(ctx, &networkfirewall.ListVpcEndpointAssociationsInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "networkfirewall:ListVpcEndpointAssociations", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, nfVEAListOp,
+		func(ctx context.Context, token *string) ([]nfwtypes.VpcEndpointAssociationMetadata, *string, error) {
+			out, err := client.ListVpcEndpointAssociations(ctx, &networkfirewall.ListVpcEndpointAssociationsInput{NextToken: token, MaxResults: sdkaws.Int32(nfListMax)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("networkfirewall:ListVpcEndpointAssociations: %w", err)
-		}
-		for _, v := range out.VpcEndpointAssociations {
-			arn := sv(v.VpcEndpointAssociationArn)
-			if arn == "" {
-				continue
-			}
-			label := arn
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeNetworkFirewallVpcEndpointAssociation, NativeID: arn,
-				Name: &label, Region: &region,
-				AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "networkfirewall vpc-endpoint-associations")
+			return out.VpcEndpointAssociations, out.NextToken, nil
+		},
+		func(v nfwtypes.VpcEndpointAssociationMetadata) (*store.Resource, string, string) {
+			// The element carries no name, so the ARN names the row.
+			return nfListedRow(acct, region, scanID, TypeNetworkFirewallVpcEndpointAssociation, "VPC endpoint associations",
+				v.VpcEndpointAssociationArn, v.VpcEndpointAssociationArn, v)
+		})
 }
 
-// scanNFProxies lists proxies and describes each one: the list summary
-// carries only the ARN and name, while the state, NAT gateway and proxy
-// configuration live on DescribeProxy. Proxies share the proxy-configuration
-// ops' public preview, so the same region gap applies.
-func scanNFProxies(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := networkfirewall.NewListProxiesPaginator(client, &networkfirewall.ListProxiesInput{})
-	var arns []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isProxyPreviewRegionGap(err) {
-				break
+// scanNFProxies stores each listed proxy from its DescribeProxy body: the
+// list summary carries only the ARN and name, while the state, NAT gateway,
+// proxy configuration and tags live on DescribeProxy. Proxies share the
+// proxy-configuration ops' public preview, so a first-page region gap stores
+// none, silently.
+func scanNFProxies(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) nfResult {
+	return storeNFDescribed(ctx, st, acct, region, scanID, nfDescribed[nfwtypes.ProxyMetadata]{
+		rtype: TypeNetworkFirewallProxy, what: "proxies", ops: nfProxyOps,
+		page: func(ctx context.Context, token *string) ([]nfwtypes.ProxyMetadata, *string, error) {
+			out, err := client.ListProxies(ctx, &networkfirewall.ListProxiesInput{NextToken: token, MaxResults: sdkaws.Int32(nfListMax)})
+			if isFirstPageProxyGap(token, err) {
+				return nil, nil, nil
 			}
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "network-firewall:ListProxies", acct.ID, region, err)
-				break
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("network-firewall:ListProxies: %w", err)
-		}
-		for _, p := range out.Proxies {
-			if arn := sv(p.Arn); arn != "" {
-				arns = append(arns, arn)
-			}
-		}
-	}
-	batch, err := describeFanOut(ctx, st, acct, region, "network-firewall:DescribeProxy", arns, isNFDeletedAfterList,
-		func(ctx context.Context, arn string) (*store.Resource, error) {
+			return out.Proxies, out.NextToken, nil
+		},
+		listed: func(m nfwtypes.ProxyMetadata) (*string, *string) { return m.Arn, m.Name },
+		describe: func(ctx context.Context, arn string) (*nfBody, error) {
 			out, err := client.DescribeProxy(ctx, &networkfirewall.DescribeProxyInput{ProxyArn: &arn})
 			if err != nil {
 				return nil, err
 			}
-			if out.Proxy == nil {
+			p := out.Proxy
+			if p == nil {
 				return nil, nil
 			}
-			p := out.Proxy
-			return &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeNetworkFirewallProxy, NativeID: arn,
-				Name: p.ProxyName, Region: &region, Status: nonEmptyPtr(string(p.ProxyState)),
-				CreatedAt: tp(p.CreateTime), AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+			return &nfBody{
+				out: p, name: p.ProxyName, tags: p.Tags,
+				status: nonEmptyPtr(string(p.ProxyState)), createdAt: tp(p.CreateTime),
 			}, nil
-		})
-	if err != nil {
-		return 0, 0, err
-	}
-	return upsertBatch(st, batch, "network-firewall proxies")
+		},
+	})
 }
 
-// scanNFContainerAssociations lists container associations and describes
-// each one: the summary carries only the ARN and name, while the monitored
-// ECS/EKS cluster ARNs and the status live on DescribeContainerAssociation.
-func scanNFContainerAssociations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := networkfirewall.NewListContainerAssociationsPaginator(client, &networkfirewall.ListContainerAssociationsInput{})
-	var arns []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "network-firewall:ListContainerAssociations", acct.ID, region, err)
-				break
+// scanNFContainerAssociations stores each listed container association from
+// its DescribeContainerAssociation body: the summary carries only the ARN and
+// name, while the monitored ECS/EKS cluster ARNs, status and tags live on
+// the Describe.
+func scanNFContainerAssociations(ctx context.Context, client networkfirewallAPI, acct *account, region string, st *store.Store, scanID string) nfResult {
+	return storeNFDescribed(ctx, st, acct, region, scanID, nfDescribed[nfwtypes.ContainerAssociationSummary]{
+		rtype: TypeNetworkFirewallContainerAssociation, what: "container associations", ops: nfContainerOps,
+		page: func(ctx context.Context, token *string) ([]nfwtypes.ContainerAssociationSummary, *string, error) {
+			out, err := client.ListContainerAssociations(ctx, &networkfirewall.ListContainerAssociationsInput{NextToken: token, MaxResults: sdkaws.Int32(nfListMax)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("network-firewall:ListContainerAssociations: %w", err)
-		}
-		for _, c := range out.ContainerAssociations {
-			if arn := sv(c.Arn); arn != "" {
-				arns = append(arns, arn)
-			}
-		}
-	}
-	batch, err := describeFanOut(ctx, st, acct, region, "network-firewall:DescribeContainerAssociation", arns, isNFDeletedAfterList,
-		func(ctx context.Context, arn string) (*store.Resource, error) {
+			return out.ContainerAssociations, out.NextToken, nil
+		},
+		listed: func(m nfwtypes.ContainerAssociationSummary) (*string, *string) { return m.Arn, m.Name },
+		describe: func(ctx context.Context, arn string) (*nfBody, error) {
 			out, err := client.DescribeContainerAssociation(ctx, &networkfirewall.DescribeContainerAssociationInput{ContainerAssociationArn: &arn})
 			if err != nil {
 				return nil, err
 			}
 			// The output is flat (no payload sub-struct), so the row stores it
 			// whole, UpdateToken included, as DescribeFirewall rows do.
-			return &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeNetworkFirewallContainerAssociation, NativeID: arn,
-				Name: out.ContainerAssociationName, Region: &region, Status: nonEmptyPtr(string(out.Status)),
-				AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
+			return &nfBody{
+				out: out, name: out.ContainerAssociationName, tags: out.Tags,
+				status: nonEmptyPtr(string(out.Status)),
 			}, nil
-		})
-	if err != nil {
-		return 0, 0, err
-	}
-	return upsertBatch(st, batch, "network-firewall container-associations")
+		},
+	})
 }
 
 // isNFDeletedAfterList matches a resource deleted between its list and its

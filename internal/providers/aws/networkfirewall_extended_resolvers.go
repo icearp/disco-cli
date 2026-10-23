@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -83,6 +84,7 @@ func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			FirewallArn   *string `json:"FirewallArn"`
@@ -92,6 +94,7 @@ func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 			} `json:"SubnetMapping"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeNetworkFirewallVpcEndpointAssociation, r.NativeID, err))
 			continue
 		}
 		region := sv(r.Region)
@@ -122,7 +125,7 @@ func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveNFContainerAssociationClusters wires each container association to
@@ -147,6 +150,7 @@ func resolveNFContainerAssociationClusters(acct *account, st *store.Store) error
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			ContainerMonitoringConfigurations []struct {
@@ -154,6 +158,7 @@ func resolveNFContainerAssociationClusters(acct *account, st *store.Store) error
 			} `json:"ContainerMonitoringConfigurations"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeNetworkFirewallContainerAssociation, r.NativeID, err))
 			continue
 		}
 		for _, c := range attrs.ContainerMonitoringConfigurations {
@@ -166,5 +171,5 @@ func resolveNFContainerAssociationClusters(acct *account, st *store.Store) error
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }

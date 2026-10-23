@@ -25,25 +25,26 @@ func TestResolveNFLoggingConfigToFirewall(t *testing.T) {
 	assertRelationship(t, rels, lcID, fwID, store.RelAttachedTo)
 }
 
-func TestResolveNFVpcEndpointAssociationRefs(t *testing.T) {
+// TestResolveNFVpcEndpointAssociationRefs_StoredShapeHasNoRefs seeds the
+// shape the scanner stores (the ListVpcEndpointAssociations element, ARN
+// only) and pins the true outcome: no edge. Gap: the firewall, VPC and subnet
+// refs the resolver reads live on DescribeVpcEndpointAssociation, which the
+// scanner does not call.
+func TestResolveNFVpcEndpointAssociationRefs_StoredShapeHasNoRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	fwARN := fmt.Sprintf("arn:aws:network-firewall:%s:%s:firewall/fw1", testRegion, acct.ID)
-	fwID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkFirewallFirewall, fwARN, testRegion, "{}")
-	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
-	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vpcARN, testRegion, "{}")
-	subARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")
-	subID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subARN, testRegion, "{}")
-	veaARN := fmt.Sprintf("arn:aws:network-firewall:%s:%s:vpc-endpoint-association/vea-1", testRegion, acct.ID)
-	attrs := fmt.Sprintf(`{"FirewallArn":"%s","VpcId":"vpc-1","SubnetMapping":{"SubnetId":"subnet-1"}}`, fwARN)
+	upsertTestResource(t, st, "aws", acct.ID, TypeNetworkFirewallFirewall, nfARN("firewall", "fw1"), testRegion, "{}")
+	upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-1"), testRegion, "{}")
+	upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", "subnet-1"), testRegion, "{}")
+	veaARN := nfARN("vpc-endpoint-association", "vea-1")
+	attrs := mustJSON(nfwtypes.VpcEndpointAssociationMetadata{VpcEndpointAssociationArn: &veaARN})
 	veaID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkFirewallVpcEndpointAssociation, veaARN, testRegion, attrs)
 	if err := resolveNFVpcEndpointAssociationRefs(acct, st); err != nil {
 		t.Fatalf("resolveNFVpcEndpointAssociationRefs: %v", err)
 	}
-	rels, _ := st.RelationshipsFrom(veaID)
-	assertRelationship(t, rels, veaID, fwID, store.RelAttachedTo)
-	assertRelationship(t, rels, veaID, vpcID, store.RelAttachedTo)
-	assertRelationship(t, rels, veaID, subID, store.RelAttachedTo)
+	if rels := ibRelsFrom(t, st, veaID); len(rels) != 0 {
+		t.Errorf("edges = %v; want none (the stored element carries no refs)", rels)
+	}
 }
 
 func nfContainerAssociationAttrs(t *testing.T, clusterARNs ...string) string {
@@ -99,5 +100,29 @@ func TestResolveNFContainerAssociationClusters_NoAttrs(t *testing.T) {
 	}
 	if len(rels) != 0 {
 		t.Errorf("edges = %v; want none", rels)
+	}
+}
+
+func TestNetworkFirewallExtendedResolvers_DecodeErrorKeepsOtherRows(t *testing.T) {
+	fwARN := nfARN("firewall", "fw1")
+	for _, c := range []nfDecodeCase{
+		{
+			name: "vpc endpoint association", srcType: TypeNetworkFirewallVpcEndpointAssociation, srcKind: "vpc-endpoint-association",
+			// The stored element carries no refs (see
+			// TestResolveNFVpcEndpointAssociationRefs_StoredShapeHasNoRefs), so
+			// the good rows link nowhere: this case pins only that the bad row's
+			// decode error is returned.
+			resolve: resolveNFVpcEndpointAssociationRefs, target: fwARN, targetType: TypeNetworkFirewallFirewall, rel: store.RelAttachedTo,
+			goodAttrs: mustJSON(nfwtypes.VpcEndpointAssociationMetadata{VpcEndpointAssociationArn: sdkaws.String(nfARN("vpc-endpoint-association", "v"))}),
+			badAttrs:  `{"FirewallArn":7}`, noEdge: true,
+		},
+		{
+			name: "container association", srcType: TypeNetworkFirewallContainerAssociation, srcKind: "container-association",
+			resolve: resolveNFContainerAssociationClusters, target: nfEKSClusterARN("c1"), targetType: TypeEKSCluster, rel: store.RelUses,
+			goodAttrs: nfContainerAssociationAttrs(t, nfEKSClusterARN("c1")),
+			badAttrs:  `{"ContainerMonitoringConfigurations":7}`,
+		},
+	} {
+		t.Run(c.name, c.run)
 	}
 }
