@@ -19,6 +19,7 @@ import (
 	mltypes "github.com/aws/aws-sdk-go-v2/service/machinelearning/types"
 	mptypes "github.com/aws/aws-sdk-go-v2/service/mediapackage/types"
 	mttypes "github.com/aws/aws-sdk-go-v2/service/mediatailor/types"
+	pptypes "github.com/aws/aws-sdk-go-v2/service/pinpoint/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 
 	"github.com/icearp/disco-cli/internal/redact"
@@ -340,6 +341,89 @@ func TestRedact_AppSyncAPIKey_Id(t *testing.T) {
 	}
 	if got["Description"] != "ci key" {
 		t.Errorf("Description must stay clear: %v", got["Description"])
+	}
+}
+
+// The Baidu channel's Credential is its Baidu Cloud Push API key and the GCM
+// channel's is its Google Web API key.
+func TestRedact_PinpointChannels_Credential(t *testing.T) {
+	for typ, v := range map[string]any{
+		TypePinpointBaiduChannel: pptypes.BaiduChannelResponse{Credential: ptrStr("baidu-api-key"), Platform: ptrStr("BAIDU")},
+		TypePinpointGCMChannel:   pptypes.GCMChannelResponse{Credential: ptrStr("gcm-api-key"), Platform: ptrStr("GCM")},
+	} {
+		got := applyAndDecode(t, typ, v)
+		if got["Credential"] != redact.Placeholder {
+			t.Errorf("%s Credential not redacted: %v", typ, got["Credential"])
+		}
+		if got["Platform"] == nil || got["Platform"] == redact.Placeholder {
+			t.Errorf("%s Platform must stay clear: %v", typ, got["Platform"])
+		}
+	}
+}
+
+// A campaign hook's WebUrl and a custom delivery URI that is a URL can carry a
+// token; a DeliveryUri naming a Lambda function by ARN is kept, as is the
+// hook's LambdaFunctionName.
+func TestRedact_PinpointCampaign_WebhookURLs(t *testing.T) {
+	const url = "https://hooks.example.com/deliver?token=abc123"
+	const fn = "arn:aws:lambda:us-east-1:123456789012:function:deliver"
+	c := pptypes.CampaignResponse{
+		Hook:                        &pptypes.CampaignHook{WebUrl: ptrStr(url), LambdaFunctionName: ptrStr(fn)},
+		CustomDeliveryConfiguration: &pptypes.CustomDeliveryConfiguration{DeliveryUri: ptrStr(url)},
+		AdditionalTreatments: []pptypes.TreatmentResource{
+			{CustomDeliveryConfiguration: &pptypes.CustomDeliveryConfiguration{DeliveryUri: ptrStr(url)}},
+			{CustomDeliveryConfiguration: &pptypes.CustomDeliveryConfiguration{DeliveryUri: ptrStr(fn)}},
+		},
+	}
+	got := applyAndDecode(t, TypePinpointCampaign, c)
+	hook := got["Hook"].(map[string]any)
+	if hook["WebUrl"] != redact.Placeholder {
+		t.Errorf("Hook.WebUrl not redacted: %v", hook["WebUrl"])
+	}
+	if hook["LambdaFunctionName"] != fn {
+		t.Errorf("Hook.LambdaFunctionName = %v, want %s kept", hook["LambdaFunctionName"], fn)
+	}
+	if uri := got["CustomDeliveryConfiguration"].(map[string]any)["DeliveryUri"]; !ppURIRedacted(uri) {
+		t.Errorf("CustomDeliveryConfiguration.DeliveryUri not redacted: %v", uri)
+	}
+	treatments := got["AdditionalTreatments"].([]any)
+	if uri := treatments[0].(map[string]any)["CustomDeliveryConfiguration"].(map[string]any)["DeliveryUri"]; !ppURIRedacted(uri) {
+		t.Errorf("AdditionalTreatments[0] DeliveryUri not redacted: %v", uri)
+	}
+	if uri := treatments[1].(map[string]any)["CustomDeliveryConfiguration"].(map[string]any)["DeliveryUri"]; uri != fn {
+		t.Errorf("AdditionalTreatments[1] DeliveryUri = %v, want the Lambda ARN %s kept", uri, fn)
+	}
+}
+
+// ppURIRedacted reports whether a RedactUnlessSafe value came back as one of
+// its reason-tagged placeholders.
+func ppURIRedacted(v any) bool {
+	return v == redact.PlaceholderRule || v == redact.PlaceholderValueShape || v == redact.PlaceholderKeyName
+}
+
+// A top-level DeliveryUri naming a Lambda function by ARN is kept.
+func TestRedact_PinpointCampaign_DeliveryURIKeepsLambdaARN(t *testing.T) {
+	const fn = "arn:aws:lambda:us-east-1:123456789012:function:deliver"
+	got := applyAndDecode(t, TypePinpointCampaign, pptypes.CampaignResponse{
+		CustomDeliveryConfiguration: &pptypes.CustomDeliveryConfiguration{DeliveryUri: ptrStr(fn)},
+	})
+	if uri := got["CustomDeliveryConfiguration"].(map[string]any)["DeliveryUri"]; uri != fn {
+		t.Errorf("DeliveryUri = %v, want the Lambda ARN %s kept", uri, fn)
+	}
+}
+
+// The application settings' campaign hook WebUrl can carry a token.
+func TestRedact_PinpointApplicationSettings_CampaignHookWebUrl(t *testing.T) {
+	const fn = "arn:aws:lambda:us-east-1:123456789012:function:hook"
+	got := applyAndDecode(t, TypePinpointApplicationSettings, pptypes.ApplicationSettingsResource{
+		CampaignHook: &pptypes.CampaignHook{WebUrl: ptrStr("https://hooks.example.com/x?sig=s3cr3t"), LambdaFunctionName: ptrStr(fn)},
+	})
+	hook := got["CampaignHook"].(map[string]any)
+	if hook["WebUrl"] != redact.Placeholder {
+		t.Errorf("CampaignHook.WebUrl not redacted: %v", hook["WebUrl"])
+	}
+	if hook["LambdaFunctionName"] != fn {
+		t.Errorf("CampaignHook.LambdaFunctionName = %v, want %s kept", hook["LambdaFunctionName"], fn)
 	}
 }
 
