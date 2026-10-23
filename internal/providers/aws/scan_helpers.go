@@ -954,10 +954,25 @@ func storeTokenEachParent[Item any](
 	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
 	row func(parent string, it Item) (r *store.Resource, why, key string),
 ) (int, int, error) {
+	return storeTokenEachParentSkip(ctx, st, acct, region, op, notFound, parents, page, row, nil)
+}
+
+// storeTokenEachParentSkip is storeTokenEachParent, except that skip (nil for
+// none) sees, in parent order, each parent's error that is not a not-found
+// code, before the denial check: when it reports true the error is dropped,
+// keeping the rows read before it, and skip's caller warns about it once the
+// write succeeded. For a service whose denial code isAccessDenied does not
+// match, or a code skipped with a warning of its own.
+func storeTokenEachParentSkip[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound, parents []string,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (r *store.Resource, why, key string),
+	skip func(parent string, err error) bool,
+) (int, int, error) {
 	reads, stopped := readEachKey(ctx, parents, func(ctx context.Context, p string) parentItems[Item] {
 		return readParentPages(ctx, p, page)
 	})
-	out := parentOutcomes{op: op, notFound: notFound}
+	out := parentOutcomes{op: op, notFound: notFound, skip: skip}
 	for i, read := range reads {
 		addParentRows(&out, parents[i], read, row)
 	}
@@ -984,6 +999,7 @@ func readParentPages[Item any](ctx context.Context, parent string, page func(ctx
 type parentOutcomes struct {
 	op               string
 	notFound         []string
+	skip             func(parent string, err error) bool
 	rows             []*store.Resource
 	errs             []error
 	denied, vanished skipTally
@@ -999,6 +1015,7 @@ func addParentRows[Item any](o *parentOutcomes, parent string, read parentItems[
 	case isAPIErrorCode(err, o.notFound...) && len(read.items) == 0:
 	case isAPIErrorCode(err, o.notFound...):
 		o.vanished.skipped(parent, err)
+	case o.skip != nil && o.skip(parent, err):
 	case isAccessDenied(err):
 		o.denied.skipped(parent, err)
 	default:
@@ -1067,4 +1084,36 @@ func (p *phaseTotals) addPhase(op string, total, inserted int, err error) (store
 // phaseErrs.join.
 func (p *phaseTotals) result(st *store.Store, acct *account, region string) (int, int, error) {
 	return p.total, p.inserted, p.errs.join(st, acct, region)
+}
+
+// storeParentList stores an account-wide listing through storeTokenList whose
+// rows are parents of a later phase, and returns the stored rows that carry
+// the id the child op keys on (read by key); the others are warned about, as
+// stored without their children. A failed write returns no parents.
+func storeParentList[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op, what, idField string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (*store.Resource, string, string),
+	key func(Item) string,
+) (int, int, []childParent, error) {
+	var (
+		parents []childParent
+		noID    skipTally
+	)
+	total, inserted, err := storeTokenList(ctx, st, acct, region, op, page, func(it Item) (*store.Resource, string, string) {
+		r, why, k := row(it)
+		switch {
+		case r == nil:
+		case key(it) == "":
+			noID.skipped(r.NativeID, nil)
+		default:
+			parents = append(parents, childParent{id: key(it), arn: r.NativeID})
+		}
+		return r, why, k
+	})
+	if errors.Is(err, store.ErrStoreWrite) {
+		return total, inserted, nil, err
+	}
+	warnNoChildID(st, op, acct, region, &noID, what, idField)
+	return total, inserted, parents, err
 }

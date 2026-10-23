@@ -152,41 +152,10 @@ func drsRow(acct *account, region, scanID, rtype, what string, arn, id *string, 
 	}, "", ""
 }
 
-// storeDRSParents stores a listing whose rows are parents of a later phase,
-// and returns the stored rows that carry the id the child op keys on (read
-// by key); the others are warned about, as stored without their children.
-func storeDRSParents[Item any](
-	ctx context.Context, st *store.Store, acct *account, region, op, what, idField string,
-	page func(ctx context.Context, token *string) ([]Item, *string, error),
-	row func(Item) (*store.Resource, string, string),
-	key func(Item) string,
-) (int, int, []childParent, error) {
-	var (
-		parents []childParent
-		noID    skipTally
-	)
-	total, inserted, err := storeTokenList(ctx, st, acct, region, op, page, func(it Item) (*store.Resource, string, string) {
-		r, why, k := row(it)
-		switch {
-		case r == nil:
-		case key(it) == "":
-			noID.skipped(r.NativeID, nil)
-		default:
-			parents = append(parents, childParent{id: key(it), arn: r.NativeID})
-		}
-		return r, why, k
-	})
-	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, nil, err
-	}
-	warnNoChildID(st, op, acct, region, &noID, what, idField)
-	return total, inserted, parents, err
-}
-
 // scanDRSSourceServers also returns the stored servers for the launch-action
 // and replication-configuration phases.
 func scanDRSSourceServers(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
-	return storeDRSParents(ctx, st, acct, region, drsSourceServersOp, "source servers", "SourceServerID",
+	return storeParentList(ctx, st, acct, region, drsSourceServersOp, "source servers", "SourceServerID",
 		func(ctx context.Context, token *string) ([]drstypes.SourceServer, *string, error) {
 			out, err := client.DescribeSourceServers(ctx, &drs.DescribeSourceServersInput{NextToken: token})
 			if err != nil {
@@ -253,7 +222,7 @@ func scanDRSReplicationTemplates(ctx context.Context, client drsAPI, acct *accou
 // scanDRSLaunchTemplates also returns the stored templates for the
 // launch-action phase.
 func scanDRSLaunchTemplates(ctx context.Context, client drsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
-	return storeDRSParents(ctx, st, acct, region, drsLaunchTemplatesOp, "launch configuration templates", "LaunchConfigurationTemplateID",
+	return storeParentList(ctx, st, acct, region, drsLaunchTemplatesOp, "launch configuration templates", "LaunchConfigurationTemplateID",
 		func(ctx context.Context, token *string) ([]drstypes.LaunchConfigurationTemplate, *string, error) {
 			out, err := client.DescribeLaunchConfigurationTemplates(ctx, &drs.DescribeLaunchConfigurationTemplatesInput{
 				NextToken: token, MaxResults: sdkaws.Int32(drsPageMax),

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	amplifytypes "github.com/aws/aws-sdk-go-v2/service/amplify/types"
+	appsynctypes "github.com/aws/aws-sdk-go-v2/service/appsync/types"
 	cloudhsmv2types "github.com/aws/aws-sdk-go-v2/service/cloudhsmv2/types"
 	codebuildtypes "github.com/aws/aws-sdk-go-v2/service/codebuild/types"
 	cognitoidptypes "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider/types"
@@ -327,6 +328,18 @@ func TestRedact_AmplifyWebhook_WebhookUrl(t *testing.T) {
 	}
 	if got["BranchName"] != "main" {
 		t.Errorf("BranchName must stay clear: %v", got["BranchName"])
+	}
+}
+
+// An AppSync API key's Id is the key itself.
+func TestRedact_AppSyncAPIKey_Id(t *testing.T) {
+	k := appsynctypes.ApiKey{Id: ptrStr("da2-secretkeyvalue"), Description: ptrStr("ci key"), Expires: 1700000000}
+	got := applyAndDecode(t, TypeAppSyncAPIKey, k)
+	if got["Id"] != redact.Placeholder {
+		t.Errorf("Id not redacted: %v", got["Id"])
+	}
+	if got["Description"] != "ci key" {
+		t.Errorf("Description must stay clear: %v", got["Description"])
 	}
 }
 
