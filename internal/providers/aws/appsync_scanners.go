@@ -165,34 +165,15 @@ func isAppSyncUnauthorized(err error) bool {
 	return isAPIErrorCode(err, "UnauthorizedException")
 }
 
-// storeAppSyncParents is storeParentList with AppSync's denial code: an
-// UnauthorizedException ends the listing, keeping the pages read before it,
-// and is warned about once the write succeeded, as storeParentList warns
-// about the codes isAccessDenied matches. A denial after the first page says
-// that the later pages, and their children, were not read.
+// storeAppSyncParents is storeParentListDeniedBy with AppSync's denial code,
+// UnauthorizedException.
 func storeAppSyncParents[Item any](
 	ctx context.Context, st *store.Store, acct *account, region, op, what, idField string,
 	page func(ctx context.Context, token *string) ([]Item, *string, error),
 	row func(Item) (*store.Resource, string, string),
 	key func(Item) string,
 ) (int, int, []childParent, error) {
-	var denied error
-	total, inserted, parents, err := storeParentList(ctx, st, acct, region, op, what, idField,
-		func(ctx context.Context, token *string) ([]Item, *string, error) {
-			items, next, err := page(ctx, token)
-			if !isAppSyncUnauthorized(err) {
-				return items, next, err
-			}
-			denied = err
-			if token != nil {
-				denied = fmt.Errorf("the listing stopped at a denied page after the first; %s on later pages and their children were not read: %w", what, err)
-			}
-			return nil, nil, nil
-		}, row, key)
-	if denied != nil && !errors.Is(err, store.ErrStoreWrite) {
-		_ = skipIfAccessDenied(st, op, acct.ID, region, denied)
-	}
-	return total, inserted, parents, err
+	return storeParentListDeniedBy(ctx, st, acct, region, op, what, idField, isAppSyncUnauthorized, page, row, key)
 }
 
 // scanASCGraphqlApis also returns the stored GraphQL APIs for the child phases.

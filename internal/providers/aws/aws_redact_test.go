@@ -3,6 +3,7 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"testing"
 
 	amplifytypes "github.com/aws/aws-sdk-go-v2/service/amplify/types"
@@ -329,6 +330,103 @@ func TestRedact_AmplifyWebhook_WebhookUrl(t *testing.T) {
 	}
 	if got["BranchName"] != "main" {
 		t.Errorf("BranchName must stay clear: %v", got["BranchName"])
+	}
+}
+
+// amplifyEnv holds a secret under a secret-looking key, a plain setting, a
+// boolean and an ARN reference.
+func amplifyEnv() map[string]string {
+	return map[string]string{
+		"DB_PASSWORD": "hunter2",
+		"STAGE":       "prod",
+		"FEATURE_X":   "true",
+		"TABLE_ARN":   "arn:aws:dynamodb:us-east-1:111122223333:table/t",
+	}
+}
+
+// assertAmplifyEnvRedacted checks env, a decoded EnvironmentVariables map:
+// the secret and the plain setting are replaced, the boolean and the ARN kept.
+func assertAmplifyEnvRedacted(t *testing.T, where string, env any) {
+	t.Helper()
+	got, ok := env.(map[string]any)
+	if !ok {
+		t.Fatalf("%s EnvironmentVariables = %v, want an object", where, env)
+	}
+	want := map[string]any{
+		"DB_PASSWORD": redact.PlaceholderKeyName,
+		"STAGE":       redact.PlaceholderRule,
+		"FEATURE_X":   "true",
+		"TABLE_ARN":   "arn:aws:dynamodb:us-east-1:111122223333:table/t",
+	}
+	if !maps.Equal(got, want) {
+		t.Errorf("%s EnvironmentVariables = %v, want %v", where, got, want)
+	}
+}
+
+// An Amplify app's basic-auth credentials (base64 user:password), its own and
+// those it gives auto-created branches, are redacted, and so are its
+// environment variables' values except references and booleans.
+func TestRedact_AmplifyApp_Credentials(t *testing.T) {
+	app := amplifytypes.App{
+		AppId:                ptrStr("d1"),
+		Name:                 ptrStr("site"),
+		BasicAuthCredentials: ptrStr("dXNlcjpwYXNz"),
+		EnvironmentVariables: amplifyEnv(),
+		AutoBranchCreationConfig: &amplifytypes.AutoBranchCreationConfig{
+			BasicAuthCredentials: ptrStr("dXNlcjpwYXNz"),
+			EnvironmentVariables: amplifyEnv(),
+			Framework:            ptrStr("React"),
+		},
+	}
+	got := applyAndDecode(t, TypeAmplifyApp, app)
+	if got["BasicAuthCredentials"] != redact.Placeholder {
+		t.Errorf("BasicAuthCredentials = %v, want redacted", got["BasicAuthCredentials"])
+	}
+	assertAmplifyEnvRedacted(t, "app", got["EnvironmentVariables"])
+	auto := got["AutoBranchCreationConfig"].(map[string]any)
+	if auto["BasicAuthCredentials"] != redact.Placeholder {
+		t.Errorf("AutoBranchCreationConfig.BasicAuthCredentials = %v, want redacted", auto["BasicAuthCredentials"])
+	}
+	assertAmplifyEnvRedacted(t, "AutoBranchCreationConfig", auto["EnvironmentVariables"])
+	if got["Name"] != "site" || auto["Framework"] != "React" {
+		t.Errorf("Name, Framework = %v, %v; want site, React kept", got["Name"], auto["Framework"])
+	}
+}
+
+// An Amplify branch's basic-auth credentials are redacted, and so are its
+// environment variables' values except references and booleans.
+func TestRedact_AmplifyBranch_Credentials(t *testing.T) {
+	b := amplifytypes.Branch{
+		BranchName:           ptrStr("main"),
+		BasicAuthCredentials: ptrStr("dXNlcjpwYXNz"),
+		EnvironmentVariables: amplifyEnv(),
+	}
+	got := applyAndDecode(t, TypeAmplifyBranch, b)
+	if got["BasicAuthCredentials"] != redact.Placeholder {
+		t.Errorf("BasicAuthCredentials = %v, want redacted", got["BasicAuthCredentials"])
+	}
+	assertAmplifyEnvRedacted(t, "branch", got["EnvironmentVariables"])
+	if got["BranchName"] != "main" {
+		t.Errorf("BranchName = %v, want main kept", got["BranchName"])
+	}
+}
+
+// A branch's thumbnail URL, and the app's production-branch copy of it, are
+// redacted: a presigned URL is a bearer link that changes on every read. The
+// production branch's other fields are kept.
+func TestRedact_Amplify_ThumbnailUrl(t *testing.T) {
+	const thumb = "https://bucket.s3.amazonaws.com/thumb.png?X-Amz-Signature=abc"
+	b := applyAndDecode(t, TypeAmplifyBranch, amplifytypes.Branch{BranchName: ptrStr("main"), ThumbnailUrl: ptrStr(thumb)})
+	if b["ThumbnailUrl"] != redact.Placeholder {
+		t.Errorf("branch ThumbnailUrl = %v, want redacted", b["ThumbnailUrl"])
+	}
+	app := applyAndDecode(t, TypeAmplifyApp, amplifytypes.App{
+		Name:             ptrStr("site"),
+		ProductionBranch: &amplifytypes.ProductionBranch{BranchName: ptrStr("main"), ThumbnailUrl: ptrStr(thumb)},
+	})
+	pb := app["ProductionBranch"].(map[string]any)
+	if pb["ThumbnailUrl"] != redact.Placeholder || pb["BranchName"] != "main" {
+		t.Errorf("ProductionBranch = %v, want ThumbnailUrl redacted and BranchName main kept", pb)
 	}
 }
 
