@@ -729,3 +729,257 @@ func TestScanIAMAccessKeys_KeyWithoutIDNotStored(t *testing.T) {
 		t.Errorf("warnings = %+v; want one iam:ListAccessKeys warning naming alice", *warned)
 	}
 }
+
+// iamProviderCase is one identity-provider phase: its ops, type, ARN shape,
+// and how to build its list and Get responses and run it.
+type iamProviderCase struct {
+	listOp, getOp, typ, arnPrefix string
+	list                          func(arns []*string) any
+	getARN                        func(in any) string
+	// detail is the Get body for name: "tagged" carries tags and a create
+	// date, any other name neither.
+	detail func(name string) any
+	run    func(ctx context.Context, client iamAPI, st *store.Store) (int, int, error)
+}
+
+var iamProviderCases = []iamProviderCase{
+	{
+		listOp: "ListOpenIDConnectProviders", getOp: "GetOpenIDConnectProvider", typ: TypeIAMOIDCProvider,
+		arnPrefix: "arn:aws:iam::" + testAccountID + ":oidc-provider/",
+		list: func(arns []*string) any {
+			out := &iam.ListOpenIDConnectProvidersOutput{}
+			for _, a := range arns {
+				out.OpenIDConnectProviderList = append(out.OpenIDConnectProviderList, iamtypes.OpenIDConnectProviderListEntry{Arn: a})
+			}
+			return out
+		},
+		getARN: func(in any) string { return sv(in.(*iam.GetOpenIDConnectProviderInput).OpenIDConnectProviderArn) },
+		detail: func(name string) any {
+			out := &iam.GetOpenIDConnectProviderOutput{Url: ptrStr(name), ClientIDList: []string{"sts.amazonaws.com"}}
+			if name == "tagged" {
+				out.CreateDate = &iamTestDay
+				out.Tags = []iamtypes.Tag{{Key: ptrStr("team"), Value: ptrStr("ci")}, {Key: ptrStr("env"), Value: ptrStr("prod")}}
+			}
+			return out
+		},
+		run: func(ctx context.Context, client iamAPI, st *store.Store) (int, int, error) {
+			return scanIAMOIDCProviders(ctx, client, newTestAccount(testAccountID), st, testScanID)
+		},
+	},
+	{
+		listOp: "ListSAMLProviders", getOp: "GetSAMLProvider", typ: TypeIAMSAMLProvider,
+		arnPrefix: "arn:aws:iam::" + testAccountID + ":saml-provider/",
+		list: func(arns []*string) any {
+			out := &iam.ListSAMLProvidersOutput{}
+			for _, a := range arns {
+				out.SAMLProviderList = append(out.SAMLProviderList, iamtypes.SAMLProviderListEntry{Arn: a})
+			}
+			return out
+		},
+		getARN: func(in any) string { return sv(in.(*iam.GetSAMLProviderInput).SAMLProviderArn) },
+		detail: func(name string) any {
+			out := &iam.GetSAMLProviderOutput{
+				SAMLMetadataDocument: ptrStr("<EntityDescriptor entityID=\"" + name + "\"/>"),
+				PrivateKeyList:       []iamtypes.SAMLPrivateKey{{KeyId: ptrStr("key-" + name)}},
+			}
+			if name == "tagged" {
+				out.CreateDate = &iamTestDay
+				out.Tags = []iamtypes.Tag{{Key: ptrStr("team"), Value: ptrStr("ci")}, {Key: ptrStr("env"), Value: ptrStr("prod")}}
+			}
+			return out
+		},
+		run: func(ctx context.Context, client iamAPI, st *store.Store) (int, int, error) {
+			return scanIAMSAMLProviders(ctx, client, newTestAccount(testAccountID), st, testScanID)
+		},
+	},
+}
+
+// client lists names as provider ARNs ("" lists an entry with no ARN) and
+// serves each provider's Get body, or the error fail holds for it. Inputs it
+// did not list are refused, so a read of an unlisted ARN fails the scan.
+func (c iamProviderCase) client(names []string, fail map[string]error) *iam.Client {
+	var arns []*string
+	for _, n := range names {
+		if n == "" {
+			arns = append(arns, nil)
+			continue
+		}
+		arns = append(arns, ptrStr(c.arnPrefix+n))
+	}
+	return iam.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
+		c.listOp: func(any) (any, error) { return c.list(arns), nil },
+		c.getOp: func(in any) (any, error) {
+			arn := c.getARN(in)
+			name, ok := strings.CutPrefix(arn, c.arnPrefix)
+			if !ok || !slices.Contains(names, name) {
+				return nil, &smithy.GenericAPIError{Code: "InvalidInput", Message: "unlisted ARN " + arn}
+			}
+			if err := fail[name]; err != nil {
+				return nil, err
+			}
+			return c.detail(name), nil
+		},
+	}, iamDenied))
+}
+
+func (c iamProviderCase) scan(st *store.Store, names []string, fail map[string]error) (int, int, error) {
+	return c.run(context.Background(), c.client(names, fail), st)
+}
+
+// Each provider is stored from its Get body, tags included; a list entry with
+// no ARN is not stored and warns once.
+func TestScanIAMProviders_StoresGetBody(t *testing.T) {
+	for _, c := range iamProviderCases {
+		t.Run(c.typ, func(t *testing.T) {
+			st := newTestStore(t)
+			listWarns := countOpWarnings(st, "iam:"+c.listOp)
+			getWarns := countOpWarnings(st, "iam:"+c.getOp)
+			total, inserted, err := c.scan(st, []string{"tagged", "", "plain"}, nil)
+			if err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			rows := rowsByNativeID(t, st, c.typ)
+			if total != 2 || inserted != 2 || len(rows) != 2 {
+				t.Fatalf("total/inserted = %d/%d, rows = %v; want 2/2 and the two providers with an ARN", total, inserted, nativeIDs(rows))
+			}
+			if *listWarns != 1 || *getWarns != 0 {
+				t.Errorf("list/get warnings = %d/%d; want 1/0 (the entry with no ARN)", *listWarns, *getWarns)
+			}
+			for _, name := range []string{"tagged", "plain"} {
+				r, ok := rows[c.arnPrefix+name]
+				if !ok {
+					t.Fatalf("no row for %s", c.arnPrefix+name)
+				}
+				if sv(r.Name) != name || sv(r.Region) != "global" {
+					t.Errorf("%s name/region = %q/%q; want %q/global", name, sv(r.Name), sv(r.Region), name)
+				}
+				assertJSONEqual(t, name+" attributes", r.AttributesJSON, mustJSON(c.detail(name)))
+			}
+			tagged := rows[c.arnPrefix+"tagged"]
+			assertTagsMap(t, tagged.TagsJSON, map[string]string{"team": "ci", "env": "prod"})
+			if sv(tagged.CreatedAt) != iamTestDay.Format(time.RFC3339) {
+				t.Errorf("created = %q; want %s", sv(tagged.CreatedAt), iamTestDay.Format(time.RFC3339))
+			}
+			if r := rows[c.arnPrefix+"plain"]; r.TagsJSON != nil {
+				t.Errorf("untagged provider tags = %s; want nil", *r.TagsJSON)
+			}
+		})
+	}
+}
+
+// One provider's failed read costs no other provider its row. A provider gone
+// since it was listed is skipped silently; denied ones are not stored and warn
+// once; any other error is returned after the rest are stored.
+func TestScanIAMProviders_PerProviderOutcomes(t *testing.T) {
+	for _, c := range iamProviderCases {
+		t.Run(c.typ, func(t *testing.T) {
+			st := newTestStore(t)
+			warned := recordWarnings(st)
+			total, _, err := c.scan(st, []string{"ok", "gone", "denied-1", "denied-2", "failed"}, map[string]error{
+				"gone": iamGone, "denied-1": iamDenied, "denied-2": iamDenied, "failed": iamFailure,
+			})
+			assertAPICode(t, err, "ServiceFailure")
+			if isAPIErrorCode(err, "NoSuchEntity") || isAccessDenied(err) {
+				t.Errorf("err = %v; want neither the vanished nor the denied provider returned", err)
+			}
+			rows := rowsByNativeID(t, st, c.typ)
+			if got := nativeIDs(rows); total != 1 || !slices.Equal(got, []string{c.arnPrefix + "ok"}) {
+				t.Errorf("total = %d, rows = %v; want only %s", total, got, c.arnPrefix+"ok")
+			}
+			assertOneDenialWarning(t, *warned, "iam:"+c.getOp, c.arnPrefix+"denied-1")
+		})
+	}
+}
+
+// assertOneDenialWarning asserts warned holds exactly one warning, for op,
+// scoped to the test account (a global scan's scope carries no region), naming
+// the first denied key. ScanWarning has no key field, so the key is matched
+// inside the message.
+func assertOneDenialWarning(t *testing.T, warned []store.ScanWarning, op, firstKey string) {
+	t.Helper()
+	if len(warned) != 1 {
+		t.Fatalf("warnings = %+v; want one %s warning", warned, op)
+	}
+	w := warned[0]
+	if w.Service != op || w.Scope != testAccountID || !strings.Contains(w.Message, firstKey) {
+		t.Errorf("warning service/scope = %q/%q, message %q; want %q/%q naming %s", w.Service, w.Scope, w.Message, op, testAccountID, firstKey)
+	}
+}
+
+// A throttled read is returned, not warned about: the provider has no row to
+// keep, so the scan must be marked partial.
+func TestScanIAMProviders_TransientReadReturned(t *testing.T) {
+	throttled := &smithy.GenericAPIError{Code: "Throttling", Message: "Rate exceeded"}
+	for _, c := range iamProviderCases {
+		t.Run(c.typ, func(t *testing.T) {
+			st := newTestStore(t)
+			total, _, err := c.scan(st, []string{"ok", "slow"}, map[string]error{"slow": throttled})
+			if got := classifyServiceError(err); got != outcomeTransient {
+				t.Errorf("classifyServiceError(%v) = %v; want outcomeTransient", err, got)
+			}
+			if total != 1 || len(rowsByNativeID(t, st, c.typ)) != 1 {
+				t.Errorf("total = %d; want the readable provider stored", total)
+			}
+		})
+	}
+}
+
+// A scan cancelled after the listing reads no provider and says so, rather
+// than passing as a complete, empty one.
+func TestScanIAMProviders_CancelledAfterListFails(t *testing.T) {
+	for _, c := range iamProviderCases {
+		t.Run(c.typ, func(t *testing.T) {
+			st := newTestStore(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			client := iam.NewFromConfig(opStubConfigCtx(map[string]func(context.Context, any) (any, error){
+				c.listOp: func(context.Context, any) (any, error) {
+					cancel()
+					return c.list([]*string{ptrStr(c.arnPrefix + "a")}), nil
+				},
+				c.getOp: func(context.Context, any) (any, error) { return c.detail("a"), nil },
+			}, iamDenied))
+			total, _, err := c.run(ctx, client, st)
+			if !errors.Is(err, context.Canceled) || total != 0 {
+				t.Errorf("total = %d, err = %v; want 0, context.Canceled", total, err)
+			}
+		})
+	}
+}
+
+func TestScanIAMProviders_ListErrors(t *testing.T) {
+	for _, c := range iamProviderCases {
+		scan := func(t *testing.T, st *store.Store, listErr error) (int, error) {
+			t.Helper()
+			client := iam.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
+				c.listOp: func(any) (any, error) { return nil, listErr },
+			}, iamDenied))
+			total, _, err := c.run(context.Background(), client, st)
+			return total, err
+		}
+		t.Run(c.typ+"/denied warns", func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "iam:"+c.listOp)
+			total, err := scan(t, st, iamDenied)
+			if err != nil || total != 0 || *warns != 1 {
+				t.Errorf("total = %d, warnings = %d, err = %v; want 0, 1, nil", total, *warns, err)
+			}
+		})
+		t.Run(c.typ+"/other error fails", func(t *testing.T) {
+			_, err := scan(t, newTestStore(t), iamFailure)
+			assertAPICode(t, err, "ServiceFailure")
+		})
+	}
+}
+
+func TestScanIAMProviders_Empty(t *testing.T) {
+	for _, c := range iamProviderCases {
+		t.Run(c.typ, func(t *testing.T) {
+			st := newTestStore(t)
+			total, _, err := c.scan(st, nil, nil)
+			if err != nil || total != 0 || len(rowsByNativeID(t, st, c.typ)) != 0 {
+				t.Errorf("total = %d, err = %v; want 0 rows, nil", total, err)
+			}
+		})
+	}
+}

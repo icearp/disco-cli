@@ -16,8 +16,6 @@ import (
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -138,11 +136,11 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 	})
 	wg.Go(func() {
 		tt, nn, e := scanIAMOIDCProviders(ctx, client, acct, st, scanID)
-		collect("iam:ListOpenIDConnectProviders", tt, nn, e)
+		collect(iamListOIDCProvidersOp, tt, nn, e)
 	})
 	wg.Go(func() {
 		tt, nn, e := scanIAMSAMLProviders(ctx, client, acct, st, scanID)
-		collect("iam:ListSAMLProviders", tt, nn, e)
+		collect(iamListSAMLProvidersOp, tt, nn, e)
 	})
 	wg.Go(func() {
 		tt, nn, e := scanIAMServerCertificates(ctx, client, acct, st, scanID)
@@ -561,124 +559,141 @@ func scanIAMInstanceProfiles(ctx context.Context, client iamAPI, acct *account, 
 	return
 }
 
-// scanIAMOIDCProviders fetches OIDC provider ARNs then describes each concurrently.
-func scanIAMOIDCProviders(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	out, err := client.ListOpenIDConnectProviders(ctx, &iam.ListOpenIDConnectProvidersInput{})
-	if err != nil {
-		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "iam:ListOpenIDConnectProviders", acct.ID, "global", err)
+const (
+	iamListOIDCProvidersOp = "iam:ListOpenIDConnectProviders"
+	iamGetOIDCProviderOp   = "iam:GetOpenIDConnectProvider"
+	iamListSAMLProvidersOp = "iam:ListSAMLProviders"
+	iamGetSAMLProviderOp   = "iam:GetSAMLProvider"
+)
+
+// scanIAMOIDCProviders stores each listed OIDC provider from its
+// GetOpenIDConnectProvider body, the only source of its tags, as
+// storeIAMProviders says.
+func scanIAMOIDCProviders(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+	out, listErr := client.ListOpenIDConnectProviders(ctx, &iam.ListOpenIDConnectProvidersInput{})
+	var arns []*string
+	if listErr == nil {
+		for _, ref := range out.OpenIDConnectProviderList {
+			arns = append(arns, ref.Arn)
 		}
-		return 0, 0, fmt.Errorf("iam:ListOpenIDConnectProviders: %w", err)
 	}
-	sem := semaphore.NewWeighted(fanoutHigh)
-	var mu sync.Mutex
-	var batch []*store.Resource
-	g, gctx := errgroup.WithContext(ctx)
-	for _, ref := range out.OpenIDConnectProviderList {
-		arn := sv(ref.Arn)
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
-			}
-			defer sem.Release(1)
-			detail, err := client.GetOpenIDConnectProvider(gctx, &iam.GetOpenIDConnectProviderInput{OpenIDConnectProviderArn: &arn})
+	return storeIAMProviders(ctx, st, acct, iamListOIDCProvidersOp, iamGetOIDCProviderOp, "OIDC", arns, listErr,
+		func(ctx context.Context, arn string) (*store.Resource, error) {
+			detail, err := client.GetOpenIDConnectProvider(ctx, &iam.GetOpenIDConnectProviderInput{OpenIDConnectProviderArn: &arn})
 			if err != nil {
-				if isAccessDenied(err) {
-					return nil
-				}
-				return fmt.Errorf("iam:GetOpenIDConnectProvider %s: %w", arn, err)
+				return nil, err
 			}
-			// Derive a short name from the last segment of the ARN.
-			name := arn[strings.LastIndex(arn, "/")+1:]
-			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Region:         regionGlobal,
-				Type:           TypeIAMOIDCProvider,
-				NativeID:       arn,
-				Name:           &name,
-				CreatedAt:      tp(detail.CreateDate),
-				AttributesJSON: mustJSON(detail),
-				DiscoveredBy:   scanID,
-			}
-			mu.Lock()
-			batch = append(batch, r)
-			mu.Unlock()
-			return nil
+			return iamProviderRow(acct, scanID, TypeIAMOIDCProvider, arn, detail.CreateDate, awsTagsJSON(detail.Tags), detail), nil
 		})
-	}
-	if err := g.Wait(); err != nil {
-		return 0, 0, err
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, err := st.UpsertResources(batch)
-	if err != nil {
-		return 0, 0, fmt.Errorf("upsert IAM OIDC providers: %w", err)
-	}
-	return len(batch), n, nil
 }
 
-// scanIAMSAMLProviders fetches SAML provider ARNs then describes each concurrently.
-func scanIAMSAMLProviders(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	out, err := client.ListSAMLProviders(ctx, &iam.ListSAMLProvidersInput{})
-	if err != nil {
-		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "iam:ListSAMLProviders", acct.ID, "global", err)
+// scanIAMSAMLProviders stores each listed SAML provider from its
+// GetSAMLProvider body, as storeIAMProviders says. The body's PrivateKeyList
+// holds key ids and upload times only, no key material.
+func scanIAMSAMLProviders(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+	out, listErr := client.ListSAMLProviders(ctx, &iam.ListSAMLProvidersInput{})
+	var arns []*string
+	if listErr == nil {
+		for _, ref := range out.SAMLProviderList {
+			arns = append(arns, ref.Arn)
 		}
-		return 0, 0, fmt.Errorf("iam:ListSAMLProviders: %w", err)
 	}
-	sem := semaphore.NewWeighted(fanoutHigh)
-	var mu sync.Mutex
-	var batch []*store.Resource
-	g, gctx := errgroup.WithContext(ctx)
-	for _, ref := range out.SAMLProviderList {
-		arn := sv(ref.Arn)
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
-			}
-			defer sem.Release(1)
-			detail, err := client.GetSAMLProvider(gctx, &iam.GetSAMLProviderInput{SAMLProviderArn: &arn})
+	return storeIAMProviders(ctx, st, acct, iamListSAMLProvidersOp, iamGetSAMLProviderOp, "SAML", arns, listErr,
+		func(ctx context.Context, arn string) (*store.Resource, error) {
+			detail, err := client.GetSAMLProvider(ctx, &iam.GetSAMLProviderInput{SAMLProviderArn: &arn})
 			if err != nil {
-				if isAccessDenied(err) {
-					return nil
-				}
-				return fmt.Errorf("iam:GetSAMLProvider %s: %w", arn, err)
+				return nil, err
 			}
-			name := arn[strings.LastIndex(arn, "/")+1:]
-			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Region:         regionGlobal,
-				Type:           TypeIAMSAMLProvider,
-				NativeID:       arn,
-				Name:           &name,
-				CreatedAt:      tp(detail.CreateDate),
-				TagsJSON:       awsTagsJSON(detail.Tags),
-				AttributesJSON: mustJSON(detail),
-				DiscoveredBy:   scanID,
-			}
-			mu.Lock()
-			batch = append(batch, r)
-			mu.Unlock()
-			return nil
+			return iamProviderRow(acct, scanID, TypeIAMSAMLProvider, arn, detail.CreateDate, awsTagsJSON(detail.Tags), detail), nil
 		})
+}
+
+// storeIAMProviders reads each identity provider an ARN-only listing (listOp,
+// which ended with listErr) returned, through get (getOp), and stores the rows
+// get builds from the read bodies.
+//
+// One provider's failure costs no other provider its row. The list entry holds
+// nothing but the ARN, so a provider whose read fails has no row to fall back
+// on and is not stored: a provider deleted since it was listed (NoSuchEntity,
+// in both Get ops' models) silently, a denied one with one warning for all of
+// them, and any other failure, transient included, is returned after the rest
+// are stored, so the scan is marked partial. A list entry with no ARN warns.
+// kind names the providers ("OIDC") in the warnings.
+func storeIAMProviders(
+	ctx context.Context, st *store.Store, acct *account, listOp, getOp, kind string,
+	listed []*string, listErr error,
+	get func(ctx context.Context, arn string) (*store.Resource, error),
+) (int, int, error) {
+	var (
+		arns          []string
+		noARN, denied skipTally
+		rows          []*store.Resource
+		errs          []error
+	)
+	for i, arn := range listed {
+		if sv(arn) == "" {
+			noARN.skipped(fmt.Sprintf("list entry %d", i), nil)
+			continue
+		}
+		arns = append(arns, *arn)
 	}
-	if err := g.Wait(); err != nil {
-		return 0, 0, err
+	reads, stopped := readEachKey(ctx, arns, func(ctx context.Context, arn string) iamProviderRead {
+		row, err := get(ctx, arn)
+		switch {
+		case err == nil:
+			return iamProviderRead{row: row}
+		case isAPIErrorCode(err, "NoSuchEntity"):
+			return iamProviderRead{}
+		case isAccessDenied(err):
+			return iamProviderRead{denied: err}
+		default:
+			return iamProviderRead{err: fmt.Errorf("%s %s: %w", getOp, arn, err)}
+		}
+	})
+	if stopped != nil {
+		errs = append(errs, fmt.Errorf("%s: %s providers: %w", getOp, kind, stopped))
 	}
-	if len(batch) == 0 {
-		return 0, 0, nil
+	for i, r := range reads {
+		switch {
+		case r.row != nil:
+			rows = append(rows, r.row)
+		case r.denied != nil:
+			denied.skipped(arns[i], r.denied)
+		case r.err != nil:
+			errs = append(errs, r.err)
+		}
 	}
-	n, err := st.UpsertResources(batch)
-	if err != nil {
-		return 0, 0, fmt.Errorf("upsert IAM SAML providers: %w", err)
+	return storeReadRows(st, acct, "global", listOp, rows, listErr, func() {
+		warnNotStored(st, listOp, acct, "global", &noARN, kind+" providers have an empty Arn")
+		denied.warnDeniedIn(st, getOp, acct, "global", kind+" provider(s) not stored: their Get was")
+	}, errs...)
+}
+
+// iamProviderRead is one listed provider's read: its row, or the denial or
+// other error that left it without one. All three are empty for a provider
+// deleted since it was listed.
+type iamProviderRead struct {
+	row         *store.Resource
+	denied, err error
+}
+
+// iamProviderRow builds an identity provider's row from its Get body, named
+// after the ARN's last path segment.
+func iamProviderRow(acct *account, scanID, typ, arn string, created *time.Time, tags *string, body any) *store.Resource {
+	name := arn[strings.LastIndex(arn, "/")+1:]
+	return &store.Resource{
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		AccountName:    &acct.Name,
+		Region:         regionGlobal,
+		Type:           typ,
+		NativeID:       arn,
+		Name:           &name,
+		CreatedAt:      tp(created),
+		TagsJSON:       tags,
+		AttributesJSON: mustJSON(body),
+		DiscoveredBy:   scanID,
 	}
-	return len(batch), n, nil
 }
 
 func scanIAMServerCertificates(ctx context.Context, client iamAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
