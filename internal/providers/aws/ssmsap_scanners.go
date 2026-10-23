@@ -2,9 +2,11 @@ package aws
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ssmsap"
+	ssmsaptypes "github.com/aws/aws-sdk-go-v2/service/ssmsap/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -25,125 +27,145 @@ type ssmSAPAPI interface {
 	ListDatabases(context.Context, *ssmsap.ListDatabasesInput, ...func(*ssmsap.Options)) (*ssmsap.ListDatabasesOutput, error)
 }
 
+const (
+	ssmSAPApplicationsOp = "ssm-sap:ListApplications"
+	ssmSAPComponentsOp   = "ssm-sap:ListComponents"
+	ssmSAPDatabasesOp    = "ssm-sap:ListDatabases"
+)
+
+// ssmSAPPageMax is the MaxResults cap the Smithy model sets on every list op
+// this file calls.
+const ssmSAPPageMax = 50
+
+// ssmSAPNotFound is the code ListComponents and ListDatabases model for an
+// application deleted since it was listed.
+var ssmSAPNotFound = []string{"ResourceNotFoundException"}
+
 // scanSSMSAP discovers Systems Manager for SAP applications and, per
-// application, the registered components and SAP HANA databases.
-func scanSSMSAP(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// application, the registered components and databases. Every phase runs;
+// the component and database phases read only the applications the
+// application phase stored, and only a store write failure stops the scan.
+func scanSSMSAP(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := ssmsap.NewFromConfig(acct.cfg, func(o *ssmsap.Options) { o.Region = region })
-
-	appIDs, t, i, ferr := scanSSMSAPApplications(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
+	var apps []string
+	phases := []struct {
+		op  string
+		run func() (int, int, error)
+	}{
+		{ssmSAPApplicationsOp, func() (t, i int, err error) {
+			t, i, apps, err = scanSSMSAPApplications(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		}},
+		{ssmSAPComponentsOp, func() (int, int, error) {
+			return scanSSMSAPComponents(ctx, client, acct, region, st, scanID, apps)
+		}},
+		{ssmSAPDatabasesOp, func() (int, int, error) {
+			return scanSSMSAPDatabases(ctx, client, acct, region, st, scanID, apps)
+		}},
 	}
-	total += t
-	inserted += i
-
-	for _, id := range appIDs {
-		t, i, ferr = scanSSMSAPComponents(ctx, client, acct, region, st, scanID, id)
-		if ferr != nil {
-			return total, inserted, ferr
+	var p phaseTotals
+	for _, ph := range phases {
+		t, i, err := ph.run()
+		if p.addPhase(ph.op, t, i, err) {
+			break
 		}
-		total += t
-		inserted += i
-
-		t, i, ferr = scanSSMSAPDatabases(ctx, client, acct, region, st, scanID, id)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return p.result(st, acct, region)
 }
 
-func scanSSMSAPApplications(ctx context.Context, client ssmSAPAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := ssmsap.NewListApplicationsPaginator(client, &ssmsap.ListApplicationsInput{})
-	var batch []*store.Resource
-	var ids []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "ssm-sap:ListApplications", acct.ID, region, err)
+// scanSSMSAPApplications lists every application (no Filters) and also
+// returns the Ids of the stored ones, for the component and database phases.
+func scanSSMSAPApplications(ctx context.Context, client ssmSAPAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []string, error) {
+	total, inserted, parents, err := storeParentList(ctx, st, acct, region, ssmSAPApplicationsOp, "applications", "Id",
+		func(ctx context.Context, token *string) ([]ssmsaptypes.ApplicationSummary, *string, error) {
+			out, err := client.ListApplications(ctx, &ssmsap.ListApplicationsInput{NextToken: token, MaxResults: sdkaws.Int32(ssmSAPPageMax)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("ssm-sap:ListApplications: %w", err)
-		}
-		for _, a := range out.Applications {
-			arn := sv(a.Arn)
-			if arn == "" {
-				continue
+			return out.Applications, out.NextToken, nil
+		},
+		func(a ssmsaptypes.ApplicationSummary) (*store.Resource, string, string) {
+			if sv(a.Arn) == "" {
+				return nil, "applications have an empty Arn", sv(a.Id)
 			}
-			if id := sv(a.Id); id != "" {
-				ids = append(ids, id)
-			}
-			status := string(a.DiscoveryStatus)
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSSMSAPApplication, NativeID: arn,
-				Name: a.Id, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
+				Type: TypeSSMSAPApplication, NativeID: *a.Arn,
+				Name: a.Id, Region: &region, Status: nonEmptyPtr(string(a.DiscoveryStatus)),
+				AttributesJSON: mustJSON(a), TagsJSON: mapTagsJSON(a.Tags), DiscoveredBy: scanID,
+			}, "", ""
+		},
+		func(a ssmsaptypes.ApplicationSummary) string { return sv(a.Id) })
+	ids := make([]string, len(parents))
+	for i, p := range parents {
+		ids[i] = p.id
 	}
-	t, i, err := upsertBatch(st, batch, "ssm-sap applications")
-	return ids, t, i, err
+	return total, inserted, ids, err
 }
 
-func scanSSMSAPComponents(ctx context.Context, client ssmSAPAPI, acct *account, region string, st *store.Store, scanID, appID string) (int, int, error) {
-	id := appID
-	pager := ssmsap.NewListComponentsPaginator(client, &ssmsap.ListComponentsInput{ApplicationId: &id})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssm-sap:ListComponents", acct.ID, region, err)
+// scanSSMSAPComponents lists each application's components concurrently.
+// ListComponents models UnauthorizedException, a code isAccessDenied does not
+// match, so it is tallied here with the codes isAccessDenied matches as one
+// denial: the application's rows read before it are kept and one warning
+// names the first denied application in parent order, after the write
+// succeeded. Component rows carry no Status: the summary has no status field.
+func scanSSMSAPComponents(ctx context.Context, client ssmSAPAPI, acct *account, region string, st *store.Store, scanID string, apps []string) (int, int, error) {
+	var denied skipTally
+	total, inserted, err := storeTokenEachParentSkip(ctx, st, acct, region, ssmSAPComponentsOp, ssmSAPNotFound, apps,
+		func(ctx context.Context, app string, token *string) ([]ssmsaptypes.ComponentSummary, *string, error) {
+			out, err := client.ListComponents(ctx, &ssmsap.ListComponentsInput{ApplicationId: &app, NextToken: token, MaxResults: sdkaws.Int32(ssmSAPPageMax)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ssm-sap:ListComponents: %w", err)
-		}
-		for _, c := range out.Components {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
+			return out.Components, out.NextToken, nil
+		},
+		func(_ string, c ssmsaptypes.ComponentSummary) (*store.Resource, string, string) {
+			if sv(c.Arn) == "" {
+				return nil, "components have an empty Arn", sv(c.ComponentId)
 			}
 			label := sv(c.ComponentId)
-			status := string(c.ComponentType)
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSystemsManagerSAPComponent, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
+				Type: TypeSystemsManagerSAPComponent, NativeID: *c.Arn,
+				Name: &label, Region: &region,
+				AttributesJSON: mustJSON(c), TagsJSON: mapTagsJSON(c.Tags), DiscoveredBy: scanID,
+			}, "", ""
+		},
+		func(app string, err error) bool {
+			if !isAPIErrorCode(err, "UnauthorizedException") && !isAccessDenied(err) {
+				return false
+			}
+			denied.skipped(app, err)
+			return true
+		})
+	if errors.Is(err, store.ErrStoreWrite) {
+		return total, inserted, err
 	}
-	return upsertBatch(st, batch, "ssm-sap components")
+	denied.warnDeniedIn(st, ssmSAPComponentsOp, acct, region, "application(s) whose components were not read were")
+	return total, inserted, err
 }
 
-func scanSSMSAPDatabases(ctx context.Context, client ssmSAPAPI, acct *account, region string, st *store.Store, scanID, appID string) (int, int, error) {
-	id := appID
-	pager := ssmsap.NewListDatabasesPaginator(client, &ssmsap.ListDatabasesInput{ApplicationId: &id})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssm-sap:ListDatabases", acct.ID, region, err)
+// scanSSMSAPDatabases lists each application's databases concurrently.
+// Database rows carry no Status: the summary has no status field.
+func scanSSMSAPDatabases(ctx context.Context, client ssmSAPAPI, acct *account, region string, st *store.Store, scanID string, apps []string) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, ssmSAPDatabasesOp, ssmSAPNotFound, apps,
+		func(ctx context.Context, app string, token *string) ([]ssmsaptypes.DatabaseSummary, *string, error) {
+			out, err := client.ListDatabases(ctx, &ssmsap.ListDatabasesInput{ApplicationId: &app, NextToken: token, MaxResults: sdkaws.Int32(ssmSAPPageMax)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ssm-sap:ListDatabases: %w", err)
-		}
-		for _, d := range out.Databases {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
+			return out.Databases, out.NextToken, nil
+		},
+		func(_ string, d ssmsaptypes.DatabaseSummary) (*store.Resource, string, string) {
+			if sv(d.Arn) == "" {
+				return nil, "databases have an empty Arn", sv(d.DatabaseId)
 			}
 			label := sv(d.DatabaseId)
-			status := string(d.DatabaseType)
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSystemsManagerSAPDatabase, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ssm-sap databases")
+				Type: TypeSystemsManagerSAPDatabase, NativeID: *d.Arn,
+				Name: &label, Region: &region,
+				AttributesJSON: mustJSON(d), TagsJSON: mapTagsJSON(d.Tags), DiscoveredBy: scanID,
+			}, "", ""
+		})
 }

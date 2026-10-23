@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -20,115 +21,128 @@ func init() {
 	)
 }
 
-// ssmsapIDIndex maps a child summary's ApplicationId / ComponentId back to the
-// resource id of the parent row scanned in this account.
-type ssmsapIDIndex struct {
-	appByID  map[string]string // ApplicationId → application resource id
-	compByID map[string]string // ComponentId   → component resource id
+// ssmSAPAppKey names an application within an account: an ApplicationId is
+// unique only per region.
+type ssmSAPAppKey struct{ region, appID string }
+
+// ssmSAPCompKey names a component within an account: a ComponentId is unique
+// only within its application.
+type ssmSAPCompKey struct {
+	ssmSAPAppKey
+	compID string
 }
 
-func loadSSMSAPIndex(acct *account, st *store.Store) (ssmsapIDIndex, error) {
-	idx := ssmsapIDIndex{appByID: map[string]string{}, compByID: map[string]string{}}
-	apps, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSSMSAPApplication}, Limit: util.AllResources,
+// ssmSAPRow is a stored application, component or database row with the ids
+// its summary carries (Id only on an application).
+type ssmSAPRow struct {
+	store.Resource
+	attrs struct {
+		ID            string `json:"Id"`
+		ApplicationID string `json:"ApplicationId"`
+		ComponentID   string `json:"ComponentId"`
+	}
+}
+
+func (r ssmSAPRow) appKey(appID string) ssmSAPAppKey { return ssmSAPAppKey{sv(r.Region), appID} }
+
+// listSSMSAPRows returns the account's rows of typ. A row whose attributes do
+// not decode is left out and its error appended to decodeErrs, so one bad row
+// costs no other row its edge; the returned error is the store read's.
+func listSSMSAPRows(acct *account, st *store.Store, typ string, decodeErrs *[]error) ([]ssmSAPRow, error) {
+	rows, err := st.ListResources(store.ResourceFilter{
+		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{typ}, Limit: util.AllResources,
 	})
 	if err != nil {
-		return idx, err
+		return nil, err
 	}
+	out := make([]ssmSAPRow, 0, len(rows))
+	for _, r := range rows {
+		row := ssmSAPRow{Resource: r}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &row.attrs); err != nil {
+			*decodeErrs = append(*decodeErrs, fmt.Errorf("decode %s %s attributes: %w", typ, r.NativeID, err))
+			continue
+		}
+		out = append(out, row)
+	}
+	return out, nil
+}
+
+// ssmSAPAppIndex maps each stored application's region and Id to its
+// resource id.
+func ssmSAPAppIndex(acct *account, st *store.Store, decodeErrs *[]error) (map[ssmSAPAppKey]string, error) {
+	apps, err := listSSMSAPRows(acct, st, TypeSSMSAPApplication, decodeErrs)
+	if err != nil {
+		return nil, err
+	}
+	idx := make(map[ssmSAPAppKey]string, len(apps))
 	for _, a := range apps {
-		var at struct {
-			ID string `json:"Id"`
-		}
-		if json.Unmarshal([]byte(a.AttributesJSON), &at) == nil && at.ID != "" {
-			idx.appByID[at.ID] = a.ID
-		}
-	}
-	comps, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSystemsManagerSAPComponent}, Limit: util.AllResources,
-	})
-	if err != nil {
-		return idx, err
-	}
-	for _, c := range comps {
-		var ct struct {
-			ComponentID string `json:"ComponentId"`
-		}
-		if json.Unmarshal([]byte(c.AttributesJSON), &ct) == nil && ct.ComponentID != "" {
-			idx.compByID[ct.ComponentID] = c.ID
+		if a.attrs.ID != "" {
+			idx[a.appKey(a.attrs.ID)] = a.ID
 		}
 	}
 	return idx, nil
 }
 
 // resolveSSMSAPComponentApplication wires each SAP component to its parent
-// application via the ComponentSummary.ApplicationId.
+// application in the same region via the ComponentSummary.ApplicationId.
 func resolveSSMSAPComponentApplication(acct *account, st *store.Store) error {
-	rows, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSystemsManagerSAPComponent}, Limit: util.AllResources,
-	})
+	var decodeErrs []error
+	comps, err := listSSMSAPRows(acct, st, TypeSystemsManagerSAPComponent, &decodeErrs)
+	if err != nil || len(comps) == 0 {
+		return errors.Join(append(decodeErrs, err)...)
+	}
+	apps, err := ssmSAPAppIndex(acct, st, &decodeErrs)
 	if err != nil {
-		return err
+		return errors.Join(append(decodeErrs, err)...)
 	}
-	if len(rows) == 0 {
-		return nil
-	}
-	idx, err := loadSSMSAPIndex(acct, st)
-	if err != nil {
-		return err
-	}
-	for _, r := range rows {
-		var attrs struct {
-			ApplicationID string `json:"ApplicationId"`
-		}
-		if json.Unmarshal([]byte(r.AttributesJSON), &attrs) != nil {
-			continue
-		}
-		appID, ok := idx.appByID[attrs.ApplicationID]
+	for _, c := range comps {
+		appID, ok := apps[c.appKey(c.attrs.ApplicationID)]
 		if !ok {
 			continue
 		}
-		if err := st.UpsertRelationship(r.ID, appID, store.RelAttachedTo, "directed", nil); err != nil {
+		if err := st.UpsertRelationship(c.ID, appID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert ssm-sap component→application: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveSSMSAPDatabaseParent wires each SAP database to its parent component
-// (preferred) or, when the component is absent, to its application.
+// (preferred) or, when the component is absent, to its application, both
+// looked up in the database's region and application.
 func resolveSSMSAPDatabaseParent(acct *account, st *store.Store) error {
-	rows, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeSystemsManagerSAPDatabase}, Limit: util.AllResources,
-	})
+	var decodeErrs []error
+	dbs, err := listSSMSAPRows(acct, st, TypeSystemsManagerSAPDatabase, &decodeErrs)
+	if err != nil || len(dbs) == 0 {
+		return errors.Join(append(decodeErrs, err)...)
+	}
+	apps, err := ssmSAPAppIndex(acct, st, &decodeErrs)
 	if err != nil {
-		return err
+		return errors.Join(append(decodeErrs, err)...)
 	}
-	if len(rows) == 0 {
-		return nil
-	}
-	idx, err := loadSSMSAPIndex(acct, st)
+	comps, err := listSSMSAPRows(acct, st, TypeSystemsManagerSAPComponent, &decodeErrs)
 	if err != nil {
-		return err
+		return errors.Join(append(decodeErrs, err)...)
 	}
-	for _, r := range rows {
-		var attrs struct {
-			ApplicationID string `json:"ApplicationId"`
-			ComponentID   string `json:"ComponentId"`
+	compIdx := make(map[ssmSAPCompKey]string, len(comps))
+	for _, c := range comps {
+		if c.attrs.ComponentID != "" {
+			compIdx[ssmSAPCompKey{c.appKey(c.attrs.ApplicationID), c.attrs.ComponentID}] = c.ID
 		}
-		if json.Unmarshal([]byte(r.AttributesJSON), &attrs) != nil {
-			continue
-		}
-		if compID, ok := idx.compByID[attrs.ComponentID]; ok {
-			if err := st.UpsertRelationship(r.ID, compID, store.RelAttachedTo, "directed", nil); err != nil {
+	}
+	for _, d := range dbs {
+		app := d.appKey(d.attrs.ApplicationID)
+		if compID, ok := compIdx[ssmSAPCompKey{app, d.attrs.ComponentID}]; ok {
+			if err := st.UpsertRelationship(d.ID, compID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ssm-sap database→component: %w", err)
 			}
 			continue
 		}
-		if appID, ok := idx.appByID[attrs.ApplicationID]; ok {
-			if err := st.UpsertRelationship(r.ID, appID, store.RelAttachedTo, "directed", nil); err != nil {
+		if appID, ok := apps[app]; ok {
+			if err := st.UpsertRelationship(d.ID, appID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert ssm-sap database→application: %w", err)
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
