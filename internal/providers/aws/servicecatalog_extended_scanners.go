@@ -9,42 +9,52 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-func scanServiceCatalogExtended(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, portfolioIDs []string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanSCAcceptedShares(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSCProvisionedProducts(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSCServiceActions(ctx, client, acct, region, st, scanID) },
-		tagOptionPhase(ctx, client, acct, region, st, scanID),
-		func() (int, int, error) {
-			return scanSCPortfolioShares(ctx, client, acct, region, st, scanID, portfolioIDs)
-		},
-		func() (int, int, error) {
-			return scanSCPortfolioPrincipals(ctx, client, acct, region, st, scanID, portfolioIDs)
-		},
-		func() (int, int, error) {
-			return scanSCConstraints(ctx, client, acct, region, st, scanID, portfolioIDs)
-		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+const (
+	scSearchProvisionedProductsOp = "servicecatalog:SearchProvisionedProducts"
+	// scProvisionedProductPageSize is the model's cap on
+	// SearchProvisionedProducts PageSize (range 0..100).
+	scProvisionedProductPageSize int32 = 100
+)
+
+// scPhase is one phase of scanServiceCatalog, with the op its error is
+// reported under.
+type scPhase struct {
+	op  string
+	run func() (int, int, error)
 }
 
-// tagOptionPhase wraps the two-stage TagOption flow (list + per-tag-option
-// associations) so the dispatcher loop can remain uniform.
-func tagOptionPhase(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) func() (int, int, error) {
-	return func() (int, int, error) {
-		ids, t1, i1, err := scanSCTagOptions(ctx, client, acct, region, st, scanID)
-		if err != nil {
-			return 0, 0, err
-		}
-		t2, i2, err := scanSCTagOptionAssociations(ctx, client, acct, region, st, scanID, ids)
-		return t1 + t2, i1 + i2, err
+// scanServiceCatalogExtendedPhases returns the phases scanServiceCatalog runs
+// after the portfolios and products, in order. The TagOption association
+// phase reads the TagOption ids the TagOption phase stored before it.
+func scanServiceCatalogExtendedPhases(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string, portfolioIDs []string) []scPhase {
+	var tagOptionIDs []string
+	return []scPhase{
+		{"servicecatalog:ListAcceptedPortfolioShares", func() (int, int, error) {
+			return scanSCAcceptedShares(ctx, client, acct, region, st, scanID)
+		}},
+		{scSearchProvisionedProductsOp, func() (int, int, error) {
+			return scanSCProvisionedProducts(ctx, client, acct, region, st, scanID)
+		}},
+		{"servicecatalog:ListServiceActions", func() (int, int, error) {
+			return scanSCServiceActions(ctx, client, acct, region, st, scanID)
+		}},
+		{"servicecatalog:ListTagOptions", func() (int, int, error) {
+			ids, t, i, err := scanSCTagOptions(ctx, client, acct, region, st, scanID)
+			tagOptionIDs = ids
+			return t, i, err
+		}},
+		{"servicecatalog:ListResourcesForTagOption", func() (int, int, error) {
+			return scanSCTagOptionAssociations(ctx, client, acct, region, st, scanID, tagOptionIDs)
+		}},
+		{"servicecatalog:DescribePortfolioShares", func() (int, int, error) {
+			return scanSCPortfolioShares(ctx, client, acct, region, st, scanID, portfolioIDs)
+		}},
+		{"servicecatalog:ListPrincipalsForPortfolio", func() (int, int, error) {
+			return scanSCPortfolioPrincipals(ctx, client, acct, region, st, scanID, portfolioIDs)
+		}},
+		{"servicecatalog:ListConstraintsForPortfolio", func() (int, int, error) {
+			return scanSCConstraints(ctx, client, acct, region, st, scanID, portfolioIDs)
+		}},
 	}
 }
 
@@ -83,35 +93,39 @@ func scanSCAcceptedShares(ctx context.Context, client servicecatalogAPI, acct *a
 	return upsertBatch(st, batch, "servicecatalog accepted-portfolio-shares")
 }
 
+// scanSCProvisionedProducts stores the provisioned products
+// SearchProvisionedProducts returns at its default access level (Account),
+// those read before a failed page included, each with the tags its element
+// carries. A product listed without an ARN is not stored and is warned about
+// under its id. A denial is warned about once; any other error is returned
+// after the rows are stored.
 func scanSCProvisionedProducts(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := servicecatalog.NewSearchProvisionedProductsPaginator(client, &servicecatalog.SearchProvisionedProductsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "servicecatalog:SearchProvisionedProducts", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, scSearchProvisionedProductsOp,
+		func(ctx context.Context, token *string) ([]sctypes.ProvisionedProductAttribute, *string, error) {
+			out, err := client.SearchProvisionedProducts(ctx, &servicecatalog.SearchProvisionedProductsInput{
+				PageToken: token, PageSize: scProvisionedProductPageSize,
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("servicecatalog:SearchProvisionedProducts: %w", perr)
-		}
-		for _, p := range out.ProvisionedProducts {
+			return out.ProvisionedProducts, out.NextPageToken, nil
+		},
+		func(p sctypes.ProvisionedProductAttribute) (*store.Resource, string, string) {
 			arn := sv(p.Arn)
 			if arn == "" {
-				continue
+				return nil, "provisioned products have an empty Arn", sv(p.Id)
 			}
 			label := sv(p.Name)
 			if label == "" {
 				label = sv(p.Id)
 			}
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeServiceCatalogCloudFormationProvisionedProduct, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "servicecatalog provisioned-products")
+				TagsJSON: kvTagsJSON(p.Tags, func(t sctypes.Tag) (*string, *string) { return t.Key, t.Value }),
+			}, "", ""
+		})
 }
 
 func scanSCServiceActions(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

@@ -56,51 +56,35 @@ type servicecatalogAPI interface {
 }
 
 // scanServiceCatalog discovers Service Catalog portfolios and products
-// (admin view) in one region. Two phases: portfolios via ListPortfolios
-// paginator, products via SearchProductsAsAdmin paginator. Per-portfolio
-// constraint enrichment via ListConstraintsForPortfolio fan-out (errgroup
-// + fanoutMed) embeds constraint summaries into the portfolio's attrs.
-// Provisioned products, launch paths, share invitations, and TagOption
-// associations deferred — narrow value relative to portfolio + product
-// catalog itself.
-func scanServiceCatalog(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// (admin view) in one region, then the extended phases
+// (scanServiceCatalogExtendedPhases) and the product associations.
+// Per-portfolio constraint enrichment via ListConstraintsForPortfolio fan-out
+// (errgroup + fanoutMed) embeds constraint summaries into the portfolio's
+// attrs. Every phase runs whatever the others returned, and their counts are
+// summed; only a store write failure stops the scan. A failed portfolio or
+// product phase hands the phases keyed on it no portfolios or products.
+func scanServiceCatalog(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := servicecatalog.NewFromConfig(acct.cfg, func(o *servicecatalog.Options) { o.Region = region })
-
-	portfolioIDs, t, i, ferr := scanServiceCatalogPortfolios(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
+	var phases phaseTotals
+	portfolioIDs, t, i, err := scanServiceCatalogPortfolios(ctx, client, acct, region, st, scanID)
+	if phases.addPhase("servicecatalog:ListPortfolios", t, i, err) {
+		return phases.result(st, acct, region)
 	}
-	total += t
-	inserted += i
-
-	var productIDs []string
-	{
-		ids, t, i, ferr := scanServiceCatalogProducts(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-		productIDs = ids
+	productIDs, t, i, err := scanServiceCatalogProducts(ctx, client, acct, region, st, scanID)
+	if phases.addPhase("servicecatalog:SearchProductsAsAdmin", t, i, err) {
+		return phases.result(st, acct, region)
 	}
-	{
-		t, i, ferr := scanServiceCatalogExtended(ctx, client, acct, region, st, scanID, portfolioIDs)
-		if ferr != nil {
-			return total, inserted, ferr
+	for _, phase := range scanServiceCatalogExtendedPhases(ctx, client, acct, region, st, scanID, portfolioIDs) {
+		t, i, err := phase.run()
+		if phases.addPhase(phase.op, t, i, err) {
+			return phases.result(st, acct, region)
 		}
-		total += t
-		inserted += i
 	}
 	if len(productIDs) > 0 {
-		t, i, ferr := scanServiceCatalogAssociations(ctx, client, acct, region, st, scanID, productIDs)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
+		t, i, err := scanServiceCatalogAssociations(ctx, client, acct, region, st, scanID, productIDs)
+		phases.addPhase("servicecatalog:ListPortfoliosForProduct", t, i, err)
 	}
-
-	return total, inserted, nil
+	return phases.result(st, acct, region)
 }
 
 func scanServiceCatalogPortfolios(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (portfolioIDs []string, total, inserted int, err error) {
