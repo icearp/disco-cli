@@ -258,19 +258,27 @@ func resolveWisdomAssistantAssociationKnowledgeBase(acct *account, st *store.Sto
 	for _, r := range rows {
 		var attrs struct {
 			AssociationData *struct {
-				Value *struct {
-					KnowledgeBaseArn *string `json:"KnowledgeBaseArn"`
-				} `json:"Value"`
+				// Raw because an UnknownUnionMember (a member this SDK
+				// version cannot name) stores a base64 string here; only an
+				// object is a member this resolver can read.
+				Value json.RawMessage `json:"Value"`
 			} `json:"AssociationData"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeWisdomAssistantAssociation, r.NativeID, err))
 			continue
 		}
-		if attrs.AssociationData == nil || attrs.AssociationData.Value == nil {
+		if attrs.AssociationData == nil || len(attrs.AssociationData.Value) == 0 || attrs.AssociationData.Value[0] != '{' {
 			continue
 		}
-		arn := sv(attrs.AssociationData.Value.KnowledgeBaseArn)
+		var member struct {
+			KnowledgeBaseArn *string `json:"KnowledgeBaseArn"`
+		}
+		if err := json.Unmarshal(attrs.AssociationData.Value, &member); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s AssociationData: %w", TypeWisdomAssistantAssociation, r.NativeID, err))
+			continue
+		}
+		arn := sv(member.KnowledgeBaseArn)
 		if arn == "" {
 			continue
 		}

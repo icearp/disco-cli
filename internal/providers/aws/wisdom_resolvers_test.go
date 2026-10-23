@@ -77,8 +77,9 @@ func TestResolveWisdomAssistantAssociationKnowledgeBase(t *testing.T) {
 }
 
 // TestResolveWisdomAssistantAssociationKnowledgeBase_NoEdge pins that an
-// association with no attributes, or one to an external Bedrock knowledge base
-// (the other AssociationData member), gets no edge to a knowledge base.
+// association with no attributes, one to an external Bedrock knowledge base
+// (the other AssociationData member), or one with a member the SDK cannot
+// name, gets no edge to a knowledge base and no error.
 func TestResolveWisdomAssistantAssociationKnowledgeBase_NoEdge(t *testing.T) {
 	kbARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1", testRegion, testAccountID)
 	for _, c := range []struct{ name, attrs string }{
@@ -88,6 +89,10 @@ func TestResolveWisdomAssistantAssociationKnowledgeBase_NoEdge(t *testing.T) {
 			AssociationData: &qconnecttypes.AssistantAssociationOutputDataMemberExternalBedrockKnowledgeBaseConfig{
 				Value: qconnecttypes.ExternalBedrockKnowledgeBaseConfig{BedrockKnowledgeBaseArn: ptrStr(kbARN), AccessRoleArn: ptrStr("arn:aws:iam::1:role/r")},
 			},
+		})},
+		// A member this SDK version cannot name stores a base64 string Value.
+		{"unknown member", mustJSON(qconnecttypes.AssistantAssociationSummary{
+			AssociationData: &qconnecttypes.UnknownUnionMember{Tag: "futureAssociation", Value: []byte(`{"KnowledgeBaseArn":"x"}`)},
 		})},
 	} {
 		t.Run(c.name, func(t *testing.T) {

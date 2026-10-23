@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -24,18 +25,19 @@ func init() {
 //
 // Workspace → KMS key (uses) via KmsKeyArn.
 // Scraper → IAM role (uses) via RoleArn.
-// Scraper → workspace (uses) via Destination.AmpConfiguration.WorkspaceArn.
-// Scraper → EKS cluster (uses) via Source.EksConfiguration.ClusterArn.
+// Scraper → workspace (uses) via Destination.Value.WorkspaceArn.
+// Scraper → EKS cluster (uses) via Source.Value.ClusterArn.
 // Scraper → security groups (uses) and subnets (attached-to) via
-// Source.EksConfiguration.SecurityGroupIds / SubnetIds.
+// Source.Value.SecurityGroupIds / SubnetIds.
 //
-// SDK marshals union types under their member-name key (e.g.
-// `{"AmpConfiguration":{...}}`, `{"EksConfiguration":{...}}`).
+// Those are stored-row paths, not SDK member paths: see apsUnion.
 func resolveAPSRelationships(acct *account, st *store.Store) error {
-	if err := resolveAPSWorkspaceTargets(acct, st); err != nil {
-		return err
-	}
-	return resolveAPSScraperTargets(acct, st)
+	// Both halves run, so an undecodable workspace row costs the scrapers
+	// none of their edges.
+	return errors.Join(
+		resolveAPSWorkspaceTargets(acct, st),
+		resolveAPSScraperTargets(acct, st),
+	)
 }
 
 type apsWsAttrs struct {
@@ -54,9 +56,11 @@ func resolveAPSWorkspaceTargets(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, w := range workspaces {
 		var a apsWsAttrs
 		if err := json.Unmarshal([]byte(w.AttributesJSON), &a); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", w.Type, w.NativeID, err))
 			continue
 		}
 		region := sv(w.Region)
@@ -66,37 +70,49 @@ func resolveAPSWorkspaceTargets(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
-type apsAmpCfg struct {
-	WorkspaceArn *string `json:"WorkspaceArn"`
-}
-
-type apsEksCfg struct {
+// apsSrcCfg decodes either Source member. EksConfiguration and
+// VpcConfiguration share the SecurityGroupIds / SubnetIds keys; only
+// EksConfiguration has ClusterArn (required by the SDK model), so a non-empty
+// ClusterArn is what marks an EKS source.
+type apsSrcCfg struct {
 	ClusterArn       *string  `json:"ClusterArn"`
 	SecurityGroupIDs []string `json:"SecurityGroupIds"`
 	SubnetIDs        []string `json:"SubnetIds"`
 }
 
-type apsVpcCfg struct {
-	SecurityGroupIDs []string `json:"SecurityGroupIds"`
-	SubnetIDs        []string `json:"SubnetIds"`
+// apsDstCfg decodes the AmpConfiguration Destination member. The other
+// member, CloudWatchConfiguration, carries DatasetArn and leaves WorkspaceArn
+// empty.
+type apsDstCfg struct {
+	WorkspaceArn *string `json:"WorkspaceArn"`
 }
 
-type apsSrcUnion struct {
-	EksConfiguration *apsEksCfg `json:"EksConfiguration"`
-	VpcConfiguration *apsVpcCfg `json:"VpcConfiguration"`
+// apsUnion is a stored Source or Destination. They are SDK unions, and
+// json.Marshal stores a member as `{"Value":{...}}` without the member name,
+// so the stored row cannot say which member it held; the fields inside Value
+// must tell them apart. Value stays raw because an UnknownUnionMember (a
+// member this SDK version cannot name) stores `{"Tag":"…","Value":"<base64>"}`,
+// and a string there must not cost the row its other edges.
+type apsUnion struct {
+	Value json.RawMessage `json:"Value"`
 }
 
-type apsDstUnion struct {
-	AmpConfiguration *apsAmpCfg `json:"AmpConfiguration"`
+// decodeAPSUnionValue decodes u's Value into dst when it is a JSON object, and
+// leaves dst zero when there is no member or the member is unknown.
+func decodeAPSUnionValue(u *apsUnion, dst any) error {
+	if u == nil || len(u.Value) == 0 || u.Value[0] != '{' {
+		return nil
+	}
+	return json.Unmarshal(u.Value, dst)
 }
 
 type apsScraperAttrs struct {
-	RoleArn     *string      `json:"RoleArn"`
-	Source      *apsSrcUnion `json:"Source"`
-	Destination *apsDstUnion `json:"Destination"`
+	RoleArn     *string   `json:"RoleArn"`
+	Source      *apsUnion `json:"Source"`
+	Destination *apsUnion `json:"Destination"`
 }
 
 type apsScraperIDs struct {
@@ -139,23 +155,35 @@ func resolveAPSScraperTargets(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, s := range scrapers {
 		var a apsScraperAttrs
 		if err := json.Unmarshal([]byte(s.AttributesJSON), &a); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", s.Type, s.NativeID, err))
 			continue
 		}
-		if err := emitAPSScraperRoleAndWorkspace(st, acct, s.ID, a, idx); err != nil {
+		// A member that fails to decode is reported and treated as absent, so
+		// the row keeps the edges its other fields carry.
+		var src apsSrcCfg
+		if err := decodeAPSUnionValue(a.Source, &src); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s Source: %w", s.Type, s.NativeID, err))
+		}
+		var dst apsDstCfg
+		if err := decodeAPSUnionValue(a.Destination, &dst); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s Destination: %w", s.Type, s.NativeID, err))
+		}
+		if err := emitAPSScraperRoleAndWorkspace(st, acct, s.ID, sv(a.RoleArn), sv(dst.WorkspaceArn), idx); err != nil {
 			return err
 		}
-		if err := emitAPSScraperVPCEdges(st, acct, s.ID, sv(s.Region), a.Source, idx); err != nil {
+		if err := emitAPSScraperVPCEdges(st, acct, s.ID, sv(s.Region), src, idx); err != nil {
 			return err
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
-func emitAPSScraperRoleAndWorkspace(st *store.Store, acct *account, srcID string, a apsScraperAttrs, idx *apsScraperIDs) error {
-	if roleARN := sv(a.RoleArn); roleARN != "" {
+func emitAPSScraperRoleAndWorkspace(st *store.Store, acct *account, srcID, roleARN, wsARN string, idx *apsScraperIDs) error {
+	if roleARN != "" {
 		roleID := store.ResourceID("aws", acct.ID, roleARN)
 		if _, ok := idx.roles[roleID]; ok {
 			if err := st.UpsertRelationship(srcID, roleID, store.RelUses, "directed", nil); err != nil {
@@ -163,41 +191,27 @@ func emitAPSScraperRoleAndWorkspace(st *store.Store, acct *account, srcID string
 			}
 		}
 	}
-	if a.Destination != nil && a.Destination.AmpConfiguration != nil {
-		if wsARN := sv(a.Destination.AmpConfiguration.WorkspaceArn); wsARN != "" {
-			wsID := store.ResourceID("aws", acct.ID, wsARN)
-			if _, ok := idx.ws[wsID]; ok {
-				if err := st.UpsertRelationship(srcID, wsID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert aps-scraper→workspace: %w", err)
-				}
+	if wsARN != "" {
+		wsID := store.ResourceID("aws", acct.ID, wsARN)
+		if _, ok := idx.ws[wsID]; ok {
+			if err := st.UpsertRelationship(srcID, wsID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert aps-scraper→workspace: %w", err)
 			}
 		}
 	}
 	return nil
 }
 
-func emitAPSScraperVPCEdges(st *store.Store, acct *account, srcID, region string, src *apsSrcUnion, idx *apsScraperIDs) error {
-	if src == nil {
-		return nil
-	}
-	var sgList, subnetList []string
-	if eks := src.EksConfiguration; eks != nil {
-		if clusterARN := sv(eks.ClusterArn); clusterARN != "" {
-			eksID := store.ResourceID("aws", acct.ID, clusterARN)
-			if _, ok := idx.eks[eksID]; ok {
-				if err := st.UpsertRelationship(srcID, eksID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert aps-scraper→eks: %w", err)
-				}
+func emitAPSScraperVPCEdges(st *store.Store, acct *account, srcID, region string, cfg apsSrcCfg, idx *apsScraperIDs) error {
+	if clusterARN := sv(cfg.ClusterArn); clusterARN != "" {
+		eksID := store.ResourceID("aws", acct.ID, clusterARN)
+		if _, ok := idx.eks[eksID]; ok {
+			if err := st.UpsertRelationship(srcID, eksID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert aps-scraper→eks: %w", err)
 			}
 		}
-		sgList = eks.SecurityGroupIDs
-		subnetList = eks.SubnetIDs
 	}
-	if vpc := src.VpcConfiguration; vpc != nil {
-		sgList = append(sgList, vpc.SecurityGroupIDs...)
-		subnetList = append(subnetList, vpc.SubnetIDs...)
-	}
-	for _, sgID := range sgList {
+	for _, sgID := range cfg.SecurityGroupIDs {
 		if sgID == "" {
 			continue
 		}
@@ -208,7 +222,7 @@ func emitAPSScraperVPCEdges(st *store.Store, acct *account, srcID, region string
 			}
 		}
 	}
-	for _, subnetID := range subnetList {
+	for _, subnetID := range cfg.SubnetIDs {
 		if subnetID == "" {
 			continue
 		}
