@@ -1,10 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/databrew"
+	databrewtypes "github.com/aws/aws-sdk-go-v2/service/databrew/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -22,6 +24,19 @@ func init() {
 	})
 }
 
+const (
+	dataBrewListDatasetsOp  = "databrew:ListDatasets"
+	dataBrewListJobsOp      = "databrew:ListJobs"
+	dataBrewListProjectsOp  = "databrew:ListProjects"
+	dataBrewListRecipesOp   = "databrew:ListRecipes"
+	dataBrewListRulesetsOp  = "databrew:ListRulesets"
+	dataBrewListSchedulesOp = "databrew:ListSchedules"
+)
+
+// dataBrewPageSize is the cap every DataBrew List op puts on MaxResults
+// (the model's MaxResults100 shape, range 1-100).
+const dataBrewPageSize int32 = 100
+
 type databrewAPI interface {
 	ListDatasets(context.Context, *databrew.ListDatasetsInput, ...func(*databrew.Options)) (*databrew.ListDatasetsOutput, error)
 	ListJobs(context.Context, *databrew.ListJobsInput, ...func(*databrew.Options)) (*databrew.ListJobsOutput, error)
@@ -31,187 +46,133 @@ type databrewAPI interface {
 	ListSchedules(context.Context, *databrew.ListSchedulesInput, ...func(*databrew.Options)) (*databrew.ListSchedulesOutput, error)
 }
 
-// scanDataBrew discovers six DataBrew resource types via List* paginators.
-// ResourceArn is native on every type.
-func scanDataBrew(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanDataBrew(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := databrew.NewFromConfig(acct.cfg, func(o *databrew.Options) { o.Region = region })
+	return scanDataBrewAll(ctx, client, acct, region, st, scanID)
+}
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanDataBrewDatasets(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDataBrewJobs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDataBrewProjects(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDataBrewRecipes(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDataBrewRulesets(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDataBrewSchedules(ctx, client, acct, region, st, scanID) },
+// scanDataBrewAll runs the six independent DataBrew listings and joins their
+// errors; only a store write failure stops it. Each listing leaves its
+// filters (DatasetName, ProjectName, RecipeVersion, TargetArn, JobName) unset
+// so it lists the whole account.
+func scanDataBrewAll(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var phases phaseTotals
+	for _, phase := range []struct {
+		op string
+		fn func(context.Context, databrewAPI, *account, string, *store.Store, string) (int, int, error)
+	}{
+		{dataBrewListDatasetsOp, scanDataBrewDatasets},
+		{dataBrewListJobsOp, scanDataBrewJobs},
+		{dataBrewListProjectsOp, scanDataBrewProjects},
+		{dataBrewListRecipesOp, scanDataBrewRecipes},
+		{dataBrewListRulesetsOp, scanDataBrewRulesets},
+		{dataBrewListSchedulesOp, scanDataBrewSchedules},
 	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
+		t, i, err := phase.fn(ctx, client, acct, region, st, scanID)
+		if phases.addPhase(phase.op, t, i, err) {
+			break
 		}
-		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return phases.result(st, acct, region)
+}
+
+// dataBrewRow builds the row of a listed DataBrew element, keyed by its
+// ResourceArn; one without it is not stored, and kind names the element in
+// that warning.
+func dataBrewRow(acct *account, region, scanID, rtype, kind string, arn, name *string, element any, tags map[string]string) (*store.Resource, string, string) {
+	if sv(arn) == "" {
+		return nil, kind + " have an empty ResourceArn", cmp.Or(sv(name), "one without a Name")
+	}
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: rtype, NativeID: sv(arn), Name: name, Region: &region,
+		AttributesJSON: mustJSON(element), TagsJSON: mapTagsJSON(tags), DiscoveredBy: scanID,
+	}, "", ""
 }
 
 func scanDataBrewDatasets(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databrew.NewListDatasetsPaginator(client, &databrew.ListDatasetsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "databrew:ListDatasets", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, dataBrewListDatasetsOp,
+		func(ctx context.Context, token *string) ([]databrewtypes.Dataset, *string, error) {
+			out, err := client.ListDatasets(ctx, &databrew.ListDatasetsInput{MaxResults: sdkaws.Int32(dataBrewPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("databrew:ListDatasets: %w", err)
-		}
-		for _, d := range out.Datasets {
-			arn := sv(d.ResourceArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDataBrewDataset, NativeID: arn,
-				Name: d.Name, Region: &region,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "databrew datasets")
+			return out.Datasets, out.NextToken, nil
+		},
+		func(d databrewtypes.Dataset) (*store.Resource, string, string) {
+			return dataBrewRow(acct, region, scanID, TypeDataBrewDataset, "datasets", d.ResourceArn, d.Name, d, d.Tags)
+		})
 }
 
 func scanDataBrewJobs(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databrew.NewListJobsPaginator(client, &databrew.ListJobsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "databrew:ListJobs", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, dataBrewListJobsOp,
+		func(ctx context.Context, token *string) ([]databrewtypes.Job, *string, error) {
+			out, err := client.ListJobs(ctx, &databrew.ListJobsInput{MaxResults: sdkaws.Int32(dataBrewPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("databrew:ListJobs: %w", err)
-		}
-		for _, j := range out.Jobs {
-			arn := sv(j.ResourceArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDataBrewJob, NativeID: arn,
-				Name: j.Name, Region: &region,
-				AttributesJSON: mustJSON(j), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "databrew jobs")
+			return out.Jobs, out.NextToken, nil
+		},
+		func(j databrewtypes.Job) (*store.Resource, string, string) {
+			return dataBrewRow(acct, region, scanID, TypeDataBrewJob, "jobs", j.ResourceArn, j.Name, j, j.Tags)
+		})
 }
 
 func scanDataBrewProjects(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databrew.NewListProjectsPaginator(client, &databrew.ListProjectsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "databrew:ListProjects", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, dataBrewListProjectsOp,
+		func(ctx context.Context, token *string) ([]databrewtypes.Project, *string, error) {
+			out, err := client.ListProjects(ctx, &databrew.ListProjectsInput{MaxResults: sdkaws.Int32(dataBrewPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("databrew:ListProjects: %w", err)
-		}
-		for _, p := range out.Projects {
-			arn := sv(p.ResourceArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDataBrewProject, NativeID: arn,
-				Name: p.Name, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "databrew projects")
+			return out.Projects, out.NextToken, nil
+		},
+		func(p databrewtypes.Project) (*store.Resource, string, string) {
+			return dataBrewRow(acct, region, scanID, TypeDataBrewProject, "projects", p.ResourceArn, p.Name, p, p.Tags)
+		})
 }
 
+// scanDataBrewRecipes leaves RecipeVersion unset, which the op documents as
+// listing each recipe's LATEST_PUBLISHED version only, so a recipe never
+// published is likely not listed (not verified live).
 func scanDataBrewRecipes(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databrew.NewListRecipesPaginator(client, &databrew.ListRecipesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "databrew:ListRecipes", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, dataBrewListRecipesOp,
+		func(ctx context.Context, token *string) ([]databrewtypes.Recipe, *string, error) {
+			out, err := client.ListRecipes(ctx, &databrew.ListRecipesInput{MaxResults: sdkaws.Int32(dataBrewPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("databrew:ListRecipes: %w", err)
-		}
-		for _, r := range out.Recipes {
-			arn := sv(r.ResourceArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDataBrewRecipe, NativeID: arn,
-				Name: r.Name, Region: &region,
-				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "databrew recipes")
+			return out.Recipes, out.NextToken, nil
+		},
+		func(r databrewtypes.Recipe) (*store.Resource, string, string) {
+			return dataBrewRow(acct, region, scanID, TypeDataBrewRecipe, "recipes", r.ResourceArn, r.Name, r, r.Tags)
+		})
 }
 
 func scanDataBrewRulesets(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databrew.NewListRulesetsPaginator(client, &databrew.ListRulesetsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "databrew:ListRulesets", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, dataBrewListRulesetsOp,
+		func(ctx context.Context, token *string) ([]databrewtypes.RulesetItem, *string, error) {
+			out, err := client.ListRulesets(ctx, &databrew.ListRulesetsInput{MaxResults: sdkaws.Int32(dataBrewPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("databrew:ListRulesets: %w", err)
-		}
-		for _, r := range out.Rulesets {
-			arn := sv(r.ResourceArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDataBrewRuleset, NativeID: arn,
-				Name: r.Name, Region: &region,
-				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "databrew rulesets")
+			return out.Rulesets, out.NextToken, nil
+		},
+		func(r databrewtypes.RulesetItem) (*store.Resource, string, string) {
+			return dataBrewRow(acct, region, scanID, TypeDataBrewRuleset, "rulesets", r.ResourceArn, r.Name, r, r.Tags)
+		})
 }
 
 func scanDataBrewSchedules(ctx context.Context, client databrewAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databrew.NewListSchedulesPaginator(client, &databrew.ListSchedulesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "databrew:ListSchedules", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, dataBrewListSchedulesOp,
+		func(ctx context.Context, token *string) ([]databrewtypes.Schedule, *string, error) {
+			out, err := client.ListSchedules(ctx, &databrew.ListSchedulesInput{MaxResults: sdkaws.Int32(dataBrewPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("databrew:ListSchedules: %w", err)
-		}
-		for _, s := range out.Schedules {
-			arn := sv(s.ResourceArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDataBrewSchedule, NativeID: arn,
-				Name: s.Name, Region: &region,
-				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "databrew schedules")
+			return out.Schedules, out.NextToken, nil
+		},
+		func(s databrewtypes.Schedule) (*store.Resource, string, string) {
+			return dataBrewRow(acct, region, scanID, TypeDataBrewSchedule, "schedules", s.ResourceArn, s.Name, s, s.Tags)
+		})
 }

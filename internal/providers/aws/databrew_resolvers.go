@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -36,16 +37,14 @@ func resolveDataBrewRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
-	if err := emitDataBrewJobEdges(acct, st, sets); err != nil {
-		return err
-	}
-	if err := emitDataBrewProjectEdges(acct, st, sets); err != nil {
-		return err
-	}
-	if err := emitDataBrewRecipeEdges(acct, st, sets); err != nil {
-		return err
-	}
-	return emitDataBrewScheduleEdges(acct, st, sets)
+	// Every source type runs, so one type's undecodable row costs no other
+	// type its edges.
+	return errors.Join(
+		emitDataBrewJobEdges(acct, st, sets),
+		emitDataBrewProjectEdges(acct, st, sets),
+		emitDataBrewRecipeEdges(acct, st, sets),
+		emitDataBrewScheduleEdges(acct, st, sets),
+	)
 }
 
 func loadDataBrewTargetSets(acct *account, st *store.Store) (dataBrewTargetSets, error) {
@@ -92,6 +91,7 @@ func emitDataBrewJobEdges(acct *account, st *store.Store, sets dataBrewTargetSet
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range jobs {
 		var attrs struct {
 			DatasetName *string `json:"DatasetName"`
@@ -99,6 +99,7 @@ func emitDataBrewJobEdges(acct *account, st *store.Store, sets dataBrewTargetSet
 			RoleArn     *string `json:"RoleArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		region := sv(r.Region)
@@ -116,7 +117,7 @@ func emitDataBrewJobEdges(acct *account, st *store.Store, sets dataBrewTargetSet
 			return err
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 func emitDataBrewProjectEdges(acct *account, st *store.Store, sets dataBrewTargetSets) error {
@@ -126,6 +127,7 @@ func emitDataBrewProjectEdges(acct *account, st *store.Store, sets dataBrewTarge
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range projects {
 		var attrs struct {
 			DatasetName *string `json:"DatasetName"`
@@ -133,6 +135,7 @@ func emitDataBrewProjectEdges(acct *account, st *store.Store, sets dataBrewTarge
 			RoleArn     *string `json:"RoleArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		region := sv(r.Region)
@@ -150,7 +153,7 @@ func emitDataBrewProjectEdges(acct *account, st *store.Store, sets dataBrewTarge
 			return err
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 func emitDataBrewRecipeEdges(acct *account, st *store.Store, sets dataBrewTargetSets) error {
@@ -160,11 +163,13 @@ func emitDataBrewRecipeEdges(acct *account, st *store.Store, sets dataBrewTarget
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range recipes {
 		var attrs struct {
 			ProjectName *string `json:"ProjectName"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		if n := sv(attrs.ProjectName); n != "" {
@@ -173,7 +178,7 @@ func emitDataBrewRecipeEdges(acct *account, st *store.Store, sets dataBrewTarget
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 func emitDataBrewScheduleEdges(acct *account, st *store.Store, sets dataBrewTargetSets) error {
@@ -183,11 +188,13 @@ func emitDataBrewScheduleEdges(acct *account, st *store.Store, sets dataBrewTarg
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range schedules {
 		var attrs struct {
 			JobNames []string `json:"JobNames"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		region := sv(r.Region)
@@ -200,7 +207,7 @@ func emitDataBrewScheduleEdges(acct *account, st *store.Store, sets dataBrewTarg
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 func init() {
@@ -232,6 +239,7 @@ func resolveDataBrewDatasetRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			Input *struct {
@@ -241,6 +249,7 @@ func resolveDataBrewDatasetRefs(acct *account, st *store.Store) error {
 			} `json:"Input"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		if attrs.Input == nil || attrs.Input.S3InputDefinition == nil {
@@ -259,7 +268,7 @@ func resolveDataBrewDatasetRefs(acct *account, st *store.Store) error {
 			return fmt.Errorf("upsert databrew-dataset→s3: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveDataBrewRulesetTarget wires each ruleset to its target dataset
@@ -278,11 +287,13 @@ func resolveDataBrewRulesetTarget(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			TargetArn *string `json:"TargetArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		ta := sv(attrs.TargetArn)
@@ -297,5 +308,5 @@ func resolveDataBrewRulesetTarget(acct *account, st *store.Store) error {
 			return fmt.Errorf("upsert databrew-ruleset→dataset: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
