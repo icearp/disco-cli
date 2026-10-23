@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -37,6 +38,7 @@ func init() {
 		EdgeDecl{TypeDirectConnectDirectConnectGatewayAssociation, TypeDirectConnectDirectConnectGateway, store.RelAttachedTo},
 		EdgeDecl{TypeDirectConnectDirectConnectGatewayAssociation, TypeEC2VPNGateway, store.RelUses},
 		EdgeDecl{TypeDirectConnectDirectConnectGatewayAssociation, TypeEC2TransitGateway, store.RelUses},
+		EdgeDecl{TypeDirectConnectDirectConnectGatewayAssociation, TypeIAMAccount, store.RelUses},
 	)
 }
 
@@ -78,12 +80,14 @@ func resolveDXLagMembers(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			LagID *string `json:"LagId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
-			return fmt.Errorf("decode %s %s: %w", r.Type, r.NativeID, err)
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s: %w", r.Type, r.NativeID, err))
+			continue
 		}
 		lagID := sv(attrs.LagID)
 		if lagID == "" {
@@ -94,10 +98,10 @@ func resolveDXLagMembers(acct *account, st *store.Store) error {
 			continue
 		}
 		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-			return fmt.Errorf("upsert dx %s→lag: %w", r.Type, err)
+			return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx %s→lag: %w", r.Type, err))...)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveDXResiliencyGroupConnections wires each resiliency group to the
@@ -117,6 +121,7 @@ func resolveDXResiliencyGroupConnections(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			Associations []struct {
@@ -125,7 +130,8 @@ func resolveDXResiliencyGroupConnections(acct *account, st *store.Store) error {
 			} `json:"Associations"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
-			return fmt.Errorf("decode %s %s: %w", r.Type, r.NativeID, err)
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s: %w", r.Type, r.NativeID, err))
+			continue
 		}
 		for _, a := range attrs.Associations {
 			arn := sv(a.ConnectionArn)
@@ -137,11 +143,11 @@ func resolveDXResiliencyGroupConnections(acct *account, st *store.Store) error {
 				continue
 			}
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
-				return fmt.Errorf("upsert dx resiliency-group→connection: %w", err)
+				return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx resiliency-group→connection: %w", err))...)
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveDXVIRefs wires each virtual interface to its Connection or LAG (both
@@ -170,6 +176,7 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, vt := range viTypes {
 		rows, err := st.ListResources(store.ResourceFilter{
 			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{vt}, Limit: util.AllResources,
@@ -184,6 +191,7 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 				VirtualGatewayID       *string `json:"VirtualGatewayId"`
 			}
 			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+				decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s: %w", r.Type, r.NativeID, err))
 				continue
 			}
 			region := sv(r.Region)
@@ -193,14 +201,14 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 					tgtID := store.ResourceID("aws", acct.ID, dxLagARN(region, acct.ID, cid))
 					if lagSet[tgtID] {
 						if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-							return fmt.Errorf("upsert dx vi→lag: %w", err)
+							return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx vi→lag: %w", err))...)
 						}
 					}
 				} else {
 					tgtID := store.ResourceID("aws", acct.ID, dxConnectionARN(region, acct.ID, cid))
 					if connSet[tgtID] {
 						if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-							return fmt.Errorf("upsert dx vi→connection: %w", err)
+							return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx vi→connection: %w", err))...)
 						}
 					}
 				}
@@ -209,7 +217,7 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 				tgtID := store.ResourceID("aws", acct.ID, dxGatewayARN(acct.ID, gw))
 				if dxgwSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert dx vi→dxgw: %w", err)
+						return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx vi→dxgw: %w", err))...)
 					}
 				}
 			}
@@ -217,18 +225,29 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpn-gateway", vgw))
 				if vgwSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-						return fmt.Errorf("upsert dx vi→vgw: %w", err)
+						return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx vi→vgw: %w", err))...)
 					}
 				}
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
+}
+
+// dxAssociatedGateway is the gateway side of a DX gateway association.
+type dxAssociatedGateway struct {
+	ID           *string `json:"Id"`
+	Type         string  `json:"Type"`
+	Region       *string `json:"Region"`
+	OwnerAccount *string `json:"OwnerAccount"`
 }
 
 // resolveDXGatewayAssociationRefs wires gateway-association rows to the parent
 // DX gateway (via `DirectConnectGatewayID`) and to the associated VPN-gateway /
-// TGW captured in `AssociatedGateway`.
+// TGW captured in `AssociatedGateway`. A gateway another account owns is not
+// stored under the scanned account, so the association is linked to that
+// owner's aws:iam:account self-node instead, inserting a reference-only
+// placeholder when the owner has no row.
 func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeDirectConnectDirectConnectGatewayAssociation}, Limit: util.AllResources,
@@ -251,55 +270,74 @@ func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	type ownerEdge struct{ fromID, owner string }
+	var (
+		decodeErrs []error
+		ownerEdges []ownerEdge
+	)
 	for _, r := range rows {
 		var attrs struct {
-			DirectConnectGatewayID *string `json:"DirectConnectGatewayId"`
-			AssociatedGateway      *struct {
-				ID           *string `json:"Id"`
-				Type         string  `json:"Type"`
-				Region       *string `json:"Region"`
-				OwnerAccount *string `json:"OwnerAccount"`
-			} `json:"AssociatedGateway"`
+			DirectConnectGatewayID *string              `json:"DirectConnectGatewayId"`
+			AssociatedGateway      *dxAssociatedGateway `json:"AssociatedGateway"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s: %w", r.Type, r.NativeID, err))
 			continue
 		}
 		if gw := sv(attrs.DirectConnectGatewayID); gw != "" {
 			tgtID := store.ResourceID("aws", acct.ID, dxGatewayARN(acct.ID, gw))
 			if dxgwSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-					return fmt.Errorf("upsert dx assoc→dxgw: %w", err)
+					return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx assoc→dxgw: %w", err))...)
 				}
 			}
 		}
-		if attrs.AssociatedGateway != nil {
-			ag := attrs.AssociatedGateway
-			gid := sv(ag.ID)
-			if gid == "" {
-				continue
+		ag := attrs.AssociatedGateway
+		if ag == nil || sv(ag.ID) == "" {
+			continue
+		}
+		if owner := sv(ag.OwnerAccount); owner != "" && owner != acct.ID {
+			ownerEdges = append(ownerEdges, ownerEdge{fromID: r.ID, owner: owner})
+			continue
+		}
+		var tgtID string
+		switch ag.Type {
+		case "virtualPrivateGateway":
+			if id := store.ResourceID("aws", acct.ID, ec2ARN(sv(ag.Region), acct.ID, "vpn-gateway", sv(ag.ID))); vgwSet[id] {
+				tgtID = id
 			}
-			gwRegion := sv(ag.Region)
-			gwAcct := sv(ag.OwnerAccount)
-			if gwAcct == "" {
-				gwAcct = acct.ID
+		case "transitGateway":
+			if id := store.ResourceID("aws", acct.ID, ec2ARN(sv(ag.Region), acct.ID, "transit-gateway", sv(ag.ID))); tgwSet[id] {
+				tgtID = id
 			}
-			switch ag.Type {
-			case "virtualPrivateGateway":
-				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(gwRegion, gwAcct, "vpn-gateway", gid))
-				if vgwSet[tgtID] {
-					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert dx assoc→vgw: %w", err)
-					}
-				}
-			case "transitGateway":
-				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(gwRegion, gwAcct, "transit-gateway", gid))
-				if tgwSet[tgtID] {
-					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert dx assoc→tgw: %w", err)
-					}
-				}
-			}
+		}
+		if tgtID == "" {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+			return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx assoc→%s: %w", ag.Type, err))...)
 		}
 	}
-	return nil
+	if len(ownerEdges) == 0 {
+		return errors.Join(decodeErrs...)
+	}
+	owners := map[string]bool{}
+	var placeholders []*store.Resource
+	for _, e := range ownerEdges {
+		if !owners[e.owner] {
+			owners[e.owner] = true
+			placeholders = append(placeholders, iamAccountPlaceholder(e.owner, rows[0].DiscoveredBy))
+		}
+	}
+	if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
+		return errors.Join(append(decodeErrs, fmt.Errorf("insert dx associated-gateway owner account placeholders: %w", err))...)
+	}
+	edgeAttrs := mustJSON(map[string]string{"role": "associated-gateway-owner"})
+	for _, e := range ownerEdges {
+		toID := store.ResourceID("aws", e.owner, iamAccountNativeID(e.owner))
+		if err := st.UpsertRelationship(e.fromID, toID, store.RelUses, "directed", &edgeAttrs); err != nil {
+			return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx assoc→owner account: %w", err))...)
+		}
+	}
+	return errors.Join(decodeErrs...)
 }
