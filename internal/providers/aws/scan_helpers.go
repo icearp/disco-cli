@@ -930,47 +930,107 @@ func storeTokenPerParent[Item any](
 	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
 	row func(parent string, it Item) (r *store.Resource, why, key string),
 ) (int, int, error) {
-	var (
-		rows             []*store.Resource
-		errs             []error
-		denied, vanished skipTally
-		skips            notStoredSkips
-	)
+	out := parentOutcomes{op: op, notFound: notFound}
 	for _, p := range parents {
 		if err := ctx.Err(); err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", op, err))
+			out.stopped(err)
 			break
 		}
-		items, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]Item, *string, error) {
-			return page(ctx, p, token)
-		})
-		rows = buildListedRows(items, func(it Item) (*store.Resource, string, string) { return row(p, it) }, rows, &skips)
-		switch {
-		case err == nil:
-		case isAPIErrorCode(err, notFound...) && len(items) == 0:
-		case isAPIErrorCode(err, notFound...):
-			vanished.skipped(p, err)
-		case isAccessDenied(err):
-			denied.skipped(p, err)
-		default:
-			errs = append(errs, fmt.Errorf("%s %s: %w", op, p, err))
-		}
+		// Each parent's rows are built as soon as it is read, so its items
+		// are not held while the later parents are read.
+		addParentRows(&out, p, readParentPages(ctx, p, page), row)
 	}
-	total, inserted, uerr := upsertBatch(st, rows, op)
+	return out.store(st, acct, region)
+}
+
+// storeTokenEachParent is storeTokenPerParent with the parents read
+// concurrently through readEachKey, so page must be safe for concurrent use.
+// The rows are built and the outcomes tallied in parent order after the
+// reads, so row need not be. Once ctx is done no further parent is read and
+// that stop is returned as one error; reads already in flight report their
+// own errors.
+func storeTokenEachParent[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound, parents []string,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (r *store.Resource, why, key string),
+) (int, int, error) {
+	reads, stopped := readEachKey(ctx, parents, func(ctx context.Context, p string) parentItems[Item] {
+		return readParentPages(ctx, p, page)
+	})
+	out := parentOutcomes{op: op, notFound: notFound}
+	for i, read := range reads {
+		addParentRows(&out, parents[i], read, row)
+	}
+	out.stopped(stopped)
+	return out.store(st, acct, region)
+}
+
+// parentItems is what one parent's listing read before err (nil when it
+// read every page).
+type parentItems[Item any] struct {
+	items []Item
+	err   error
+}
+
+func readParentPages[Item any](ctx context.Context, parent string, page func(ctx context.Context, parent string, token *string) ([]Item, *string, error)) parentItems[Item] {
+	items, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]Item, *string, error) {
+		return page(ctx, parent, token)
+	})
+	return parentItems[Item]{items, err}
+}
+
+// parentOutcomes collects, for storeTokenPerParent and storeTokenEachParent,
+// the rows built from each parent's listing and what became of the parent.
+type parentOutcomes struct {
+	op               string
+	notFound         []string
+	rows             []*store.Resource
+	errs             []error
+	denied, vanished skipTally
+	skips            notStoredSkips
+}
+
+// addParentRows builds parent's rows from what its listing read and tallies
+// the listing's error, as storeTokenPerParent says.
+func addParentRows[Item any](o *parentOutcomes, parent string, read parentItems[Item], row func(parent string, it Item) (r *store.Resource, why, key string)) {
+	o.rows = buildListedRows(read.items, func(it Item) (*store.Resource, string, string) { return row(parent, it) }, o.rows, &o.skips)
+	switch err := read.err; {
+	case err == nil:
+	case isAPIErrorCode(err, o.notFound...) && len(read.items) == 0:
+	case isAPIErrorCode(err, o.notFound...):
+		o.vanished.skipped(parent, err)
+	case isAccessDenied(err):
+		o.denied.skipped(parent, err)
+	default:
+		o.errs = append(o.errs, fmt.Errorf("%s %s: %w", o.op, parent, err))
+	}
+}
+
+// stopped records that the parents not yet read were not, because ctx ended.
+func (o *parentOutcomes) stopped(err error) {
+	if err != nil {
+		o.errs = append(o.errs, fmt.Errorf("%s: %w", o.op, err))
+	}
+}
+
+// store writes the rows, then warns about the denied and vanished parents and
+// the items not stored, and returns the collected errors.
+func (o *parentOutcomes) store(st *store.Store, acct *account, region string) (int, int, error) {
+	total, inserted, uerr := upsertBatch(st, o.rows, o.op)
 	if uerr != nil {
-		return total, inserted, errors.Join(append(errs, uerr)...)
+		return total, inserted, errors.Join(append(o.errs, uerr)...)
 	}
-	if denied.count > 0 {
-		_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf("%d parent(s) denied, first %s: %w", denied.count, denied.first, denied.err))
+	if o.denied.count > 0 {
+		_ = skipIfAccessDenied(st, o.op, acct.ID, region, fmt.Errorf("%d parent(s) denied, first %s: %w", o.denied.count, o.denied.first, o.denied.err))
 	}
-	if vanished.count > 0 {
+	if o.vanished.count > 0 {
 		st.ReportWarning(store.ScanWarning{
-			Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
-			Message: fmt.Sprintf("%d parent(s) were deleted while their listing was read, so only part of it was stored; first %s: %v", vanished.count, vanished.first, vanished.err),
+			Provider: "aws", Service: o.op, Scope: acct.ID + "/" + region,
+			Message: fmt.Sprintf("%d parent(s) were deleted while their listing was read, so only part of it was stored; first %s: %v", o.vanished.count, o.vanished.first, o.vanished.err),
 		})
 	}
-	skips.warn(st, op, acct, region)
-	return total, inserted, errors.Join(errs...)
+	o.skips.warn(st, o.op, acct, region)
+	return total, inserted, errors.Join(o.errs...)
 }
 
 // warnNoChildID warns once for the parents stored without the id their

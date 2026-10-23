@@ -21,7 +21,9 @@ func TestResolveDRSRecoveryInstanceRefs(t *testing.T) {
 	ec2ARNv := ec2ARN(testRegion, acct.ID, "instance", "i-reco")
 	eID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Instance, ec2ARNv, testRegion, "{}")
 	ssARN := drsARN(testRegion, acct.ID, "source-server", "s-1")
-	ssID := upsertTestResource(t, st, "aws", acct.ID, TypeDRSSourceServerResource, ssARN, testRegion, `{"SourceServerID":"s-1"}`)
+	ssID := upsertTestResourceNamed(t, st, TypeDRSSourceServerResource, ssARN, testRegion, `{"SourceServerID":"s-1"}`, "s-1")
+	// The same id in another region is another server.
+	otherSS := upsertTestResourceNamed(t, st, TypeDRSSourceServerResource, drsARN("eu-west-1", acct.ID, "source-server", "s-1"), "eu-west-1", "{}", "s-1")
 	riARN := drsARN(testRegion, acct.ID, "recovery-instance", "ri-1")
 	riID := upsertTestResource(t, st, "aws", acct.ID, TypeDRSRecoveryInstanceResource, riARN, testRegion, `{"Ec2InstanceID":"i-reco","SourceServerID":"s-1"}`)
 
@@ -31,6 +33,32 @@ func TestResolveDRSRecoveryInstanceRefs(t *testing.T) {
 	rels := drsRelsFrom(t, st, riID)
 	assertRelationship(t, rels, riID, eID, store.RelUses)
 	assertRelationship(t, rels, riID, ssID, store.RelAttachedTo)
+	if len(rels) != 2 {
+		t.Errorf("edges = %+v, want 2 (none to %s in another region)", rels, otherSS)
+	}
+}
+
+// A source server with the same id and region in another account is not
+// the one a recovery instance recovers: no edge crosses accounts.
+func TestResolveDRSRecoveryInstanceRefs_OtherAccountServer(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	const other = "999999999999"
+	name, region := "s-1", testRegion
+	if _, err := st.UpsertResource(&store.Resource{
+		Provider: "aws", AccountID: other, Type: TypeDRSSourceServerResource, NativeID: drsARN(testRegion, other, "source-server", "s-1"),
+		Name: &name, Region: &region, AttributesJSON: "{}", DiscoveredBy: testScanID,
+	}); err != nil {
+		t.Fatalf("seed other-account server: %v", err)
+	}
+	riID := upsertTestResource(t, st, "aws", acct.ID, TypeDRSRecoveryInstanceResource, drsARN(testRegion, acct.ID, "recovery-instance", "ri-1"), testRegion,
+		mustJSON(drstypes.RecoveryInstance{SourceServerID: ptrStr("s-1")}))
+	if err := resolveDRSRecoveryInstanceRefs(acct, st); err != nil {
+		t.Fatalf("resolveDRSRecoveryInstanceRefs: %v", err)
+	}
+	if rels := drsRelsFrom(t, st, riID); len(rels) != 0 {
+		t.Errorf("edges = %+v, want none to the other account's server", rels)
+	}
 }
 
 func TestResolveDRSSourceServerRefs(t *testing.T) {
@@ -38,7 +66,8 @@ func TestResolveDRSSourceServerRefs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 
 	snARN := drsARN(testRegion, acct.ID, "source-network", "sn-1")
-	snID := upsertTestResource(t, st, "aws", acct.ID, TypeDRSSourceNetworkResource, snARN, testRegion, `{"SourceNetworkID":"sn-1"}`)
+	snID := upsertTestResourceNamed(t, st, TypeDRSSourceNetworkResource, snARN, testRegion, `{"SourceNetworkID":"sn-1"}`, "sn-1")
+	otherSN := upsertTestResourceNamed(t, st, TypeDRSSourceNetworkResource, drsARN("eu-west-1", acct.ID, "source-network", "sn-1"), "eu-west-1", "{}", "sn-1")
 	ssARN := drsARN(testRegion, acct.ID, "source-server", "s-1")
 	ssID := upsertTestResource(t, st, "aws", acct.ID, TypeDRSSourceServerResource, ssARN, testRegion, `{"SourceServerID":"s-1","SourceNetworkID":"sn-1"}`)
 
@@ -47,6 +76,9 @@ func TestResolveDRSSourceServerRefs(t *testing.T) {
 	}
 	rels := drsRelsFrom(t, st, ssID)
 	assertRelationship(t, rels, ssID, snID, store.RelAttachedTo)
+	if len(rels) != 1 {
+		t.Errorf("edges = %+v, want 1 (none to %s in another region)", rels, otherSN)
+	}
 }
 
 func TestResolveDRSSourceNetworkRefs(t *testing.T) {
@@ -112,24 +144,67 @@ func TestResolveDRSReplicationSettingsRefs(t *testing.T) {
 	}
 }
 
-// A row whose attributes do not parse is reported without costing the other
-// rows their edges; the rows list by name, so "bad" comes first.
+// A row whose attributes do not parse is reported without costing the rows
+// listed before or after it their edges (the rows list by name).
 func TestResolveDRSReplicationSettingsRefs_DecodeError(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	subnet := "subnet-1"
 	subID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", subnet), testRegion, "{}")
-	server := drsARN(testRegion, acct.ID, "source-server", "s-1")
-	upsertTestResourceNamed(t, st, TypeDRSReplicationConfiguration, server+"/bad", testRegion, "[1]", "bad")
-	goodID := upsertTestResourceNamed(t, st, TypeDRSReplicationConfiguration, server+"/replication-configuration", testRegion,
-		mustJSON(drs.GetReplicationConfigurationOutput{StagingAreaSubnetId: &subnet}), "good")
+	good := mustJSON(drs.GetReplicationConfigurationOutput{StagingAreaSubnetId: &subnet})
+	assertDRSDecodeErrorKeepsSiblings(t, st, resolveDRSReplicationSettingsRefs, TypeDRSReplicationConfiguration, "source-server", good, subID, store.RelAttachedTo)
+}
 
-	err := resolveDRSReplicationSettingsRefs(acct, st)
+// assertDRSDecodeErrorKeepsSiblings seeds three rows of rtype named a-good,
+// bad and z-good, the bad one with attributes that do not parse, runs
+// resolve, and asserts it returns the bad row's decode error and still links
+// both good rows (attrs good) to target.
+func assertDRSDecodeErrorKeepsSiblings(t *testing.T, st *store.Store, resolve func(*account, *store.Store) error, rtype, kind, good, target, rel string) {
+	t.Helper()
+	ids := map[string]string{}
+	for _, name := range []string{"a-good", "bad", "z-good"} {
+		attrs := good
+		if name == "bad" {
+			attrs = "[1]"
+		}
+		ids[name] = upsertTestResourceNamed(t, st, rtype, drsARN(testRegion, testAccountID, kind, name), testRegion, attrs, name)
+	}
+	err := resolve(newTestAccount(testAccountID), st)
 	var typeErr *json.UnmarshalTypeError
 	if !errors.As(err, &typeErr) {
 		t.Errorf("err = %v, want the bad row's unmarshal error", err)
 	}
-	assertRelationship(t, drsRelsFrom(t, st, goodID), goodID, subID, store.RelAttachedTo)
+	for _, name := range []string{"a-good", "z-good"} {
+		assertRelationship(t, drsRelsFrom(t, st, ids[name]), ids[name], target, rel)
+	}
+}
+
+func TestResolveDRS_DecodeErrorKeepsSiblings(t *testing.T) {
+	t.Run("recovery instance", func(t *testing.T) {
+		st := newTestStore(t)
+		ssID := upsertTestResourceNamed(t, st, TypeDRSSourceServerResource, drsARN(testRegion, testAccountID, "source-server", "s-1"), testRegion, "{}", "s-1")
+		assertDRSDecodeErrorKeepsSiblings(t, st, resolveDRSRecoveryInstanceRefs, TypeDRSRecoveryInstanceResource, "recovery-instance",
+			mustJSON(drstypes.RecoveryInstance{SourceServerID: ptrStr("s-1")}), ssID, store.RelAttachedTo)
+	})
+	t.Run("source server", func(t *testing.T) {
+		st := newTestStore(t)
+		snID := upsertTestResourceNamed(t, st, TypeDRSSourceNetworkResource, drsARN(testRegion, testAccountID, "source-network", "sn-1"), testRegion, "{}", "sn-1")
+		assertDRSDecodeErrorKeepsSiblings(t, st, resolveDRSSourceServerRefs, TypeDRSSourceServerResource, "source-server",
+			mustJSON(drstypes.SourceServer{SourceNetworkID: ptrStr("sn-1")}), snID, store.RelAttachedTo)
+	})
+	t.Run("source network", func(t *testing.T) {
+		st := newTestStore(t)
+		vID := upsertTestResource(t, st, "aws", testAccountID, TypeEC2VPC, ec2ARN(testRegion, testAccountID, "vpc", "vpc-1"), testRegion, "{}")
+		assertDRSDecodeErrorKeepsSiblings(t, st, resolveDRSSourceNetworkRefs, TypeDRSSourceNetworkResource, "source-network",
+			mustJSON(drstypes.SourceNetwork{LaunchedVpcID: ptrStr("vpc-1")}), vID, store.RelAttachedTo)
+	})
+	t.Run("launch configuration template", func(t *testing.T) {
+		st := newTestStore(t)
+		bucketARN := "arn:aws:s3:::drs-export-bucket"
+		bID := upsertTestResource(t, st, "aws", testAccountID, TypeS3Bucket, bucketARN, "global", "{}")
+		assertDRSDecodeErrorKeepsSiblings(t, st, resolveDRSLaunchTemplateRefs, TypeDRSLaunchConfigurationTemplateResource, "launch-configuration-template",
+			mustJSON(drstypes.LaunchConfigurationTemplate{ExportBucketArn: &bucketARN}), bID, store.RelUses)
+	})
 }
 
 func TestResolveDRSLaunchTemplateRefs(t *testing.T) {
@@ -178,8 +253,8 @@ func drsStepAttrs(cfg drstypes.RecoveryPlanStepConfiguration) string {
 
 // A server step uses each scanned source server it names; an unscanned server
 // and a wait step get no edge. A row whose attributes do not parse is reported
-// without costing the other rows their edges; the rows list by name, so "bad"
-// comes first.
+// without costing the rows listed before or after it their edges (the rows
+// list by name).
 func TestResolveDRSRecoveryPlanStepRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -192,7 +267,7 @@ func TestResolveDRSRecoveryPlanStepRefs(t *testing.T) {
 	}})
 	stepIDs := map[string]string{}
 	for name, attrs := range map[string]string{
-		"bad": "[1]", "server-a": serverStep, "server-b": serverStep,
+		"a-server": serverStep, "bad": "[1]", "server-b": serverStep,
 		"wait": drsStepAttrs(&drstypes.RecoveryPlanStepConfigurationMemberWaitStepConfiguration{Value: drstypes.WaitStepConfiguration{WaitDurationMinutes: ptrInt32(5)}}),
 	} {
 		stepIDs[name] = upsertTestResourceNamed(t, st, TypeDRSRecoveryPlanStep, drsARN(testRegion, acct.ID, "recovery-plan-step", name), testRegion, attrs, name)
@@ -203,7 +278,7 @@ func TestResolveDRSRecoveryPlanStepRefs(t *testing.T) {
 	if !errors.As(err, &typeErr) {
 		t.Errorf("err = %v, want the bad row's unmarshal error", err)
 	}
-	for _, name := range []string{"server-a", "server-b"} {
+	for _, name := range []string{"a-server", "server-b"} {
 		rels := drsRelsFrom(t, st, stepIDs[name])
 		assertRelationship(t, rels, stepIDs[name], s1ID, store.RelUses)
 		if len(rels) != 1 {
