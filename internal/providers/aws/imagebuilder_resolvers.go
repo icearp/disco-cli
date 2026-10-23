@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -60,6 +61,9 @@ func resolveImageBuilderPipelineRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			ImageRecipeArn                 *string `json:"ImageRecipeArn"`
@@ -69,6 +73,7 @@ func resolveImageBuilderPipelineRefs(acct *account, st *store.Store) error {
 			ExecutionRole                  *string `json:"ExecutionRole"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeImageBuilderImagePipeline, r.NativeID, err))
 			continue
 		}
 		pairs := []struct {
@@ -96,7 +101,7 @@ func resolveImageBuilderPipelineRefs(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveImageBuilderInfraInstanceProfile wires infra-config → IAM instance
@@ -116,11 +121,13 @@ func resolveImageBuilderInfraInstanceProfile(acct *account, st *store.Store) err
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			InstanceProfileName *string `json:"InstanceProfileName"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeImageBuilderInfrastructureConfig, r.NativeID, err))
 			continue
 		}
 		name := sv(attrs.InstanceProfileName)
@@ -136,7 +143,7 @@ func resolveImageBuilderInfraInstanceProfile(acct *account, st *store.Store) err
 			return fmt.Errorf("upsert imagebuilder infra→instance-profile: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveImageBuilderLifecycleRole wires lifecycle-policy → IAM role
@@ -156,11 +163,13 @@ func resolveImageBuilderLifecycleRole(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			ExecutionRole *string `json:"ExecutionRole"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeImageBuilderLifecyclePolicy, r.NativeID, err))
 			continue
 		}
 		role := sv(attrs.ExecutionRole)
@@ -175,5 +184,5 @@ func resolveImageBuilderLifecycleRole(acct *account, st *store.Store) error {
 			return fmt.Errorf("upsert imagebuilder lifecycle→role: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }

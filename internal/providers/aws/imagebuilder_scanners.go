@@ -2,8 +2,8 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/imagebuilder"
 	"github.com/aws/aws-sdk-go-v2/service/imagebuilder/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -38,312 +38,240 @@ type imageBuilderAPI interface {
 	ListWorkflows(context.Context, *imagebuilder.ListWorkflowsInput, ...func(*imagebuilder.Options)) (*imagebuilder.ListWorkflowsOutput, error)
 }
 
-// scanImageBuilder runs all eight ImageBuilder phases sequentially. Components
-// and Workflows filter to Owner=Self to skip the Amazon-managed catalogue;
-// ContainerRecipes / ImageRecipes default to Self.
+const (
+	ibListComponentsOp                   = "imagebuilder:ListComponents"
+	ibListContainerRecipesOp             = "imagebuilder:ListContainerRecipes"
+	ibListDistributionConfigurationsOp   = "imagebuilder:ListDistributionConfigurations"
+	ibListImagesOp                       = "imagebuilder:ListImages"
+	ibListImagePipelinesOp               = "imagebuilder:ListImagePipelines"
+	ibListImageRecipesOp                 = "imagebuilder:ListImageRecipes"
+	ibListInfrastructureConfigurationsOp = "imagebuilder:ListInfrastructureConfigurations"
+	ibListLifecyclePoliciesOp            = "imagebuilder:ListLifecyclePolicies"
+	ibListWorkflowsOp                    = "imagebuilder:ListWorkflows"
+)
+
+// ibMaxResults is the page cap every Image Builder list op's Smithy model
+// gives maxResults (RestrictedInteger, 1-25).
+var ibMaxResults = sdkaws.Int32(25)
+
 func scanImageBuilder(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := imagebuilder.NewFromConfig(acct.cfg, func(o *imagebuilder.Options) { o.Region = region })
-
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanIBComponents(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIBContainerRecipes(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIBDistributionConfigs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIBImages(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIBImagePipelines(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIBImageRecipes(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIBInfrastructureConfigs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIBLifecyclePolicies(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIBWorkflows(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+	return scanImageBuilderAll(ctx, client, acct, region, st, scanID)
 }
 
-func scanIBComponents(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := imagebuilder.NewListComponentsPaginator(client, &imagebuilder.ListComponentsInput{Owner: types.OwnershipSelf})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "imagebuilder:ListComponents", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("imagebuilder:ListComponents: %w", perr)
-		}
-		for _, c := range out.ComponentVersionList {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(c.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeImageBuilderComponent, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
+// scanImageBuilderAll runs every phase and joins their errors; only a store
+// write failure stops it. The ops that take an Owner are asked for Owner=Self,
+// so Amazon-managed, Marketplace, third-party and shared resources are not
+// listed.
+func scanImageBuilderAll(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var phases phaseTotals
+	for _, phase := range []struct {
+		op string
+		fn func(context.Context, imageBuilderAPI, *account, string, *store.Store, string) (int, int, error)
+	}{
+		{ibListComponentsOp, scanIBComponents},
+		{ibListContainerRecipesOp, scanIBContainerRecipes},
+		{ibListDistributionConfigurationsOp, scanIBDistributionConfigs},
+		{ibListImagesOp, scanIBImages},
+		{ibListImagePipelinesOp, scanIBImagePipelines},
+		{ibListImageRecipesOp, scanIBImageRecipes},
+		{ibListInfrastructureConfigurationsOp, scanIBInfrastructureConfigs},
+		{ibListLifecyclePoliciesOp, scanIBLifecyclePolicies},
+		{ibListWorkflowsOp, scanIBWorkflows},
+	} {
+		t, i, perr := phase.fn(ctx, client, acct, region, st, scanID)
+		if phases.addPhase(phase.op, t, i, perr) {
+			break
 		}
 	}
-	return upsertBatch(st, batch, "imagebuilder components")
+	return phases.result(st, acct, region)
+}
+
+// ibRow builds the row of a listed Image Builder element, named by name or,
+// when that is empty, by its ARN. The caller has checked arn is non-empty.
+func ibRow(acct *account, region, scanID, rtype, arn, name string, element any, tags *string) *store.Resource {
+	if name == "" {
+		name = arn
+	}
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: rtype, NativeID: arn, Name: &name, Region: &region,
+		AttributesJSON: mustJSON(element), TagsJSON: tags, DiscoveredBy: scanID,
+	}
+}
+
+// scanIBComponents stores component versions. ComponentVersion carries no
+// tags; they need a per-component call, not made here.
+func scanIBComponents(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, ibListComponentsOp,
+		func(ctx context.Context, token *string) ([]types.ComponentVersion, *string, error) {
+			out, err := client.ListComponents(ctx, &imagebuilder.ListComponentsInput{Owner: types.OwnershipSelf, NextToken: token, MaxResults: ibMaxResults})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ComponentVersionList, out.NextToken, nil
+		},
+		func(c types.ComponentVersion) (*store.Resource, string, string) {
+			arn := sv(c.Arn)
+			if arn == "" {
+				return nil, "components have an empty Arn", sv(c.Name)
+			}
+			return ibRow(acct, region, scanID, TypeImageBuilderComponent, arn, sv(c.Name), c, nil), "", ""
+		})
 }
 
 func scanIBContainerRecipes(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := imagebuilder.NewListContainerRecipesPaginator(client, &imagebuilder.ListContainerRecipesInput{Owner: types.OwnershipSelf})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "imagebuilder:ListContainerRecipes", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ibListContainerRecipesOp,
+		func(ctx context.Context, token *string) ([]types.ContainerRecipeSummary, *string, error) {
+			out, err := client.ListContainerRecipes(ctx, &imagebuilder.ListContainerRecipesInput{Owner: types.OwnershipSelf, NextToken: token, MaxResults: ibMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("imagebuilder:ListContainerRecipes: %w", perr)
-		}
-		for _, r := range out.ContainerRecipeSummaryList {
+			return out.ContainerRecipeSummaryList, out.NextToken, nil
+		},
+		func(r types.ContainerRecipeSummary) (*store.Resource, string, string) {
 			arn := sv(r.Arn)
 			if arn == "" {
-				continue
+				return nil, "container recipes have an empty Arn", sv(r.Name)
 			}
-			label := sv(r.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeImageBuilderContainerRecipe, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "imagebuilder container-recipes")
+			return ibRow(acct, region, scanID, TypeImageBuilderContainerRecipe, arn, sv(r.Name), r, mapTagsJSON(r.Tags)), "", ""
+		})
 }
 
 func scanIBDistributionConfigs(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := imagebuilder.NewListDistributionConfigurationsPaginator(client, &imagebuilder.ListDistributionConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "imagebuilder:ListDistributionConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ibListDistributionConfigurationsOp,
+		func(ctx context.Context, token *string) ([]types.DistributionConfigurationSummary, *string, error) {
+			out, err := client.ListDistributionConfigurations(ctx, &imagebuilder.ListDistributionConfigurationsInput{NextToken: token, MaxResults: ibMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("imagebuilder:ListDistributionConfigurations: %w", perr)
-		}
-		for _, d := range out.DistributionConfigurationSummaryList {
+			return out.DistributionConfigurationSummaryList, out.NextToken, nil
+		},
+		func(d types.DistributionConfigurationSummary) (*store.Resource, string, string) {
 			arn := sv(d.Arn)
 			if arn == "" {
-				continue
+				return nil, "distribution configurations have an empty Arn", sv(d.Name)
 			}
-			label := sv(d.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeImageBuilderDistributionConfiguration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "imagebuilder distribution-configurations")
+			return ibRow(acct, region, scanID, TypeImageBuilderDistributionConfiguration, arn, sv(d.Name), d, mapTagsJSON(d.Tags)), "", ""
+		})
 }
 
-// scanIBImages discovers self-owned ImageBuilder image-version lines (the
-// AWS::ImageBuilder::Image resource). ListImages returns summary entries; the
-// per-build refs (recipe / infrastructure / distribution config) live on
-// GetImage, so this is a summary-only edge-less scanner.
+// scanIBImages stores self-owned image versions. IncludeDeprecated is left
+// unset, so deprecated images are not listed. ImageVersion carries no tags
+// and no per-build refs (recipe, infrastructure, distribution); both live on
+// GetImage, which is not called.
 func scanIBImages(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := imagebuilder.NewListImagesPaginator(client, &imagebuilder.ListImagesInput{Owner: types.OwnershipSelf})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "imagebuilder:ListImages", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ibListImagesOp,
+		func(ctx context.Context, token *string) ([]types.ImageVersion, *string, error) {
+			out, err := client.ListImages(ctx, &imagebuilder.ListImagesInput{Owner: types.OwnershipSelf, NextToken: token, MaxResults: ibMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("imagebuilder:ListImages: %w", perr)
-		}
-		for _, im := range out.ImageVersionList {
+			return out.ImageVersionList, out.NextToken, nil
+		},
+		func(im types.ImageVersion) (*store.Resource, string, string) {
 			arn := sv(im.Arn)
 			if arn == "" {
-				continue
+				return nil, "images have an empty Arn", sv(im.Name)
 			}
-			label := sv(im.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeImageBuilderImage, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(im), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "imagebuilder images")
+			return ibRow(acct, region, scanID, TypeImageBuilderImage, arn, sv(im.Name), im, nil), "", ""
+		})
 }
 
+// scanIBImagePipelines stores pipelines with the pipeline's own Tags.
+// ImageTags are the tags the pipeline applies to the images it builds, not
+// the pipeline's tags.
 func scanIBImagePipelines(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := imagebuilder.NewListImagePipelinesPaginator(client, &imagebuilder.ListImagePipelinesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "imagebuilder:ListImagePipelines", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ibListImagePipelinesOp,
+		func(ctx context.Context, token *string) ([]types.ImagePipeline, *string, error) {
+			out, err := client.ListImagePipelines(ctx, &imagebuilder.ListImagePipelinesInput{NextToken: token, MaxResults: ibMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("imagebuilder:ListImagePipelines: %w", perr)
-		}
-		for _, p := range out.ImagePipelineList {
+			return out.ImagePipelineList, out.NextToken, nil
+		},
+		func(p types.ImagePipeline) (*store.Resource, string, string) {
 			arn := sv(p.Arn)
 			if arn == "" {
-				continue
+				return nil, "image pipelines have an empty Arn", sv(p.Name)
 			}
-			label := sv(p.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeImageBuilderImagePipeline, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "imagebuilder image-pipelines")
+			return ibRow(acct, region, scanID, TypeImageBuilderImagePipeline, arn, sv(p.Name), p, mapTagsJSON(p.Tags)), "", ""
+		})
 }
 
 func scanIBImageRecipes(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := imagebuilder.NewListImageRecipesPaginator(client, &imagebuilder.ListImageRecipesInput{Owner: types.OwnershipSelf})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "imagebuilder:ListImageRecipes", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ibListImageRecipesOp,
+		func(ctx context.Context, token *string) ([]types.ImageRecipeSummary, *string, error) {
+			out, err := client.ListImageRecipes(ctx, &imagebuilder.ListImageRecipesInput{Owner: types.OwnershipSelf, NextToken: token, MaxResults: ibMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("imagebuilder:ListImageRecipes: %w", perr)
-		}
-		for _, r := range out.ImageRecipeSummaryList {
+			return out.ImageRecipeSummaryList, out.NextToken, nil
+		},
+		func(r types.ImageRecipeSummary) (*store.Resource, string, string) {
 			arn := sv(r.Arn)
 			if arn == "" {
-				continue
+				return nil, "image recipes have an empty Arn", sv(r.Name)
 			}
-			label := sv(r.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeImageBuilderImageRecipe, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "imagebuilder image-recipes")
+			return ibRow(acct, region, scanID, TypeImageBuilderImageRecipe, arn, sv(r.Name), r, mapTagsJSON(r.Tags)), "", ""
+		})
 }
 
+// scanIBInfrastructureConfigs stores infrastructure configurations with their
+// own Tags. ResourceTags are the tags applied to the build instances, not the
+// configuration's tags.
 func scanIBInfrastructureConfigs(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := imagebuilder.NewListInfrastructureConfigurationsPaginator(client, &imagebuilder.ListInfrastructureConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "imagebuilder:ListInfrastructureConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ibListInfrastructureConfigurationsOp,
+		func(ctx context.Context, token *string) ([]types.InfrastructureConfigurationSummary, *string, error) {
+			out, err := client.ListInfrastructureConfigurations(ctx, &imagebuilder.ListInfrastructureConfigurationsInput{NextToken: token, MaxResults: ibMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("imagebuilder:ListInfrastructureConfigurations: %w", perr)
-		}
-		for _, ic := range out.InfrastructureConfigurationSummaryList {
+			return out.InfrastructureConfigurationSummaryList, out.NextToken, nil
+		},
+		func(ic types.InfrastructureConfigurationSummary) (*store.Resource, string, string) {
 			arn := sv(ic.Arn)
 			if arn == "" {
-				continue
+				return nil, "infrastructure configurations have an empty Arn", sv(ic.Name)
 			}
-			label := sv(ic.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeImageBuilderInfrastructureConfig, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(ic), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "imagebuilder infrastructure-configurations")
+			return ibRow(acct, region, scanID, TypeImageBuilderInfrastructureConfig, arn, sv(ic.Name), ic, mapTagsJSON(ic.Tags)), "", ""
+		})
 }
 
 func scanIBLifecyclePolicies(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := imagebuilder.NewListLifecyclePoliciesPaginator(client, &imagebuilder.ListLifecyclePoliciesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "imagebuilder:ListLifecyclePolicies", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ibListLifecyclePoliciesOp,
+		func(ctx context.Context, token *string) ([]types.LifecyclePolicySummary, *string, error) {
+			out, err := client.ListLifecyclePolicies(ctx, &imagebuilder.ListLifecyclePoliciesInput{NextToken: token, MaxResults: ibMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("imagebuilder:ListLifecyclePolicies: %w", perr)
-		}
-		for _, p := range out.LifecyclePolicySummaryList {
+			return out.LifecyclePolicySummaryList, out.NextToken, nil
+		},
+		func(p types.LifecyclePolicySummary) (*store.Resource, string, string) {
 			arn := sv(p.Arn)
 			if arn == "" {
-				continue
+				return nil, "lifecycle policies have an empty Arn", sv(p.Name)
 			}
-			label := sv(p.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeImageBuilderLifecyclePolicy, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "imagebuilder lifecycle-policies")
+			return ibRow(acct, region, scanID, TypeImageBuilderLifecyclePolicy, arn, sv(p.Name), p, mapTagsJSON(p.Tags)), "", ""
+		})
 }
 
+// scanIBWorkflows stores workflow versions. WorkflowVersion carries no tags;
+// they need a per-workflow call, not made here.
 func scanIBWorkflows(ctx context.Context, client imageBuilderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := imagebuilder.NewListWorkflowsPaginator(client, &imagebuilder.ListWorkflowsInput{Owner: types.OwnershipSelf})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "imagebuilder:ListWorkflows", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ibListWorkflowsOp,
+		func(ctx context.Context, token *string) ([]types.WorkflowVersion, *string, error) {
+			out, err := client.ListWorkflows(ctx, &imagebuilder.ListWorkflowsInput{Owner: types.OwnershipSelf, NextToken: token, MaxResults: ibMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("imagebuilder:ListWorkflows: %w", perr)
-		}
-		for _, w := range out.WorkflowVersionList {
+			return out.WorkflowVersionList, out.NextToken, nil
+		},
+		func(w types.WorkflowVersion) (*store.Resource, string, string) {
 			arn := sv(w.Arn)
 			if arn == "" {
-				continue
+				return nil, "workflows have an empty Arn", sv(w.Name)
 			}
-			label := sv(w.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeImageBuilderWorkflow, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "imagebuilder workflows")
+			return ibRow(acct, region, scanID, TypeImageBuilderWorkflow, arn, sv(w.Name), w, nil), "", ""
+		})
 }
