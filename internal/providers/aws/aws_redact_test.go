@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"reflect"
 	"testing"
 
 	amplifytypes "github.com/aws/aws-sdk-go-v2/service/amplify/types"
@@ -14,6 +15,7 @@ import (
 	cttypes "github.com/aws/aws-sdk-go-v2/service/connect/types"
 	dftypes "github.com/aws/aws-sdk-go-v2/service/devicefarm/types"
 	dstypes "github.com/aws/aws-sdk-go-v2/service/directoryservice/types"
+	emrtypes "github.com/aws/aws-sdk-go-v2/service/emr/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	lightsailtypes "github.com/aws/aws-sdk-go-v2/service/lightsail/types"
@@ -629,5 +631,166 @@ func TestRedact_MachineLearningDataSource_KeepsNonCredentials(t *testing.T) {
 	rs, _ := got["RedshiftMetadata"].(map[string]any)
 	if rs["DatabaseUserName"] != "rs_reader" {
 		t.Errorf("RedshiftMetadata = %v, want user name kept", rs)
+	}
+}
+
+// emrSecretProps and emrPlainProps are application properties EMR
+// configurations carry: the first hold credentials, the second settings.
+var (
+	emrSecretProps = map[string]string{
+		"javax.jdo.option.ConnectionPassword": "hunter2",
+		"fs.s3a.secret.key":                   "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+		// Not shaped like an AWS key id, so only the key name can redact it.
+		"fs.s3a.access.key": "example-access-key-id",
+	}
+	emrPlainProps = map[string]string{
+		"hive.metastore.uris":   "thrift://metastore.internal:9083",
+		"javax.jdo.option.User": "hive",
+	}
+)
+
+func emrTestProps() map[string]string {
+	props := maps.Clone(emrSecretProps)
+	maps.Copy(props, emrPlainProps)
+	return props
+}
+
+// emrTestConfigurations is a configuration whose properties and whose one
+// nested configuration's properties both mix secrets and settings; the
+// nested one holds a third-level configuration of the same kind.
+func emrTestConfigurations() []emrtypes.Configuration {
+	deep := []emrtypes.Configuration{{Classification: ptrStr("deep"), Properties: emrTestProps()}}
+	return []emrtypes.Configuration{{
+		Classification: ptrStr("hive-site"),
+		Properties:     emrTestProps(),
+		Configurations: []emrtypes.Configuration{{Classification: ptrStr("export"), Properties: emrTestProps(), Configurations: deep}},
+	}}
+}
+
+// assertEMRConfigurationsRedacted fails unless, in configs (the decoded
+// Configurations), every secret property of the top-level and nested
+// configurations is redacted by key name and every setting is kept, and the
+// third-level configurations, which no path judges, are redacted whole.
+func assertEMRConfigurationsRedacted(t *testing.T, where string, configs any) {
+	t.Helper()
+	outer, _ := configs.([]any)
+	if len(outer) != 1 {
+		t.Fatalf("%s Configurations = %v; want one", where, configs)
+	}
+	top, _ := outer[0].(map[string]any)
+	inner, _ := top["Configurations"].([]any)
+	if len(inner) != 1 {
+		t.Fatalf("%s nested Configurations = %v; want one", where, top["Configurations"])
+	}
+	nested, _ := inner[0].(map[string]any)
+	for level, cfg := range map[string]map[string]any{"top": top, "nested": nested} {
+		props, _ := cfg["Properties"].(map[string]any)
+		for k := range emrSecretProps {
+			if props[k] != redact.PlaceholderKeyName {
+				t.Errorf("%s %s Properties[%s] = %v; want %s", where, level, k, props[k], redact.PlaceholderKeyName)
+			}
+		}
+		for k, v := range emrPlainProps {
+			if props[k] != v {
+				t.Errorf("%s %s Properties[%s] = %v; want %q kept", where, level, k, props[k], v)
+			}
+		}
+	}
+	deepList, _ := nested["Configurations"].([]any)
+	if len(deepList) != 1 {
+		t.Fatalf("%s third-level Configurations = %v; want one", where, nested["Configurations"])
+	}
+	deep, _ := deepList[0].(map[string]any)
+	if deep["Classification"] != redact.PlaceholderRule {
+		t.Errorf("%s third-level Classification = %v; want %s", where, deep["Classification"], redact.PlaceholderRule)
+	}
+	props, _ := deep["Properties"].(map[string]any)
+	if len(props) != len(emrTestProps()) {
+		t.Fatalf("%s third-level Properties = %v; want every key", where, deep["Properties"])
+	}
+	for k, v := range props {
+		if v != redact.PlaceholderRule {
+			t.Errorf("%s third-level Properties[%s] = %v; want %s", where, k, v, redact.PlaceholderRule)
+		}
+	}
+}
+
+func TestRedact_EMRCluster_KerberosPasswordsAndConfigurations(t *testing.T) {
+	got := applyAndDecode(t, TypeEMRCluster, emrtypes.Cluster{
+		Id: ptrStr("j-1"),
+		KerberosAttributes: &emrtypes.KerberosAttributes{
+			Realm: ptrStr("EC2.INTERNAL"), ADDomainJoinUser: ptrStr("joiner"),
+			KdcAdminPassword: ptrStr("kdc-secret"), ADDomainJoinPassword: ptrStr("ad-secret"),
+			CrossRealmTrustPrincipalPassword: ptrStr("trust-secret"),
+		},
+		Configurations: emrTestConfigurations(),
+	})
+	if got["Id"] != "j-1" {
+		t.Errorf("Id = %v; want kept", got["Id"])
+	}
+	kerberos, _ := got["KerberosAttributes"].(map[string]any)
+	for _, k := range []string{"KdcAdminPassword", "ADDomainJoinPassword", "CrossRealmTrustPrincipalPassword"} {
+		if kerberos[k] != redact.Placeholder {
+			t.Errorf("KerberosAttributes.%s = %v; want %s", k, kerberos[k], redact.Placeholder)
+		}
+	}
+	if kerberos["Realm"] != "EC2.INTERNAL" || kerberos["ADDomainJoinUser"] != "joiner" {
+		t.Errorf("KerberosAttributes = %v; want Realm and ADDomainJoinUser kept", kerberos)
+	}
+	assertEMRConfigurationsRedacted(t, "cluster", got["Configurations"])
+}
+
+func TestRedact_EMRInstanceGroup_Configurations(t *testing.T) {
+	got := applyAndDecode(t, TypeEMRInstanceGroup, emrtypes.InstanceGroup{
+		Id:                                    ptrStr("ig-1"),
+		Configurations:                        emrTestConfigurations(),
+		LastSuccessfullyAppliedConfigurations: emrTestConfigurations(),
+	})
+	assertEMRConfigurationsRedacted(t, "instance group", got["Configurations"])
+	assertEMRConfigurationsRedacted(t, "instance group last applied", got["LastSuccessfullyAppliedConfigurations"])
+}
+
+func TestRedact_EMRInstanceFleet_Configurations(t *testing.T) {
+	got := applyAndDecode(t, TypeEMRInstanceFleet, emrtypes.InstanceFleet{
+		Id: ptrStr("if-1"),
+		InstanceTypeSpecifications: []emrtypes.InstanceTypeSpecification{
+			{InstanceType: ptrStr("m5.xlarge"), Configurations: emrTestConfigurations()},
+		},
+	})
+	specs, _ := got["InstanceTypeSpecifications"].([]any)
+	if len(specs) != 1 {
+		t.Fatalf("InstanceTypeSpecifications = %v; want one", got["InstanceTypeSpecifications"])
+	}
+	spec, _ := specs[0].(map[string]any)
+	assertEMRConfigurationsRedacted(t, "instance fleet", spec["Configurations"])
+}
+
+func TestRedact_EMRStep_ConfigPropertiesAndArgs(t *testing.T) {
+	args := []string{
+		"spark.hadoop.fs.s3a.secret.key=abc",
+		"-Djavax.jdo.option.ConnectionPassword=abc",
+		"s3://bucket/script.py",
+		"--deploy-mode",
+	}
+	got := applyAndDecode(t, TypeEMRStep, emrtypes.StepSummary{
+		Id: ptrStr("s-1"),
+		Config: &emrtypes.HadoopStepConfig{
+			Jar:        ptrStr("command-runner.jar"),
+			Args:       args,
+			Properties: map[string]string{"fs.s3a.secret.key": "abc", "spark.executor.memory": "4g"},
+		},
+	})
+	cfg, _ := got["Config"].(map[string]any)
+	gotArgs, _ := cfg["Args"].([]any)
+	want := []any{redact.PlaceholderValueShape, redact.PlaceholderValueShape, "s3://bucket/script.py", "--deploy-mode"}
+	if !reflect.DeepEqual(gotArgs, want) {
+		t.Errorf("Config.Args = %v; want %v", gotArgs, want)
+	}
+	props, _ := cfg["Properties"].(map[string]any)
+	if props["fs.s3a.secret.key"] != redact.PlaceholderKeyName || props["spark.executor.memory"] != "4g" {
+		t.Errorf("Config.Properties = %v; want the secret key redacted and spark.executor.memory kept", props)
+	}
+	if cfg["Jar"] != "command-runner.jar" {
+		t.Errorf("Config.Jar = %v; want kept", cfg["Jar"])
 	}
 }
