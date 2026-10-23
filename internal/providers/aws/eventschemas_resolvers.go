@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -19,14 +20,12 @@ func init() {
 // its parent registry. The schema ARN embeds the registry name in its path
 // (`arn:aws:schemas:r:a:schema/{registryName}/{schemaName}`); the registry
 // ARN is `arn:aws:schemas:r:a:registry/{registryName}`. FK-safe via the
-// scanned-registry id set.
+// scanned-registry id set. A schema NativeID that names no registry is
+// reported after the other schemas are linked.
 func resolveEventSchemasSchemaRegistry(acct *account, st *store.Store) error {
 	regSet, err := scannedIDSet(acct, st, TypeEventSchemasRegistry)
 	if err != nil {
 		return err
-	}
-	if len(regSet) == 0 {
-		return nil
 	}
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeEventSchemasSchema},
@@ -35,26 +34,34 @@ func resolveEventSchemasSchemaRegistry(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var errs []error
 	for _, r := range rows {
-		const marker = ":schema/"
-		i := strings.Index(r.NativeID, marker)
-		if i < 0 {
+		regARN, ok := eventSchemasRegistryARN(r.NativeID)
+		if !ok {
+			errs = append(errs, fmt.Errorf("event-schemas schema %q: NativeID names no registry", r.NativeID))
 			continue
 		}
-		prefix := r.NativeID[:i] // arn:aws:schemas:{r}:{a}
-		rest := r.NativeID[i+len(marker):]
-		registryName, _, ok := strings.Cut(rest, "/")
-		if !ok || registryName == "" {
-			continue
-		}
-		regARN := prefix + ":registry/" + registryName
 		tgt := store.ResourceID("aws", acct.ID, regARN)
 		if !regSet[tgt] {
 			continue
 		}
 		if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
-			return fmt.Errorf("upsert event-schemas schema→registry: %w", err)
+			return errors.Join(append(errs, fmt.Errorf("upsert event-schemas schema→registry: %w", err))...)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
+}
+
+// eventSchemasRegistryARN returns the ARN of the registry a schema ARN names,
+// and false when the ARN has no `:schema/{registryName}/` path.
+func eventSchemasRegistryARN(schemaARN string) (string, bool) {
+	prefix, rest, ok := strings.Cut(schemaARN, ":schema/")
+	if !ok {
+		return "", false
+	}
+	registryName, _, ok := strings.Cut(rest, "/")
+	if !ok || registryName == "" {
+		return "", false
+	}
+	return prefix + ":registry/" + registryName, true
 }
