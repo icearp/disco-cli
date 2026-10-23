@@ -52,7 +52,14 @@ func apigatewayARN(region string, path ...string) string {
 // name: arn:aws:logs:{region}:{account}:log-group:{name}. The SDK sometimes
 // appends ":*" to log-group ARNs; NativeID is the clean form without it.
 func logGroupNativeIDFromName(accountID, region, name string) string {
-	return "arn:aws:logs:" + region + ":" + accountID + ":log-group:" + name
+	return logGroupARNIn("aws", accountID, region, name)
+}
+
+// logGroupARNIn is logGroupNativeIDFromName in partition. The log-group
+// scanner stores the ARN DescribeLogGroups returns, so outside the aws
+// partition only this form matches it.
+func logGroupARNIn(partition, accountID, region, name string) string {
+	return "arn:" + partition + ":logs:" + region + ":" + accountID + ":log-group:" + name
 }
 
 // macieSessionNativeID synthesises an ARN-shaped identifier for the per-region

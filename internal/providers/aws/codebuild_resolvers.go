@@ -2,8 +2,11 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
@@ -34,8 +37,33 @@ func init() {
 	)
 }
 
+// codeBuildFleetAttrs mirrors the BatchGetFleets fields the fleet resolver
+// walks.
+type codeBuildFleetAttrs struct {
+	FleetServiceRole *string `json:"FleetServiceRole"`
+	VpcConfig        *struct {
+		VpcID            *string  `json:"VpcId"`
+		Subnets          []string `json:"Subnets"`
+		SecurityGroupIDs []string `json:"SecurityGroupIds"`
+	} `json:"VpcConfig"`
+}
+
+// codeBuildFleetTargetSets are the FK-safe target id sets of the fleet
+// resolver.
+type codeBuildFleetTargetSets struct {
+	roleSet, vpcSet, subnetSet, sgSet map[string]bool
+}
+
+// codeBuildDecodeErr reports a row whose attributes or NativeID could not be
+// read, so its edges were not emitted.
+func codeBuildDecodeErr(r store.Resource, err error) error {
+	return fmt.Errorf("decode %s %s: %w", r.Type, r.NativeID, err)
+}
+
 // resolveCodeBuildFleetRefs walks each enriched fleet (BatchGetFleets) and
-// emits FleetServiceRole (IAM) + VpcConfig (VPC, subnets, SGs).
+// emits FleetServiceRole (IAM) + VpcConfig (VPC, subnets, SGs). A row whose
+// attributes do not decode costs only its own edges; its error is returned
+// with the others after the walk.
 func resolveCodeBuildFleetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeBuildFleet}, Limit: util.AllResources,
@@ -46,70 +74,71 @@ func resolveCodeBuildFleetRefs(acct *account, st *store.Store) error {
 	if len(rows) == 0 {
 		return nil
 	}
-	roleSet, err := scannedIDSet(acct, st, TypeIAMRole)
-	if err != nil {
+	var sets codeBuildFleetTargetSets
+	if sets.roleSet, err = scannedIDSet(acct, st, TypeIAMRole); err != nil {
 		return err
 	}
-	vpcSet, err := scannedIDSet(acct, st, TypeEC2VPC)
-	if err != nil {
+	if sets.vpcSet, err = scannedIDSet(acct, st, TypeEC2VPC); err != nil {
 		return err
 	}
-	subnetSet, err := scannedIDSet(acct, st, TypeEC2Subnet)
-	if err != nil {
+	if sets.subnetSet, err = scannedIDSet(acct, st, TypeEC2Subnet); err != nil {
 		return err
 	}
-	sgSet, err := scannedIDSet(acct, st, TypeEC2SecurityGroup)
-	if err != nil {
+	if sets.sgSet, err = scannedIDSet(acct, st, TypeEC2SecurityGroup); err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
-		var attrs struct {
-			FleetServiceRole *string `json:"FleetServiceRole"`
-			VpcConfig        *struct {
-				VpcID            *string  `json:"VpcId"`
-				Subnets          []string `json:"Subnets"`
-				SecurityGroupIDs []string `json:"SecurityGroupIds"`
-			} `json:"VpcConfig"`
-		}
+		var attrs codeBuildFleetAttrs
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, codeBuildDecodeErr(r, err))
 			continue
 		}
-		region := sv(r.Region)
-		if rarn := sv(attrs.FleetServiceRole); strings.Contains(rarn, ":role/") {
-			tgt := store.ResourceID("aws", acct.ID, rarn)
-			if roleSet[tgt] {
-				if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
-					return fmt.Errorf("upsert cb-fleet→role: %w", err)
-				}
+		if err := emitCodeBuildFleetEdges(st, acct, r, attrs, sets); err != nil {
+			return errors.Join(append(decodeErrs, err)...)
+		}
+	}
+	return errors.Join(decodeErrs...)
+}
+
+func emitCodeBuildFleetEdges(st *store.Store, acct *account, r store.Resource, attrs codeBuildFleetAttrs, sets codeBuildFleetTargetSets) error {
+	region := sv(r.Region)
+	if rarn := sv(attrs.FleetServiceRole); strings.Contains(rarn, ":role/") {
+		tgt := store.ResourceID("aws", acct.ID, rarn)
+		if sets.roleSet[tgt] {
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelAssumes, "directed", nil); err != nil {
+				return fmt.Errorf("upsert cb-fleet→role: %w", err)
 			}
 		}
-		if attrs.VpcConfig != nil {
-			if v := sv(attrs.VpcConfig.VpcID); v != "" {
-				tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", v))
-				if vpcSet[tgt] {
-					if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
-						return fmt.Errorf("upsert cb-fleet→vpc: %w", err)
-					}
-				}
+	}
+	vc := attrs.VpcConfig
+	if vc == nil {
+		return nil
+	}
+	if v := sv(vc.VpcID); v != "" {
+		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", v))
+		if sets.vpcSet[tgt] {
+			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+				return fmt.Errorf("upsert cb-fleet→vpc: %w", err)
 			}
-			for _, sn := range attrs.VpcConfig.Subnets {
-				tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
-				if !subnetSet[tgt] {
-					continue
-				}
-				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
-					return fmt.Errorf("upsert cb-fleet→subnet: %w", err)
-				}
-			}
-			for _, sg := range attrs.VpcConfig.SecurityGroupIDs {
-				tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
-				if !sgSet[tgt] {
-					continue
-				}
-				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
-					return fmt.Errorf("upsert cb-fleet→sg: %w", err)
-				}
-			}
+		}
+	}
+	for _, sn := range vc.Subnets {
+		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
+		if !sets.subnetSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert cb-fleet→subnet: %w", err)
+		}
+	}
+	for _, sg := range vc.SecurityGroupIDs {
+		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
+		if !sets.sgSet[tgt] {
+			continue
+		}
+		if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
+			return fmt.Errorf("upsert cb-fleet→sg: %w", err)
 		}
 	}
 	return nil
@@ -117,7 +146,9 @@ func resolveCodeBuildFleetRefs(acct *account, st *store.Store) error {
 
 // resolveCodeBuildReportGroupRefs walks each enriched report-group
 // (BatchGetReportGroups) and emits ExportConfig.S3Destination edges:
-// EncryptionKey (KMS) and Bucket (S3).
+// EncryptionKey (KMS) and Bucket (S3). A row whose attributes do not decode
+// costs only its own edges; its error is returned with the others after the
+// walk.
 func resolveCodeBuildReportGroupRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeBuildReportGroup}, Limit: util.AllResources,
@@ -136,6 +167,7 @@ func resolveCodeBuildReportGroupRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			ExportConfig *struct {
@@ -146,6 +178,7 @@ func resolveCodeBuildReportGroupRefs(acct *account, st *store.Store) error {
 			} `json:"ExportConfig"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, codeBuildDecodeErr(r, err))
 			continue
 		}
 		if attrs.ExportConfig == nil || attrs.ExportConfig.S3Destination == nil {
@@ -155,21 +188,20 @@ func resolveCodeBuildReportGroupRefs(acct *account, st *store.Store) error {
 		if ref := sv(s3.EncryptionKey); ref != "" {
 			if keyID, ok := idx.resolveKMSKeyID(ref, sv(r.Region), acct.ID); ok {
 				if err := st.UpsertRelationship(r.ID, keyID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert cb-rg→kms: %w", err)
+					return errors.Join(append(decodeErrs, fmt.Errorf("upsert cb-rg→kms: %w", err))...)
 				}
 			}
 		}
 		if b := sv(s3.Bucket); b != "" {
-			barn := "arn:aws:s3:::" + b
-			tgt := store.ResourceID("aws", acct.ID, barn)
+			tgt := store.ResourceID("aws", acct.ID, s3BucketARN(b))
 			if bucketSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert cb-rg→s3: %w", err)
+					return errors.Join(append(decodeErrs, fmt.Errorf("upsert cb-rg→s3: %w", err))...)
 				}
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // codeBuildArtifacts mirrors the project's Artifacts / Cache shape — Type
@@ -221,7 +253,9 @@ type codeBuildTargetSets struct {
 // (BatchGetProjects) and emits edges for ServiceRole (IAM), EncryptionKey
 // (KMS), VpcConfig (VPC + subnet + SG), Artifacts/SecondaryArtifacts/Cache
 // (S3 via Location when type S3), LogsConfig.CloudWatchLogs (log group),
-// and LogsConfig.S3Logs (S3). All edges FK-safe.
+// and LogsConfig.S3Logs (S3). All edges FK-safe. A row whose attributes or
+// NativeID do not decode costs only its own edges; its error is returned with
+// the others after the walk.
 func resolveCodeBuildProjectRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeCodeBuildProject},
@@ -237,29 +271,41 @@ func resolveCodeBuildProjectRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs codeBuildProjectAttrs
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, codeBuildDecodeErr(r, err))
 			continue
 		}
-		region := sv(r.Region)
-		if err := emitCodeBuildRoleEdges(st, acct, r, attrs, sets); err != nil {
-			return err
+		// The log group is rebuilt from its name in the project's partition.
+		projectARN, err := arn.Parse(r.NativeID)
+		if err != nil {
+			decodeErrs = append(decodeErrs, codeBuildDecodeErr(r, err))
+			continue
 		}
-		if err := emitCodeBuildKMSEdge(st, acct, r, region, attrs, sets); err != nil {
-			return err
-		}
-		if err := emitCodeBuildVPCEdges(st, acct, r, region, attrs, sets); err != nil {
-			return err
-		}
-		if err := emitCodeBuildS3Edges(st, acct, r, attrs, sets); err != nil {
-			return err
-		}
-		if err := emitCodeBuildLogsEdges(st, acct, r, region, attrs, sets); err != nil {
-			return err
+		if err := emitCodeBuildProjectEdges(st, acct, r, projectARN.Partition, attrs, sets); err != nil {
+			return errors.Join(append(decodeErrs, err)...)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
+}
+
+func emitCodeBuildProjectEdges(st *store.Store, acct *account, r store.Resource, partition string, attrs codeBuildProjectAttrs, sets codeBuildTargetSets) error {
+	region := sv(r.Region)
+	if err := emitCodeBuildRoleEdges(st, acct, r, attrs, sets); err != nil {
+		return err
+	}
+	if err := emitCodeBuildKMSEdge(st, acct, r, region, attrs, sets); err != nil {
+		return err
+	}
+	if err := emitCodeBuildVPCEdges(st, acct, r, region, attrs, sets); err != nil {
+		return err
+	}
+	if err := emitCodeBuildS3Edges(st, acct, r, attrs, sets); err != nil {
+		return err
+	}
+	return emitCodeBuildLogsEdges(st, acct, r, partition, region, attrs, sets)
 }
 
 func loadCodeBuildTargetSets(acct *account, st *store.Store) (codeBuildTargetSets, error) {
@@ -384,7 +430,7 @@ func emitCodeBuildBucketEdge(st *store.Store, acct *account, r store.Resource, s
 	if i := strings.IndexByte(bucketName, '/'); i >= 0 {
 		bucketName = bucketName[:i]
 	}
-	tgt := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+bucketName)
+	tgt := store.ResourceID("aws", acct.ID, s3BucketARN(bucketName))
 	if !sets.bucketSet[tgt] {
 		return nil
 	}
@@ -406,14 +452,14 @@ func emitCodeBuildS3Edges(st *store.Store, acct *account, r store.Resource, attr
 	return emitCodeBuildBucketEdge(st, acct, r, sets, codeBuildArtifactsLocation(attrs.Cache), "cache-s3")
 }
 
-func emitCodeBuildLogsEdges(st *store.Store, acct *account, r store.Resource, region string, attrs codeBuildProjectAttrs, sets codeBuildTargetSets) error {
+func emitCodeBuildLogsEdges(st *store.Store, acct *account, r store.Resource, partition, region string, attrs codeBuildProjectAttrs, sets codeBuildTargetSets) error {
 	lc := attrs.LogsConfig
 	if lc == nil {
 		return nil
 	}
 	if lc.CloudWatchLogs != nil && sv(lc.CloudWatchLogs.Status) != "DISABLED" {
 		if name := sv(lc.CloudWatchLogs.GroupName); name != "" {
-			tgt := store.ResourceID("aws", acct.ID, logGroupNativeIDFromName(acct.ID, region, name))
+			tgt := store.ResourceID("aws", acct.ID, logGroupARNIn(partition, acct.ID, region, name))
 			if sets.lgSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert codebuild project→log-group: %w", err)
