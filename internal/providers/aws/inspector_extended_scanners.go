@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/inspector2"
+	i2types "github.com/aws/aws-sdk-go-v2/service/inspector2/types"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -15,68 +17,40 @@ func isInspector2FeatureNotEnabled(err error) bool {
 	return isAccessDeniedWithMessage(err, "Invoking account is not enabled")
 }
 
-// scanInspector2Extended discovers Inspector v2 CIS scan configurations,
-// code security integrations, code security scan configurations, and
-// connectors. ARNs native on every type.
-func scanInspector2Extended(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	t, i, ferr := scanInspector2CisConfigs(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanInspector2CodeSecurityIntegrations(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanInspector2CodeSecurityScanConfigs(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanInspector2Connectors(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	return total, inserted, nil
-}
-
+// scanInspector2CisConfigs stores the CIS scan configurations
+// ListCisScanConfigurations returns, those read before a failed page
+// included. A first page refused with the not-enabled denial returns the
+// service-disabled sentinel; on a later page the same denial is warned about
+// like any other, keeping the pages read before it.
 func scanInspector2CisConfigs(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := inspector2.NewListCisScanConfigurationsPaginator(client, &inspector2.ListCisScanConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isInspector2FeatureNotEnabled(err) {
-				return 0, 0, markServiceDisabled(err)
+	var notEnabled error
+	total, inserted, err := storeTokenList(ctx, st, acct, region, inspector2CisConfigsOp,
+		func(ctx context.Context, token *string) ([]i2types.CisScanConfiguration, *string, error) {
+			out, err := client.ListCisScanConfigurations(ctx, &inspector2.ListCisScanConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(inspector2PageLimit)})
+			if token == nil && isInspector2FeatureNotEnabled(err) {
+				notEnabled = err
+				return nil, nil, nil
 			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "inspector2:ListCisScanConfigurations", acct.ID, region, err)
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("inspector2:ListCisScanConfigurations: %w", err)
-		}
-		for _, c := range out.ScanConfigurations {
-			arn := sv(c.ScanConfigurationArn)
-			if arn == "" {
-				continue
+			return out.ScanConfigurations, out.NextToken, nil
+		},
+		func(c i2types.CisScanConfiguration) (*store.Resource, string, string) {
+			if sv(c.ScanConfigurationArn) == "" {
+				return nil, "CIS scan configurations have an empty ScanConfigurationArn", sv(c.ScanName)
 			}
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeInspector2CisScanConfiguration, NativeID: arn,
+				Type: TypeInspector2CisScanConfiguration, NativeID: *c.ScanConfigurationArn,
 				Name: c.ScanName, Region: &region,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
+				TagsJSON: mapTagsJSON(c.Tags), AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			}, "", ""
+		})
+	if notEnabled != nil {
+		return total, inserted, markServiceDisabled(notEnabled)
 	}
-	return upsertBatch(st, batch, "inspector2 cis-scan-configurations")
+	return total, inserted, err
 }
 
 func scanInspector2CodeSecurityIntegrations(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -86,7 +60,7 @@ func scanInspector2CodeSecurityIntegrations(ctx context.Context, client inspecto
 		out, err := client.ListCodeSecurityIntegrations(ctx, &inspector2.ListCodeSecurityIntegrationsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "inspector2:ListCodeSecurityIntegrations", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, inspector2CodeSecurityIntegrationsOp, acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("inspector2:ListCodeSecurityIntegrations: %w", err)
 		}
@@ -118,7 +92,7 @@ func scanInspector2CodeSecurityScanConfigs(ctx context.Context, client inspector
 		out, err := client.ListCodeSecurityScanConfigurations(ctx, &inspector2.ListCodeSecurityScanConfigurationsInput{NextToken: nextToken})
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "inspector2:ListCodeSecurityScanConfigurations", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, inspector2CodeSecurityScanConfigsOp, acct.ID, region, err)
 			}
 			return 0, 0, fmt.Errorf("inspector2:ListCodeSecurityScanConfigurations: %w", err)
 		}
@@ -152,7 +126,7 @@ func scanInspector2Connectors(ctx context.Context, client inspector2API, acct *a
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "inspector2:ListConnectors", acct.ID, region, err)
+				_ = skipIfAccessDenied(st, inspector2ConnectorsOp, acct.ID, region, err)
 				break
 			}
 			return 0, 0, fmt.Errorf("inspector2:ListConnectors: %w", err)
@@ -204,7 +178,7 @@ func scanInspector2DelegatedAdmins(ctx context.Context, client inspector2API, ac
 				break
 			}
 			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "inspector2:ListDelegatedAdminAccounts", acct.ID, region, err)
+				_ = skipIfAccessDenied(st, inspector2DelegatedAdminsOp, acct.ID, region, err)
 				break
 			}
 			return 0, 0, fmt.Errorf("inspector2:ListDelegatedAdminAccounts: %w", err)

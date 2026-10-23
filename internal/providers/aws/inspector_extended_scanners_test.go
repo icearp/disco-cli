@@ -503,7 +503,15 @@ func TestScanInspector2_TransientDoesNotMaskHardError(t *testing.T) {
 		name, warnOp string
 		override     map[string][]stubCall
 	}{
-		{"older phase throttled, delegated admin fails", "inspector2", map[string][]stubCall{
+		{"filters throttled, CIS fails", "inspector2:ListFilters", map[string][]stubCall{
+			"ListFilters":               {{Err: throttle}},
+			"ListCisScanConfigurations": {{Err: hard}},
+		}},
+		{"CIS throttled, filters fail", "inspector2:ListCisScanConfigurations", map[string][]stubCall{
+			"ListFilters":               {{Err: hard}},
+			"ListCisScanConfigurations": {{Err: throttle}},
+		}},
+		{"older phase throttled, delegated admin fails", "inspector2:ListConnectors", map[string][]stubCall{
 			"ListConnectors":             {{Err: throttle}},
 			"ListDelegatedAdminAccounts": {{Err: hard}},
 		}},

@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/inspector2"
+	i2types "github.com/aws/aws-sdk-go-v2/service/inspector2/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -36,6 +38,29 @@ type inspector2API interface {
 	ListDelegatedAdminAccounts(context.Context, *inspector2.ListDelegatedAdminAccountsInput, ...func(*inspector2.Options)) (*inspector2.ListDelegatedAdminAccountsOutput, error)
 }
 
+// Op labels of the Inspector v2 phases, each warned and returned under its own.
+const (
+	inspector2FiltersOp                  = "inspector2:ListFilters"
+	inspector2MembersOp                  = "inspector2:ListMembers"
+	inspector2CisConfigsOp               = "inspector2:ListCisScanConfigurations"
+	inspector2CodeSecurityIntegrationsOp = "inspector2:ListCodeSecurityIntegrations"
+	inspector2CodeSecurityScanConfigsOp  = "inspector2:ListCodeSecurityScanConfigurations"
+	inspector2ConnectorsOp               = "inspector2:ListConnectors"
+	inspector2DelegatedAdminsOp          = "inspector2:ListDelegatedAdminAccounts"
+)
+
+// inspector2PageLimit is the maxResults cap ListFilters and
+// ListCisScanConfigurations model.
+const inspector2PageLimit = 100
+
+// inspector2Phase is one listing scanInspector2 runs. enabledOnly marks the
+// phases not called once the CIS phase reported the account not enabled.
+type inspector2Phase struct {
+	op          string
+	enabledOnly bool
+	run         func(context.Context, inspector2API, *account, string, *store.Store, string) (int, int, error)
+}
+
 // scanInspector2 discovers Inspector v2 resources and the organization's
 // delegated administrator in one region.
 // Findings, coverage rows, and the singleton org-level configuration are
@@ -44,61 +69,48 @@ type inspector2API interface {
 // (one entry per scanned resource × scan-type), and configuration is a
 // singleton config rather than a graph-edge target.
 //
-// The delegated-admin phase runs whatever the other phases return, because
-// a management account can delegate Inspector without enabling it itself;
-// the other phases then end in the not-enabled sentinel. The sentinel is
-// returned only when no phase stored a row and the delegated-admin phase has
-// no error of its own: the dispatcher discards every count on a sentinel and
-// would hide that error behind "(account: disabled)".
+// Phases run in order, each whatever the others return; only a failed store
+// write stops them, since every later write would fail too. When the CIS
+// phase reports the account not enabled, the code-security and connector
+// phases are not called: their not-enabled denial would be an IAM-style
+// warning no policy change can fix. The delegated-admin phase runs anyway,
+// because a management account can delegate Inspector without enabling it
+// itself. The not-enabled sentinel is returned only when no phase stored a
+// row and no phase failed: the dispatcher discards every count on a sentinel
+// and would hide that failure behind "(account: disabled)".
 func scanInspector2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := inspector2.NewFromConfig(acct.cfg, func(o *inspector2.Options) { o.Region = region })
-
-	total, inserted, err := scanInspector2Resources(ctx, client, acct, region, st, scanID)
-	t, i, aerr := scanInspector2DelegatedAdmins(ctx, client, acct, region, st, scanID)
-	total += t
-	inserted += i
-	if errors.Is(err, errServiceDisabled) && (total > 0 || aerr != nil) {
-		err = nil
+	phases := []inspector2Phase{
+		{op: inspector2FiltersOp, run: scanInspector2Filters},
+		{op: inspector2MembersOp, run: scanInspector2Members},
+		{op: inspector2CisConfigsOp, run: scanInspector2CisConfigs},
+		{op: inspector2CodeSecurityIntegrationsOp, enabledOnly: true, run: scanInspector2CodeSecurityIntegrations},
+		{op: inspector2CodeSecurityScanConfigsOp, enabledOnly: true, run: scanInspector2CodeSecurityScanConfigs},
+		{op: inspector2ConnectorsOp, enabledOnly: true, run: scanInspector2Connectors},
+		{op: inspector2DelegatedAdminsOp, run: scanInspector2DelegatedAdmins},
 	}
-	var errs phaseErrs
-	errs.add("inspector2", err)
-	errs.add("inspector2:ListDelegatedAdminAccounts", aerr)
-	return total, inserted, errs.join(st, acct, region)
-}
-
-// scanInspector2Resources lists finding-filters, member accounts
-// (delegated-admin perspective) and the scanInspector2Extended types, phase
-// by phase; the first failing phase ends the listing, and the rows stored
-// before it stay counted.
-func scanInspector2Resources(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	{
-		t, i, ferr := scanInspector2Filters(ctx, client, acct, region, st, scanID)
-		total += t
-		inserted += i
-		if ferr != nil {
-			return total, inserted, ferr
+	var (
+		p          phaseTotals
+		notEnabled error
+	)
+	for _, ph := range phases {
+		if ph.enabledOnly && notEnabled != nil {
+			continue
+		}
+		t, i, err := ph.run(ctx, client, acct, region, st, scanID)
+		if errors.Is(err, errServiceDisabled) {
+			notEnabled = err
+			continue
+		}
+		if p.addPhase(ph.op, t, i, err) {
+			break
 		}
 	}
-
-	{
-		t, i, ferr := scanInspector2Members(ctx, client, acct, region, st, scanID)
-		total += t
-		inserted += i
-		if ferr != nil {
-			return total, inserted, ferr
-		}
+	total, inserted, err := p.result(st, acct, region)
+	if notEnabled != nil && total == 0 && err == nil {
+		return 0, 0, notEnabled
 	}
-
-	{
-		t, i, ferr := scanInspector2Extended(ctx, client, acct, region, st, scanID)
-		total += t
-		inserted += i
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-	}
-
-	return total, inserted, nil
+	return total, inserted, err
 }
 
 // inspector2MemberNativeID synthesises an identifier for a member-account
@@ -110,44 +122,27 @@ func inspector2MemberNativeID(region, adminAccountID, memberAccountID string) st
 	return fmt.Sprintf("arn:aws:inspector2:%s:%s:member/%s", region, adminAccountID, memberAccountID)
 }
 
-func scanInspector2Filters(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := inspector2.NewListFiltersPaginator(client, &inspector2.ListFiltersInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "inspector2:ListFilters", acct.ID, region, perr)
-				return 0, 0, nil
+// scanInspector2Filters stores the finding filters ListFilters returns,
+// those read before a failed page included.
+func scanInspector2Filters(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, inspector2FiltersOp,
+		func(ctx context.Context, token *string) ([]i2types.Filter, *string, error) {
+			out, err := client.ListFilters(ctx, &inspector2.ListFiltersInput{NextToken: token, MaxResults: sdkaws.Int32(inspector2PageLimit)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("inspector2:ListFilters: %w", perr)
-		}
-		for _, f := range out.Filters {
-			arn := sv(f.Arn)
-			if arn == "" {
-				continue
+			return out.Filters, out.NextToken, nil
+		},
+		func(f i2types.Filter) (*store.Resource, string, string) {
+			if sv(f.Arn) == "" {
+				return nil, "finding filters have an empty Arn", sv(f.Name)
 			}
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeInspector2Filter,
-				NativeID:       arn,
-				Name:           f.Name,
-				Region:         &region,
-				AttributesJSON: mustJSON(f),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert inspector2 filters: %w", uerr)
-	}
-	return len(batch), n, nil
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeInspector2Filter, NativeID: *f.Arn, Name: f.Name, Region: &region,
+				TagsJSON: mapTagsJSON(f.Tags), AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
+			}, "", ""
+		})
 }
 
 func scanInspector2Members(ctx context.Context, client inspector2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -157,7 +152,7 @@ func scanInspector2Members(ctx context.Context, client inspector2API, acct *acco
 		out, perr := pager.NextPage(ctx)
 		if perr != nil {
 			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "inspector2:ListMembers", acct.ID, region, perr)
+				_ = skipIfAccessDenied(st, inspector2MembersOp, acct.ID, region, perr)
 				return 0, 0, nil
 			}
 			return 0, 0, fmt.Errorf("inspector2:ListMembers: %w", perr)
