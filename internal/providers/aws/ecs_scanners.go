@@ -51,9 +51,12 @@ func scanECS(ctx context.Context, acct *account, region string, st *store.Store,
 	return total + t, inserted + i, errs.join(st, acct, region)
 }
 
-// scanECSClusterPhases discovers ECS clusters, services, and task definitions
-// in one region, stopping at the first error. Clusters are described first so
-// their ARNs can be used for service listing.
+// scanECSClusterPhases discovers ECS clusters, services, task definitions and
+// their extended and compute-extra children in one region. Clusters are
+// described first so their ARNs can be used for service listing. Only the
+// clusters, services and task-definitions phases stop at the first error; the
+// extended and compute-extra phases run regardless, and only a failed store
+// write stops them.
 func scanECSClusterPhases(ctx context.Context, client *ecs.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	clusterARNs, tt, nn, err := scanECSClusters(ctx, client, acct, region, st, scanID)
 	if err != nil {
@@ -76,17 +79,17 @@ func scanECSClusterPhases(ctx context.Context, client *ecs.Client, acct *account
 	total += tt
 	inserted += nn
 
+	// The extended phases store what they read before returning an error, so
+	// their counts are kept and compute-extra runs whatever they return,
+	// except after a failed write.
+	p := phaseTotals{total: total, inserted: inserted}
 	tt, nn, err = scanECSExtended(ctx, client, acct, region, st, scanID, clusterARNs)
-	if err != nil {
-		return total, inserted, err
+	if p.addPhase("ecs", tt, nn, err) {
+		return p.result(st, acct, region)
 	}
-	total += tt
-	inserted += nn
-
 	tt, nn, err = scanECSComputeExtra(ctx, client, acct, region, st, scanID, clusterARNs)
-	total += tt
-	inserted += nn
-	return total, inserted, err
+	p.addPhase("ecs", tt, nn, err)
+	return p.result(st, acct, region)
 }
 
 // scanECSClusters pages through ListClusters, batch-describes each page via
