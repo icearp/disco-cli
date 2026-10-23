@@ -2,73 +2,49 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/fsx"
+	fsxtypes "github.com/aws/aws-sdk-go-v2/service/fsx/types"
 	"github.com/icearp/disco-cli/store"
 )
 
 func scanFSxBackups(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := fsx.NewDescribeBackupsPaginator(client, &fsx.DescribeBackupsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "fsx:DescribeBackups", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, fsxDescribeBackupsOp,
+		func(ctx context.Context, token *string) ([]fsxtypes.Backup, *string, error) {
+			out, err := client.DescribeBackups(ctx, &fsx.DescribeBackupsInput{NextToken: token, MaxResults: fsxMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("fsx:DescribeBackups: %w", err)
-		}
-		for _, b := range out.Backups {
-			arn := sv(b.ResourceARN)
-			if arn == "" {
-				continue
-			}
-			label := sv(b.BackupId)
-			lc := string(b.Lifecycle)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFSxBackup, NativeID: arn,
-				Name: &label, Region: &region, Status: &lc,
-				AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "fsx backups")
+			return out.Backups, out.NextToken, nil
+		},
+		func(b fsxtypes.Backup) (*store.Resource, string, string) {
+			id := sv(b.BackupId)
+			return fsxRow(acct, region, scanID, TypeFSxBackup, "backups", fsxElement{
+				arn: sv(b.ResourceARN), id: id, name: nonEmptyPtr(id), lifecycle: string(b.Lifecycle), tags: b.Tags,
+			}, b)
+		})
 }
 
 func scanFSxFileCaches(ctx context.Context, client fsxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := fsx.NewDescribeFileCachesPaginator(client, &fsx.DescribeFileCachesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "fsx:DescribeFileCaches", acct.ID, region, err)
-			}
+	return storeTokenList(ctx, st, acct, region, fsxDescribeFileCachesOp,
+		func(ctx context.Context, token *string) ([]fsxtypes.FileCache, *string, error) {
+			out, err := client.DescribeFileCaches(ctx, &fsx.DescribeFileCachesInput{NextToken: token, MaxResults: fsxMaxResults})
 			// FSx File Cache is per-account/region opt-in; when not enabled AWS
-			// returns "The requested feature is not enabled for this AWS account" —
-			// account state, not failure, so silent per-op skip (sibling FSx phases
-			// still scan).
-			if isAPIErrorWithMessage(err, "BadRequest", "requested feature is not enabled") {
-				return 0, 0, nil
+			// returns BadRequest "The requested feature is not enabled for this
+			// AWS account": account state, not failure, so the listing is empty.
+			// Only the first page means that; a later one is a failure.
+			if token == nil && isAPIErrorWithMessage(err, "BadRequest", "requested feature is not enabled") {
+				return nil, nil, nil
 			}
-			return 0, 0, fmt.Errorf("fsx:DescribeFileCaches: %w", err)
-		}
-		for _, c := range out.FileCaches {
-			arn := sv(c.ResourceARN)
-			if arn == "" {
-				continue
+			if err != nil {
+				return nil, nil, err
 			}
-			label := sv(c.FileCacheId)
-			lc := string(c.Lifecycle)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFSxFileCache, NativeID: arn,
-				Name: &label, Region: &region, Status: &lc,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "fsx file-caches")
+			return out.FileCaches, out.NextToken, nil
+		},
+		func(c fsxtypes.FileCache) (*store.Resource, string, string) {
+			id := sv(c.FileCacheId)
+			return fsxRow(acct, region, scanID, TypeFSxFileCache, "file caches", fsxElement{
+				arn: sv(c.ResourceARN), id: id, name: nonEmptyPtr(id), lifecycle: string(c.Lifecycle),
+			}, c)
+		})
 }

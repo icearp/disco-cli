@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -57,6 +58,9 @@ func resolveFSxFileSystemRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			KmsKeyID            *string  `json:"KmsKeyId"`
@@ -65,6 +69,7 @@ func resolveFSxFileSystemRefs(acct *account, st *store.Store) error {
 			NetworkInterfaceIDs []string `json:"NetworkInterfaceIds"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeFSxFileSystem, r.NativeID, err))
 			continue
 		}
 		region := sv(r.Region)
@@ -102,7 +107,7 @@ func resolveFSxFileSystemRefs(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 func fsxARN(region, acct, kind, id string) string {
@@ -117,18 +122,22 @@ func resolveFSxChildrenToFileSystem(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, t := range []string{TypeFSxVolume, TypeFSxStorageVirtualMachine, TypeFSxDataRepositoryAssociation} {
 		rows, err := st.ListResources(store.ResourceFilter{
 			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
 		})
 		if err != nil {
-			return err
+			return errors.Join(append(decodeErrs, err)...)
 		}
 		for _, r := range rows {
 			var attrs struct {
 				FileSystemID *string `json:"FileSystemId"`
 			}
 			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+				decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", t, r.NativeID, err))
 				continue
 			}
 			fsID := sv(attrs.FileSystemID)
@@ -144,7 +153,7 @@ func resolveFSxChildrenToFileSystem(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveFSxSnapshotToVolume wires each snapshot to the volume it was taken
@@ -163,11 +172,15 @@ func resolveFSxSnapshotToVolume(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			VolumeID *string `json:"VolumeId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeFSxSnapshot, r.NativeID, err))
 			continue
 		}
 		vid := sv(attrs.VolumeID)
@@ -182,5 +195,5 @@ func resolveFSxSnapshotToVolume(acct *account, st *store.Store) error {
 			return fmt.Errorf("upsert fsx snapshot→volume: %w", err)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }

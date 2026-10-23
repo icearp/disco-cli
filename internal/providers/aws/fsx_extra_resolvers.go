@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -45,6 +46,9 @@ func resolveFSxBackupRelationships(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			KmsKeyID   *string `json:"KmsKeyId"`
@@ -56,6 +60,7 @@ func resolveFSxBackupRelationships(acct *account, st *store.Store) error {
 			} `json:"Volume"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeFSxBackup, r.NativeID, err))
 			continue
 		}
 		if attrs.FileSystem != nil {
@@ -86,7 +91,7 @@ func resolveFSxBackupRelationships(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveFSxFileCacheRelationships wires each file cache to its KMS key.
@@ -104,11 +109,15 @@ func resolveFSxFileCacheRelationships(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	// A row that fails to decode is reported at the end so that it costs the
+	// other rows none of their edges.
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			KmsKeyID *string `json:"KmsKeyId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", TypeFSxFileCache, r.NativeID, err))
 			continue
 		}
 		if ref := sv(attrs.KmsKeyID); ref != "" {
@@ -119,5 +128,5 @@ func resolveFSxFileCacheRelationships(acct *account, st *store.Store) error {
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
