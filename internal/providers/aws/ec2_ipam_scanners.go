@@ -1,14 +1,24 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"sync/atomic"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
+)
+
+const (
+	ec2IPAMPoolsOp                 = "ec2:DescribeIpamPools"
+	ec2IPAMPoolsPageSize           = 1000 // IpamMaxResults maximum
+	ec2IPAMPoolAllocationsOp       = "ec2:GetIpamPoolAllocations"
+	ec2IPAMPoolAllocationsPageSize = 100000 // GetIpamPoolAllocationsMaxResults maximum
 )
 
 func init() {
@@ -21,8 +31,9 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeEC2IPAMResourceDiscoveryAssociation, Service: "ec2"})
 }
 
-// scanEC2IPAM discovers all IPAM-related EC2 resources in parallel. It also
-// reports whether scanIPAMs stored an IPAM whose home Region is region.
+// scanEC2IPAM discovers IPAM-related EC2 resources in parallel; the pool
+// allocations are read later, by scanEC2Late. It also reports whether
+// scanIPAMs stored an IPAM whose home Region is region.
 func scanEC2IPAM(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, homeIPAM bool, err error) {
 	total, inserted, err = runScanners(
 		ctx,
@@ -39,9 +50,6 @@ func scanEC2IPAM(ctx context.Context, client ec2API, acct *account, region strin
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanIPAMPoolCIDRs(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanIPAMAllocations(ctx, client, acct, region, st, scanID)
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanIPAMResourceDiscoveries(ctx, client, acct, region, st, scanID)
@@ -114,29 +122,45 @@ func scanIPAMScopes(ctx context.Context, client ec2API, acct *account, region st
 	)
 }
 
-func scanIPAMPools(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(
-		ctx, "ec2:DescribeIpamPools", acct, region, st,
-		ec2.NewDescribeIpamPoolsPaginator(client, &ec2.DescribeIpamPoolsInput{}),
-		func(page *ec2.DescribeIpamPoolsOutput) []*store.Resource {
-			var out []*store.Resource
-			for _, pool := range page.IpamPools {
-				status := string(pool.State)
-				out = append(out, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeEC2IPAMPool,
-					NativeID:       sv(pool.IpamPoolArn),
-					Name:           pool.Description,
-					Region:         &region,
-					Status:         &status,
-					TagsJSON:       awsTagsJSON(pool.Tags),
-					AttributesJSON: mustJSON(pool),
-					DiscoveredBy:   scanID,
-				})
+// scanIPAMPools stores the IPAM pools, those read before a failed page
+// included (storeTokenList). A region feature gap on the first page is an
+// empty listing, as ec2PageScan treats it; on a later page it fails the
+// listing. The listing is hand-rolled, not the SDK paginator, because that one
+// repeats a repeated NextToken forever.
+func scanIPAMPools(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, ec2IPAMPoolsOp,
+		func(ctx context.Context, token *string) ([]ec2types.IpamPool, *string, error) {
+			out, err := client.DescribeIpamPools(ctx, &ec2.DescribeIpamPoolsInput{
+				MaxResults: sdkaws.Int32(ec2IPAMPoolsPageSize),
+				NextToken:  token,
+			})
+			if token == nil && isEC2RegionFeatureGap(err) {
+				return nil, nil, nil
 			}
-			return out
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.IpamPools, out.NextToken, nil
+		},
+		func(pool ec2types.IpamPool) (*store.Resource, string, string) {
+			arn := sv(pool.IpamPoolArn)
+			if arn == "" {
+				return nil, "pools have no IpamPoolArn", cmp.Or(sv(pool.IpamPoolId), "one without an IpamPoolId")
+			}
+			status := string(pool.State)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeEC2IPAMPool,
+				NativeID:       arn,
+				Name:           pool.Description,
+				Region:         &region,
+				Status:         &status,
+				TagsJSON:       awsTagsJSON(pool.Tags),
+				AttributesJSON: mustJSON(pool),
+				DiscoveredBy:   scanID,
+			}, "", ""
 		},
 	)
 }
@@ -187,49 +211,51 @@ func scanIPAMPoolCIDRs(ctx context.Context, client ec2API, acct *account, region
 	return int(t.Load()), int(n.Load()), err
 }
 
-// scanIPAMAllocations fetches all IPAM pool IDs, then fans out concurrently to
-// retrieve allocations for each pool.
-func scanIPAMAllocations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	poolIDs, err := listIPAMPoolIDs(ctx, client, acct, region, st)
+// scanIPAMAllocations stores the allocations of each IPAM pool this scan
+// stored in region, except deleted pools. One pool's failure stops no other
+// (storeTokenEachParent). A pool deleted since it was listed fails the phase:
+// an EC2 parent may be skipped only with a warning, and storeTokenEachParent's
+// notFound skips one silently when nothing was read from it.
+func scanIPAMAllocations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	pools, err := ec2StoredParents(st, acct, region, scanID, TypeEC2IPAMPool, "ipam-pool", string(ec2types.IpamPoolStateDeleteComplete))
 	if err != nil {
-		return
+		return 0, 0, err
 	}
-	if len(poolIDs) == 0 {
-		return
+	poolIDs := make([]string, len(pools))
+	for i, p := range pools {
+		poolIDs[i] = p.id
 	}
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, ctx := errgroup.WithContext(ctx)
-	for _, poolID := range poolIDs {
-		g.Go(func() error {
-			tt, nn, e := ec2PageScan(
-				ctx, "ec2:GetIpamPoolAllocations", acct, region, st,
-				ec2.NewGetIpamPoolAllocationsPaginator(client, &ec2.GetIpamPoolAllocationsInput{IpamPoolId: &poolID}),
-				func(page *ec2.GetIpamPoolAllocationsOutput) []*store.Resource {
-					var out []*store.Resource
-					for _, alloc := range page.IpamPoolAllocations {
-						nativeID := ec2ARN(region, acct.ID, "ipam-allocation", poolID+"/"+sv(alloc.IpamPoolAllocationId))
-						out = append(out, &store.Resource{
-							Provider:       "aws",
-							AccountID:      acct.ID,
-							AccountName:    &acct.Name,
-							Type:           TypeEC2IPAMAllocation,
-							NativeID:       nativeID,
-							Name:           alloc.Description,
-							Region:         &region,
-							AttributesJSON: mustJSON(alloc),
-							DiscoveredBy:   scanID,
-						})
-					}
-					return out
-				},
-			)
-			add(tt, nn)
-			return e
-		})
-	}
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
+	return storeTokenEachParent(ctx, st, acct, region, ec2IPAMPoolAllocationsOp, nil, poolIDs,
+		func(ctx context.Context, poolID string, token *string) ([]ec2types.IpamPoolAllocation, *string, error) {
+			out, err := client.GetIpamPoolAllocations(ctx, &ec2.GetIpamPoolAllocationsInput{
+				IpamPoolId: &poolID,
+				MaxResults: sdkaws.Int32(ec2IPAMPoolAllocationsPageSize),
+				NextToken:  token,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.IpamPoolAllocations, out.NextToken, nil
+		},
+		func(poolID string, alloc ec2types.IpamPoolAllocation) (*store.Resource, string, string) {
+			id := sv(alloc.IpamPoolAllocationId)
+			if id == "" {
+				return nil, "allocations have no IpamPoolAllocationId", "one in pool " + poolID
+			}
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeEC2IPAMAllocation,
+				NativeID:       ec2ARN(region, acct.ID, "ipam-allocation", poolID+"/"+id),
+				Name:           alloc.Description,
+				Region:         &region,
+				TagsJSON:       awsTagsJSON(alloc.Tags),
+				AttributesJSON: mustJSON(alloc),
+				DiscoveredBy:   scanID,
+			}, "", ""
+		},
+	)
 }
 
 func scanIPAMResourceDiscoveries(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

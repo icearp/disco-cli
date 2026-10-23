@@ -57,6 +57,8 @@ func scanEC2Late(ctx context.Context, client ec2API, acct *account, region strin
 		{ec2ApplicationStatusChecksOp, scanEC2ApplicationStatusChecks},
 		{ec2RouteServerAssociationsOp, scanEC2RouteServerAssociations},
 		{ec2RouteServerPropagationsOp, scanEC2RouteServerPropagations},
+		{ec2IPAMPoolAllocationsOp, scanIPAMAllocations},
+		{ec2VPCEndpointServicePermissionsOp, scanVPCEndpointServicePermissions},
 	}
 	type result struct {
 		total, inserted int

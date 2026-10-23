@@ -1,16 +1,26 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
+)
+
+const (
+	ec2VPCBPAExclusionsOp              = "ec2:DescribeVpcBlockPublicAccessExclusions"
+	ec2VPCBPAExclusionsPageSize        = 1000 // DescribeVpcBlockPublicAccessExclusionsMaxResults maximum
+	ec2VPCEndpointServicesOp           = "ec2:DescribeVpcEndpointServices"
+	ec2VPCEndpointServicePermissionsOp = "ec2:DescribeVpcEndpointServicePermissions"
+	// The documented MaxResults maximum of the two ops below; the model sets
+	// no range.
+	ec2VPCEndpointServicesPageSize           = 1000
+	ec2VPCEndpointServicePermissionsPageSize = 1000
 )
 
 func init() {
@@ -86,9 +96,6 @@ func scanEC2Networking(ctx context.Context, client ec2API, acct *account, region
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanVPCEndpointServices(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanVPCEndpointServicePermissions(ctx, client, acct, region, st, scanID)
 		},
 		func(ctx context.Context) (int, int, error) {
 			return scanNetworkInterfacePermissions(ctx, client, acct, region, st, scanID)
@@ -493,50 +500,41 @@ func scanVPCBlockPublicAccessOptions(ctx context.Context, client ec2API, acct *a
 	return 1, n, nil
 }
 
-// scanVPCBlockPublicAccessExclusions has no paginator; uses manual NextToken pagination.
-func scanVPCBlockPublicAccessExclusions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var nextToken *string
-	for {
-		maxResults := int32(1000)
-		out, err := client.DescribeVpcBlockPublicAccessExclusions(ctx, &ec2.DescribeVpcBlockPublicAccessExclusionsInput{
-			MaxResults: &maxResults,
-			NextToken:  nextToken,
-		})
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "ec2:DescribeVpcBlockPublicAccessExclusions", acct.ID, region, err)
+// scanVPCBlockPublicAccessExclusions stores the VPC Block Public Access
+// exclusions, those read before a failed page included (storeTokenList). The
+// SDK has no paginator for this op.
+func scanVPCBlockPublicAccessExclusions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, ec2VPCBPAExclusionsOp,
+		func(ctx context.Context, token *string) ([]ec2types.VpcBlockPublicAccessExclusion, *string, error) {
+			out, err := client.DescribeVpcBlockPublicAccessExclusions(ctx, &ec2.DescribeVpcBlockPublicAccessExclusionsInput{
+				MaxResults: aws.Int32(ec2VPCBPAExclusionsPageSize),
+				NextToken:  token,
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return total, inserted, fmt.Errorf("ec2:DescribeVpcBlockPublicAccessExclusions: %w", err)
-		}
-		var batch []*store.Resource
-		for _, excl := range out.VpcBlockPublicAccessExclusions {
+			return out.VpcBlockPublicAccessExclusions, out.NextToken, nil
+		},
+		func(excl ec2types.VpcBlockPublicAccessExclusion) (*store.Resource, string, string) {
+			id := sv(excl.ExclusionId)
+			if id == "" {
+				return nil, "exclusions have no ExclusionId", cmp.Or(sv(excl.ResourceArn), "one without a ResourceArn")
+			}
 			status := string(excl.State)
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeEC2VPCBlockPublicAccessExclusion,
-				NativeID:       ec2ARN(region, acct.ID, "vpc-block-public-access-exclusion", sv(excl.ExclusionId)),
+				NativeID:       ec2ARN(region, acct.ID, "vpc-block-public-access-exclusion", id),
 				Region:         &region,
 				Status:         &status,
 				TagsJSON:       awsTagsJSON(excl.Tags),
 				AttributesJSON: mustJSON(excl),
 				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert vpc-block-public-access-exclusions: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-		if out.NextToken == nil {
-			return total, inserted, nil
-		}
-		nextToken = out.NextToken
-	}
+			}, "", ""
+		},
+	)
 }
 
 func scanVPCEndpointConnectionNotifications(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -564,130 +562,91 @@ func scanVPCEndpointConnectionNotifications(ctx context.Context, client ec2API, 
 	)
 }
 
-// scanVPCEndpointServices scans services owned by this account.
-// DescribeVpcEndpointServices has no paginator (manual NextToken). The owner
-// filter restricts to account-owned services — omitted, the API also returns
-// AWS-managed ones.
-func scanVPCEndpointServices(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanVPCEndpointServices stores the VPC endpoint services this account owns,
+// those read before a failed page included (storeTokenList). The owner filter
+// keeps out the AWS-managed services the API otherwise returns. The SDK has no
+// paginator for this op.
+func scanVPCEndpointServices(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	ownerFilter := ec2types.Filter{Name: aws.String("owner"), Values: []string{acct.ID}}
-	var nextToken *string
-	for {
-		out, err := client.DescribeVpcEndpointServices(ctx, &ec2.DescribeVpcEndpointServicesInput{
-			Filters:   []ec2types.Filter{ownerFilter},
-			NextToken: nextToken,
-		})
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "ec2:DescribeVpcEndpointServices", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, ec2VPCEndpointServicesOp,
+		func(ctx context.Context, token *string) ([]ec2types.ServiceDetail, *string, error) {
+			out, err := client.DescribeVpcEndpointServices(ctx, &ec2.DescribeVpcEndpointServicesInput{
+				Filters:    []ec2types.Filter{ownerFilter},
+				MaxResults: aws.Int32(ec2VPCEndpointServicesPageSize),
+				NextToken:  token,
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return total, inserted, fmt.Errorf("ec2:DescribeVpcEndpointServices: %w", err)
-		}
-		var batch []*store.Resource
-		for _, svc := range out.ServiceDetails {
-			batch = append(batch, &store.Resource{
+			return out.ServiceDetails, out.NextToken, nil
+		},
+		func(svc ec2types.ServiceDetail) (*store.Resource, string, string) {
+			id := sv(svc.ServiceId)
+			if id == "" {
+				return nil, "services have no ServiceId", cmp.Or(sv(svc.ServiceName), "one without a ServiceName")
+			}
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeEC2VPCEndpointService,
-				NativeID:       ec2ARN(region, acct.ID, "vpc-endpoint-service", sv(svc.ServiceId)),
+				NativeID:       ec2ARN(region, acct.ID, "vpc-endpoint-service", id),
 				Name:           svc.ServiceName,
 				Region:         &region,
 				TagsJSON:       awsTagsJSON(svc.Tags),
 				AttributesJSON: mustJSON(svc),
 				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert vpc-endpoint-services: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-		if out.NextToken == nil {
-			return total, inserted, nil
-		}
-		nextToken = out.NextToken
-	}
+			}, "", ""
+		},
+	)
 }
 
-// scanVPCEndpointServicePermissions fans out per VPC endpoint service.
-func scanVPCEndpointServicePermissions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	svcIDs, err := listVPCEndpointServiceIDs(ctx, client, acct, region, st)
+// scanVPCEndpointServicePermissions stores the principals allowed to connect
+// to each VPC endpoint service this scan stored in region (only services this
+// account owns are stored). One service's failure stops no other
+// (storeTokenEachParent). A service deleted since it was listed fails the
+// phase: an EC2 parent may be skipped only with a warning, and
+// storeTokenEachParent's notFound skips one silently when nothing was read
+// from it.
+func scanVPCEndpointServicePermissions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	services, err := ec2StoredParents(st, acct, region, scanID, TypeEC2VPCEndpointService, "vpc-endpoint-service")
 	if err != nil {
-		return
+		return 0, 0, err
 	}
-	if len(svcIDs) == 0 {
-		return
+	svcIDs := make([]string, len(services))
+	for i, p := range services {
+		svcIDs[i] = p.id
 	}
-	var t, n atomic.Int64
-	add := func(tt, nn int) { t.Add(int64(tt)); n.Add(int64(nn)) }
-	g, ctx := errgroup.WithContext(ctx)
-	for _, svcID := range svcIDs {
-		g.Go(func() error {
-			tt, nn, e := ec2PageScan(
-				ctx, "ec2:DescribeVpcEndpointServicePermissions", acct, region, st,
-				ec2.NewDescribeVpcEndpointServicePermissionsPaginator(client, &ec2.DescribeVpcEndpointServicePermissionsInput{
-					ServiceId: &svcID,
-				}),
-				func(page *ec2.DescribeVpcEndpointServicePermissionsOutput) []*store.Resource {
-					var out []*store.Resource
-					for _, perm := range page.AllowedPrincipals {
-						nativeID := ec2ARN(region, acct.ID, "vpc-endpoint-service-permission",
-							svcID+"/"+sv(perm.Principal))
-						out = append(out, &store.Resource{
-							Provider:       "aws",
-							AccountID:      acct.ID,
-							AccountName:    &acct.Name,
-							Type:           TypeEC2VPCEndpointServicePermissions,
-							NativeID:       nativeID,
-							Region:         &region,
-							AttributesJSON: mustJSON(perm),
-							DiscoveredBy:   scanID,
-						})
-					}
-					return out
-				},
-			)
-			add(tt, nn)
-			return e
-		})
-	}
-	err = g.Wait()
-	return int(t.Load()), int(n.Load()), err
-}
-
-// listVPCEndpointServiceIDs returns all VPC endpoint service IDs owned by this
-// account (manual NextToken pagination — no SDK paginator). The owner filter
-// is required: without it, the API also returns AWS-managed services, which
-// reject permission queries.
-func listVPCEndpointServiceIDs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store) ([]string, error) {
-	ownerFilter := ec2types.Filter{Name: aws.String("owner"), Values: []string{acct.ID}}
-	var ids []string
-	var nextToken *string
-	for {
-		page, err := client.DescribeVpcEndpointServices(ctx, &ec2.DescribeVpcEndpointServicesInput{
-			Filters:   []ec2types.Filter{ownerFilter},
-			NextToken: nextToken,
-		})
-		if err != nil {
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "ec2:DescribeVpcEndpointServices", acct.ID, region, err)
-				return nil, nil
+	return storeTokenEachParent(ctx, st, acct, region, ec2VPCEndpointServicePermissionsOp, nil, svcIDs,
+		func(ctx context.Context, svcID string, token *string) ([]ec2types.AllowedPrincipal, *string, error) {
+			out, err := client.DescribeVpcEndpointServicePermissions(ctx, &ec2.DescribeVpcEndpointServicePermissionsInput{
+				ServiceId:  &svcID,
+				MaxResults: aws.Int32(ec2VPCEndpointServicePermissionsPageSize),
+				NextToken:  token,
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, fmt.Errorf("ec2:DescribeVpcEndpointServices (list IDs): %w", err)
-		}
-		for _, svc := range page.ServiceDetails {
-			if svc.ServiceId != nil {
-				ids = append(ids, *svc.ServiceId)
+			return out.AllowedPrincipals, out.NextToken, nil
+		},
+		func(svcID string, perm ec2types.AllowedPrincipal) (*store.Resource, string, string) {
+			principal := sv(perm.Principal)
+			if principal == "" {
+				return nil, "permissions have no Principal", cmp.Or(sv(perm.ServicePermissionId), "one of service "+svcID)
 			}
-		}
-		if page.NextToken == nil {
-			return ids, nil
-		}
-		nextToken = page.NextToken
-	}
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeEC2VPCEndpointServicePermissions,
+				NativeID:       ec2ARN(region, acct.ID, "vpc-endpoint-service-permission", svcID+"/"+principal),
+				Region:         &region,
+				TagsJSON:       awsTagsJSON(perm.Tags),
+				AttributesJSON: mustJSON(perm),
+				DiscoveredBy:   scanID,
+			}, "", ""
+		},
+	)
 }
 
 func scanNetworkInterfacePermissions(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {

@@ -1,12 +1,22 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
+)
+
+const (
+	ec2CapacityManagerDataExportsOp       = "ec2:DescribeCapacityManagerDataExports"
+	ec2CapacityManagerDataExportsPageSize = 1000 // DescribeCapacityManagerDataExportsRequestMaxResults maximum
+	ec2TGWMeteringPoliciesOp              = "ec2:DescribeTransitGatewayMeteringPolicies"
+	ec2TGWMeteringPoliciesPageSize        = 1000 // TransitGatewayMaxResults maximum
 )
 
 func init() {
@@ -43,29 +53,42 @@ func scanEC2MiscExtra(ctx context.Context, client ec2API, acct *account, region 
 	)
 }
 
-func scanCapacityManagerDataExports(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return ec2PageScan(
-		ctx, "ec2:DescribeCapacityManagerDataExports", acct, region, st,
-		ec2.NewDescribeCapacityManagerDataExportsPaginator(client, &ec2.DescribeCapacityManagerDataExportsInput{}),
-		func(page *ec2.DescribeCapacityManagerDataExportsOutput) []*store.Resource {
-			var out []*store.Resource
-			for _, e := range page.CapacityManagerDataExports {
-				id := sv(e.CapacityManagerDataExportId)
-				if id == "" {
-					continue
-				}
-				out = append(out, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeEC2CapacityManagerDataExport,
-					NativeID:       ec2ARN(region, acct.ID, "capacity-manager-data-export", id),
-					Region:         &region,
-					AttributesJSON: mustJSON(e),
-					DiscoveredBy:   scanID,
-				})
+// scanCapacityManagerDataExports stores the Capacity Manager data export
+// configurations, those read before a failed page included (storeTokenList).
+// A region feature gap on the first page is an empty listing, as ec2PageScan
+// treats it; on a later page it fails the listing. The listing is hand-rolled,
+// not the SDK paginator, because that one repeats a repeated NextToken forever.
+func scanCapacityManagerDataExports(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, ec2CapacityManagerDataExportsOp,
+		func(ctx context.Context, token *string) ([]ec2types.CapacityManagerDataExportResponse, *string, error) {
+			out, err := client.DescribeCapacityManagerDataExports(ctx, &ec2.DescribeCapacityManagerDataExportsInput{
+				MaxResults: sdkaws.Int32(ec2CapacityManagerDataExportsPageSize),
+				NextToken:  token,
+			})
+			if token == nil && isEC2RegionFeatureGap(err) {
+				return nil, nil, nil
 			}
-			return out
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.CapacityManagerDataExports, out.NextToken, nil
+		},
+		func(e ec2types.CapacityManagerDataExportResponse) (*store.Resource, string, string) {
+			id := sv(e.CapacityManagerDataExportId)
+			if id == "" {
+				return nil, "data exports have no CapacityManagerDataExportId", "one without a CapacityManagerDataExportId"
+			}
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeEC2CapacityManagerDataExport,
+				NativeID:       ec2ARN(region, acct.ID, "capacity-manager-data-export", id),
+				Region:         &region,
+				TagsJSON:       awsTagsJSON(e.Tags),
+				AttributesJSON: mustJSON(e),
+				DiscoveredBy:   scanID,
+			}, "", ""
 		},
 	)
 }
@@ -101,48 +124,39 @@ func scanNetworkPerformanceMetricSubscriptions(ctx context.Context, client ec2AP
 	)
 }
 
-// scanTransitGatewayMeteringPolicies — SDK has no paginator for this op.
-// Manual NextToken loop.
-func scanTransitGatewayMeteringPolicies(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, perr := client.DescribeTransitGatewayMeteringPolicies(ctx, &ec2.DescribeTransitGatewayMeteringPoliciesInput{NextToken: token})
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "ec2:DescribeTransitGatewayMeteringPolicies", acct.ID, region, perr)
+// scanTransitGatewayMeteringPolicies stores the transit gateway metering
+// policies, those read before a failed page included (storeTokenList). The SDK
+// has no paginator for this op.
+func scanTransitGatewayMeteringPolicies(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, ec2TGWMeteringPoliciesOp,
+		func(ctx context.Context, token *string) ([]ec2types.TransitGatewayMeteringPolicy, *string, error) {
+			out, err := client.DescribeTransitGatewayMeteringPolicies(ctx, &ec2.DescribeTransitGatewayMeteringPoliciesInput{
+				MaxResults: sdkaws.Int32(ec2TGWMeteringPoliciesPageSize),
+				NextToken:  token,
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ec2:DescribeTransitGatewayMeteringPolicies: %w", perr)
-		}
-		for _, p := range out.TransitGatewayMeteringPolicies {
+			return out.TransitGatewayMeteringPolicies, out.NextToken, nil
+		},
+		func(p ec2types.TransitGatewayMeteringPolicy) (*store.Resource, string, string) {
 			id := sv(p.TransitGatewayMeteringPolicyId)
 			if id == "" {
-				continue
+				return nil, "metering policies have no TransitGatewayMeteringPolicyId", cmp.Or(sv(p.TransitGatewayId), "one without a TransitGatewayId")
 			}
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeEC2TransitGatewayMeteringPolicy,
 				NativeID:       ec2ARN(region, acct.ID, "transit-gateway-metering-policy", id),
 				Region:         &region,
+				TagsJSON:       awsTagsJSON(p.Tags),
 				AttributesJSON: mustJSON(p),
 				DiscoveredBy:   scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ec2 transit-gateway-metering-policies: %w", uerr)
-	}
-	return len(batch), n, nil
+			}, "", ""
+		},
+	)
 }
 
 // scanVPCEncryptionControls — SDK has no paginator for this op. Manual loop.
