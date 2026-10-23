@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/osis"
+	osistypes "github.com/aws/aws-sdk-go-v2/service/osis/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -21,89 +23,86 @@ func init() {
 }
 
 const (
-	osisEndpointConnectionsOp = "osis:ListPipelineEndpointConnections"
-	// osisEndpointConnectionPageLimit is the model's cap on
-	// ListPipelineEndpointConnections MaxResults (range 1..100).
+	osisListPipelinesOp          = "osis:ListPipelines"
+	osisListPipelineBlueprintsOp = "osis:ListPipelineBlueprints"
+	osisListPipelineEndpointsOp  = "osis:ListPipelineEndpoints"
+	osisEndpointConnectionsOp    = "osis:ListPipelineEndpointConnections"
+	// osisPipelinePageLimit and osisEndpointConnectionPageLimit are the
+	// model's caps on ListPipelines and ListPipelineEndpointConnections
+	// MaxResults (range 1..100).
+	osisPipelinePageLimit           int32 = 100
 	osisEndpointConnectionPageLimit int32 = 100
 )
 
 // scanOSIS discovers OpenSearch Ingestion Service (OSIS) pipelines, the
 // AWS-managed configuration blueprints and VPC pipeline endpoints, then the
-// endpoint connections to this account's pipelines. The connection phase runs
-// whatever the earlier phases returned, so their failure costs it nothing, and
-// the counts from both sides are summed. Each side's transient error is demoted
-// to a warning only beside a hard error: joined, it would be buried in the hard
-// error instead of reported under its op.
+// endpoint connections to this account's pipelines. Every phase runs whatever
+// the others returned, and their counts are summed; only a store write failure
+// stops the scan. A failed pipeline phase costs the connection phase only the
+// links to the pipelines it did not store.
 func scanOSIS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := osis.NewFromConfig(acct.cfg, func(o *osis.Options) { o.Region = region })
-	total, inserted, pipelines, err := scanOSISPhases(ctx, client, acct, region, st, scanID)
-	t, i, cerr := scanOSISPipelineEndpointConnections(ctx, client, acct, region, st, scanID, pipelines)
-	var errs phaseErrs
-	errs.add("osis", err)
-	errs.add(osisEndpointConnectionsOp, cerr)
-	return total + t, inserted + i, errs.join(st, acct, region)
-}
-
-// scanOSISPhases runs the pipeline, blueprint and endpoint phases in order,
-// stopping at the first error, and returns the ARNs of the pipelines stored.
-func scanOSISPhases(ctx context.Context, client *osis.Client, acct *account, region string, st *store.Store, scanID string) (total, inserted int, pipelines map[string]bool, err error) {
-	total, inserted, pipelines, err = scanOSISPipelines(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return total, inserted, pipelines, err
+	var phases phaseTotals
+	t, i, pipelines, err := scanOSISPipelines(ctx, client, acct, region, st, scanID)
+	if phases.addPhase(osisListPipelinesOp, t, i, err) {
+		return phases.result(st, acct, region)
 	}
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanOSISPipelineBlueprints(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanOSISPipelineEndpoints(ctx, client, acct, region, st, scanID) },
+	for _, phase := range []struct {
+		op  string
+		run func() (int, int, error)
+	}{
+		{osisListPipelineBlueprintsOp, func() (int, int, error) {
+			return scanOSISPipelineBlueprints(ctx, client, acct, region, st, scanID)
+		}},
+		{osisListPipelineEndpointsOp, func() (int, int, error) {
+			return scanOSISPipelineEndpoints(ctx, client, acct, region, st, scanID)
+		}},
+		{osisEndpointConnectionsOp, func() (int, int, error) {
+			return scanOSISPipelineEndpointConnections(ctx, client, acct, region, st, scanID, pipelines)
+		}},
 	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, pipelines, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, pipelines, nil
-}
-
-// scanOSISPipelines stores the region's pipelines and returns their ARNs.
-func scanOSISPipelines(ctx context.Context, client *osis.Client, acct *account, region string, st *store.Store, scanID string) (int, int, map[string]bool, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListPipelines(ctx, &osis.ListPipelinesInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "osis:ListPipelines", acct.ID, region, err)
-			}
-			return 0, 0, nil, fmt.Errorf("osis:ListPipelines: %w", err)
-		}
-		for _, p := range out.Pipelines {
-			arn := sv(p.PipelineArn)
-			if arn == "" {
-				continue
-			}
-			status := string(p.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeOSISPipeline, NativeID: arn,
-				Name: p.PipelineName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
+		t, i, err := phase.run()
+		if phases.addPhase(phase.op, t, i, err) {
 			break
 		}
-		nextToken = out.NextToken
 	}
-	total, inserted, err := upsertBatch(st, batch, "osis pipelines")
-	if err != nil {
-		return 0, 0, nil, err
+	return phases.result(st, acct, region)
+}
+
+// scanOSISPipelines stores the region's pipelines, those read before a failed
+// ListPipelines page included, each with the tags its ListPipelines element
+// carries, and returns the ARNs of the pipelines stored. A pipeline listed
+// without an ARN is not stored and is warned about under its name. A denial is
+// warned about once; any other error is returned after the rows are stored. A
+// failed write returns no ARNs.
+func scanOSISPipelines(ctx context.Context, client *osis.Client, acct *account, region string, st *store.Store, scanID string) (int, int, map[string]bool, error) {
+	total, inserted, stored, err := storeParentList(ctx, st, acct, region, osisListPipelinesOp, "pipelines", "PipelineArn",
+		func(ctx context.Context, token *string) ([]osistypes.PipelineSummary, *string, error) {
+			out, err := client.ListPipelines(ctx, &osis.ListPipelinesInput{NextToken: token, MaxResults: sdkaws.Int32(osisPipelinePageLimit)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Pipelines, out.NextToken, nil
+		},
+		func(p osistypes.PipelineSummary) (*store.Resource, string, string) {
+			arn := sv(p.PipelineArn)
+			if arn == "" {
+				return nil, "pipelines have an empty PipelineArn", sv(p.PipelineName)
+			}
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeOSISPipeline, NativeID: arn,
+				Name: p.PipelineName, Region: &region, Status: nonEmptyPtr(string(p.Status)),
+				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				TagsJSON: kvTagsJSON(p.Tags, func(t osistypes.Tag) (*string, *string) { return t.Key, t.Value }),
+			}, "", ""
+		},
+		func(p osistypes.PipelineSummary) string { return sv(p.PipelineArn) })
+	pipelines := make(map[string]bool, len(stored))
+	for _, p := range stored {
+		pipelines[p.arn] = true
 	}
-	pipelines := make(map[string]bool, len(batch))
-	for _, r := range batch {
-		pipelines[r.NativeID] = true
-	}
-	return total, inserted, pipelines, nil
+	return total, inserted, pipelines, err
 }
 
 // scanOSISPipelineBlueprints lists the AWS-managed pipeline configuration
@@ -113,9 +112,9 @@ func scanOSISPipelineBlueprints(ctx context.Context, client *osis.Client, acct *
 	out, err := client.ListPipelineBlueprints(ctx, &osis.ListPipelineBlueprintsInput{})
 	if err != nil {
 		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "osis:ListPipelineBlueprints", acct.ID, region, err)
+			return 0, 0, skipIfAccessDenied(st, osisListPipelineBlueprintsOp, acct.ID, region, err)
 		}
-		return 0, 0, fmt.Errorf("osis:ListPipelineBlueprints: %w", err)
+		return 0, 0, fmt.Errorf("%s: %w", osisListPipelineBlueprintsOp, err)
 	}
 	var batch []*store.Resource
 	for _, b := range out.Blueprints {
@@ -144,9 +143,9 @@ func scanOSISPipelineEndpoints(ctx context.Context, client *osis.Client, acct *a
 		out, err := pager.NextPage(ctx)
 		if err != nil {
 			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "osis:ListPipelineEndpoints", acct.ID, region, err)
+				return 0, 0, skipIfAccessDenied(st, osisListPipelineEndpointsOp, acct.ID, region, err)
 			}
-			return 0, 0, fmt.Errorf("osis:ListPipelineEndpoints: %w", err)
+			return 0, 0, fmt.Errorf("%s: %w", osisListPipelineEndpointsOp, err)
 		}
 		for _, e := range out.PipelineEndpoints {
 			id := sv(e.EndpointId)
