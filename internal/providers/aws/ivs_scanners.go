@@ -2,10 +2,12 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ivs"
+	ivstypes "github.com/aws/aws-sdk-go-v2/service/ivs/types"
 	"github.com/aws/aws-sdk-go-v2/service/ivsrealtime"
+	ivsrealtimetypes "github.com/aws/aws-sdk-go-v2/service/ivsrealtime/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -45,386 +47,292 @@ type ivsRealtimeAPI interface {
 	ListStorageConfigurations(context.Context, *ivsrealtime.ListStorageConfigurationsInput, ...func(*ivsrealtime.Options)) (*ivsrealtime.ListStorageConfigurationsOutput, error)
 }
 
+// The IVS real-time ops share the ivs IAM namespace.
+const (
+	ivsListChannelsOp                    = "ivs:ListChannels"
+	ivsListStreamKeysOp                  = "ivs:ListStreamKeys"
+	ivsListAdConfigurationsOp            = "ivs:ListAdConfigurations"
+	ivsListPlaybackKeyPairsOp            = "ivs:ListPlaybackKeyPairs"
+	ivsListPlaybackRestrictionPoliciesOp = "ivs:ListPlaybackRestrictionPolicies"
+	ivsListRecordingConfigurationsOp     = "ivs:ListRecordingConfigurations"
+	ivsListEncoderConfigurationsOp       = "ivs:ListEncoderConfigurations"
+	ivsListIngestConfigurationsOp        = "ivs:ListIngestConfigurations"
+	ivsListPublicKeysOp                  = "ivs:ListPublicKeys"
+	ivsListStagesOp                      = "ivs:ListStages"
+	ivsListStorageConfigurationsOp       = "ivs:ListStorageConfigurations"
+)
+
+// Page caps from the Smithy models. Unset, ListStreamKeys and
+// ListPlaybackRestrictionPolicies default to one item per page.
+var (
+	ivsMaxResults          = sdkaws.Int32(100)
+	ivsStreamKeyMaxResults = sdkaws.Int32(50)
+)
+
 func scanIVS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	c1 := ivs.NewFromConfig(acct.cfg, func(o *ivs.Options) { o.Region = region })
 	c2 := ivsrealtime.NewFromConfig(acct.cfg, func(o *ivsrealtime.Options) { o.Region = region })
+	return scanIVSAll(ctx, c1, c2, acct, region, st, scanID)
+}
 
-	// Phase 1: ivs channels (collect ARNs for per-channel stream-key fan-out).
+// scanIVSAll runs every phase and joins their errors; only a store write
+// failure stops it. A failed channel listing leaves the stream-key phase
+// fewer channels to list.
+func scanIVSAll(ctx context.Context, c1 ivsAPI, c2 ivsRealtimeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var phases phaseTotals
 	chARNs, t, i, ferr := scanIVSChannels(ctx, c1, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
+	if phases.addPhase(ivsListChannelsOp, t, i, ferr) {
+		return phases.result(st, acct, region)
 	}
-	total += t
-	inserted += i
-
-	for _, ca := range chARNs {
-		t, i, perr := scanIVSStreamKeys(ctx, c1, acct, region, st, scanID, ca)
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanIVSAdConfigurations(ctx, c1, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIVSPlaybackKeyPairs(ctx, c1, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIVSPlaybackRestrictionPolicies(ctx, c1, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIVSRecordingConfigurations(ctx, c1, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIVSEncoderConfigurations(ctx, c2, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIVSIngestConfigurations(ctx, c2, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIVSPublicKeys(ctx, c2, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIVSStages(ctx, c2, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIVSStorageConfigurations(ctx, c2, acct, region, st, scanID) },
+	for _, phase := range []struct {
+		op string
+		fn func() (int, int, error)
+	}{
+		{ivsListStreamKeysOp, func() (int, int, error) { return scanIVSStreamKeys(ctx, c1, acct, region, st, scanID, chARNs) }},
+		{ivsListAdConfigurationsOp, func() (int, int, error) { return scanIVSAdConfigurations(ctx, c1, acct, region, st, scanID) }},
+		{ivsListPlaybackKeyPairsOp, func() (int, int, error) { return scanIVSPlaybackKeyPairs(ctx, c1, acct, region, st, scanID) }},
+		{ivsListPlaybackRestrictionPoliciesOp, func() (int, int, error) {
+			return scanIVSPlaybackRestrictionPolicies(ctx, c1, acct, region, st, scanID)
+		}},
+		{ivsListRecordingConfigurationsOp, func() (int, int, error) {
+			return scanIVSRecordingConfigurations(ctx, c1, acct, region, st, scanID)
+		}},
+		{ivsListEncoderConfigurationsOp, func() (int, int, error) {
+			return scanIVSEncoderConfigurations(ctx, c2, acct, region, st, scanID)
+		}},
+		{ivsListIngestConfigurationsOp, func() (int, int, error) {
+			return scanIVSIngestConfigurations(ctx, c2, acct, region, st, scanID)
+		}},
+		{ivsListPublicKeysOp, func() (int, int, error) { return scanIVSPublicKeys(ctx, c2, acct, region, st, scanID) }},
+		{ivsListStagesOp, func() (int, int, error) { return scanIVSStages(ctx, c2, acct, region, st, scanID) }},
+		{ivsListStorageConfigurationsOp, func() (int, int, error) {
+			return scanIVSStorageConfigurations(ctx, c2, acct, region, st, scanID)
+		}},
 	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
+		t, i, ferr := phase.fn()
+		if phases.addPhase(phase.op, t, i, ferr) {
+			break
 		}
-		total += t
-		inserted += i
 	}
-	return total, inserted, nil
+	return phases.result(st, acct, region)
+}
+
+// ivsRow builds the row of a listed IVS element, named by name or, when that
+// is empty, by its ARN. The caller has checked arn is non-empty.
+func ivsRow(acct *account, region, scanID, rtype, arn, name string, element any, tags *string) *store.Resource {
+	if name == "" {
+		name = arn
+	}
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: rtype, NativeID: arn, Name: &name, Region: &region,
+		AttributesJSON: mustJSON(element), TagsJSON: tags, DiscoveredBy: scanID,
+	}
 }
 
 func scanIVSAdConfigurations(ctx context.Context, client ivsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ivs.NewListAdConfigurationsPaginator(client, &ivs.ListAdConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "ivs:ListAdConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ivsListAdConfigurationsOp,
+		func(ctx context.Context, token *string) ([]ivstypes.AdConfigurationSummary, *string, error) {
+			out, err := client.ListAdConfigurations(ctx, &ivs.ListAdConfigurationsInput{NextToken: token, MaxResults: ivsMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ivs:ListAdConfigurations: %w", perr)
-		}
-		for _, a := range out.AdConfigurations {
+			return out.AdConfigurations, out.NextToken, nil
+		},
+		func(a ivstypes.AdConfigurationSummary) (*store.Resource, string, string) {
 			arn := sv(a.Arn)
 			if arn == "" {
-				continue
+				return nil, "ad configurations have an empty Arn", sv(a.Name)
 			}
-			label := sv(a.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIVSAdConfiguration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ivs ad-configurations")
+			return ivsRow(acct, region, scanID, TypeIVSAdConfiguration, arn, sv(a.Name), a, mapTagsJSON(a.Tags)), "", ""
+		})
 }
 
+// scanIVSChannels stores the channels and returns the ARNs of those stored,
+// for the stream-key phase.
 func scanIVSChannels(ctx context.Context, client ivsAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := ivs.NewListChannelsPaginator(client, &ivs.ListChannelsInput{})
-	var batch []*store.Resource
 	var arns []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "ivs:ListChannels", acct.ID, region, perr)
-				return nil, 0, 0, nil
+	t, i, err := storeTokenList(ctx, st, acct, region, ivsListChannelsOp,
+		func(ctx context.Context, token *string) ([]ivstypes.ChannelSummary, *string, error) {
+			out, err := client.ListChannels(ctx, &ivs.ListChannelsInput{NextToken: token, MaxResults: ivsMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("ivs:ListChannels: %w", perr)
-		}
-		for _, c := range out.Channels {
+			return out.Channels, out.NextToken, nil
+		},
+		func(c ivstypes.ChannelSummary) (*store.Resource, string, string) {
 			arn := sv(c.Arn)
 			if arn == "" {
-				continue
-			}
-			label := sv(c.Name)
-			if label == "" {
-				label = arn
+				return nil, "channels have an empty Arn, and their stream keys were not read either", sv(c.Name)
 			}
 			arns = append(arns, arn)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIVSChannel, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "ivs channels")
+			return ivsRow(acct, region, scanID, TypeIVSChannel, arn, sv(c.Name), c, mapTagsJSON(c.Tags)), "", ""
+		})
 	return arns, t, i, err
 }
 
-func scanIVSStreamKeys(ctx context.Context, client ivsAPI, acct *account, region string, st *store.Store, scanID, channelARN string) (int, int, error) {
-	ca := channelARN
-	pager := ivs.NewListStreamKeysPaginator(client, &ivs.ListStreamKeysInput{ChannelArn: &ca})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "ivs:ListStreamKeys", acct.ID, region, perr)
-				return 0, 0, nil
+// scanIVSStreamKeys stores the stream keys of each channel. A stream key has
+// no name, so its row is named by its ARN.
+func scanIVSStreamKeys(ctx context.Context, client ivsAPI, acct *account, region string, st *store.Store, scanID string, channelARNs []string) (int, int, error) {
+	return storeTokenPerParent(ctx, st, acct, region, ivsListStreamKeysOp, []string{"ResourceNotFoundException"}, channelARNs,
+		func(ctx context.Context, channelARN string, token *string) ([]ivstypes.StreamKeySummary, *string, error) {
+			out, err := client.ListStreamKeys(ctx, &ivs.ListStreamKeysInput{ChannelArn: &channelARN, NextToken: token, MaxResults: ivsStreamKeyMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ivs:ListStreamKeys: %w", perr)
-		}
-		for _, k := range out.StreamKeys {
+			return out.StreamKeys, out.NextToken, nil
+		},
+		func(channelARN string, k ivstypes.StreamKeySummary) (*store.Resource, string, string) {
 			arn := sv(k.Arn)
 			if arn == "" {
-				continue
+				return nil, "stream keys have an empty Arn (first names its channel)", channelARN
 			}
-			label := arn
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIVSStreamKey, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(k), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ivs stream-keys")
+			return ivsRow(acct, region, scanID, TypeIVSStreamKey, arn, "", k, mapTagsJSON(k.Tags)), "", ""
+		})
 }
 
 func scanIVSPlaybackKeyPairs(ctx context.Context, client ivsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ivs.NewListPlaybackKeyPairsPaginator(client, &ivs.ListPlaybackKeyPairsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "ivs:ListPlaybackKeyPairs", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ivsListPlaybackKeyPairsOp,
+		func(ctx context.Context, token *string) ([]ivstypes.PlaybackKeyPairSummary, *string, error) {
+			out, err := client.ListPlaybackKeyPairs(ctx, &ivs.ListPlaybackKeyPairsInput{NextToken: token, MaxResults: ivsMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ivs:ListPlaybackKeyPairs: %w", perr)
-		}
-		for _, k := range out.KeyPairs {
+			return out.KeyPairs, out.NextToken, nil
+		},
+		func(k ivstypes.PlaybackKeyPairSummary) (*store.Resource, string, string) {
 			arn := sv(k.Arn)
 			if arn == "" {
-				continue
+				return nil, "playback key pairs have an empty Arn", sv(k.Name)
 			}
-			label := sv(k.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIVSPlaybackKeyPair, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(k), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ivs playback-key-pairs")
+			return ivsRow(acct, region, scanID, TypeIVSPlaybackKeyPair, arn, sv(k.Name), k, mapTagsJSON(k.Tags)), "", ""
+		})
 }
 
 func scanIVSPlaybackRestrictionPolicies(ctx context.Context, client ivsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ivs.NewListPlaybackRestrictionPoliciesPaginator(client, &ivs.ListPlaybackRestrictionPoliciesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "ivs:ListPlaybackRestrictionPolicies", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ivsListPlaybackRestrictionPoliciesOp,
+		func(ctx context.Context, token *string) ([]ivstypes.PlaybackRestrictionPolicySummary, *string, error) {
+			out, err := client.ListPlaybackRestrictionPolicies(ctx, &ivs.ListPlaybackRestrictionPoliciesInput{NextToken: token, MaxResults: ivsMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ivs:ListPlaybackRestrictionPolicies: %w", perr)
-		}
-		for _, p := range out.PlaybackRestrictionPolicies {
+			return out.PlaybackRestrictionPolicies, out.NextToken, nil
+		},
+		func(p ivstypes.PlaybackRestrictionPolicySummary) (*store.Resource, string, string) {
 			arn := sv(p.Arn)
 			if arn == "" {
-				continue
+				return nil, "playback restriction policies have an empty Arn", sv(p.Name)
 			}
-			label := sv(p.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIVSPlaybackRestrictionPolicy, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ivs playback-restriction-policies")
+			return ivsRow(acct, region, scanID, TypeIVSPlaybackRestrictionPolicy, arn, sv(p.Name), p, mapTagsJSON(p.Tags)), "", ""
+		})
 }
 
 func scanIVSRecordingConfigurations(ctx context.Context, client ivsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ivs.NewListRecordingConfigurationsPaginator(client, &ivs.ListRecordingConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "ivs:ListRecordingConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ivsListRecordingConfigurationsOp,
+		func(ctx context.Context, token *string) ([]ivstypes.RecordingConfigurationSummary, *string, error) {
+			out, err := client.ListRecordingConfigurations(ctx, &ivs.ListRecordingConfigurationsInput{NextToken: token, MaxResults: ivsMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ivs:ListRecordingConfigurations: %w", perr)
-		}
-		for _, r := range out.RecordingConfigurations {
+			return out.RecordingConfigurations, out.NextToken, nil
+		},
+		func(r ivstypes.RecordingConfigurationSummary) (*store.Resource, string, string) {
 			arn := sv(r.Arn)
 			if arn == "" {
-				continue
+				return nil, "recording configurations have an empty Arn", sv(r.Name)
 			}
-			label := sv(r.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIVSRecordingConfiguration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ivs recording-configurations")
+			return ivsRow(acct, region, scanID, TypeIVSRecordingConfiguration, arn, sv(r.Name), r, mapTagsJSON(r.Tags)), "", ""
+		})
 }
 
 func scanIVSEncoderConfigurations(ctx context.Context, client ivsRealtimeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ivsrealtime.NewListEncoderConfigurationsPaginator(client, &ivsrealtime.ListEncoderConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "ivs:ListEncoderConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ivsListEncoderConfigurationsOp,
+		func(ctx context.Context, token *string) ([]ivsrealtimetypes.EncoderConfigurationSummary, *string, error) {
+			out, err := client.ListEncoderConfigurations(ctx, &ivsrealtime.ListEncoderConfigurationsInput{NextToken: token, MaxResults: ivsMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ivs:ListEncoderConfigurations: %w", perr)
-		}
-		for _, e := range out.EncoderConfigurations {
+			return out.EncoderConfigurations, out.NextToken, nil
+		},
+		func(e ivsrealtimetypes.EncoderConfigurationSummary) (*store.Resource, string, string) {
 			arn := sv(e.Arn)
 			if arn == "" {
-				continue
+				return nil, "encoder configurations have an empty Arn", sv(e.Name)
 			}
-			label := sv(e.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIVSEncoderConfiguration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ivs encoder-configurations")
+			return ivsRow(acct, region, scanID, TypeIVSEncoderConfiguration, arn, sv(e.Name), e, mapTagsJSON(e.Tags)), "", ""
+		})
 }
 
+// scanIVSIngestConfigurations stores no tags: IngestConfigurationSummary
+// carries none.
 func scanIVSIngestConfigurations(ctx context.Context, client ivsRealtimeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ivsrealtime.NewListIngestConfigurationsPaginator(client, &ivsrealtime.ListIngestConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "ivs:ListIngestConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ivsListIngestConfigurationsOp,
+		func(ctx context.Context, token *string) ([]ivsrealtimetypes.IngestConfigurationSummary, *string, error) {
+			out, err := client.ListIngestConfigurations(ctx, &ivsrealtime.ListIngestConfigurationsInput{NextToken: token, MaxResults: ivsMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ivs:ListIngestConfigurations: %w", perr)
-		}
-		for _, ic := range out.IngestConfigurations {
+			return out.IngestConfigurations, out.NextToken, nil
+		},
+		func(ic ivsrealtimetypes.IngestConfigurationSummary) (*store.Resource, string, string) {
 			arn := sv(ic.Arn)
 			if arn == "" {
-				continue
+				return nil, "ingest configurations have an empty Arn", sv(ic.Name)
 			}
-			label := sv(ic.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIVSIngestConfiguration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(ic), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ivs ingest-configurations")
+			return ivsRow(acct, region, scanID, TypeIVSIngestConfiguration, arn, sv(ic.Name), ic, nil), "", ""
+		})
 }
 
 func scanIVSPublicKeys(ctx context.Context, client ivsRealtimeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ivsrealtime.NewListPublicKeysPaginator(client, &ivsrealtime.ListPublicKeysInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "ivs:ListPublicKeys", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ivsListPublicKeysOp,
+		func(ctx context.Context, token *string) ([]ivsrealtimetypes.PublicKeySummary, *string, error) {
+			out, err := client.ListPublicKeys(ctx, &ivsrealtime.ListPublicKeysInput{NextToken: token, MaxResults: ivsMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ivs:ListPublicKeys: %w", perr)
-		}
-		for _, k := range out.PublicKeys {
+			return out.PublicKeys, out.NextToken, nil
+		},
+		func(k ivsrealtimetypes.PublicKeySummary) (*store.Resource, string, string) {
 			arn := sv(k.Arn)
 			if arn == "" {
-				continue
+				return nil, "public keys have an empty Arn", sv(k.Name)
 			}
-			label := sv(k.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIVSPublicKey, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(k), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ivs public-keys")
+			return ivsRow(acct, region, scanID, TypeIVSPublicKey, arn, sv(k.Name), k, mapTagsJSON(k.Tags)), "", ""
+		})
 }
 
 func scanIVSStages(ctx context.Context, client ivsRealtimeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ivsrealtime.NewListStagesPaginator(client, &ivsrealtime.ListStagesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "ivs:ListStages", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ivsListStagesOp,
+		func(ctx context.Context, token *string) ([]ivsrealtimetypes.StageSummary, *string, error) {
+			out, err := client.ListStages(ctx, &ivsrealtime.ListStagesInput{NextToken: token, MaxResults: ivsMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ivs:ListStages: %w", perr)
-		}
-		for _, s := range out.Stages {
+			return out.Stages, out.NextToken, nil
+		},
+		func(s ivsrealtimetypes.StageSummary) (*store.Resource, string, string) {
 			arn := sv(s.Arn)
 			if arn == "" {
-				continue
+				return nil, "stages have an empty Arn", sv(s.Name)
 			}
-			label := sv(s.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIVSStage, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ivs stages")
+			return ivsRow(acct, region, scanID, TypeIVSStage, arn, sv(s.Name), s, mapTagsJSON(s.Tags)), "", ""
+		})
 }
 
 func scanIVSStorageConfigurations(ctx context.Context, client ivsRealtimeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ivsrealtime.NewListStorageConfigurationsPaginator(client, &ivsrealtime.ListStorageConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "ivs:ListStorageConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, ivsListStorageConfigurationsOp,
+		func(ctx context.Context, token *string) ([]ivsrealtimetypes.StorageConfigurationSummary, *string, error) {
+			out, err := client.ListStorageConfigurations(ctx, &ivsrealtime.ListStorageConfigurationsInput{NextToken: token, MaxResults: ivsMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ivs:ListStorageConfigurations: %w", perr)
-		}
-		for _, sc := range out.StorageConfigurations {
+			return out.StorageConfigurations, out.NextToken, nil
+		},
+		func(sc ivsrealtimetypes.StorageConfigurationSummary) (*store.Resource, string, string) {
 			arn := sv(sc.Arn)
 			if arn == "" {
-				continue
+				return nil, "storage configurations have an empty Arn", sv(sc.Name)
 			}
-			label := sv(sc.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIVSStorageConfiguration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(sc), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ivs storage-configurations")
+			return ivsRow(acct, region, scanID, TypeIVSStorageConfiguration, arn, sv(sc.Name), sc, mapTagsJSON(sc.Tags)), "", ""
+		})
 }
