@@ -247,6 +247,17 @@ func (c *parentCalls) distinct() []string {
 	return out
 }
 
+// refuseStoreWrites makes every resource write of type typ fail. The abort is
+// a constraint error, which the store does not retry.
+func refuseStoreWrites(t *testing.T, st *store.Store, typ string) {
+	t.Helper()
+	if _, err := st.DB().Exec(`CREATE TRIGGER refuse_type BEFORE INSERT ON resources
+		WHEN NEW.type = '` + typ + `'
+		BEGIN SELECT RAISE(ABORT, 'test: write refused'); END`); err != nil {
+		t.Fatalf("create trigger: %v", err)
+	}
+}
+
 // rowsByNativeID returns the stored rows of typ, managed ones included, keyed
 // by NativeID.
 func rowsByNativeID(t *testing.T, st *store.Store, typ string) map[string]store.Resource {

@@ -753,22 +753,11 @@ func TestScanASCResolvers_ContextStopReturned(t *testing.T) {
 	}
 }
 
-// asyRefuseWrites makes every resource write of type typ fail. The abort is
-// a constraint error, which the store does not retry.
-func asyRefuseWrites(t *testing.T, st *store.Store, typ string) {
-	t.Helper()
-	if _, err := st.DB().Exec(`CREATE TRIGGER refuse_type BEFORE INSERT ON resources
-		WHEN NEW.type = '` + typ + `'
-		BEGIN SELECT RAISE(ABORT, 'test: write refused'); END`); err != nil {
-		t.Fatalf("create trigger: %v", err)
-	}
-}
-
 // A failed store write stops the scan: no later phase runs, and the parents
 // whose write failed are not handed to a child phase.
 func TestScanAppSyncAll_StoreWriteStops(t *testing.T) {
 	st := newTestStore(t)
-	asyRefuseWrites(t, st, TypeAppSyncGraphQLApi)
+	refuseStoreWrites(t, st, TypeAppSyncGraphQLApi)
 	_, err := scanAppSyncTest(t, st, nil)
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Fatalf("err = %v; want the store write failure", err)
@@ -830,7 +819,7 @@ func TestScanAppSync_StoreWriteFailureWarnsNothing(t *testing.T) {
 			st := newTestStore(t)
 			n := 0
 			st.OnWarn = func(store.ScanWarning) { n++ }
-			asyRefuseWrites(t, st, tc.typ)
+			refuseStoreWrites(t, st, tc.typ)
 			client := appsync.NewFromConfig(opStubConfig(asyHandlers(tc.over), asyDenied))
 			if err := tc.run(client, st); !errors.Is(err, store.ErrStoreWrite) {
 				t.Errorf("err = %v; want the store write failure", err)

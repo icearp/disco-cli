@@ -21,10 +21,11 @@ func TestResolveRefactorSpacesHierarchy(t *testing.T) {
 	if err := resolveRefactorSpacesHierarchy(acct, st); err != nil {
 		t.Fatalf("resolveRefactorSpacesHierarchy: %v", err)
 	}
-	rels, _ := st.RelationshipsFrom(appID)
-	assertRelationship(t, rels, appID, envID, store.RelAttachedTo)
-	rels, _ = st.RelationshipsFrom(svcID)
-	assertRelationship(t, rels, svcID, appID, store.RelAttachedTo)
-	rels, _ = st.RelationshipsFrom(routeID)
-	assertRelationship(t, rels, routeID, appID, store.RelAttachedTo)
+	for _, e := range [][2]string{{appID, envID}, {svcID, appID}, {routeID, appID}} {
+		rels, err := st.RelationshipsFrom(e[0])
+		if err != nil {
+			t.Fatalf("RelationshipsFrom(%s): %v", e[0], err)
+		}
+		assertRelationship(t, rels, e[0], e[1], store.RelAttachedTo)
+	}
 }
