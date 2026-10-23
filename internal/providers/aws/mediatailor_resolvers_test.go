@@ -143,7 +143,10 @@ func TestResolveMediaTailorChannelPolicyToChannel(t *testing.T) {
 	if err := resolveMediaTailorChannelPolicyToChannel(acct, st); err != nil {
 		t.Fatalf("resolveMediaTailorChannelPolicyToChannel: %v", err)
 	}
-	rels, _ := st.RelationshipsFrom(cpID)
+	rels, err := st.RelationshipsFrom(cpID)
+	if err != nil {
+		t.Fatalf("RelationshipsFrom(%s): %v", cpID, err)
+	}
 	assertRelationship(t, rels, cpID, chID, store.RelAttachedTo)
 }
 
@@ -160,7 +163,51 @@ func TestResolveMediaTailorSourcesToSourceLocation(t *testing.T) {
 		t.Fatalf("resolveMediaTailorSourcesToSourceLocation: %v", err)
 	}
 	for _, c := range []string{lsID, vsID} {
-		rels, _ := st.RelationshipsFrom(c)
+		rels, err := st.RelationshipsFrom(c)
+		if err != nil {
+			t.Fatalf("RelationshipsFrom(%s): %v", c, err)
+		}
 		assertRelationship(t, rels, c, slID, store.RelAttachedTo)
+	}
+}
+
+// An undecodable live source and an undecodable VOD source are both reported,
+// and the sources named before and after them still resolve.
+func TestResolveMediaTailorSourcesToSourceLocation_UndecodableRowsReported(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	slID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaTailorSourceLocation, mtSourceLocationARN(testRegion, acct.ID, "sl1"), testRegion, "{}")
+	sourceAttrs := mustJSON(mttypes.LiveSource{SourceLocationName: ptrStr("sl1")})
+	var good []string
+	for _, src := range []struct{ typ, kind, name, attrs string }{
+		{TypeMediaTailorLiveSource, "liveSource", "a", sourceAttrs},
+		{TypeMediaTailorLiveSource, "liveSource", "b", "[]"},
+		{TypeMediaTailorLiveSource, "liveSource", "c", sourceAttrs},
+		{TypeMediaTailorVodSource, "vodSource", "a", sourceAttrs},
+		{TypeMediaTailorVodSource, "vodSource", "b", "[]"},
+		{TypeMediaTailorVodSource, "vodSource", "c", sourceAttrs},
+	} {
+		arn := fmt.Sprintf("arn:aws:mediatailor:%s:%s:%s/sl1/%s", testRegion, acct.ID, src.kind, src.name)
+		id := upsertTestResourceNamed(t, st, src.typ, arn, testRegion, src.attrs, src.name)
+		if src.attrs != "[]" {
+			good = append(good, id)
+		}
+	}
+
+	err := resolveMediaTailorSourcesToSourceLocation(acct, st)
+	var joined interface{ Unwrap() []error }
+	if !errors.As(err, &joined) || len(joined.Unwrap()) != 2 {
+		t.Fatalf("err = %v, want two joined decode errors", err)
+	}
+	for _, e := range joined.Unwrap() {
+		var ute *json.UnmarshalTypeError
+		if !errors.As(e, &ute) {
+			t.Errorf("joined error %v is not a JSON decode error", e)
+		}
+	}
+	for _, id := range good {
+		if got := outEdges(t, st, id); len(got) != 1 || got[slID] != store.RelAttachedTo {
+			t.Errorf("edges from %s = %v, want attached-to → sl1", id, got)
+		}
 	}
 }

@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/mediatailor"
+	mttypes "github.com/aws/aws-sdk-go-v2/service/mediatailor/types"
 	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
@@ -48,329 +50,265 @@ type mediatailorAPI interface {
 	ListFunctions(context.Context, *mediatailor.ListFunctionsInput, ...func(*mediatailor.Options)) (*mediatailor.ListFunctionsOutput, error)
 }
 
-// scanMediaTailor runs the media phase and the function phase. Neither reads
-// the other's output, so an error in one does not cost the other's rows.
-func scanMediaTailor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+const (
+	mtListChannelsOp               = "mediatailor:ListChannels"
+	mtGetChannelPolicyOp           = "mediatailor:GetChannelPolicy"
+	mtGetChannelScheduleOp         = "mediatailor:GetChannelSchedule"
+	mtListSourceLocationsOp        = "mediatailor:ListSourceLocations"
+	mtListLiveSourcesOp            = "mediatailor:ListLiveSources"
+	mtListVodSourcesOp             = "mediatailor:ListVodSources"
+	mtListPlaybackConfigurationsOp = "mediatailor:ListPlaybackConfigurations"
+	mtListPrefetchSchedulesOp      = "mediatailor:ListPrefetchSchedules"
+	mtListFunctionsOp              = "mediatailor:ListFunctions"
+)
+
+// The Smithy model caps every MediaTailor list page at 100.
+var mtMaxResults = sdkaws.Int32(100)
+
+func scanMediaTailor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := mediatailor.NewFromConfig(acct.cfg, func(o *mediatailor.Options) { o.Region = region })
-	var errs []error
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanMTMedia(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanMTFunctions(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		total += t
-		inserted += i
-		errs = append(errs, perr)
-	}
-	return total, inserted, errors.Join(errs...)
+	return scanMediaTailorAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanMTMedia discovers MediaTailor channels (with per-channel policies)
-// and source locations (with per-location live + VOD sources), plus
-// account-wide playback configurations.
-func scanMTMedia(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	channelNames, t, i, ferr := scanMTChannels(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, cn := range channelNames {
-		t, i, ferr = scanMTChannelPolicy(ctx, client, acct, region, st, scanID, cn)
-		if ferr != nil {
-			return total, inserted, ferr
+// scanMediaTailorAll runs every phase and joins their errors; only a store
+// write failure stops it. A failed parent listing leaves its child phases
+// fewer parents to read.
+func scanMediaTailorAll(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var (
+		phases                      phaseTotals
+		channels, locations, config []string
+	)
+	for _, phase := range []struct {
+		op string
+		fn func() (int, int, error)
+	}{
+		{mtListChannelsOp, func() (t, i int, err error) {
+			channels, t, i, err = scanMTChannels(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		}},
+		{mtGetChannelPolicyOp, func() (int, int, error) {
+			return scanMTChannelPolicies(ctx, client, acct, region, st, scanID, channels)
+		}},
+		{mtGetChannelScheduleOp, func() (int, int, error) { return scanMTPrograms(ctx, client, acct, region, st, scanID, channels) }},
+		{mtListSourceLocationsOp, func() (t, i int, err error) {
+			locations, t, i, err = scanMTSourceLocations(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		}},
+		{mtListLiveSourcesOp, func() (int, int, error) { return scanMTLiveSources(ctx, client, acct, region, st, scanID, locations) }},
+		{mtListVodSourcesOp, func() (int, int, error) { return scanMTVodSources(ctx, client, acct, region, st, scanID, locations) }},
+		{mtListPlaybackConfigurationsOp, func() (t, i int, err error) {
+			config, t, i, err = scanMTPlaybackConfigurations(ctx, client, acct, region, st, scanID)
+			return t, i, err
+		}},
+		{mtListPrefetchSchedulesOp, func() (int, int, error) {
+			return scanMTPrefetchSchedules(ctx, client, acct, region, st, scanID, config)
+		}},
+		{mtListFunctionsOp, func() (int, int, error) { return scanMTFunctions(ctx, client, acct, region, st, scanID) }},
+	} {
+		t, i, err := phase.fn()
+		if phases.addPhase(phase.op, t, i, err) {
+			break
 		}
-		total += t
-		inserted += i
+	}
+	return phases.result(st, acct, region)
+}
 
-		t, i, ferr = scanMTPrograms(ctx, client, acct, region, st, scanID, cn)
-		if ferr != nil {
-			return total, inserted, ferr
+// mtRow builds the row of a listed MediaTailor element. The caller has checked
+// arn is non-empty.
+func mtRow(acct *account, region, scanID, rtype, arn string, name *string, element any, tags *string) *store.Resource {
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: rtype, NativeID: arn, Name: name, Region: &region,
+		AttributesJSON: mustJSON(element), TagsJSON: tags, DiscoveredBy: scanID,
+	}
+}
+
+// storeMTParents stores an account-wide parent listing and returns the names
+// of the rows stored, which the child reads key on. A row stored without a
+// name gets one warning, after the write succeeded, since its children were
+// not read.
+func storeMTParents[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op, what, nameField string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (r *store.Resource, why, key string),
+) ([]string, int, int, error) {
+	var (
+		names  []string
+		noName skipTally
+	)
+	t, i, err := storeTokenList(ctx, st, acct, region, op, page, func(it Item) (*store.Resource, string, string) {
+		r, why, key := row(it)
+		switch {
+		case r == nil:
+		case sv(r.Name) == "":
+			noName.skipped(r.NativeID, nil)
+		default:
+			names = append(names, sv(r.Name))
 		}
-		total += t
-		inserted += i
+		return r, why, key
+	})
+	if !errors.Is(err, store.ErrStoreWrite) {
+		warnNoChildID(st, op, acct, region, &noName, what, nameField)
 	}
-
-	locNames, t, i, ferr := scanMTSourceLocations(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, ln := range locNames {
-		t, i, ferr = scanMTLiveSources(ctx, client, acct, region, st, scanID, ln)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-
-		t, i, ferr = scanMTVodSources(ctx, client, acct, region, st, scanID, ln)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	pcNames, t, i, ferr := scanMTPlaybackConfigurations(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, pcn := range pcNames {
-		t, i, ferr = scanMTPrefetchSchedules(ctx, client, acct, region, st, scanID, pcn)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+	return names, t, i, err
 }
 
 func scanMTChannels(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := mediatailor.NewListChannelsPaginator(client, &mediatailor.ListChannelsInput{})
-	var batch []*store.Resource
-	var names []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "mediatailor:ListChannels", acct.ID, region, err)
+	return storeMTParents(ctx, st, acct, region, mtListChannelsOp, "channel(s)", "ChannelName",
+		func(ctx context.Context, token *string) ([]mttypes.Channel, *string, error) {
+			out, err := client.ListChannels(ctx, &mediatailor.ListChannelsInput{NextToken: token, MaxResults: mtMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("mediatailor:ListChannels: %w", err)
-		}
-		for _, c := range out.Items {
+			return out.Items, out.NextToken, nil
+		},
+		func(c mttypes.Channel) (*store.Resource, string, string) {
 			arn := sv(c.Arn)
 			if arn == "" {
-				continue
+				return nil, "channels have an empty Arn, and their policies and schedules were not read either", sv(c.ChannelName)
 			}
-			if n := sv(c.ChannelName); n != "" {
-				names = append(names, n)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaTailorChannel, NativeID: arn,
-				Name: c.ChannelName, Region: &region, Status: c.ChannelState,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "mediatailor channels")
-	return names, t, i, err
+			r := mtRow(acct, region, scanID, TypeMediaTailorChannel, arn, c.ChannelName, c, mapTagsJSON(c.Tags))
+			r.Status = c.ChannelState
+			return r, "", ""
+		})
 }
 
-// scanMTChannelPolicy fetches the per-channel IAM policy. API returns only
-// a Policy string; synthesize ARN: arn:aws:mediatailor:{r}:{a}:channel/{name}/policy.
-func scanMTChannelPolicy(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, channelName string) (int, int, error) {
-	cn := channelName
-	out, err := client.GetChannelPolicy(ctx, &mediatailor.GetChannelPolicyInput{ChannelName: &cn})
-	if err != nil {
-		if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException", "NotFoundException", "BadRequestException") {
-			// No policy attached for this channel.
-			return 0, 0, nil
-		}
-		return 0, 0, fmt.Errorf("mediatailor:GetChannelPolicy: %w", err)
-	}
-	if sv(out.Policy) == "" {
-		return 0, 0, nil
-	}
-	arn := fmt.Sprintf("arn:aws:mediatailor:%s:%s:channel/%s/policy", region, acct.ID, cn)
-	label := cn
-	r := &store.Resource{
-		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-		Type: TypeMediaTailorChannelPolicy, NativeID: arn,
-		Name: &label, Region: &region,
-		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
-	}
-	return upsertBatch(st, []*store.Resource{r}, "mediatailor channel-policies")
+// scanMTChannelPolicies stores each channel's IAM policy. The read returns
+// only the policy text, so the row's NativeID is the channel's ARN plus
+// /policy. Policy is optional in the output while PutChannelPolicy requires
+// one, so empty text is read as no policy attached and gets no row. The op
+// models no error, so every error fails the channel (nil notFound).
+func scanMTChannelPolicies(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, channels []string) (int, int, error) {
+	return storeTokenPerParent(ctx, st, acct, region, mtGetChannelPolicyOp, nil, channels,
+		func(ctx context.Context, channel string, _ *string) ([]*mediatailor.GetChannelPolicyOutput, *string, error) {
+			out, err := client.GetChannelPolicy(ctx, &mediatailor.GetChannelPolicyInput{ChannelName: &channel})
+			if err != nil || sv(out.Policy) == "" {
+				return nil, nil, err
+			}
+			return []*mediatailor.GetChannelPolicyOutput{out}, nil, nil
+		},
+		func(channel string, out *mediatailor.GetChannelPolicyOutput) (*store.Resource, string, string) {
+			arn := fmt.Sprintf("arn:aws:mediatailor:%s:%s:channel/%s/policy", region, acct.ID, channel)
+			return mtRow(acct, region, scanID, TypeMediaTailorChannelPolicy, arn, &channel, out, nil), "", ""
+		})
+}
+
+// scanMTPrograms stores the programs of each channel's schedule, each keyed by
+// its own ARN. The op models no error, so every error fails the channel (nil
+// notFound).
+func scanMTPrograms(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, channels []string) (int, int, error) {
+	return storeTokenPerParent(ctx, st, acct, region, mtGetChannelScheduleOp, nil, channels,
+		func(ctx context.Context, channel string, token *string) ([]mttypes.ScheduleEntry, *string, error) {
+			out, err := client.GetChannelSchedule(ctx, &mediatailor.GetChannelScheduleInput{ChannelName: &channel, NextToken: token, MaxResults: mtMaxResults})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
+		},
+		func(channel string, p mttypes.ScheduleEntry) (*store.Resource, string, string) {
+			arn := sv(p.Arn)
+			if arn == "" {
+				return nil, "programs have an empty Arn (first names its channel)", channel
+			}
+			return mtRow(acct, region, scanID, TypeMediaTailorProgram, arn, p.ProgramName, p, nil), "", ""
+		})
 }
 
 func scanMTSourceLocations(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := mediatailor.NewListSourceLocationsPaginator(client, &mediatailor.ListSourceLocationsInput{})
-	var batch []*store.Resource
-	var names []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "mediatailor:ListSourceLocations", acct.ID, region, err)
+	return storeMTParents(ctx, st, acct, region, mtListSourceLocationsOp, "source location(s)", "SourceLocationName",
+		func(ctx context.Context, token *string) ([]mttypes.SourceLocation, *string, error) {
+			out, err := client.ListSourceLocations(ctx, &mediatailor.ListSourceLocationsInput{NextToken: token, MaxResults: mtMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("mediatailor:ListSourceLocations: %w", err)
-		}
-		for _, s := range out.Items {
+			return out.Items, out.NextToken, nil
+		},
+		func(s mttypes.SourceLocation) (*store.Resource, string, string) {
 			arn := sv(s.Arn)
 			if arn == "" {
-				continue
+				return nil, "source locations have an empty Arn, and their live and VOD sources were not read either", sv(s.SourceLocationName)
 			}
-			if n := sv(s.SourceLocationName); n != "" {
-				names = append(names, n)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaTailorSourceLocation, NativeID: arn,
-				Name: s.SourceLocationName, Region: &region,
-				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "mediatailor source-locations")
-	return names, t, i, err
+			return mtRow(acct, region, scanID, TypeMediaTailorSourceLocation, arn, s.SourceLocationName, s, mapTagsJSON(s.Tags)), "", ""
+		})
 }
 
-func scanMTLiveSources(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, locName string) (int, int, error) {
-	ln := locName
-	pager := mediatailor.NewListLiveSourcesPaginator(client, &mediatailor.ListLiveSourcesInput{SourceLocationName: &ln})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "mediatailor:ListLiveSources", acct.ID, region, err)
+// scanMTLiveSources stores the live sources of each source location. The
+// live, VOD and prefetch listings model no error, so none skips a code for a
+// parent deleted since it was listed (nil notFound).
+func scanMTLiveSources(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, locations []string) (int, int, error) {
+	return storeTokenPerParent(ctx, st, acct, region, mtListLiveSourcesOp, nil, locations,
+		func(ctx context.Context, loc string, token *string) ([]mttypes.LiveSource, *string, error) {
+			out, err := client.ListLiveSources(ctx, &mediatailor.ListLiveSourcesInput{SourceLocationName: &loc, NextToken: token, MaxResults: mtMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("mediatailor:ListLiveSources: %w", err)
-		}
-		for _, s := range out.Items {
+			return out.Items, out.NextToken, nil
+		},
+		func(loc string, s mttypes.LiveSource) (*store.Resource, string, string) {
 			arn := sv(s.Arn)
 			if arn == "" {
-				continue
+				return nil, "live sources have an empty Arn (first names its source location)", loc
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaTailorLiveSource, NativeID: arn,
-				Name: s.LiveSourceName, Region: &region,
-				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "mediatailor live-sources")
+			return mtRow(acct, region, scanID, TypeMediaTailorLiveSource, arn, s.LiveSourceName, s, mapTagsJSON(s.Tags)), "", ""
+		})
 }
 
-func scanMTVodSources(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, locName string) (int, int, error) {
-	ln := locName
-	pager := mediatailor.NewListVodSourcesPaginator(client, &mediatailor.ListVodSourcesInput{SourceLocationName: &ln})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "mediatailor:ListVodSources", acct.ID, region, err)
+func scanMTVodSources(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, locations []string) (int, int, error) {
+	return storeTokenPerParent(ctx, st, acct, region, mtListVodSourcesOp, nil, locations,
+		func(ctx context.Context, loc string, token *string) ([]mttypes.VodSource, *string, error) {
+			out, err := client.ListVodSources(ctx, &mediatailor.ListVodSourcesInput{SourceLocationName: &loc, NextToken: token, MaxResults: mtMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("mediatailor:ListVodSources: %w", err)
-		}
-		for _, s := range out.Items {
+			return out.Items, out.NextToken, nil
+		},
+		func(loc string, s mttypes.VodSource) (*store.Resource, string, string) {
 			arn := sv(s.Arn)
 			if arn == "" {
-				continue
+				return nil, "VOD sources have an empty Arn (first names its source location)", loc
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaTailorVodSource, NativeID: arn,
-				Name: s.VodSourceName, Region: &region,
-				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "mediatailor vod-sources")
+			return mtRow(acct, region, scanID, TypeMediaTailorVodSource, arn, s.VodSourceName, s, mapTagsJSON(s.Tags)), "", ""
+		})
 }
 
 func scanMTPlaybackConfigurations(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := mediatailor.NewListPlaybackConfigurationsPaginator(client, &mediatailor.ListPlaybackConfigurationsInput{})
-	var batch []*store.Resource
-	var names []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "mediatailor:ListPlaybackConfigurations", acct.ID, region, err)
+	return storeMTParents(ctx, st, acct, region, mtListPlaybackConfigurationsOp, "playback configuration(s)", "Name",
+		func(ctx context.Context, token *string) ([]mttypes.PlaybackConfiguration, *string, error) {
+			out, err := client.ListPlaybackConfigurations(ctx, &mediatailor.ListPlaybackConfigurationsInput{NextToken: token, MaxResults: mtMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("mediatailor:ListPlaybackConfigurations: %w", err)
-		}
-		for _, p := range out.Items {
+			return out.Items, out.NextToken, nil
+		},
+		func(p mttypes.PlaybackConfiguration) (*store.Resource, string, string) {
 			arn := sv(p.PlaybackConfigurationArn)
 			if arn == "" {
-				continue
+				return nil, "playback configurations have an empty PlaybackConfigurationArn, and their prefetch schedules were not read either", sv(p.Name)
 			}
-			if n := sv(p.Name); n != "" {
-				names = append(names, n)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaTailorPlaybackConfiguration, NativeID: arn,
-				Name: p.Name, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "mediatailor playback-configurations")
-	return names, t, i, err
+			return mtRow(acct, region, scanID, TypeMediaTailorPlaybackConfiguration, arn, p.Name, p, mapTagsJSON(p.Tags)), "", ""
+		})
 }
 
-// scanMTPrefetchSchedules — ListPrefetchSchedules requires
-// PlaybackConfigurationName; fan out over scanned playback configs.
-// PrefetchSchedule carries a real distinct ARN (edge-less).
-func scanMTPrefetchSchedules(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, pcName string) (int, int, error) {
-	pcn := pcName
-	pager := mediatailor.NewListPrefetchSchedulesPaginator(client, &mediatailor.ListPrefetchSchedulesInput{PlaybackConfigurationName: &pcn})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "mediatailor:ListPrefetchSchedules", acct.ID, region, err)
+// scanMTPrefetchSchedules stores the prefetch schedules of each playback
+// configuration, each keyed by its own ARN. ScheduleType is ALL because an
+// unset filter lists SINGLE schedules only (SDK CHANGELOG v1.47.0, when
+// RECURRING schedules arrived).
+func scanMTPrefetchSchedules(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, configs []string) (int, int, error) {
+	return storeTokenPerParent(ctx, st, acct, region, mtListPrefetchSchedulesOp, nil, configs,
+		func(ctx context.Context, cfg string, token *string) ([]mttypes.PrefetchSchedule, *string, error) {
+			out, err := client.ListPrefetchSchedules(ctx, &mediatailor.ListPrefetchSchedulesInput{PlaybackConfigurationName: &cfg, ScheduleType: mttypes.ListPrefetchScheduleTypeAll, NextToken: token, MaxResults: mtMaxResults})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("mediatailor:ListPrefetchSchedules: %w", err)
-		}
-		for _, p := range out.Items {
+			return out.Items, out.NextToken, nil
+		},
+		func(cfg string, p mttypes.PrefetchSchedule) (*store.Resource, string, string) {
 			arn := sv(p.Arn)
 			if arn == "" {
-				continue
+				return nil, "prefetch schedules have an empty Arn (first names its playback configuration)", cfg
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaTailorPrefetchSchedule, NativeID: arn,
-				Name: p.Name, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "mediatailor prefetch-schedules")
-}
-
-// scanMTPrograms — GetChannelSchedule requires ChannelName; fan out over
-// scanned channels. Each ScheduleEntry is a program carrying a real distinct
-// ARN (edge-less).
-func scanMTPrograms(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string, channelName string) (int, int, error) {
-	cn := channelName
-	pager := mediatailor.NewGetChannelSchedulePaginator(client, &mediatailor.GetChannelScheduleInput{ChannelName: &cn})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException", "NotFoundException", "BadRequestException") {
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("mediatailor:GetChannelSchedule: %w", err)
-		}
-		for _, p := range out.Items {
-			arn := sv(p.Arn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaTailorProgram, NativeID: arn,
-				Name: p.ProgramName, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "mediatailor programs")
+			return mtRow(acct, region, scanID, TypeMediaTailorPrefetchSchedule, arn, p.Name, p, mapTagsJSON(p.Tags)), "", ""
+		})
 }
 
 // scanMTFunctions stores every function in the region, keyed by the ARN the
@@ -387,48 +325,24 @@ func scanMTPrograms(ctx context.Context, client mediatailorAPI, acct *account, r
 // page has succeeded the op is deployed: a later error of any shape except a
 // denial is returned, after the rows listed so far are stored.
 func scanMTFunctions(ctx context.Context, client mediatailorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	const op = "mediatailor:ListFunctions"
-	// The model caps MaxResults at 100.
-	pager := mediatailor.NewListFunctionsPaginator(client, &mediatailor.ListFunctionsInput{},
-		func(o *mediatailor.ListFunctionsPaginatorOptions) { o.Limit = 100 })
-	var batch []*store.Resource
-	var listErr error
 	listed := false
-	noARN := 0
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			switch {
-			case !listed && isOpNotDeployed(perr):
-				return 0, 0, nil
-			case isAccessDenied(perr):
-				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
-			default:
-				listErr = fmt.Errorf("%s: %w", op, perr)
+	return storeTokenList(ctx, st, acct, region, mtListFunctionsOp,
+		func(ctx context.Context, token *string) ([]mttypes.Function, *string, error) {
+			out, err := client.ListFunctions(ctx, &mediatailor.ListFunctionsInput{NextToken: token, MaxResults: mtMaxResults})
+			if err != nil {
+				if !listed && isOpNotDeployed(err) {
+					return nil, nil, nil
+				}
+				return nil, nil, err
 			}
-			break
-		}
-		listed = true
-		for _, f := range out.Items {
+			listed = true
+			return out.Items, out.NextToken, nil
+		},
+		func(f mttypes.Function) (*store.Resource, string, string) {
 			arn := sv(f.Arn)
 			if arn == "" {
-				noARN++
-				continue
+				return nil, "functions have an empty Arn", sv(f.FunctionId)
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeMediaTailorFunction, NativeID: arn,
-				Name: f.FunctionId, Region: &region,
-				AttributesJSON: mustJSON(f), TagsJSON: mapTagsJSON(f.Tags), DiscoveredBy: scanID,
-			})
-		}
-	}
-	if noARN > 0 {
-		st.ReportWarning(store.ScanWarning{
-			Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
-			Message: fmt.Sprintf("%d functions listed without an ARN were not stored", noARN),
+			return mtRow(acct, region, scanID, TypeMediaTailorFunction, arn, f.FunctionId, f, mapTagsJSON(f.Tags)), "", ""
 		})
-	}
-	t, i, uerr := upsertBatch(st, batch, "mediatailor functions")
-	return t, i, errors.Join(listErr, uerr)
 }

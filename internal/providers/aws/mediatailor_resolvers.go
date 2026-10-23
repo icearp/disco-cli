@@ -65,24 +65,27 @@ func resolveMediaTailorChannelPolicyToChannel(acct *account, st *store.Store) er
 }
 
 // resolveMediaTailorSourcesToSourceLocation wires live-source and vod-source
-// to their parent source-location via SourceLocationName.
+// to their parent source-location via SourceLocationName. A row whose
+// attributes do not decode is reported and skipped; its siblings still resolve.
 func resolveMediaTailorSourcesToSourceLocation(acct *account, st *store.Store) error {
 	slSet, err := scannedIDSet(acct, st, TypeMediaTailorSourceLocation)
 	if err != nil {
 		return err
 	}
+	var errs []error
 	for _, t := range []string{TypeMediaTailorLiveSource, TypeMediaTailorVodSource} {
 		rows, err := st.ListResources(store.ResourceFilter{
 			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{t}, Limit: util.AllResources,
 		})
 		if err != nil {
-			return err
+			return errors.Join(append(errs, err)...)
 		}
 		for _, r := range rows {
 			var attrs struct {
 				SourceLocationName *string `json:"SourceLocationName"`
 			}
 			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+				errs = append(errs, fmt.Errorf("decode %s %s: %w", t, r.NativeID, err))
 				continue
 			}
 			n := sv(attrs.SourceLocationName)
@@ -94,11 +97,11 @@ func resolveMediaTailorSourcesToSourceLocation(acct *account, st *store.Store) e
 				continue
 			}
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-				return fmt.Errorf("upsert mt %s→source-location: %w", t, err)
+				return errors.Join(append(errs, fmt.Errorf("upsert mt %s→source-location: %w", t, err))...)
 			}
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // mtFunctionKey names a function the way its referrers do: by bare
