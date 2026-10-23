@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -33,12 +34,45 @@ func init() {
 	)
 }
 
-func mediapackageARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:mediapackage:%s:%s:%s/%s", region, acct, kind, id)
+// mpSiblingARN is the ARN of the resource kind/id that shares arn's
+// partition, service, region and account, and false when arn has fewer than
+// six colon-separated parts. The service is taken from arn rather than
+// written in, because the VOD resources live under mediapackage-vod, not
+// mediapackage.
+func mpSiblingARN(arn, kind, id string) (string, bool) {
+	parts := strings.SplitN(arn, ":", 6)
+	if len(parts) < 6 {
+		return "", false
+	}
+	return strings.Join(parts[:5], ":") + ":" + kind + "/" + id, true
+}
+
+// mpLinkSibling upserts an attached-to edge from r to the kind/id resource
+// beside it (mpSiblingARN) when that target was scanned. An empty id links
+// nothing and checks nothing, so a row with no reference is not reported
+// for a NativeID it never needed to parse. A NativeID that is not an ARN comes back as decodeErr, costing r
+// its edge; a failed write comes back as writeErr.
+func mpLinkSibling(st *store.Store, acct *account, r store.Resource, kind, id string, scanned map[string]bool) (decodeErr, writeErr error) {
+	if id == "" {
+		return nil, nil
+	}
+	arn, ok := mpSiblingARN(r.NativeID, kind, id)
+	if !ok {
+		return fmt.Errorf("%s %s: NativeID is not an ARN", r.Type, r.NativeID), nil
+	}
+	tgtID := store.ResourceID("aws", acct.ID, arn)
+	if !scanned[tgtID] {
+		return nil, nil
+	}
+	if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
+		return nil, fmt.Errorf("upsert %s %s → %s: %w", r.Type, r.NativeID, arn, err)
+	}
+	return nil, nil
 }
 
 // resolveMPV1OriginEndpointToChannel wires each origin-endpoint to its channel
-// via ChannelID (rebuild ARN as `arn:aws:mediapackage:r:a:channels/{id}`).
+// via ChannelId. A row that fails to decode is reported at the end so that it
+// costs the other rows none of their edges.
 func resolveMPV1OriginEndpointToChannel(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaPackageOriginEndpoint}, Limit: util.AllResources,
@@ -53,30 +87,29 @@ func resolveMPV1OriginEndpointToChannel(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			ChannelID *string `json:"ChannelId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
-		cid := sv(attrs.ChannelID)
-		if cid == "" {
-			continue
+		derr, werr := mpLinkSibling(st, acct, r, "channels", sv(attrs.ChannelID), chSet)
+		if werr != nil {
+			return errors.Join(append(decodeErrs, werr)...)
 		}
-		tgtID := store.ResourceID("aws", acct.ID, mediapackageARN(sv(r.Region), acct.ID, "channels", cid))
-		if !chSet[tgtID] {
-			continue
-		}
-		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-			return fmt.Errorf("upsert mp ep→channel: %w", err)
+		if derr != nil {
+			decodeErrs = append(decodeErrs, derr)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveMPV1AssetRefs wires each VOD asset to its packaging group, source S3
-// bucket, and the IAM role used to ingest from S3.
+// bucket, and the IAM role used to ingest from S3. A row that fails to decode
+// is reported at the end so that it costs the other rows none of their edges.
 func resolveMPV1AssetRefs(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaPackageAsset}, Limit: util.AllResources,
@@ -99,6 +132,7 @@ func resolveMPV1AssetRefs(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			PackagingGroupID *string `json:"PackagingGroupId"`
@@ -106,44 +140,36 @@ func resolveMPV1AssetRefs(acct *account, st *store.Store) error {
 			SourceRoleArn    *string `json:"SourceRoleArn"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
-		region := sv(r.Region)
-		if pg := sv(attrs.PackagingGroupID); pg != "" {
-			tgtID := store.ResourceID("aws", acct.ID, mediapackageARN(region, acct.ID, "packaging-groups", pg))
-			if pgSet[tgtID] {
-				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-					return fmt.Errorf("upsert mp asset→pg: %w", err)
-				}
-			}
+		derr, werr := mpLinkSibling(st, acct, r, "packaging-groups", sv(attrs.PackagingGroupID), pgSet)
+		if werr != nil {
+			return errors.Join(append(decodeErrs, werr)...)
 		}
-		if src := sv(attrs.SourceArn); src != "" {
-			// Source ARN points to an S3 object — strip object key, leave bucket ARN.
-			bktARN := src
-			if i := strings.Index(src, "/"); i >= 0 && strings.HasPrefix(src, "arn:aws:s3:::") {
-				bktARN = src[:i]
-			}
-			tgtID := store.ResourceID("aws", acct.ID, bktARN)
-			if bktSet[tgtID] {
-				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert mp asset→s3: %w", err)
-				}
-			}
+		if derr != nil {
+			decodeErrs = append(decodeErrs, derr)
 		}
-		if role := sv(attrs.SourceRoleArn); role != "" {
-			tgtID := store.ResourceID("aws", acct.ID, role)
-			if roleSet[tgtID] {
-				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
-					return fmt.Errorf("upsert mp asset→role: %w", err)
-				}
+		// SourceArn names an S3 object; the edge goes to its bucket.
+		for _, ref := range []struct {
+			arn     string
+			scanned map[string]bool
+		}{{s3BucketARNFromLocation(sv(attrs.SourceArn)), bktSet}, {sv(attrs.SourceRoleArn), roleSet}} {
+			tgtID := store.ResourceID("aws", acct.ID, ref.arn)
+			if ref.arn == "" || !ref.scanned[tgtID] {
+				continue
+			}
+			if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
+				return errors.Join(append(decodeErrs, fmt.Errorf("upsert %s %s → %s: %w", r.Type, r.NativeID, ref.arn, err))...)
 			}
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveMPV1PackagingConfigToGroup wires each packaging-configuration to its
-// packaging group via PackagingGroupID.
+// packaging group via PackagingGroupId. A row that fails to decode is
+// reported at the end so that it costs the other rows none of their edges.
 func resolveMPV1PackagingConfigToGroup(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaPackagePackagingConfiguration}, Limit: util.AllResources,
@@ -158,26 +184,24 @@ func resolveMPV1PackagingConfigToGroup(acct *account, st *store.Store) error {
 	if err != nil {
 		return err
 	}
+	var decodeErrs []error
 	for _, r := range rows {
 		var attrs struct {
 			PackagingGroupID *string `json:"PackagingGroupId"`
 		}
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s %s attributes: %w", r.Type, r.NativeID, err))
 			continue
 		}
-		pg := sv(attrs.PackagingGroupID)
-		if pg == "" {
-			continue
+		derr, werr := mpLinkSibling(st, acct, r, "packaging-groups", sv(attrs.PackagingGroupID), pgSet)
+		if werr != nil {
+			return errors.Join(append(decodeErrs, werr)...)
 		}
-		tgtID := store.ResourceID("aws", acct.ID, mediapackageARN(sv(r.Region), acct.ID, "packaging-groups", pg))
-		if !pgSet[tgtID] {
-			continue
-		}
-		if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
-			return fmt.Errorf("upsert mp pcfg→pg: %w", err)
+		if derr != nil {
+			decodeErrs = append(decodeErrs, derr)
 		}
 	}
-	return nil
+	return errors.Join(decodeErrs...)
 }
 
 // resolveMPV2ChildrenToChannelGroup wires v2 hierarchy:

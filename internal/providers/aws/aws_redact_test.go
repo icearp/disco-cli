@@ -2,6 +2,7 @@ package aws
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	amplifytypes "github.com/aws/aws-sdk-go-v2/service/amplify/types"
@@ -15,6 +16,7 @@ import (
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	lightsailtypes "github.com/aws/aws-sdk-go-v2/service/lightsail/types"
 	mltypes "github.com/aws/aws-sdk-go-v2/service/machinelearning/types"
+	mptypes "github.com/aws/aws-sdk-go-v2/service/mediapackage/types"
 	mttypes "github.com/aws/aws-sdk-go-v2/service/mediatailor/types"
 	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 
@@ -283,6 +285,32 @@ func TestRedact_MediaTailorFunction_HTTPRequest(t *testing.T) {
 	}
 	if out := hrc["Output"].(map[string]any); out["temp.segment"] != "response.body.segment" {
 		t.Errorf("Output = %v, want kept", out)
+	}
+}
+
+// Every ingest endpoint's password is redacted; its username and URL are
+// kept.
+func TestRedact_MediaPackageChannel_IngestPassword(t *testing.T) {
+	ch := mptypes.Channel{
+		Id: ptrStr("ch-1"),
+		HlsIngest: &mptypes.HlsIngest{IngestEndpoints: []mptypes.IngestEndpoint{
+			{Id: ptrStr("ie-1"), Password: ptrStr("pw-1"), Username: ptrStr("u-1"), Url: ptrStr("https://ingest.example/1")},
+			{Id: ptrStr("ie-2"), Password: ptrStr("pw-2"), Username: ptrStr("u-2"), Url: ptrStr("https://ingest.example/2")},
+		}},
+	}
+	got := applyAndDecode(t, TypeMediaPackageChannel, ch)
+	eps := got["HlsIngest"].(map[string]any)["IngestEndpoints"].([]any)
+	for i, e := range eps {
+		em := e.(map[string]any)
+		if em["Password"] != redact.Placeholder {
+			t.Errorf("IngestEndpoints[%d].Password = %v, want redacted", i, em["Password"])
+		}
+		if want := fmt.Sprintf("u-%d", i+1); em["Username"] != want {
+			t.Errorf("IngestEndpoints[%d].Username = %v, want %s kept", i, em["Username"], want)
+		}
+		if want := fmt.Sprintf("https://ingest.example/%d", i+1); em["Url"] != want {
+			t.Errorf("IngestEndpoints[%d].Url = %v, want %s kept", i, em["Url"], want)
+		}
 	}
 }
 
