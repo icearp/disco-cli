@@ -1,11 +1,15 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
+	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
+	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 	"golang.org/x/sync/errgroup"
@@ -13,9 +17,9 @@ import (
 )
 
 func init() {
-	registerType(restype.Descriptor{Type: TypeGlueDatabase, Service: "glue"})
-	registerType(restype.Descriptor{Type: TypeGlueTable, Service: "glue"})
-	registerType(restype.Descriptor{Type: TypeGluePartition, Service: "glue"})
+	registerType(restype.Descriptor{Type: TypeGlueDatabase, Service: "glue", Redact: glueIfSensitive("Parameters.*")})
+	registerType(restype.Descriptor{Type: TypeGlueTable, Service: "glue", Redact: glueTableRedact()})
+	registerType(restype.Descriptor{Type: TypeGluePartition, Service: "glue", Redact: glueStorageRedact()})
 	registerType(restype.Descriptor{Type: TypeGlueTableOptimizer, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueBlueprint, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueUserDefinedFunction, Service: "glue"})
@@ -64,117 +68,219 @@ type glueAPI interface {
 	ListAssetTypes(context.Context, *glue.ListAssetTypesInput, ...func(*glue.Options)) (*glue.ListAssetTypesOutput, error)
 	ListGlossaries(context.Context, *glue.ListGlossariesInput, ...func(*glue.Options)) (*glue.ListGlossariesOutput, error)
 	ListGlossaryTerms(context.Context, *glue.ListGlossaryTermsInput, ...func(*glue.Options)) (*glue.ListGlossaryTermsOutput, error)
+	GetTags(context.Context, *glue.GetTagsInput, ...func(*glue.Options)) (*glue.GetTagsOutput, error)
 }
 
-// scanGlue discovers Glue resources in one region, running its phases one
-// after another. Tables, their partitions and table optimizers, and
-// user-defined functions need a listed database (or table) and are skipped
-// without one; the schema registry, jobs, misc, catalog, blueprint and
-// metadata phases run regardless. A phase error stops the scan and returns
-// the rows counted so far.
+const glueGetTagsOp = "glue:GetTags"
+
+// Page-size caps (MaxResults) the model documents for the Glue listings,
+// named after the model's page-size shapes.
+const (
+	gluePageSize                 int32 = 1000 // PageSize
+	glueCatalogGetterPageSize    int32 = 100  // CatalogGetterPageSize: GetDatabases
+	glueMaxResultsNumber         int32 = 100  // MaxResultsNumber: ListRegistries, ListSchemas
+	glueOrchestrationPageSize25  int32 = 25   // ListWorkflows, ListBlueprints
+	glueOrchestrationPageSize200 int32 = 200  // GetTriggers, ListUsageProfiles
+)
+
 func scanGlue(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := glue.NewFromConfig(acct.cfg, func(o *glue.Options) { o.Region = region })
+	return scanGlueAll(ctx, client, acct, region, st, scanID)
+}
 
-	dbNames, t, i, ferr := scanGlueDatabases(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return 0, 0, ferr
-	}
-	total += t
-	inserted += i
-
-	var tableRefs []glueTableRef
-	if len(dbNames) > 0 {
-		t, i, refs, ferr := scanGlueTables(ctx, client, acct, region, st, scanID, dbNames)
-		if ferr != nil {
-			return total, inserted, ferr
+// scanGlueAll discovers Glue resources in one region, running its phases one
+// after another. A phase's error does not stop the later ones; a failed
+// write does, since every later write would fail too, and so does ctx's end,
+// reported as one error. A child phase gets the parents its parent phase
+// stored: tables and user-defined functions the databases, partitions and
+// table optimizers the tables, schemas the registries, and so on down the
+// schema registry. The phases run one at a time, so readRowTags's own bound
+// is the bound on the GetTags reads in flight. Every phase calls the one
+// Glue endpoint, so an NXDOMAIN after rows were stored is a failure of this
+// scan, not a region gap (resultLateNXDOMAIN).
+func scanGlueAll(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var (
+		p               phaseTotals
+		tags            = glueTags(client)
+		databases, regs []childParent
+		tableRefs       []glueTableRef
+		schemaARNs      []string
+		versionIDs      []string
+	)
+	counted := func(op string, run func() (int, int, error)) func() bool {
+		return func() bool {
+			t, i, err := run()
+			return p.addPhase(op, t, i, err)
 		}
-		total += t
-		inserted += i
-		tableRefs = refs
 	}
-
-	if len(tableRefs) > 0 {
-		t, i, ferr := scanGluePartitions(ctx, client, acct, region, st, scanID, tableRefs)
-		if ferr != nil {
-			return total, inserted, ferr
+	phases := []func() bool{
+		func() (stop bool) {
+			databases, stop = scanGlueDatabases(ctx, client, acct, region, st, scanID, tags, &p)
+			return stop
+		},
+		func() bool {
+			t, i, refs, err := scanGlueTables(ctx, client, acct, region, st, scanID, childParentIDs(databases))
+			tableRefs = refs
+			return p.addPhase("glue:GetTables", t, i, err)
+		},
+		counted("glue:GetPartitions", func() (int, int, error) {
+			return scanGluePartitions(ctx, client, acct, region, st, scanID, tableRefs)
+		}),
+		counted("glue:GetTableOptimizer", func() (int, int, error) {
+			return scanGlueTableOptimizers(ctx, client, acct, region, st, scanID, tableRefs)
+		}),
+		func() (stop bool) {
+			regs, stop = scanGlueRegistries(ctx, client, acct, region, st, scanID, tags, &p)
+			return stop
+		},
+		func() (stop bool) {
+			schemaARNs, stop = scanGlueSchemas(ctx, client, regs, acct, region, st, scanID, tags, &p)
+			return stop
+		},
+		func() bool {
+			ids, t, i, err := scanGlueSchemaVersions(ctx, client, schemaARNs, acct, region, st, scanID)
+			versionIDs = ids
+			return p.addPhase("glue:ListSchemaVersions", t, i, err)
+		},
+		counted("glue:QuerySchemaVersionMetadata", func() (int, int, error) {
+			return scanGlueSchemaVersionMetadata(ctx, client, versionIDs, acct, region, st, scanID)
+		}),
+		func() bool { return scanGlueJobsPhase(ctx, client, acct, region, st, scanID, tags, &p) },
+		func() bool { return scanGlueTriggers(ctx, client, acct, region, st, scanID, tags, &p) },
+		func() bool { return scanGlueWorkflows(ctx, client, acct, region, st, scanID, tags, &p) },
+		func() bool { return scanGlueMLTransforms(ctx, client, acct, region, st, scanID, tags, &p) },
+		func() bool { return scanGlueDevEndpoints(ctx, client, acct, region, st, scanID, tags, &p) },
+		func() bool { return scanGlueCatalogs(ctx, client, acct, region, st, scanID, &p) },
+		func() bool { return scanGlueCustomEntityTypes(ctx, client, acct, region, st, scanID, tags, &p) },
+		counted("glue:GetDataCatalogEncryptionSettings", func() (int, int, error) {
+			return scanGlueDataCatalogEncryption(ctx, client, acct, region, st, scanID)
+		}),
+		func() bool { return scanGlueDataQualityRulesets(ctx, client, acct, region, st, scanID, tags, &p) },
+		counted("glue:GetGlueIdentityCenterConfiguration", func() (int, int, error) {
+			return scanGlueIdentityCenter(ctx, client, acct, region, st, scanID)
+		}),
+		counted("glue:DescribeIntegrations", func() (int, int, error) {
+			return scanGlueIntegrations(ctx, client, acct, region, st, scanID)
+		}),
+		func() bool { return scanGlueIntegrationResourceProps(ctx, client, acct, region, st, scanID, tags, &p) },
+		counted("glue:GetSecurityConfigurations", func() (int, int, error) {
+			return scanGlueSecurityConfigurations(ctx, client, acct, region, st, scanID)
+		}),
+		func() bool { return scanGlueUsageProfiles(ctx, client, acct, region, st, scanID, tags, &p) },
+		func() bool { return scanGlueCrawlers(ctx, client, acct, region, st, scanID, tags, &p) },
+		func() bool { return scanGlueConnections(ctx, client, acct, region, st, scanID, tags, &p) },
+		counted("glue:GetClassifiers", func() (int, int, error) {
+			return scanGlueClassifiers(ctx, client, acct, region, st, scanID)
+		}),
+		func() bool { return scanGlueBlueprints(ctx, client, acct, region, st, scanID, tags, &p) },
+		counted("glue:GetUserDefinedFunctions", func() (int, int, error) {
+			return scanGlueUserDefinedFunctions(ctx, client, acct, region, st, scanID, childParentIDs(databases))
+		}),
+		counted("glue:GetResourcePolicy", func() (int, int, error) {
+			return scanGlueMetadata(ctx, client, acct, region, st, scanID)
+		}),
+	}
+	notRun := 0
+	for i, run := range phases {
+		if ctx.Err() != nil {
+			notRun = len(phases) - i
+			break
 		}
-		total += t
-		inserted += i
-	}
-
-	if len(tableRefs) > 0 {
-		t, i, ferr := scanGlueTableOptimizers(ctx, client, acct, region, st, scanID, tableRefs)
-		if ferr != nil {
-			return total, inserted, ferr
+		if run() {
+			break
 		}
-		total += t
-		inserted += i
 	}
+	p.foldStop(ctx, "glue", notRun)
+	return p.resultLateNXDOMAIN(st, acct, region)
+}
 
-	{
-		t, i, ferr := scanGlueSchema(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
+// glueStorageRedact judges a partition's parameter maps, where a
+// connector's table, serde or column properties can carry a password;
+// glueTableRedact adds the maps only a table has.
+func glueStorageRedact() []redact.Rule {
+	return glueIfSensitive(
+		"Parameters.*",
+		"StorageDescriptor.Parameters.*",
+		"StorageDescriptor.SerdeInfo.Parameters.*",
+		"StorageDescriptor.Columns[*].Parameters.*",
+	)
+}
+
+func glueTableRedact() []redact.Rule {
+	return append(glueStorageRedact(), glueIfSensitive("PartitionKeys[*].Parameters.*", "IcebergTableMetadata.Properties.*")...)
+}
+
+// glueTags reads a row's tags with GetTags, sent the row's NativeID, which
+// for every type read through it is the resource's ARN: the one its list
+// element carries (registry, schema, integration resource property), or one
+// built in the ARN format the Service Reference documents for the type
+// (glueResourceARN, glueDatabaseARN). Glue's tagging guide lists connections,
+// databases, crawlers, dev endpoints, jobs, triggers, workflows, blueprints,
+// ML transforms, data quality rulesets, stream schemas and schema
+// registries as taggable; the Service Reference's GetTags action adds the
+// catalogs, custom entity types and usage profiles, and its TagResource
+// action the integration resource properties, whose Create ops all take
+// Tags. Tables and user-defined functions are not read: neither appears in
+// any of those lists, and their Create ops take no Tags. GetTags answers
+// with every tag at once (no page token); EntityNotFoundException is the
+// only not-found code its model lists.
+func glueTags(client glueAPI) rowTagReader {
+	return glueTagsAt(client, func(r *store.Resource) (string, error) { return r.NativeID, nil })
+}
+
+// glueTagsAt is glueTags sent the ARN arnOf gives for a row, for a type whose
+// NativeID is not the ARN GetTags takes.
+func glueTagsAt(client glueAPI, arnOf func(*store.Resource) (string, error)) rowTagReader {
+	return rowTagReader{
+		op:       glueGetTagsOp,
+		notFound: []string{"EntityNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn, err := arnOf(r)
+			if err != nil {
+				return nil, err
+			}
+			out, err := client.GetTags(ctx, &glue.GetTagsInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
+		},
 	}
+}
 
-	{
-		t, i, ferr := scanGlueJobs(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
+// glueRow is the row of a listed Glue item stored under nativeID, item
+// verbatim as the attributes.
+func glueRow(acct *account, region, scanID, typ, nativeID, name string, item any) *store.Resource {
+	return &store.Resource{
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		AccountName:    &acct.Name,
+		Type:           typ,
+		NativeID:       nativeID,
+		Name:           &name,
+		Region:         &region,
+		AttributesJSON: mustJSON(item),
+		DiscoveredBy:   scanID,
 	}
+}
 
-	{
-		t, i, ferr := scanGlueMisc(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
+// glueNamedRow is glueRow for an item whose ARN is built from its name in
+// kind's ARN format (glueResourceARN). An item without a name gives no row:
+// the reason names the items (what), and key, or a fixed text when key is
+// empty, names the item in the warning about them.
+func glueNamedRow(acct *account, region, scanID, typ, kind, what, name, key string, item any) (*store.Resource, string, string) {
+	if name == "" {
+		return nil, what + " have an empty name", cmp.Or(key, "(an item with no id)")
 	}
+	return glueRow(acct, region, scanID, typ, glueResourceARN(region, acct.ID, kind, name), name, item), "", ""
+}
 
-	{
-		t, i, ferr := scanGlueCatalog(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanGlueBlueprints(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	if len(dbNames) > 0 {
-		t, i, ferr := scanGlueUserDefinedFunctions(ctx, client, acct, region, st, scanID, dbNames)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanGlueMetadata(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	return total, inserted, nil
+// glueResourceARN builds the ARN in the commercial partition only: account
+// carries no partition, and every AWS scanner hardcodes arn:aws, so in aws-cn
+// and aws-us-gov the NativeID is not the resource's ARN and GetTags fails
+// for each row. Fixing it is a package-wide change, not a Glue one.
+func glueResourceARN(region, accountID, kind, id string) string {
+	return fmt.Sprintf("arn:aws:glue:%s:%s:%s/%s", region, accountID, kind, id)
 }
 
 func glueDatabaseARN(region, accountID, name string) string {
@@ -185,45 +291,28 @@ func glueTableARN(region, accountID, dbName, tableName string) string {
 	return fmt.Sprintf("arn:aws:glue:%s:%s:table/%s/%s", region, accountID, dbName, tableName)
 }
 
-func scanGlueDatabases(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (dbNames []string, total, inserted int, err error) {
-	pager := glue.NewGetDatabasesPaginator(client, &glue.GetDatabasesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "glue:GetDatabases", acct.ID, region, perr)
-				return nil, 0, 0, nil
+// scanGlueDatabases stores the account's databases with their tags and
+// returns the stored ones, keyed by name, the parents of the table and
+// user-defined-function phases. A database's element carries no ARN; its
+// NativeID is built in the documented database ARN format.
+func scanGlueDatabases(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (databases []childParent, storeWriteFailed bool) {
+	return storeParentListTags(ctx, st, acct, region, "glue:GetDatabases", "databases", "Name",
+		func(ctx context.Context, token *string) ([]gluetypes.Database, *string, error) {
+			out, err := client.GetDatabases(ctx, &glue.GetDatabasesInput{NextToken: token, MaxResults: sdkaws.Int32(glueCatalogGetterPageSize)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("glue:GetDatabases: %w", perr)
-		}
-		for _, d := range out.DatabaseList {
+			return out.DatabaseList, out.NextToken, nil
+		},
+		func(d gluetypes.Database) (*store.Resource, string, string) {
 			name := sv(d.Name)
 			if name == "" {
-				continue
+				return nil, "databases have an empty name", cmp.Or(sv(d.CatalogId), "(a database with no catalog id)")
 			}
-			dbNames = append(dbNames, name)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeGlueDatabase,
-				NativeID:       glueDatabaseARN(region, acct.ID, name),
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(d),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return nil, 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return nil, 0, 0, fmt.Errorf("upsert glue databases: %w", uerr)
-	}
-	return dbNames, len(batch), n, nil
+			return glueRow(acct, region, scanID, TypeGlueDatabase, glueDatabaseARN(region, acct.ID, name), name, d), "", ""
+		},
+		func(d gluetypes.Database) string { return sv(d.Name) },
+		tags, p)
 }
 
 // glueTableRef identifies a Glue table by (db, table, catalogId, isIceberg).

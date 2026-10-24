@@ -338,61 +338,8 @@ func scanQuickSight(ctx context.Context, acct *account, region string, st *store
 			break
 		}
 	}
-	qsFoldStop(ctx, &p, notRun)
+	p.foldStop(ctx, "quicksight", notRun)
 	return p.resultLateNXDOMAIN(st, acct, region)
-}
-
-// qsFoldStop leaves ctx's end as one member of p's errors. Each phase in
-// flight when ctx ended reports the stop itself, from its listing and from
-// its tag reads; those reports are dropped from the joins they are in, the
-// rest of each join kept, and one stop is added: the phases not run when
-// notRun is set, else the first report dropped. Only joins are looked into:
-// a single error that wraps the stop is the stop. A copy of bacFoldStop
-// (bedrockagentcore_scanners.go), kept until the two are shared.
-func qsFoldStop(ctx context.Context, p *phaseTotals, notRun int) {
-	stop := ctx.Err()
-	if stop == nil {
-		return
-	}
-	var (
-		errs  phaseErrs
-		first error
-	)
-	for _, f := range p.errs {
-		kept, dropped := qsWithoutStop(stop, f.err)
-		if first == nil {
-			first = dropped
-		}
-		errs.add(f.op, kept)
-	}
-	if notRun > 0 {
-		first = fmt.Errorf("quicksight: %d phases not run: %w", notRun, stop)
-	}
-	errs.add("quicksight", first)
-	p.errs = errs
-}
-
-// qsWithoutStop splits err into the part that is not stop and the first
-// member that is. A copy of bacWithoutStop.
-func qsWithoutStop(stop, err error) (kept, dropped error) {
-	members, ok := err.(interface{ Unwrap() []error })
-	if !ok {
-		if errors.Is(err, stop) {
-			return nil, err
-		}
-		return err, nil
-	}
-	var rest []error
-	for _, m := range members.Unwrap() {
-		k, d := qsWithoutStop(stop, m)
-		if dropped == nil {
-			dropped = d
-		}
-		if k != nil {
-			rest = append(rest, k)
-		}
-	}
-	return errors.Join(rest...), dropped
 }
 
 // qsTagReader reads a row's tags with ListTagsForResource, sent the row's
@@ -1145,8 +1092,8 @@ func qsStoreChildren[Item any](
 			return page(ctx, p, token)
 		})
 	})
-	out := parentOutcomes{op: op, notFound: []string{"ResourceNotFoundException"}, skip: skip}
 	parentOf := map[*store.Resource]string{}
+	out := parentOutcomes{op: op, notFound: []string{"ResourceNotFoundException"}, skip: skip, parentOf: parentOf}
 	for i, read := range reads {
 		p := parents[i]
 		addParentRows(&out, p.arn, read, func(_ string, it Item) (*store.Resource, string, string) {
@@ -1158,39 +1105,14 @@ func qsStoreChildren[Item any](
 		})
 	}
 	out.stopped(stopped)
-	return qsStoreOutcomes(st, acct, region, &out, parentOf, warn)
-}
-
-// qsStoreOutcomes is parentOutcomes.store with the closure written between
-// the rows and the warnings, so a failed row or closure write sends none of
-// them. It is a copy because the shared helpers are not changed in this
-// batch; o.store warns before its caller could write the closure.
-func qsStoreOutcomes(st *store.Store, acct *account, region string, o *parentOutcomes, parentOf map[*store.Resource]string, warn func()) (int, int, error) {
-	total, inserted, uerr := upsertBatch(st, o.rows, o.op)
-	if uerr != nil {
-		return total, inserted, errors.Join(append(o.errs, uerr)...)
+	total, inserted, err := out.store(st, acct, region)
+	if errors.Is(err, store.ErrStoreWrite) {
+		return total, inserted, err
 	}
-	pairs := make([][2]string, 0, len(o.rows))
-	for _, r := range o.rows {
-		pairs = append(pairs, [2]string{r.ID, parentOf[r]})
-	}
-	if herr := st.RecordHierarchyBatch(pairs); herr != nil {
-		return total, inserted, errors.Join(append(o.errs, fmt.Errorf("closure %s: %w", o.op, herr))...)
-	}
-	if o.denied.count > 0 {
-		_ = skipIfAccessDenied(st, o.op, acct.ID, region, fmt.Errorf("%d parent(s) denied, first %s: %w", o.denied.count, o.denied.first, o.denied.err))
-	}
-	if o.vanished.count > 0 {
-		st.ReportWarning(store.ScanWarning{
-			Provider: "aws", Service: o.op, Scope: acct.ID + "/" + region,
-			Message: fmt.Sprintf("%d parent(s) were deleted while their listing was read, so only part of it was stored; first %s: %v", o.vanished.count, o.vanished.first, o.vanished.err),
-		})
-	}
-	o.skips.warn(st, o.op, acct, region)
 	if warn != nil {
 		warn()
 	}
-	return total, inserted, errors.Join(o.errs...)
+	return total, inserted, err
 }
 
 // scanQSTemplateAliases lists each template's aliases (qsStoreChildren).

@@ -89,7 +89,7 @@ func scanBACHarnesses(ctx context.Context, client bedrockAgentCoreAPI, acct *acc
 // harness the harness phase stored. A harness ResourceNotFoundException says
 // was deleted since it was listed is skipped (storeTokenEachParent).
 func scanBACHarnessEndpoints(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, harnesses []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
-	return bacStoreEachParentTags(ctx, st, acct, region, "bedrockagentcore:ListHarnessEndpoints", []string{"ResourceNotFoundException"}, harnesses,
+	_, stop := storeEachParentTags(ctx, st, acct, region, "bedrockagentcore:ListHarnessEndpoints", []string{"ResourceNotFoundException"}, harnesses,
 		bacParentPages(nil, func(ctx context.Context, harness string, token *string) ([]bactypes.HarnessEndpoint, *string, error) {
 			out, err := client.ListHarnessEndpoints(ctx, &bac.ListHarnessEndpointsInput{HarnessId: &harness, NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})
 			if err != nil {
@@ -102,6 +102,7 @@ func scanBACHarnessEndpoints(ctx context.Context, client bedrockAgentCoreAPI, ac
 				e.Arn, cmp.Or(sv(e.EndpointName), sv(e.Arn)), cmp.Or(sv(e.EndpointName), "(an endpoint with no name) of harness "+harness), e)
 			return bacWithStatus(r, why, key, string(e.Status), e.CreatedAt)
 		}, tags, p)
+	return stop
 }
 
 // scanBACRegistries stores the region's registries and returns the stored
@@ -128,7 +129,7 @@ func scanBACRegistries(ctx context.Context, client bedrockAgentCoreAPI, acct *ac
 // phase stored. A registry ResourceNotFoundException says was deleted since
 // it was listed is skipped (storeTokenEachParent).
 func scanBACRegistryRecords(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, registries []childParent) (int, int, error) {
-	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListRegistryRecords", []string{"ResourceNotFoundException"}, bacParentIDs(registries),
+	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListRegistryRecords", []string{"ResourceNotFoundException"}, childParentIDs(registries),
 		bacParentPages(nil, func(ctx context.Context, registry string, token *string) ([]bactypes.RegistryRecordSummary, *string, error) {
 			out, err := client.ListRegistryRecords(ctx, &bac.ListRegistryRecordsInput{RegistryId: &registry, NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})
 			if err != nil {
@@ -147,7 +148,7 @@ func scanBACRegistryRecords(ctx context.Context, client bedrockAgentCoreAPI, acc
 // policy-engine phase stored. An engine ResourceNotFoundException says was
 // deleted since it was listed is skipped (storeTokenEachParent).
 func scanBACPolicyGenerations(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, engines []childParent) (int, int, error) {
-	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListPolicyGenerations", []string{"ResourceNotFoundException"}, bacParentIDs(engines),
+	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListPolicyGenerations", []string{"ResourceNotFoundException"}, childParentIDs(engines),
 		bacParentPages(nil, func(ctx context.Context, engine string, token *string) ([]bactypes.PolicyGeneration, *string, error) {
 			out, err := client.ListPolicyGenerations(ctx, &bac.ListPolicyGenerationsInput{PolicyEngineId: &engine, NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})
 			if err != nil {

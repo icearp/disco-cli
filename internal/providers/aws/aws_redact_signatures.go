@@ -9,7 +9,7 @@ import (
 
 func init() {
 	redact.RegisterSignatures(redact.Signatures{
-		Credential: []func(string) bool{accessKeyRE.MatchString},
+		Credential: []func(string) bool{accessKeyRE.MatchString, oracleJDBCUserinfoRE.MatchString},
 		Reference:  []func(string) bool{isARNOrSecretRef},
 		ResourceID: []func(string) bool{ec2ResourceIDRE.MatchString},
 	})
@@ -30,7 +30,12 @@ const redactARNPattern = `arn:aws(?:-cn|-us-gov|-eusc|-iso(?:-[a-z])?)?:[a-z0-9-
 var (
 	// No word boundaries: a key glued to other text ("xAKIA…") is still a key.
 	accessKeyRE = regexp.MustCompile(`(?:AKIA|ASIA)[0-9A-Z]{16}`)
-	redactARNRE = regexp.MustCompile(`^` + redactARNPattern + `$`)
+	// An Oracle JDBC URL with a user and password, "jdbc:oracle:thin:user/pass@host"
+	// or with the password quoted, `user/"p w"@host` (a Glue connection's
+	// JDBC_CONNECTION_URL): it puts its credentials before the @ with no "//",
+	// so the core userinfo-URL shape misses it.
+	oracleJDBCUserinfoRE = regexp.MustCompile(`(?i)jdbc:oracle:[a-z0-9]+:[^/@:\s]+/(?:"[^"]*"|[^@\s"]+)@`)
+	redactARNRE          = regexp.MustCompile(`^` + redactARNPattern + `$`)
 	// A CloudFormation dynamic reference to an SSM parameter by name or ARN
 	// (optionally versioned) or to a Secrets Manager secret, or the Parameter
 	// Store path that references a Secrets Manager secret.

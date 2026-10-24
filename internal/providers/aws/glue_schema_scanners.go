@@ -1,11 +1,14 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
+	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -14,133 +17,64 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeGlueRegistry, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueSchema, Service: "glue"})
 	registerType(restype.Descriptor{Type: TypeGlueSchemaVersion, Service: "glue"})
-	registerType(restype.Descriptor{Type: TypeGlueSchemaVersionMetadata, Service: "glue"})
+	// A metadata row's attributes are one key's MetadataInfo; the key itself
+	// is the row's name, not in the attributes, so its values are judged by
+	// shape alone (a credential shape is replaced, any other value kept).
+	registerType(restype.Descriptor{Type: TypeGlueSchemaVersionMetadata, Service: "glue", Redact: []redact.Rule{
+		{Path: "MetadataValue", Mode: redact.RedactIfSensitive},
+		{Path: "OtherMetadataValueList[*].MetadataValue", Mode: redact.RedactIfSensitive},
+	}})
 }
 
-// scanGlueSchema runs all Schema-family phases — Glue Schema Registry
-// resources (registry → schema → version → version-metadata).
-func scanGlueSchema(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	registries, t1, i1, e1 := scanGlueRegistries(ctx, client, acct, region, st, scanID)
-	if e1 != nil {
-		return 0, 0, e1
-	}
-	total += t1
-	inserted += i1
-
-	schemas, t2, i2, e2 := scanGlueSchemas(ctx, client, registries, acct, region, st, scanID)
-	if e2 != nil {
-		return total, inserted, e2
-	}
-	total += t2
-	inserted += i2
-
-	versions, t3, i3, e3 := scanGlueSchemaVersions(ctx, client, schemas, acct, region, st, scanID)
-	if e3 != nil {
-		return total, inserted, e3
-	}
-	total += t3
-	inserted += i3
-
-	t4, i4, e4 := scanGlueSchemaVersionMetadata(ctx, client, versions, acct, region, st, scanID)
-	if e4 != nil {
-		return total, inserted, e4
-	}
-	total += t4
-	inserted += i4
-	return total, inserted, nil
-}
-
-// scanGlueRegistries returns the registry ARN list so downstream phases can
-// scope ListSchemas per-registry.
-func scanGlueRegistries(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (regArns []string, total, inserted int, err error) {
-	pager := glue.NewListRegistriesPaginator(client, &glue.ListRegistriesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "glue:ListRegistries", acct.ID, region, perr)
-				return nil, 0, 0, nil
+// scanGlueRegistries stores the schema registries with their tags and
+// returns the stored ones, keyed by ARN, the parents of the schema phase.
+func scanGlueRegistries(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (registries []childParent, storeWriteFailed bool) {
+	return storeParentListTags(ctx, st, acct, region, "glue:ListRegistries", "registries", "RegistryArn",
+		func(ctx context.Context, token *string) ([]gluetypes.RegistryListItem, *string, error) {
+			out, err := client.ListRegistries(ctx, &glue.ListRegistriesInput{NextToken: token, MaxResults: sdkaws.Int32(glueMaxResultsNumber)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("glue:ListRegistries: %w", perr)
-		}
-		for _, r := range out.Registries {
+			return out.Registries, out.NextToken, nil
+		},
+		func(r gluetypes.RegistryListItem) (*store.Resource, string, string) {
 			arn := sv(r.RegistryArn)
 			if arn == "" {
-				continue
+				return nil, "registries have an empty RegistryArn", cmp.Or(sv(r.RegistryName), "(a registry with no name)")
 			}
-			regArns = append(regArns, arn)
-			rname := sv(r.RegistryName)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeGlueRegistry,
-				NativeID:       arn,
-				Name:           &rname,
-				Region:         &region,
-				AttributesJSON: mustJSON(r),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return nil, 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return nil, 0, 0, fmt.Errorf("upsert glue registries: %w", uerr)
-	}
-	return regArns, len(batch), n, nil
+			return glueRow(acct, region, scanID, TypeGlueRegistry, arn, sv(r.RegistryName), r), "", ""
+		},
+		func(r gluetypes.RegistryListItem) string { return sv(r.RegistryArn) },
+		tags, p)
 }
 
-// scanGlueSchemas lists schemas per registry. Returns schema ARNs for
-// downstream version enumeration.
-func scanGlueSchemas(ctx context.Context, client glueAPI, regArns []string, acct *account, region string, st *store.Store, scanID string) (schemaArns []string, total, inserted int, err error) {
-	if len(regArns) == 0 {
-		return nil, 0, 0, nil
-	}
-	var batch []*store.Resource
-	for _, regARN := range regArns {
-		regID := gluetypes.RegistryId{RegistryArn: &regARN}
-		pager := glue.NewListSchemasPaginator(client, &glue.ListSchemasInput{RegistryId: &regID})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return nil, 0, 0, fmt.Errorf("glue:ListSchemas %s: %w", regARN, perr)
+// scanGlueSchemas lists the schemas of each registry the registry phase
+// stored and stores them with their tags (storeEachParentTags). A registry
+// ListSchemas no longer finds (EntityNotFoundException, deleted after it was
+// listed) is skipped. It returns the ARNs of the schemas stored, the parents
+// of the schema-version phase.
+func scanGlueSchemas(ctx context.Context, client glueAPI, registries []childParent, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (schemaARNs []string, storeWriteFailed bool) {
+	stored, stop := storeEachParentTags(ctx, st, acct, region, "glue:ListSchemas", []string{"EntityNotFoundException"}, registries,
+		func(ctx context.Context, registry string, token *string) ([]gluetypes.SchemaListItem, *string, error) {
+			out, err := client.ListSchemas(ctx, &glue.ListSchemasInput{
+				RegistryId: &gluetypes.RegistryId{RegistryArn: &registry}, NextToken: token, MaxResults: sdkaws.Int32(glueMaxResultsNumber),
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, s := range out.Schemas {
-				arn := sv(s.SchemaArn)
-				if arn == "" {
-					continue
-				}
-				schemaArns = append(schemaArns, arn)
-				sname := sv(s.SchemaName)
-				batch = append(batch, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeGlueSchema,
-					NativeID:       arn,
-					Name:           &sname,
-					Region:         &region,
-					AttributesJSON: mustJSON(s),
-					DiscoveredBy:   scanID,
-				})
+			return out.Schemas, out.NextToken, nil
+		},
+		func(registry string, s gluetypes.SchemaListItem) (*store.Resource, string, string) {
+			arn := sv(s.SchemaArn)
+			if arn == "" {
+				return nil, "schemas have an empty SchemaArn", cmp.Or(sv(s.SchemaName), "(a schema with no name) of registry "+registry)
 			}
-		}
+			return glueRow(acct, region, scanID, TypeGlueSchema, arn, sv(s.SchemaName), s), "", ""
+		}, tags, p)
+	for _, r := range stored {
+		schemaARNs = append(schemaARNs, r.NativeID)
 	}
-	if len(batch) == 0 {
-		return nil, 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return nil, 0, 0, fmt.Errorf("upsert glue schemas: %w", uerr)
-	}
-	return schemaArns, len(batch), n, nil
+	return schemaARNs, stop
 }
 
 // scanGlueSchemaVersions enumerates versions per schema. Returns version

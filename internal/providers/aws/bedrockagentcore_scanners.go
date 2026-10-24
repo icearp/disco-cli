@@ -227,7 +227,7 @@ func scanBACAll(ctx context.Context, client bedrockAgentCoreAPI, data bedrockAge
 			break
 		}
 	}
-	bacFoldStop(ctx, &p, notRun)
+	p.foldStop(ctx, "bedrockagentcore", notRun)
 	total, inserted, err := p.resultLateNXDOMAIN(st, acct, region)
 	// A control-plane NXDOMAIN left after nothing of its own was stored would
 	// report the region unavailable and drop the A/B rows' counts; with A/B
@@ -238,58 +238,6 @@ func scanBACAll(ctx context.Context, client bedrockAgentCoreAPI, data bedrockAge
 		err = lateNXDOMAIN("bedrockagentcore", err)
 	}
 	return total + abTotal, inserted + abInserted, err
-}
-
-// bacFoldStop leaves ctx's end as one member of p's errors. Each phase in
-// flight when ctx ended reports the stop itself, from its listing and from
-// its tag reads; those reports are dropped from the joins they are in, the
-// rest of each join kept, and one stop is added: the phases not run when
-// notRun is set, else the first report dropped. Only joins are looked into:
-// a single error that wraps the stop is the stop.
-func bacFoldStop(ctx context.Context, p *phaseTotals, notRun int) {
-	stop := ctx.Err()
-	if stop == nil {
-		return
-	}
-	var (
-		errs  phaseErrs
-		first error
-	)
-	for _, f := range p.errs {
-		kept, dropped := bacWithoutStop(stop, f.err)
-		if first == nil {
-			first = dropped
-		}
-		errs.add(f.op, kept)
-	}
-	if notRun > 0 {
-		first = fmt.Errorf("bedrockagentcore: %d phases not run: %w", notRun, stop)
-	}
-	errs.add("bedrockagentcore", first)
-	p.errs = errs
-}
-
-// bacWithoutStop splits err into the part that is not stop and the first
-// member that is.
-func bacWithoutStop(stop, err error) (kept, dropped error) {
-	members, ok := err.(interface{ Unwrap() []error })
-	if !ok {
-		if errors.Is(err, stop) {
-			return nil, err
-		}
-		return err, nil
-	}
-	var rest []error
-	for _, m := range members.Unwrap() {
-		k, d := bacWithoutStop(stop, m)
-		if dropped == nil {
-			dropped = d
-		}
-		if k != nil {
-			rest = append(rest, k)
-		}
-	}
-	return errors.Join(rest...), dropped
 }
 
 // bacTags reads a row's tags with ListTagsForResource, sent the row's
@@ -417,46 +365,6 @@ func (u *bacUnauthorized) warn(st *store.Store, op string, acct *account, region
 	if u.err != nil && !storeWriteFailed {
 		_ = skipIfAccessDenied(st, op, acct.ID, region, u.err)
 	}
-}
-
-// bacParentIDs is the ids of parents, which their child listings key on.
-func bacParentIDs(parents []childParent) []string {
-	ids := make([]string, len(parents))
-	for i, p := range parents {
-		ids[i] = p.id
-	}
-	return ids
-}
-
-// bacStoreEachParentTags is storeTokenEachParent with each row's tags read
-// through tags (readRowTags) before the write: one parent's failure does not
-// stop the others, and its rows read before the failure are kept. Counts
-// and errors go to p as rowTagErrs.addPhase says; it reports whether the
-// write failed.
-func bacStoreEachParentTags[Item any](
-	ctx context.Context, st *store.Store, acct *account, region, op string, notFound []string, parents []childParent,
-	page bacParentPageFunc[Item], row func(parent string, it Item) (*store.Resource, string, string),
-	tags rowTagReader, p *phaseTotals,
-) (storeWriteFailed bool) {
-	ids := bacParentIDs(parents)
-	reads, stopped := readEachKey(ctx, ids, func(ctx context.Context, id string) parentItems[Item] {
-		return readParentPages(ctx, id, page)
-	})
-	out := parentOutcomes{op: op, notFound: notFound}
-	for i, read := range reads {
-		addParentRows(&out, ids[i], read, row)
-	}
-	out.stopped(stopped)
-	var (
-		errs rowTagErrs
-		warn func()
-	)
-	out.rows, warn, errs.hard, errs.transient = readRowTags(ctx, st, acct, region, tags, out.rows)
-	total, inserted, err := out.store(st, acct, region)
-	if !errors.Is(err, store.ErrStoreWrite) {
-		warn()
-	}
-	return errs.addPhase(p, tags.op, op, total, inserted, err)
 }
 
 func bacARN(region, acct, kind, id string) string {
@@ -637,7 +545,7 @@ func scanBACGateways(ctx context.Context, client bedrockAgentCoreAPI, acct *acco
 // and target ids. A gateway ResourceNotFoundException says was deleted since
 // it was listed is skipped (storeTokenEachParent).
 func scanBACGatewayTargets(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, gateways []childParent) (int, int, error) {
-	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListGatewayTargets", []string{"ResourceNotFoundException"}, bacParentIDs(gateways),
+	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListGatewayTargets", []string{"ResourceNotFoundException"}, childParentIDs(gateways),
 		bacParentPages(nil, func(ctx context.Context, gateway string, token *string) ([]bactypes.TargetSummary, *string, error) {
 			out, err := client.ListGatewayTargets(ctx, &bac.ListGatewayTargetsInput{GatewayIdentifier: &gateway, NextToken: token, MaxResults: sdkaws.Int32(bacGatewayPageCap)})
 			if err != nil {
@@ -689,7 +597,7 @@ func scanBACOnlineEvalConfigs(ctx context.Context, client bedrockAgentCoreAPI, a
 // stored. An engine ResourceNotFoundException says was deleted since it was
 // listed is skipped (storeTokenEachParent).
 func scanBACPolicies(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, engines []childParent) (int, int, error) {
-	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListPolicies", []string{"ResourceNotFoundException"}, bacParentIDs(engines),
+	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListPolicies", []string{"ResourceNotFoundException"}, childParentIDs(engines),
 		bacParentPages(nil, func(ctx context.Context, engine string, token *string) ([]bactypes.Policy, *string, error) {
 			out, err := client.ListPolicies(ctx, &bac.ListPoliciesInput{PolicyEngineId: &engine, NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})
 			if err != nil {
@@ -744,12 +652,12 @@ func scanBACRuntimes(ctx context.Context, client bedrockAgentCoreAPI, acct *acco
 }
 
 // scanBACRuntimeEndpoints lists the endpoints of each runtime the runtime
-// phase stored and stores them with their tags (bacStoreEachParentTags). The
+// phase stored and stores them with their tags (storeEachParentTags). The
 // op's model lists no not-found code, so a runtime deleted after it was
 // listed fails the phase with whatever code the service answers with
 // (decision #14, a known race).
 func scanBACRuntimeEndpoints(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, runtimes []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
-	return bacStoreEachParentTags(ctx, st, acct, region, "bedrockagentcore:ListAgentRuntimeEndpoints", nil, runtimes,
+	_, stop := storeEachParentTags(ctx, st, acct, region, "bedrockagentcore:ListAgentRuntimeEndpoints", nil, runtimes,
 		bacParentPages(nil, func(ctx context.Context, runtime string, token *string) ([]bactypes.AgentRuntimeEndpoint, *string, error) {
 			out, err := client.ListAgentRuntimeEndpoints(ctx, &bac.ListAgentRuntimeEndpointsInput{AgentRuntimeId: &runtime, NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})
 			if err != nil {
@@ -761,6 +669,7 @@ func scanBACRuntimeEndpoints(ctx context.Context, client bedrockAgentCoreAPI, ac
 			return bacRow(acct, region, scanID, TypeBedrockAgentCoreRuntimeEndpoint, "agent runtime endpoints",
 				e.AgentRuntimeEndpointArn, cmp.Or(sv(e.Name), sv(e.Id)), sv(e.Id), e)
 		}, tags, p)
+	return stop
 }
 
 func scanBACWorkloadIdentities(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {

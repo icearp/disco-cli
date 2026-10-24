@@ -4,36 +4,35 @@ import (
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanGlueBlueprints discovers Glue blueprints (workflow templates). The list
-// summary carries no ARN, so NativeID is synthesized. edge-less.
-func scanGlueBlueprints(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := glue.NewListBlueprintsPaginator(client, &glue.ListBlueprintsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "glue:ListBlueprints", acct.ID, region, err)
+// scanGlueBlueprints stores the blueprints (workflow templates) with their
+// tags. The listing returns names only, so NativeID is built in the
+// documented blueprint ARN format; edge-less.
+func scanGlueBlueprints(ctx context.Context, client glueAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "glue:ListBlueprints",
+		func(ctx context.Context, token *string) ([]string, *string, error) {
+			out, err := client.ListBlueprints(ctx, &glue.ListBlueprintsInput{NextToken: token, MaxResults: sdkaws.Int32(glueOrchestrationPageSize25)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("glue:ListBlueprints: %w", err)
-		}
-		for _, name := range out.Blueprints {
+			return out.Blueprints, out.NextToken, nil
+		},
+		func(name string) (*store.Resource, string, string) {
 			if name == "" {
-				continue
+				return nil, "blueprints have an empty name", "(a blueprint with no name)"
 			}
-			n := name
-			batch = append(batch, &store.Resource{
+			// The listing returns the name alone: there is no element to
+			// store as the attributes.
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeGlueBlueprint, NativeID: fmt.Sprintf("arn:aws:glue:%s:%s:blueprint/%s", region, acct.ID, name),
-				Name: &n, Region: &region, DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "glue blueprints")
+				Type: TypeGlueBlueprint, NativeID: glueResourceARN(region, acct.ID, "blueprint", name),
+				Name: &name, Region: &region, DiscoveredBy: scanID,
+			}, "", ""
+		}, tags, p)
 }
 
 // scanGlueUserDefinedFunctions fans GetUserDefinedFunctions out per database.

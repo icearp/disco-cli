@@ -44,7 +44,7 @@ func scanBACPaymentManagers(ctx context.Context, client bedrockAgentCoreAPI, acc
 // not-found code, so a manager deleted after it was listed fails the phase
 // with whatever code the service answers with (decision #14, a known race).
 func scanBACPaymentConnectors(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, managers []childParent) (int, int, error) {
-	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListPaymentConnectors", nil, bacParentIDs(managers),
+	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListPaymentConnectors", nil, childParentIDs(managers),
 		bacParentPages(nil, func(ctx context.Context, manager string, token *string) ([]bactypes.PaymentConnectorSummary, *string, error) {
 			out, err := client.ListPaymentConnectors(ctx, &bac.ListPaymentConnectorsInput{PaymentManagerId: &manager, NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})
 			if err != nil {

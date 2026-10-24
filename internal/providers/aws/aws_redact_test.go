@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"maps"
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 
 	amplifytypes "github.com/aws/aws-sdk-go-v2/service/amplify/types"
@@ -16,6 +18,7 @@ import (
 	dftypes "github.com/aws/aws-sdk-go-v2/service/devicefarm/types"
 	dstypes "github.com/aws/aws-sdk-go-v2/service/directoryservice/types"
 	emrtypes "github.com/aws/aws-sdk-go-v2/service/emr/types"
+	gluetypes "github.com/aws/aws-sdk-go-v2/service/glue/types"
 	iamtypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	lightsailtypes "github.com/aws/aws-sdk-go-v2/service/lightsail/types"
@@ -792,5 +795,319 @@ func TestRedact_EMRStep_ConfigPropertiesAndArgs(t *testing.T) {
 	}
 	if cfg["Jar"] != "command-runner.jar" {
 		t.Errorf("Config.Jar = %v; want kept", cfg["Jar"])
+	}
+}
+
+// glueSecretProps holds one value of each redaction outcome, keyed by a
+// name a Glue map can carry, with the value the rule must leave.
+func glueSecretProps() (in map[string]string, want map[string]any) {
+	in = map[string]string{
+		"--password":                   "hunter2",
+		"KAFKA_SASL_SCRAM_SECRETS_ARN": "arn:aws:secretsmanager:us-east-1:123456789012:secret:kafka-AbCdEf",
+		"--source-url":                 "mongodb://app:hunter2@db.internal:27017/app",
+		"--conf":                       "spark.hadoop.fs.s3a.secret.key=hunter2",
+		"--TempDir":                    "s3://bucket/tmp/",
+		"HOST":                         "db.internal",
+	}
+	want = map[string]any{
+		"--password":                   redact.PlaceholderKeyName,
+		"KAFKA_SASL_SCRAM_SECRETS_ARN": in["KAFKA_SASL_SCRAM_SECRETS_ARN"],
+		"--source-url":                 redact.PlaceholderValueShape,
+		"--conf":                       redact.PlaceholderValueShape,
+		"--TempDir":                    "s3://bucket/tmp/",
+		"HOST":                         "db.internal",
+	}
+	return in, want
+}
+
+// glueFill sets the string map at path (dot-separated field names, "[*]"
+// for one slice element, "*" for one map entry keyed "n") inside v, a struct,
+// allocating what lies between. A path naming no SDK field fails the test,
+// so a rule path that drifted from the SDK shape cannot pass.
+func glueFill(t *testing.T, v reflect.Value, segs []string, m map[string]string) {
+	t.Helper()
+	for v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			v.Set(reflect.New(v.Type().Elem()))
+		}
+		v = v.Elem()
+	}
+	if segs[0] == "*" {
+		if v.Kind() != reflect.Map {
+			t.Fatalf("%s is not a map", v.Type())
+		}
+		if v.IsNil() {
+			v.Set(reflect.MakeMap(v.Type()))
+		}
+		elem := reflect.New(v.Type().Elem()).Elem()
+		glueFill(t, elem, segs[1:], m)
+		v.SetMapIndex(reflect.ValueOf("n"), elem)
+		return
+	}
+	name, slice := strings.CutSuffix(segs[0], "[*]")
+	f := v.FieldByName(name)
+	if !f.IsValid() {
+		t.Fatalf("%s has no field %s", v.Type(), name)
+	}
+	if len(segs) == 1 {
+		f.Set(reflect.ValueOf(m))
+		return
+	}
+	if !slice {
+		glueFill(t, f, segs[1:], m)
+		return
+	}
+	elem := reflect.New(f.Type().Elem()).Elem()
+	glueFill(t, elem, segs[1:], m)
+	f.Set(reflect.Append(reflect.MakeSlice(f.Type(), 0, 1), elem))
+}
+
+// glueDig returns the decoded map at path, read as glueFill wrote it.
+func glueDig(t *testing.T, v any, segs []string) map[string]any {
+	t.Helper()
+	for _, seg := range segs {
+		name, slice := strings.CutSuffix(seg, "[*]")
+		if seg == "*" {
+			name = "n"
+		}
+		obj, ok := v.(map[string]any)
+		if !ok {
+			t.Fatalf("at %s: %T is not an object", seg, v)
+		}
+		v = obj[name]
+		if slice {
+			arr, ok := v.([]any)
+			if !ok || len(arr) != 1 {
+				t.Fatalf("at %s: %v is not a one-element array", seg, v)
+			}
+			v = arr[0]
+		}
+	}
+	m, ok := v.(map[string]any)
+	if !ok {
+		t.Fatalf("%T is not an object", v)
+	}
+	return m
+}
+
+// Every Glue map that can carry a credential is judged per key: a value
+// under a secret-looking key or of a credential shape is replaced, a
+// reference and a plain setting are kept, and the row's name is untouched.
+func TestRedact_Glue_ArgumentAndOptionMaps(t *testing.T) {
+	jobNodes := []string{
+		"CatalogDeltaSource.AdditionalDeltaOptions",
+		"CatalogHudiSource.AdditionalHudiOptions",
+		"CatalogIcebergSource.AdditionalIcebergOptions",
+		"ConnectorDataSource.Data",
+		"ConnectorDataTarget.Data",
+		"EvaluateDataQualityMultiFrame.AdditionalDataSources",
+		"EvaluateDataQualityMultiFrame.AdditionalOptions",
+		"JDBCConnectorTarget.AdditionalOptions",
+		"Recipe.RecipeSteps[*].Action.Parameters",
+		"S3CatalogDeltaSource.AdditionalDeltaOptions",
+		"S3CatalogHudiSource.AdditionalHudiOptions",
+		"S3CatalogIcebergSource.AdditionalIcebergOptions",
+		"S3DeltaCatalogTarget.AdditionalOptions",
+		"S3DeltaDirectTarget.AdditionalOptions",
+		"S3DeltaSource.AdditionalDeltaOptions",
+		"S3HudiCatalogTarget.AdditionalOptions",
+		"S3HudiDirectTarget.AdditionalOptions",
+		"S3HudiSource.AdditionalHudiOptions",
+		"S3IcebergCatalogTarget.AdditionalOptions",
+		"S3IcebergDirectTarget.AdditionalOptions",
+		"SnowflakeSource.Data.AdditionalOptions",
+		"SnowflakeTarget.Data.AdditionalOptions",
+		"SparkConnectorSource.AdditionalOptions",
+		"SparkConnectorTarget.AdditionalOptions",
+	}
+	jobPaths := []string{"DefaultArguments", "NonOverridableArguments"}
+	for _, n := range jobNodes {
+		jobPaths = append(jobPaths, "CodeGenConfigurationNodes.*."+n)
+	}
+	storage := []string{"Parameters", "StorageDescriptor.Parameters", "StorageDescriptor.SerdeInfo.Parameters", "StorageDescriptor.Columns[*].Parameters"}
+	for _, c := range []struct {
+		typ   string
+		name  string
+		root  func() any
+		paths []string
+	}{
+		{TypeGlueConnection, "Name", func() any { return &gluetypes.Connection{Name: ptrStr("row")} }, []string{
+			"ConnectionProperties", "SparkProperties", "AthenaProperties", "PythonProperties",
+			"AuthenticationConfiguration.OAuth2Properties.TokenUrlParametersMap",
+		}},
+		{TypeGlueJob, "Name", func() any { return &gluetypes.Job{Name: ptrStr("row")} }, jobPaths},
+		{TypeGlueDevEndpoint, "EndpointName", func() any { return &gluetypes.DevEndpoint{EndpointName: ptrStr("row")} }, []string{"Arguments"}},
+		{TypeGlueTrigger, "Name", func() any { return &gluetypes.Trigger{Name: ptrStr("row")} }, []string{"Actions[*].Arguments"}},
+		{TypeGlueWorkflow, "Name", func() any { return &gluetypes.Workflow{Name: ptrStr("row")} }, []string{
+			"DefaultRunProperties",
+			"LastRun.WorkflowRunProperties",
+			"Graph.Nodes[*].TriggerDetails.Trigger.Actions[*].Arguments",
+			"Graph.Nodes[*].JobDetails.JobRuns[*].Arguments",
+			"LastRun.Graph.Nodes[*].TriggerDetails.Trigger.Actions[*].Arguments",
+			"LastRun.Graph.Nodes[*].JobDetails.JobRuns[*].Arguments",
+		}},
+		{TypeGlueMLTransform, "Name", func() any { return &gluetypes.MLTransform{Name: ptrStr("row")} }, []string{"InputRecordTables[*].AdditionalOptions"}},
+		{TypeGlueDatabase, "Name", func() any { return &gluetypes.Database{Name: ptrStr("row")} }, []string{"Parameters"}},
+		{TypeGlueTable, "Name", func() any { return &gluetypes.Table{Name: ptrStr("row")} }, append(slices.Clone(storage), "PartitionKeys[*].Parameters", "IcebergTableMetadata.Properties")},
+		{TypeGluePartition, "TableName", func() any { return &gluetypes.Partition{TableName: ptrStr("row")} }, storage},
+		{TypeGlueCatalog, "Name", func() any { return &gluetypes.Catalog{Name: ptrStr("row")} }, []string{"Parameters", "CatalogProperties.CustomProperties"}},
+		{TypeGlueIntegration, "IntegrationName", func() any { return &gluetypes.Integration{IntegrationName: ptrStr("row")} }, []string{"IntegrationConfig.SourceProperties"}},
+	} {
+		for _, path := range c.paths {
+			t.Run(c.typ+"/"+path, func(t *testing.T) {
+				in, want := glueSecretProps()
+				segs := strings.Split(path, ".")
+				root := c.root()
+				glueFill(t, reflect.ValueOf(root).Elem(), segs, in)
+				got := applyAndDecode(t, c.typ, root)
+				if got[c.name] != "row" {
+					t.Errorf("%s = %v; want row", c.name, got[c.name])
+				}
+				if m := glueDig(t, got, segs); !reflect.DeepEqual(m, want) {
+					t.Errorf("%s = %v; want %v", path, m, want)
+				}
+			})
+		}
+	}
+}
+
+// Every ConnectionPropertyKey that names a password or a secret is replaced
+// and every other is kept; a JDBC URL with credentials in it, the Oracle
+// form included, is replaced, and one without is kept. HidePassword keeps
+// PASSWORD out of GetConnections, but not ENCRYPTED_PASSWORD or the Kafka
+// passwords.
+func TestRedact_GlueConnection_PropertyKeys(t *testing.T) {
+	props := map[string]string{}
+	want := map[string]any{}
+	for _, k := range gluetypes.ConnectionPropertyKey("").Values() {
+		props[string(k)] = "hunter2"
+		want[string(k)] = "hunter2"
+		// KAFKA_SASL_GSSAPI_KEYTAB holds the keytab's S3 location, not the
+		// keytab, but "gssAPIKEYtab" contains the stem "apikey", so it is
+		// replaced too: redacting a pointer loses nothing secret.
+		if strings.Contains(string(k), "PASSWORD") || strings.Contains(string(k), "SECRET") || k == gluetypes.ConnectionPropertyKeyKafkaSaslGssapiKeytab {
+			want[string(k)] = redact.PlaceholderKeyName
+		}
+	}
+	for url, kept := range map[string]bool{
+		"jdbc:oracle:thin:scott/tiger@//db.internal:1521/orcl":         false,
+		"jdbc:oracle:thin:@//db.internal:1521/orcl":                    true,
+		"jdbc:mysql://db.internal:3306/app?user=app&password=hunter2":  false,
+		"jdbc:postgresql://db.internal:5432/app":                       true,
+		"JDBC:ORACLE:THIN:SCOTT/TIGER@//db.internal:1521/orcl":         false,
+		`jdbc:oracle:thin:scott/"p w@x"@//db.internal:1521/orcl`:       false,
+		"jdbc:oracle:thin:@(DESCRIPTION=(ADDRESS=(HOST=db.internal)))": true,
+	} {
+		t.Run(url, func(t *testing.T) {
+			props[string(gluetypes.ConnectionPropertyKeyJdbcConnectionUrl)] = url
+			want[string(gluetypes.ConnectionPropertyKeyJdbcConnectionUrl)] = url
+			if !kept {
+				want[string(gluetypes.ConnectionPropertyKeyJdbcConnectionUrl)] = redact.PlaceholderValueShape
+			}
+			got := applyAndDecode(t, TypeGlueConnection, gluetypes.Connection{ConnectionProperties: props})
+			if m := got["ConnectionProperties"].(map[string]any); !reflect.DeepEqual(m, want) {
+				t.Errorf("ConnectionProperties = %v; want %v", m, want)
+			}
+		})
+	}
+}
+
+// A Redshift node's advanced options are judged by each option's Key.
+func TestRedact_GlueJob_RedshiftAdvancedOptions(t *testing.T) {
+	opts := []gluetypes.AmazonRedshiftAdvancedOption{
+		{Key: ptrStr("password"), Value: ptrStr("hunter2")},
+		{Key: ptrStr("tempformat"), Value: ptrStr("CSV")},
+	}
+	data := &gluetypes.AmazonRedshiftNodeData{AdvancedOptions: opts}
+	job := gluetypes.Job{CodeGenConfigurationNodes: map[string]gluetypes.CodeGenConfigurationNode{
+		"src": {AmazonRedshiftSource: &gluetypes.AmazonRedshiftSource{Data: data}},
+		"dst": {AmazonRedshiftTarget: &gluetypes.AmazonRedshiftTarget{Data: data}},
+	}}
+	got := applyAndDecode(t, TypeGlueJob, job)
+	nodes := got["CodeGenConfigurationNodes"].(map[string]any)
+	for id, node := range map[string]string{"src": "AmazonRedshiftSource", "dst": "AmazonRedshiftTarget"} {
+		adv := nodes[id].(map[string]any)[node].(map[string]any)["Data"].(map[string]any)["AdvancedOptions"].([]any)
+		for i, want := range []any{redact.PlaceholderKeyName, "CSV"} {
+			if v := adv[i].(map[string]any)["Value"]; v != want {
+				t.Errorf("%s AdvancedOptions[%d].Value = %v; want %v", node, i, v, want)
+			}
+		}
+	}
+}
+
+// A job's source-control token is replaced unless it is a reference to
+// where the token lives.
+func TestRedact_GlueJob_SourceControlAuthToken(t *testing.T) {
+	ref := "arn:aws:secretsmanager:us-east-1:123456789012:secret:gh-AbCdEf"
+	for token, want := range map[string]any{
+		"ghp_0123456789abcdefghijABCDEFGHIJ012345": redact.PlaceholderKeyName,
+		ref: ref,
+	} {
+		got := applyAndDecode(t, TypeGlueJob, gluetypes.Job{SourceControlDetails: &gluetypes.SourceControlDetails{AuthToken: ptrStr(token), Repository: ptrStr("etl")}})
+		scd := got["SourceControlDetails"].(map[string]any)
+		if scd["AuthToken"] != want {
+			t.Errorf("AuthToken(%q) = %v; want %v", token, scd["AuthToken"], want)
+		}
+		if scd["Repository"] != "etl" {
+			t.Errorf("Repository = %v; want etl", scd["Repository"])
+		}
+	}
+}
+
+// A dev endpoint's SSH public keys are not secrets and are kept.
+func TestRedact_GlueDevEndpoint_PublicKeysKept(t *testing.T) {
+	key := "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC user@host"
+	got := applyAndDecode(t, TypeGlueDevEndpoint, gluetypes.DevEndpoint{PublicKey: ptrStr(key), PublicKeys: []string{key}})
+	if got["PublicKey"] != key {
+		t.Errorf("PublicKey = %v; want kept", got["PublicKey"])
+	}
+	if keys := got["PublicKeys"].([]any); len(keys) != 1 || keys[0] != key {
+		t.Errorf("PublicKeys = %v; want kept", keys)
+	}
+}
+
+// A connection's OAuth2 token URL is replaced whatever it holds: its key
+// name says "token", and the grant type beside it is kept.
+func TestRedact_GlueConnection_TokenURL(t *testing.T) {
+	for _, url := range []string{
+		"https://login.example.com/oauth2/token",
+		"https://app:hunter2@login.example.com/oauth2/token",
+		"https://login.example.com/oauth2/token?client_secret=hunter2",
+	} {
+		got := applyAndDecode(t, TypeGlueConnection, gluetypes.Connection{AuthenticationConfiguration: &gluetypes.AuthenticationConfiguration{
+			OAuth2Properties: &gluetypes.OAuth2Properties{TokenUrl: ptrStr(url), OAuth2GrantType: gluetypes.OAuth2GrantTypeClientCredentials},
+		}})
+		oauth := got["AuthenticationConfiguration"].(map[string]any)["OAuth2Properties"].(map[string]any)
+		if oauth["TokenUrl"] != redact.PlaceholderKeyName && oauth["TokenUrl"] != redact.PlaceholderValueShape {
+			t.Errorf("TokenUrl(%q) = %v; want replaced", url, oauth["TokenUrl"])
+		}
+		if oauth["OAuth2GrantType"] != string(gluetypes.OAuth2GrantTypeClientCredentials) {
+			t.Errorf("OAuth2GrantType = %v; want kept", oauth["OAuth2GrantType"])
+		}
+	}
+}
+
+// A schema-version metadata value, its current one and each older one, is
+// replaced when it has a credential shape and kept otherwise.
+func TestRedact_GlueSchemaVersionMetadata_Values(t *testing.T) {
+	for value, want := range map[string]any{
+		"postgres://app:hunter2@db.internal/app": redact.PlaceholderValueShape,
+		"team-data-platform":                     "team-data-platform",
+	} {
+		info := gluetypes.MetadataInfo{
+			MetadataValue:          ptrStr(value),
+			CreatedTime:            ptrStr("2026-10-24T00:00:00Z"),
+			OtherMetadataValueList: []gluetypes.OtherMetadataValueListItem{{MetadataValue: ptrStr(value)}},
+		}
+		got := applyAndDecode(t, TypeGlueSchemaVersionMetadata, info)
+		if got["MetadataValue"] != want {
+			t.Errorf("MetadataValue(%q) = %v; want %v", value, got["MetadataValue"], want)
+		}
+		if v := got["OtherMetadataValueList"].([]any)[0].(map[string]any)["MetadataValue"]; v != want {
+			t.Errorf("OtherMetadataValueList[0].MetadataValue(%q) = %v; want %v", value, v, want)
+		}
+		if got["CreatedTime"] != "2026-10-24T00:00:00Z" {
+			t.Errorf("CreatedTime = %v; want kept", got["CreatedTime"])
+		}
 	}
 }

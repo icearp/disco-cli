@@ -1190,6 +1190,11 @@ type parentOutcomes struct {
 	errs             []error
 	denied, vanished skipTally
 	skips            notStoredSkips
+	// parentOf, set, maps each row to its parent's resource id: store then
+	// records the rows under their parents (RecordHierarchyBatch) after
+	// writing them and before any warning, so a failed closure write sends
+	// none.
+	parentOf map[*store.Resource]string
 }
 
 // addParentRows builds parent's rows from what its listing read and tallies
@@ -1216,12 +1221,22 @@ func (o *parentOutcomes) stopped(err error) {
 	}
 }
 
-// store writes the rows, then warns about the denied and vanished parents and
-// the items not stored, and returns the collected errors.
+// store writes the rows and, with parentOf set, their closure, then warns
+// about the denied and vanished parents and the items not stored, and
+// returns the collected errors. After a failed write it warns nothing.
 func (o *parentOutcomes) store(st *store.Store, acct *account, region string) (int, int, error) {
 	total, inserted, uerr := upsertBatch(st, o.rows, o.op)
 	if uerr != nil {
 		return total, inserted, errors.Join(append(o.errs, uerr)...)
+	}
+	if o.parentOf != nil {
+		pairs := make([][2]string, 0, len(o.rows))
+		for _, r := range o.rows {
+			pairs = append(pairs, [2]string{r.ID, o.parentOf[r]})
+		}
+		if herr := st.RecordHierarchyBatch(pairs); herr != nil {
+			return total, inserted, errors.Join(append(o.errs, fmt.Errorf("closure %s: %w", o.op, herr))...)
+		}
 	}
 	if o.denied.count > 0 {
 		_ = skipIfAccessDenied(st, o.op, acct.ID, region, fmt.Errorf("%d parent(s) denied, first %s: %w", o.denied.count, o.denied.first, o.denied.err))
@@ -1370,4 +1385,100 @@ func storeParentListDeniedBy[Item any](
 		_ = skipIfAccessDenied(st, op, acct.ID, region, denied)
 	}
 	return total, inserted, parents, err
+}
+
+// childParentIDs is the ids of parents, which their child listings key on.
+func childParentIDs(parents []childParent) []string {
+	ids := make([]string, len(parents))
+	for i, p := range parents {
+		ids[i] = p.id
+	}
+	return ids
+}
+
+// storeEachParentTags is storeTokenEachParent with each row's tags read
+// through tags (readRowTags) before the write: one parent's failure does not
+// stop the others, and its rows read before the failure are kept. Counts
+// and errors go to p as rowTagErrs.addPhase says. It returns the rows
+// stored, none after a failed write, and whether the write failed.
+func storeEachParentTags[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound []string, parents []childParent,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (*store.Resource, string, string),
+	tags rowTagReader, p *phaseTotals,
+) (stored []*store.Resource, storeWriteFailed bool) {
+	ids := childParentIDs(parents)
+	reads, stopped := readEachKey(ctx, ids, func(ctx context.Context, id string) parentItems[Item] {
+		return readParentPages(ctx, id, page)
+	})
+	out := parentOutcomes{op: op, notFound: notFound}
+	for i, read := range reads {
+		addParentRows(&out, ids[i], read, row)
+	}
+	out.stopped(stopped)
+	var (
+		errs rowTagErrs
+		warn func()
+	)
+	out.rows, warn, errs.hard, errs.transient = readRowTags(ctx, st, acct, region, tags, out.rows)
+	total, inserted, err := out.store(st, acct, region)
+	if errors.Is(err, store.ErrStoreWrite) {
+		return nil, errs.addPhase(p, tags.op, op, total, inserted, err)
+	}
+	warn()
+	return out.rows, errs.addPhase(p, tags.op, op, total, inserted, err)
+}
+
+// foldStop leaves ctx's end as one member of p's errors, for a scanner of
+// service whose phases run one at a time and stop starting once ctx ends,
+// notRun of them never started. Each phase in flight when ctx ended reports
+// the stop itself, from its listing and from its tag reads; those reports
+// are dropped from the joins they are in, the rest of each join kept, and
+// one stop is added: the phases not run when notRun is set, else the first
+// report dropped. Only joins are looked into: a single error that wraps the
+// stop is the stop.
+func (p *phaseTotals) foldStop(ctx context.Context, service string, notRun int) {
+	stop := ctx.Err()
+	if stop == nil {
+		return
+	}
+	var (
+		errs  phaseErrs
+		first error
+	)
+	for _, f := range p.errs {
+		kept, dropped := withoutStop(stop, f.err)
+		if first == nil {
+			first = dropped
+		}
+		errs.add(f.op, kept)
+	}
+	if notRun > 0 {
+		first = fmt.Errorf("%s: %d phases not run: %w", service, notRun, stop)
+	}
+	errs.add(service, first)
+	p.errs = errs
+}
+
+// withoutStop splits err into the part that is not stop and the first
+// member that is.
+func withoutStop(stop, err error) (kept, dropped error) {
+	members, ok := err.(interface{ Unwrap() []error })
+	if !ok {
+		if errors.Is(err, stop) {
+			return nil, err
+		}
+		return err, nil
+	}
+	var rest []error
+	for _, m := range members.Unwrap() {
+		k, d := withoutStop(stop, m)
+		if dropped == nil {
+			dropped = d
+		}
+		if k != nil {
+			rest = append(rest, k)
+		}
+	}
+	return errors.Join(rest...), dropped
 }

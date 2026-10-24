@@ -130,7 +130,7 @@ func bacGatewayARNs(gateways []childParent) map[string]string {
 // deployed in this region.
 func scanBACGatewayRules(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, gateways []childParent) (int, int, error) {
 	arns := bacGatewayARNs(gateways)
-	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListGatewayRules", []string{"ResourceNotFoundException"}, bacParentIDs(gateways),
+	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListGatewayRules", []string{"ResourceNotFoundException"}, childParentIDs(gateways),
 		bacParentPages(isBACRegionGap, func(ctx context.Context, gateway string, token *string) ([]bactypes.GatewayRuleDetail, *string, error) {
 			out, err := client.ListGatewayRules(ctx, &bac.ListGatewayRulesInput{GatewayIdentifier: &gateway, NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})
 			if err != nil {
@@ -155,7 +155,7 @@ func scanBACGatewayRules(ctx context.Context, client bedrockAgentCoreAPI, acct *
 // `{gatewayNativeID}/rate-limit/{rateLimitId}`.
 func scanBACGatewayRateLimits(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, gateways []childParent) (int, int, error) {
 	arns := bacGatewayARNs(gateways)
-	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListGatewayRateLimits", []string{"ResourceNotFoundException"}, bacParentIDs(gateways),
+	return storeTokenEachParent(ctx, st, acct, region, "bedrockagentcore:ListGatewayRateLimits", []string{"ResourceNotFoundException"}, childParentIDs(gateways),
 		bacParentPages(isBACRegionGap, func(ctx context.Context, gateway string, token *string) ([]bactypes.GatewayRateLimitDetail, *string, error) {
 			out, err := client.ListGatewayRateLimits(ctx, &bac.ListGatewayRateLimitsInput{GatewayIdentifier: &gateway, NextToken: token, MaxResults: sdkaws.Int32(bacPageCap)})
 			if err != nil {
