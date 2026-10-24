@@ -2,9 +2,10 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
+	iottypes "github.com/aws/aws-sdk-go-v2/service/iot/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -15,113 +16,108 @@ func init() {
 }
 
 type iotTopicAPI interface {
+	iotTagsAPI
 	ListTopicRules(context.Context, *iot.ListTopicRulesInput, ...func(*iot.Options)) (*iot.ListTopicRulesOutput, error)
 	GetTopicRule(context.Context, *iot.GetTopicRuleInput, ...func(*iot.Options)) (*iot.GetTopicRuleOutput, error)
 	ListTopicRuleDestinations(context.Context, *iot.ListTopicRuleDestinationsInput, ...func(*iot.Options)) (*iot.ListTopicRuleDestinationsOutput, error)
 	GetTopicRuleDestination(context.Context, *iot.GetTopicRuleDestinationInput, ...func(*iot.Options)) (*iot.GetTopicRuleDestinationOutput, error)
 }
 
-func scanIoTTopic(ctx context.Context, client iotTopicAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	t1, i1, e1 := scanIoTTopicRules(ctx, client, acct, region, st, scanID)
-	if e1 != nil {
-		return 0, 0, e1
-	}
-	t2, i2, e2 := scanIoTTopicRuleDestinations(ctx, client, acct, region, st, scanID)
-	if e2 != nil {
-		return t1, i1, e2
-	}
-	return t1 + t2, i1 + i2, nil
+// scanIoTTopic runs the topic-rule phases, adding each to p, and reports
+// whether a write failed.
+func scanIoTTopic(ctx context.Context, client iotTopicAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	return runIoTPhases(p,
+		func(p *phaseTotals) bool { return scanIoTTopicRules(ctx, client, acct, region, st, scanID, p, tags) },
+		func(p *phaseTotals) bool {
+			return scanIoTTopicRuleDestinations(ctx, client, acct, region, st, scanID, p)
+		},
+	)
 }
 
-func scanIoTTopicRules(ctx context.Context, client iotTopicAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListTopicRulesPaginator(client, &iot.ListTopicRulesInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListTopicRules", acct.ID, region, perr)
-				return 0, 0, nil
+// The maxResults caps the model documents: ListTopicRules 1-10000,
+// ListTopicRuleDestinations 1-1000.
+const (
+	iotTopicRulesPageCap            = 10000
+	iotTopicRuleDestinationsPageCap = 1000
+)
+
+func scanIoTTopicRules(ctx context.Context, client iotTopicAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListTopicRules", "iot topic rules", "RuleName",
+		func(ctx context.Context, token *string) ([]iottypes.TopicRuleListItem, *string, error) {
+			out, err := client.ListTopicRules(ctx, &iot.ListTopicRulesInput{NextToken: token, MaxResults: sdkaws.Int32(iotTopicRulesPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListTopicRules: %w", perr)
-		}
-		for _, r := range out.Rules {
-			if r.RuleName != nil {
-				names = append(names, *r.RuleName)
+			return out.Rules, out.NextToken, nil
+		},
+		func(x iottypes.TopicRuleListItem) *string { return x.RuleName },
+		func(x iottypes.TopicRuleListItem) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTTopicRule, x.RuleArn, x.RuleName, x)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:GetTopicRule", neverSkip,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.GetTopicRule(ctx, &iot.GetTopicRuleInput{RuleName: &name})
+			if derr != nil {
+				return nil, derr
 			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.GetTopicRule(gctx, &iot.GetTopicRuleInput{RuleName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.RuleArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:GetTopicRule %s: %w", name, derr)
-		}
-		arn := sv(out.RuleArn)
-		if arn == "" {
-			return nil, nil
-		}
-		rname := name
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTTopicRule,
-			NativeID:       arn,
-			Name:           &rname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot topic rules")
+			rname := name
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTTopicRule,
+				NativeID:       arn,
+				Name:           &rname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
 }
 
-func scanIoTTopicRuleDestinations(ctx context.Context, client iotTopicAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListTopicRuleDestinationsPaginator(client, &iot.ListTopicRuleDestinationsInput{})
-	var arns []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListTopicRuleDestinations", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIoTTopicRuleDestinations(ctx context.Context, client iotTopicAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListTopicRuleDestinations", "iot topic rule destinations", "Arn",
+		func(ctx context.Context, token *string) ([]iottypes.TopicRuleDestinationSummary, *string, error) {
+			out, err := client.ListTopicRuleDestinations(ctx, &iot.ListTopicRuleDestinationsInput{NextToken: token, MaxResults: sdkaws.Int32(iotTopicRuleDestinationsPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListTopicRuleDestinations: %w", perr)
-		}
-		for _, d := range out.DestinationSummaries {
-			if d.Arn != nil {
-				arns = append(arns, *d.Arn)
+			return out.DestinationSummaries, out.NextToken, nil
+		},
+		func(x iottypes.TopicRuleDestinationSummary) *string { return x.Arn },
+		func(x iottypes.TopicRuleDestinationSummary) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTTopicRuleDestination, x.Arn, x.Arn, x)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:GetTopicRuleDestination", neverSkip,
+		func(ctx context.Context, arn string) (*store.Resource, error) {
+			out, derr := client.GetTopicRuleDestination(ctx, &iot.GetTopicRuleDestinationInput{Arn: &arn})
+			if derr != nil {
+				return nil, derr
 			}
-		}
-	}
-	return iotDescribeFanout(ctx, arns, fanoutMed, func(gctx context.Context, arn string) (*store.Resource, error) {
-		out, derr := client.GetTopicRuleDestination(gctx, &iot.GetTopicRuleDestinationInput{Arn: &arn})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			if out.TopicRuleDestination == nil {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:GetTopicRuleDestination %s: %w", arn, derr)
-		}
-		if out.TopicRuleDestination == nil {
-			return nil, nil
-		}
-		outARN := sv(out.TopicRuleDestination.Arn)
-		if outARN == "" {
-			return nil, nil
-		}
-		name := outARN
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTTopicRuleDestination,
-			NativeID:       outARN,
-			Name:           &name,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot topic rule destinations")
+			outARN := sv(out.TopicRuleDestination.Arn)
+			if outARN == "" {
+				return nil, nil
+			}
+			name := outARN
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTTopicRuleDestination,
+				NativeID:       outARN,
+				Name:           &name,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStore(st, acct, region, p, list, d)
 }

@@ -21,22 +21,20 @@ type iotLoggingAPI interface {
 	DescribeEncryptionConfiguration(context.Context, *iot.DescribeEncryptionConfigurationInput, ...func(*iot.Options)) (*iot.DescribeEncryptionConfigurationOutput, error)
 }
 
-func scanIoTLogging(ctx context.Context, client iotLoggingAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanIoTLoggingOptions(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTResourceSpecificLogging(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+// scanIoTLogging runs the logging phases, adding each to p, and reports
+// whether a write failed.
+func scanIoTLogging(ctx context.Context, client iotLoggingAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (storeWriteFailed bool) {
+	return runIoTPhases(p,
+		iotCounted("iot:GetV2LoggingOptions", func() (int, int, error) {
+			return scanIoTLoggingOptions(ctx, client, acct, region, st, scanID)
+		}),
+		iotCounted("iot:ListV2LoggingLevels", func() (int, int, error) {
+			return scanIoTResourceSpecificLogging(ctx, client, acct, region, st, scanID)
+		}),
+		iotCounted("iot:DescribeEncryptionConfiguration", func() (int, int, error) {
 			return scanIoTEncryptionConfiguration(ctx, client, acct, region, st, scanID)
-		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+		}),
+	)
 }
 
 // scanIoTLoggingOptions emits one row per region — V2 logging is a

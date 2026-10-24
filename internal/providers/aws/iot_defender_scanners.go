@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
+	iottypes "github.com/aws/aws-sdk-go-v2/service/iot/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -22,6 +24,7 @@ func init() {
 // Device Defender audits, mitigation actions, security profiles, custom
 // metrics, dimensions.
 type iotDefenderAPI interface {
+	iotTagsAPI
 	DescribeAccountAuditConfiguration(context.Context, *iot.DescribeAccountAuditConfigurationInput, ...func(*iot.Options)) (*iot.DescribeAccountAuditConfigurationOutput, error)
 	ListScheduledAudits(context.Context, *iot.ListScheduledAuditsInput, ...func(*iot.Options)) (*iot.ListScheduledAuditsOutput, error)
 	DescribeScheduledAudit(context.Context, *iot.DescribeScheduledAuditInput, ...func(*iot.Options)) (*iot.DescribeScheduledAuditOutput, error)
@@ -35,26 +38,25 @@ type iotDefenderAPI interface {
 	DescribeDimension(context.Context, *iot.DescribeDimensionInput, ...func(*iot.Options)) (*iot.DescribeDimensionOutput, error)
 }
 
-// scanIoTDefender runs Defender-family phases.
-func scanIoTDefender(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) {
+// scanIoTDefender runs Defender-family phases, adding each to p, and reports
+// whether a write failed.
+func scanIoTDefender(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	return runIoTPhases(p,
+		iotCounted("iot:DescribeAccountAuditConfiguration", func() (int, int, error) {
 			return scanIoTAccountAuditConfiguration(ctx, client, acct, region, st, scanID)
+		}),
+		func(p *phaseTotals) bool {
+			return scanIoTScheduledAudits(ctx, client, acct, region, st, scanID, p, tags)
 		},
-		func() (int, int, error) { return scanIoTScheduledAudits(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTMitigationActions(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTSecurityProfiles(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTCustomMetrics(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTDimensions(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+		func(p *phaseTotals) bool {
+			return scanIoTMitigationActions(ctx, client, acct, region, st, scanID, p, tags)
+		},
+		func(p *phaseTotals) bool {
+			return scanIoTSecurityProfiles(ctx, client, acct, region, st, scanID, p, tags)
+		},
+		func(p *phaseTotals) bool { return scanIoTCustomMetrics(ctx, client, acct, region, st, scanID, p, tags) },
+		func(p *phaseTotals) bool { return scanIoTDimensions(ctx, client, acct, region, st, scanID, p, tags) },
+	)
 }
 
 // scanIoTAccountAuditConfiguration emits a single per-region row — the
@@ -92,237 +94,216 @@ func scanIoTAccountAuditConfiguration(ctx context.Context, client iotDefenderAPI
 	return 1, n, nil
 }
 
-func scanIoTScheduledAudits(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListScheduledAuditsPaginator(client, &iot.ListScheduledAuditsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListScheduledAudits", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIoTScheduledAudits(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListScheduledAudits", "iot scheduled audits", "ScheduledAuditName",
+		func(ctx context.Context, token *string) ([]iottypes.ScheduledAuditMetadata, *string, error) {
+			out, err := client.ListScheduledAudits(ctx, &iot.ListScheduledAuditsInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			// Device Defender is not routed in every region: the first page
+			// there is a bare 404 "No method found matching route".
+			if token == nil && isHTTP404(err) {
+				return nil, nil, nil
 			}
-			// Device Defender isn't routed in every region; 404s "No method found
-			// matching route" (untyped — only HTTP status is reliable). Region
-			// gap — silent-skip.
-			if isHTTP404(perr) {
-				return 0, 0, nil
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListScheduledAudits: %w", perr)
-		}
-		for _, s := range out.ScheduledAudits {
-			if s.ScheduledAuditName != nil {
-				names = append(names, *s.ScheduledAuditName)
+			return out.ScheduledAudits, out.NextToken, nil
+		},
+		func(x iottypes.ScheduledAuditMetadata) *string { return x.ScheduledAuditName },
+		func(x iottypes.ScheduledAuditMetadata) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTScheduledAudit, x.ScheduledAuditArn, x.ScheduledAuditName, x)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeScheduledAudit", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.DescribeScheduledAudit(ctx, &iot.DescribeScheduledAuditInput{ScheduledAuditName: &name})
+			if derr != nil {
+				return nil, derr
 			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeScheduledAudit(gctx, &iot.DescribeScheduledAuditInput{ScheduledAuditName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.ScheduledAuditArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:DescribeScheduledAudit %s: %w", name, derr)
-		}
-		arn := sv(out.ScheduledAuditArn)
-		if arn == "" {
-			return nil, nil
-		}
-		sname := sv(out.ScheduledAuditName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTScheduledAudit,
-			NativeID:       arn,
-			Name:           &sname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot scheduled audits")
+			sname := sv(out.ScheduledAuditName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTScheduledAudit,
+				NativeID:       arn,
+				Name:           &sname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
 }
 
-func scanIoTMitigationActions(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListMitigationActionsPaginator(client, &iot.ListMitigationActionsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListMitigationActions", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIoTMitigationActions(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListMitigationActions", "iot mitigation actions", "ActionName",
+		func(ctx context.Context, token *string) ([]iottypes.MitigationActionIdentifier, *string, error) {
+			out, err := client.ListMitigationActions(ctx, &iot.ListMitigationActionsInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			// Device Defender is not routed in every region: the first page
+			// there is a bare 404 "No method found matching route".
+			if token == nil && isHTTP404(err) {
+				return nil, nil, nil
 			}
-			if isHTTP404(perr) { // Device Defender not routed in this region
-				return 0, 0, nil
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListMitigationActions: %w", perr)
-		}
-		for _, m := range out.ActionIdentifiers {
-			if m.ActionName != nil {
-				names = append(names, *m.ActionName)
+			return out.ActionIdentifiers, out.NextToken, nil
+		},
+		func(x iottypes.MitigationActionIdentifier) *string { return x.ActionName },
+		func(x iottypes.MitigationActionIdentifier) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTMitigationAction, x.ActionArn, x.ActionName, x)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeMitigationAction", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.DescribeMitigationAction(ctx, &iot.DescribeMitigationActionInput{ActionName: &name})
+			if derr != nil {
+				return nil, derr
 			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeMitigationAction(gctx, &iot.DescribeMitigationActionInput{ActionName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.ActionArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:DescribeMitigationAction %s: %w", name, derr)
-		}
-		arn := sv(out.ActionArn)
-		if arn == "" {
-			return nil, nil
-		}
-		mname := sv(out.ActionName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTMitigationAction,
-			NativeID:       arn,
-			Name:           &mname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot mitigation actions")
+			mname := sv(out.ActionName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTMitigationAction,
+				NativeID:       arn,
+				Name:           &mname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
 }
 
-func scanIoTSecurityProfiles(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListSecurityProfilesPaginator(client, &iot.ListSecurityProfilesInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListSecurityProfiles", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIoTSecurityProfiles(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListSecurityProfiles", "iot security profiles", "Name",
+		func(ctx context.Context, token *string) ([]iottypes.SecurityProfileIdentifier, *string, error) {
+			out, err := client.ListSecurityProfiles(ctx, &iot.ListSecurityProfilesInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			// Device Defender is not routed in every region: the first page
+			// there is a bare 404 "No method found matching route".
+			if token == nil && isHTTP404(err) {
+				return nil, nil, nil
 			}
-			if isHTTP404(perr) { // Device Defender not routed in this region
-				return 0, 0, nil
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListSecurityProfiles: %w", perr)
-		}
-		for _, p := range out.SecurityProfileIdentifiers {
-			if p.Name != nil {
-				names = append(names, *p.Name)
+			return out.SecurityProfileIdentifiers, out.NextToken, nil
+		},
+		func(x iottypes.SecurityProfileIdentifier) *string { return x.Name },
+		func(x iottypes.SecurityProfileIdentifier) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTSecurityProfile, x.Arn, x.Name, x)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeSecurityProfile", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.DescribeSecurityProfile(ctx, &iot.DescribeSecurityProfileInput{SecurityProfileName: &name})
+			if derr != nil {
+				return nil, derr
 			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeSecurityProfile(gctx, &iot.DescribeSecurityProfileInput{SecurityProfileName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.SecurityProfileArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:DescribeSecurityProfile %s: %w", name, derr)
-		}
-		arn := sv(out.SecurityProfileArn)
-		if arn == "" {
-			return nil, nil
-		}
-		pname := sv(out.SecurityProfileName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTSecurityProfile,
-			NativeID:       arn,
-			Name:           &pname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot security profiles")
+			pname := sv(out.SecurityProfileName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTSecurityProfile,
+				NativeID:       arn,
+				Name:           &pname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
 }
 
-func scanIoTCustomMetrics(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListCustomMetricsPaginator(client, &iot.ListCustomMetricsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListCustomMetrics", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIoTCustomMetrics(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListCustomMetrics", "iot custom metrics", "MetricName",
+		func(ctx context.Context, token *string) ([]string, *string, error) {
+			out, err := client.ListCustomMetrics(ctx, &iot.ListCustomMetricsInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			// Device Defender is not routed in every region: the first page
+			// there is a bare 404 "No method found matching route".
+			if token == nil && isHTTP404(err) {
+				return nil, nil, nil
 			}
-			if isHTTP404(perr) { // Device Defender not routed in this region
-				return 0, 0, nil
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListCustomMetrics: %w", perr)
-		}
-		names = append(names, out.MetricNames...)
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeCustomMetric(gctx, &iot.DescribeCustomMetricInput{MetricName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			return out.MetricNames, out.NextToken, nil
+		},
+		iotName, nil)
+	d := list.describe(ctx, st, acct, region, "iot:DescribeCustomMetric", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.DescribeCustomMetric(ctx, &iot.DescribeCustomMetricInput{MetricName: &name})
+			if derr != nil {
+				return nil, derr
+			}
+			arn := sv(out.MetricArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:DescribeCustomMetric %s: %w", name, derr)
-		}
-		arn := sv(out.MetricArn)
-		if arn == "" {
-			return nil, nil
-		}
-		mname := sv(out.MetricName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTCustomMetric,
-			NativeID:       arn,
-			Name:           &mname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot custom metrics")
+			mname := sv(out.MetricName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTCustomMetric,
+				NativeID:       arn,
+				Name:           &mname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
 }
 
-func scanIoTDimensions(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListDimensionsPaginator(client, &iot.ListDimensionsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListDimensions", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIoTDimensions(ctx context.Context, client iotDefenderAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListDimensions", "iot dimensions", "DimensionName",
+		func(ctx context.Context, token *string) ([]string, *string, error) {
+			out, err := client.ListDimensions(ctx, &iot.ListDimensionsInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			// Device Defender is not routed in every region: the first page
+			// there is a bare 404 "No method found matching route".
+			if token == nil && isHTTP404(err) {
+				return nil, nil, nil
 			}
-			if isHTTP404(perr) { // Device Defender not routed in this region
-				return 0, 0, nil
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListDimensions: %w", perr)
-		}
-		names = append(names, out.DimensionNames...)
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeDimension(gctx, &iot.DescribeDimensionInput{Name: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			return out.DimensionNames, out.NextToken, nil
+		},
+		iotName, nil)
+	d := list.describe(ctx, st, acct, region, "iot:DescribeDimension", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.DescribeDimension(ctx, &iot.DescribeDimensionInput{Name: &name})
+			if derr != nil {
+				return nil, derr
+			}
+			arn := sv(out.Arn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:DescribeDimension %s: %w", name, derr)
-		}
-		arn := sv(out.Arn)
-		if arn == "" {
-			return nil, nil
-		}
-		dname := sv(out.Name)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTDimension,
-			NativeID:       arn,
-			Name:           &dname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot dimensions")
+			dname := sv(out.Name)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTDimension,
+				NativeID:       arn,
+				Name:           &dname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
 }

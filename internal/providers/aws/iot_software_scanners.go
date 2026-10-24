@@ -2,14 +2,14 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
+	iottypes "github.com/aws/aws-sdk-go-v2/service/iot/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -24,136 +24,128 @@ type iotSoftwareAPI interface {
 	GetPackageVersion(context.Context, *iot.GetPackageVersionInput, ...func(*iot.Options)) (*iot.GetPackageVersionOutput, error)
 }
 
-func scanIoTSoftware(ctx context.Context, client iotSoftwareAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	t1, i1, e1 := scanIoTSoftwarePackages(ctx, client, acct, region, st, scanID)
-	if e1 != nil {
-		return 0, 0, e1
-	}
-	t2, i2, e2 := scanIoTSoftwarePackageVersions(ctx, client, acct, region, st, scanID)
-	if e2 != nil {
-		return t1, i1, e2
-	}
-	return t1 + t2, i1 + i2, nil
+// iotPackagesPageCap is the maxResults cap (1-100) the model documents for
+// ListPackages and ListPackageVersions.
+const iotPackagesPageCap = 100
+
+// scanIoTSoftware lists the packages once, then runs the package phase and
+// the version phase over them, adding each to p, and reports whether a
+// write failed.
+func scanIoTSoftware(ctx context.Context, client iotSoftwareAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (storeWriteFailed bool) {
+	pkgs := iotList(ctx, "iot:ListPackages", "iot software packages", "PackageName",
+		func(ctx context.Context, token *string) ([]iottypes.PackageSummary, *string, error) {
+			out, err := client.ListPackages(ctx, &iot.ListPackagesInput{NextToken: token, MaxResults: sdkaws.Int32(iotPackagesPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.PackageSummaries, out.NextToken, nil
+		},
+		func(x iottypes.PackageSummary) *string { return x.PackageName }, nil)
+	return runIoTPhases(p,
+		func(p *phaseTotals) bool {
+			return scanIoTSoftwarePackages(ctx, client, acct, region, st, scanID, p, pkgs)
+		},
+		func(p *phaseTotals) bool {
+			return scanIoTSoftwarePackageVersions(ctx, client, acct, region, st, scanID, p, pkgs.keys)
+		},
+	)
 }
 
-func scanIoTSoftwarePackages(ctx context.Context, client iotSoftwareAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListPackagesPaginator(client, &iot.ListPackagesInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListPackages", acct.ID, region, perr)
-				return 0, 0, nil
+// scanIoTSoftwarePackages describes and stores the packages list holds.
+func scanIoTSoftwarePackages(ctx context.Context, client iotSoftwareAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, list *iotListing) (storeWriteFailed bool) {
+	d := list.describe(ctx, st, acct, region, "iot:GetPackage", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.GetPackage(ctx, &iot.GetPackageInput{PackageName: &name})
+			if derr != nil {
+				return nil, derr
 			}
-			return 0, 0, fmt.Errorf("iot:ListPackages: %w", perr)
-		}
-		for _, p := range out.PackageSummaries {
-			if p.PackageName != nil {
-				names = append(names, *p.PackageName)
-			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.GetPackage(gctx, &iot.GetPackageInput{PackageName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.PackageArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:GetPackage %s: %w", name, derr)
-		}
-		arn := sv(out.PackageArn)
-		if arn == "" {
-			return nil, nil
-		}
-		pname := sv(out.PackageName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTSoftwarePackage,
-			NativeID:       arn,
-			Name:           &pname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot software packages")
+			pname := sv(out.PackageName)
+			// No tag read: the Service Reference lists neither package nor
+			// packageversion among ListTagsForResource's resources.
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTSoftwarePackage,
+				NativeID:       arn,
+				Name:           &pname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStore(st, acct, region, p, list, d)
 }
 
-// scanIoTSoftwarePackageVersions enumerates per-package versions then fans
-// out GetPackageVersion concurrently.
-func scanIoTSoftwarePackageVersions(ctx context.Context, client iotSoftwareAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListPackagesPaginator(client, &iot.ListPackagesInput{})
-	var pkgs []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListPackages", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iot:ListPackages: %w", perr)
-		}
-		for _, p := range out.PackageSummaries {
-			if p.PackageName != nil {
-				pkgs = append(pkgs, *p.PackageName)
-			}
-		}
-	}
-	if len(pkgs) == 0 {
-		return 0, 0, nil
-	}
-	type key struct{ pkg, ver string }
-	var keys []key
-	for _, pkg := range pkgs {
-		pkg := pkg
-		vp := iot.NewListPackageVersionsPaginator(client, &iot.ListPackageVersionsInput{PackageName: &pkg})
-		for vp.HasMorePages() {
-			out, perr := vp.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("iot:ListPackageVersions %s: %w", pkg, perr)
-			}
-			for _, v := range out.PackageVersionSummaries {
-				if v.VersionName != nil {
-					keys = append(keys, key{pkg, *v.VersionName})
-				}
-			}
-		}
-	}
-	if len(keys) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
+// iotPackageVersion is one listed version of a software package.
+type iotPackageVersion struct{ pkg, ver string }
+
+// scanIoTSoftwarePackageVersions lists the versions of each package in pkgs
+// and describes each with GetPackageVersion (iotDescribe). One package's
+// version listing failing does not stop the others': its versions read
+// before the failure are kept, a denial is warned about once after the
+// write, and every other failure is added to p under ListPackageVersions,
+// the transient ones apart so that phaseErrs can demote them. An NXDOMAIN
+// is flattened (lateNXDOMAIN): ListPackages reached the endpoint. A listing
+// cut short because ctx ended stops the loop, and one error says how many
+// packages were not listed in full; every later package would fail the same
+// way.
+func scanIoTSoftwarePackageVersions(ctx context.Context, client iotSoftwareAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, pkgs []string) (storeWriteFailed bool) {
+	const listOp = "iot:ListPackageVersions"
 	var (
-		mu    sync.Mutex
-		batch []*store.Resource
+		keys       []iotPackageVersion
+		denied     skipTally
+		transients transientTally
+		errs       []error
 	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, k := range keys {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
+	for i, pkg := range pkgs {
+		versions, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]iottypes.PackageVersionSummary, *string, error) {
+			out, err := client.ListPackageVersions(ctx, &iot.ListPackageVersionsInput{
+				PackageName: &pkg, NextToken: token, MaxResults: sdkaws.Int32(iotPackagesPageCap),
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.PackageVersionSummaries, out.NextToken, nil
+		})
+		for _, v := range versions {
+			if v.VersionName != nil {
+				keys = append(keys, iotPackageVersion{pkg, *v.VersionName})
+			}
 		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			out, derr := client.GetPackageVersion(gctx, &iot.GetPackageVersionInput{PackageName: &k.pkg, VersionName: &k.ver})
-			if derr != nil {
-				if isAccessDenied(derr) {
-					return nil
-				}
-				return fmt.Errorf("iot:GetPackageVersion %s/%s: %w", k.pkg, k.ver, derr)
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			errs = append(errs, fmt.Errorf("%s: versions of %d of %d package(s) not listed, or listed in part: %w", listOp, len(pkgs)-i, len(pkgs), err))
+			break
+		}
+		switch err := lateNXDOMAIN(listOp, err); {
+		case err == nil:
+		case isAccessDenied(err):
+			denied.skipped(pkg, err)
+		case transients.drop(pkg, err):
+		default:
+			errs = append(errs, fmt.Errorf("%s %s: %w", listOp, pkg, err))
+		}
+	}
+	d := iotDescribe(ctx, st, acct, region, "iot:GetPackageVersion", "iot software package versions", keys,
+		func(k iotPackageVersion) string { return k.pkg + "/" + k.ver }, isIoTNotFound, nil,
+		func(ctx context.Context, k iotPackageVersion) (*store.Resource, error) {
+			out, err := client.GetPackageVersion(ctx, &iot.GetPackageVersionInput{PackageName: &k.pkg, VersionName: &k.ver})
+			if err != nil {
+				return nil, err
 			}
 			arn := sv(out.PackageVersionArn)
 			if arn == "" {
-				return nil
+				return nil, nil
 			}
 			label := fmt.Sprintf("%s:%s", k.pkg, k.ver)
 			status := string(out.Status)
-			mu.Lock()
-			batch = append(batch, &store.Resource{
+			// No tag read: the Service Reference lists neither package nor
+			// packageversion among ListTagsForResource's resources.
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -164,20 +156,20 @@ func scanIoTSoftwarePackageVersions(ctx context.Context, client iotSoftwareAPI, 
 				Status:         &status,
 				AttributesJSON: mustJSON(out),
 				DiscoveredBy:   scanID,
-			})
-			mu.Unlock()
-			return nil
+			}, nil
 		})
+	total, inserted, err := storeReadRows(st, acct, region, listOp, d.rows, nil, func() {
+		d.warn()
+		if denied.count > 0 {
+			_ = skipIfAccessDenied(st, listOp, acct.ID, region, fmt.Errorf("versions of %d package(s) not listed, first %s: %w", denied.count, denied.first, denied.err))
+		}
+	})
+	stop := p.addPhase(listOp, total, inserted, err)
+	p.errs.add(listOp, errors.Join(errs...))
+	if t := &transients.skipTally; t.count > 0 {
+		p.errs.add(listOp, fmt.Errorf("%s: versions of %d package(s) not listed, first %s: %w", listOp, t.count, t.first, t.err))
 	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert iot software-package-versions: %w", uerr)
-	}
-	return len(batch), n, nil
+	p.errs.add(d.op, d.hard)
+	p.errs.add(d.op, d.transient)
+	return stop
 }

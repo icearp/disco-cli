@@ -1,10 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
+	iottypes "github.com/aws/aws-sdk-go-v2/service/iot/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -17,6 +19,7 @@ func init() {
 }
 
 type iotInventoryAPI interface {
+	iotTagsAPI
 	ListIndices(context.Context, *iot.ListIndicesInput, ...func(*iot.Options)) (*iot.ListIndicesOutput, error)
 	DescribeIndex(context.Context, *iot.DescribeIndexInput, ...func(*iot.Options)) (*iot.DescribeIndexOutput, error)
 	ListJobs(context.Context, *iot.ListJobsInput, ...func(*iot.Options)) (*iot.ListJobsOutput, error)
@@ -24,153 +27,133 @@ type iotInventoryAPI interface {
 	ListStreams(context.Context, *iot.ListStreamsInput, ...func(*iot.Options)) (*iot.ListStreamsOutput, error)
 }
 
-func scanIoTInventory(ctx context.Context, client iotInventoryAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanIoTIndices(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTJobRecords(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTOTAUpdates(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTStreams(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+// scanIoTInventory runs the fleet-index, job, OTA-update and stream phases, adding each to p, and reports
+// whether a write failed.
+func scanIoTInventory(ctx context.Context, client iotInventoryAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	return runIoTPhases(p,
+		func(p *phaseTotals) bool { return scanIoTIndices(ctx, client, acct, region, st, scanID, p) },
+		func(p *phaseTotals) bool { return scanIoTJobRecords(ctx, client, acct, region, st, scanID, p, tags) },
+		func(p *phaseTotals) bool { return scanIoTOTAUpdates(ctx, client, acct, region, st, scanID, p, tags) },
+		func(p *phaseTotals) bool { return scanIoTStreams(ctx, client, acct, region, st, scanID, p, tags) },
+	)
 }
+
+// iotIndicesPageCap is ListIndices' maxResults cap (1-500).
+const iotIndicesPageCap = 500
 
 // scanIoTIndices enumerates fleet-indexing indices (ListIndices returns only
 // names) then enriches each with IndexStatus + Schema via DescribeIndex. The
 // index has no AWS-issued ARN, so the NativeID is synthesized.
-func scanIoTIndices(ctx context.Context, client iotInventoryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListIndicesPaginator(client, &iot.ListIndicesInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListIndices", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIoTIndices(ctx context.Context, client iotInventoryAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListIndices", "iot indices", "IndexName",
+		func(ctx context.Context, token *string) ([]string, *string, error) {
+			out, err := client.ListIndices(ctx, &iot.ListIndicesInput{NextToken: token, MaxResults: sdkaws.Int32(iotIndicesPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListIndices: %w", perr)
-		}
-		names = append(names, out.IndexNames...)
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeIndex(gctx, &iot.DescribeIndexInput{IndexName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
+			return out.IndexNames, out.NextToken, nil
+		},
+		iotName, nil)
+	d := list.describe(ctx, st, acct, region, "iot:DescribeIndex", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.DescribeIndex(ctx, &iot.DescribeIndexInput{IndexName: &name})
+			if derr != nil {
+				return nil, derr
 			}
-			return nil, fmt.Errorf("iot:DescribeIndex %s: %w", name, derr)
-		}
-		iname := sv(out.IndexName)
-		arn := iotARN(region, acct.ID, "index", iname)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTIndex,
-			NativeID:       arn,
-			Name:           &iname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot indices")
+			iname := sv(out.IndexName)
+			arn := iotARN(region, acct.ID, "index", iname)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTIndex,
+				NativeID:       arn,
+				Name:           &iname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStore(st, acct, region, p, list, d)
 }
 
-func scanIoTJobRecords(ctx context.Context, client iotInventoryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListJobsPaginator(client, &iot.ListJobsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListJobs", acct.ID, region, perr)
-				return 0, 0, nil
+// scanIoTJobRecords stores every job ListJobs returns, each with the tags
+// iotTagReader reads for it; counts and errors go to p as storeTokenListTags
+// says.
+func scanIoTJobRecords(ctx context.Context, client iotInventoryAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "iot:ListJobs",
+		func(ctx context.Context, token *string) ([]iottypes.JobSummary, *string, error) {
+			out, err := client.ListJobs(ctx, &iot.ListJobsInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListJobs: %w", perr)
-		}
-		for _, j := range out.Jobs {
+			return out.Jobs, out.NextToken, nil
+		},
+		func(j iottypes.JobSummary) (*store.Resource, string, string) {
 			arn := sv(j.JobArn)
 			if arn == "" {
-				continue
+				return nil, "jobs have an empty JobArn", cmp.Or(sv(j.JobId), "(a job with no JobId)")
 			}
-			label := sv(j.JobId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
+			label := cmp.Or(sv(j.JobId), arn)
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeIoTJob, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(j), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "iot jobs")
+			}, "", ""
+		},
+		tags.reader(), p)
 }
 
-func scanIoTOTAUpdates(ctx context.Context, client iotInventoryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListOTAUpdatesPaginator(client, &iot.ListOTAUpdatesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListOTAUpdates", acct.ID, region, perr)
-				return 0, 0, nil
+// scanIoTOTAUpdates stores every OTA update ListOTAUpdates returns, each with
+// the tags iotTagReader reads for it; counts and errors go to p as
+// storeTokenListTags says.
+func scanIoTOTAUpdates(ctx context.Context, client iotInventoryAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "iot:ListOTAUpdates",
+		func(ctx context.Context, token *string) ([]iottypes.OTAUpdateSummary, *string, error) {
+			out, err := client.ListOTAUpdates(ctx, &iot.ListOTAUpdatesInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListOTAUpdates: %w", perr)
-		}
-		for _, u := range out.OtaUpdates {
+			return out.OtaUpdates, out.NextToken, nil
+		},
+		func(u iottypes.OTAUpdateSummary) (*store.Resource, string, string) {
 			arn := sv(u.OtaUpdateArn)
 			if arn == "" {
-				continue
+				return nil, "OTA updates have an empty OtaUpdateArn", cmp.Or(sv(u.OtaUpdateId), "(an OTA update with no OtaUpdateId)")
 			}
-			label := sv(u.OtaUpdateId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
+			label := cmp.Or(sv(u.OtaUpdateId), arn)
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeIoTOTAUpdate, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(u), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "iot ota-updates")
+			}, "", ""
+		},
+		tags.reader(), p)
 }
 
-func scanIoTStreams(ctx context.Context, client iotInventoryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListStreamsPaginator(client, &iot.ListStreamsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListStreams", acct.ID, region, perr)
-				return 0, 0, nil
+// scanIoTStreams stores every stream ListStreams returns, each with the tags
+// iotTagReader reads for it; counts and errors go to p as storeTokenListTags
+// says.
+func scanIoTStreams(ctx context.Context, client iotInventoryAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "iot:ListStreams",
+		func(ctx context.Context, token *string) ([]iottypes.StreamSummary, *string, error) {
+			out, err := client.ListStreams(ctx, &iot.ListStreamsInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListStreams: %w", perr)
-		}
-		for _, s := range out.Streams {
+			return out.Streams, out.NextToken, nil
+		},
+		func(s iottypes.StreamSummary) (*store.Resource, string, string) {
 			arn := sv(s.StreamArn)
 			if arn == "" {
-				continue
+				return nil, "streams have an empty StreamArn", cmp.Or(sv(s.StreamId), "(a stream with no StreamId)")
 			}
-			label := sv(s.StreamId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
+			label := cmp.Or(sv(s.StreamId), arn)
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeIoTStream, NativeID: arn,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "iot streams")
+			}, "", ""
+		},
+		tags.reader(), p)
 }

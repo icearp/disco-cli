@@ -2,14 +2,12 @@ package aws
 
 import (
 	"context"
-	"fmt"
-	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
+	iottypes "github.com/aws/aws-sdk-go-v2/service/iot/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -22,6 +20,7 @@ func init() {
 
 // iotThingsAPI is the narrow surface used by the Things family.
 type iotThingsAPI interface {
+	iotTagsAPI
 	ListThings(context.Context, *iot.ListThingsInput, ...func(*iot.Options)) (*iot.ListThingsOutput, error)
 	DescribeThing(context.Context, *iot.DescribeThingInput, ...func(*iot.Options)) (*iot.DescribeThingOutput, error)
 	ListThingGroups(context.Context, *iot.ListThingGroupsInput, ...func(*iot.Options)) (*iot.ListThingGroupsOutput, error)
@@ -33,333 +32,194 @@ type iotThingsAPI interface {
 	ListThingPrincipals(context.Context, *iot.ListThingPrincipalsInput, ...func(*iot.Options)) (*iot.ListThingPrincipalsOutput, error)
 }
 
-// scanIoTThings runs Things-family phases.
-func scanIoTThings(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanIoTThingList(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTThingGroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTThingTypes(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTBillingGroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanIoTThingPrincipalAttachments(ctx, client, acct, region, st, scanID)
-		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
-}
-
-func scanIoTThingList(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListThingsPaginator(client, &iot.ListThingsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListThings", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iot:ListThings: %w", perr)
-		}
-		for _, t := range out.Things {
-			if t.ThingName != nil {
-				names = append(names, *t.ThingName)
-			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeThing(gctx, &iot.DescribeThingInput{ThingName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("iot:DescribeThing %s: %w", name, derr)
-		}
-		arn := sv(out.ThingArn)
-		if arn == "" {
-			return nil, nil
-		}
-		tname := sv(out.ThingName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTThing,
-			NativeID:       arn,
-			Name:           &tname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot things")
-}
-
-func scanIoTThingGroups(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListThingGroupsPaginator(client, &iot.ListThingGroupsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListThingGroups", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iot:ListThingGroups: %w", perr)
-		}
-		for _, g := range out.ThingGroups {
-			if g.GroupName != nil {
-				names = append(names, *g.GroupName)
-			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeThingGroup(gctx, &iot.DescribeThingGroupInput{ThingGroupName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("iot:DescribeThingGroup %s: %w", name, derr)
-		}
-		arn := sv(out.ThingGroupArn)
-		if arn == "" {
-			return nil, nil
-		}
-		gname := sv(out.ThingGroupName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTThingGroup,
-			NativeID:       arn,
-			Name:           &gname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot thing groups")
-}
-
-func scanIoTThingTypes(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListThingTypesPaginator(client, &iot.ListThingTypesInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListThingTypes", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iot:ListThingTypes: %w", perr)
-		}
-		for _, t := range out.ThingTypes {
-			if t.ThingTypeName != nil {
-				names = append(names, *t.ThingTypeName)
-			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeThingType(gctx, &iot.DescribeThingTypeInput{ThingTypeName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("iot:DescribeThingType %s: %w", name, derr)
-		}
-		arn := sv(out.ThingTypeArn)
-		if arn == "" {
-			return nil, nil
-		}
-		tname := sv(out.ThingTypeName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTThingType,
-			NativeID:       arn,
-			Name:           &tname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot thing types")
-}
-
-func scanIoTBillingGroups(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListBillingGroupsPaginator(client, &iot.ListBillingGroupsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListBillingGroups", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iot:ListBillingGroups: %w", perr)
-		}
-		for _, g := range out.BillingGroups {
-			if g.GroupName != nil {
-				names = append(names, *g.GroupName)
-			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeBillingGroup(gctx, &iot.DescribeBillingGroupInput{BillingGroupName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("iot:DescribeBillingGroup %s: %w", name, derr)
-		}
-		arn := sv(out.BillingGroupArn)
-		if arn == "" {
-			return nil, nil
-		}
-		gname := sv(out.BillingGroupName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTBillingGroup,
-			NativeID:       arn,
-			Name:           &gname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot billing groups")
-}
-
-// scanIoTThingPrincipalAttachments emits one row per (Thing, Principal)
-// pair via per-Thing fan-out of ListThingPrincipals. NativeID is synthesized —
-// the attachment has no AWS-issued ARN.
-func scanIoTThingPrincipalAttachments(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListThingsPaginator(client, &iot.ListThingsInput{})
-	var thingNames []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListThings", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iot:ListThings: %w", perr)
-		}
-		for _, t := range out.Things {
-			if t.ThingName != nil {
-				thingNames = append(thingNames, *t.ThingName)
-			}
-		}
-	}
-	if len(thingNames) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, name := range thingNames {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			pp := iot.NewListThingPrincipalsPaginator(client, &iot.ListThingPrincipalsInput{ThingName: &name})
-			for pp.HasMorePages() {
-				out, perr := pp.NextPage(gctx)
-				if perr != nil {
-					if isAccessDenied(perr) {
-						return nil
-					}
-					return fmt.Errorf("iot:ListThingPrincipals %s: %w", name, perr)
-				}
-				for _, p := range out.Principals {
-					principal := p
-					arn := fmt.Sprintf("arn:aws:iot:%s:%s:thing/%s/principal/%s", region, acct.ID, name, principal)
-					attrs := map[string]string{"ThingName": name, "Principal": principal}
-					mu.Lock()
-					batch = append(batch, &store.Resource{
-						Provider:       "aws",
-						AccountID:      acct.ID,
-						AccountName:    &acct.Name,
-						Type:           TypeIoTThingPrincipalAttachment,
-						NativeID:       arn,
-						Name:           &principal,
-						Region:         &region,
-						AttributesJSON: mustJSON(attrs),
-						DiscoveredBy:   scanID,
-					})
-					mu.Unlock()
-				}
-			}
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert iot thing-principal-attachments: %w", uerr)
-	}
-	return len(batch), n, nil
-}
-
-// iotDescribeFanout mirrors the connect/sagemaker per-name Describe helper.
-func iotDescribeFanout(
-	ctx context.Context,
-	names []string,
-	weight int64,
-	build func(context.Context, string) (*store.Resource, error),
-	st *store.Store,
-	label string,
-) (int, int, error) {
-	if len(names) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(weight)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, n := range names {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			r, err := build(gctx, n)
+// scanIoTThings runs Things-family phases, adding each to p, and reports
+// whether a write failed.
+func scanIoTThings(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	// Listed once for the thing phase and the principal phase.
+	things := iotList(ctx, "iot:ListThings", "iot things", "ThingName",
+		func(ctx context.Context, token *string) ([]iottypes.ThingAttribute, *string, error) {
+			out, err := client.ListThings(ctx, &iot.ListThingsInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
 			if err != nil {
-				return err
+				return nil, nil, err
 			}
-			if r == nil {
-				return nil
-			}
-			mu.Lock()
-			batch = append(batch, r)
-			mu.Unlock()
-			return nil
+			return out.Things, out.NextToken, nil
+		},
+		func(x iottypes.ThingAttribute) *string { return x.ThingName },
+		func(x iottypes.ThingAttribute) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTThing, x.ThingArn, x.ThingName, x)
 		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert %s: %w", label, uerr)
-	}
-	return len(batch), n, nil
+	return runIoTPhases(p,
+		func(p *phaseTotals) bool { return scanIoTThingList(ctx, client, acct, region, st, scanID, p, things) },
+		func(p *phaseTotals) bool { return scanIoTThingGroups(ctx, client, acct, region, st, scanID, p, tags) },
+		func(p *phaseTotals) bool { return scanIoTThingTypes(ctx, client, acct, region, st, scanID, p, tags) },
+		func(p *phaseTotals) bool { return scanIoTBillingGroups(ctx, client, acct, region, st, scanID, p, tags) },
+		func(p *phaseTotals) bool {
+			return scanIoTThingPrincipalAttachments(ctx, client, acct, region, st, scanID, p, things.keys)
+		},
+	)
+}
+
+// scanIoTThingList describes and stores the things list holds.
+func scanIoTThingList(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, list *iotListing) (storeWriteFailed bool) {
+	d := list.describe(ctx, st, acct, region, "iot:DescribeThing", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.DescribeThing(ctx, &iot.DescribeThingInput{ThingName: &name})
+			if derr != nil {
+				return nil, derr
+			}
+			arn := sv(out.ThingArn)
+			if arn == "" {
+				return nil, nil
+			}
+			tname := sv(out.ThingName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTThing,
+				NativeID:       arn,
+				Name:           &tname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStore(st, acct, region, p, list, d)
+}
+
+func scanIoTThingGroups(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListThingGroups", "iot thing groups", "GroupName",
+		func(ctx context.Context, token *string) ([]iottypes.GroupNameAndArn, *string, error) {
+			out, err := client.ListThingGroups(ctx, &iot.ListThingGroupsInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ThingGroups, out.NextToken, nil
+		},
+		func(x iottypes.GroupNameAndArn) *string { return x.GroupName },
+		func(x iottypes.GroupNameAndArn) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTThingGroup, x.GroupArn, x.GroupName, x)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeThingGroup", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.DescribeThingGroup(ctx, &iot.DescribeThingGroupInput{ThingGroupName: &name})
+			if derr != nil {
+				return nil, derr
+			}
+			arn := sv(out.ThingGroupArn)
+			if arn == "" {
+				return nil, nil
+			}
+			gname := sv(out.ThingGroupName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTThingGroup,
+				NativeID:       arn,
+				Name:           &gname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
+}
+
+func scanIoTThingTypes(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListThingTypes", "iot thing types", "ThingTypeName",
+		func(ctx context.Context, token *string) ([]iottypes.ThingTypeDefinition, *string, error) {
+			out, err := client.ListThingTypes(ctx, &iot.ListThingTypesInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ThingTypes, out.NextToken, nil
+		},
+		func(x iottypes.ThingTypeDefinition) *string { return x.ThingTypeName },
+		func(x iottypes.ThingTypeDefinition) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTThingType, x.ThingTypeArn, x.ThingTypeName, x)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeThingType", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.DescribeThingType(ctx, &iot.DescribeThingTypeInput{ThingTypeName: &name})
+			if derr != nil {
+				return nil, derr
+			}
+			arn := sv(out.ThingTypeArn)
+			if arn == "" {
+				return nil, nil
+			}
+			tname := sv(out.ThingTypeName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTThingType,
+				NativeID:       arn,
+				Name:           &tname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
+}
+
+func scanIoTBillingGroups(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListBillingGroups", "iot billing groups", "GroupName",
+		func(ctx context.Context, token *string) ([]iottypes.GroupNameAndArn, *string, error) {
+			out, err := client.ListBillingGroups(ctx, &iot.ListBillingGroupsInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.BillingGroups, out.NextToken, nil
+		},
+		func(x iottypes.GroupNameAndArn) *string { return x.GroupName },
+		func(x iottypes.GroupNameAndArn) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTBillingGroup, x.GroupArn, x.GroupName, x)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeBillingGroup", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.DescribeBillingGroup(ctx, &iot.DescribeBillingGroupInput{BillingGroupName: &name})
+			if derr != nil {
+				return nil, derr
+			}
+			arn := sv(out.BillingGroupArn)
+			if arn == "" {
+				return nil, nil
+			}
+			gname := sv(out.BillingGroupName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTBillingGroup,
+				NativeID:       arn,
+				Name:           &gname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
+}
+
+// scanIoTThingPrincipalAttachments stores one row per (thing, principal)
+// pair, listing each thing's principals (scanIoTPrincipals). NativeID is
+// synthesized since the attachment has no AWS-issued ARN.
+func scanIoTThingPrincipalAttachments(ctx context.Context, client iotThingsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, things []string) (storeWriteFailed bool) {
+	return scanIoTPrincipals(ctx, st, acct, region, scanID, p, iotPrincipalPhase{
+		op: "iot:ListThingPrincipals", what: "iot things' principals", kind: "thing", keyAttr: "ThingName",
+		typ: TypeIoTThingPrincipalAttachment,
+	}, things, func(thing string) func(context.Context, *string) ([]string, *string, error) {
+		return func(ctx context.Context, token *string) ([]string, *string, error) {
+			out, err := client.ListThingPrincipals(ctx, &iot.ListThingPrincipalsInput{
+				ThingName: &thing, NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap),
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Principals, out.NextToken, nil
+		}
+	})
 }

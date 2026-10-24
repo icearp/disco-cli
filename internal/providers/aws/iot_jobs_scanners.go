@@ -2,9 +2,10 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
+	iottypes "github.com/aws/aws-sdk-go-v2/service/iot/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -17,6 +18,7 @@ func init() {
 }
 
 type iotJobsAPI interface {
+	iotTagsAPI
 	ListCommands(context.Context, *iot.ListCommandsInput, ...func(*iot.Options)) (*iot.ListCommandsOutput, error)
 	GetCommand(context.Context, *iot.GetCommandInput, ...func(*iot.Options)) (*iot.GetCommandOutput, error)
 	ListJobTemplates(context.Context, *iot.ListJobTemplatesInput, ...func(*iot.Options)) (*iot.ListJobTemplatesOutput, error)
@@ -27,201 +29,174 @@ type iotJobsAPI interface {
 	DescribeProvisioningTemplate(context.Context, *iot.DescribeProvisioningTemplateInput, ...func(*iot.Options)) (*iot.DescribeProvisioningTemplateOutput, error)
 }
 
-func scanIoTJobs(ctx context.Context, client iotJobsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanIoTCommands(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTJobTemplates(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTFleetMetrics(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanIoTProvisioningTemplates(ctx, client, acct, region, st, scanID)
+// scanIoTJobs runs Jobs-family phases, adding each to p, and reports
+// whether a write failed.
+func scanIoTJobs(ctx context.Context, client iotJobsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	return runIoTPhases(p,
+		func(p *phaseTotals) bool { return scanIoTCommands(ctx, client, acct, region, st, scanID, p, tags) },
+		func(p *phaseTotals) bool { return scanIoTJobTemplates(ctx, client, acct, region, st, scanID, p, tags) },
+		func(p *phaseTotals) bool { return scanIoTFleetMetrics(ctx, client, acct, region, st, scanID, p, tags) },
+		func(p *phaseTotals) bool {
+			return scanIoTProvisioningTemplates(ctx, client, acct, region, st, scanID, p, tags)
 		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+	)
 }
 
-func scanIoTCommands(ctx context.Context, client iotJobsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListCommandsPaginator(client, &iot.ListCommandsInput{})
-	var ids []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListCommands", acct.ID, region, perr)
-				return 0, 0, nil
+// iotCommandsPageCap is ListCommands' maxResults cap (1-100).
+const iotCommandsPageCap = 100
+
+func scanIoTCommands(ctx context.Context, client iotJobsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListCommands", "iot commands", "CommandId",
+		func(ctx context.Context, token *string) ([]iottypes.CommandSummary, *string, error) {
+			out, err := client.ListCommands(ctx, &iot.ListCommandsInput{NextToken: token, MaxResults: sdkaws.Int32(iotCommandsPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListCommands: %w", perr)
-		}
-		for _, c := range out.Commands {
-			if c.CommandId != nil {
-				ids = append(ids, *c.CommandId)
+			return out.Commands, out.NextToken, nil
+		},
+		func(x iottypes.CommandSummary) *string { return x.CommandId },
+		func(x iottypes.CommandSummary) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTCommand, x.CommandArn, x.CommandId, x)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:GetCommand", isIoTNotFound,
+		func(ctx context.Context, id string) (*store.Resource, error) {
+			out, derr := client.GetCommand(ctx, &iot.GetCommandInput{CommandId: &id})
+			if derr != nil {
+				return nil, derr
 			}
-		}
-	}
-	return iotDescribeFanout(ctx, ids, fanoutMed, func(gctx context.Context, id string) (*store.Resource, error) {
-		out, derr := client.GetCommand(gctx, &iot.GetCommandInput{CommandId: &id})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.CommandArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:GetCommand %s: %w", id, derr)
-		}
-		arn := sv(out.CommandArn)
-		if arn == "" {
-			return nil, nil
-		}
-		cid := sv(out.CommandId)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTCommand,
-			NativeID:       arn,
-			Name:           &cid,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot commands")
+			cid := sv(out.CommandId)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTCommand,
+				NativeID:       arn,
+				Name:           &cid,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
 }
 
-func scanIoTJobTemplates(ctx context.Context, client iotJobsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListJobTemplatesPaginator(client, &iot.ListJobTemplatesInput{})
-	var ids []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListJobTemplates", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIoTJobTemplates(ctx context.Context, client iotJobsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListJobTemplates", "iot job templates", "JobTemplateId",
+		func(ctx context.Context, token *string) ([]iottypes.JobTemplateSummary, *string, error) {
+			out, err := client.ListJobTemplates(ctx, &iot.ListJobTemplatesInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListJobTemplates: %w", perr)
-		}
-		for _, j := range out.JobTemplates {
-			if j.JobTemplateId != nil {
-				ids = append(ids, *j.JobTemplateId)
+			return out.JobTemplates, out.NextToken, nil
+		},
+		func(x iottypes.JobTemplateSummary) *string { return x.JobTemplateId },
+		func(x iottypes.JobTemplateSummary) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTJobTemplate, x.JobTemplateArn, x.JobTemplateId, x)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeJobTemplate", isIoTNotFound,
+		func(ctx context.Context, id string) (*store.Resource, error) {
+			out, derr := client.DescribeJobTemplate(ctx, &iot.DescribeJobTemplateInput{JobTemplateId: &id})
+			if derr != nil {
+				return nil, derr
 			}
-		}
-	}
-	return iotDescribeFanout(ctx, ids, fanoutMed, func(gctx context.Context, id string) (*store.Resource, error) {
-		out, derr := client.DescribeJobTemplate(gctx, &iot.DescribeJobTemplateInput{JobTemplateId: &id})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.JobTemplateArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:DescribeJobTemplate %s: %w", id, derr)
-		}
-		arn := sv(out.JobTemplateArn)
-		if arn == "" {
-			return nil, nil
-		}
-		jid := sv(out.JobTemplateId)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTJobTemplate,
-			NativeID:       arn,
-			Name:           &jid,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot job templates")
+			jid := sv(out.JobTemplateId)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTJobTemplate,
+				NativeID:       arn,
+				Name:           &jid,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
 }
 
-func scanIoTFleetMetrics(ctx context.Context, client iotJobsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListFleetMetricsPaginator(client, &iot.ListFleetMetricsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListFleetMetrics", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIoTFleetMetrics(ctx context.Context, client iotJobsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListFleetMetrics", "iot fleet metrics", "MetricName",
+		func(ctx context.Context, token *string) ([]iottypes.FleetMetricNameAndArn, *string, error) {
+			out, err := client.ListFleetMetrics(ctx, &iot.ListFleetMetricsInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListFleetMetrics: %w", perr)
-		}
-		for _, m := range out.FleetMetrics {
-			if m.MetricName != nil {
-				names = append(names, *m.MetricName)
+			return out.FleetMetrics, out.NextToken, nil
+		},
+		func(x iottypes.FleetMetricNameAndArn) *string { return x.MetricName },
+		func(x iottypes.FleetMetricNameAndArn) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTFleetMetric, x.MetricArn, x.MetricName, x)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeFleetMetric", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.DescribeFleetMetric(ctx, &iot.DescribeFleetMetricInput{MetricName: &name})
+			if derr != nil {
+				return nil, derr
 			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeFleetMetric(gctx, &iot.DescribeFleetMetricInput{MetricName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.MetricArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:DescribeFleetMetric %s: %w", name, derr)
-		}
-		arn := sv(out.MetricArn)
-		if arn == "" {
-			return nil, nil
-		}
-		mname := sv(out.MetricName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTFleetMetric,
-			NativeID:       arn,
-			Name:           &mname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot fleet metrics")
+			mname := sv(out.MetricName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTFleetMetric,
+				NativeID:       arn,
+				Name:           &mname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
 }
 
-func scanIoTProvisioningTemplates(ctx context.Context, client iotJobsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListProvisioningTemplatesPaginator(client, &iot.ListProvisioningTemplatesInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListProvisioningTemplates", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIoTProvisioningTemplates(ctx context.Context, client iotJobsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListProvisioningTemplates", "iot provisioning templates", "TemplateName",
+		func(ctx context.Context, token *string) ([]iottypes.ProvisioningTemplateSummary, *string, error) {
+			out, err := client.ListProvisioningTemplates(ctx, &iot.ListProvisioningTemplatesInput{NextToken: token, MaxResults: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListProvisioningTemplates: %w", perr)
-		}
-		for _, t := range out.Templates {
-			if t.TemplateName != nil {
-				names = append(names, *t.TemplateName)
+			return out.Templates, out.NextToken, nil
+		},
+		func(x iottypes.ProvisioningTemplateSummary) *string { return x.TemplateName },
+		func(x iottypes.ProvisioningTemplateSummary) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTProvisioningTemplate, x.TemplateArn, x.TemplateName, x)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeProvisioningTemplate", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, derr := client.DescribeProvisioningTemplate(ctx, &iot.DescribeProvisioningTemplateInput{TemplateName: &name})
+			if derr != nil {
+				return nil, derr
 			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeProvisioningTemplate(gctx, &iot.DescribeProvisioningTemplateInput{TemplateName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.TemplateArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:DescribeProvisioningTemplate %s: %w", name, derr)
-		}
-		arn := sv(out.TemplateArn)
-		if arn == "" {
-			return nil, nil
-		}
-		tname := sv(out.TemplateName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTProvisioningTemplate,
-			NativeID:       arn,
-			Name:           &tname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot provisioning templates")
+			tname := sv(out.TemplateName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTProvisioningTemplate,
+				NativeID:       arn,
+				Name:           &tname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
 }

@@ -2,15 +2,13 @@ package aws
 
 import (
 	"context"
-	"fmt"
 	"strings"
-	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iot"
+	iottypes "github.com/aws/aws-sdk-go-v2/service/iot/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -26,6 +24,7 @@ func init() {
 
 // iotCertsAPI is the narrow surface used by the Certs/Auth family.
 type iotCertsAPI interface {
+	iotTagsAPI
 	ListCertificates(context.Context, *iot.ListCertificatesInput, ...func(*iot.Options)) (*iot.ListCertificatesOutput, error)
 	DescribeCertificate(context.Context, *iot.DescribeCertificateInput, ...func(*iot.Options)) (*iot.DescribeCertificateOutput, error)
 	ListCACertificates(context.Context, *iot.ListCACertificatesInput, ...func(*iot.Options)) (*iot.ListCACertificatesOutput, error)
@@ -43,438 +42,334 @@ type iotCertsAPI interface {
 	DescribeDomainConfiguration(context.Context, *iot.DescribeDomainConfigurationInput, ...func(*iot.Options)) (*iot.DescribeDomainConfigurationOutput, error)
 }
 
-// scanIoTCerts runs Certs/Auth-family phases.
-func scanIoTCerts(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanIoTCertificates(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTCACertificates(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTCertificateProviders(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTPolicies(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanIoTPolicyPrincipalAttachments(ctx, client, acct, region, st, scanID)
+// scanIoTCerts runs Certs/Auth-family phases, adding each to p, and reports
+// whether a write failed.
+func scanIoTCerts(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	// Listed once for the policy phase and the principal phase after it.
+	var policies *iotListing
+	return runIoTPhases(p,
+		func(p *phaseTotals) bool { return scanIoTCertificates(ctx, client, acct, region, st, scanID, p) },
+		func(p *phaseTotals) bool {
+			return scanIoTCACertificates(ctx, client, acct, region, st, scanID, p, tags)
 		},
-		func() (int, int, error) { return scanIoTRoleAliases(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTAuthorizers(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTDomainConfigurations(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
-}
-
-func scanIoTCertificates(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListCertificatesPaginator(client, &iot.ListCertificatesInput{})
-	var ids []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListCertificates", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iot:ListCertificates: %w", perr)
-		}
-		for _, c := range out.Certificates {
-			if c.CertificateId != nil {
-				ids = append(ids, *c.CertificateId)
-			}
-		}
-	}
-	return iotDescribeFanout(ctx, ids, fanoutMed, func(gctx context.Context, id string) (*store.Resource, error) {
-		out, derr := client.DescribeCertificate(gctx, &iot.DescribeCertificateInput{CertificateId: &id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("iot:DescribeCertificate %s: %w", id, derr)
-		}
-		if out.CertificateDescription == nil {
-			return nil, nil
-		}
-		arn := sv(out.CertificateDescription.CertificateArn)
-		if arn == "" {
-			return nil, nil
-		}
-		cid := sv(out.CertificateDescription.CertificateId)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTCertificate,
-			NativeID:       arn,
-			Name:           &cid,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot certificates")
-}
-
-func scanIoTCACertificates(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListCACertificatesPaginator(client, &iot.ListCACertificatesInput{})
-	var ids []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListCACertificates", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iot:ListCACertificates: %w", perr)
-		}
-		for _, c := range out.Certificates {
-			if c.CertificateId != nil {
-				ids = append(ids, *c.CertificateId)
-			}
-		}
-	}
-	return iotDescribeFanout(ctx, ids, fanoutMed, func(gctx context.Context, id string) (*store.Resource, error) {
-		out, derr := client.DescribeCACertificate(gctx, &iot.DescribeCACertificateInput{CertificateId: &id})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("iot:DescribeCACertificate %s: %w", id, derr)
-		}
-		if out.CertificateDescription == nil {
-			return nil, nil
-		}
-		arn := sv(out.CertificateDescription.CertificateArn)
-		if arn == "" {
-			return nil, nil
-		}
-		cid := sv(out.CertificateDescription.CertificateId)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTCACertificate,
-			NativeID:       arn,
-			Name:           &cid,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot ca certificates")
-}
-
-// scanIoTCertificateProviders — SDK has no paginator. Manual NextToken loop.
-func scanIoTCertificateProviders(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var names []string
-	var token *string
-	for {
-		out, perr := client.ListCertificateProviders(ctx, &iot.ListCertificateProvidersInput{NextToken: token})
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListCertificateProviders", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iot:ListCertificateProviders: %w", perr)
-		}
-		for _, p := range out.CertificateProviders {
-			if p.CertificateProviderName != nil {
-				names = append(names, *p.CertificateProviderName)
-			}
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeCertificateProvider(gctx, &iot.DescribeCertificateProviderInput{CertificateProviderName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("iot:DescribeCertificateProvider %s: %w", name, derr)
-		}
-		arn := sv(out.CertificateProviderArn)
-		if arn == "" {
-			return nil, nil
-		}
-		pname := sv(out.CertificateProviderName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTCertificateProvider,
-			NativeID:       arn,
-			Name:           &pname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot certificate providers")
-}
-
-func scanIoTPolicies(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListPoliciesPaginator(client, &iot.ListPoliciesInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListPolicies", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iot:ListPolicies: %w", perr)
-		}
-		for _, p := range out.Policies {
-			if p.PolicyName != nil {
-				names = append(names, *p.PolicyName)
-			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.GetPolicy(gctx, &iot.GetPolicyInput{PolicyName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("iot:GetPolicy %s: %w", name, derr)
-		}
-		arn := sv(out.PolicyArn)
-		if arn == "" {
-			return nil, nil
-		}
-		pname := sv(out.PolicyName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTPolicy,
-			NativeID:       arn,
-			Name:           &pname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot policies")
-}
-
-// scanIoTPolicyPrincipalAttachments emits one row per (Policy, Principal)
-// pair via per-policy fan-out of ListPolicyPrincipals. NativeID synthesized
-// since the attachment has no AWS-issued ARN.
-func scanIoTPolicyPrincipalAttachments(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListPoliciesPaginator(client, &iot.ListPoliciesInput{})
-	var policies []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListPolicies", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iot:ListPolicies: %w", perr)
-		}
-		for _, p := range out.Policies {
-			if p.PolicyName != nil {
-				policies = append(policies, *p.PolicyName)
-			}
-		}
-	}
-	if len(policies) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
+		func(p *phaseTotals) bool {
+			return scanIoTCertificateProviders(ctx, client, acct, region, st, scanID, p, tags)
+		},
+		func(p *phaseTotals) bool {
+			policies = iotListPolicies(ctx, client, acct, region, scanID)
+			return scanIoTPolicies(ctx, client, acct, region, st, scanID, p, tags, policies)
+		},
+		func(p *phaseTotals) bool {
+			return scanIoTPolicyPrincipalAttachments(ctx, client, acct, region, st, scanID, p, policies.keys)
+		},
+		func(p *phaseTotals) bool { return scanIoTRoleAliases(ctx, client, acct, region, st, scanID, p, tags) },
+		func(p *phaseTotals) bool { return scanIoTAuthorizers(ctx, client, acct, region, st, scanID, p, tags) },
+		func(p *phaseTotals) bool {
+			return scanIoTDomainConfigurations(ctx, client, acct, region, st, scanID, p, tags)
+		},
 	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, name := range policies {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			pp := iot.NewListPolicyPrincipalsPaginator(client, &iot.ListPolicyPrincipalsInput{PolicyName: &name})
-			for pp.HasMorePages() {
-				out, perr := pp.NextPage(gctx)
-				if perr != nil {
-					if isAccessDenied(perr) {
-						return nil
-					}
-					return fmt.Errorf("iot:ListPolicyPrincipals %s: %w", name, perr)
-				}
-				for _, p := range out.Principals {
-					principal := p
-					arn := fmt.Sprintf("arn:aws:iot:%s:%s:policy/%s/principal/%s", region, acct.ID, name, principal)
-					attrs := map[string]string{"PolicyName": name, "Principal": principal}
-					mu.Lock()
-					batch = append(batch, &store.Resource{
-						Provider:       "aws",
-						AccountID:      acct.ID,
-						AccountName:    &acct.Name,
-						Type:           TypeIoTPolicyPrincipalAttachment,
-						NativeID:       arn,
-						Name:           &principal,
-						Region:         &region,
-						AttributesJSON: mustJSON(attrs),
-						DiscoveredBy:   scanID,
-					})
-					mu.Unlock()
-				}
+}
+
+func scanIoTCertificates(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListCertificates", "iot certificates", "CertificateId",
+		func(ctx context.Context, marker *string) ([]iottypes.Certificate, *string, error) {
+			out, err := client.ListCertificates(ctx, &iot.ListCertificatesInput{Marker: marker, PageSize: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil
+			return out.Certificates, out.NextMarker, nil
+		},
+		func(c iottypes.Certificate) *string { return c.CertificateId },
+		func(c iottypes.Certificate) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTCertificate, c.CertificateArn, c.CertificateId, c)
 		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert iot policy-principal-attachments: %w", uerr)
-	}
-	return len(batch), n, nil
-}
-
-func scanIoTRoleAliases(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListRoleAliasesPaginator(client, &iot.ListRoleAliasesInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListRoleAliases", acct.ID, region, perr)
-				return 0, 0, nil
+	d := list.describe(ctx, st, acct, region, "iot:DescribeCertificate", isIoTNotFound,
+		func(ctx context.Context, id string) (*store.Resource, error) {
+			out, err := client.DescribeCertificate(ctx, &iot.DescribeCertificateInput{CertificateId: &id})
+			if err != nil {
+				return nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListRoleAliases: %w", perr)
-		}
-		names = append(names, out.RoleAliases...)
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeRoleAlias(gctx, &iot.DescribeRoleAliasInput{RoleAlias: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			if out.CertificateDescription == nil || sv(out.CertificateDescription.CertificateArn) == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:DescribeRoleAlias %s: %w", name, derr)
-		}
-		if out.RoleAliasDescription == nil {
-			return nil, nil
-		}
-		arn := sv(out.RoleAliasDescription.RoleAliasArn)
-		if arn == "" {
-			return nil, nil
-		}
-		alias := sv(out.RoleAliasDescription.RoleAlias)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTRoleAlias,
-			NativeID:       arn,
-			Name:           &alias,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot role aliases")
+			cid := sv(out.CertificateDescription.CertificateId)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTCertificate,
+				NativeID:       *out.CertificateDescription.CertificateArn,
+				Name:           &cid,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStore(st, acct, region, p, list, d)
 }
 
-func scanIoTAuthorizers(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListAuthorizersPaginator(client, &iot.ListAuthorizersInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListAuthorizers", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIoTCACertificates(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListCACertificates", "iot ca certificates", "CertificateId",
+		func(ctx context.Context, marker *string) ([]iottypes.CACertificate, *string, error) {
+			out, err := client.ListCACertificates(ctx, &iot.ListCACertificatesInput{Marker: marker, PageSize: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListAuthorizers: %w", perr)
-		}
-		for _, a := range out.Authorizers {
-			if a.AuthorizerName != nil {
-				names = append(names, *a.AuthorizerName)
+			return out.Certificates, out.NextMarker, nil
+		},
+		func(c iottypes.CACertificate) *string { return c.CertificateId },
+		func(c iottypes.CACertificate) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTCACertificate, c.CertificateArn, c.CertificateId, c)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeCACertificate", isIoTNotFound,
+		func(ctx context.Context, id string) (*store.Resource, error) {
+			out, err := client.DescribeCACertificate(ctx, &iot.DescribeCACertificateInput{CertificateId: &id})
+			if err != nil {
+				return nil, err
 			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeAuthorizer(gctx, &iot.DescribeAuthorizerInput{AuthorizerName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			if out.CertificateDescription == nil || sv(out.CertificateDescription.CertificateArn) == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:DescribeAuthorizer %s: %w", name, derr)
-		}
-		if out.AuthorizerDescription == nil {
-			return nil, nil
-		}
-		arn := sv(out.AuthorizerDescription.AuthorizerArn)
-		if arn == "" {
-			return nil, nil
-		}
-		aname := sv(out.AuthorizerDescription.AuthorizerName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTAuthorizer,
-			NativeID:       arn,
-			Name:           &aname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "iot authorizers")
+			cid := sv(out.CertificateDescription.CertificateId)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTCACertificate,
+				NativeID:       *out.CertificateDescription.CertificateArn,
+				Name:           &cid,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
 }
 
-func scanIoTDomainConfigurations(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iot.NewListDomainConfigurationsPaginator(client, &iot.ListDomainConfigurationsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iot:ListDomainConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+// scanIoTCertificateProviders — the op has no page-size input.
+func scanIoTCertificateProviders(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListCertificateProviders", "iot certificate providers", "CertificateProviderName",
+		func(ctx context.Context, token *string) ([]iottypes.CertificateProviderSummary, *string, error) {
+			out, err := client.ListCertificateProviders(ctx, &iot.ListCertificateProvidersInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iot:ListDomainConfigurations: %w", perr)
-		}
-		for _, d := range out.DomainConfigurations {
-			if d.DomainConfigurationName != nil {
-				names = append(names, *d.DomainConfigurationName)
+			return out.CertificateProviders, out.NextToken, nil
+		},
+		func(c iottypes.CertificateProviderSummary) *string { return c.CertificateProviderName },
+		func(c iottypes.CertificateProviderSummary) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTCertificateProvider, c.CertificateProviderArn, c.CertificateProviderName, c)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeCertificateProvider", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, err := client.DescribeCertificateProvider(ctx, &iot.DescribeCertificateProviderInput{CertificateProviderName: &name})
+			if err != nil {
+				return nil, err
 			}
-		}
-	}
-	return iotDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeDomainConfiguration(gctx, &iot.DescribeDomainConfigurationInput{DomainConfigurationName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.CertificateProviderArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("iot:DescribeDomainConfiguration %s: %w", name, derr)
+			pname := sv(out.CertificateProviderName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTCertificateProvider,
+				NativeID:       arn,
+				Name:           &pname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
+}
+
+// iotDefaultDomainConfiguration reports whether name is one of the
+// AWS-default domain configurations (iot:Data-ATS, iot:Jobs,
+// iot:CredentialProvider) present in every account: their names, and only
+// theirs, are prefixed "iot:".
+func iotDefaultDomainConfiguration(name string) bool { return strings.HasPrefix(name, "iot:") }
+
+// iotListPolicies lists the policies at the model's page-size cap.
+func iotListPolicies(ctx context.Context, client iotCertsAPI, acct *account, region, scanID string) *iotListing {
+	return iotList(ctx, "iot:ListPolicies", "iot policies", "PolicyName",
+		func(ctx context.Context, marker *string) ([]iottypes.Policy, *string, error) {
+			out, err := client.ListPolicies(ctx, &iot.ListPoliciesInput{Marker: marker, PageSize: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Policies, out.NextMarker, nil
+		},
+		func(pol iottypes.Policy) *string { return pol.PolicyName },
+		func(pol iottypes.Policy) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTPolicy, pol.PolicyArn, pol.PolicyName, pol)
+		})
+}
+
+// scanIoTPolicies describes and stores the policies list holds.
+func scanIoTPolicies(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags, list *iotListing) (storeWriteFailed bool) {
+	d := list.describe(ctx, st, acct, region, "iot:GetPolicy", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, err := client.GetPolicy(ctx, &iot.GetPolicyInput{PolicyName: &name})
+			if err != nil {
+				return nil, err
+			}
+			arn := sv(out.PolicyArn)
+			if arn == "" {
+				return nil, nil
+			}
+			pname := sv(out.PolicyName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTPolicy,
+				NativeID:       arn,
+				Name:           &pname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
+}
+
+// scanIoTPolicyPrincipalAttachments stores one row per (policy, principal)
+// pair, listing each policy's principals (scanIoTPrincipals). NativeID is
+// synthesized since the attachment has no AWS-issued ARN.
+func scanIoTPolicyPrincipalAttachments(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, policies []string) (storeWriteFailed bool) {
+	return scanIoTPrincipals(ctx, st, acct, region, scanID, p, iotPrincipalPhase{
+		op: "iot:ListPolicyPrincipals", what: "iot policies' principals", kind: "policy", keyAttr: "PolicyName",
+		typ: TypeIoTPolicyPrincipalAttachment,
+	}, policies, func(policy string) func(context.Context, *string) ([]string, *string, error) {
+		return func(ctx context.Context, marker *string) ([]string, *string, error) {
+			out, err := client.ListPolicyPrincipals(ctx, &iot.ListPolicyPrincipalsInput{
+				PolicyName: &policy, Marker: marker, PageSize: sdkaws.Int32(iotListPageCap),
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Principals, out.NextMarker, nil
 		}
-		arn := sv(out.DomainConfigurationArn)
-		if arn == "" {
-			return nil, nil
-		}
-		dname := sv(out.DomainConfigurationName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeIoTDomainConfiguration,
-			NativeID:       arn,
-			Name:           &dname,
-			Region:         &region,
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-			// Names prefixed "iot:" identify the AWS-default domain
-			// configurations (iot:Data-ATS, iot:Jobs, iot:CredentialProvider)
-			// present in every account.
-			ManagedByProvider: strings.HasPrefix(dname, "iot:"),
-		}, nil
-	}, st, "iot domain configurations")
+	})
+}
+
+func scanIoTRoleAliases(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListRoleAliases", "iot role aliases", "RoleAlias",
+		func(ctx context.Context, marker *string) ([]string, *string, error) {
+			out, err := client.ListRoleAliases(ctx, &iot.ListRoleAliasesInput{Marker: marker, PageSize: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.RoleAliases, out.NextMarker, nil
+		}, iotName, nil)
+	d := list.describe(ctx, st, acct, region, "iot:DescribeRoleAlias", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, err := client.DescribeRoleAlias(ctx, &iot.DescribeRoleAliasInput{RoleAlias: &name})
+			if err != nil {
+				return nil, err
+			}
+			if out.RoleAliasDescription == nil || sv(out.RoleAliasDescription.RoleAliasArn) == "" {
+				return nil, nil
+			}
+			alias := sv(out.RoleAliasDescription.RoleAlias)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTRoleAlias,
+				NativeID:       *out.RoleAliasDescription.RoleAliasArn,
+				Name:           &alias,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
+}
+
+func scanIoTAuthorizers(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListAuthorizers", "iot authorizers", "AuthorizerName",
+		func(ctx context.Context, marker *string) ([]iottypes.AuthorizerSummary, *string, error) {
+			out, err := client.ListAuthorizers(ctx, &iot.ListAuthorizersInput{Marker: marker, PageSize: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Authorizers, out.NextMarker, nil
+		},
+		func(a iottypes.AuthorizerSummary) *string { return a.AuthorizerName },
+		func(a iottypes.AuthorizerSummary) *store.Resource {
+			return iotListedRow(acct, region, scanID, TypeIoTAuthorizer, a.AuthorizerArn, a.AuthorizerName, a)
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeAuthorizer", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, err := client.DescribeAuthorizer(ctx, &iot.DescribeAuthorizerInput{AuthorizerName: &name})
+			if err != nil {
+				return nil, err
+			}
+			if out.AuthorizerDescription == nil || sv(out.AuthorizerDescription.AuthorizerArn) == "" {
+				return nil, nil
+			}
+			aname := sv(out.AuthorizerDescription.AuthorizerName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeIoTAuthorizer,
+				NativeID:       *out.AuthorizerDescription.AuthorizerArn,
+				Name:           &aname,
+				Region:         &region,
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, tags.reader())
+}
+
+// scanIoTDomainConfigurations does not tag-read the AWS-default domain
+// configurations (iotUntaggedManaged).
+func scanIoTDomainConfigurations(ctx context.Context, client iotCertsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals, tags iotTags) (storeWriteFailed bool) {
+	list := iotList(ctx, "iot:ListDomainConfigurations", "iot domain configurations", "DomainConfigurationName",
+		func(ctx context.Context, marker *string) ([]iottypes.DomainConfigurationSummary, *string, error) {
+			out, err := client.ListDomainConfigurations(ctx, &iot.ListDomainConfigurationsInput{Marker: marker, PageSize: sdkaws.Int32(iotListPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.DomainConfigurations, out.NextMarker, nil
+		},
+		func(dc iottypes.DomainConfigurationSummary) *string { return dc.DomainConfigurationName },
+		func(dc iottypes.DomainConfigurationSummary) *store.Resource {
+			r := iotListedRow(acct, region, scanID, TypeIoTDomainConfiguration, dc.DomainConfigurationArn, dc.DomainConfigurationName, dc)
+			if r != nil {
+				r.ManagedByProvider = iotDefaultDomainConfiguration(sv(dc.DomainConfigurationName))
+			}
+			return r
+		})
+	d := list.describe(ctx, st, acct, region, "iot:DescribeDomainConfiguration", isIoTNotFound,
+		func(ctx context.Context, name string) (*store.Resource, error) {
+			out, err := client.DescribeDomainConfiguration(ctx, &iot.DescribeDomainConfigurationInput{DomainConfigurationName: &name})
+			if err != nil {
+				return nil, err
+			}
+			arn := sv(out.DomainConfigurationArn)
+			if arn == "" {
+				return nil, nil
+			}
+			dname := sv(out.DomainConfigurationName)
+			return &store.Resource{
+				Provider:          "aws",
+				AccountID:         acct.ID,
+				AccountName:       &acct.Name,
+				Type:              TypeIoTDomainConfiguration,
+				NativeID:          arn,
+				Name:              &dname,
+				Region:            &region,
+				AttributesJSON:    mustJSON(out),
+				DiscoveredBy:      scanID,
+				ManagedByProvider: iotDefaultDomainConfiguration(dname),
+			}, nil
+		})
+	return iotStoreTagged(ctx, st, acct, region, p, list, d, iotUntaggedManaged(tags.reader()))
 }
