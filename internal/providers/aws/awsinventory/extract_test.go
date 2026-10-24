@@ -84,6 +84,11 @@ func TestExtract_Fixture(t *testing.T) {
 		"gears/managedresource": {sdkinv.ClassResource, 0, "", []string{"ListManagedResources"}},
 		// Tag{key,value} is what the tagging-only TagResource takes.
 		"gears/tag": {sdkinv.ClassAttribute, 0, "", []string{"ListTagsForResource"}},
+		// bearer authorises every op with a non-writing gate beside its own
+		// action (bedrock). TagResource is still tagging-only, so Tag is a tag
+		// shape: GetCopyJob answering only a TagList reads no written
+		// collection, and the tag listing never folds into the copy job.
+		"bearer/copyjob": {sdkinv.ClassResource, 0, "", []string{"ListCopyJobs"}},
 	}
 	if len(got) != len(wants) {
 		t.Errorf("candidates = %d, want %d: %v", len(got), len(wants), slices.Sorted(mapsKeys(got)))
@@ -178,6 +183,9 @@ func TestExtract_Fixture(t *testing.T) {
 	if !slices.Contains(got["gears/farm"].Signals, "key:verb-prefix") {
 		t.Errorf("gears/farm signals = %v", got["gears/farm"].Signals)
 	}
+	if !hasOther(u, "bearer:ListTagsForResource") || !hasOther(u, "bearer:GetCopyJob") {
+		t.Errorf("gated tag reads not in Other: %v", otherLabels(u))
+	}
 	if !hasOther(u, "gears:TagResource") || !hasOther(u, "gears:CreateFarm") {
 		t.Errorf("gears writes not in Other: %v", otherLabels(u))
 	}
@@ -264,6 +272,10 @@ func TestBindAction(t *testing.T) {
 			"TagResource":   {isWrite: true, taggingOnly: true},
 			"TagBucket":     {isWrite: true, taggingOnly: true},
 			"CreateStandby": {isList: true, isWrite: true},
+			// An auth gate beside every action (bedrock CallWithBearerToken):
+			// a read no operation is named after.
+			"CallWithBearerToken": {},
+			"InvokeModel":         {},
 		},
 		opActions: map[string][]string{
 			"ListObjectsV2": {"ListBucket"},
@@ -271,6 +283,14 @@ func TestBindAction(t *testing.T) {
 			"CopyObject":    {"PutObject", "GetObject"},
 			"TagEverything": {"TagResource", "TagBucket"},
 			"TagAndWrite":   {"TagResource", "PutObject"},
+			"GatedTag":      {"CallWithBearerToken", "TagResource"},
+			"GateOnly":      {"CallWithBearerToken"},
+			// bedrock StartAsyncInvoke: the read is the operation's own work.
+			"StartAsyncInvoke": {"CallWithBearerToken", "InvokeModel", "TagResource"},
+		},
+		ops: map[string]bool{
+			"ListObjectsV2": true, "CopyObject": true, "TagEverything": true, "TagAndWrite": true,
+			"GatedTag": true, "GateOnly": true, "StartAsyncInvoke": true, "InvokeModel": true,
 		},
 	}
 	if a, ok, sig := s.bindAction("GetObject", "GetObject"); !ok || sig != "sr:iam-action" || a.isWrite {
@@ -289,6 +309,17 @@ func TestBindAction(t *testing.T) {
 	}
 	if a, _, _ := s.bindAction("TagAndWrite", ""); a.taggingOnly {
 		t.Errorf("mixed union tagging-only: %+v", a)
+	}
+	// A non-writing gate cannot veto the tag write it authorises, a read
+	// named after an operation can, and a read is never tagging-only.
+	if a, _, _ := s.bindAction("GatedTag", ""); !a.taggingOnly || !a.isWrite {
+		t.Errorf("gated tag write not tagging-only: %+v", a)
+	}
+	if a, _, _ := s.bindAction("StartAsyncInvoke", ""); a.taggingOnly || !a.isWrite {
+		t.Errorf("tag write beside an operation's own read is tagging-only: %+v", a)
+	}
+	if a, _, _ := s.bindAction("GateOnly", ""); a.taggingOnly {
+		t.Errorf("gate-only read tagging-only: %+v", a)
 	}
 	// Bound by its own name when no operation entry lists it, and says so.
 	if a, ok, sig := s.bindAction("CreateStandby", ""); !ok || sig != "sr:action-name" || !a.isList || !a.isWrite {
@@ -432,6 +463,11 @@ func TestExtract_Live(t *testing.T) {
 		if slices.ContainsFunc(opNames(got[k]), func(o string) bool { return strings.HasSuffix(o, "Tags") }) {
 			t.Errorf("%s carries tag ops: %v", k, opNames(got[k]))
 		}
+	}
+	// bedrock gates TagResource behind CallWithBearerToken, which neither
+	// writes nor tags; the tag listing must still not fold into the copy job.
+	if c, ok := got["bedrock/modelcopyjob"]; !ok || slices.Contains(opNames(c), "ListTagsForResource") {
+		t.Errorf("bedrock/modelcopyjob present %v ops %v; want ListTagsForResource excluded", ok, opNames(c))
 	}
 	if slices.Contains(opNames(got["iam/role"]), "CreateRole") {
 		t.Error("write op attached to iam/role")

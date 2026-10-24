@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 61.00270189132393,
-    "covered": 2032,
-    "uncovered": 1299,
+    "percent": 60.97268087661363,
+    "covered": 2031,
+    "uncovered": 1300,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -267,7 +267,6 @@
       "bedrock/inferenceprofile",
       "bedrock/knowledgebase",
       "bedrock/marketplacemodelendpoint",
-      "bedrock/modelcopyjob",
       "bedrock/prompt",
       "bedrock/promptrouter",
       "bedrock/provisionedmodelthroughput",
@@ -2168,6 +2167,7 @@
       "bedrock/invocation",
       "bedrock/invocationstep",
       "bedrock/knowledgebasedocument",
+      "bedrock/modelcopyjob",
       "bedrock/modelcustomizationjob",
       "bedrock/modelimportjob",
       "bedrock/modelinvocationjob",

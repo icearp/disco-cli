@@ -171,7 +171,12 @@ func joinSR(srAll map[string]*srService, svc, sdkID string, ops map[string]bool)
 
 // bindAction is the catalog action an operation is authorised by: the model's
 // own iamAction, else the union of every own-service action authorising it —
-// a listing if any lists, a write if any writes.
+// a listing if any lists, a write if any writes, and tagging-only if every
+// writing action is and nothing else does real work. A non-writing action no
+// operation is named after is an auth gate (bedrock's CallWithBearerToken
+// authorises TagResource too) and cannot veto tagging-only; one that names an
+// operation is that operation's own work (StartAsyncInvoke needs InvokeModel
+// beside TagResource) and does. A read never carries tagging-only.
 func (s *srService) bindAction(op, iam string) (srAction, bool, string) {
 	if a, ok := s.actions[iam]; iam != "" && ok {
 		return a, true, "sr:iam-action"
@@ -192,7 +197,8 @@ func (s *srService) bindAction(op, iam string) (srAction, bool, string) {
 		found = true
 		u.isList = u.isList || a.isList
 		u.isWrite = u.isWrite || a.isWrite // an operation any write authorises mutates
-		u.taggingOnly = u.taggingOnly && a.taggingOnly
+		gate := !a.isWrite && !s.ops[n]
+		u.taggingOnly = u.taggingOnly && (a.taggingOnly || gate)
 		for _, r := range a.resources {
 			if !slices.Contains(u.resources, r) {
 				u.resources = append(u.resources, r)
@@ -202,6 +208,7 @@ func (s *srService) bindAction(op, iam string) (srAction, bool, string) {
 	if !found {
 		return srAction{}, false, "sr:unbound"
 	}
+	u.taggingOnly = u.taggingOnly && u.isWrite
 	sort.Strings(u.resources)
 	return u, true, ""
 }

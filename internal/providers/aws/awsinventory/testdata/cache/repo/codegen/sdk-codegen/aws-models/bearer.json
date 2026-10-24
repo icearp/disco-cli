@@ -1,0 +1,197 @@
+{
+ "shapes": {
+  "br#Bearer": {
+   "operations": [
+    {
+     "target": "br#ListCopyJobs"
+    },
+    {
+     "target": "br#GetCopyJob"
+    },
+    {
+     "target": "br#TagResource"
+    },
+    {
+     "target": "br#ListTagsForResource"
+    }
+   ],
+   "traits": {
+    "aws.api#service": {
+     "arnNamespace": "bearer",
+     "sdkId": "Bearer"
+    },
+    "aws.auth#sigv4": {
+     "name": "bearer"
+    }
+   },
+   "type": "service",
+   "version": "2024-01-01"
+  },
+  "br#CopyJobSummaries": {
+   "member": {
+    "target": "br#CopyJobSummary"
+   },
+   "type": "list"
+  },
+  "br#CopyJobSummary": {
+   "members": {
+    "creationTime": {
+     "target": "smithy.api#Timestamp"
+    },
+    "jobArn": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "br#GetCopyJob": {
+   "input": {
+    "target": "br#GetCopyJobRequest"
+   },
+   "output": {
+    "target": "br#GetCopyJobResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "br#GetCopyJobRequest": {
+   "members": {
+    "jobArn": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   },
+   "type": "structure"
+  },
+  "br#GetCopyJobResponse": {
+   "members": {
+    "jobArn": {
+     "target": "smithy.api#String"
+    },
+    "targetModelTags": {
+     "target": "br#TagList"
+    }
+   },
+   "type": "structure"
+  },
+  "br#ListCopyJobs": {
+   "input": {
+    "target": "br#ListCopyJobsRequest"
+   },
+   "output": {
+    "target": "br#ListCopyJobsResponse"
+   },
+   "traits": {
+    "smithy.api#paginated": {
+     "inputToken": "nextToken",
+     "items": "copyJobSummaries",
+     "outputToken": "nextToken"
+    },
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "br#ListCopyJobsRequest": {
+   "members": {
+    "nextToken": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "br#ListCopyJobsResponse": {
+   "members": {
+    "copyJobSummaries": {
+     "target": "br#CopyJobSummaries"
+    },
+    "nextToken": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "br#ListTagsForResource": {
+   "input": {
+    "target": "br#ListTagsForResourceRequest"
+   },
+   "output": {
+    "target": "br#ListTagsForResourceResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "br#ListTagsForResourceRequest": {
+   "members": {
+    "resourceARN": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   },
+   "type": "structure"
+  },
+  "br#ListTagsForResourceResponse": {
+   "members": {
+    "tags": {
+     "target": "br#TagList"
+    }
+   },
+   "type": "structure"
+  },
+  "br#Tag": {
+   "members": {
+    "key": {
+     "target": "smithy.api#String"
+    },
+    "value": {
+     "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "br#TagList": {
+   "member": {
+    "target": "br#Tag"
+   },
+   "type": "list"
+  },
+  "br#TagResource": {
+   "input": {
+    "target": "br#TagResourceRequest"
+   },
+   "output": {
+    "target": "br#TagResourceResponse"
+   },
+   "type": "operation"
+  },
+  "br#TagResourceRequest": {
+   "members": {
+    "resourceARN": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    },
+    "tags": {
+     "target": "br#TagList",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   },
+   "type": "structure"
+  },
+  "br#TagResourceResponse": {
+   "members": {},
+   "type": "structure"
+  }
+ },
+ "smithy": "2.0"
+}
