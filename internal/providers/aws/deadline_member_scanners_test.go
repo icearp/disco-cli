@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -76,12 +78,13 @@ func deadlineHandlers(calls *dlMemberCalls) map[string]func(in any) (any, error)
 	user := dltypes.DeadlinePrincipalTypeUser
 	group := dltypes.DeadlinePrincipalTypeGroup
 	checkLimit := func(maxResults *int32) error {
-		if sdkaws.ToInt32(maxResults) != deadlineMemberPageLimit {
+		if sdkaws.ToInt32(maxResults) != 100 {
 			return apiErr("ValidationException", "maxResults must be between 1 and 100")
 		}
 		return nil
 	}
 	return map[string]func(in any) (any, error){
+		"ListTagsForResource": func(any) (any, error) { return &deadline.ListTagsForResourceOutput{}, nil },
 		"ListFarms": func(any) (any, error) {
 			return &deadline.ListFarmsOutput{Farms: []dltypes.FarmSummary{
 				{FarmId: sdkaws.String("farm-a"), DisplayName: sdkaws.String("A")},
@@ -180,6 +183,10 @@ func scanDeadlineTopLevel(t *testing.T, st *store.Store, handlers map[string]fun
 
 func TestScanDeadline_StoresMembers(t *testing.T) {
 	st := newTestStore(t)
+	warnings := map[string]*[]store.ScanWarning{}
+	for _, op := range []string{deadlineListFarmMembersOp, deadlineListFleetMembersOp, deadlineListQueueMembersOp} {
+		warnings[op] = bacWarnings(st, op)
+	}
 	var calls dlMemberCalls
 	total, inserted, err := scanDeadlineTopLevel(t, st, deadlineHandlers(&calls))
 	if err != nil {
@@ -188,6 +195,16 @@ func TestScanDeadline_StoresMembers(t *testing.T) {
 	// 2 farms + 2 fleets + 2 queues + 1 monitor + 3 members of each kind
 	if total != 16 || inserted != 16 {
 		t.Errorf("total, inserted = %d, %d, want 16, 16", total, inserted)
+	}
+	// Each op's farm-a parent lists one element without a principal id: it
+	// is not stored, and one warning names it under its parent.
+	for op, parent := range map[string]string{
+		deadlineListFarmMembersOp: dlTestFarmA, deadlineListFleetMembersOp: dlTestFleetA, deadlineListQueueMembersOp: dlTestQueueA,
+	} {
+		ws := *warnings[op]
+		if len(ws) != 1 || !strings.HasSuffix(ws[0].Message, "first (a member with no principal id) of "+parent) {
+			t.Errorf("%s warnings = %v; want one naming the member without a principal id of %s", op, ws, parent)
+		}
 	}
 	for _, tc := range []struct {
 		name  string
@@ -262,9 +279,9 @@ func TestScanDeadline_NoMembers(t *testing.T) {
 // retries drops only its own members: deleted is silent, a denial warns once
 // however many parents hit it, and a transient error warns once. A fleet the
 // service refuses with ValidationException is skipped with one warning; for a
-// farm or queue that code, like any other error, fails the phase (childFanOut
-// stores none of its rows) and is returned. Every older phase's rows stay,
-// the last one's (monitors) included.
+// farm or queue that code, like any other error, is returned after the
+// sibling's members are stored. Every older phase's rows stay, the last
+// one's (monitors) included.
 func TestScanDeadline_FailedMemberParent(t *testing.T) {
 	type failCase struct {
 		name      string
@@ -289,12 +306,12 @@ func TestScanDeadline_FailedMemberParent(t *testing.T) {
 			{"throttled everywhere", map[string]error{op.key: dlThrottle, op.otherKey: dlThrottle}, "", nil, 1},
 			{"throttled once", map[string]error{op.key: dlThrottle}, "", onlyB, 1},
 			{"server error once", map[string]error{op.key: apiErr("InternalServerErrorException", "x")}, "", onlyB, 1},
-			{"unmodeled code", map[string]error{op.key: apiErr("ConflictException", "x")}, "ConflictException", nil, 0},
+			{"unmodeled code", map[string]error{op.key: apiErr("ConflictException", "x")}, "ConflictException", onlyB, 0},
 		}
 		if op.badInputSkipped {
 			cases = append(cases, failCase{"validation everywhere", map[string]error{op.key: dlBadInput, op.otherKey: dlBadInput}, "", nil, 1})
 		} else {
-			cases = append(cases, failCase{"validation", map[string]error{op.key: dlBadInput}, "ValidationException", nil, 0})
+			cases = append(cases, failCase{"validation", map[string]error{op.key: dlBadInput}, "ValidationException", onlyB, 0})
 		}
 		for _, tc := range cases {
 			t.Run(op.op+"/"+tc.name, func(t *testing.T) {
@@ -304,16 +321,7 @@ func TestScanDeadline_FailedMemberParent(t *testing.T) {
 				h := deadlineHandlers(&calls)
 				next := h[op.op]
 				h[op.op] = func(in any) (any, error) {
-					var key string
-					switch p := in.(type) {
-					case *deadline.ListFarmMembersInput:
-						key = sdkaws.ToString(p.FarmId)
-					case *deadline.ListFleetMembersInput:
-						key = sdkaws.ToString(p.FarmId) + "/" + sdkaws.ToString(p.FleetId)
-					case *deadline.ListQueueMembersInput:
-						key = sdkaws.ToString(p.FarmId) + "/" + sdkaws.ToString(p.QueueId)
-					}
-					if err, ok := tc.fail[key]; ok {
+					if err, ok := tc.fail[dlMemberKey(in)]; ok {
 						return nil, err
 					}
 					return next(in)
@@ -374,11 +382,12 @@ func TestScanDeadline_OlderPhaseErrorStillRunsMembers(t *testing.T) {
 	}
 }
 
-// A transient error in an older phase is demoted to a warning so that a
-// member phase's hard error still reaches the dispatcher as a hard error.
+// A transient error in an older phase is demoted to a warning under its op
+// so that a member phase's hard error still reaches the dispatcher as a hard
+// error.
 func TestScanDeadline_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 	st := newTestStore(t)
-	warns := countOpWarnings(st, "deadline")
+	warns := countOpWarnings(st, "deadline:ListMonitors")
 	var calls dlMemberCalls
 	h := deadlineHandlers(&calls)
 	h["ListMonitors"] = func(any) (any, error) { return nil, dlThrottle }
@@ -409,10 +418,10 @@ func recordChildListings(h map[string]func(in any) (any, error), envs, volumes *
 	}
 }
 
-// Queues and fleets of a farm whose listing was denied part-way are not
-// stored, so neither their members nor their environments or volumes are
-// listed.
-func TestScanDeadline_MembersOnlyOfStoredParents(t *testing.T) {
+// A queue or fleet listing denied part-way keeps the children read before
+// the denial, with one warning, so their members, environments and volumes
+// are listed with those of the other farm's children.
+func TestScanDeadline_MembersOfPartlyListedParents(t *testing.T) {
 	for _, tc := range []struct {
 		listOp, memberOp, childOp string
 		page2                     func(in any) (any, bool)
@@ -427,7 +436,7 @@ func TestScanDeadline_MembersOnlyOfStoredParents(t *testing.T) {
 			},
 			func(c *dlMemberCalls) *parentCalls { return &c.queue },
 			func(envs, _ *parentCalls) *parentCalls { return envs },
-			[]string{"farm-b/queue-b"},
+			[]string{"farm-a/queue-a", "farm-b/queue-b"},
 		},
 		{
 			"ListFleets", "ListFleetMembers", "ListVolumes",
@@ -436,11 +445,12 @@ func TestScanDeadline_MembersOnlyOfStoredParents(t *testing.T) {
 			},
 			func(c *dlMemberCalls) *parentCalls { return &c.fleet },
 			func(_, volumes *parentCalls) *parentCalls { return volumes },
-			[]string{"farm-b/fleet-b"},
+			[]string{"farm-a/fleet-a", "farm-b/fleet-b"},
 		},
 	} {
 		t.Run(tc.listOp, func(t *testing.T) {
 			st := newTestStore(t)
+			warns := countOpWarnings(st, "deadline:"+tc.listOp)
 			var calls dlMemberCalls
 			var envs, volumes parentCalls
 			h := deadlineHandlers(&calls)
@@ -467,10 +477,13 @@ func TestScanDeadline_MembersOnlyOfStoredParents(t *testing.T) {
 				t.Fatalf("scanDeadline: %v", err)
 			}
 			if got := tc.calls(&calls).distinct(); !slices.Equal(got, tc.want) {
-				t.Errorf("%s parents = %v, want only the stored %v", tc.memberOp, got, tc.want)
+				t.Errorf("%s parents = %v, want the stored %v", tc.memberOp, got, tc.want)
 			}
 			if got := tc.children(&envs, &volumes).distinct(); !slices.Equal(got, tc.want) {
-				t.Errorf("%s parents = %v, want only the stored %v", tc.childOp, got, tc.want)
+				t.Errorf("%s parents = %v, want the stored %v", tc.childOp, got, tc.want)
+			}
+			if *warns != 1 {
+				t.Errorf("%s warnings = %d, want 1 for the denied page", tc.listOp, *warns)
 			}
 		})
 	}
@@ -510,6 +523,200 @@ func TestScanDeadline_NoMembersOfUnwrittenParents(t *testing.T) {
 			}
 			if got := tc.calls(&calls).distinct(); len(got) != 0 {
 				t.Errorf("%s member parents = %v, want none: no write of them succeeded", tc.listOp, got)
+			}
+		})
+	}
+}
+
+// dlMemberKey is the dlMemberPages key of a member list call's input.
+func dlMemberKey(in any) string {
+	switch p := in.(type) {
+	case *deadline.ListFarmMembersInput:
+		return sdkaws.ToString(p.FarmId)
+	case *deadline.ListFleetMembersInput:
+		return sdkaws.ToString(p.FarmId) + "/" + sdkaws.ToString(p.FleetId)
+	case *deadline.ListQueueMembersInput:
+		return sdkaws.ToString(p.FarmId) + "/" + sdkaws.ToString(p.QueueId)
+	}
+	return ""
+}
+
+// dlFirstPageInput is a copy of a member list call's input with no NextToken.
+func dlFirstPageInput(in any) any {
+	switch p := in.(type) {
+	case *deadline.ListFarmMembersInput:
+		c := *p
+		c.NextToken = nil
+		return &c
+	case *deadline.ListFleetMembersInput:
+		c := *p
+		c.NextToken = nil
+		return &c
+	case *deadline.ListQueueMembersInput:
+		c := *p
+		c.NextToken = nil
+		return &c
+	}
+	return in
+}
+
+// dlMemberOp is a member op with its row type, the keys of its two parents,
+// its NativeIDs (dlTest*Members) and the one the key parent lists on its
+// first page.
+type dlMemberOp struct {
+	op, typ, key, otherKey string
+	rows                   []string
+	firstPage              string
+}
+
+var dlMemberOps = []dlMemberOp{
+	{"ListFarmMembers", TypeDeadlineFarmMember, "farm-a", "farm-b", dlTestFarmMembers, dlTestFarmMembers[1]},
+	{"ListFleetMembers", TypeDeadlineFleetMember, "farm-a/fleet-a", "farm-b/fleet-b", dlTestFleetMembers, dlTestFleetMembers[1]},
+	{"ListQueueMembers", TypeDeadlineQueueMember, "farm-a/queue-a", "farm-b/queue-b", dlTestQueueMembers, dlTestQueueMembers[0]},
+}
+
+// A member listing that ends on its second page keeps the members of the
+// first and the sibling parent's, and returns why it ended: a failed page as
+// that error, a page that repeats its NextToken as errRepeatedNextToken.
+func TestScanDeadline_MemberListingEndedEarlyKeepsPages(t *testing.T) {
+	for _, op := range dlMemberOps {
+		for _, tc := range []struct {
+			name string
+			page func(in any, next func(any) (any, error)) (any, error)
+			want func(t *testing.T, err error)
+		}{
+			{
+				"failed page",
+				func(in any, next func(any) (any, error)) (any, error) {
+					if bacField[*string](in, "NextToken") != nil {
+						return nil, apiErr("ConflictException", "page 2")
+					}
+					return next(in)
+				},
+				func(t *testing.T, err error) { t.Helper(); assertAPICode(t, err, "ConflictException") },
+			},
+			{
+				"repeated token",
+				func(in any, next func(any) (any, error)) (any, error) { return next(dlFirstPageInput(in)) },
+				func(t *testing.T, err error) {
+					t.Helper()
+					if !errors.Is(err, errRepeatedNextToken) {
+						t.Errorf("err = %v, want errRepeatedNextToken", err)
+					}
+				},
+			},
+		} {
+			t.Run(op.op+"/"+tc.name, func(t *testing.T) {
+				st := newTestStore(t)
+				var calls dlMemberCalls
+				h := deadlineHandlers(&calls)
+				next := h[op.op]
+				h[op.op] = func(in any) (any, error) {
+					if dlMemberKey(in) == op.key {
+						return tc.page(in, next)
+					}
+					return next(in)
+				}
+				_, _, err := scanDeadlineTopLevel(t, st, h)
+				tc.want(t, err)
+				want := []string{op.firstPage, op.rows[2]}
+				slices.Sort(want)
+				if got := nativeIDs(rowsByNativeID(t, st, op.typ)); !slices.Equal(got, want) {
+					t.Errorf("%s rows = %v, want %v", op.typ, got, want)
+				}
+			})
+		}
+	}
+}
+
+// A failed member write sends none of the warnings about the parents the
+// phase skipped: not the denial, the transient skip, the fleet not-ready skip
+// or the not-stored warning about the member with no principal id.
+func TestScanDeadline_MemberWriteFailureSendsNoWarning(t *testing.T) {
+	for _, op := range dlMemberOps {
+		// The other parent lists its member, so the phase has a row to write.
+		fails := map[string]error{"denied": dlDenied, "throttled": dlThrottle}
+		if op.op == "ListFleetMembers" {
+			fails["not ready"] = dlBadInput
+		}
+		for name, fail := range fails {
+			t.Run(op.op+"/"+name, func(t *testing.T) {
+				st := newTestStore(t)
+				warns := countOpWarnings(st, "deadline:"+op.op)
+				refuseStoreWrites(t, st, op.typ)
+				var calls dlMemberCalls
+				h := deadlineHandlers(&calls)
+				next := h[op.op]
+				h[op.op] = func(in any) (any, error) {
+					if dlMemberKey(in) == op.key {
+						return nil, fail
+					}
+					return next(in)
+				}
+				_, _, err := scanDeadlineTopLevel(t, st, h)
+				if !errors.Is(err, store.ErrStoreWrite) {
+					t.Fatalf("err = %v, want store.ErrStoreWrite", err)
+				}
+				if *warns != 0 {
+					t.Errorf("warnings = %d, want 0 after the failed write", *warns)
+				}
+			})
+		}
+	}
+}
+
+// A member listing's NXDOMAIN is returned, never skipped as transient: after
+// the older phases stored rows the scan fails (resultLateNXDOMAIN); a member
+// phase that stored nothing returns the NXDOMAIN as is, the region gap.
+func TestScanDeadline_MemberNXDOMAIN(t *testing.T) {
+	nx := &net.DNSError{Err: "no such host", Name: "management.deadline.us-east-1.amazonaws.com", IsNotFound: true}
+	for _, op := range dlMemberOps {
+		t.Run(op.op+"/rows stored", func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "deadline:"+op.op)
+			var calls dlMemberCalls
+			h := deadlineHandlers(&calls)
+			next := h[op.op]
+			h[op.op] = func(in any) (any, error) {
+				if dlMemberKey(in) == op.key {
+					return nil, nx
+				}
+				return next(in)
+			}
+			total, _, err := scanDeadlineTopLevel(t, st, h)
+			assertGlueOutcome(t, err, outcomeError)
+			if total == 0 {
+				t.Error("total = 0; want the stored rows counted")
+			}
+			if *warns != 0 {
+				t.Errorf("warnings = %d, want 0: the NXDOMAIN is returned, not skipped", *warns)
+			}
+		})
+	}
+	farms := []dlFarmRef{{
+		id: "farm-a", arn: dlTestFarmA,
+		fleets: []childParent{{id: "fleet-a", arn: dlTestFleetA}},
+		queues: []childParent{{id: "queue-a", arn: dlTestQueueA}},
+	}}
+	for _, phase := range []struct {
+		op  string
+		run func(context.Context, deadlineAPI, *account, string, *store.Store, string, []dlFarmRef) (int, int, error)
+	}{
+		{"ListFarmMembers", scanDeadlineFarmMembers},
+		{"ListFleetMembers", scanDeadlineFleetMembers},
+		{"ListQueueMembers", scanDeadlineQueueMembers},
+	} {
+		t.Run(phase.op+"/nothing stored", func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "deadline:"+phase.op)
+			client := deadline.NewFromConfig(opStubConfig(nil, nx))
+			total, _, err := phase.run(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, farms)
+			assertGlueOutcome(t, err, outcomeUnavailable)
+			if total != 0 {
+				t.Errorf("total = %d, want 0", total)
+			}
+			if *warns != 0 {
+				t.Errorf("warnings = %d, want 0", *warns)
 			}
 		})
 	}

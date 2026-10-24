@@ -136,7 +136,7 @@ func TestResolveDeadlineVolumeFleet(t *testing.T) {
 	farmARN := fmt.Sprintf("arn:aws:deadline:%s:%s:farm/farm-1", testRegion, acct.ID)
 	fleetARN := farmARN + "/fleet/fleet-1"
 	fleetID := upsertTestResource(t, st, "aws", acct.ID, TypeDeadlineFleet, fleetARN, testRegion, "{}")
-	volARN := farmARN + "/volume/vol-1"
+	volARN := fleetARN + "/volume/vol-1"
 	volID := upsertTestResource(t, st, "aws", acct.ID, TypeDeadlineVolume, volARN, testRegion, `{"FleetId":"fleet-1"}`)
 
 	if err := resolveDeadlineVolumeFleet(acct, st); err != nil {
@@ -150,7 +150,7 @@ func TestResolveDeadlineVolumeFleet_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	farmARN := fmt.Sprintf("arn:aws:deadline:%s:%s:farm/farm-1", testRegion, acct.ID)
-	volID := upsertTestResource(t, st, "aws", acct.ID, TypeDeadlineVolume, farmARN+"/volume/vol-1", testRegion, "{}")
+	volID := upsertTestResource(t, st, "aws", acct.ID, TypeDeadlineVolume, farmARN+"/fleet/fleet-1/volume/vol-1", testRegion, "{}")
 	if err := resolveDeadlineVolumeFleet(acct, st); err != nil {
 		t.Fatalf("resolveDeadlineVolumeFleet: %v", err)
 	}

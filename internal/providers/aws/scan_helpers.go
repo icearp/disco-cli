@@ -438,6 +438,15 @@ func (t *transientTally) drop(parent string, err error) bool {
 	return true
 }
 
+// dropUnlessNXDOMAIN is drop for a phase that runs only after an earlier
+// phase on the same host stored rows: an NXDOMAIN, which
+// isTransientNetworkError also accepts, is not dropped but returned, so the
+// scan's resultLateNXDOMAIN reports it as a failure of this scan instead of
+// a warning.
+func (t *transientTally) dropUnlessNXDOMAIN(parent string, err error) bool {
+	return !isDNSNotFound(err) && t.drop(parent, err)
+}
+
 // warnSkipped warns once for every parent skipped, naming the first and its error.
 func (t *transientTally) warnSkipped(st *store.Store, op string, acct *account, region string) {
 	if t.count == 0 {
@@ -1178,6 +1187,50 @@ func readParentPages[Item any](ctx context.Context, parent string, page func(ctx
 		return page(ctx, parent, token)
 	})
 	return parentItems[Item]{items, err}
+}
+
+// storeChildrenEachParent stores each parent's children, the parents read
+// concurrently (readEachKey) and each read's pages kept up to its error
+// (readParentPages, a repeated NextToken included). Each parent is then
+// classified on its own, as parentOutcomes does, so one parent's error
+// costs no sibling its rows: a notFound code says the parent was deleted
+// since it was listed; skip (nil for none) drops the errors its caller warns
+// about in warn; a denial warns once; any other error is returned after the
+// rows are stored. Each row is recorded under its parent
+// (RecordHierarchyBatch). The warnings, warn's included, go out only after
+// the rows were written.
+func storeChildrenEachParent[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound []string, parents []childParent,
+	skip func(parent string, err error) bool, warn func(),
+	page func(ctx context.Context, p childParent, token *string) ([]Item, *string, error),
+	row func(p childParent, it Item) (*store.Resource, string, string),
+) (int, int, error) {
+	reads, stopped := readEachKey(ctx, parents, func(ctx context.Context, p childParent) parentItems[Item] {
+		return readParentPages(ctx, p.arn, func(ctx context.Context, _ string, token *string) ([]Item, *string, error) {
+			return page(ctx, p, token)
+		})
+	})
+	parentOf := map[*store.Resource]string{}
+	out := parentOutcomes{op: op, notFound: notFound, skip: skip, parentOf: parentOf}
+	for i, read := range reads {
+		p := parents[i]
+		addParentRows(&out, p.arn, read, func(_ string, it Item) (*store.Resource, string, string) {
+			r, why, key := row(p, it)
+			if r != nil {
+				parentOf[r] = store.ResourceID("aws", acct.ID, p.arn)
+			}
+			return r, why, key
+		})
+	}
+	out.stopped(stopped)
+	total, inserted, err := out.store(st, acct, region)
+	if errors.Is(err, store.ErrStoreWrite) {
+		return total, inserted, err
+	}
+	if warn != nil {
+		warn()
+	}
+	return total, inserted, err
 }
 
 // parentOutcomes collects, for storeTokenPerParent and storeTokenEachParent,

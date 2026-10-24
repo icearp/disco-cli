@@ -1,10 +1,13 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/deadline"
+	dltypes "github.com/aws/aws-sdk-go-v2/service/deadline/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -46,494 +49,457 @@ type deadlineAPI interface {
 	ListStorageProfiles(context.Context, *deadline.ListStorageProfilesInput, ...func(*deadline.Options)) (*deadline.ListStorageProfilesOutput, error)
 	ListBudgets(context.Context, *deadline.ListBudgetsInput, ...func(*deadline.Options)) (*deadline.ListBudgetsOutput, error)
 	ListVolumes(context.Context, *deadline.ListVolumesInput, ...func(*deadline.Options)) (*deadline.ListVolumesOutput, error)
+	ListTagsForResource(context.Context, *deadline.ListTagsForResourceInput, ...func(*deadline.Options)) (*deadline.ListTagsForResourceOutput, error)
 }
 
-// dlFarmRef carries (farmId, farmARN) and the farm's stored queues and fleets
-// across phases.
+const (
+	deadlineListTagsOp = "deadline:ListTagsForResource"
+
+	// deadlineMaxResults is the maxResults cap the model documents for every
+	// Deadline list op disco calls.
+	deadlineMaxResults int32 = 100
+)
+
+// deadlineNotFound is the not-found code the model lists for the tag read and
+// for every per-parent listing: the resource, or the parent the input names,
+// was deleted after it was listed.
+var deadlineNotFound = []string{"ResourceNotFoundException"}
+
+// dlFarmRef is a farm stored this scan, with the fleets and queues stored
+// under it, the parents of the per-fleet and per-queue phases.
 type dlFarmRef struct {
 	id, arn string
 	queues  []childParent
 	fleets  []childParent
 }
 
-func deadlineFarmARN(region, acct, farmID string) string {
-	return fmt.Sprintf("arn:aws:deadline:%s:%s:farm/%s", region, acct, farmID)
+// dlChildKey is the farm id and own id of a fleet or queue, both of which its
+// child listings take.
+type dlChildKey struct{ farmID, id string }
+
+// deadlineARN builds every Deadline ARN, the NativeID each tag read sends, in
+// the commercial partition only: account carries no partition, and every AWS
+// scanner hardcodes arn:aws, so in aws-cn and aws-us-gov the NativeID is not
+// the resource's ARN and ListTagsForResource fails for each row. Fixing it is
+// a package-wide change, not a Deadline one.
+func deadlineARN(region, acct, resource string) string {
+	return fmt.Sprintf("arn:aws:deadline:%s:%s:%s", region, acct, resource)
 }
 
-// scanDeadline runs the member phases after every older phase, over the farms,
-// fleets and queues the older phases stored before any failure, so a member
-// phase's failure costs the older phases no rows, and an older phase's failure
-// costs the member phases only the members of parents it never stored. The
-// older side's transient error is demoted to a warning only beside a hard
-// error: joined, it would be buried in the hard error instead of reported under
-// its op. The member phases skip a parent still transient after the SDK's
-// retries (childFanOutSkipTransient), so no transient error leaves them. The
-// errors are joined and the counts summed.
+func deadlineFarmARN(region, acct, farmID string) string {
+	return deadlineARN(region, acct, "farm/"+farmID)
+}
+
+func deadlineLicenseEndpointARN(region, acct, id string) string {
+	return deadlineARN(region, acct, "license-endpoint/"+id)
+}
+
+// deadlineFarmParents is the farms as the parents of the per-farm phases,
+// keyed by farm id.
+func deadlineFarmParents(farms []dlFarmRef) []childParent {
+	parents := make([]childParent, len(farms))
+	for i, f := range farms {
+		parents[i] = childParent{id: f.id, arn: f.arn}
+	}
+	return parents
+}
+
+// deadlineFarmChildren is the fleets or queues (pick) of every farm as
+// parents keyed by their ARN, which names the farm too (the model does not
+// say a fleet or queue id is unique across farms), with each one's farm id
+// and own id by ARN.
+func deadlineFarmChildren(farms []dlFarmRef, pick func(dlFarmRef) []childParent) ([]childParent, map[string]dlChildKey) {
+	var parents []childParent
+	keys := map[string]dlChildKey{}
+	for _, f := range farms {
+		for _, c := range pick(f) {
+			parents = append(parents, childParent{id: c.arn, arn: c.arn})
+			keys[c.arn] = dlChildKey{farmID: f.id, id: c.id}
+		}
+	}
+	return parents, keys
+}
+
+// deadlineRow is the row of a listed Deadline item stored under nativeID,
+// item verbatim as the attributes.
+func deadlineRow(acct *account, region, scanID, typ, nativeID, name string, item any) *store.Resource {
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: nativeID,
+		Name: &name, Region: &region, AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}
+}
+
+// deadlineTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: no list element carries an ARN, so every type read through it is
+// stored under one built in the ARN format the Service Reference documents
+// for it. Those are the types the Service Reference lists for the action:
+// farms, fleets, queues, budgets, volumes, license endpoints and monitors.
+// Limits, storage profiles, queue environments, metered products, the
+// queue-fleet and queue-limit associations and the members are not read: the
+// action lists none of them, the Service Reference gives none an ARN format,
+// and none of their Create, Put or Associate ops takes Tags. The op answers
+// with every tag at once (no page token).
+func deadlineTags(client deadlineAPI) rowTagReader {
+	return rowTagReader{
+		op:       deadlineListTagsOp,
+		notFound: deadlineNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &deadline.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
+		},
+	}
+}
+
 func scanDeadline(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := deadline.NewFromConfig(acct.cfg, func(o *deadline.Options) { o.Region = region })
+	return scanDeadlineAll(ctx, client, acct, region, st, scanID)
+}
 
-	farms, total, inserted, err := scanDeadlineOlderPhases(ctx, client, acct, region, st, scanID)
-	var errs phaseErrs
-	errs.add("deadline", err)
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanDeadlineFarmMembers(ctx, client, acct, region, st, scanID, farms) },
-		func() (int, int, error) {
+// scanDeadlineAll discovers Deadline Cloud resources in one region, running
+// its phases one after another. A phase's error does not stop the later
+// ones; a failed write does, since every later write would fail too, and so
+// does ctx's end, reported as one error. A child phase gets the parents its
+// parent phase stored: the per-farm phases the farms, the queue environments
+// and queue members the queues, the volumes and fleet members the fleets, and
+// the metered products the license endpoints. The phases run one at a time,
+// so readRowTags's own bound is the bound on the tag reads in flight. Every op
+// calls the one Deadline management endpoint, so an NXDOMAIN after rows were
+// stored is a failure of this scan, not a region gap (resultLateNXDOMAIN).
+func scanDeadlineAll(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var (
+		p     phaseTotals
+		tags  = deadlineTags(client)
+		farms []dlFarmRef
+		les   []childParent
+	)
+	counted := func(op string, run func() (int, int, error)) func() bool {
+		return func() bool {
+			t, i, err := run()
+			return p.addPhase(op, t, i, err)
+		}
+	}
+	phases := []func() bool{
+		func() (stop bool) {
+			farms, stop = scanDeadlineFarms(ctx, client, acct, region, st, scanID, tags, &p)
+			return stop
+		},
+		func() bool { return scanDeadlineFleets(ctx, client, acct, region, st, scanID, farms, tags, &p) },
+		counted("deadline:ListLimits", func() (int, int, error) {
+			return scanDeadlineLimits(ctx, client, acct, region, st, scanID, farms)
+		}),
+		counted("deadline:ListStorageProfiles", func() (int, int, error) {
+			return scanDeadlineStorageProfiles(ctx, client, acct, region, st, scanID, farms)
+		}),
+		func() bool { return scanDeadlineBudgets(ctx, client, acct, region, st, scanID, farms, tags, &p) },
+		func() bool { return scanDeadlineQueues(ctx, client, acct, region, st, scanID, farms, tags, &p) },
+		counted("deadline:ListQueueFleetAssociations", func() (int, int, error) {
+			return scanDeadlineQueueFleetAssociations(ctx, client, acct, region, st, scanID, farms)
+		}),
+		counted("deadline:ListQueueLimitAssociations", func() (int, int, error) {
+			return scanDeadlineQueueLimitAssociations(ctx, client, acct, region, st, scanID, farms)
+		}),
+		counted("deadline:ListQueueEnvironments", func() (int, int, error) {
+			return scanDeadlineQueueEnvironments(ctx, client, acct, region, st, scanID, farms)
+		}),
+		func() bool { return scanDeadlineVolumes(ctx, client, acct, region, st, scanID, farms, tags, &p) },
+		func() (stop bool) {
+			les, stop = scanDeadlineLicenseEndpoints(ctx, client, acct, region, st, scanID, tags, &p)
+			return stop
+		},
+		counted("deadline:ListMeteredProducts", func() (int, int, error) {
+			return scanDeadlineMeteredProducts(ctx, client, acct, region, st, scanID, les)
+		}),
+		func() bool { return scanDeadlineMonitors(ctx, client, acct, region, st, scanID, tags, &p) },
+		counted(deadlineListFarmMembersOp, func() (int, int, error) {
+			return scanDeadlineFarmMembers(ctx, client, acct, region, st, scanID, farms)
+		}),
+		counted(deadlineListFleetMembersOp, func() (int, int, error) {
 			return scanDeadlineFleetMembers(ctx, client, acct, region, st, scanID, farms)
-		},
-		func() (int, int, error) {
+		}),
+		counted(deadlineListQueueMembersOp, func() (int, int, error) {
 			return scanDeadlineQueueMembers(ctx, client, acct, region, st, scanID, farms)
+		}),
+	}
+	notRun := 0
+	for i, run := range phases {
+		if ctx.Err() != nil {
+			notRun = len(phases) - i
+			break
+		}
+		if run() {
+			break
+		}
+	}
+	p.foldStop(ctx, "deadline", notRun)
+	return p.resultLateNXDOMAIN(st, acct, region)
+}
+
+// scanDeadlineFarms stores the account's farms with their tags and returns
+// the stored ones, the parents of the per-farm phases.
+func scanDeadlineFarms(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (farms []dlFarmRef, storeWriteFailed bool) {
+	parents, stop := storeParentListTags(ctx, st, acct, region, "deadline:ListFarms", "farms", "FarmId",
+		func(ctx context.Context, token *string) ([]dltypes.FarmSummary, *string, error) {
+			out, err := client.ListFarms(ctx, &deadline.ListFarmsInput{NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Farms, out.NextToken, nil
 		},
-	} {
-		t, i, perr := phase()
-		total += t
-		inserted += i
-		errs.add("deadline", perr)
-	}
-	return total, inserted, errs.join(st, acct, region)
-}
-
-// scanDeadlineOlderPhases runs the phases that predate the member phases,
-// stopping at the first error any of them returns, transient ones included.
-// It returns the stored farms, each with the queues and fleets stored before
-// it stopped.
-func scanDeadlineOlderPhases(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string) (farms []dlFarmRef, total, inserted int, err error) {
-	// Phase 1: farms (top-level). Collect IDs for per-farm fan-out.
-	farms, t, i, ferr := scanDeadlineFarms(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return nil, total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	// Per-farm phases.
-	for fi := range farms {
-		fr := &farms[fi]
-		for _, phase := range []func() (int, int, error){
-			func() (int, int, error) { return scanDeadlineFleets(ctx, client, acct, region, st, scanID, fr) },
-			func() (int, int, error) { return scanDeadlineLimits(ctx, client, acct, region, st, scanID, fr) },
-			func() (int, int, error) {
-				return scanDeadlineStorageProfiles(ctx, client, acct, region, st, scanID, fr)
-			},
-			func() (int, int, error) { return scanDeadlineBudgets(ctx, client, acct, region, st, scanID, fr) },
-			func() (int, int, error) { return scanDeadlineQueues(ctx, client, acct, region, st, scanID, fr) },
-			func() (int, int, error) {
-				return scanDeadlineQueueFleetAssociations(ctx, client, acct, region, st, scanID, fr)
-			},
-			func() (int, int, error) {
-				return scanDeadlineQueueLimitAssociations(ctx, client, acct, region, st, scanID, fr)
-			},
-		} {
-			t, i, perr := phase()
-			if perr != nil {
-				return farms, total, inserted, perr
-			}
-			total += t
-			inserted += i
-		}
-		// Per-(farm, queue) phase.
-		for _, qr := range fr.queues {
-			t, i, perr := scanDeadlineQueueEnvironments(ctx, client, acct, region, st, scanID, fr, qr)
-			if perr != nil {
-				return farms, total, inserted, perr
-			}
-			total += t
-			inserted += i
-		}
-		// Per-(farm, fleet) phase: ListVolumes requires both FarmId and FleetId.
-		for _, fleet := range fr.fleets {
-			t, i, perr := scanDeadlineVolumes(ctx, client, acct, region, st, scanID, fr, fleet.id)
-			if perr != nil {
-				return farms, total, inserted, perr
-			}
-			total += t
-			inserted += i
-		}
-	}
-
-	// Phase: license-endpoints (top-level). Collect IDs for per-LE metered-products.
-	leIDs, t, i, ferr := scanDeadlineLicenseEndpoints(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return farms, total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	// Per-license-endpoint metered-products.
-	for _, leID := range leIDs {
-		t, i, perr := scanDeadlineMeteredProducts(ctx, client, acct, region, st, scanID, leID)
-		if perr != nil {
-			return farms, total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-
-	// Phase: monitors (top-level).
-	t, i, ferr = scanDeadlineMonitors(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return farms, total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	return farms, total, inserted, nil
-}
-
-func scanDeadlineFarms(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string) ([]dlFarmRef, int, int, error) {
-	pager := deadline.NewListFarmsPaginator(client, &deadline.ListFarmsInput{})
-	var batch []*store.Resource
-	var refs []dlFarmRef
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "deadline:ListFarms", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("deadline:ListFarms: %w", perr)
-		}
-		for _, f := range out.Farms {
+		func(f dltypes.FarmSummary) (*store.Resource, string, string) {
 			id := sv(f.FarmId)
 			if id == "" {
-				continue
+				return nil, "farms have an empty FarmId", cmp.Or(sv(f.DisplayName), "(a farm with no name)")
 			}
-			arn := deadlineFarmARN(region, acct.ID, id)
-			label := sv(f.DisplayName)
-			if label == "" {
-				label = id
-			}
-			refs = append(refs, dlFarmRef{id: id, arn: arn})
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDeadlineFarm, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
-			})
-		}
+			return deadlineRow(acct, region, scanID, TypeDeadlineFarm, deadlineFarmARN(region, acct.ID, id), cmp.Or(sv(f.DisplayName), id), f), "", ""
+		},
+		func(f dltypes.FarmSummary) string { return sv(f.FarmId) },
+		tags, p)
+	for _, f := range parents {
+		farms = append(farms, dlFarmRef{id: f.id, arn: f.arn})
 	}
-	t, i, err := upsertBatch(st, batch, "deadline farms")
-	return refs, t, i, err
+	return farms, stop
 }
 
-func scanDeadlineFleets(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef) (int, int, error) {
-	pager := deadline.NewListFleetsPaginator(client, &deadline.ListFleetsInput{FarmId: &fr.id})
-	var batch []*store.Resource
-	var fleets []childParent
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "deadline:ListFleets", acct.ID, region, perr)
-				return 0, 0, nil
+// attachFarmChildren records each stored fleet or queue on its farm (add),
+// keys holding the farm id and own id of every row built.
+func attachFarmChildren(farms []dlFarmRef, stored []*store.Resource, keys map[*store.Resource]dlChildKey, add func(f *dlFarmRef, c childParent)) {
+	byID := make(map[string]int, len(farms))
+	for i, f := range farms {
+		byID[f.id] = i
+	}
+	for _, r := range stored {
+		k := keys[r]
+		add(&farms[byID[k.farmID]], childParent{id: k.id, arn: r.NativeID})
+	}
+}
+
+// scanDeadlineFleets lists the fleets of each farm the farm phase stored,
+// stores them with their tags and records the stored ones on their farms,
+// for the volume and fleet-member phases. A farm ListFleets no longer finds
+// is skipped.
+func scanDeadlineFleets(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	keys := map[*store.Resource]dlChildKey{}
+	stored, stop := storeEachParentTags(ctx, st, acct, region, "deadline:ListFleets", deadlineNotFound, deadlineFarmParents(farms),
+		func(ctx context.Context, farmID string, token *string) ([]dltypes.FleetSummary, *string, error) {
+			out, err := client.ListFleets(ctx, &deadline.ListFleetsInput{FarmId: &farmID, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("deadline:ListFleets: %w", perr)
-		}
-		for _, f := range out.Fleets {
+			return out.Fleets, out.NextToken, nil
+		},
+		func(farmID string, f dltypes.FleetSummary) (*store.Resource, string, string) {
 			id := sv(f.FleetId)
 			if id == "" {
-				continue
+				return nil, "fleets have an empty FleetId", cmp.Or(sv(f.DisplayName), "(a fleet with no name)") + " of farm " + farmID
 			}
-			arn := fmt.Sprintf("%s/fleet/%s", fr.arn, id)
-			fleets = append(fleets, childParent{id: id, arn: arn})
-			label := sv(f.DisplayName)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDeadlineFleet, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "deadline fleets")
-	if err == nil {
-		fr.fleets = fleets
-	}
-	return t, i, err
+			r := deadlineRow(acct, region, scanID, TypeDeadlineFleet, deadlineFarmARN(region, acct.ID, farmID)+"/fleet/"+id, cmp.Or(sv(f.DisplayName), id), f)
+			keys[r] = dlChildKey{farmID: farmID, id: id}
+			return r, "", ""
+		}, tags, p)
+	attachFarmChildren(farms, stored, keys, func(f *dlFarmRef, c childParent) { f.fleets = append(f.fleets, c) })
+	return stop
 }
 
-func scanDeadlineLimits(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef) (int, int, error) {
-	pager := deadline.NewListLimitsPaginator(client, &deadline.ListLimitsInput{FarmId: &fr.id})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "deadline:ListLimits", acct.ID, region, perr)
-				return 0, 0, nil
+// scanDeadlineQueues lists the queues of each farm the farm phase stored,
+// stores them with their tags and records the stored ones on their farms,
+// for the queue-environment and queue-member phases. A farm ListQueues no
+// longer finds is skipped.
+func scanDeadlineQueues(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	keys := map[*store.Resource]dlChildKey{}
+	stored, stop := storeEachParentTags(ctx, st, acct, region, "deadline:ListQueues", deadlineNotFound, deadlineFarmParents(farms),
+		func(ctx context.Context, farmID string, token *string) ([]dltypes.QueueSummary, *string, error) {
+			out, err := client.ListQueues(ctx, &deadline.ListQueuesInput{FarmId: &farmID, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("deadline:ListLimits: %w", perr)
-		}
-		for _, l := range out.Limits {
-			id := sv(l.LimitId)
-			if id == "" {
-				continue
-			}
-			arn := fmt.Sprintf("%s/limit/%s", fr.arn, id)
-			label := sv(l.DisplayName)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDeadlineLimit, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "deadline limits")
-}
-
-func scanDeadlineMeteredProducts(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID, licenseEndpointID string) (int, int, error) {
-	pager := deadline.NewListMeteredProductsPaginator(client, &deadline.ListMeteredProductsInput{LicenseEndpointId: &licenseEndpointID})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "deadline:ListMeteredProducts", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("deadline:ListMeteredProducts: %w", perr)
-		}
-		for _, m := range out.MeteredProducts {
-			pid := sv(m.ProductId)
-			if pid == "" {
-				continue
-			}
-			arn := fmt.Sprintf("arn:aws:deadline:%s:%s:license-endpoint/%s/metered-product/%s", region, acct.ID, licenseEndpointID, pid)
-			label := pid
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDeadlineMeteredProduct, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "deadline metered-products")
-}
-
-func scanDeadlineStorageProfiles(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef) (int, int, error) {
-	pager := deadline.NewListStorageProfilesPaginator(client, &deadline.ListStorageProfilesInput{FarmId: &fr.id})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "deadline:ListStorageProfiles", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("deadline:ListStorageProfiles: %w", perr)
-		}
-		for _, sp := range out.StorageProfiles {
-			id := sv(sp.StorageProfileId)
-			if id == "" {
-				continue
-			}
-			arn := fmt.Sprintf("%s/storage-profile/%s", fr.arn, id)
-			label := sv(sp.DisplayName)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDeadlineStorageProfile, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(sp), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "deadline storage-profiles")
-}
-
-func scanDeadlineQueues(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef) (int, int, error) {
-	pager := deadline.NewListQueuesPaginator(client, &deadline.ListQueuesInput{FarmId: &fr.id})
-	var batch []*store.Resource
-	var queues []childParent
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "deadline:ListQueues", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("deadline:ListQueues: %w", perr)
-		}
-		for _, q := range out.Queues {
+			return out.Queues, out.NextToken, nil
+		},
+		func(farmID string, q dltypes.QueueSummary) (*store.Resource, string, string) {
 			id := sv(q.QueueId)
 			if id == "" {
-				continue
+				return nil, "queues have an empty QueueId", cmp.Or(sv(q.DisplayName), "(a queue with no name)") + " of farm " + farmID
 			}
-			arn := fmt.Sprintf("%s/queue/%s", fr.arn, id)
-			label := sv(q.DisplayName)
-			if label == "" {
-				label = id
-			}
-			queues = append(queues, childParent{id: id, arn: arn})
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDeadlineQueue, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(q), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "deadline queues")
-	if err == nil {
-		fr.queues = queues
-	}
-	return t, i, err
+			r := deadlineRow(acct, region, scanID, TypeDeadlineQueue, deadlineFarmARN(region, acct.ID, farmID)+"/queue/"+id, cmp.Or(sv(q.DisplayName), id), q)
+			keys[r] = dlChildKey{farmID: farmID, id: id}
+			return r, "", ""
+		}, tags, p)
+	attachFarmChildren(farms, stored, keys, func(f *dlFarmRef, c childParent) { f.queues = append(f.queues, c) })
+	return stop
 }
 
-func scanDeadlineQueueFleetAssociations(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef) (int, int, error) {
-	pager := deadline.NewListQueueFleetAssociationsPaginator(client, &deadline.ListQueueFleetAssociationsInput{FarmId: &fr.id})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "deadline:ListQueueFleetAssociations", acct.ID, region, perr)
-				return 0, 0, nil
+// scanDeadlineLimits stores the limits of each farm the farm phase stored. A
+// farm ListLimits no longer finds is skipped.
+func scanDeadlineLimits(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, "deadline:ListLimits", deadlineNotFound, childParentIDs(deadlineFarmParents(farms)),
+		func(ctx context.Context, farmID string, token *string) ([]dltypes.LimitSummary, *string, error) {
+			out, err := client.ListLimits(ctx, &deadline.ListLimitsInput{FarmId: &farmID, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("deadline:ListQueueFleetAssociations: %w", perr)
-		}
-		for _, a := range out.QueueFleetAssociations {
-			qid := sv(a.QueueId)
-			fid := sv(a.FleetId)
+			return out.Limits, out.NextToken, nil
+		},
+		func(farmID string, l dltypes.LimitSummary) (*store.Resource, string, string) {
+			id := sv(l.LimitId)
+			if id == "" {
+				return nil, "limits have an empty LimitId", cmp.Or(sv(l.DisplayName), "(a limit with no name)") + " of farm " + farmID
+			}
+			return deadlineRow(acct, region, scanID, TypeDeadlineLimit, deadlineFarmARN(region, acct.ID, farmID)+"/limit/"+id, cmp.Or(sv(l.DisplayName), id), l), "", ""
+		})
+}
+
+// scanDeadlineStorageProfiles stores the storage profiles of each farm the
+// farm phase stored. A farm ListStorageProfiles no longer finds is skipped.
+func scanDeadlineStorageProfiles(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, "deadline:ListStorageProfiles", deadlineNotFound, childParentIDs(deadlineFarmParents(farms)),
+		func(ctx context.Context, farmID string, token *string) ([]dltypes.StorageProfileSummary, *string, error) {
+			out, err := client.ListStorageProfiles(ctx, &deadline.ListStorageProfilesInput{FarmId: &farmID, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.StorageProfiles, out.NextToken, nil
+		},
+		func(farmID string, sp dltypes.StorageProfileSummary) (*store.Resource, string, string) {
+			id := sv(sp.StorageProfileId)
+			if id == "" {
+				return nil, "storage profiles have an empty StorageProfileId", cmp.Or(sv(sp.DisplayName), "(a storage profile with no name)") + " of farm " + farmID
+			}
+			return deadlineRow(acct, region, scanID, TypeDeadlineStorageProfile, deadlineFarmARN(region, acct.ID, farmID)+"/storage-profile/"+id, cmp.Or(sv(sp.DisplayName), id), sp), "", ""
+		})
+}
+
+// scanDeadlineQueueFleetAssociations stores the queue-fleet associations of
+// each farm the farm phase stored. A farm the listing no longer finds is
+// skipped.
+func scanDeadlineQueueFleetAssociations(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, "deadline:ListQueueFleetAssociations", deadlineNotFound, childParentIDs(deadlineFarmParents(farms)),
+		func(ctx context.Context, farmID string, token *string) ([]dltypes.QueueFleetAssociationSummary, *string, error) {
+			out, err := client.ListQueueFleetAssociations(ctx, &deadline.ListQueueFleetAssociationsInput{FarmId: &farmID, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.QueueFleetAssociations, out.NextToken, nil
+		},
+		func(farmID string, a dltypes.QueueFleetAssociationSummary) (*store.Resource, string, string) {
+			qid, fid := sv(a.QueueId), sv(a.FleetId)
 			if qid == "" || fid == "" {
-				continue
+				return nil, "queue-fleet associations have an empty QueueId or FleetId", fmt.Sprintf("queue %q fleet %q of farm %s", qid, fid, farmID)
 			}
-			arn := fmt.Sprintf("%s/queue/%s/fleet/%s/association", fr.arn, qid, fid)
-			label := fmt.Sprintf("%s/%s", qid, fid)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDeadlineQueueFleetAssociation, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "deadline queue-fleet-associations")
+			arn := fmt.Sprintf("%s/queue/%s/fleet/%s/association", deadlineFarmARN(region, acct.ID, farmID), qid, fid)
+			return deadlineRow(acct, region, scanID, TypeDeadlineQueueFleetAssociation, arn, qid+"/"+fid, a), "", ""
+		})
 }
 
-func scanDeadlineQueueLimitAssociations(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef) (int, int, error) {
-	pager := deadline.NewListQueueLimitAssociationsPaginator(client, &deadline.ListQueueLimitAssociationsInput{FarmId: &fr.id})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "deadline:ListQueueLimitAssociations", acct.ID, region, perr)
-				return 0, 0, nil
+// scanDeadlineQueueLimitAssociations stores the queue-limit associations of
+// each farm the farm phase stored. A farm the listing no longer finds is
+// skipped.
+func scanDeadlineQueueLimitAssociations(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, "deadline:ListQueueLimitAssociations", deadlineNotFound, childParentIDs(deadlineFarmParents(farms)),
+		func(ctx context.Context, farmID string, token *string) ([]dltypes.QueueLimitAssociationSummary, *string, error) {
+			out, err := client.ListQueueLimitAssociations(ctx, &deadline.ListQueueLimitAssociationsInput{FarmId: &farmID, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("deadline:ListQueueLimitAssociations: %w", perr)
-		}
-		for _, a := range out.QueueLimitAssociations {
-			qid := sv(a.QueueId)
-			lid := sv(a.LimitId)
+			return out.QueueLimitAssociations, out.NextToken, nil
+		},
+		func(farmID string, a dltypes.QueueLimitAssociationSummary) (*store.Resource, string, string) {
+			qid, lid := sv(a.QueueId), sv(a.LimitId)
 			if qid == "" || lid == "" {
-				continue
+				return nil, "queue-limit associations have an empty QueueId or LimitId", fmt.Sprintf("queue %q limit %q of farm %s", qid, lid, farmID)
 			}
-			arn := fmt.Sprintf("%s/queue/%s/limit/%s/association", fr.arn, qid, lid)
-			label := fmt.Sprintf("%s/%s", qid, lid)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDeadlineQueueLimitAssociation, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "deadline queue-limit-associations")
+			arn := fmt.Sprintf("%s/queue/%s/limit/%s/association", deadlineFarmARN(region, acct.ID, farmID), qid, lid)
+			return deadlineRow(acct, region, scanID, TypeDeadlineQueueLimitAssociation, arn, qid+"/"+lid, a), "", ""
+		})
 }
 
-func scanDeadlineQueueEnvironments(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, fr *dlFarmRef, qr childParent) (int, int, error) {
-	pager := deadline.NewListQueueEnvironmentsPaginator(client, &deadline.ListQueueEnvironmentsInput{FarmId: &fr.id, QueueId: &qr.id})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "deadline:ListQueueEnvironments", acct.ID, region, perr)
-				return 0, 0, nil
+// scanDeadlineQueueEnvironments stores the environments of each queue the
+// queue phase stored. A queue the listing no longer finds is skipped.
+func scanDeadlineQueueEnvironments(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, farms []dlFarmRef) (int, int, error) {
+	queues, keys := deadlineFarmChildren(farms, func(f dlFarmRef) []childParent { return f.queues })
+	return storeTokenEachParent(ctx, st, acct, region, "deadline:ListQueueEnvironments", deadlineNotFound, childParentIDs(queues),
+		func(ctx context.Context, queueARN string, token *string) ([]dltypes.QueueEnvironmentSummary, *string, error) {
+			k := keys[queueARN]
+			out, err := client.ListQueueEnvironments(ctx, &deadline.ListQueueEnvironmentsInput{
+				FarmId: &k.farmID, QueueId: &k.id, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults),
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("deadline:ListQueueEnvironments: %w", perr)
-		}
-		for _, e := range out.Environments {
+			return out.Environments, out.NextToken, nil
+		},
+		func(queueARN string, e dltypes.QueueEnvironmentSummary) (*store.Resource, string, string) {
 			id := sv(e.QueueEnvironmentId)
 			if id == "" {
-				continue
+				return nil, "queue environments have an empty QueueEnvironmentId", cmp.Or(sv(e.Name), "(an environment with no name)") + " of queue " + queueARN
 			}
-			arn := fmt.Sprintf("%s/queue-environment/%s", qr.arn, id)
-			label := sv(e.Name)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDeadlineQueueEnvironment, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "deadline queue-environments")
+			return deadlineRow(acct, region, scanID, TypeDeadlineQueueEnvironment, queueARN+"/queue-environment/"+id, cmp.Or(sv(e.Name), id), e), "", ""
+		})
 }
 
-func scanDeadlineLicenseEndpoints(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := deadline.NewListLicenseEndpointsPaginator(client, &deadline.ListLicenseEndpointsInput{})
-	var batch []*store.Resource
-	var ids []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "deadline:ListLicenseEndpoints", acct.ID, region, perr)
-				return nil, 0, 0, nil
+// scanDeadlineLicenseEndpoints stores the account's license endpoints with
+// their tags and returns the stored ones, keyed by id, the parents of the
+// metered-product phase.
+func scanDeadlineLicenseEndpoints(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (les []childParent, storeWriteFailed bool) {
+	return storeParentListTags(ctx, st, acct, region, "deadline:ListLicenseEndpoints", "license endpoints", "LicenseEndpointId",
+		func(ctx context.Context, token *string) ([]dltypes.LicenseEndpointSummary, *string, error) {
+			out, err := client.ListLicenseEndpoints(ctx, &deadline.ListLicenseEndpointsInput{NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("deadline:ListLicenseEndpoints: %w", perr)
-		}
-		for _, le := range out.LicenseEndpoints {
+			return out.LicenseEndpoints, out.NextToken, nil
+		},
+		func(le dltypes.LicenseEndpointSummary) (*store.Resource, string, string) {
 			id := sv(le.LicenseEndpointId)
 			if id == "" {
-				continue
+				return nil, "license endpoints have an empty LicenseEndpointId", cmp.Or(sv(le.VpcId), "(a license endpoint with no VPC)")
 			}
-			arn := fmt.Sprintf("arn:aws:deadline:%s:%s:license-endpoint/%s", region, acct.ID, id)
-			label := id
-			ids = append(ids, id)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDeadlineLicenseEndpoint, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(le), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "deadline license-endpoints")
-	return ids, t, i, err
+			return deadlineRow(acct, region, scanID, TypeDeadlineLicenseEndpoint, deadlineLicenseEndpointARN(region, acct.ID, id), id, le), "", ""
+		},
+		func(le dltypes.LicenseEndpointSummary) string { return sv(le.LicenseEndpointId) },
+		tags, p)
 }
 
-func scanDeadlineMonitors(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := deadline.NewListMonitorsPaginator(client, &deadline.ListMonitorsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "deadline:ListMonitors", acct.ID, region, perr)
-				return 0, 0, nil
+// scanDeadlineMeteredProducts stores the metered products of each license
+// endpoint the license-endpoint phase stored. An endpoint the listing no
+// longer finds is skipped.
+func scanDeadlineMeteredProducts(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, les []childParent) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, "deadline:ListMeteredProducts", deadlineNotFound, childParentIDs(les),
+		func(ctx context.Context, leID string, token *string) ([]dltypes.MeteredProductSummary, *string, error) {
+			out, err := client.ListMeteredProducts(ctx, &deadline.ListMeteredProductsInput{LicenseEndpointId: &leID, NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("deadline:ListMonitors: %w", perr)
-		}
-		for _, m := range out.Monitors {
+			return out.MeteredProducts, out.NextToken, nil
+		},
+		func(leID string, m dltypes.MeteredProductSummary) (*store.Resource, string, string) {
+			pid := sv(m.ProductId)
+			if pid == "" {
+				return nil, "metered products have an empty ProductId", cmp.Or(sv(m.Family), "(a product with no family)") + " of license endpoint " + leID
+			}
+			return deadlineRow(acct, region, scanID, TypeDeadlineMeteredProduct, deadlineLicenseEndpointARN(region, acct.ID, leID)+"/metered-product/"+pid, pid, m), "", ""
+		})
+}
+
+// scanDeadlineMonitors stores the account's monitors with their tags.
+func scanDeadlineMonitors(ctx context.Context, client deadlineAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "deadline:ListMonitors",
+		func(ctx context.Context, token *string) ([]dltypes.MonitorSummary, *string, error) {
+			out, err := client.ListMonitors(ctx, &deadline.ListMonitorsInput{NextToken: token, MaxResults: sdkaws.Int32(deadlineMaxResults)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Monitors, out.NextToken, nil
+		},
+		func(m dltypes.MonitorSummary) (*store.Resource, string, string) {
 			id := sv(m.MonitorId)
 			if id == "" {
-				continue
+				return nil, "monitors have an empty MonitorId", cmp.Or(sv(m.DisplayName), "(a monitor with no name)")
 			}
-			arn := fmt.Sprintf("arn:aws:deadline:%s:%s:monitor/%s", region, acct.ID, id)
-			label := sv(m.DisplayName)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDeadlineMonitor, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "deadline monitors")
+			return deadlineRow(acct, region, scanID, TypeDeadlineMonitor, deadlineARN(region, acct.ID, "monitor/"+id), cmp.Or(sv(m.DisplayName), id), m), "", ""
+		},
+		tags, p)
 }

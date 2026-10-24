@@ -1071,54 +1071,14 @@ func scanQSKeyRegistration(ctx context.Context, client quickSightAPI, acct *acco
 	return upsertBatch(st, batch, "quicksight key-registration")
 }
 
-// qsStoreChildren stores each parent's children, the parents read
-// concurrently (readEachKey) and each read's pages kept up to its error
-// (readParentPages, a repeated NextToken included). Each parent is then
-// classified on its own, as parentOutcomes does, so one parent's error
-// costs no sibling its rows: ResourceNotFoundException, which every child op
-// here models, says the parent was deleted since it was listed; skip (nil
-// for none) drops the errors its caller warns about in warn; a denial warns
-// once; any other error is returned after the rows are stored. Each row is
-// recorded under its parent (RecordHierarchyBatch). The warnings, warn's
-// included, go out only after the rows were written.
-func qsStoreChildren[Item any](
-	ctx context.Context, st *store.Store, acct *account, region, op string, parents []childParent,
-	skip func(parent string, err error) bool, warn func(),
-	page func(ctx context.Context, p childParent, token *string) ([]Item, *string, error),
-	row func(p childParent, it Item) (*store.Resource, string, string),
-) (int, int, error) {
-	reads, stopped := readEachKey(ctx, parents, func(ctx context.Context, p childParent) parentItems[Item] {
-		return readParentPages(ctx, p.arn, func(ctx context.Context, _ string, token *string) ([]Item, *string, error) {
-			return page(ctx, p, token)
-		})
-	})
-	parentOf := map[*store.Resource]string{}
-	out := parentOutcomes{op: op, notFound: []string{"ResourceNotFoundException"}, skip: skip, parentOf: parentOf}
-	for i, read := range reads {
-		p := parents[i]
-		addParentRows(&out, p.arn, read, func(_ string, it Item) (*store.Resource, string, string) {
-			r, why, key := row(p, it)
-			if r != nil {
-				parentOf[r] = store.ResourceID("aws", acct.ID, p.arn)
-			}
-			return r, why, key
-		})
-	}
-	out.stopped(stopped)
-	total, inserted, err := out.store(st, acct, region)
-	if errors.Is(err, store.ErrStoreWrite) {
-		return total, inserted, err
-	}
-	if warn != nil {
-		warn()
-	}
-	return total, inserted, err
-}
+// qsChildNotFound is the code every QuickSight child op models for a parent
+// deleted since it was listed (storeChildrenEachParent).
+var qsChildNotFound = []string{"ResourceNotFoundException"}
 
-// scanQSTemplateAliases lists each template's aliases (qsStoreChildren).
+// scanQSTemplateAliases lists each template's aliases (storeChildrenEachParent).
 func scanQSTemplateAliases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, templates []childParent) (int, int, error) {
 	id := acct.ID
-	return qsStoreChildren(ctx, st, acct, region, "quicksight:ListTemplateAliases", templates, nil, nil,
+	return storeChildrenEachParent(ctx, st, acct, region, "quicksight:ListTemplateAliases", qsChildNotFound, templates, nil, nil,
 		func(ctx context.Context, p childParent, token *string) ([]qstypes.TemplateAlias, *string, error) {
 			out, err := client.ListTemplateAliases(ctx, &quicksight.ListTemplateAliasesInput{AwsAccountId: &id, TemplateId: &p.id, MaxResults: sdkaws.Int32(qsPageLimit), NextToken: token})
 			if err != nil {
@@ -1144,10 +1104,10 @@ func qsChildRow(acct *account, region, scanID, typ, what string, arn, name *stri
 	}, "", ""
 }
 
-// scanQSThemeAliases lists each theme's aliases (qsStoreChildren).
+// scanQSThemeAliases lists each theme's aliases (storeChildrenEachParent).
 func scanQSThemeAliases(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, themes []childParent) (int, int, error) {
 	id := acct.ID
-	return qsStoreChildren(ctx, st, acct, region, "quicksight:ListThemeAliases", themes, nil, nil,
+	return storeChildrenEachParent(ctx, st, acct, region, "quicksight:ListThemeAliases", qsChildNotFound, themes, nil, nil,
 		func(ctx context.Context, p childParent, token *string) ([]qstypes.ThemeAlias, *string, error) {
 			out, err := client.ListThemeAliases(ctx, &quicksight.ListThemeAliasesInput{AwsAccountId: &id, ThemeId: &p.id, MaxResults: sdkaws.Int32(qsPageLimit), NextToken: token})
 			if err != nil {
@@ -1161,14 +1121,14 @@ func scanQSThemeAliases(ctx context.Context, client quickSightAPI, acct *account
 }
 
 // scanQSTopicRefreshSchedules lists each topic's per-dataset refresh schedules
-// (qsStoreChildren; the op takes no page token). A schedule carries no ARN
+// (storeChildrenEachParent; the op takes no page token). A schedule carries no ARN
 // and is addressed by (topic, dataset) — the Describe/Update/Delete ops take
 // TopicId + DatasetId — so its NativeID is {topicARN}/refresh-schedule/{datasetId}.
 // ListTopicRefreshSchedules has no resource in the service reference, so a
 // deny there is account-wide and every topic is skipped under one warning.
 func scanQSTopicRefreshSchedules(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, topics []childParent) (int, int, error) {
 	id := acct.ID
-	return qsStoreChildren(ctx, st, acct, region, "quicksight:ListTopicRefreshSchedules", topics, nil, nil,
+	return storeChildrenEachParent(ctx, st, acct, region, "quicksight:ListTopicRefreshSchedules", qsChildNotFound, topics, nil, nil,
 		func(ctx context.Context, p childParent, _ *string) ([]qstypes.TopicRefreshScheduleSummary, *string, error) {
 			out, err := client.ListTopicRefreshSchedules(ctx, &quicksight.ListTopicRefreshSchedulesInput{AwsAccountId: &id, TopicId: &p.id})
 			if err != nil {
@@ -1316,16 +1276,17 @@ func warnQSParentsUnlisted(st *store.Store, acct *account, region, op string, co
 }
 
 // scanQSFolderMembers stores one row per asset in each folder the folder phase
-// stored (qsStoreChildren). A member carries only an id and an ARN, and each
+// stored (storeChildrenEachParent). A member carries only an id and an ARN, and each
 // asset kind's Create op takes its own id, so ids may repeat across kinds and
 // the row is keyed by the member ARN. A folder still failing transiently
 // after the SDK's retries is skipped under one warning; any other error, the
-// op's edition and parameter codes included, is returned: the folder phase
+// op's edition and parameter codes and an NXDOMAIN (dropUnlessNXDOMAIN)
+// included, is returned: the folder phase
 // already succeeded, so the account has folders.
 func scanQSFolderMembers(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, folders []childParent) (int, int, error) {
 	id := acct.ID
 	var transient transientTally
-	return qsStoreChildren(ctx, st, acct, region, qsListFolderMembersOp, folders, transient.drop,
+	return storeChildrenEachParent(ctx, st, acct, region, qsListFolderMembersOp, qsChildNotFound, folders, transient.dropUnlessNXDOMAIN,
 		func() { transient.warnSkipped(st, qsListFolderMembersOp, acct, region) },
 		func(ctx context.Context, p childParent, token *string) ([]qstypes.MemberIdArnPair, *string, error) {
 			out, err := client.ListFolderMembers(ctx, &quicksight.ListFolderMembersInput{AwsAccountId: &id, FolderId: &p.id, MaxResults: sdkaws.Int32(qsPageLimit), NextToken: token})
@@ -1349,12 +1310,13 @@ func scanQSFolderMembers(ctx context.Context, client quickSightAPI, acct *accoun
 }
 
 // scanQSGroupMemberships stores one row per member user of each group the group
-// phase stored, keyed {groupARN}/member/{userARN} (qsStoreChildren). A group
+// phase stored, keyed {groupARN}/member/{userARN} (storeChildrenEachParent). A group
 // still failing transiently after the SDK's retries is skipped under one
 // warning. PreconditionNotMetException and ResourceUnavailableException are
 // modeled for the op, but what they mean on this call is unverified: each
 // skips that group with one warning per code, so that one group QuickSight
-// will not list cannot fail every scan. Any other error is returned.
+// will not list cannot fail every scan. Any other error, an NXDOMAIN
+// included (dropUnlessNXDOMAIN), is returned.
 func scanQSGroupMemberships(ctx context.Context, client quickSightAPI, acct *account, region string, st *store.Store, scanID string, groups []qsGroupRef) (int, int, error) {
 	const why = "QuickSight may refuse the members of a group it cannot list yet or does not manage (unverified)"
 	id := acct.ID
@@ -1373,14 +1335,14 @@ func scanQSGroupMemberships(ctx context.Context, client quickSightAPI, acct *acc
 	skip := func(parent string, err error) bool {
 		return precondition.dropCode("PreconditionNotMetException", parent, err) ||
 			unavailable.dropCode("ResourceUnavailableException", parent, err) ||
-			transient.drop(parent, err)
+			transient.dropUnlessNXDOMAIN(parent, err)
 	}
 	warn := func() {
 		precondition.warnCode(st, qsListGroupMembershipsOp, acct, region, "PreconditionNotMetException", "group(s)", why)
 		unavailable.warnCode(st, qsListGroupMembershipsOp, acct, region, "ResourceUnavailableException", "group(s)", why)
 		transient.warnSkipped(st, qsListGroupMembershipsOp, acct, region)
 	}
-	return qsStoreChildren(ctx, st, acct, region, qsListGroupMembershipsOp, parents, skip, warn,
+	return storeChildrenEachParent(ctx, st, acct, region, qsListGroupMembershipsOp, qsChildNotFound, parents, skip, warn,
 		func(ctx context.Context, p childParent, token *string) ([]qstypes.GroupMember, *string, error) {
 			g := refOf[p.arn]
 			out, err := client.ListGroupMemberships(ctx, &quicksight.ListGroupMembershipsInput{

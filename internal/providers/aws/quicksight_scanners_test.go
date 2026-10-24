@@ -2210,6 +2210,44 @@ func TestScanQuickSight_NXDOMAIN(t *testing.T) {
 	}
 }
 
+// A member listing's NXDOMAIN is returned, never skipped as transient: after
+// the parent phases stored rows the scan fails (resultLateNXDOMAIN); a member
+// phase that stored nothing returns the NXDOMAIN as is, the region gap.
+func TestScanQSMemberPhases_NXDOMAIN(t *testing.T) {
+	nx := &net.DNSError{Err: "no such host", Name: "quicksight.us-east-1.amazonaws.com", IsNotFound: true}
+	for _, p := range qsMemberPhases {
+		t.Run(p.name+"/rows stored", func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, p.op)
+			h := qsMemberTopLevelHandlers()
+			h[strings.TrimPrefix(p.op, "quicksight:")] = func(any) (any, error) { return nil, nx }
+			acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(h, qsNotServed)}
+
+			total, _, err := scanQuickSight(context.Background(), acct, testRegion, st, testScanID)
+			if got := classifyServiceError(err); got != outcomeError {
+				t.Errorf("classifyServiceError = %v; want outcomeError (err %v)", got, err)
+			}
+			if total == 0 {
+				t.Error("total = 0; want the stored rows counted")
+			}
+			if *warns != 0 {
+				t.Errorf("recorded %d warnings; want 0: the NXDOMAIN is returned, not skipped", *warns)
+			}
+		})
+		t.Run(p.name+"/nothing stored", func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, p.op)
+			total, _, err := p.run(t, st, []string{"only"}, func(_, _ string) (*string, error) { return nil, nx })
+			if got := classifyServiceError(err); got != outcomeUnavailable {
+				t.Errorf("classifyServiceError = %v; want outcomeUnavailable (err %v)", got, err)
+			}
+			if total != 0 || *warns != 0 {
+				t.Errorf("total, warnings = %d, %d; want 0, 0", total, *warns)
+			}
+		})
+	}
+}
+
 // A failed write stops the scan: no later phase's op is called, and no tag
 // denial of the lost rows is warned about.
 func TestScanQuickSight_FailedWriteStopsAndSendsNoTagWarning(t *testing.T) {
