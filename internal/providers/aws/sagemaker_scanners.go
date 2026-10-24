@@ -18,7 +18,10 @@ func init() {
 	// SageMaker types are declared per family file via registerType;
 	// scanSageMaker itself upserts nothing, only fans out to family scanners
 	// (studio, training, inference, monitoring, …).
-	registerService(serviceEntry{name: sagemakerService, fn: scanSageMaker})
+	// The name stays a string literal: regionsgen reads registerService names
+	// from the AST and skips any other expression, which drops the service
+	// from the generated region table.
+	registerService(serviceEntry{name: "aws:sagemaker", fn: scanSageMaker})
 }
 
 const sagemakerService = "aws:sagemaker"
