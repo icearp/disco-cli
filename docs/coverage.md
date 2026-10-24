@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 61.0% (2031/3331 listable) · depth0 72.9% · depth1 43.8% · depth2 35.9% · depth3 9.4% · depth4 25.0% · attribute 1623 · excluded 444 · disco-only 1 (0 unexplained)
+**Coverage:** 61.0% (2031/3329 listable) · depth0 72.9% · depth1 43.8% · depth2 35.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 445 · disco-only 1 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -10,7 +10,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 |---|---|---|---|
 | sr-resource | 1045 | 176 | 85.6 |
 | child-uncatalogued | 308 | 708 | 30.3 |
-| smithy-resource | 432 | 130 | 76.9 |
+| smithy-resource | 432 | 128 | 77.1 |
 | element-written | 203 | 209 | 49.3 |
 | element-arn | 36 | 70 | 34.0 |
 | element-created | 7 | 7 | 50.0 |
@@ -40,7 +40,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | comprehend | 5 | 12 | 29.4 |
 | gamelift | 15 | 12 | 55.6 |
 | inspector2 | 6 | 12 | 33.3 |
-| omics | 12 | 12 | 50.0 |
 | partnercentral-selling | 0 | 12 | 0.0 |
 | quicksight | 32 | 12 | 72.7 |
 | wellarchitected | 12 | 12 | 50.0 |
@@ -48,6 +47,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | chime | 13 | 11 | 54.2 |
 | deadline | 16 | 11 | 59.3 |
 | devicefarm | 8 | 11 | 42.1 |
+| omics | 12 | 11 | 52.2 |
 | clouddirectory | 2 | 10 | 16.7 |
 | codecatalyst | 0 | 10 | 0.0 |
 | finspace | 0 | 10 | 0.0 |
@@ -116,7 +116,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | cases | 6 | 4 | 60.0 |
 | cloudtrail | 6 | 4 | 60.0 |
 | codeconnections | 0 | 4 | 0.0 |
-| controltower | 3 | 4 | 42.9 |
 | dynamodb | 4 | 4 | 50.0 |
 | ecs | 10 | 4 | 71.4 |
 | eks | 11 | 4 | 73.3 |
@@ -142,6 +141,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | codedeploy | 3 | 3 | 50.0 |
 | codeguru-reviewer | 1 | 3 | 25.0 |
 | cognito-sync | 0 | 3 | 0.0 |
+| controltower | 3 | 3 | 50.0 |
 | discovery | 0 | 3 | 0.0 |
 | elasticbeanstalk | 5 | 3 | 62.5 |
 | emr-serverless | 1 | 3 | 25.0 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1300)
+### Uncovered (listable, no scanner) (1298)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -702,7 +702,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | controltower | controltower/baseline | 0 |  | smithy-resource | controltower:GetBaseline, controltower:ListBaselines |
 | controltower | controltower/controloperation | 0 |  | smithy-resource | controltower:GetControlOperation, controltower:ListControlOperations |
 | controltower | controltower/landingzoneoperation | 0 |  | smithy-resource | controltower:GetLandingZoneOperation, controltower:ListLandingZoneOperations |
-| controltower | controltower/tagging | 0 |  | smithy-resource | controltower:ListTagsForResource |
 | cost-optimization-hub | cost-optimization-hub/recommendation | 0 |  | element-arn | cost-optimization-hub:ListRecommendations |
 | databrew | databrew/jobrun | 1 |  | child-uncatalogued | databrew:DescribeJobRun, databrew:ListJobRuns |
 | dataexchange | dataexchange/job | 0 |  | sr-resource | dataexchange:GetJob, dataexchange:ListJobs |
@@ -1260,7 +1259,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | omics | omics/referenceimportjob | 1 |  | child-uncatalogued | omics:GetReferenceImportJob, omics:ListReferenceImportJobs |
 | omics | omics/run | 0 |  | smithy-resource | omics:GetRun, omics:ListRuns, omics:ListRunsInBatch |
 | omics | omics/runbatch | 0 |  | smithy-resource | omics:GetBatch, omics:ListBatch |
-| omics | omics/tagging | 0 |  | smithy-resource | omics:ListTagsForResource |
 | omics | omics/task | 1 |  | smithy-resource | omics:GetRunTask, omics:ListRunTasks |
 | omics | omics/variantimportjob | 0 |  | smithy-resource | omics:ListVariantImportJobs |
 | organizations | organizations/children | 2 |  | child-uncatalogued | organizations:ListChildren |

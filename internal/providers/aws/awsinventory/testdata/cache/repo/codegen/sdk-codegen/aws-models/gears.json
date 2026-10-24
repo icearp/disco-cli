@@ -217,6 +217,9 @@
     },
     {
      "target": "gr#ManagedResource"
+    },
+    {
+     "target": "gr#LabelingResource"
     }
    ],
    "traits": {
@@ -312,6 +315,26 @@
     "target": "gr#smithy.api#String"
    },
    "type": "list"
+  },
+  "gr#LabelMap": {
+   "key": {
+    "target": "smithy.api#String"
+   },
+   "type": "map",
+   "value": {
+    "target": "smithy.api#String"
+   }
+  },
+  "gr#LabelingResource": {
+   "identifiers": {
+    "labelKey": {
+     "target": "smithy.api#String"
+    }
+   },
+   "list": {
+    "target": "gr#ListLabelsForResource"
+   },
+   "type": "resource"
   },
   "gr#ListAliases": {
    "input": {
@@ -432,6 +455,37 @@
     },
     "nextToken": {
      "target": "smithy.api#String"
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListLabelsForResource": {
+   "input": {
+    "target": "gr#ListLabelsForResourceRequest"
+   },
+   "output": {
+    "target": "gr#ListLabelsForResourceResponse"
+   },
+   "traits": {
+    "smithy.api#readonly": {}
+   },
+   "type": "operation"
+  },
+  "gr#ListLabelsForResourceRequest": {
+   "members": {
+    "resourceArn": {
+     "target": "smithy.api#String",
+     "traits": {
+      "smithy.api#required": {}
+     }
+    }
+   },
+   "type": "structure"
+  },
+  "gr#ListLabelsForResourceResponse": {
+   "members": {
+    "labels": {
+     "target": "gr#LabelMap"
     }
    },
    "type": "structure"

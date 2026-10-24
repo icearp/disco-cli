@@ -5,9 +5,9 @@
       "service-reference": "5a4568127472"
     },
     "pairing": true,
-    "percent": 60.97268087661363,
+    "percent": 61.00931210573746,
     "covered": 2031,
-    "uncovered": 1300,
+    "uncovered": 1298,
     "coveredKeys": [
       "access-analyzer/analyzer",
       "access-analyzer/archiverule",
@@ -2384,7 +2384,6 @@
       "controltower/baseline",
       "controltower/controloperation",
       "controltower/landingzoneoperation",
-      "controltower/tagging",
       "cost-optimization-hub/recommendation",
       "databrew/jobrun",
       "dataexchange/job",
@@ -2942,7 +2941,6 @@
       "omics/referenceimportjob",
       "omics/run",
       "omics/runbatch",
-      "omics/tagging",
       "omics/task",
       "omics/variantimportjob",
       "organizations/children",

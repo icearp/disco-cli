@@ -74,6 +74,11 @@ func TestExtract_Fixture(t *testing.T) {
 		// shape: its DescribeThings folds into the live thing.
 		"nosr/thing": {sdkinv.ClassCatalog, 0, "", []string{"DescribeThings", "ListThings"}},
 		"nosr/relic": {sdkinv.ClassResource, 0, "", []string{"ListRelics"}},
+
+		// A declared resource whose list answers only a map lists key/value
+		// pairs (controltower TaggingResource): never resource-class.
+		"gears/labeling": {sdkinv.ClassNonResource, 0, "", []string{"ListLabelsForResource"}},
+
 		// gears declares Smithy resource shapes: the model's nesting places
 		// Worker under Fleet although SearchWorkers hangs off Farm; Alias,
 		// declared at the service, nests under Farm by its identifiers.
@@ -426,6 +431,9 @@ func TestExtract_Live(t *testing.T) {
 		// Published rows no write touches stay out of the denominator.
 		"ec2/availabilityzone":          {sdkinv.ClassCatalog, 0, ""},
 		"ec2/reservedinstancesoffering": {sdkinv.ClassCatalog, 0, ""},
+		// Declared TaggingResources whose list answers only a TagMap.
+		"controltower/tagging": {sdkinv.ClassAttribute, 0, ""},
+		"omics/tagging":        {sdkinv.ClassNonResource, 0, ""},
 	}
 	// The names the registries use for a service, derived from the model's
 	// own traits and the operation-name join (#117).

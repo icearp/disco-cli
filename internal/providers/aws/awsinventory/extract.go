@@ -1113,7 +1113,10 @@ func classify(f *opFacts, sr *srService, namespaces map[string]bool, w written) 
 		signals["detail-read"] = true
 		return sdkinv.ClassAttribute, "detail-read"
 	}
-	if f.bound() {
+	// A resource whose list answers no collection lists no instances, e.g.
+	// controltower's TaggingResource, whose list answers only a TagMap of
+	// key/value pairs.
+	if f.bound() && f.coll() {
 		signals["smithy-resource"] = true
 		return sdkinv.ClassResource, "smithy-resource"
 	}
