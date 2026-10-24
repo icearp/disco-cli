@@ -200,6 +200,10 @@ func (s *stubBAC) ListPaymentConnectors(_ context.Context, in *bac.ListPaymentCo
 	return &bac.ListPaymentConnectorsOutput{PaymentConnectors: s.connectors[sv(in.PaymentManagerId)]}, nil
 }
 
+func (s *stubBAC) ListTagsForResource(_ context.Context, _ *bac.ListTagsForResourceInput, _ ...func(*bac.Options)) (*bac.ListTagsForResourceOutput, error) {
+	return &bac.ListTagsForResourceOutput{}, nil
+}
+
 func (s *stubBAC) ListPaymentCredentialProviders(_ context.Context, _ *bac.ListPaymentCredentialProvidersInput, _ ...func(*bac.Options)) (*bac.ListPaymentCredentialProvidersOutput, error) {
 	return &bac.ListPaymentCredentialProvidersOutput{CredentialProviders: s.credProviders}, nil
 }
@@ -222,11 +226,11 @@ func TestScanBACBrowsersAndCodeInterpreters_SystemVsCustom(t *testing.T) {
 		systemCI:       []bactypes.CodeInterpreterSummary{{CodeInterpreterArn: &sysCIArn, CodeInterpreterId: &sc}},
 	}
 
-	if _, _, err := scanBACBrowsers(context.Background(), stub, acct, testRegion, st, testScanID); err != nil {
-		t.Fatalf("browsers: %v", err)
-	}
-	if _, _, err := scanBACCodeInterpreters(context.Background(), stub, acct, testRegion, st, testScanID); err != nil {
-		t.Fatalf("code-interpreters: %v", err)
+	var p phaseTotals
+	scanBACBrowsers(context.Background(), stub, acct, testRegion, st, testScanID, bacTags(stub), &p)
+	scanBACCodeInterpreters(context.Background(), stub, acct, testRegion, st, testScanID, bacTags(stub), &p)
+	if _, _, err := p.result(st, acct, testRegion); err != nil {
+		t.Fatalf("browsers, code-interpreters: %v", err)
 	}
 
 	for _, tc := range []struct {
@@ -252,7 +256,9 @@ func TestScanBACBrowsersAndCodeInterpreters_SystemVsCustom(t *testing.T) {
 func TestScanBACBrowsers_Empty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	total, _, err := scanBACBrowsers(context.Background(), &stubBAC{}, acct, testRegion, st, testScanID)
+	var p phaseTotals
+	scanBACBrowsers(context.Background(), &stubBAC{}, acct, testRegion, st, testScanID, bacTags(&stubBAC{}), &p)
+	total, _, err := p.result(st, acct, testRegion)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

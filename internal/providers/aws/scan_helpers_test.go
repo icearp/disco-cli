@@ -1244,3 +1244,38 @@ func TestStoreParentListTags_ThrottleUnderTagOpAndFailedWrite(t *testing.T) {
 		}
 	})
 }
+
+// resultLateNXDOMAIN flattens an NXDOMAIN once rows were stored, so the
+// dispatcher keeps their counts; with nothing stored the region stays
+// unavailable, and a failed write is left for the dispatcher to see.
+func TestPhaseTotalsResultLateNXDOMAIN(t *testing.T) {
+	nx := &net.DNSError{Err: "no such host", Name: "svc.us-east-1.amazonaws.com", IsNotFound: true}
+	acct := newTestAccount(testAccountID)
+	for _, tc := range []struct {
+		name    string
+		total   int
+		err     error
+		outcome serviceOutcome
+		write   bool
+	}{
+		{"after rows", 1, nx, outcomeError, false},
+		{"nothing stored", 0, nx, outcomeUnavailable, false},
+		{"failed write", 1, errors.Join(fmt.Errorf("%w: refused", store.ErrStoreWrite), nx), outcomeStoreWrite, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			p := phaseTotals{total: tc.total}
+			p.errs.add("svc:List", tc.err)
+			total, _, err := p.resultLateNXDOMAIN(st, acct, testRegion)
+			if total != tc.total {
+				t.Errorf("total = %d; want %d", total, tc.total)
+			}
+			if got := classifyServiceError(err); got != tc.outcome {
+				t.Errorf("classifyServiceError = %v; want %v (err %v)", got, tc.outcome, err)
+			}
+			if tc.write && !isDNSNotFound(err) {
+				t.Errorf("err = %v; want the NXDOMAIN beside the failed write left as is", err)
+			}
+		})
+	}
+}

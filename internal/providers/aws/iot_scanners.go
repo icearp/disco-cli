@@ -464,21 +464,5 @@ func scanIoTFamilies(ctx context.Context, client *iot.Client, acct *account, reg
 		t, i, err := scanIoTAuditSuppressions(ctx, client, acct, region, st, scanID)
 		p.addPhase("iot:ListAuditSuppressions", t, i, err)
 	}
-	return iotResult(&p, st, acct, region)
-}
-
-// iotResult is p's result once each NXDOMAIN among its errors is flattened
-// (lateNXDOMAIN) when rows were stored: those rows prove the endpoint
-// resolved, and the dispatcher would otherwise report the region unavailable
-// and drop their counts. A failed write is left as is, so that the
-// dispatcher still sees it.
-func iotResult(p *phaseTotals, st *store.Store, acct *account, region string) (int, int, error) {
-	if p.total > 0 {
-		for i, f := range p.errs {
-			if !errors.Is(f.err, store.ErrStoreWrite) {
-				p.errs[i].err = lateNXDOMAIN(f.op, f.err)
-			}
-		}
-	}
-	return p.result(st, acct, region)
+	return p.resultLateNXDOMAIN(st, acct, region)
 }

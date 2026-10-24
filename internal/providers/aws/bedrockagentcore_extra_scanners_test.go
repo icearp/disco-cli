@@ -105,6 +105,23 @@ func bacABTest(id string) bacdatatypes.ABTestSummary {
 	}
 }
 
+// bacTaggedPhase is the signature of a phase that stores its rows with tags.
+type bacTaggedPhase func(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool
+
+// runBACPhase runs one tagged phase alone and returns its result.
+func runBACPhase(st *store.Store, stub *stubBAC, phase bacTaggedPhase) (int, int, error) {
+	acct := newTestAccount(testAccountID)
+	var p phaseTotals
+	phase(context.Background(), stub, acct, testRegion, st, testScanID, bacTags(stub), &p)
+	return p.result(st, acct, testRegion)
+}
+
+// runBACCapacityProviders runs the capacity-provider phase alone and returns
+// its result.
+func runBACCapacityProviders(st *store.Store, stub *stubBAC) (int, int, error) {
+	return runBACPhase(st, stub, scanBACCapacityProviders)
+}
+
 // Account-wide lists: both pages stored, an element without an ARN dropped,
 // and each scanner's ARN, name, status and created time carried to the row.
 func TestScanBACAccountLists_TwoPages(t *testing.T) {
@@ -119,7 +136,7 @@ func TestScanBACAccountLists_TwoPages(t *testing.T) {
 				stub := &stubBAC{capacityPages: [][]bactypes.CapacityProviderSummary{
 					{bacCapacityProvider("a"), bacCapacityProvider("")}, {bacCapacityProvider("b")},
 				}}
-				return scanBACCapacityProviders(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+				return runBACCapacityProviders(st, stub)
 			},
 			want: []bacWant{
 				{bacARN(testRegion, testAccountID, "capacity-provider", "a"), TypeBedrockAgentCoreCapacityProvider, "cp-a", "READY", "CapacityProviderId", "a", false},
@@ -132,7 +149,7 @@ func TestScanBACAccountLists_TwoPages(t *testing.T) {
 				stub := &stubBAC{portalPages: [][]bactypes.ConsentPortalSummary{
 					{bacConsentPortal("a"), bacConsentPortal("")}, {bacConsentPortal("b")},
 				}}
-				return scanBACConsentPortals(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+				return runBACPhase(st, stub, scanBACConsentPortals)
 			},
 			want: []bacWant{
 				{bacARN(testRegion, testAccountID, "consent-portal", "a"), TypeBedrockAgentCoreConsentPortal, "portal-a", "ACTIVE", "ConsentPortalId", "a", true},
@@ -170,15 +187,15 @@ func TestScanBACAccountLists_TwoPages(t *testing.T) {
 	}
 }
 
-// Account-wide lists route errors through bacListSkip: empty is not an error,
-// a denial warns and yields nil, any other code propagates.
+// Account-wide lists: empty is not an error, a denial warns and yields nil,
+// a first-page region gap is silent, any other code propagates.
 func TestScanBACAccountLists_Errors(t *testing.T) {
 	scanners := map[string]func(st *store.Store, err error) (int, int, error){
 		"capacity providers": func(st *store.Store, err error) (int, int, error) {
-			return scanBACCapacityProviders(context.Background(), &stubBAC{capacityErr: err}, newTestAccount(testAccountID), testRegion, st, testScanID)
+			return runBACCapacityProviders(st, &stubBAC{capacityErr: err})
 		},
 		"consent portals": func(st *store.Store, err error) (int, int, error) {
-			return scanBACConsentPortals(context.Background(), &stubBAC{portalErr: err}, newTestAccount(testAccountID), testRegion, st, testScanID)
+			return runBACPhase(st, &stubBAC{portalErr: err}, scanBACConsentPortals)
 		},
 		"ab tests": func(st *store.Store, err error) (int, int, error) {
 			return scanBACABTests(context.Background(), &stubBACData{abErr: err}, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -192,6 +209,7 @@ func TestScanBACAccountLists_Errors(t *testing.T) {
 	}{
 		{"empty", nil, "", 0},
 		{"access denied warns", apiErr("AccessDeniedException", "User: x is not authorized to perform: y"), "", 1},
+		{"first-page region gap is silent", apiErr("UnknownOperationException", "gap"), "", 0},
 		{"other error propagates", apiErr("ValidationException", "bad"), "ValidationException", 0},
 	}
 	for name, run := range scanners {
@@ -230,7 +248,7 @@ func bacRateLimit(id string) bactypes.GatewayRateLimitDetail {
 	}
 }
 
-var bacTestGateways = []bacGateway{
+var bacTestGateways = []childParent{
 	{id: "gw-a", arn: bacARN(testRegion, testAccountID, "gateway", "gw-a")},
 	{id: "gw-b", arn: bacARN(testRegion, testAccountID, "gateway", "gw-b")},
 	{id: "gw-c", arn: bacARN(testRegion, testAccountID, "gateway", "gw-c")},
@@ -283,8 +301,9 @@ func bacGatewayChildCases() []bacGatewayChildCase {
 }
 
 // Every gateway is queried, both pages of one gateway are stored, an element
-// without an id is dropped, and a gateway deleted since it was listed
-// (ResourceNotFoundException) is skipped without failing its siblings.
+// without an id is dropped with the one warning, and a gateway deleted since
+// it was listed (ResourceNotFoundException) is skipped silently without
+// failing its siblings.
 func TestScanBACGatewayChildren_FanOut(t *testing.T) {
 	for _, tc := range bacGatewayChildCases() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -299,8 +318,8 @@ func TestScanBACGatewayChildren_FanOut(t *testing.T) {
 			if total != 3 {
 				t.Errorf("total = %d; want 3", total)
 			}
-			if *warns != 0 {
-				t.Errorf("warnings = %d; want 0", *warns)
+			if *warns != 1 {
+				t.Errorf("warnings = %d; want 1, for the element without an id", *warns)
 			}
 			for _, c := range []struct{ gid, id string }{{"gw-a", "x1"}, {"gw-a", "x2"}, {"gw-c", "x3"}} {
 				assertBACRow(t, st, bacWant{
@@ -329,8 +348,9 @@ func TestScanBACGatewayChildren_Errors(t *testing.T) {
 		{"denial warns once and siblings still run", nil, map[string]error{"gw-a": deny, "gw-b": deny}, "", 1, []string{"x3"}},
 		{"denial after a page keeps that page", [][]string{{"x1"}}, map[string]error{"gw-a": deny}, "", 1, []string{"x1", "x3"}},
 		{"region gap skips silently", nil, map[string]error{"gw-a": apiErr("UnknownOperationException", "gap"), "gw-b": apiErr("AuthorizerConfigurationException", "gap")}, "", 0, []string{"x3"}},
-		{"region gap after a page keeps that page", [][]string{{"x1"}}, map[string]error{"gw-a": apiErr("UnknownOperationException", "gap")}, "", 0, []string{"x1", "x3"}},
-		{"other error propagates", nil, map[string]error{"gw-a": apiErr("ValidationException", "bad")}, "ValidationException", 0, nil},
+		{"region-gap code after a page fails and keeps that page", [][]string{{"x1"}}, map[string]error{"gw-a": apiErr("UnknownOperationException", "gap")}, "UnknownOperationException", 0, []string{"x1", "x3"}},
+		{"deleted gateway after a page warns and keeps that page", [][]string{{"x1"}}, map[string]error{"gw-a": apiErr("ResourceNotFoundException", "gone")}, "", 1, []string{"x1", "x3"}},
+		{"other error propagates and siblings still run", nil, map[string]error{"gw-a": apiErr("ValidationException", "bad")}, "ValidationException", 0, []string{"x3"}},
 	}
 	for _, sc := range bacGatewayChildCases() {
 		for _, tc := range cases {

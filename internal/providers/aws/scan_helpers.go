@@ -714,6 +714,23 @@ func lateNXDOMAIN(op string, err error) error {
 	return fmt.Errorf("%s: the endpoint stopped resolving after earlier calls to it succeeded; rescan: %v", op, err)
 }
 
+// resultLateNXDOMAIN is p's result once each NXDOMAIN among its errors is
+// flattened (lateNXDOMAIN) when rows were stored: those rows prove the
+// endpoint resolved, and the dispatcher would otherwise report the region
+// unavailable and drop their counts. A failed write is left as is, so that
+// the dispatcher still sees it. Every NXDOMAIN in p must be from the host the
+// stored rows came from: a phase on another host must not add its own.
+func (p *phaseTotals) resultLateNXDOMAIN(st *store.Store, acct *account, region string) (int, int, error) {
+	if p.total > 0 {
+		for i, f := range p.errs {
+			if !errors.Is(f.err, store.ErrStoreWrite) {
+				p.errs[i].err = lateNXDOMAIN(f.op, f.err)
+			}
+		}
+	}
+	return p.result(st, acct, region)
+}
+
 // containedChild is a child row and the ResourceID of the parent that
 // contains it, or "" when it has no stored parent.
 type containedChild struct {
