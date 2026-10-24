@@ -1,14 +1,14 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
-	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecr"
+	ecrtypes "github.com/aws/aws-sdk-go-v2/service/ecr/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
 )
 
 func init() {
@@ -33,98 +33,94 @@ func init() {
 	})
 }
 
+const (
+	ecrRepositoriesOp = "ecr:DescribeRepositories"
+	ecrListTagsOp     = "ecr:ListTagsForResource"
+	// ecrPageLimit is the model's cap on MaxResults (range 1..1000) for every
+	// ECR and ECR Public listing that sets it.
+	ecrPageLimit int32 = 1000
+)
+
 // ecrAPI is the narrow set of ECR operations called by scanECRRepositories.
 type ecrAPI interface {
 	DescribeRepositories(context.Context, *ecr.DescribeRepositoriesInput, ...func(*ecr.Options)) (*ecr.DescribeRepositoriesOutput, error)
 	ListTagsForResource(context.Context, *ecr.ListTagsForResourceInput, ...func(*ecr.Options)) (*ecr.ListTagsForResourceOutput, error)
 }
 
-// scanECR runs the region's ECR phases in order and stops at the first error.
-func scanECR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanECR runs the region's ECR phases in order. Each phase runs whatever
+// error an earlier phase returned, except a failed store write, which stops
+// the scan; the scanning-configuration phase gets the repositories the first
+// phase stored.
+func scanECR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := ecr.NewFromConfig(acct.cfg, func(o *ecr.Options) { o.Region = region })
 
-	var repos []childParent
-	for _, phase := range []func() (int, int, error){
-		func() (t, i int, err error) {
-			t, i, repos, err = scanECRRepositories(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (int, int, error) {
+	var p phaseTotals
+	repos, stop := scanECRRepositories(ctx, client, acct, region, st, scanID, &p)
+	if stop {
+		return p.result(st, acct, region)
+	}
+	for _, phase := range []struct {
+		op  string
+		run func() (int, int, error)
+	}{
+		{"ecr:DescribePullThroughCacheRules", func() (int, int, error) {
 			return scanECRPullThroughCacheRules(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		{"ecr:ListPullTimeUpdateExclusions", func() (int, int, error) {
 			return scanECRPullTimeUpdateExclusions(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) { return scanECRRegistryPolicy(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+		}},
+		{"ecr:GetRegistryPolicy", func() (int, int, error) {
+			return scanECRRegistryPolicy(ctx, client, acct, region, st, scanID)
+		}},
+		{"ecr:GetRegistryScanningConfiguration", func() (int, int, error) {
 			return scanECRRegistryScanningConfig(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		{"ecr:DescribeRegistry", func() (int, int, error) {
 			return scanECRReplicationConfiguration(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		{"ecr:DescribeRepositoryCreationTemplates", func() (int, int, error) {
 			return scanECRRepositoryCreationTemplates(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
+		}},
+		{"ecr:GetSigningConfiguration", func() (int, int, error) {
 			return scanECRSigningConfiguration(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) { return scanECRPublic(ctx, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanECRRepositoryScanningConfigs(ctx, client, acct, region, st, scanID, repos)
-		},
+		}},
 	} {
-		t, i, ferr := phase()
-		total += t
-		inserted += i
-		if ferr != nil {
-			return total, inserted, ferr
+		t, i, err := phase.run()
+		if p.addPhase(phase.op, t, i, err) {
+			return p.result(st, acct, region)
 		}
 	}
-	return total, inserted, nil
+	if scanECRPublic(ctx, acct, region, st, scanID, &p) {
+		return p.result(st, acct, region)
+	}
+	t, i, err := scanECRRepositoryScanningConfigs(ctx, client, acct, region, st, scanID, repos)
+	p.addPhase("ecr:BatchGetRepositoryScanningConfiguration", t, i, err)
+	return p.result(st, acct, region)
 }
 
-// scanECRRepositories stores the region's repositories and returns the stored
-// ones that have a name (id: name, arn: NativeID), the parents of the
-// scanning-configuration phase.
-func scanECRRepositories(ctx context.Context, client ecrAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, repos []childParent, err error) {
-	pager := ecr.NewDescribeRepositoriesPaginator(client, &ecr.DescribeRepositoriesInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "ecr:DescribeRepositories", acct.ID, region, err)
-			}
-			return 0, 0, nil, fmt.Errorf("ecr:DescribeRepositories: %w", err)
-		}
-
-		// ECR does not return tags from DescribeRepositories; fetch them via
-		// ListTagsForResource concurrently to avoid N sequential API calls.
-		var mu sync.Mutex
-		tagsByARN := make(map[string]*string, len(page.Repositories))
-		g, gctx := errgroup.WithContext(ctx)
-		for _, repo := range page.Repositories {
-			arn := sv(repo.RepositoryArn)
-			g.Go(func() error {
-				out, err := client.ListTagsForResource(gctx, &ecr.ListTagsForResourceInput{ResourceArn: &arn})
-				if err != nil {
-					return nil // tags are best-effort; skip rather than fail the scan
-				}
-				if t := awsTagsJSON(out.Tags); t != nil {
-					mu.Lock()
-					tagsByARN[arn] = t
-					mu.Unlock()
-				}
-				return nil
+// scanECRRepositories stores the region's repositories, each with the tags
+// ListTagsForResource reads for it (DescribeRepositories returns none), and
+// returns the stored ones that have a name (id: name, arn: NativeID), the
+// parents of the scanning-configuration phase. A repository the tag read no
+// longer finds was deleted since it was listed and is not stored. Counts and
+// errors go to p as storeParentListTags says; stop reports a failed write.
+func scanECRRepositories(ctx context.Context, client ecrAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (repos []childParent, stop bool) {
+	return storeParentListTags(ctx, st, acct, region, ecrRepositoriesOp, "repositories", "RepositoryName",
+		func(ctx context.Context, token *string) ([]ecrtypes.Repository, *string, error) {
+			out, err := client.DescribeRepositories(ctx, &ecr.DescribeRepositoriesInput{
+				NextToken: token, MaxResults: sdkaws.Int32(ecrPageLimit),
 			})
-		}
-		if err := g.Wait(); err != nil {
-			return 0, 0, nil, err
-		}
-
-		var batch []*store.Resource
-		for _, repo := range page.Repositories {
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Repositories, out.NextToken, nil
+		},
+		func(repo ecrtypes.Repository) (*store.Resource, string, string) {
 			arn := sv(repo.RepositoryArn)
-			r := &store.Resource{
+			if arn == "" {
+				return nil, "repositories have an empty RepositoryArn", cmp.Or(sv(repo.RepositoryName), "(a repository with no RepositoryName)")
+			}
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -134,24 +130,19 @@ func scanECRRepositories(ctx context.Context, client ecrAPI, acct *account, regi
 				Region:         &region,
 				CreatedAt:      tp(repo.CreatedAt),
 				AttributesJSON: mustJSON(repo),
-				TagsJSON:       tagsByARN[arn],
 				DiscoveredBy:   scanID,
-			}
-			batch = append(batch, r)
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return 0, 0, nil, fmt.Errorf("upsert ECR repositories: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-		for _, r := range batch {
-			if name := sv(r.Name); name != "" {
-				repos = append(repos, childParent{id: name, arn: r.NativeID})
-			}
-		}
-	}
-	return total, inserted, repos, nil
+			}, "", ""
+		},
+		func(repo ecrtypes.Repository) string { return sv(repo.RepositoryName) },
+		rowTagReader{
+			op:       ecrListTagsOp,
+			notFound: []string{"RepositoryNotFoundException"},
+			read: func(ctx context.Context, r *store.Resource) (*string, error) {
+				out, err := client.ListTagsForResource(ctx, &ecr.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
+				if err != nil {
+					return nil, err
+				}
+				return awsTagsJSON(out.Tags), nil
+			},
+		}, p)
 }

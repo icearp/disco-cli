@@ -887,10 +887,179 @@ func storeTokenList[Item any](
 	page func(ctx context.Context, token *string) ([]Item, *string, error),
 	row func(Item) (r *store.Resource, why, key string),
 ) (int, int, error) {
+	return storeTokenListWith(ctx, st, acct, region, op, page, row, keepRows)
+}
+
+// beforeWrite runs on the rows a listing built, before they are stored. It
+// returns the rows to store and a warning to send only once the write
+// succeeded.
+type beforeWrite func(rows []*store.Resource) (kept []*store.Resource, warn func())
+
+// keepRows is the beforeWrite that stores every row and has nothing to warn
+// about.
+func keepRows(rows []*store.Resource) ([]*store.Resource, func()) { return rows, func() {} }
+
+// storeTokenListWith is storeTokenList with before run on the built rows
+// before the write.
+func storeTokenListWith[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (r *store.Resource, why, key string),
+	before beforeWrite,
+) (int, int, error) {
 	var skips notStoredSkips
 	items, err := readTokenPages(ctx, page)
-	rows := buildListedRows(items, row, nil, &skips)
-	return storeReadRows(st, acct, region, op, rows, err, func() { skips.warn(st, op, acct, region) })
+	rows, warn := before(buildListedRows(items, row, nil, &skips))
+	return storeReadRows(st, acct, region, op, rows, err, func() {
+		skips.warn(st, op, acct, region)
+		warn()
+	})
+}
+
+// rowTagReader reads, with op (e.g. "ecr:ListTagsForResource"), the tags of
+// rows built from a response that carries none. read returns one row's
+// TagsJSON (awsTagsJSON, kvTagsJSON or mapTagsJSON: nil for no tags) and picks
+// the identifier op is sent; it runs concurrently, so it must not modify the
+// row. notFound holds the codes op's Smithy model lists for a resource that
+// does not exist; nil when it lists none.
+type rowTagReader struct {
+	op       string
+	notFound []string
+	read     func(context.Context, *store.Resource) (*string, error)
+}
+
+// rowTagRead is one row's read result; both nil for a resource without tags.
+type rowTagRead struct {
+	tags *string
+	err  error
+}
+
+// readRowTags reads the tags of rows through tags, fanoutMed at a time
+// (readEachKey), and sets TagsJSON on each row read. It returns the rows to
+// store, in their order, a warning to send only once they are stored, and the
+// read errors: transient apart from hard, so that phaseErrs can demote the
+// transient one beside a hard error. Per row:
+//   - tags read: TagsJSON is set, nil when the resource has no tags;
+//   - a notFound code: the resource was deleted after it was listed, and the
+//     row is dropped without a warning;
+//   - a denial: the row is kept; warn reports every such row in one warning;
+//   - still transient after the SDK's retries: the row is kept, and every
+//     such row is reported in transient, one error;
+//   - not read, or its read cut short, because ctx ended: the row is kept,
+//     and the stop is one member of hard;
+//   - any other error, an NXDOMAIN included: the row is kept and the error
+//     is a member of hard.
+//
+// A row kept unread keeps the TagsJSON its builder set.
+func readRowTags(ctx context.Context, st *store.Store, acct *account, region string, tags rowTagReader, rows []*store.Resource) (kept []*store.Resource, warn func(), hard, transient error) {
+	reads, stopped := readEachKey(ctx, rows, func(ctx context.Context, r *store.Resource) rowTagRead {
+		t, err := tags.read(ctx, r)
+		return rowTagRead{t, err}
+	})
+	var (
+		denied      skipTally
+		transients  transientTally
+		errs        []error
+		interrupted bool
+	)
+	kept = make([]*store.Resource, 0, len(rows))
+	for i, read := range reads {
+		r := rows[i]
+		// The listing reached op's endpoint, so an NXDOMAIN now is a failure
+		// of this scan, not a region gap (lateNXDOMAIN).
+		switch err := lateNXDOMAIN(tags.op, read.err); {
+		case err == nil:
+			r.TagsJSON = read.tags
+		case ctx.Err() != nil && errors.Is(err, ctx.Err()):
+			interrupted = true
+		case isAPIErrorCode(err, tags.notFound...):
+			continue
+		case isAccessDenied(err):
+			denied.skipped(r.NativeID, err)
+		case transients.drop(r.NativeID, err):
+		default:
+			errs = append(errs, fmt.Errorf("%s %s: %w", tags.op, r.NativeID, err))
+		}
+		kept = append(kept, r)
+	}
+	kept = append(kept, rows[len(reads):]...)
+	// One stop member, whether ctx ended before some reads started or only
+	// during the reads already running.
+	switch {
+	case stopped != nil:
+		errs = append(errs, fmt.Errorf("%s: %w", tags.op, stopped))
+	case interrupted:
+		errs = append(errs, fmt.Errorf("%s: reads cut short: %w", tags.op, ctx.Err()))
+	}
+	if t := &transients.skipTally; t.count > 0 {
+		transient = fmt.Errorf("%s: tags of %d row(s) not read, first %s: %w", tags.op, t.count, t.first, t.err)
+	}
+	warn = func() {
+		if denied.count > 0 {
+			_ = skipIfAccessDenied(st, tags.op, acct.ID, region, fmt.Errorf("%d row(s) stored without tags, first %s: %w", denied.count, denied.first, denied.err))
+		}
+	}
+	return kept, warn, errors.Join(errs...), transient
+}
+
+// rowTagErrs is what readRowTags returned besides the rows, kept by
+// rowTagReader.hook until the write is done.
+type rowTagErrs struct{ hard, transient error }
+
+// hook returns readRowTags through tags as a beforeWrite, leaving the read
+// errors in errs.
+func (tags rowTagReader) hook(ctx context.Context, st *store.Store, acct *account, region string, errs *rowTagErrs) beforeWrite {
+	return func(rows []*store.Resource) (kept []*store.Resource, warn func()) {
+		kept, warn, errs.hard, errs.transient = readRowTags(ctx, st, acct, region, tags, rows)
+		return kept, warn
+	}
+}
+
+// addPhase adds a listing's counts and err to p under op, and the tag reads'
+// errors under tagOp, hard and transient apart so that the transient one is
+// demoted beside a hard error. After a failed write both are joined into err
+// instead: demoted, the transient one would be a warning about rows the write
+// lost. It reports whether the write failed, after which the scanner must
+// stop.
+func (e rowTagErrs) addPhase(p *phaseTotals, tagOp, op string, total, inserted int, err error) (storeWriteFailed bool) {
+	if errors.Is(err, store.ErrStoreWrite) {
+		return p.addPhase(op, total, inserted, errors.Join(err, e.hard, e.transient))
+	}
+	p.errs.add(tagOp, e.hard)
+	p.errs.add(tagOp, e.transient)
+	return p.addPhase(op, total, inserted, err)
+}
+
+// storeRowsTags is storeReadRows with each row's tags read through tags
+// (readRowTags) before the write, for scanners that build their rows
+// themselves. warn (nil for none) and the tag denial warning run only after a
+// successful write. Counts and errors go to p as rowTagErrs.addPhase says; it
+// reports whether the write failed, after which the scanner must stop.
+func storeRowsTags(ctx context.Context, st *store.Store, acct *account, region, op string, rows []*store.Resource, listErr error, warn func(), tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	var errs rowTagErrs
+	rows, tagWarn := tags.hook(ctx, st, acct, region, &errs)(rows)
+	total, inserted, err := storeReadRows(st, acct, region, op, rows, listErr, func() {
+		if warn != nil {
+			warn()
+		}
+		tagWarn()
+	})
+	return errs.addPhase(p, tags.op, op, total, inserted, err)
+}
+
+// storeTokenListTags is storeTokenList with each row's tags read through
+// tags (readRowTags) before the write. Counts and errors go to p as
+// rowTagErrs.addPhase says; it reports whether the write failed, after which
+// the scanner must stop.
+func storeTokenListTags[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (r *store.Resource, why, key string),
+	tags rowTagReader, p *phaseTotals,
+) (storeWriteFailed bool) {
+	var errs rowTagErrs
+	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op, page, row, tags.hook(ctx, st, acct, region, &errs))
+	return errs.addPhase(p, tags.op, op, total, inserted, err)
 }
 
 // storeReadRows stores the rows read from op's listing, which ended with
@@ -1096,26 +1265,62 @@ func storeParentList[Item any](
 	row func(Item) (*store.Resource, string, string),
 	key func(Item) string,
 ) (int, int, []childParent, error) {
+	return storeParentListWith(ctx, st, acct, region, op, what, idField, page, row, key, keepRows)
+}
+
+// storeParentListWith is storeParentList with before run on the built rows
+// before the write; only the rows it keeps are returned as parents.
+func storeParentListWith[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op, what, idField string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (*store.Resource, string, string),
+	key func(Item) string,
+	before beforeWrite,
+) (int, int, []childParent, error) {
 	var (
+		keys    = map[*store.Resource]string{}
 		parents []childParent
 		noID    skipTally
 	)
-	total, inserted, err := storeTokenList(ctx, st, acct, region, op, page, func(it Item) (*store.Resource, string, string) {
+	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op, page, func(it Item) (*store.Resource, string, string) {
 		r, why, k := row(it)
-		switch {
-		case r == nil:
-		case key(it) == "":
-			noID.skipped(r.NativeID, nil)
-		default:
-			parents = append(parents, childParent{id: key(it), arn: r.NativeID})
+		if r != nil {
+			keys[r] = key(it)
 		}
 		return r, why, k
+	}, func(rows []*store.Resource) ([]*store.Resource, func()) {
+		kept, warn := before(rows)
+		for _, r := range kept {
+			if id := keys[r]; id != "" {
+				parents = append(parents, childParent{id: id, arn: r.NativeID})
+			} else {
+				noID.skipped(r.NativeID, nil)
+			}
+		}
+		return kept, warn
 	})
 	if errors.Is(err, store.ErrStoreWrite) {
 		return total, inserted, nil, err
 	}
 	warnNoChildID(st, op, acct, region, &noID, what, idField)
 	return total, inserted, parents, err
+}
+
+// storeParentListTags is storeParentList with each row's tags read through
+// tags (readRowTags) before the write; a row dropped as not found is not
+// returned as a parent. Counts and errors go to p as rowTagErrs.addPhase says.
+// It returns the parents, or storeWriteFailed (and none) when the write
+// failed, after which the scanner must stop.
+func storeParentListTags[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op, what, idField string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (*store.Resource, string, string),
+	key func(Item) string,
+	tags rowTagReader, p *phaseTotals,
+) (parents []childParent, storeWriteFailed bool) {
+	var errs rowTagErrs
+	total, inserted, parents, err := storeParentListWith(ctx, st, acct, region, op, what, idField, page, row, key, tags.hook(ctx, st, acct, region, &errs))
+	return parents, errs.addPhase(p, tags.op, op, total, inserted, err)
 }
 
 // storeParentListDeniedBy is storeParentList for an op whose denial code

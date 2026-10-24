@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"maps"
 	"net"
 	"path/filepath"
 	"regexp"
@@ -814,4 +815,432 @@ func TestReadEachKey_RunsFanoutMedReadsAtOnce(t *testing.T) {
 	if n := running.Load(); n != fanoutMed {
 		t.Errorf("running reads = %d, want %d", n, fanoutMed)
 	}
+}
+
+const (
+	tagTestListOp = "svc:ListThings"
+	tagTestOp     = "svc:ListTagsForResource"
+)
+
+var (
+	tagTestNotFound = apiErr("ResourceNotFoundException", "Thing x not found")
+	tagTestDenied   = apiErr("AccessDeniedException", "User: x is not authorized to perform: svc:ListTagsForResource")
+	tagTestThrottle = apiErr("ThrottlingException", "Rate exceeded")
+	tagTestInvalid  = apiErr("ValidationException", "bad ARN")
+)
+
+// tagTestRow is a listed thing's row, keyed by its id.
+func tagTestRow(id string) (*store.Resource, string, string) {
+	region := testRegion
+	return &store.Resource{Provider: "aws", AccountID: testAccountID, Type: TypeNetworkFirewallProxy, NativeID: id, Region: &region, DiscoveredBy: testScanID}, "", ""
+}
+
+// tagTestReader answers each row's tag read from reads, keyed by NativeID.
+func tagTestReader(reads map[string]rowTagRead) rowTagReader {
+	return rowTagReader{
+		op: tagTestOp, notFound: []string{"ResourceNotFoundException"},
+		read: func(_ context.Context, r *store.Resource) (*string, error) {
+			got := reads[r.NativeID]
+			return got.tags, got.err
+		},
+	}
+}
+
+// storeTaggedThings stores ids, listed on one page, through
+// storeTokenListTags with reads as the tag reads.
+func storeTaggedThings(ctx context.Context, st *store.Store, ids []string, reads map[string]rowTagRead) (*phaseTotals, bool) {
+	var p phaseTotals
+	stop := storeTokenListTags(ctx, st, newTestAccount(testAccountID), testRegion, tagTestListOp,
+		func(context.Context, *string) ([]string, *string, error) { return ids, nil, nil },
+		tagTestRow, tagTestReader(reads), &p)
+	return &p, stop
+}
+
+// Each tag read outcome decides what becomes of its rows, and leaves the
+// sibling row, whose read succeeds, stored with its tags.
+func TestStoreTokenListTags_ReadOutcomes(t *testing.T) {
+	sibling := rowTagRead{tags: mapTagsJSON(map[string]string{"team": "s"})}
+	cases := []struct {
+		name       string
+		read       rowTagRead
+		wantStored bool
+		wantTags   map[string]string
+		wantWarns  int
+		wantErr    serviceOutcome
+		wantCode   string
+	}{
+		{name: "tags read", read: rowTagRead{tags: mapTagsJSON(map[string]string{"env": "prod"})}, wantStored: true, wantTags: map[string]string{"env": "prod"}},
+		{name: "no tags", read: rowTagRead{}, wantStored: true},
+		{name: "not found", read: rowTagRead{err: tagTestNotFound}},
+		{name: "denied", read: rowTagRead{err: tagTestDenied}, wantStored: true, wantWarns: 1},
+		{name: "transient", read: rowTagRead{err: tagTestThrottle}, wantStored: true, wantErr: outcomeTransient, wantCode: "ThrottlingException"},
+		{name: "other error", read: rowTagRead{err: tagTestInvalid}, wantStored: true, wantErr: outcomeError, wantCode: "ValidationException"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			tagWarns := recordWarnings(st)
+			p, stop := storeTaggedThings(context.Background(), st, []string{"x1", "x2", "s"},
+				map[string]rowTagRead{"x1": c.read, "x2": c.read, "s": sibling})
+			_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+			if stop {
+				t.Fatal("stop = true; want false (the write succeeded)")
+			}
+			if c.wantCode == "" {
+				if err != nil {
+					t.Fatalf("err = %v; want nil", err)
+				}
+			} else {
+				assertAPICode(t, err, c.wantCode)
+				if got := classifyServiceError(err); got != c.wantErr {
+					t.Errorf("classifyServiceError = %v; want %v", got, c.wantErr)
+				}
+			}
+			rows := rowsByNativeID(t, st, TypeNetworkFirewallProxy)
+			wantTotal := 1
+			for _, id := range []string{"x1", "x2"} {
+				r, ok := rows[id]
+				if ok != c.wantStored {
+					t.Fatalf("%s stored = %v; want %v", id, ok, c.wantStored)
+				}
+				if !ok {
+					continue
+				}
+				wantTotal++
+				if c.wantTags == nil {
+					if r.TagsJSON != nil {
+						t.Errorf("%s TagsJSON = %s; want nil", id, *r.TagsJSON)
+					}
+				} else {
+					assertTagsMap(t, r.TagsJSON, c.wantTags)
+				}
+			}
+			if p.total != wantTotal {
+				t.Errorf("total = %d; want %d", p.total, wantTotal)
+			}
+			assertTagsMap(t, rows["s"].TagsJSON, map[string]string{"team": "s"})
+			var warns []store.ScanWarning
+			for _, w := range *tagWarns {
+				if w.Service == tagTestOp {
+					warns = append(warns, w)
+				}
+			}
+			if len(warns) != c.wantWarns {
+				t.Fatalf("%s warnings = %v; want %d", tagTestOp, warns, c.wantWarns)
+			}
+			if c.wantWarns > 0 && warns[0].Scope != testAccountID+"/"+testRegion {
+				t.Errorf("warning scope = %q; want %q", warns[0].Scope, testAccountID+"/"+testRegion)
+			}
+		})
+	}
+}
+
+// A transient tag read error stays an error alone, and is demoted to one
+// warning under the tag op beside another phase's hard error.
+func TestStoreTokenListTags_TransientDemotedBesideHardError(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, tagTestOp)
+	p, _ := storeTaggedThings(context.Background(), st, []string{"x"}, map[string]rowTagRead{"x": {err: tagTestThrottle}})
+	p.addPhase("svc:ListOthers", 0, 0, tagTestInvalid)
+	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	if got := classifyServiceError(err); got != outcomeError {
+		t.Errorf("classifyServiceError = %v; want outcomeError", got)
+	}
+	if isAPIErrorCode(err, "ThrottlingException") || errors.Is(err, tagTestThrottle) {
+		t.Errorf("err = %v; want the throttle demoted out of it", err)
+	}
+	if *warns != 1 {
+		t.Errorf("%s warnings = %d; want 1 (the demoted throttle)", tagTestOp, *warns)
+	}
+}
+
+// A failed write sends no warning, since the denial or the demoted throttle
+// would describe rows the write lost; the tag reads' errors, the throttle
+// included, are returned beside it.
+func TestStoreTokenListTags_FailedWriteSendsNoWarning(t *testing.T) {
+	st, closeStore := openClosingStore(t)
+	warns := countWarnings(st)
+	closeStore()
+	p, stop := storeTaggedThings(context.Background(), st, []string{"denied", "invalid", "throttled"},
+		map[string]rowTagRead{"denied": {err: tagTestDenied}, "invalid": {err: tagTestInvalid}, "throttled": {err: tagTestThrottle}})
+	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	if !stop || !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("stop %v, err %v; want true, store.ErrStoreWrite", stop, err)
+	}
+	if !errors.Is(err, tagTestInvalid) || !errors.Is(err, tagTestThrottle) {
+		t.Errorf("err = %v; want the ValidationException and ThrottlingException tag read errors kept", err)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d after a failed write; want 0", *warns)
+	}
+}
+
+// Once ctx has ended no tag is read: every row is stored without tags and the
+// stop is returned.
+func TestStoreTokenListTags_ContextEndedKeepsRows(t *testing.T) {
+	st := newTestStore(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	var p phaseTotals
+	var reads atomic.Int32
+	tags := tagTestReader(nil)
+	tags.read = func(context.Context, *store.Resource) (*string, error) {
+		reads.Add(1)
+		return mapTagsJSON(map[string]string{"k": "v"}), nil
+	}
+	storeTokenListTags(ctx, st, newTestAccount(testAccountID), testRegion, tagTestListOp,
+		func(context.Context, *string) ([]string, *string, error) { return []string{"a", "b"}, nil, nil },
+		tagTestRow, tags, &p)
+	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("err = %v; want context.Canceled", err)
+	}
+	if n := reads.Load(); n != 0 {
+		t.Errorf("tag reads = %d after ctx ended; want 0", n)
+	}
+	rows := rowsByNativeID(t, st, TypeNetworkFirewallProxy)
+	for _, id := range []string{"a", "b"} {
+		r, ok := rows[id]
+		if !ok {
+			t.Fatalf("%s not stored; want it kept without tags", id)
+		}
+		if r.TagsJSON != nil {
+			t.Errorf("%s TagsJSON = %s; want nil", id, *r.TagsJSON)
+		}
+	}
+}
+
+// A row the tag read no longer finds is neither stored nor returned as a
+// parent; a stored row without the child key is warned about and returned as
+// no parent.
+func TestStoreParentListTags_DroppedRowIsNoParent(t *testing.T) {
+	st := newTestStore(t)
+	noID := countOpWarnings(st, tagTestListOp)
+	var p phaseTotals
+	keys := map[string]string{"kept": "k1", "gone": "k2", "nokey": ""}
+	parents, stop := storeParentListTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, "things", "ThingId",
+		func(context.Context, *string) ([]string, *string, error) {
+			return []string{"kept", "gone", "nokey"}, nil, nil
+		},
+		tagTestRow, func(id string) string { return keys[id] },
+		tagTestReader(map[string]rowTagRead{"gone": {err: tagTestNotFound}}), &p)
+	if _, _, err := p.result(st, newTestAccount(testAccountID), testRegion); stop || err != nil {
+		t.Fatalf("stop %v, err %v; want false, nil", stop, err)
+	}
+	if want := []childParent{{id: "k1", arn: "kept"}}; !slices.Equal(parents, want) {
+		t.Errorf("parents = %v; want %v", parents, want)
+	}
+	rows := rowsByNativeID(t, st, TypeNetworkFirewallProxy)
+	if _, ok := rows["gone"]; ok || len(rows) != 2 {
+		t.Errorf("stored %v; want kept and nokey only", slices.Sorted(maps.Keys(rows)))
+	}
+	if *noID != 1 {
+		t.Errorf("%s warnings = %d; want 1 (nokey stored without its child key)", tagTestListOp, *noID)
+	}
+}
+
+// A hard error and a throttle from the same tag op: the hard error alone is
+// returned, and the throttle is one warning under the tag op.
+func TestStoreTokenListTags_HardTagErrorDemotesSameOpThrottle(t *testing.T) {
+	st := newTestStore(t)
+	warns := recordWarnings(st)
+	p, _ := storeTaggedThings(context.Background(), st, []string{"invalid", "throttled"},
+		map[string]rowTagRead{"invalid": {err: tagTestInvalid}, "throttled": {err: tagTestThrottle}})
+	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	assertAPICode(t, err, "ValidationException")
+	if errors.Is(err, tagTestThrottle) {
+		t.Errorf("err = %v; want the throttle demoted out of it", err)
+	}
+	var got []store.ScanWarning
+	for _, w := range *warns {
+		if w.Service == tagTestOp {
+			got = append(got, w)
+		}
+	}
+	if len(got) != 1 || got[0].Scope != testAccountID+"/"+testRegion {
+		t.Errorf("%s warnings = %v; want one scoped %s/%s", tagTestOp, got, testAccountID, testRegion)
+	}
+}
+
+// When ctx ends during the fan-out, the reads it cut short and the rows never
+// read add one stop member between them, and every row is kept.
+func TestStoreTokenListTags_ContextEndedMidFanOut(t *testing.T) {
+	for _, n := range []int{fanoutMed, 3 * fanoutMed} {
+		t.Run(strconv.Itoa(n)+" rows", func(t *testing.T) {
+			st := newTestStore(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			var started atomic.Int32
+			tags := tagTestReader(nil)
+			// The last of the first fanoutMed reads to start cancels ctx, so
+			// every one of them is in flight when it ends.
+			tags.read = func(ctx context.Context, _ *store.Resource) (*string, error) {
+				if started.Add(1) == fanoutMed {
+					cancel()
+				}
+				<-ctx.Done()
+				return nil, fmt.Errorf("operation error: %w", ctx.Err())
+			}
+			ids := make([]string, n)
+			for i := range ids {
+				ids[i] = "r" + strconv.Itoa(i)
+			}
+			var p phaseTotals
+			storeTokenListTags(ctx, st, newTestAccount(testAccountID), testRegion, tagTestListOp,
+				func(context.Context, *string) ([]string, *string, error) { return ids, nil, nil },
+				tagTestRow, tags, &p)
+			_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("err = %v; want context.Canceled", err)
+			}
+			if j, ok := err.(interface{ Unwrap() []error }); !ok || len(j.Unwrap()) != 1 {
+				t.Errorf("err = %v; want exactly one stop member", err)
+			}
+			if got := len(rowsByNativeID(t, st, TypeNetworkFirewallProxy)); got != n {
+				t.Errorf("stored %d rows; want all %d", got, n)
+			}
+		})
+	}
+}
+
+// A tag read error through storeParentListTags keeps the row and its parent
+// and is returned.
+func TestStoreParentListTags_TagErrorReturned(t *testing.T) {
+	st := newTestStore(t)
+	var p phaseTotals
+	parents, _ := storeParentListTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, "things", "ThingId",
+		func(context.Context, *string) ([]string, *string, error) { return []string{"invalid"}, nil, nil },
+		tagTestRow, func(id string) string { return id },
+		tagTestReader(map[string]rowTagRead{"invalid": {err: tagTestInvalid}}), &p)
+	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	assertAPICode(t, err, "ValidationException")
+	if want := []childParent{{id: "invalid", arn: "invalid"}}; !slices.Equal(parents, want) {
+		t.Errorf("parents = %v; want %v", parents, want)
+	}
+}
+
+// storeRowsTags stores a hand-built batch with its tags, runs the caller's
+// warn only after a successful write, and returns the tag errors.
+func TestStoreRowsTags(t *testing.T) {
+	rows := func() []*store.Resource {
+		a, _, _ := tagTestRow("a")
+		b, _, _ := tagTestRow("b")
+		return []*store.Resource{a, b}
+	}
+	tags := tagTestReader(map[string]rowTagRead{"a": {tags: mapTagsJSON(map[string]string{"k": "v"})}, "b": {err: tagTestInvalid}})
+	t.Run("write succeeds", func(t *testing.T) {
+		st := newTestStore(t)
+		warned := 0
+		var p phaseTotals
+		if storeRowsTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, rows(), nil, func() { warned++ }, tags, &p) {
+			t.Fatal("storeWriteFailed = true; want false")
+		}
+		_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+		assertAPICode(t, err, "ValidationException")
+		got := rowsByNativeID(t, st, TypeNetworkFirewallProxy)
+		assertTagsMap(t, got["a"].TagsJSON, map[string]string{"k": "v"})
+		if _, ok := got["b"]; !ok || p.total != 2 || warned != 1 {
+			t.Errorf("b stored %v, total %d, warn ran %d; want true, 2, 1", ok, p.total, warned)
+		}
+	})
+	t.Run("write fails", func(t *testing.T) {
+		st, closeStore := openClosingStore(t)
+		closeStore()
+		warned := 0
+		var p phaseTotals
+		if !storeRowsTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, rows(), nil, func() { warned++ }, tags, &p) {
+			t.Fatal("storeWriteFailed = false; want true")
+		}
+		_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+		if !errors.Is(err, store.ErrStoreWrite) || !errors.Is(err, tagTestInvalid) || warned != 0 {
+			t.Errorf("err %v, warn ran %d; want store.ErrStoreWrite with the tag error, 0", err, warned)
+		}
+	})
+}
+
+// An NXDOMAIN on a tag read, after the listing reached the endpoint, is a
+// hard error of this scan, not a region gap that would discard the counts of
+// the rows stored.
+func TestStoreTokenListTags_NXDOMAINIsHard(t *testing.T) {
+	st := newTestStore(t)
+	dns := &net.DNSError{Err: "no such host", Name: "svc.us-east-1.amazonaws.com", IsNotFound: true}
+	p, _ := storeTaggedThings(context.Background(), st, []string{"a", "b"}, map[string]rowTagRead{"a": {err: dns}})
+	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	if got := classifyServiceError(err); got != outcomeError {
+		t.Errorf("classifyServiceError = %v; want outcomeError", got)
+	}
+	if _, ok := rowsByNativeID(t, st, TypeNetworkFirewallProxy)["a"]; !ok || p.total != 2 {
+		t.Errorf("a stored %v, total %d; want true, 2", ok, p.total)
+	}
+}
+
+// storeRowsTags returns the listing's error with the rows, and sends the tag
+// denial warning only after a successful write, nil warn included.
+func TestStoreRowsTags_ListErrAndDenial(t *testing.T) {
+	listErr := apiErr("InvalidNextTokenException", "bad token")
+	rows := func() []*store.Resource {
+		a, _, _ := tagTestRow("a")
+		return []*store.Resource{a}
+	}
+	tags := tagTestReader(map[string]rowTagRead{"a": {err: tagTestDenied}})
+	t.Run("write succeeds", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countOpWarnings(st, tagTestOp)
+		var p phaseTotals
+		storeRowsTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, rows(), listErr, nil, tags, &p)
+		_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+		if !errors.Is(err, listErr) {
+			t.Errorf("err = %v; want the listing error", err)
+		}
+		if *warns != 1 {
+			t.Errorf("%s warnings = %d; want 1 (the denial)", tagTestOp, *warns)
+		}
+	})
+	t.Run("write fails", func(t *testing.T) {
+		st, closeStore := openClosingStore(t)
+		warns := countWarnings(st)
+		closeStore()
+		var p phaseTotals
+		storeRowsTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, rows(), nil, nil, tags, &p)
+		if *warns != 0 {
+			t.Errorf("warnings = %d after a failed write; want 0", *warns)
+		}
+	})
+}
+
+// storeParentListTags files a tag throttle under the tag op, where it is
+// demoted beside a hard error; after a failed write it returns no parents and
+// warns about none without the child key.
+func TestStoreParentListTags_ThrottleUnderTagOpAndFailedWrite(t *testing.T) {
+	list := func(context.Context, *string) ([]string, *string, error) { return []string{"x", "nokey"}, nil, nil }
+	key := func(id string) string {
+		if id == "nokey" {
+			return ""
+		}
+		return id
+	}
+	tags := tagTestReader(map[string]rowTagRead{"x": {err: tagTestThrottle}})
+	t.Run("throttle", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countOpWarnings(st, tagTestOp)
+		var p phaseTotals
+		storeParentListTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, "things", "ThingId", list, tagTestRow, key, tags, &p)
+		p.addPhase("svc:ListOthers", 0, 0, tagTestInvalid)
+		if _, _, err := p.result(st, newTestAccount(testAccountID), testRegion); errors.Is(err, tagTestThrottle) {
+			t.Errorf("err = %v; want the throttle demoted", err)
+		}
+		if *warns != 1 {
+			t.Errorf("%s warnings = %d; want 1", tagTestOp, *warns)
+		}
+	})
+	t.Run("write fails", func(t *testing.T) {
+		st, closeStore := openClosingStore(t)
+		warns := countWarnings(st)
+		closeStore()
+		var p phaseTotals
+		parents, stop := storeParentListTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, "things", "ThingId", list, tagTestRow, key, tagTestReader(nil), &p)
+		if !stop || parents != nil || *warns != 0 {
+			t.Errorf("stop %v, parents %v, warnings %d; want true, none, 0", stop, parents, *warns)
+		}
+	})
 }
