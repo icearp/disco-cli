@@ -1,6 +1,6 @@
 ## AWS
 
-**Coverage:** 61.0% (2031/3331 listable) · depth0 72.9% · depth1 43.8% · depth2 35.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 444 · disco-only 1 (0 unexplained)
+**Coverage:** 61.0% (2032/3331 listable) · depth0 72.9% · depth1 43.9% · depth2 35.9% · depth3 9.4% · depth4 25.0% · attribute 1624 · excluded 444 · disco-only 1 (0 unexplained)
 
 Pins: aws-sdk-go-v2@release-2026-09-15, service-reference@5a4568127472
 
@@ -8,7 +8,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 
 | Admitting rule | Covered | Uncovered | % |
 |---|---|---|---|
-| sr-resource | 1045 | 176 | 85.6 |
+| sr-resource | 1046 | 175 | 85.7 |
 | child-uncatalogued | 308 | 708 | 30.3 |
 | smithy-resource | 432 | 130 | 76.9 |
 | element-written | 203 | 209 | 49.3 |
@@ -24,9 +24,9 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | config | 13 | 24 | 35.1 |
 | iotsitewise | 13 | 24 | 35.1 |
 | connect | 46 | 22 | 67.6 |
-| bedrock | 27 | 17 | 61.4 |
 | datazone | 19 | 17 | 52.8 |
 | glue | 25 | 17 | 59.5 |
+| bedrock | 28 | 16 | 63.6 |
 | bedrock-agentcore | 30 | 16 | 65.2 |
 | iot | 33 | 16 | 67.3 |
 | lex | 8 | 16 | 33.3 |
@@ -356,7 +356,7 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | vpc-lattice | 15 | 0 | 100.0 |
 | workspaces-instances | 1 | 0 | 100.0 |
 
-### Uncovered (listable, no scanner) (1300)
+### Uncovered (listable, no scanner) (1299)
 
 | Service | Key | Depth | Scope | Rule | Ops |
 | --- | --- | --- | --- | --- | --- |
@@ -469,7 +469,6 @@ The denominator is every candidate the provider's own SDK can list that the extr
 | bedrock | bedrock/invocation | 1 |  | smithy-resource | bedrock:ListInvocations |
 | bedrock | bedrock/invocationstep | 1 |  | smithy-resource | bedrock:GetInvocationStep, bedrock:ListInvocationSteps |
 | bedrock | bedrock/knowledgebasedocument | 0 |  | smithy-resource | bedrock:GetKnowledgeBaseDocuments, bedrock:ListKnowledgeBaseDocuments |
-| bedrock | bedrock/modelcopyjob | 1 |  | sr-resource | bedrock:GetModelCopyJob, bedrock:ListModelCopyJobs, bedrock:ListTagsForResource |
 | bedrock | bedrock/modelcustomizationjob | 1 |  | sr-resource | bedrock:GetModelCustomizationJob, bedrock:ListModelCustomizationJobs |
 | bedrock | bedrock/modelimportjob | 1 |  | sr-resource | bedrock:GetModelImportJob, bedrock:ListModelImportJobs |
 | bedrock | bedrock/modelinvocationjob | 0 |  | smithy-resource | bedrock:GetModelInvocationJob, bedrock:ListModelInvocationJobs |

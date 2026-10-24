@@ -934,32 +934,6 @@ func TestChimeListErr_AvailabilityNoiseSilent(t *testing.T) {
 	}
 }
 
-func TestBedrockDAListErr(t *testing.T) {
-	st := newTestStore(t)
-	warned := false
-	st.OnWarn = func(store.ScanWarning) { warned = true }
-
-	// Region feature gap → silent nil.
-	if err := bedrockDAListErr(st, "op", "1", "us-east-2", apiErr("AccessDeniedException", "library feature is not supported in this region")); err != nil || warned {
-		t.Errorf("region gap: err=%v warned=%v; want nil + no warn", err, warned)
-	}
-	// Empty-body denial = whole service absent in region → unavailable sentinel
-	// (short-circuits to one (region: unavailable) suffix), no warning.
-	warned = false
-	if err := bedrockDAListErr(st, "op", "1", "sa-east-1", apiErr("AccessDeniedException", "")); !errors.Is(err, errServiceUnavailable) || warned {
-		t.Errorf("empty-body: err=%v warned=%v; want errServiceUnavailable + no warn", err, warned)
-	}
-	// A message-bearing denial still warns (nil, but recorded).
-	warned = false
-	if err := bedrockDAListErr(st, "op", "1", "us-east-1", apiErr("AccessDeniedException", "User: arn is not authorized to perform: bedrock:ListBlueprints")); err != nil || !warned {
-		t.Errorf("real denial: err=%v warned=%v; want nil + warn", err, warned)
-	}
-	// Unrelated error propagates.
-	if err := bedrockDAListErr(st, "op", "1", "us-east-1", apiErr("ThrottlingException", "slow down")); err == nil {
-		t.Error("unrelated error must propagate")
-	}
-}
-
 // A real store-write failure must carry store.ErrStoreWrite (so the dispatcher's
 // first rung can identify it) and must satisfy none of the ladder's skip
 // predicates below that rung — each of which would suppress the error or

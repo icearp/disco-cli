@@ -69,7 +69,7 @@ func init() {
 
 // noopBedrockHierarchy emits nothing: the agent → version / action-group /
 // knowledge-base / collaborator and automated-reasoning-policy → test-case
-// contains edges are written at scan time by childFanOut (scanBedrockAgentVersions,
+// contains edges are written at scan time by storeChildrenEachParent (scanBedrockAgentVersions,
 // scanBedrockAgentActionGroups, scanBedrockAgentKnowledgeBases,
 // scanBedrockAgentCollaborators, scanBedrockARPolicyTestCases). It is registered
 // only so those edges are declared to coverage tooling.

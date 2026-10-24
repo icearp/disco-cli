@@ -1,462 +1,240 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"strings"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
+	bedrocktypes "github.com/aws/aws-sdk-go-v2/service/bedrock/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanBedrockFoundation returns the automated-reasoning policy ARNs for
-// scanBedrockClients' per-policy test-case phase.
-func scanBedrockFoundation(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (policyArns []string, total, inserted int, err error) {
-	guardIDs, t, i, ferr := scanBedrockGuardrails(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return nil, 0, 0, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanBedrockGuardrailVersions(ctx, client, acct, region, st, scanID, guardIDs)
-	if ferr != nil {
-		return policyArns, total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	policyArns, t, i, ferr = scanBedrockARPolicies(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return policyArns, total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanBedrockARPolicyVersions(ctx, client, acct, region, st, scanID, policyArns)
-	if ferr != nil {
-		return policyArns, total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanBedrockPromptRouters(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanBedrockInferenceProfiles(ctx, client, acct, region, st, scanID)
+// scanBedrockGuardrails stores the region's guardrails with their tags and
+// returns the stored ones that carry an Id, the parents of the
+// guardrail-version phase. A first page refused by an SCP's explicit deny
+// ends the listing silently.
+func scanBedrockGuardrails(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (guardrails []childParent, storeWriteFailed bool) {
+	return storeParentListTags(ctx, st, acct, region, "bedrock:ListGuardrails", "guardrails", "Id",
+		bacPages(isSCPExplicitDeny, func(ctx context.Context, token *string) ([]bedrocktypes.GuardrailSummary, *string, error) {
+			out, err := client.ListGuardrails(ctx, &bedrock.ListGuardrailsInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Guardrails, out.NextToken, nil
+		}),
+		func(g bedrocktypes.GuardrailSummary) (*store.Resource, string, string) {
+			return bacRow(acct, region, scanID, TypeBedrockGuardrail, "guardrails", g.Arn, cmp.Or(sv(g.Name), sv(g.Id)), sv(g.Id), g)
 		},
-		func() (int, int, error) {
-			return scanBedrockEnforcedGuardrails(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
-			return scanBedrockFoundationModels(ctx, client, acct, region, st, scanID)
-		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return policyArns, total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return policyArns, total, inserted, nil
+		func(g bedrocktypes.GuardrailSummary) string { return sv(g.Id) },
+		tags, p)
 }
 
-func scanBedrockGuardrails(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := bedrock.NewListGuardrailsPaginator(client, &bedrock.ListGuardrailsInput{})
-	var ids []string
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isSCPExplicitDeny(perr) {
-				return nil, 0, 0, nil
-			}
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "bedrock:ListGuardrails", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("bedrock:ListGuardrails: %w", perr)
-		}
-		for _, g := range out.Guardrails {
-			arn := sv(g.Arn)
-			if arn == "" {
-				continue
-			}
-			ids = append(ids, sv(g.Id))
-			label := sv(g.Name)
-			if label == "" {
-				label = sv(g.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBedrockGuardrail,
-				NativeID:       arn,
-				Name:           &label,
-				Region:         &region,
-				AttributesJSON: mustJSON(g),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return ids, 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return ids, 0, 0, fmt.Errorf("upsert bedrock guardrails: %w", uerr)
-	}
-	return ids, len(batch), n, nil
+// isBedrockARGap reports the first-page refusals of
+// ListAutomatedReasoningPolicies that mean the feature is not offered to this
+// account or region: the canned 403 "Your account is not authorized to invoke
+// this API operation" (a real IAM deny names the action: "User: arn:... is
+// not authorized to perform: <action>"), the empty-body AccessDeniedException
+// of its region-gap variant, and an SCP's explicit deny.
+func isBedrockARGap(err error) bool {
+	return isAccessDeniedWithMessage(err, "not authorized to invoke this API operation") ||
+		isClosedToNewCustomers(err) || isSCPExplicitDeny(err)
 }
 
-// scanBedrockGuardrailVersions calls ListGuardrails(GuardrailIdentifier=id)
-// per-guardrail — when set, returns versions of that guardrail.
+// scanBedrockARPolicies stores the region's automated-reasoning policies with
+// their tags and returns the stored ones, keyed by ARN, the parents of the
+// policy-version and test-case phases.
+func scanBedrockARPolicies(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (policies []childParent, storeWriteFailed bool) {
+	return storeParentListTags(ctx, st, acct, region, "bedrock:ListAutomatedReasoningPolicies", "automated-reasoning policies", "PolicyArn",
+		bacPages(isBedrockARGap, func(ctx context.Context, token *string) ([]bedrocktypes.AutomatedReasoningPolicySummary, *string, error) {
+			out, err := client.ListAutomatedReasoningPolicies(ctx, &bedrock.ListAutomatedReasoningPoliciesInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.AutomatedReasoningPolicySummaries, out.NextToken, nil
+		}),
+		func(pol bedrocktypes.AutomatedReasoningPolicySummary) (*store.Resource, string, string) {
+			return bacRow(acct, region, scanID, TypeBedrockAutomatedReasoningPolicy, "automated-reasoning policies",
+				pol.PolicyArn, cmp.Or(sv(pol.Name), sv(pol.PolicyId)), sv(pol.PolicyId), pol)
+		},
+		func(pol bedrocktypes.AutomatedReasoningPolicySummary) string { return sv(pol.PolicyArn) },
+		tags, p)
+}
+
+// isBedrockRouterGap reports the first-page refusals of ListPromptRouters
+// that mean the op is not deployed in this region: two ValidationException
+// shapes, the older "operation is not recognized" and the newer canned "You
+// don't have the permissions to perform the requested operation.", and an
+// SCP's explicit deny. A real IAM denial is an AccessDeniedException naming
+// the action, and is warned about.
+func isBedrockRouterGap(err error) bool {
+	return isAPIErrorWithMessage(err, "ValidationException", "operation is not recognized") ||
+		isAPIErrorWithMessage(err, "ValidationException", "don't have the permissions to perform the requested operation") ||
+		isSCPExplicitDeny(err)
+}
+
+// scanBedrockPromptRouters stores the region's prompt routers with their
+// tags. AWS-supplied default routers carry Type "default" and are
+// ManagedByProvider, so their tags are not read (bedrockTags).
+func scanBedrockPromptRouters(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "bedrock:ListPromptRouters",
+		bacPages(isBedrockRouterGap, func(ctx context.Context, token *string) ([]bedrocktypes.PromptRouterSummary, *string, error) {
+			out, err := client.ListPromptRouters(ctx, &bedrock.ListPromptRoutersInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.PromptRouterSummaries, out.NextToken, nil
+		}),
+		func(r bedrocktypes.PromptRouterSummary) (*store.Resource, string, string) {
+			row, why, key := bacRow(acct, region, scanID, TypeBedrockIntelligentPromptRouter, "prompt routers",
+				r.PromptRouterArn, cmp.Or(sv(r.PromptRouterName), sv(r.PromptRouterArn)), sv(r.PromptRouterName), r)
+			if row != nil {
+				// The SDK enum is lowercase; a case-insensitive match guards against drift.
+				row.ManagedByProvider = strings.EqualFold(string(r.Type), "Default")
+			}
+			return row, why, key
+		}, tags, p)
+}
+
+// scanBedrockInferenceProfiles stores APPLICATION profiles (customer-created)
+// as aws:bedrock:application-inference-profile and SYSTEM_DEFINED profiles
+// (the AWS-managed cross-region routing catalog) as
+// aws:bedrock:inference-profile with ManagedByProvider set, so only the
+// application profiles' tags are read (bedrockTags). A first page refused by
+// an SCP's explicit deny ends the listing silently.
+func scanBedrockInferenceProfiles(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "bedrock:ListInferenceProfiles",
+		bacPages(isSCPExplicitDeny, func(ctx context.Context, token *string) ([]bedrocktypes.InferenceProfileSummary, *string, error) {
+			out, err := client.ListInferenceProfiles(ctx, &bedrock.ListInferenceProfilesInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.InferenceProfileSummaries, out.NextToken, nil
+		}),
+		func(ip bedrocktypes.InferenceProfileSummary) (*store.Resource, string, string) {
+			typ, managed := TypeBedrockApplicationInferenceProfile, false
+			if ip.Type != bedrocktypes.InferenceProfileTypeApplication {
+				typ, managed = TypeBedrockInferenceProfile, true
+			}
+			r, why, key := bacRow(acct, region, scanID, typ, "inference profiles",
+				ip.InferenceProfileArn, cmp.Or(sv(ip.InferenceProfileName), sv(ip.InferenceProfileId)), sv(ip.InferenceProfileId), ip)
+			if r != nil {
+				r.ManagedByProvider = managed
+			}
+			return r, why, key
+		}, tags, p)
+}
+
+// withoutDraft drops the DRAFT entry from a version listing: DRAFT is the
+// parent's working copy, which the parent's own row already represents.
+func withoutDraft[Item any](items []Item, version func(Item) *string) []Item {
+	kept := items[:0:0]
+	for _, it := range items {
+		if sv(version(it)) != "DRAFT" {
+			kept = append(kept, it)
+		}
+	}
+	return kept
+}
+
+// bedrockVersionRow is the row of a version whose list element carries its
+// parent's ARN rather than its own, stored under that ARN and the version.
+// An element without either gives no row: the reason names the items
+// (what), and key, the parent, names the item in the warning about them.
+func bedrockVersionRow(acct *account, region, scanID, typ, what string, parentARN, version *string, key string, item any) (*store.Resource, string, string) {
+	ver := sv(version)
+	switch {
+	case sv(parentARN) == "":
+		return nil, what + " have an empty ARN", cmp.Or(ver, "(a version with no number)") + " of " + key
+	case ver == "":
+		return nil, what + " have an empty Version", "a version of " + key
+	}
+	return bacRowAt(acct, region, scanID, typ, sv(parentARN)+":"+ver, ver, item), "", ""
+}
+
+// scanBedrockGuardrailVersions lists the versions of each guardrail the
+// guardrail phase stored (ListGuardrails with GuardrailIdentifier set),
+// concurrently (storeTokenEachParent). A version's element carries the
+// guardrail's ARN, since GuardrailArn's pattern admits no version, so its
+// NativeID is that ARN and the version. A guardrail ResourceNotFoundException
+// says was deleted since it was listed is skipped; a denial is warned about.
 func scanBedrockGuardrailVersions(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, guardrailIDs []string) (int, int, error) {
-	if len(guardrailIDs) == 0 {
-		return 0, 0, nil
-	}
-	var batch []*store.Resource
-	for _, gid := range guardrailIDs {
-		id := gid
-		pager := bedrock.NewListGuardrailsPaginator(client, &bedrock.ListGuardrailsInput{GuardrailIdentifier: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("bedrock:ListGuardrails(versions) %s: %w", gid, perr)
+	return storeTokenEachParent(ctx, st, acct, region, "bedrock:ListGuardrails", []string{"ResourceNotFoundException"}, guardrailIDs,
+		func(ctx context.Context, id string, token *string) ([]bedrocktypes.GuardrailSummary, *string, error) {
+			out, err := client.ListGuardrails(ctx, &bedrock.ListGuardrailsInput{GuardrailIdentifier: &id, NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, g := range out.Guardrails {
-				arn := sv(g.Arn)
-				ver := sv(g.Version)
-				if arn == "" || ver == "" || ver == "DRAFT" {
-					continue
-				}
-				vlabel := ver
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeBedrockGuardrailVersion, NativeID: arn + ":" + ver,
-					Name: &vlabel, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-				})
-			}
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert bedrock guardrail-versions: %w", uerr)
-	}
-	return len(batch), n, nil
+			return withoutDraft(out.Guardrails, func(g bedrocktypes.GuardrailSummary) *string { return g.Version }), out.NextToken, nil
+		},
+		func(id string, g bedrocktypes.GuardrailSummary) (*store.Resource, string, string) {
+			return bedrockVersionRow(acct, region, scanID, TypeBedrockGuardrailVersion, "guardrail versions", g.Arn, g.Version, "guardrail "+id, g)
+		})
 }
 
-func scanBedrockARPolicies(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := bedrock.NewListAutomatedReasoningPoliciesPaginator(client, &bedrock.ListAutomatedReasoningPoliciesInput{})
-	var arns []string
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			// Feature-gap canned 403 ("Your account is not authorized to invoke this
-			// API operation"), distinct from per-action IAM-deny ("User: arn:... is not
-			// authorized to perform: <action>"). AR Policies is gated to limited
-			// regions/accounts.
-			if isAccessDeniedWithMessage(perr, "not authorized to invoke this API operation") {
-				return nil, 0, 0, nil
+// scanBedrockARPolicyVersions lists the versions of each automated-reasoning
+// policy the policy phase stored (ListAutomatedReasoningPolicies with
+// PolicyArn set), concurrently (storeTokenEachParent), stored under
+// {PolicyArn}:{Version}. Whether a version's PolicyArn already ends in that
+// version is not settled: its doc says "The ARN of the policy", while its
+// pattern admits a ":N" suffix. So the NativeID keeps its shape, and the
+// version's tags are not read, since a doubled suffix would send the tag op
+// an ARN naming no resource. A policy ResourceNotFoundException says was
+// deleted since it was listed is skipped; a denial is warned about.
+func scanBedrockARPolicyVersions(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, policyARNs []string) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, "bedrock:ListAutomatedReasoningPolicies", []string{"ResourceNotFoundException"}, policyARNs,
+		func(ctx context.Context, arn string, token *string) ([]bedrocktypes.AutomatedReasoningPolicySummary, *string, error) {
+			out, err := client.ListAutomatedReasoningPolicies(ctx, &bedrock.ListAutomatedReasoningPoliciesInput{PolicyArn: &arn, NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			// Empty-body AccessDeniedException is the region-gap variant of the same
-			// feature gate — AR Policies isn't offered here (a real IAM deny always
-			// names the action in the message).
-			if isClosedToNewCustomers(perr) {
-				return nil, 0, 0, nil
-			}
-			if isSCPExplicitDeny(perr) {
-				return nil, 0, 0, nil
-			}
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "bedrock:ListAutomatedReasoningPolicies", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("bedrock:ListAutomatedReasoningPolicies: %w", perr)
-		}
-		for _, p := range out.AutomatedReasoningPolicySummaries {
-			arn := sv(p.PolicyArn)
-			if arn == "" {
-				continue
-			}
-			arns = append(arns, arn)
-			label := sv(p.Name)
-			if label == "" {
-				label = sv(p.PolicyId)
-			}
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBedrockAutomatedReasoningPolicy,
-				NativeID:       arn,
-				Name:           &label,
-				Region:         &region,
-				AttributesJSON: mustJSON(p),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return arns, 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return arns, 0, 0, fmt.Errorf("upsert bedrock automated-reasoning-policies: %w", uerr)
-	}
-	return arns, len(batch), n, nil
-}
-
-// scanBedrockARPolicyVersions calls ListAutomatedReasoningPolicies with
-// PolicyArn set per-policy — returns versions of that policy.
-func scanBedrockARPolicyVersions(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, policyArns []string) (int, int, error) {
-	if len(policyArns) == 0 {
-		return 0, 0, nil
-	}
-	var batch []*store.Resource
-	for _, pa := range policyArns {
-		arnRef := pa
-		pager := bedrock.NewListAutomatedReasoningPoliciesPaginator(client, &bedrock.ListAutomatedReasoningPoliciesInput{PolicyArn: &arnRef})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("bedrock:ListAutomatedReasoningPolicies(versions) %s: %w", pa, perr)
-			}
-			for _, p := range out.AutomatedReasoningPolicySummaries {
-				arn := sv(p.PolicyArn)
-				ver := sv(p.Version)
-				if arn == "" || ver == "" || ver == "DRAFT" {
-					continue
-				}
-				vlabel := ver
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeBedrockAutomatedReasoningPolicyVersion, NativeID: arn + ":" + ver,
-					Name: &vlabel, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-				})
-			}
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert bedrock automated-reasoning-policy-versions: %w", uerr)
-	}
-	return len(batch), n, nil
-}
-
-func scanBedrockPromptRouters(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := bedrock.NewListPromptRoutersPaginator(client, &bedrock.ListPromptRoutersInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			// Op not deployed in this region. AWS returns two feature-gap shapes under
-			// ValidationException — older "operation is not recognized" and newer canned
-			// "You don't have the permissions to perform the requested operation." Real
-			// IAM denials surface as AccessDeniedException with an action-identifying
-			// body, routed through skipIfAccessDenied below.
-			if isAPIErrorWithMessage(perr, "ValidationException", "operation is not recognized") ||
-				isAPIErrorWithMessage(perr, "ValidationException", "don't have the permissions to perform the requested operation") {
-				return 0, 0, nil
-			}
-			if isSCPExplicitDeny(perr) {
-				return 0, 0, nil
-			}
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "bedrock:ListPromptRouters", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("bedrock:ListPromptRouters: %w", perr)
-		}
-		for _, p := range out.PromptRouterSummaries {
-			arn := sv(p.PromptRouterArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(p.PromptRouterName)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider:    "aws",
-				AccountID:   acct.ID,
-				AccountName: &acct.Name,
-				Type:        TypeBedrockIntelligentPromptRouter,
-				NativeID:    arn,
-				Name:        &label,
-				Region:      &region,
-				// AWS-supplied default routers carry Type="Default"; customer-defined carry
-				// "Custom". SDK enum is lowercase; case-insensitive match guards against drift.
-				ManagedByProvider: strings.EqualFold(string(p.Type), "Default"),
-				AttributesJSON:    mustJSON(p),
-				DiscoveredBy:      scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert bedrock prompt-routers: %w", uerr)
-	}
-	return len(batch), n, nil
-}
-
-// scanBedrockInferenceProfiles emits APPLICATION profiles (customer-created) as
-// aws:bedrock:application-inference-profile and SYSTEM_DEFINED profiles (the
-// AWS-managed cross-region routing catalog) as aws:bedrock:inference-profile
-// with ManagedByProvider set.
-func scanBedrockInferenceProfiles(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := bedrock.NewListInferenceProfilesPaginator(client, &bedrock.ListInferenceProfilesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isSCPExplicitDeny(perr) {
-				return 0, 0, nil
-			}
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "bedrock:ListInferenceProfiles", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("bedrock:ListInferenceProfiles: %w", perr)
-		}
-		for _, p := range out.InferenceProfileSummaries {
-			arn := sv(p.InferenceProfileArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(p.InferenceProfileName)
-			if label == "" {
-				label = sv(p.InferenceProfileId)
-			}
-			rtype := TypeBedrockApplicationInferenceProfile
-			managed := false
-			if string(p.Type) != "APPLICATION" {
-				// SYSTEM_DEFINED — AWS-managed cross-region routing profile.
-				rtype = TypeBedrockInferenceProfile
-				managed = true
-			}
-			batch = append(batch, &store.Resource{
-				Provider:          "aws",
-				AccountID:         acct.ID,
-				AccountName:       &acct.Name,
-				Type:              rtype,
-				NativeID:          arn,
-				Name:              &label,
-				Region:            &region,
-				ManagedByProvider: managed,
-				AttributesJSON:    mustJSON(p),
-				DiscoveredBy:      scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert bedrock inference-profiles: %w", uerr)
-	}
-	return len(batch), n, nil
+			return withoutDraft(out.AutomatedReasoningPolicySummaries, func(p bedrocktypes.AutomatedReasoningPolicySummary) *string { return p.Version }), out.NextToken, nil
+		},
+		func(arn string, p bedrocktypes.AutomatedReasoningPolicySummary) (*store.Resource, string, string) {
+			return bedrockVersionRow(acct, region, scanID, TypeBedrockAutomatedReasoningPolicyVersion, "automated-reasoning policy versions", p.PolicyArn, p.Version, "policy "+arn, p)
+		})
 }
 
 // scanBedrockFoundationModels mirrors the AWS catalog of available foundation
-// models (ListFoundationModels — a single call, no pagination). Flagged
-// ManagedByProvider: it's an AWS-owned catalog, hidden from default queries.
+// models (ListFoundationModels, a single unpaginated call). The type's
+// descriptor flags the rows ManagedByProvider: it's an AWS-owned catalog,
+// hidden from default queries. A refusal by an SCP's explicit deny ends the
+// listing silently.
 func scanBedrockFoundationModels(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	out, err := client.ListFoundationModels(ctx, &bedrock.ListFoundationModelsInput{})
-	if err != nil {
-		if isSCPExplicitDeny(err) {
-			return 0, 0, nil
-		}
-		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "bedrock:ListFoundationModels", acct.ID, region, err)
-		}
-		return 0, 0, fmt.Errorf("bedrock:ListFoundationModels: %w", err)
-	}
-	var batch []*store.Resource
-	for _, m := range out.ModelSummaries {
-		arn := sv(m.ModelArn)
-		if arn == "" {
-			continue
-		}
-		label := sv(m.ModelName)
-		if label == "" {
-			label = sv(m.ModelId)
-		}
-		batch = append(batch, &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeBedrockFoundationModel,
-			NativeID:       arn,
-			Name:           &label,
-			Region:         &region,
-			AttributesJSON: mustJSON(m),
-			DiscoveredBy:   scanID,
+	return storeTokenList(ctx, st, acct, region, "bedrock:ListFoundationModels",
+		bacPages(isSCPExplicitDeny, func(ctx context.Context, _ *string) ([]bedrocktypes.FoundationModelSummary, *string, error) {
+			out, err := client.ListFoundationModels(ctx, &bedrock.ListFoundationModelsInput{})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ModelSummaries, nil, nil
+		}),
+		func(m bedrocktypes.FoundationModelSummary) (*store.Resource, string, string) {
+			return bacRow(acct, region, scanID, TypeBedrockFoundationModel, "foundation models", m.ModelArn, cmp.Or(sv(m.ModelName), sv(m.ModelId)), sv(m.ModelId), m)
 		})
-	}
-	return upsertBatch(st, batch, "bedrock foundation-models")
 }
 
+// scanBedrockEnforcedGuardrails stores the account's enforced guardrail
+// configurations, those read before a failed page included. The element
+// carries no ARN; its NativeID is built from ConfigId. A first page refused by
+// an SCP's explicit deny ends the listing silently.
 func scanBedrockEnforcedGuardrails(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := bedrock.NewListEnforcedGuardrailsConfigurationPaginator(client, &bedrock.ListEnforcedGuardrailsConfigurationInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isSCPExplicitDeny(perr) {
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, "bedrock:ListEnforcedGuardrailsConfiguration",
+		bacPages(isSCPExplicitDeny, func(ctx context.Context, token *string) ([]bedrocktypes.AccountEnforcedGuardrailOutputConfiguration, *string, error) {
+			out, err := client.ListEnforcedGuardrailsConfiguration(ctx, &bedrock.ListEnforcedGuardrailsConfigurationInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "bedrock:ListEnforcedGuardrailsConfiguration", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("bedrock:ListEnforcedGuardrailsConfiguration: %w", perr)
-		}
-		for _, g := range out.GuardrailsConfig {
+			return out.GuardrailsConfig, out.NextToken, nil
+		}),
+		func(g bedrocktypes.AccountEnforcedGuardrailOutputConfiguration) (*store.Resource, string, string) {
 			id := sv(g.ConfigId)
 			if id == "" {
-				continue
+				return nil, "enforced guardrail configurations have an empty ConfigId", cmp.Or(sv(g.GuardrailArn), "(a configuration with no guardrail)")
 			}
 			arn := fmt.Sprintf("arn:aws:bedrock:%s:%s:enforced-guardrail-configuration/%s", region, acct.ID, id)
-			label := id
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBedrockEnforcedGuardrailConfiguration,
-				NativeID:       arn,
-				Name:           &label,
-				Region:         &region,
-				AttributesJSON: mustJSON(g),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert bedrock enforced-guardrails: %w", uerr)
-	}
-	return len(batch), n, nil
+			return bacRowAt(acct, region, scanID, TypeBedrockEnforcedGuardrailConfiguration, arn, id, g), "", ""
+		})
 }

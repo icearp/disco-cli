@@ -2,9 +2,10 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrock"
+	bedrocktypes "github.com/aws/aws-sdk-go-v2/service/bedrock/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -17,208 +18,134 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeBedrockCustomModelDeployment, Service: "bedrock"})
 }
 
-// bedrockModelsAPI is the narrow Bedrock surface the model scanners use. All
-// five List ops are blanket-callable (no required input).
-type bedrockModelsAPI interface {
-	ListCustomModels(context.Context, *bedrock.ListCustomModelsInput, ...func(*bedrock.Options)) (*bedrock.ListCustomModelsOutput, error)
-	ListImportedModels(context.Context, *bedrock.ListImportedModelsInput, ...func(*bedrock.Options)) (*bedrock.ListImportedModelsOutput, error)
-	ListProvisionedModelThroughputs(context.Context, *bedrock.ListProvisionedModelThroughputsInput, ...func(*bedrock.Options)) (*bedrock.ListProvisionedModelThroughputsOutput, error)
-	ListCustomModelDeployments(context.Context, *bedrock.ListCustomModelDeploymentsInput, ...func(*bedrock.Options)) (*bedrock.ListCustomModelDeploymentsOutput, error)
-	ListMarketplaceModelEndpoints(context.Context, *bedrock.ListMarketplaceModelEndpointsInput, ...func(*bedrock.Options)) (*bedrock.ListMarketplaceModelEndpointsOutput, error)
+// isBedrockModelsGap reports the first-page refusals of a model listing that
+// mean the op is not offered to this account or region, so the listing ends
+// silently:
+//   - an SCP's explicit deny;
+//   - newer sub-features (custom-model deployments, Marketplace endpoints)
+//     are not deployed in every Bedrock region, and AWS rejects the op with a
+//     ValidationException reading "operation is not recognized" or "don't
+//     have the permissions to perform the requested operation";
+//   - some regions reject a not-yet-deployed op outright, with a 400/404
+//     UnknownOperationException or a ValidationException reading "Unknown
+//     operation" (casing varies by region), or with an HTML 404 page the SDK
+//     fails to decode. UnknownOperationException and the HTML 404 are not
+//     codes these ops model: they are gateway answers observed in those
+//     regions, exceptions to the rule that a skip names only modeled codes
+//     (#14);
+//   - ListImportedModels and ListMarketplaceModelEndpoints are account
+//     opt-in sub-features: an account not enrolled is refused with "not
+//     authorized to invoke this API operation" while the rest of Bedrock
+//     works.
+//
+// A real IAM denial names the action and is warned about.
+func isBedrockModelsGap(err error) bool {
+	return isSCPExplicitDeny(err) ||
+		isAPIErrorWithMessage(err, "ValidationException", "operation is not recognized") ||
+		isAPIErrorWithMessage(err, "ValidationException", "don't have the permissions to perform the requested operation") ||
+		isAPIErrorCode(err, "UnknownOperationException") ||
+		isAPIErrorWithMessage(err, "ValidationException", "Unknown operation") ||
+		isAPIErrorWithMessage(err, "ValidationException", "Unknown Operation") ||
+		isHTTP404(err) ||
+		isAPIErrorWithMessage(err, "AccessDeniedException", "not authorized to invoke this API operation")
 }
 
-// scanBedrockModels discovers custom / imported / provisioned models, custom-
-// model deployments, and Marketplace model endpoints. Called from scanBedrock
-// (which owns the bedrock client).
-func scanBedrockModels(ctx context.Context, client bedrockModelsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanBedrockCustomModels(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanBedrockImportedModels(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanBedrockProvisionedModels(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanBedrockCustomModelDeployments(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
-			return scanBedrockMarketplaceModelEndpoints(ctx, client, acct, region, st, scanID)
-		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
-}
-
-// bedrockModelsListErr soft-skips the SCP / feature-gap / access-denied shapes
-// shared by every Bedrock List op (matching the foundation scanners), returning
-// (true, ...) when the phase should stop with no rows.
-func bedrockModelsListErr(st *store.Store, op, acctID, region string, perr error) (stop bool, err error) {
-	switch {
-	case isSCPExplicitDeny(perr):
-		return true, nil
-	// Newer Bedrock sub-features (custom-model deployments, Marketplace
-	// endpoints) aren't deployed in every Bedrock region; AWS rejects the op
-	// with a ValidationException feature-gap shape rather than AccessDenied.
-	// Silent-skip — the warn would fire on every scan in non-supporting regions.
-	case isAPIErrorWithMessage(perr, "ValidationException", "operation is not recognized"),
-		isAPIErrorWithMessage(perr, "ValidationException", "don't have the permissions to perform the requested operation"):
-		return true, nil
-	// Some regions reject a not-yet-deployed model op outright — a 400/404
-	// UnknownOperationException, or a ValidationException whose body reads
-	// "Unknown operation" (casing varies by region). Region gap, not a failure.
-	case isAPIErrorCode(perr, "UnknownOperationException"),
-		isAPIErrorWithMessage(perr, "ValidationException", "Unknown operation"),
-		isAPIErrorWithMessage(perr, "ValidationException", "Unknown Operation"):
-		return true, nil
-	// Some regions return an HTML 404 page for a not-deployed model op (the SDK
-	// fails to JSON-decode it: "invalid character '<'") instead of a typed code.
-	case isHTTP404(perr):
-		return true, nil
-	// Some model ops (ListImportedModels, ListMarketplaceModelEndpoints) are
-	// account-opt-in Bedrock sub-features; an un-enrolled account is refused with
-	// this message while the rest of Bedrock works. Not a real IAM denial —
-	// silent-skip so the working surface still scans.
-	case isAPIErrorWithMessage(perr, "AccessDeniedException", "not authorized to invoke this API operation"):
-		return true, nil
-	case isAccessDenied(perr):
-		return true, skipIfAccessDenied(st, op, acctID, region, perr)
-	default:
-		return true, fmt.Errorf("%s: %w", op, perr)
-	}
-}
-
-func scanBedrockCustomModels(ctx context.Context, client bedrockModelsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := bedrock.NewListCustomModelsPaginator(client, &bedrock.ListCustomModelsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			_, e := bedrockModelsListErr(st, "bedrock:ListCustomModels", acct.ID, region, perr)
-			return 0, 0, e
-		}
-		for _, m := range out.ModelSummaries {
-			arn := sv(m.ModelArn)
-			if arn == "" {
-				continue
+func scanBedrockCustomModels(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "bedrock:ListCustomModels",
+		bacPages(isBedrockModelsGap, func(ctx context.Context, token *string) ([]bedrocktypes.CustomModelSummary, *string, error) {
+			out, err := client.ListCustomModels(ctx, &bedrock.ListCustomModelsInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			name := sv(m.ModelName)
-			status := string(m.ModelStatus)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBedrockCustomModel, NativeID: arn,
-				Name: &name, Region: &region, Status: &status, CreatedAt: tp(m.CreationTime),
-				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "bedrock custom-models")
+			return out.ModelSummaries, out.NextToken, nil
+		}),
+		func(m bedrocktypes.CustomModelSummary) (*store.Resource, string, string) {
+			r, why, key := bacRow(acct, region, scanID, TypeBedrockCustomModel, "custom models", m.ModelArn, sv(m.ModelName), sv(m.ModelName), m)
+			if r != nil {
+				r.Status = nonEmptyPtr(string(m.ModelStatus))
+				r.CreatedAt = tp(m.CreationTime)
+			}
+			return r, why, key
+		}, tags, p)
 }
 
-func scanBedrockImportedModels(ctx context.Context, client bedrockModelsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := bedrock.NewListImportedModelsPaginator(client, &bedrock.ListImportedModelsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			_, e := bedrockModelsListErr(st, "bedrock:ListImportedModels", acct.ID, region, perr)
-			return 0, 0, e
-		}
-		for _, m := range out.ModelSummaries {
-			arn := sv(m.ModelArn)
-			if arn == "" {
-				continue
+func scanBedrockImportedModels(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "bedrock:ListImportedModels",
+		bacPages(isBedrockModelsGap, func(ctx context.Context, token *string) ([]bedrocktypes.ImportedModelSummary, *string, error) {
+			out, err := client.ListImportedModels(ctx, &bedrock.ListImportedModelsInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			name := sv(m.ModelName)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBedrockImportedModel, NativeID: arn,
-				Name: &name, Region: &region, CreatedAt: tp(m.CreationTime),
-				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "bedrock imported-models")
+			return out.ModelSummaries, out.NextToken, nil
+		}),
+		func(m bedrocktypes.ImportedModelSummary) (*store.Resource, string, string) {
+			r, why, key := bacRow(acct, region, scanID, TypeBedrockImportedModel, "imported models", m.ModelArn, sv(m.ModelName), sv(m.ModelName), m)
+			if r != nil {
+				r.CreatedAt = tp(m.CreationTime)
+			}
+			return r, why, key
+		}, tags, p)
 }
 
-func scanBedrockProvisionedModels(ctx context.Context, client bedrockModelsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := bedrock.NewListProvisionedModelThroughputsPaginator(client, &bedrock.ListProvisionedModelThroughputsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			_, e := bedrockModelsListErr(st, "bedrock:ListProvisionedModelThroughputs", acct.ID, region, perr)
-			return 0, 0, e
-		}
-		for _, m := range out.ProvisionedModelSummaries {
-			arn := sv(m.ProvisionedModelArn)
-			if arn == "" {
-				continue
+func scanBedrockProvisionedModels(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "bedrock:ListProvisionedModelThroughputs",
+		bacPages(isBedrockModelsGap, func(ctx context.Context, token *string) ([]bedrocktypes.ProvisionedModelSummary, *string, error) {
+			out, err := client.ListProvisionedModelThroughputs(ctx, &bedrock.ListProvisionedModelThroughputsInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			name := sv(m.ProvisionedModelName)
-			status := string(m.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBedrockProvisionedModel, NativeID: arn,
-				Name: &name, Region: &region, Status: &status, CreatedAt: tp(m.CreationTime),
-				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "bedrock provisioned-models")
+			return out.ProvisionedModelSummaries, out.NextToken, nil
+		}),
+		func(m bedrocktypes.ProvisionedModelSummary) (*store.Resource, string, string) {
+			r, why, key := bacRow(acct, region, scanID, TypeBedrockProvisionedModel, "provisioned models",
+				m.ProvisionedModelArn, sv(m.ProvisionedModelName), sv(m.ProvisionedModelName), m)
+			if r != nil {
+				r.Status = nonEmptyPtr(string(m.Status))
+				r.CreatedAt = tp(m.CreationTime)
+			}
+			return r, why, key
+		}, tags, p)
 }
 
-func scanBedrockCustomModelDeployments(ctx context.Context, client bedrockModelsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := bedrock.NewListCustomModelDeploymentsPaginator(client, &bedrock.ListCustomModelDeploymentsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			_, e := bedrockModelsListErr(st, "bedrock:ListCustomModelDeployments", acct.ID, region, perr)
-			return 0, 0, e
-		}
-		for _, d := range out.ModelDeploymentSummaries {
-			arn := sv(d.CustomModelDeploymentArn)
-			if arn == "" {
-				continue
+func scanBedrockCustomModelDeployments(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "bedrock:ListCustomModelDeployments",
+		bacPages(isBedrockModelsGap, func(ctx context.Context, token *string) ([]bedrocktypes.CustomModelDeploymentSummary, *string, error) {
+			out, err := client.ListCustomModelDeployments(ctx, &bedrock.ListCustomModelDeploymentsInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			name := sv(d.CustomModelDeploymentName)
-			status := string(d.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBedrockCustomModelDeployment, NativeID: arn,
-				Name: &name, Region: &region, Status: &status, CreatedAt: tp(d.CreatedAt),
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "bedrock custom-model-deployments")
+			return out.ModelDeploymentSummaries, out.NextToken, nil
+		}),
+		func(d bedrocktypes.CustomModelDeploymentSummary) (*store.Resource, string, string) {
+			r, why, key := bacRow(acct, region, scanID, TypeBedrockCustomModelDeployment, "custom model deployments",
+				d.CustomModelDeploymentArn, sv(d.CustomModelDeploymentName), sv(d.CustomModelDeploymentName), d)
+			if r != nil {
+				r.Status = nonEmptyPtr(string(d.Status))
+				r.CreatedAt = tp(d.CreatedAt)
+			}
+			return r, why, key
+		}, tags, p)
 }
 
-func scanBedrockMarketplaceModelEndpoints(ctx context.Context, client bedrockModelsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := bedrock.NewListMarketplaceModelEndpointsPaginator(client, &bedrock.ListMarketplaceModelEndpointsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			_, e := bedrockModelsListErr(st, "bedrock:ListMarketplaceModelEndpoints", acct.ID, region, perr)
-			return 0, 0, e
-		}
-		for _, e := range out.MarketplaceModelEndpoints {
-			arn := sv(e.EndpointArn)
-			if arn == "" {
-				continue
+// scanBedrockMarketplaceModelEndpoints stores the region's Marketplace model
+// endpoints. Their tags are not read: the Service Reference lists no
+// endpoint resource of bedrock's ListTagsForResource, and its
+// TaggableResourcesArn pattern does not accept an endpoint ARN.
+func scanBedrockMarketplaceModelEndpoints(ctx context.Context, client bedrockAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, "bedrock:ListMarketplaceModelEndpoints",
+		bacPages(isBedrockModelsGap, func(ctx context.Context, token *string) ([]bedrocktypes.MarketplaceModelEndpointSummary, *string, error) {
+			out, err := client.ListMarketplaceModelEndpoints(ctx, &bedrock.ListMarketplaceModelEndpointsInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			status := string(e.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBedrockMarketplaceModelEndpoint, NativeID: arn,
-				Name: &arn, Region: &region, Status: &status, CreatedAt: tp(e.CreatedAt),
-				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "bedrock marketplace-model-endpoints")
+			return out.MarketplaceModelEndpoints, out.NextToken, nil
+		}),
+		func(e bedrocktypes.MarketplaceModelEndpointSummary) (*store.Resource, string, string) {
+			r, why, key := bacRow(acct, region, scanID, TypeBedrockMarketplaceModelEndpoint, "Marketplace model endpoints", e.EndpointArn, sv(e.EndpointArn), sv(e.ModelSourceIdentifier), e)
+			if r != nil {
+				r.Status = nonEmptyPtr(string(e.Status))
+				r.CreatedAt = tp(e.CreatedAt)
+			}
+			return r, why, key
+		})
 }

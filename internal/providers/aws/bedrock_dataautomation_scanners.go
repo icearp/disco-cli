@@ -2,8 +2,8 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	bda "github.com/aws/aws-sdk-go-v2/service/bedrockdataautomation"
 	bdatypes "github.com/aws/aws-sdk-go-v2/service/bedrockdataautomation/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -22,153 +22,98 @@ type bedrockDataAutomationAPI interface {
 	ListBlueprints(context.Context, *bda.ListBlueprintsInput, ...func(*bda.Options)) (*bda.ListBlueprintsOutput, error)
 	ListDataAutomationProjects(context.Context, *bda.ListDataAutomationProjectsInput, ...func(*bda.Options)) (*bda.ListDataAutomationProjectsOutput, error)
 	ListDataAutomationLibraries(context.Context, *bda.ListDataAutomationLibrariesInput, ...func(*bda.Options)) (*bda.ListDataAutomationLibrariesOutput, error)
+	ListTagsForResource(context.Context, *bda.ListTagsForResourceInput, ...func(*bda.Options)) (*bda.ListTagsForResourceOutput, error)
 }
 
-// scanBedrockDataAutomation discovers Bedrock Data Automation blueprints,
-// projects and libraries. Called from scanBedrock (which owns the client).
-func scanBedrockDataAutomation(ctx context.Context, client bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanBedrockBlueprints(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanBedrockDataAutomationProjects(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
-			return scanBedrockDataAutomationLibraries(ctx, client, acct, region, st, scanID)
-		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+// isBedrockDAGap reports the first-page refusals of a data-automation
+// listing that mean the op is not offered here, so the listing ends
+// silently: an SCP's explicit deny; the ValidationException shapes "operation
+// is not recognized" and "don't have the permissions to perform the requested
+// operation"; an AccessDeniedException reading "not supported in this region"
+// (the blueprint library sub-feature, while the rest of Data Automation
+// works); and the empty-body AccessDeniedException every op answers with
+// where the newer, regionally limited service is not offered. That last one
+// is not reported as the service unavailable: the region still serves the
+// rest of bedrock, and the sentinel would discard the counts of its rows.
+func isBedrockDAGap(err error) bool {
+	return isSCPExplicitDeny(err) ||
+		isAPIErrorWithMessage(err, "ValidationException", "operation is not recognized") ||
+		isAPIErrorWithMessage(err, "ValidationException", "don't have the permissions to perform the requested operation") ||
+		isAccessDeniedWithMessage(err, "not supported in this region") ||
+		isClosedToNewCustomers(err)
 }
 
-// bedrockDAListErr soft-skips the SCP-deny / access-denied / per-region
-// feature-gap shapes shared by the data-automation List ops, returning nil
-// to stop the phase with no rows.
-func bedrockDAListErr(st *store.Store, op, acctID, region string, perr error) error {
-	switch {
-	case isSCPExplicitDeny(perr):
-		return nil
-	case isAPIErrorWithMessage(perr, "ValidationException", "operation is not recognized"),
-		isAPIErrorWithMessage(perr, "ValidationException", "don't have the permissions to perform the requested operation"):
-		return nil
-	// Blueprint "library" sub-feature isn't deployed everywhere; AWS's
-	// AccessDenied body says so while the rest of Data Automation works.
-	// Per-op sub-feature gap — silent-skip, siblings continue.
-	case isAccessDeniedWithMessage(perr, "not supported in this region"):
-		return nil
-	// Empty-body AccessDenied fires on every op where the whole (newer,
-	// regionally limited) service isn't offered. markServiceUnavailable
-	// short-circuits the caller to one (region: unavailable) suffix instead
-	// of silently reporting zero rows.
-	case isClosedToNewCustomers(perr):
-		return markServiceUnavailable(perr)
-	case isAccessDenied(perr):
-		return skipIfAccessDenied(st, op, acctID, region, perr)
-	default:
-		return fmt.Errorf("%s: %w", op, perr)
-	}
-}
-
-// scanBedrockBlueprints lists both ACCOUNT-owned blueprints (customer resources)
+// scanBedrockBlueprints lists ACCOUNT-owned blueprints (customer resources)
 // and SERVICE-owned ones (the AWS-provided sample catalog, flagged
-// ManagedByProvider).
-func scanBedrockBlueprints(ctx context.Context, client bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
+// ManagedByProvider, so their tags are not read). Each owner is its own
+// listing, so one's failure does not stop the other.
+func scanBedrockBlueprints(ctx context.Context, client bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
 	for _, owner := range []bdatypes.ResourceOwner{bdatypes.ResourceOwnerAccount, bdatypes.ResourceOwnerService} {
+		// The flag comes from the request because BlueprintSummary carries no
+		// owner. ResourceOwner filters the listing by owner, so every row of
+		// the SERVICE pass is AWS's; its ARNs, which name the "aws" account in
+		// place of an account id, bear that out.
 		managed := owner == bdatypes.ResourceOwnerService
-		pager := bda.NewListBlueprintsPaginator(client, &bda.ListBlueprintsInput{ResourceOwner: owner})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				// Soft-skip stops this owner pass but preserves rows already
-				// accumulated from the other owner (the fall-through upsert).
-				if e := bedrockDAListErr(st, "bedrockdataautomation:ListBlueprints", acct.ID, region, perr); e != nil {
-					return 0, 0, e
+		if storeTokenListTags(ctx, st, acct, region, "bedrockdataautomation:ListBlueprints",
+			bacPages(isBedrockDAGap, func(ctx context.Context, token *string) ([]bdatypes.BlueprintSummary, *string, error) {
+				out, err := client.ListBlueprints(ctx, &bda.ListBlueprintsInput{ResourceOwner: owner, NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+				if err != nil {
+					return nil, nil, err
 				}
-				break
-			}
-			for _, b := range out.Blueprints {
-				arn := sv(b.BlueprintArn)
-				if arn == "" {
-					continue
+				return out.Blueprints, out.NextToken, nil
+			}),
+			func(b bdatypes.BlueprintSummary) (*store.Resource, string, string) {
+				r, why, key := bacRow(acct, region, scanID, TypeBedrockBlueprint, "blueprints", b.BlueprintArn, sv(b.BlueprintName), sv(b.BlueprintName), b)
+				if r != nil {
+					r.Status = nonEmptyPtr(string(b.BlueprintStage))
+					r.CreatedAt = tp(b.CreationTime)
+					r.ManagedByProvider = managed
 				}
-				name := sv(b.BlueprintName)
-				status := string(b.BlueprintStage)
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeBedrockBlueprint, NativeID: arn,
-					Name: &name, Region: &region, Status: &status,
-					ManagedByProvider: managed,
-					AttributesJSON:    mustJSON(b), CreatedAt: tp(b.CreationTime), DiscoveredBy: scanID,
-				})
-			}
+				return r, why, key
+			}, tags, p) {
+			return true
 		}
 	}
-	return upsertBatch(st, batch, "bedrock blueprints")
+	return false
 }
 
-// scanBedrockDataAutomationProjects lists only the account's own projects — AWS
-// ships no SERVICE-owned project catalog, so the blueprint scanner's owner loop
-// is deliberately omitted (ListDataAutomationProjectsInput exposes ResourceOwner
-// but defaults to ACCOUNT).
-func scanBedrockDataAutomationProjects(ctx context.Context, client bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	pager := bda.NewListDataAutomationProjectsPaginator(client, &bda.ListDataAutomationProjectsInput{})
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if e := bedrockDAListErr(st, "bedrockdataautomation:ListDataAutomationProjects", acct.ID, region, perr); e != nil {
-				return 0, 0, e
+// scanBedrockDataAutomationProjects lists only the account's own projects —
+// AWS ships no SERVICE-owned project catalog, so the blueprint scanner's
+// owner loop is deliberately omitted (ListDataAutomationProjectsInput exposes
+// ResourceOwner but defaults to ACCOUNT).
+func scanBedrockDataAutomationProjects(ctx context.Context, client bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "bedrockdataautomation:ListDataAutomationProjects",
+		bacPages(isBedrockDAGap, func(ctx context.Context, token *string) ([]bdatypes.DataAutomationProjectSummary, *string, error) {
+			out, err := client.ListDataAutomationProjects(ctx, &bda.ListDataAutomationProjectsInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			break
-		}
-		for _, p := range out.Projects {
-			arn := sv(p.ProjectArn)
-			if arn == "" {
-				continue
+			return out.Projects, out.NextToken, nil
+		}),
+		func(pr bdatypes.DataAutomationProjectSummary) (*store.Resource, string, string) {
+			r, why, key := bacRow(acct, region, scanID, TypeBedrockDataAutomationProject, "data automation projects", pr.ProjectArn, sv(pr.ProjectName), sv(pr.ProjectName), pr)
+			if r != nil {
+				r.Status = nonEmptyPtr(string(pr.ProjectStage))
+				r.CreatedAt = tp(pr.CreationTime)
 			}
-			name := sv(p.ProjectName)
-			status := string(p.ProjectStage)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBedrockDataAutomationProject, NativeID: arn,
-				Name: &name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(p), CreatedAt: tp(p.CreationTime), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "bedrock data-automation-projects")
+			return r, why, key
+		}, tags, p)
 }
 
-func scanBedrockDataAutomationLibraries(ctx context.Context, client bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	pager := bda.NewListDataAutomationLibrariesPaginator(client, &bda.ListDataAutomationLibrariesInput{})
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if e := bedrockDAListErr(st, "bedrockdataautomation:ListDataAutomationLibraries", acct.ID, region, perr); e != nil {
-				return 0, 0, e
+func scanBedrockDataAutomationLibraries(ctx context.Context, client bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "bedrockdataautomation:ListDataAutomationLibraries",
+		bacPages(isBedrockDAGap, func(ctx context.Context, token *string) ([]bdatypes.DataAutomationLibrarySummary, *string, error) {
+			out, err := client.ListDataAutomationLibraries(ctx, &bda.ListDataAutomationLibrariesInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			break
-		}
-		for _, l := range out.Libraries {
-			arn := sv(l.LibraryArn)
-			if arn == "" {
-				continue
+			return out.Libraries, out.NextToken, nil
+		}),
+		func(l bdatypes.DataAutomationLibrarySummary) (*store.Resource, string, string) {
+			r, why, key := bacRow(acct, region, scanID, TypeBedrockDataAutomationLibrary, "data automation libraries", l.LibraryArn, sv(l.LibraryName), sv(l.LibraryName), l)
+			if r != nil {
+				r.CreatedAt = tp(l.CreationTime)
 			}
-			name := sv(l.LibraryName)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBedrockDataAutomationLibrary, NativeID: arn,
-				Name: &name, Region: &region,
-				AttributesJSON: mustJSON(l), CreatedAt: tp(l.CreationTime), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "bedrock data-automation-libraries")
+			return r, why, key
+		}, tags, p)
 }

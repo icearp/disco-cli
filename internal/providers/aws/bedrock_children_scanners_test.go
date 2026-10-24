@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"slices"
 	"sync"
 	"testing"
@@ -12,28 +13,34 @@ import (
 	bedrocktypes "github.com/aws/aws-sdk-go-v2/service/bedrock/types"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockagent"
 	agenttypes "github.com/aws/aws-sdk-go-v2/service/bedrockagent/types"
-	bda "github.com/aws/aws-sdk-go-v2/service/bedrockdataautomation"
 
 	"github.com/icearp/disco-cli/store"
 )
 
 // bedrockChildStub serves child-list pages keyed by "<op>/<parent>" and then by
 // the request's NextToken ("" is the first page); a fixture links pages by
-// setting NextToken. errs (same key) is returned instead of any page. Parent
-// list ops return the agents / policies fields and are otherwise empty. The
+// setting NextToken. errs (same key) is returned instead of any page. The
 // embedded bedrockAgentAPI nil-panics on any op a test did not expect.
 type bedrockChildStub struct {
 	bedrockAgentAPI
 
-	agents       []agenttypes.AgentSummary
-	aliasErr     error
-	policies     []bedrocktypes.AutomatedReasoningPolicySummary
-	customModels []bedrocktypes.CustomModelSummary
-	pages        map[string]map[string]any
-	errs         map[string]error
+	pages map[string]map[string]any
+	errs  map[string]error
 
 	mu    sync.Mutex
 	calls []string // "<op>/<parent>/<version>" per first-page request
+}
+
+// bedrockTestCaseStub serves the test-case listing as bedrockAPI: the
+// child stub cannot, its ListTagsForResource being bedrockagent's. The
+// embedded bedrockAPI nil-panics on any other op.
+type bedrockTestCaseStub struct {
+	bedrockAPI
+	s *bedrockChildStub
+}
+
+func (w bedrockTestCaseStub) ListAutomatedReasoningPolicyTestCases(ctx context.Context, in *bedrock.ListAutomatedReasoningPolicyTestCasesInput, opts ...func(*bedrock.Options)) (*bedrock.ListAutomatedReasoningPolicyTestCasesOutput, error) {
+	return w.s.ListAutomatedReasoningPolicyTestCases(ctx, in, opts...)
 }
 
 func (s *bedrockChildStub) serve(op, parent, version string, token *string) (any, error) {
@@ -102,90 +109,6 @@ func (s *bedrockChildStub) ListAutomatedReasoningPolicyTestCases(_ context.Conte
 		return &bedrock.ListAutomatedReasoningPolicyTestCasesOutput{}, nil
 	}
 	return out.(*bedrock.ListAutomatedReasoningPolicyTestCasesOutput), nil
-}
-
-// Parent-family ops for the whole-family tests.
-
-func (s *bedrockChildStub) ListAgents(_ context.Context, _ *bedrockagent.ListAgentsInput, _ ...func(*bedrockagent.Options)) (*bedrockagent.ListAgentsOutput, error) {
-	return &bedrockagent.ListAgentsOutput{AgentSummaries: s.agents}, nil
-}
-
-func (s *bedrockChildStub) ListAgentAliases(_ context.Context, _ *bedrockagent.ListAgentAliasesInput, _ ...func(*bedrockagent.Options)) (*bedrockagent.ListAgentAliasesOutput, error) {
-	if s.aliasErr != nil {
-		return nil, s.aliasErr
-	}
-	return &bedrockagent.ListAgentAliasesOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListKnowledgeBases(_ context.Context, _ *bedrockagent.ListKnowledgeBasesInput, _ ...func(*bedrockagent.Options)) (*bedrockagent.ListKnowledgeBasesOutput, error) {
-	return &bedrockagent.ListKnowledgeBasesOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListFlows(_ context.Context, _ *bedrockagent.ListFlowsInput, _ ...func(*bedrockagent.Options)) (*bedrockagent.ListFlowsOutput, error) {
-	return &bedrockagent.ListFlowsOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListPrompts(_ context.Context, _ *bedrockagent.ListPromptsInput, _ ...func(*bedrockagent.Options)) (*bedrockagent.ListPromptsOutput, error) {
-	return &bedrockagent.ListPromptsOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListAutomatedReasoningPolicies(_ context.Context, in *bedrock.ListAutomatedReasoningPoliciesInput, _ ...func(*bedrock.Options)) (*bedrock.ListAutomatedReasoningPoliciesOutput, error) {
-	if in.PolicyArn != nil {
-		return &bedrock.ListAutomatedReasoningPoliciesOutput{}, nil
-	}
-	return &bedrock.ListAutomatedReasoningPoliciesOutput{AutomatedReasoningPolicySummaries: s.policies}, nil
-}
-
-func (s *bedrockChildStub) ListGuardrails(_ context.Context, _ *bedrock.ListGuardrailsInput, _ ...func(*bedrock.Options)) (*bedrock.ListGuardrailsOutput, error) {
-	return &bedrock.ListGuardrailsOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListPromptRouters(_ context.Context, _ *bedrock.ListPromptRoutersInput, _ ...func(*bedrock.Options)) (*bedrock.ListPromptRoutersOutput, error) {
-	return &bedrock.ListPromptRoutersOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListInferenceProfiles(_ context.Context, _ *bedrock.ListInferenceProfilesInput, _ ...func(*bedrock.Options)) (*bedrock.ListInferenceProfilesOutput, error) {
-	return &bedrock.ListInferenceProfilesOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListEnforcedGuardrailsConfiguration(_ context.Context, _ *bedrock.ListEnforcedGuardrailsConfigurationInput, _ ...func(*bedrock.Options)) (*bedrock.ListEnforcedGuardrailsConfigurationOutput, error) {
-	return &bedrock.ListEnforcedGuardrailsConfigurationOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListFoundationModels(_ context.Context, _ *bedrock.ListFoundationModelsInput, _ ...func(*bedrock.Options)) (*bedrock.ListFoundationModelsOutput, error) {
-	return &bedrock.ListFoundationModelsOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListCustomModels(_ context.Context, _ *bedrock.ListCustomModelsInput, _ ...func(*bedrock.Options)) (*bedrock.ListCustomModelsOutput, error) {
-	return &bedrock.ListCustomModelsOutput{ModelSummaries: s.customModels}, nil
-}
-
-func (s *bedrockChildStub) ListImportedModels(_ context.Context, _ *bedrock.ListImportedModelsInput, _ ...func(*bedrock.Options)) (*bedrock.ListImportedModelsOutput, error) {
-	return &bedrock.ListImportedModelsOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListProvisionedModelThroughputs(_ context.Context, _ *bedrock.ListProvisionedModelThroughputsInput, _ ...func(*bedrock.Options)) (*bedrock.ListProvisionedModelThroughputsOutput, error) {
-	return &bedrock.ListProvisionedModelThroughputsOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListCustomModelDeployments(_ context.Context, _ *bedrock.ListCustomModelDeploymentsInput, _ ...func(*bedrock.Options)) (*bedrock.ListCustomModelDeploymentsOutput, error) {
-	return &bedrock.ListCustomModelDeploymentsOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListMarketplaceModelEndpoints(_ context.Context, _ *bedrock.ListMarketplaceModelEndpointsInput, _ ...func(*bedrock.Options)) (*bedrock.ListMarketplaceModelEndpointsOutput, error) {
-	return &bedrock.ListMarketplaceModelEndpointsOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListBlueprints(_ context.Context, _ *bda.ListBlueprintsInput, _ ...func(*bda.Options)) (*bda.ListBlueprintsOutput, error) {
-	return &bda.ListBlueprintsOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListDataAutomationProjects(_ context.Context, _ *bda.ListDataAutomationProjectsInput, _ ...func(*bda.Options)) (*bda.ListDataAutomationProjectsOutput, error) {
-	return &bda.ListDataAutomationProjectsOutput{}, nil
-}
-
-func (s *bedrockChildStub) ListDataAutomationLibraries(_ context.Context, _ *bda.ListDataAutomationLibrariesInput, _ ...func(*bda.Options)) (*bda.ListDataAutomationLibrariesOutput, error) {
-	return &bda.ListDataAutomationLibrariesOutput{}, nil
 }
 
 const bedrockTestPolicyARN = "arn:aws:bedrock:us-east-1:123456789012:automated-reasoning-policy/pol1"
@@ -290,7 +213,7 @@ func bedrockChildCases() []bedrockChildCase {
 		{
 			name: "ARPolicyTestCases", op: "ListAutomatedReasoningPolicyTestCases", typ: TypeBedrockAutomatedReasoningPolicyTestCase,
 			scan: func(ctx context.Context, s *bedrockChildStub, a *account, r string, st *store.Store, id string, p []string) (int, int, error) {
-				return scanBedrockARPolicyTestCases(ctx, s, a, r, st, id, p)
+				return scanBedrockARPolicyTestCases(ctx, bedrockTestCaseStub{s: s}, a, r, st, id, p)
 			},
 			parents:    []string{bedrockTestPolicyARN, bedrockTestPolicyARN + "2"},
 			parentType: TypeBedrockAutomatedReasoningPolicy,
@@ -501,6 +424,21 @@ func TestBedrockChildScanners_SilentDenialsSkipped(t *testing.T) {
 	}
 }
 
+// A ctx that ended before the parents were read is returned, not read as an
+// empty listing.
+func TestBedrockChildScanners_ContextEndIsReturned(t *testing.T) {
+	for _, c := range bedrockChildCases() {
+		t.Run(c.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			cancel()
+			_, _, err := c.scan(ctx, &bedrockChildStub{}, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID, c.parents)
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("err = %v; want context.Canceled", err)
+			}
+		})
+	}
+}
+
 func TestBedrockChildScanners_OtherErrorPropagates(t *testing.T) {
 	for _, c := range bedrockChildCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -526,76 +464,4 @@ func TestScanBedrockAgentVersions_SkipsDraft(t *testing.T) {
 		t.Fatalf("total = %d, rows = %d; want 1, 1", total, len(rows))
 	}
 	assertBedrockChild(t, st, rows, c, "a1", "1")
-}
-
-// bedrockFamilyStub returns one agent, one AR policy and one custom model,
-// with one child of each child type under its parent.
-func bedrockFamilyStub() *bedrockChildStub {
-	stub := &bedrockChildStub{
-		agents:       []agenttypes.AgentSummary{{AgentId: sdkaws.String("a1"), AgentName: sdkaws.String("agent")}},
-		policies:     []bedrocktypes.AutomatedReasoningPolicySummary{{PolicyArn: sdkaws.String(bedrockTestPolicyARN), Name: sdkaws.String("pol")}},
-		customModels: []bedrocktypes.CustomModelSummary{{ModelArn: sdkaws.String("arn:aws:bedrock:us-east-1:123456789012:custom-model/m1")}},
-		pages:        map[string]map[string]any{},
-	}
-	for _, c := range bedrockChildCases() {
-		stub.pages[c.op+"/"+c.parents[0]] = map[string]any{"": c.page([]string{"1"}, nil)}
-	}
-	return stub
-}
-
-func runBedrockFamily(t *testing.T, stub *bedrockChildStub) (int, *store.Store, error) {
-	t.Helper()
-	st := newTestStore(t)
-	total, _, err := scanBedrockClients(context.Background(), stub, stub, stub, stub, newTestAccount(testAccountID), testRegion, st, testScanID)
-	return total, st, err
-}
-
-// Parents are listed before their children are fanned out to.
-func TestScanBedrockClients_ProducesChildren(t *testing.T) {
-	total, st, err := runBedrockFamily(t, bedrockFamilyStub())
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
-	for _, c := range bedrockChildCases() {
-		rows := listNetExtraRows(t, st, c.typ)
-		if len(rows) != 1 {
-			t.Errorf("%s: rows = %d; want 1", c.typ, len(rows))
-			continue
-		}
-		assertBedrockChild(t, st, rows, c, c.parents[0], "1")
-	}
-	// agent + policy + custom model + one child of each of the five types.
-	if total != 8 {
-		t.Errorf("total = %d; want 8", total)
-	}
-}
-
-// A failing child phase must not cost the parent-level phases (Models runs
-// before it), and the totals already stored are still reported.
-func TestScanBedrockClients_ChildErrorKeepsParentPhases(t *testing.T) {
-	stub := bedrockFamilyStub()
-	stub.errs = map[string]error{"ListAgentVersions/a1": apiErr("ValidationException", "bad")}
-	total, st, err := runBedrockFamily(t, stub)
-	if !isAPIErrorCode(err, "ValidationException") {
-		t.Fatalf("err = %v; want the ValidationException propagated", err)
-	}
-	if rows := listNetExtraRows(t, st, TypeBedrockCustomModel); len(rows) != 1 {
-		t.Errorf("custom-model rows = %d; want 1 (Models runs before the child phases)", len(rows))
-	}
-	if total != 3 {
-		t.Errorf("total = %d; want 3 (agent, policy, custom model)", total)
-	}
-}
-
-// A mid-family agents failure reports the rows that phase already stored.
-func TestScanBedrockClients_AgentsErrorKeepsPartialTotals(t *testing.T) {
-	stub := bedrockFamilyStub()
-	stub.aliasErr = apiErr("ValidationException", "bad")
-	total, _, err := runBedrockFamily(t, stub)
-	if !isAPIErrorCode(err, "ValidationException") {
-		t.Fatalf("err = %v; want the ValidationException propagated", err)
-	}
-	if total != 2 {
-		t.Errorf("total = %d; want 2 (policy, agent)", total)
-	}
 }
