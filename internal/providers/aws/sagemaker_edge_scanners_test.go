@@ -3,15 +3,18 @@ package aws
 import (
 	"context"
 	"fmt"
+	"maps"
 	"testing"
 	"time"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 	smtypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
 	"github.com/icearp/disco-cli/store"
 )
 
 type stubSageMakerEdge struct {
+	*smTags
 	fleets        []smtypes.DeviceFleetSummary
 	fleetOut      map[string]*sagemaker.DescribeDeviceFleetOutput
 	devices       []smtypes.DeviceSummary
@@ -60,6 +63,14 @@ func (s *stubSageMakerEdge) ListAliases(_ context.Context, in *sagemaker.ListAli
 }
 
 func TestScanSageMakerEdge(t *testing.T) {
+	for _, mode := range smTagModes {
+		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerEdge(t, mode) })
+	}
+}
+
+// testScanSageMakerEdge stores one row of each type the family lists and reads
+// the tags of each one ListTags accepts, as mode says.
+func testScanSageMakerEdge(t *testing.T, mode smTagMode) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	now := time.Unix(1700000000, 0).UTC()
@@ -95,10 +106,9 @@ func TestScanSageMakerEdge(t *testing.T) {
 		aliases: map[string][]string{imgName: {"latest"}},
 	}
 
+	stub.smTags = newSMTags(mode, fleetARN, devARN, imgARN)
 	total, inserted, err := scanSageMakerEdge(context.Background(), stub, acct, testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
+	checkSMScanErr(t, err, mode)
 	if total != 5 || inserted != 5 {
 		t.Fatalf("total=%d inserted=%d want 5/5", total, inserted)
 	}
@@ -113,6 +123,7 @@ func TestScanSageMakerEdge(t *testing.T) {
 			t.Errorf("%s missing: %v", want.typ, err)
 		}
 	}
+	assertSMTags(t, st, stub.smTags, mode, fleetARN, devARN, imgARN)
 }
 
 func TestScanSageMakerEdgeEmpty(t *testing.T) {
@@ -153,6 +164,8 @@ func smImageARN(name string) string {
 
 func TestScanSageMakerImageAliases_PaginatesEachScannedImage(t *testing.T) {
 	st := newTestStore(t)
+	warns := recordWarnings(st)
+	upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("nameless"), testRegion, "{}", "")
 	img1, img2 := smImageARN("img1"), smImageARN("img2")
 	img1ID := upsertTestResourceNamed(t, st, TypeSageMakerImage, img1, testRegion, "{}", "img1")
 	img2ID := upsertTestResourceNamed(t, st, TypeSageMakerImage, img2, testRegion, "{}", "img2")
@@ -174,6 +187,10 @@ func TestScanSageMakerImageAliases_PaginatesEachScannedImage(t *testing.T) {
 	assertSMIDs(t, st, TypeSageMakerAlias, img1+"/alias/latest", img1+"/alias/stable", img2+"/alias/latest")
 	assertSMContains(t, st, img1ID, img1+"/alias/stable")
 	assertSMContains(t, st, img2ID, img2+"/alias/latest")
+	// One for the empty alias, one for the image without a name.
+	if got, want := smWarnServices(*warns), map[string]int{"sagemaker:ListAliases": 2}; !maps.Equal(got, want) {
+		t.Errorf("warnings by op = %v; want %v", got, want)
+	}
 }
 
 func TestScanSageMakerImageAliases_NoAliases(t *testing.T) {
@@ -197,4 +214,104 @@ func TestScanSageMakerImageAliases_AccessDeniedWarns(t *testing.T) {
 	if *warnings != 1 {
 		t.Errorf("warnings = %d; want 1", *warnings)
 	}
+}
+
+// --- image versions ------------------------------------------------------------
+
+// smImageVersionClient serves ListImageVersions one version per image, or
+// errs[image], and DescribeImageVersion the version's ARN or describeErr. It
+// fails the test on ListImages: versions are read for the stored images.
+func smImageVersionClient(t *testing.T, errs map[string]error, describeErr error) sagemakerClient {
+	return newSageMakerClient(opStubConfig(map[string]func(in any) (any, error){
+		"ListImages": func(any) (any, error) {
+			t.Error("ListImages called; want the images this scan stored")
+			return &sagemaker.ListImagesOutput{}, nil
+		},
+		"ListImageVersions": func(in any) (any, error) {
+			image := sdkaws.ToString(in.(*sagemaker.ListImageVersionsInput).ImageName)
+			if err := errs[image]; err != nil {
+				return nil, err
+			}
+			return &sagemaker.ListImageVersionsOutput{ImageVersions: []smtypes.ImageVersion{{
+				Version: sdkaws.Int32(1), ImageVersionArn: sdkaws.String(smTestARN("image-version", image+"/1")),
+			}}}, nil
+		},
+		"DescribeImageVersion": func(in any) (any, error) {
+			if describeErr != nil {
+				return nil, describeErr
+			}
+			image := sdkaws.ToString(in.(*sagemaker.DescribeImageVersionInput).ImageName)
+			return &sagemaker.DescribeImageVersionOutput{ImageVersionArn: sdkaws.String(smTestARN("image-version", image+"/1"))}, nil
+		},
+	}, apiErr("AccessDeniedException", "op not stubbed")), testRegion)
+}
+
+// An image whose versions could not be listed keeps the other images'
+// versions: a vanished image is skipped silently, a denied or nameless one is
+// warned about, and any other failure is returned.
+func TestScanSageMakerImageVersions_FailedImageKeepsOthers(t *testing.T) {
+	st := newTestStore(t)
+	warns := recordWarnings(st)
+	for _, name := range []string{"ok", "denied", "gone", "bad", ""} {
+		upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("img-"+name), testRegion, "{}", name)
+	}
+	client := smImageVersionClient(t, map[string]error{
+		"denied": apiErr("AccessDeniedException", "denied"),
+		"gone":   apiErr("ResourceNotFound", "gone"),
+		"bad":    apiErr("ValidationException", "bad"),
+	}, nil)
+	_, _, err := scanSageMakerImageVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	assertAPICode(t, err, "ValidationException")
+	if isAPIErrorCode(err, "AccessDeniedException", "ResourceNotFound") {
+		t.Errorf("err = %v; want neither the denial nor the vanished image", err)
+	}
+	assertSMIDs(t, st, TypeSageMakerImageVersion, smTestARN("image-version", "ok/1"))
+	if got, want := smWarnServices(*warns), map[string]int{"sagemaker:ListImageVersions": 2}; !maps.Equal(got, want) {
+		t.Errorf("warnings by op = %v; want %v", got, want)
+	}
+}
+
+// An image whose versions listing is still throttled after the SDK's retries
+// is returned, and the other images' versions are kept.
+func TestScanSageMakerImageVersions_ThrottledImageReturned(t *testing.T) {
+	st := newTestStore(t)
+	for _, name := range []string{"ok", "slow"} {
+		upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN(name), testRegion, "{}", name)
+	}
+	client := smImageVersionClient(t, map[string]error{"slow": apiErr("ThrottlingException", "Rate exceeded")}, nil)
+	_, _, err := scanSageMakerImageVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if err == nil || !everyMember(err, func(m error) bool { return isAPIErrorCode(m, "ThrottlingException") }) {
+		t.Errorf("err = %v; want only the throttled listing", err)
+	}
+	assertSMIDs(t, st, TypeSageMakerImageVersion, smTestARN("image-version", "ok/1"))
+}
+
+// A version whose describe is denied is stored from its listing, named
+// image:version.
+func TestScanSageMakerImageVersions_DeniedDescribeKeptFromListing(t *testing.T) {
+	st := newTestStore(t)
+	upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("ok"), testRegion, "{}", "ok")
+	client := smImageVersionClient(t, nil, apiErr("AccessDeniedException", "denied"))
+	if _, _, err := scanSageMakerImageVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	arn := smTestARN("image-version", "ok/1")
+	r, ok := rowsByNativeID(t, st, TypeSageMakerImageVersion)[arn]
+	if !ok {
+		t.Fatalf("%s not stored", arn)
+	}
+	if got := sv(r.Name); got != "ok:1" {
+		t.Errorf("name = %q; want ok:1", got)
+	}
+}
+
+// A version's describe failing with a hard error is returned, and the version
+// is still stored from its listing.
+func TestScanSageMakerImageVersions_HardDescribeErrorReturned(t *testing.T) {
+	st := newTestStore(t)
+	upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("ok"), testRegion, "{}", "ok")
+	client := smImageVersionClient(t, nil, apiErr("ValidationException", "bad"))
+	_, _, err := scanSageMakerImageVersions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	assertAPICode(t, err, "ValidationException")
+	assertSMIDs(t, st, TypeSageMakerImageVersion, smTestARN("image-version", "ok/1"))
 }

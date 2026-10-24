@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 	smtypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -24,6 +26,7 @@ func init() {
 // (MonitoringScheduleConfig + EndpointName for schedules, RoleArn +
 // JobResources + NetworkConfig + StoppingCondition for job definitions).
 type sagemakerMonitoringAPI interface {
+	sagemakerTagsAPI
 	ListMonitoringSchedules(context.Context, *sagemaker.ListMonitoringSchedulesInput, ...func(*sagemaker.Options)) (*sagemaker.ListMonitoringSchedulesOutput, error)
 	DescribeMonitoringSchedule(context.Context, *sagemaker.DescribeMonitoringScheduleInput, ...func(*sagemaker.Options)) (*sagemaker.DescribeMonitoringScheduleOutput, error)
 	ListDataQualityJobDefinitions(context.Context, *sagemaker.ListDataQualityJobDefinitionsInput, ...func(*sagemaker.Options)) (*sagemaker.ListDataQualityJobDefinitionsOutput, error)
@@ -38,280 +41,256 @@ type sagemakerMonitoringAPI interface {
 }
 
 // scanSageMakerMonitoring runs all Monitoring family phases for one region.
-// The alert phase fans out per scanned schedule, so it runs after schedules —
-// last, so an alert failure cannot stop this family's earlier phases
-// (sibling families run concurrently and are still cancelled).
-func scanSageMakerMonitoring(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func(context.Context, sagemakerMonitoringAPI, *account, string, *store.Store, string) (int, int, error){
-		scanSageMakerMonitoringSchedules,
-		scanSageMakerDataQualityJobDefinitions,
-		scanSageMakerModelBiasJobDefinitions,
-		scanSageMakerModelExplainabilityJobDefinitions,
-		scanSageMakerModelQualityJobDefinitions,
-		scanSageMakerMonitoringAlerts,
-	} {
-		t, i, ferr := phase(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+// The alert phase fans out per scanned schedule, so it runs after schedules.
+func scanSageMakerMonitoring(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return runSageMakerPhases(
+		sagemakerPhase{"sagemaker:ListMonitoringSchedules", func() (int, int, error) {
+			return scanSageMakerMonitoringSchedules(ctx, client, acct, region, st, scanID)
+		}},
+		sagemakerPhase{"sagemaker:ListDataQualityJobDefinitions", func() (int, int, error) {
+			return scanSageMakerDataQualityJobDefinitions(ctx, client, acct, region, st, scanID)
+		}},
+		sagemakerPhase{"sagemaker:ListModelBiasJobDefinitions", func() (int, int, error) {
+			return scanSageMakerModelBiasJobDefinitions(ctx, client, acct, region, st, scanID)
+		}},
+		sagemakerPhase{"sagemaker:ListModelExplainabilityJobDefinitions", func() (int, int, error) {
+			return scanSageMakerModelExplainabilityJobDefinitions(ctx, client, acct, region, st, scanID)
+		}},
+		sagemakerPhase{"sagemaker:ListModelQualityJobDefinitions", func() (int, int, error) {
+			return scanSageMakerModelQualityJobDefinitions(ctx, client, acct, region, st, scanID)
+		}},
+		sagemakerPhase{"sagemaker:ListMonitoringAlerts", func() (int, int, error) { return scanSageMakerMonitoringAlerts(ctx, client, acct, region, st, scanID) }},
+	)
 }
 
 func scanSageMakerMonitoringSchedules(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListMonitoringSchedulesPaginator(client, &sagemaker.ListMonitoringSchedulesInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListMonitoringSchedules", acct.ID, region, perr)
-				return 0, 0, nil
+	return sagemakerDescribe[smtypes.MonitoringScheduleSummary]{
+		listOp: "sagemaker:ListMonitoringSchedules", describeOp: "sagemaker:DescribeMonitoringSchedule", notFound: []string{"ResourceNotFound"},
+		list: func(ctx context.Context, token *string) ([]smtypes.MonitoringScheduleSummary, *string, error) {
+			out, err := client.ListMonitoringSchedules(ctx, &sagemaker.ListMonitoringSchedulesInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sagemaker:ListMonitoringSchedules: %w", perr)
-		}
-		for _, s := range out.MonitoringScheduleSummaries {
-			if s.MonitoringScheduleName != nil {
-				names = append(names, *s.MonitoringScheduleName)
-			}
-		}
-	}
-	return sagemakerDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeMonitoringSchedule(gctx, &sagemaker.DescribeMonitoringScheduleInput{MonitoringScheduleName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("sagemaker:DescribeMonitoringSchedule %s: %w", name, derr)
-		}
-		arn := sv(out.MonitoringScheduleArn)
-		if arn == "" {
-			return nil, nil
-		}
-		sname := sv(out.MonitoringScheduleName)
-		status := string(out.MonitoringScheduleStatus)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeSageMakerMonitoringSchedule,
-			NativeID:       arn,
-			Name:           &sname,
-			Region:         &region,
-			Status:         &status,
-			CreatedAt:      tp(out.CreationTime),
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "sagemaker monitoring schedules")
-}
-
-func scanSageMakerDataQualityJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListDataQualityJobDefinitionsPaginator(client, &sagemaker.ListDataQualityJobDefinitionsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListDataQualityJobDefinitions", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("sagemaker:ListDataQualityJobDefinitions: %w", perr)
-		}
-		for _, j := range out.JobDefinitionSummaries {
-			if j.MonitoringJobDefinitionName != nil {
-				names = append(names, *j.MonitoringJobDefinitionName)
-			}
-		}
-	}
-	return sagemakerDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeDataQualityJobDefinition(gctx, &sagemaker.DescribeDataQualityJobDefinitionInput{JobDefinitionName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("sagemaker:DescribeDataQualityJobDefinition %s: %w", name, derr)
-		}
-		arn := sv(out.JobDefinitionArn)
-		if arn == "" {
-			return nil, nil
-		}
-		jname := sv(out.JobDefinitionName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeSageMakerDataQualityJobDefinition,
-			NativeID:       arn,
-			Name:           &jname,
-			Region:         &region,
-			CreatedAt:      tp(out.CreationTime),
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "sagemaker data quality job definitions")
-}
-
-func scanSageMakerModelBiasJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListModelBiasJobDefinitionsPaginator(client, &sagemaker.ListModelBiasJobDefinitionsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListModelBiasJobDefinitions", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("sagemaker:ListModelBiasJobDefinitions: %w", perr)
-		}
-		for _, j := range out.JobDefinitionSummaries {
-			if j.MonitoringJobDefinitionName != nil {
-				names = append(names, *j.MonitoringJobDefinitionName)
-			}
-		}
-	}
-	return sagemakerDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeModelBiasJobDefinition(gctx, &sagemaker.DescribeModelBiasJobDefinitionInput{JobDefinitionName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("sagemaker:DescribeModelBiasJobDefinition %s: %w", name, derr)
-		}
-		arn := sv(out.JobDefinitionArn)
-		if arn == "" {
-			return nil, nil
-		}
-		jname := sv(out.JobDefinitionName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeSageMakerModelBiasJobDefinition,
-			NativeID:       arn,
-			Name:           &jname,
-			Region:         &region,
-			CreatedAt:      tp(out.CreationTime),
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "sagemaker model bias job definitions")
-}
-
-func scanSageMakerModelExplainabilityJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListModelExplainabilityJobDefinitionsPaginator(client, &sagemaker.ListModelExplainabilityJobDefinitionsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListModelExplainabilityJobDefinitions", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("sagemaker:ListModelExplainabilityJobDefinitions: %w", perr)
-		}
-		for _, j := range out.JobDefinitionSummaries {
-			if j.MonitoringJobDefinitionName != nil {
-				names = append(names, *j.MonitoringJobDefinitionName)
-			}
-		}
-	}
-	return sagemakerDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeModelExplainabilityJobDefinition(gctx, &sagemaker.DescribeModelExplainabilityJobDefinitionInput{JobDefinitionName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("sagemaker:DescribeModelExplainabilityJobDefinition %s: %w", name, derr)
-		}
-		arn := sv(out.JobDefinitionArn)
-		if arn == "" {
-			return nil, nil
-		}
-		jname := sv(out.JobDefinitionName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeSageMakerModelExplainabilityJobDefinition,
-			NativeID:       arn,
-			Name:           &jname,
-			Region:         &region,
-			CreatedAt:      tp(out.CreationTime),
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "sagemaker model explainability job definitions")
-}
-
-func scanSageMakerModelQualityJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListModelQualityJobDefinitionsPaginator(client, &sagemaker.ListModelQualityJobDefinitionsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListModelQualityJobDefinitions", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("sagemaker:ListModelQualityJobDefinitions: %w", perr)
-		}
-		for _, j := range out.JobDefinitionSummaries {
-			if j.MonitoringJobDefinitionName != nil {
-				names = append(names, *j.MonitoringJobDefinitionName)
-			}
-		}
-	}
-	return sagemakerDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeModelQualityJobDefinition(gctx, &sagemaker.DescribeModelQualityJobDefinitionInput{JobDefinitionName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				return nil, nil
-			}
-			return nil, fmt.Errorf("sagemaker:DescribeModelQualityJobDefinition %s: %w", name, derr)
-		}
-		arn := sv(out.JobDefinitionArn)
-		if arn == "" {
-			return nil, nil
-		}
-		jname := sv(out.JobDefinitionName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeSageMakerModelQualityJobDefinition,
-			NativeID:       arn,
-			Name:           &jname,
-			Region:         &region,
-			CreatedAt:      tp(out.CreationTime),
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "sagemaker model quality job definitions")
-}
-
-func scanSageMakerMonitoringAlerts(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	return scanSageMakerChildren(ctx, acct, region, st, scanID,
-		TypeSageMakerMonitoringSchedule, "ListMonitoringAlerts", "sagemaker monitoring alerts",
-		func(c context.Context, schedule store.Resource, _ *sagemakerDenyWarner) ([]*store.Resource, error) {
-			if sv(schedule.Name) == "" {
-				return nil, nil
-			}
-			alerts, err := collectSMPages(c,
-				sagemaker.NewListMonitoringAlertsPaginator(client,
-					&sagemaker.ListMonitoringAlertsInput{MonitoringScheduleName: schedule.Name}),
-				func(o *sagemaker.ListMonitoringAlertsOutput) []smtypes.MonitoringAlertSummary {
-					return o.MonitoringAlertSummaries
-				})
+			return out.MonitoringScheduleSummaries, out.NextToken, nil
+		},
+		name: func(s smtypes.MonitoringScheduleSummary) string { return sv(s.MonitoringScheduleName) },
+		listed: func(s smtypes.MonitoringScheduleSummary) *store.Resource {
+			return sagemakerListedRow(acct, region, scanID, TypeSageMakerMonitoringSchedule, s.MonitoringScheduleArn, s.MonitoringScheduleName, s.CreationTime, string(s.MonitoringScheduleStatus), s)
+		},
+		describe: func(ctx context.Context, s smtypes.MonitoringScheduleSummary) (*store.Resource, error) {
+			name := sv(s.MonitoringScheduleName)
+			out, err := client.DescribeMonitoringSchedule(ctx, &sagemaker.DescribeMonitoringScheduleInput{MonitoringScheduleName: &name})
 			if err != nil {
 				return nil, err
 			}
-			var rows []*store.Resource
-			for _, a := range alerts {
+			arn := sv(out.MonitoringScheduleArn)
+			if arn == "" {
+				return nil, nil
+			}
+			sname := sv(out.MonitoringScheduleName)
+			status := string(out.MonitoringScheduleStatus)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeSageMakerMonitoringSchedule,
+				NativeID:       arn,
+				Name:           &sname,
+				Region:         &region,
+				Status:         &status,
+				CreatedAt:      tp(out.CreationTime),
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListMonitoringSchedules"))
+}
+
+func scanSageMakerDataQualityJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return sagemakerDescribe[smtypes.MonitoringJobDefinitionSummary]{
+		listOp: "sagemaker:ListDataQualityJobDefinitions", describeOp: "sagemaker:DescribeDataQualityJobDefinition", notFound: []string{"ResourceNotFound"},
+		list: func(ctx context.Context, token *string) ([]smtypes.MonitoringJobDefinitionSummary, *string, error) {
+			out, err := client.ListDataQualityJobDefinitions(ctx, &sagemaker.ListDataQualityJobDefinitionsInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.JobDefinitionSummaries, out.NextToken, nil
+		},
+		name: func(s smtypes.MonitoringJobDefinitionSummary) string { return sv(s.MonitoringJobDefinitionName) },
+		listed: func(s smtypes.MonitoringJobDefinitionSummary) *store.Resource {
+			return sagemakerListedRow(acct, region, scanID, TypeSageMakerDataQualityJobDefinition, s.MonitoringJobDefinitionArn, s.MonitoringJobDefinitionName, s.CreationTime, "", s)
+		},
+		describe: func(ctx context.Context, s smtypes.MonitoringJobDefinitionSummary) (*store.Resource, error) {
+			name := sv(s.MonitoringJobDefinitionName)
+			out, err := client.DescribeDataQualityJobDefinition(ctx, &sagemaker.DescribeDataQualityJobDefinitionInput{JobDefinitionName: &name})
+			if err != nil {
+				return nil, err
+			}
+			arn := sv(out.JobDefinitionArn)
+			if arn == "" {
+				return nil, nil
+			}
+			jname := sv(out.JobDefinitionName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeSageMakerDataQualityJobDefinition,
+				NativeID:       arn,
+				Name:           &jname,
+				Region:         &region,
+				CreatedAt:      tp(out.CreationTime),
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListDataQualityJobDefinitions"))
+}
+
+func scanSageMakerModelBiasJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return sagemakerDescribe[smtypes.MonitoringJobDefinitionSummary]{
+		listOp: "sagemaker:ListModelBiasJobDefinitions", describeOp: "sagemaker:DescribeModelBiasJobDefinition", notFound: []string{"ResourceNotFound"},
+		list: func(ctx context.Context, token *string) ([]smtypes.MonitoringJobDefinitionSummary, *string, error) {
+			out, err := client.ListModelBiasJobDefinitions(ctx, &sagemaker.ListModelBiasJobDefinitionsInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.JobDefinitionSummaries, out.NextToken, nil
+		},
+		name: func(s smtypes.MonitoringJobDefinitionSummary) string { return sv(s.MonitoringJobDefinitionName) },
+		listed: func(s smtypes.MonitoringJobDefinitionSummary) *store.Resource {
+			return sagemakerListedRow(acct, region, scanID, TypeSageMakerModelBiasJobDefinition, s.MonitoringJobDefinitionArn, s.MonitoringJobDefinitionName, s.CreationTime, "", s)
+		},
+		describe: func(ctx context.Context, s smtypes.MonitoringJobDefinitionSummary) (*store.Resource, error) {
+			name := sv(s.MonitoringJobDefinitionName)
+			out, err := client.DescribeModelBiasJobDefinition(ctx, &sagemaker.DescribeModelBiasJobDefinitionInput{JobDefinitionName: &name})
+			if err != nil {
+				return nil, err
+			}
+			arn := sv(out.JobDefinitionArn)
+			if arn == "" {
+				return nil, nil
+			}
+			jname := sv(out.JobDefinitionName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeSageMakerModelBiasJobDefinition,
+				NativeID:       arn,
+				Name:           &jname,
+				Region:         &region,
+				CreatedAt:      tp(out.CreationTime),
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListModelBiasJobDefinitions"))
+}
+
+func scanSageMakerModelExplainabilityJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return sagemakerDescribe[smtypes.MonitoringJobDefinitionSummary]{
+		listOp: "sagemaker:ListModelExplainabilityJobDefinitions", describeOp: "sagemaker:DescribeModelExplainabilityJobDefinition", notFound: []string{"ResourceNotFound"},
+		list: func(ctx context.Context, token *string) ([]smtypes.MonitoringJobDefinitionSummary, *string, error) {
+			out, err := client.ListModelExplainabilityJobDefinitions(ctx, &sagemaker.ListModelExplainabilityJobDefinitionsInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.JobDefinitionSummaries, out.NextToken, nil
+		},
+		name: func(s smtypes.MonitoringJobDefinitionSummary) string { return sv(s.MonitoringJobDefinitionName) },
+		listed: func(s smtypes.MonitoringJobDefinitionSummary) *store.Resource {
+			return sagemakerListedRow(acct, region, scanID, TypeSageMakerModelExplainabilityJobDefinition, s.MonitoringJobDefinitionArn, s.MonitoringJobDefinitionName, s.CreationTime, "", s)
+		},
+		describe: func(ctx context.Context, s smtypes.MonitoringJobDefinitionSummary) (*store.Resource, error) {
+			name := sv(s.MonitoringJobDefinitionName)
+			out, err := client.DescribeModelExplainabilityJobDefinition(ctx, &sagemaker.DescribeModelExplainabilityJobDefinitionInput{JobDefinitionName: &name})
+			if err != nil {
+				return nil, err
+			}
+			arn := sv(out.JobDefinitionArn)
+			if arn == "" {
+				return nil, nil
+			}
+			jname := sv(out.JobDefinitionName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeSageMakerModelExplainabilityJobDefinition,
+				NativeID:       arn,
+				Name:           &jname,
+				Region:         &region,
+				CreatedAt:      tp(out.CreationTime),
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListModelExplainabilityJobDefinitions"))
+}
+
+func scanSageMakerModelQualityJobDefinitions(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return sagemakerDescribe[smtypes.MonitoringJobDefinitionSummary]{
+		listOp: "sagemaker:ListModelQualityJobDefinitions", describeOp: "sagemaker:DescribeModelQualityJobDefinition", notFound: []string{"ResourceNotFound"},
+		list: func(ctx context.Context, token *string) ([]smtypes.MonitoringJobDefinitionSummary, *string, error) {
+			out, err := client.ListModelQualityJobDefinitions(ctx, &sagemaker.ListModelQualityJobDefinitionsInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.JobDefinitionSummaries, out.NextToken, nil
+		},
+		name: func(s smtypes.MonitoringJobDefinitionSummary) string { return sv(s.MonitoringJobDefinitionName) },
+		listed: func(s smtypes.MonitoringJobDefinitionSummary) *store.Resource {
+			return sagemakerListedRow(acct, region, scanID, TypeSageMakerModelQualityJobDefinition, s.MonitoringJobDefinitionArn, s.MonitoringJobDefinitionName, s.CreationTime, "", s)
+		},
+		describe: func(ctx context.Context, s smtypes.MonitoringJobDefinitionSummary) (*store.Resource, error) {
+			name := sv(s.MonitoringJobDefinitionName)
+			out, err := client.DescribeModelQualityJobDefinition(ctx, &sagemaker.DescribeModelQualityJobDefinitionInput{JobDefinitionName: &name})
+			if err != nil {
+				return nil, err
+			}
+			arn := sv(out.JobDefinitionArn)
+			if arn == "" {
+				return nil, nil
+			}
+			jname := sv(out.JobDefinitionName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeSageMakerModelQualityJobDefinition,
+				NativeID:       arn,
+				Name:           &jname,
+				Region:         &region,
+				CreatedAt:      tp(out.CreationTime),
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListModelQualityJobDefinitions"))
+}
+
+func scanSageMakerMonitoringAlerts(ctx context.Context, client sagemakerMonitoringAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return scanSageMakerChildren(ctx, acct, region, st, scanID, TypeSageMakerMonitoringSchedule, "sagemaker:ListMonitoringAlerts", []string{"ResourceNotFound"},
+		sagemakerChildSkips{emptyWhy: "monitoring alerts have an empty name", namelessWhat: "stored monitoring schedule(s)"},
+		func(ctx context.Context, schedule store.Resource) []sagemakerChildList[*store.Resource] {
+			if sv(schedule.Name) == "" {
+				return []sagemakerChildList[*store.Resource]{{key: schedule.NativeID, nameless: true}}
+			}
+			alerts, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]smtypes.MonitoringAlertSummary, *string, error) {
+				out, err := client.ListMonitoringAlerts(ctx, &sagemaker.ListMonitoringAlertsInput{
+					MonitoringScheduleName: schedule.Name, MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token,
+				})
+				if err != nil {
+					return nil, nil, err
+				}
+				return out.MonitoringAlertSummaries, out.NextToken, nil
+			})
+			l := sagemakerChildList[*store.Resource]{key: schedule.NativeID, err: err}
+			for i, a := range alerts {
 				name := sv(a.MonitoringAlertName)
 				if name == "" {
+					l.skipped = append(l.skipped, fmt.Sprintf("%s #%d", schedule.NativeID, i+1))
 					continue
 				}
 				res := &store.Resource{
@@ -329,8 +308,8 @@ func scanSageMakerMonitoringAlerts(ctx context.Context, client sagemakerMonitori
 				if status := string(a.AlertStatus); status != "" {
 					res.Status = &status
 				}
-				rows = append(rows, res)
+				l.items = append(l.items, res)
 			}
-			return rows, nil
+			return []sagemakerChildList[*store.Resource]{l}
 		})
 }

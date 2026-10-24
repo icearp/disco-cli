@@ -12,6 +12,7 @@ import (
 )
 
 type stubSageMakerRegistry struct {
+	*smTags
 	packages      []smtypes.ModelPackageSummary
 	packageOut    map[string]*sagemaker.DescribeModelPackageOutput
 	groups        []smtypes.ModelPackageGroupSummary
@@ -65,6 +66,14 @@ func (s *stubSageMakerRegistry) DescribeMlflowTrackingServer(_ context.Context, 
 }
 
 func TestScanSageMakerRegistry(t *testing.T) {
+	for _, mode := range smTagModes {
+		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerRegistry(t, mode) })
+	}
+}
+
+// testScanSageMakerRegistry stores one row of each type the family lists and reads
+// the tags of each one ListTags accepts, as mode says.
+func testScanSageMakerRegistry(t *testing.T, mode smTagMode) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	now := time.Unix(1700000000, 0).UTC()
@@ -103,10 +112,9 @@ func TestScanSageMakerRegistry(t *testing.T) {
 		},
 	}
 
+	stub.smTags = newSMTags(mode, pkgARN, grpARN, cardARN, fgARN, srvARN)
 	total, inserted, err := scanSageMakerRegistry(context.Background(), stub, acct, testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
+	checkSMScanErr(t, err, mode)
 	if total != 5 || inserted != 5 {
 		t.Fatalf("total=%d inserted=%d want 5/5", total, inserted)
 	}
@@ -121,6 +129,7 @@ func TestScanSageMakerRegistry(t *testing.T) {
 			t.Errorf("%s missing: %v", want.typ, err)
 		}
 	}
+	assertSMTags(t, st, stub.smTags, mode, pkgARN, grpARN, cardARN, fgARN, srvARN)
 }
 
 func TestScanSageMakerRegistryEmpty(t *testing.T) {

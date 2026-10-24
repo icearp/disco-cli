@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"maps"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 )
 
 type stubSageMakerMonitoring struct {
+	*smTags
 	schedules   []smtypes.MonitoringScheduleSummary
 	scheduleOut map[string]*sagemaker.DescribeMonitoringScheduleOutput
 	dataQ       []smtypes.MonitoringJobDefinitionSummary
@@ -71,6 +73,14 @@ func (s *stubSageMakerMonitoring) ListMonitoringAlerts(_ context.Context, in *sa
 }
 
 func TestScanSageMakerMonitoring(t *testing.T) {
+	for _, mode := range smTagModes {
+		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerMonitoring(t, mode) })
+	}
+}
+
+// testScanSageMakerMonitoring stores one row of each type the family lists and reads
+// the tags of each one ListTags accepts, as mode says.
+func testScanSageMakerMonitoring(t *testing.T, mode smTagMode) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	now := time.Unix(1700000000, 0).UTC()
@@ -110,10 +120,9 @@ func TestScanSageMakerMonitoring(t *testing.T) {
 		alerts: map[string][]smtypes.MonitoringAlertSummary{schedName: {smAlert("drift")}},
 	}
 
+	stub.smTags = newSMTags(mode, schedARN, dqARN, biasARN, explARN, qARN)
 	total, inserted, err := scanSageMakerMonitoring(context.Background(), stub, acct, testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
+	checkSMScanErr(t, err, mode)
 	if total != 6 || inserted != 6 {
 		t.Fatalf("total=%d inserted=%d want 6/6", total, inserted)
 	}
@@ -129,6 +138,7 @@ func TestScanSageMakerMonitoring(t *testing.T) {
 			t.Errorf("%s missing: %v", want.typ, err)
 		}
 	}
+	assertSMTags(t, st, stub.smTags, mode, schedARN, dqARN, biasARN, explARN, qARN)
 }
 
 func TestScanSageMakerMonitoringEmpty(t *testing.T) {
@@ -173,6 +183,8 @@ func smScheduleARN(name string) string {
 
 func TestScanSageMakerMonitoringAlerts_PaginatesEachScannedSchedule(t *testing.T) {
 	st := newTestStore(t)
+	warns := recordWarnings(st)
+	upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, smScheduleARN("nameless"), testRegion, "{}", "")
 	s1, s2 := smScheduleARN("s1"), smScheduleARN("s2")
 	s1ID := upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, s1, testRegion, "{}", "s1")
 	s2ID := upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, s2, testRegion, "{}", "s2")
@@ -196,6 +208,10 @@ func TestScanSageMakerMonitoringAlerts_PaginatesEachScannedSchedule(t *testing.T
 	assertSMStatus(t, st, TypeSageMakerMonitoringAlert, s1+"/alert/violations", "")
 	assertSMContains(t, st, s1ID, s1+"/alert/violations")
 	assertSMContains(t, st, s2ID, s2+"/alert/drift")
+	// One for the alert without a name, one for the schedule without one.
+	if got, want := smWarnServices(*warns), map[string]int{"sagemaker:ListMonitoringAlerts": 2}; !maps.Equal(got, want) {
+		t.Errorf("warnings by op = %v; want %v", got, want)
+	}
 }
 
 func TestScanSageMakerMonitoringAlerts_NoAlerts(t *testing.T) {

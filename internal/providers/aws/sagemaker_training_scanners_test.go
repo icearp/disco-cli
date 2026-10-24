@@ -12,6 +12,7 @@ import (
 )
 
 type stubSageMakerTraining struct {
+	*smTags
 	notebooks     []smtypes.NotebookInstanceSummary
 	notebookOut   map[string]*sagemaker.DescribeNotebookInstanceOutput
 	lifecycles    []smtypes.NotebookInstanceLifecycleConfigSummary
@@ -55,6 +56,14 @@ func (s *stubSageMakerTraining) DescribeProcessingJob(_ context.Context, in *sag
 }
 
 func TestScanSageMakerTraining(t *testing.T) {
+	for _, mode := range smTagModes {
+		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerTraining(t, mode) })
+	}
+}
+
+// testScanSageMakerTraining stores one row of each type the family lists and reads
+// the tags of each one ListTags accepts, as mode says.
+func testScanSageMakerTraining(t *testing.T, mode smTagMode) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	now := time.Unix(1700000000, 0).UTC()
@@ -87,10 +96,9 @@ func TestScanSageMakerTraining(t *testing.T) {
 		},
 	}
 
+	stub.smTags = newSMTags(mode, nbARN, lcARN, repoARN, pjARN)
 	total, inserted, err := scanSageMakerTraining(context.Background(), stub, acct, testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
+	checkSMScanErr(t, err, mode)
 	if total != 4 || inserted != 4 {
 		t.Fatalf("total=%d inserted=%d want 4/4", total, inserted)
 	}
@@ -104,6 +112,7 @@ func TestScanSageMakerTraining(t *testing.T) {
 			t.Errorf("%s missing: %v", want.typ, err)
 		}
 	}
+	assertSMTags(t, st, stub.smTags, mode, nbARN, lcARN, repoARN, pjARN)
 }
 
 func TestScanSageMakerTrainingEmpty(t *testing.T) {

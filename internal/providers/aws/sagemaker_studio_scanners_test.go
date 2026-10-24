@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 	smtypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
 	"github.com/icearp/disco-cli/store"
@@ -15,6 +16,7 @@ import (
 // returns a prepared output or empty page. It does not model paginator
 // NextToken — the first NextPage call yields the full slice.
 type stubSageMakerStudio struct {
+	*smTags
 	domains             []smtypes.DomainDetails
 	domainOut           map[string]*sagemaker.DescribeDomainOutput
 	userProfiles        []smtypes.UserProfileDetails
@@ -78,6 +80,14 @@ func (s *stubSageMakerStudio) DescribeStudioLifecycleConfig(_ context.Context, i
 }
 
 func TestScanSageMakerStudio(t *testing.T) {
+	for _, mode := range smTagModes {
+		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerStudio(t, mode) })
+	}
+}
+
+// testScanSageMakerStudio stores one row of each type the family lists and reads
+// the tags of each one ListTags accepts, as mode says.
+func testScanSageMakerStudio(t *testing.T, mode smTagMode) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	now := time.Unix(1700000000, 0).UTC()
@@ -128,10 +138,9 @@ func TestScanSageMakerStudio(t *testing.T) {
 		},
 	}
 
+	stub.smTags = newSMTags(mode, domainARN, userARN, spaceARN, appARN, aicARN, slcARN)
 	total, inserted, err := scanSageMakerStudio(context.Background(), stub, acct, testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
+	checkSMScanErr(t, err, mode)
 	if total != 6 || inserted != 6 {
 		t.Fatalf("total=%d inserted=%d want 6/6", total, inserted)
 	}
@@ -149,6 +158,7 @@ func TestScanSageMakerStudio(t *testing.T) {
 			t.Errorf("%s missing: %v", want.typ, err)
 		}
 	}
+	assertSMTags(t, st, stub.smTags, mode, domainARN, userARN, spaceARN, appARN, aicARN, slcARN)
 }
 
 func TestScanSageMakerStudioEmpty(t *testing.T) {
@@ -161,5 +171,38 @@ func TestScanSageMakerStudioEmpty(t *testing.T) {
 	}
 	if total != 0 || inserted != 0 {
 		t.Fatalf("total=%d inserted=%d want 0/0", total, inserted)
+	}
+}
+
+// An app listed without the user profile or space DescribeApp needs is not
+// described; one warning says so, and the other apps are stored.
+func TestScanSageMakerApps_AppWithoutOwnerWarned(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "sagemaker:ListApps")
+	appARN := smTestARN("app", "d-1/u/JupyterServer/default")
+	app := func(owner *string) smtypes.AppDetails {
+		return smtypes.AppDetails{
+			DomainId: sdkaws.String("d-1"), AppName: sdkaws.String("default"), AppType: smtypes.AppTypeJupyterServer, UserProfileName: owner,
+		}
+	}
+	tags := newSMTags(smUntagged)
+	client := newSageMakerClient(opStubConfig(map[string]func(in any) (any, error){
+		"ListApps": func(any) (any, error) {
+			return &sagemaker.ListAppsOutput{Apps: []smtypes.AppDetails{app(sdkaws.String("u")), app(nil)}}, nil
+		},
+		"DescribeApp": func(any) (any, error) {
+			return &sagemaker.DescribeAppOutput{AppArn: sdkaws.String(appARN), AppName: sdkaws.String("default")}, nil
+		},
+		"ListTags": func(in any) (any, error) { return tags.ListTags(context.Background(), in.(*sagemaker.ListTagsInput)) },
+	}, apiErr("AccessDeniedException", "op not stubbed")), testRegion)
+	total, _, err := scanSageMakerApps(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != 1 {
+		t.Errorf("total = %d; want 1", total)
+	}
+	if *warns != 1 {
+		t.Errorf("sagemaker:ListApps warnings = %d; want 1", *warns)
 	}
 }

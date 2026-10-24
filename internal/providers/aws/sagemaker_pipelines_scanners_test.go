@@ -12,6 +12,7 @@ import (
 )
 
 type stubSageMakerPipelines struct {
+	*smTags
 	pipelines   []smtypes.PipelineSummary
 	pipelineOut map[string]*sagemaker.DescribePipelineOutput
 	projects    []smtypes.ProjectSummary
@@ -45,6 +46,14 @@ func (s *stubSageMakerPipelines) DescribePartnerApp(_ context.Context, in *sagem
 }
 
 func TestScanSageMakerPipelines(t *testing.T) {
+	for _, mode := range smTagModes {
+		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerPipelines(t, mode) })
+	}
+}
+
+// testScanSageMakerPipelines stores one row of each type the family lists and reads
+// the tags of each one ListTags accepts, as mode says.
+func testScanSageMakerPipelines(t *testing.T, mode smTagMode) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	now := time.Unix(1700000000, 0).UTC()
@@ -71,10 +80,9 @@ func TestScanSageMakerPipelines(t *testing.T) {
 		},
 	}
 
+	stub.smTags = newSMTags(mode, plARN, prjARN, paARN)
 	total, inserted, err := scanSageMakerPipelines(context.Background(), stub, acct, testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
+	checkSMScanErr(t, err, mode)
 	if total != 3 || inserted != 3 {
 		t.Fatalf("total=%d inserted=%d want 3/3", total, inserted)
 	}
@@ -87,6 +95,7 @@ func TestScanSageMakerPipelines(t *testing.T) {
 			t.Errorf("%s missing: %v", want.typ, err)
 		}
 	}
+	assertSMTags(t, st, stub.smTags, mode, plARN, prjARN, paARN)
 }
 
 func TestScanSageMakerPipelinesEmpty(t *testing.T) {

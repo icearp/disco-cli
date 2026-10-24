@@ -12,6 +12,7 @@ import (
 )
 
 type stubSageMakerInference struct {
+	*smTags
 	endpoints       []smtypes.EndpointSummary
 	endpointOut     map[string]*sagemaker.DescribeEndpointOutput
 	endpointConfigs []smtypes.EndpointConfigSummary
@@ -65,6 +66,14 @@ func (s *stubSageMakerInference) DescribeInferenceExperiment(_ context.Context, 
 }
 
 func TestScanSageMakerInference(t *testing.T) {
+	for _, mode := range smTagModes {
+		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerInference(t, mode) })
+	}
+}
+
+// testScanSageMakerInference stores one row of each type the family lists and reads
+// the tags of each one ListTags accepts, as mode says.
+func testScanSageMakerInference(t *testing.T, mode smTagMode) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	now := time.Unix(1700000000, 0).UTC()
@@ -103,10 +112,9 @@ func TestScanSageMakerInference(t *testing.T) {
 		},
 	}
 
+	stub.smTags = newSMTags(mode, epARN, cfgARN, mARN, icARN, expARN)
 	total, inserted, err := scanSageMakerInference(context.Background(), stub, acct, testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
+	checkSMScanErr(t, err, mode)
 	if total != 5 || inserted != 5 {
 		t.Fatalf("total=%d inserted=%d want 5/5", total, inserted)
 	}
@@ -121,6 +129,7 @@ func TestScanSageMakerInference(t *testing.T) {
 			t.Errorf("%s missing: %v", want.typ, err)
 		}
 	}
+	assertSMTags(t, st, stub.smTags, mode, epARN, cfgARN, mARN, icARN, expARN)
 }
 
 func TestScanSageMakerInferenceEmpty(t *testing.T) {

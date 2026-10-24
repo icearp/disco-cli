@@ -2,14 +2,13 @@ package aws
 
 import (
 	"context"
-	"fmt"
-	"sync"
+
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
+	smtypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -23,6 +22,7 @@ func init() {
 // family. Each phase List+fan-out Describe so attrs carry the full Describe
 // body (NetworkInterfaceId, KmsKeyId, RoleArn, GitConfig, ProcessingResources).
 type sagemakerTrainingAPI interface {
+	sagemakerTagsAPI
 	ListNotebookInstances(context.Context, *sagemaker.ListNotebookInstancesInput, ...func(*sagemaker.Options)) (*sagemaker.ListNotebookInstancesOutput, error)
 	DescribeNotebookInstance(context.Context, *sagemaker.DescribeNotebookInstanceInput, ...func(*sagemaker.Options)) (*sagemaker.DescribeNotebookInstanceOutput, error)
 	ListNotebookInstanceLifecycleConfigs(context.Context, *sagemaker.ListNotebookInstanceLifecycleConfigsInput, ...func(*sagemaker.Options)) (*sagemaker.ListNotebookInstanceLifecycleConfigsOutput, error)
@@ -36,270 +36,194 @@ type sagemakerTrainingAPI interface {
 // scanSageMakerTraining runs all Training/Notebook phases for one region:
 // notebook instances, their lifecycle configs, code repositories, and
 // processing jobs.
-func scanSageMakerTraining(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func(context.Context, sagemakerTrainingAPI, *account, string, *store.Store, string) (int, int, error){
-		scanSageMakerNotebookInstances,
-		scanSageMakerNotebookInstanceLifecycleConfigs,
-		scanSageMakerCodeRepositories,
-		scanSageMakerProcessingJobs,
-	} {
-		t, i, ferr := phase(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+func scanSageMakerTraining(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return runSageMakerPhases(
+		sagemakerPhase{"sagemaker:ListNotebookInstances", func() (int, int, error) { return scanSageMakerNotebookInstances(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListNotebookInstanceLifecycleConfigs", func() (int, int, error) {
+			return scanSageMakerNotebookInstanceLifecycleConfigs(ctx, client, acct, region, st, scanID)
+		}},
+		sagemakerPhase{"sagemaker:ListCodeRepositories", func() (int, int, error) { return scanSageMakerCodeRepositories(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListProcessingJobs", func() (int, int, error) { return scanSageMakerProcessingJobs(ctx, client, acct, region, st, scanID) }},
+	)
 }
 
 // scanSageMakerNotebookInstances lists notebook instances then fans out
 // DescribeNotebookInstance for full body (RoleArn, KmsKeyId, NetworkInterfaceId,
 // SubnetId, SecurityGroups, DefaultCodeRepository).
 func scanSageMakerNotebookInstances(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListNotebookInstancesPaginator(client, &sagemaker.ListNotebookInstancesInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListNotebookInstances", acct.ID, region, perr)
-				return 0, 0, nil
+	return sagemakerDescribe[smtypes.NotebookInstanceSummary]{
+		listOp: "sagemaker:ListNotebookInstances", describeOp: "sagemaker:DescribeNotebookInstance",
+		list: func(ctx context.Context, token *string) ([]smtypes.NotebookInstanceSummary, *string, error) {
+			out, err := client.ListNotebookInstances(ctx, &sagemaker.ListNotebookInstancesInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sagemaker:ListNotebookInstances: %w", perr)
-		}
-		for _, n := range out.NotebookInstances {
-			if n.NotebookInstanceName != nil {
-				names = append(names, *n.NotebookInstanceName)
+			return out.NotebookInstances, out.NextToken, nil
+		},
+		name: func(s smtypes.NotebookInstanceSummary) string { return sv(s.NotebookInstanceName) },
+		listed: func(s smtypes.NotebookInstanceSummary) *store.Resource {
+			return sagemakerListedRow(acct, region, scanID, TypeSageMakerNotebookInstance, s.NotebookInstanceArn, s.NotebookInstanceName, s.CreationTime, string(s.NotebookInstanceStatus), s)
+		},
+		describe: func(ctx context.Context, s smtypes.NotebookInstanceSummary) (*store.Resource, error) {
+			name := sv(s.NotebookInstanceName)
+			out, err := client.DescribeNotebookInstance(ctx, &sagemaker.DescribeNotebookInstanceInput{NotebookInstanceName: &name})
+			if err != nil {
+				return nil, err
 			}
-		}
-	}
-	return sagemakerDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeNotebookInstance(gctx, &sagemaker.DescribeNotebookInstanceInput{NotebookInstanceName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.NotebookInstanceArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("sagemaker:DescribeNotebookInstance %s: %w", name, derr)
-		}
-		arn := sv(out.NotebookInstanceArn)
-		if arn == "" {
-			return nil, nil
-		}
-		instName := sv(out.NotebookInstanceName)
-		status := string(out.NotebookInstanceStatus)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeSageMakerNotebookInstance,
-			NativeID:       arn,
-			Name:           &instName,
-			Region:         &region,
-			Status:         &status,
-			CreatedAt:      tp(out.CreationTime),
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "sagemaker notebook instances")
+			instName := sv(out.NotebookInstanceName)
+			status := string(out.NotebookInstanceStatus)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeSageMakerNotebookInstance,
+				NativeID:       arn,
+				Name:           &instName,
+				Region:         &region,
+				Status:         &status,
+				CreatedAt:      tp(out.CreationTime),
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListNotebookInstances"))
 }
 
 // scanSageMakerNotebookInstanceLifecycleConfigs lists lifecycle configs then
 // fans out DescribeNotebookInstanceLifecycleConfig for full body (OnCreate,
 // OnStart script content).
 func scanSageMakerNotebookInstanceLifecycleConfigs(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListNotebookInstanceLifecycleConfigsPaginator(client, &sagemaker.ListNotebookInstanceLifecycleConfigsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListNotebookInstanceLifecycleConfigs", acct.ID, region, perr)
-				return 0, 0, nil
+	return sagemakerDescribe[smtypes.NotebookInstanceLifecycleConfigSummary]{
+		listOp: "sagemaker:ListNotebookInstanceLifecycleConfigs", describeOp: "sagemaker:DescribeNotebookInstanceLifecycleConfig",
+		list: func(ctx context.Context, token *string) ([]smtypes.NotebookInstanceLifecycleConfigSummary, *string, error) {
+			out, err := client.ListNotebookInstanceLifecycleConfigs(ctx, &sagemaker.ListNotebookInstanceLifecycleConfigsInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sagemaker:ListNotebookInstanceLifecycleConfigs: %w", perr)
-		}
-		for _, c := range out.NotebookInstanceLifecycleConfigs {
-			if c.NotebookInstanceLifecycleConfigName != nil {
-				names = append(names, *c.NotebookInstanceLifecycleConfigName)
+			return out.NotebookInstanceLifecycleConfigs, out.NextToken, nil
+		},
+		name: func(s smtypes.NotebookInstanceLifecycleConfigSummary) string {
+			return sv(s.NotebookInstanceLifecycleConfigName)
+		},
+		listed: func(s smtypes.NotebookInstanceLifecycleConfigSummary) *store.Resource {
+			return sagemakerListedRow(acct, region, scanID, TypeSageMakerNotebookInstanceLifecycleConfig, s.NotebookInstanceLifecycleConfigArn, s.NotebookInstanceLifecycleConfigName, s.CreationTime, "", s)
+		},
+		describe: func(ctx context.Context, s smtypes.NotebookInstanceLifecycleConfigSummary) (*store.Resource, error) {
+			name := sv(s.NotebookInstanceLifecycleConfigName)
+			out, err := client.DescribeNotebookInstanceLifecycleConfig(ctx, &sagemaker.DescribeNotebookInstanceLifecycleConfigInput{NotebookInstanceLifecycleConfigName: &name})
+			if err != nil {
+				return nil, err
 			}
-		}
-	}
-	return sagemakerDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeNotebookInstanceLifecycleConfig(gctx, &sagemaker.DescribeNotebookInstanceLifecycleConfigInput{NotebookInstanceLifecycleConfigName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.NotebookInstanceLifecycleConfigArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("sagemaker:DescribeNotebookInstanceLifecycleConfig %s: %w", name, derr)
-		}
-		arn := sv(out.NotebookInstanceLifecycleConfigArn)
-		if arn == "" {
-			return nil, nil
-		}
-		cfgName := sv(out.NotebookInstanceLifecycleConfigName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeSageMakerNotebookInstanceLifecycleConfig,
-			NativeID:       arn,
-			Name:           &cfgName,
-			Region:         &region,
-			CreatedAt:      tp(out.CreationTime),
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "sagemaker notebook lifecycle configs")
+			cfgName := sv(out.NotebookInstanceLifecycleConfigName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeSageMakerNotebookInstanceLifecycleConfig,
+				NativeID:       arn,
+				Name:           &cfgName,
+				Region:         &region,
+				CreatedAt:      tp(out.CreationTime),
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListNotebookInstanceLifecycleConfigs"))
 }
 
 // scanSageMakerCodeRepositories lists git code repositories then fans out
 // DescribeCodeRepository for full body (GitConfig.RepositoryUrl, SecretArn).
 func scanSageMakerCodeRepositories(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListCodeRepositoriesPaginator(client, &sagemaker.ListCodeRepositoriesInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListCodeRepositories", acct.ID, region, perr)
-				return 0, 0, nil
+	return sagemakerDescribe[smtypes.CodeRepositorySummary]{
+		listOp: "sagemaker:ListCodeRepositories", describeOp: "sagemaker:DescribeCodeRepository",
+		list: func(ctx context.Context, token *string) ([]smtypes.CodeRepositorySummary, *string, error) {
+			out, err := client.ListCodeRepositories(ctx, &sagemaker.ListCodeRepositoriesInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sagemaker:ListCodeRepositories: %w", perr)
-		}
-		for _, c := range out.CodeRepositorySummaryList {
-			if c.CodeRepositoryName != nil {
-				names = append(names, *c.CodeRepositoryName)
+			return out.CodeRepositorySummaryList, out.NextToken, nil
+		},
+		name: func(s smtypes.CodeRepositorySummary) string { return sv(s.CodeRepositoryName) },
+		listed: func(s smtypes.CodeRepositorySummary) *store.Resource {
+			return sagemakerListedRow(acct, region, scanID, TypeSageMakerCodeRepository, s.CodeRepositoryArn, s.CodeRepositoryName, s.CreationTime, "", s)
+		},
+		describe: func(ctx context.Context, s smtypes.CodeRepositorySummary) (*store.Resource, error) {
+			name := sv(s.CodeRepositoryName)
+			out, err := client.DescribeCodeRepository(ctx, &sagemaker.DescribeCodeRepositoryInput{CodeRepositoryName: &name})
+			if err != nil {
+				return nil, err
 			}
-		}
-	}
-	return sagemakerDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeCodeRepository(gctx, &sagemaker.DescribeCodeRepositoryInput{CodeRepositoryName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.CodeRepositoryArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("sagemaker:DescribeCodeRepository %s: %w", name, derr)
-		}
-		arn := sv(out.CodeRepositoryArn)
-		if arn == "" {
-			return nil, nil
-		}
-		repoName := sv(out.CodeRepositoryName)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeSageMakerCodeRepository,
-			NativeID:       arn,
-			Name:           &repoName,
-			Region:         &region,
-			CreatedAt:      tp(out.CreationTime),
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "sagemaker code repositories")
+			repoName := sv(out.CodeRepositoryName)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeSageMakerCodeRepository,
+				NativeID:       arn,
+				Name:           &repoName,
+				Region:         &region,
+				CreatedAt:      tp(out.CreationTime),
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListCodeRepositories"))
 }
 
 // scanSageMakerProcessingJobs lists processing jobs then fans out
 // DescribeProcessingJob for full body (ProcessingResources, NetworkConfig,
 // AppSpecification, RoleArn, ProcessingInputs/Outputs).
 func scanSageMakerProcessingJobs(ctx context.Context, client sagemakerTrainingAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListProcessingJobsPaginator(client, &sagemaker.ListProcessingJobsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListProcessingJobs", acct.ID, region, perr)
-				return 0, 0, nil
+	return sagemakerDescribe[smtypes.ProcessingJobSummary]{
+		listOp: "sagemaker:ListProcessingJobs", describeOp: "sagemaker:DescribeProcessingJob", notFound: []string{"ResourceNotFound"},
+		list: func(ctx context.Context, token *string) ([]smtypes.ProcessingJobSummary, *string, error) {
+			out, err := client.ListProcessingJobs(ctx, &sagemaker.ListProcessingJobsInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sagemaker:ListProcessingJobs: %w", perr)
-		}
-		for _, j := range out.ProcessingJobSummaries {
-			if j.ProcessingJobName != nil {
-				names = append(names, *j.ProcessingJobName)
+			return out.ProcessingJobSummaries, out.NextToken, nil
+		},
+		name: func(s smtypes.ProcessingJobSummary) string { return sv(s.ProcessingJobName) },
+		listed: func(s smtypes.ProcessingJobSummary) *store.Resource {
+			return sagemakerListedRow(acct, region, scanID, TypeSageMakerProcessingJob, s.ProcessingJobArn, s.ProcessingJobName, s.CreationTime, string(s.ProcessingJobStatus), s)
+		},
+		describe: func(ctx context.Context, s smtypes.ProcessingJobSummary) (*store.Resource, error) {
+			name := sv(s.ProcessingJobName)
+			out, err := client.DescribeProcessingJob(ctx, &sagemaker.DescribeProcessingJobInput{ProcessingJobName: &name})
+			if err != nil {
+				return nil, err
 			}
-		}
-	}
-	return sagemakerDescribeFanout(ctx, names, fanoutMed, func(gctx context.Context, name string) (*store.Resource, error) {
-		out, derr := client.DescribeProcessingJob(gctx, &sagemaker.DescribeProcessingJobInput{ProcessingJobName: &name})
-		if derr != nil {
-			if isAccessDenied(derr) {
+			arn := sv(out.ProcessingJobArn)
+			if arn == "" {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("sagemaker:DescribeProcessingJob %s: %w", name, derr)
-		}
-		arn := sv(out.ProcessingJobArn)
-		if arn == "" {
-			return nil, nil
-		}
-		jobName := sv(out.ProcessingJobName)
-		status := string(out.ProcessingJobStatus)
-		return &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeSageMakerProcessingJob,
-			NativeID:       arn,
-			Name:           &jobName,
-			Region:         &region,
-			Status:         &status,
-			CreatedAt:      tp(out.CreationTime),
-			AttributesJSON: mustJSON(out),
-			DiscoveredBy:   scanID,
-		}, nil
-	}, st, "sagemaker processing jobs")
-}
-
-// sagemakerDescribeFanout runs build per name concurrently with the given
-// semaphore weight, collects non-nil results, and upserts as a single batch.
-// Skips empty input. Wraps the upsert error with the supplied label.
-func sagemakerDescribeFanout(
-	ctx context.Context,
-	names []string,
-	weight int64,
-	build func(context.Context, string) (*store.Resource, error),
-	st *store.Store,
-	label string,
-) (int, int, error) {
-	if len(names) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(weight)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, n := range names {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			r, err := build(gctx, n)
-			if err != nil {
-				return err
-			}
-			if r == nil {
-				return nil
-			}
-			mu.Lock()
-			batch = append(batch, r)
-			mu.Unlock()
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert %s: %w", label, uerr)
-	}
-	return len(batch), n, nil
+			jobName := sv(out.ProcessingJobName)
+			status := string(out.ProcessingJobStatus)
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeSageMakerProcessingJob,
+				NativeID:       arn,
+				Name:           &jobName,
+				Region:         &region,
+				Status:         &status,
+				CreatedAt:      tp(out.CreationTime),
+				AttributesJSON: mustJSON(out),
+				DiscoveredBy:   scanID,
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListProcessingJobs"))
 }

@@ -13,6 +13,7 @@ import (
 )
 
 type stubSageMakerMisc struct {
+	*smTags
 	clusters    []smtypes.ClusterSummary
 	clusterOut  map[string]*sagemaker.DescribeClusterOutput
 	workteams   []smtypes.Workteam
@@ -46,6 +47,14 @@ func (s *stubSageMakerMisc) ListSubscribedWorkteams(_ context.Context, _ *sagema
 }
 
 func TestScanSageMakerMisc(t *testing.T) {
+	for _, mode := range smTagModes {
+		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerMisc(t, mode) })
+	}
+}
+
+// testScanSageMakerMisc stores one row of each type the family lists and reads
+// the tags of each one ListTags accepts, as mode says.
+func testScanSageMakerMisc(t *testing.T, mode smTagMode) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	now := time.Unix(1700000000, 0).UTC()
@@ -70,10 +79,9 @@ func TestScanSageMakerMisc(t *testing.T) {
 		subscribed: []smtypes.SubscribedWorkteam{{WorkteamArn: &vendorARN}},
 	}
 
+	stub.smTags = newSMTags(mode, cARN, wARN)
 	total, inserted, err := scanSageMakerMisc(context.Background(), stub, acct, testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
+	checkSMScanErr(t, err, mode)
 	if total != 4 || inserted != 4 {
 		t.Fatalf("total=%d inserted=%d want 4/4", total, inserted)
 	}
@@ -87,6 +95,7 @@ func TestScanSageMakerMisc(t *testing.T) {
 			t.Errorf("%s missing: %v", want.typ, err)
 		}
 	}
+	assertSMTags(t, st, stub.smTags, mode, cARN, wARN)
 }
 
 func TestScanSageMakerMiscEmpty(t *testing.T) {
@@ -135,6 +144,7 @@ func smClusterARN(name string) string {
 
 func TestScanSageMakerClusterNodes_PaginatesEachScannedCluster(t *testing.T) {
 	st := newTestStore(t)
+	warns := countOpWarnings(st, "sagemaker:ListClusterNodes")
 	const staleScanID = "11111111111111111111111111111111"
 	insertTestScan(t, st, staleScanID, "completed")
 	c1, c2, gone, stale, west := smClusterARN("c1"), smClusterARN("c2"), smClusterARN("gone"), smClusterARN("stale"), "arn:aws:sagemaker:us-west-2:123456789012:cluster/west"
@@ -171,6 +181,9 @@ func TestScanSageMakerClusterNodes_PaginatesEachScannedCluster(t *testing.T) {
 	assertSMStatus(t, st, TypeSageMakerClusterNode, c1+"/node/i-2", "")
 	assertSMContains(t, st, c1ID, c1+"/node/i-2")
 	assertSMContains(t, st, c2ID, c2+"/node/i-3")
+	if *warns != 1 {
+		t.Errorf("warnings = %d; want 1 (the node without an InstanceId)", *warns)
+	}
 }
 
 func TestScanSageMakerClusterNodes_NoNodes(t *testing.T) {

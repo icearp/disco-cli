@@ -2,15 +2,13 @@ package aws
 
 import (
 	"context"
-	"fmt"
-	"sync"
+
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/aws/aws-sdk-go-v2/service/sagemaker"
 	smtypes "github.com/aws/aws-sdk-go-v2/service/sagemaker/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -27,6 +25,7 @@ func init() {
 // Describe body — list summaries omit ARNs for user-profile/space/app and
 // lack edge-bearing fields (VPC/SG/role/EFS settings) on every type.
 type sagemakerStudioAPI interface {
+	sagemakerTagsAPI
 	ListDomains(context.Context, *sagemaker.ListDomainsInput, ...func(*sagemaker.Options)) (*sagemaker.ListDomainsOutput, error)
 	DescribeDomain(context.Context, *sagemaker.DescribeDomainInput, ...func(*sagemaker.Options)) (*sagemaker.DescribeDomainOutput, error)
 	ListUserProfiles(context.Context, *sagemaker.ListUserProfilesInput, ...func(*sagemaker.Options)) (*sagemaker.ListUserProfilesOutput, error)
@@ -44,76 +43,49 @@ type sagemakerStudioAPI interface {
 // scanSageMakerStudio runs all Studio-family phases for one region: Studio
 // domains, the user profiles / spaces / apps that hang off them, plus the
 // account-scoped AppImageConfigs and StudioLifecycleConfigs.
-func scanSageMakerStudio(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func(context.Context, sagemakerStudioAPI, *account, string, *store.Store, string) (int, int, error){
-		scanSageMakerDomains,
-		scanSageMakerUserProfiles,
-		scanSageMakerSpaces,
-		scanSageMakerApps,
-		scanSageMakerAppImageConfigs,
-		scanSageMakerStudioLifecycleConfigs,
-	} {
-		t, i, ferr := phase(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+func scanSageMakerStudio(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return runSageMakerPhases(
+		sagemakerPhase{"sagemaker:ListDomains", func() (int, int, error) { return scanSageMakerDomains(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListUserProfiles", func() (int, int, error) { return scanSageMakerUserProfiles(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListSpaces", func() (int, int, error) { return scanSageMakerSpaces(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListApps", func() (int, int, error) { return scanSageMakerApps(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListAppImageConfigs", func() (int, int, error) { return scanSageMakerAppImageConfigs(ctx, client, acct, region, st, scanID) }},
+		sagemakerPhase{"sagemaker:ListStudioLifecycleConfigs", func() (int, int, error) {
+			return scanSageMakerStudioLifecycleConfigs(ctx, client, acct, region, st, scanID)
+		}},
+	)
 }
 
 // scanSageMakerDomains lists Studio domains then fans out DescribeDomain
 // for full body (DefaultUserSettings, VpcId, SubnetIds, KmsKeyId,
 // AppNetworkAccessType, etc.) — list summary omits all edge-bearing fields.
 func scanSageMakerDomains(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListDomainsPaginator(client, &sagemaker.ListDomainsInput{})
-	var ids []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListDomains", acct.ID, region, perr)
-				return 0, 0, nil
+	return sagemakerDescribe[smtypes.DomainDetails]{
+		listOp: "sagemaker:ListDomains", describeOp: "sagemaker:DescribeDomain", notFound: []string{"ResourceNotFound"},
+		list: func(ctx context.Context, token *string) ([]smtypes.DomainDetails, *string, error) {
+			out, err := client.ListDomains(ctx, &sagemaker.ListDomainsInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sagemaker:ListDomains: %w", perr)
-		}
-		for _, d := range out.Domains {
-			if d.DomainId != nil {
-				ids = append(ids, *d.DomainId)
-			}
-		}
-	}
-	if len(ids) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, id := range ids {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			out, derr := client.DescribeDomain(gctx, &sagemaker.DescribeDomainInput{DomainId: &id})
-			if derr != nil {
-				if isAccessDenied(derr) {
-					return nil
-				}
-				return fmt.Errorf("sagemaker:DescribeDomain %s: %w", id, derr)
+			return out.Domains, out.NextToken, nil
+		},
+		name: func(s smtypes.DomainDetails) string { return sv(s.DomainId) },
+		listed: func(s smtypes.DomainDetails) *store.Resource {
+			return sagemakerListedRow(acct, region, scanID, TypeSageMakerDomain, s.DomainArn, s.DomainName, s.CreationTime, string(s.Status), s)
+		},
+		describe: func(ctx context.Context, s smtypes.DomainDetails) (*store.Resource, error) {
+			id := sv(s.DomainId)
+			out, err := client.DescribeDomain(ctx, &sagemaker.DescribeDomainInput{DomainId: &id})
+			if err != nil {
+				return nil, err
 			}
 			arn := sv(out.DomainArn)
 			if arn == "" {
-				return nil
+				return nil, nil
 			}
 			name := sv(out.DomainName)
 			status := string(out.Status)
-			mu.Lock()
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -125,22 +97,9 @@ func scanSageMakerDomains(ctx context.Context, client sagemakerStudioAPI, acct *
 				CreatedAt:      tp(out.CreationTime),
 				AttributesJSON: mustJSON(out),
 				DiscoveredBy:   scanID,
-			})
-			mu.Unlock()
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert sagemaker domains: %w", uerr)
-	}
-	return len(batch), n, nil
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListDomains"))
 }
 
 // userProfileKey carries the (DomainId, UserProfileName) pair needed for
@@ -150,56 +109,42 @@ type userProfileKey struct{ domainID, name string }
 // scanSageMakerUserProfiles lists user profiles across all domains in the
 // account+region, then fans out DescribeUserProfile for full body.
 func scanSageMakerUserProfiles(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListUserProfilesPaginator(client, &sagemaker.ListUserProfilesInput{})
-	var keys []userProfileKey
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListUserProfiles", acct.ID, region, perr)
-				return 0, 0, nil
+	return sagemakerDescribe[userProfileKey]{
+		listOp: "sagemaker:ListUserProfiles", describeOp: "sagemaker:DescribeUserProfile", notFound: []string{"ResourceNotFound"},
+		list: func(ctx context.Context, token *string) ([]userProfileKey, *string, error) {
+			out, err := client.ListUserProfiles(ctx, &sagemaker.ListUserProfilesInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sagemaker:ListUserProfiles: %w", perr)
-		}
-		for _, u := range out.UserProfiles {
-			if u.DomainId != nil && u.UserProfileName != nil {
-				keys = append(keys, userProfileKey{*u.DomainId, *u.UserProfileName})
+			keys := make([]userProfileKey, len(out.UserProfiles))
+			for i, u := range out.UserProfiles {
+				keys[i] = userProfileKey{sv(u.DomainId), sv(u.UserProfileName)}
 			}
-		}
-	}
-	if len(keys) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, k := range keys {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			out, derr := client.DescribeUserProfile(gctx, &sagemaker.DescribeUserProfileInput{
+			return keys, out.NextToken, nil
+		},
+		name: func(k userProfileKey) string {
+			if k.domainID == "" || k.name == "" {
+				return ""
+			}
+			return k.domainID + "/" + k.name
+		},
+		// No listed: the summary carries no ARN of its own, so a key whose
+		// describe fails is not stored.
+		describe: func(ctx context.Context, k userProfileKey) (*store.Resource, error) {
+			out, err := client.DescribeUserProfile(ctx, &sagemaker.DescribeUserProfileInput{
 				DomainId:        &k.domainID,
 				UserProfileName: &k.name,
 			})
-			if derr != nil {
-				if isAccessDenied(derr) {
-					return nil
-				}
-				return fmt.Errorf("sagemaker:DescribeUserProfile %s/%s: %w", k.domainID, k.name, derr)
+			if err != nil {
+				return nil, err
 			}
 			arn := sv(out.UserProfileArn)
 			if arn == "" {
-				return nil
+				return nil, nil
 			}
 			name := sv(out.UserProfileName)
 			status := string(out.Status)
-			mu.Lock()
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -211,22 +156,9 @@ func scanSageMakerUserProfiles(ctx context.Context, client sagemakerStudioAPI, a
 				CreatedAt:      tp(out.CreationTime),
 				AttributesJSON: mustJSON(out),
 				DiscoveredBy:   scanID,
-			})
-			mu.Unlock()
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert sagemaker user profiles: %w", uerr)
-	}
-	return len(batch), n, nil
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListUserProfiles"))
 }
 
 // spaceKey carries (DomainId, SpaceName) for DescribeSpace fan-out.
@@ -235,56 +167,42 @@ type spaceKey struct{ domainID, name string }
 // scanSageMakerSpaces lists shared spaces across all domains then fans out
 // DescribeSpace for full body (SpaceSettings, EBS volume, custom file system).
 func scanSageMakerSpaces(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListSpacesPaginator(client, &sagemaker.ListSpacesInput{})
-	var keys []spaceKey
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListSpaces", acct.ID, region, perr)
-				return 0, 0, nil
+	return sagemakerDescribe[spaceKey]{
+		listOp: "sagemaker:ListSpaces", describeOp: "sagemaker:DescribeSpace", notFound: []string{"ResourceNotFound"},
+		list: func(ctx context.Context, token *string) ([]spaceKey, *string, error) {
+			out, err := client.ListSpaces(ctx, &sagemaker.ListSpacesInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sagemaker:ListSpaces: %w", perr)
-		}
-		for _, s := range out.Spaces {
-			if s.DomainId != nil && s.SpaceName != nil {
-				keys = append(keys, spaceKey{*s.DomainId, *s.SpaceName})
+			keys := make([]spaceKey, len(out.Spaces))
+			for i, s := range out.Spaces {
+				keys[i] = spaceKey{sv(s.DomainId), sv(s.SpaceName)}
 			}
-		}
-	}
-	if len(keys) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, k := range keys {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			out, derr := client.DescribeSpace(gctx, &sagemaker.DescribeSpaceInput{
+			return keys, out.NextToken, nil
+		},
+		name: func(k spaceKey) string {
+			if k.domainID == "" || k.name == "" {
+				return ""
+			}
+			return k.domainID + "/" + k.name
+		},
+		// No listed: the summary carries no ARN of its own, so a key whose
+		// describe fails is not stored.
+		describe: func(ctx context.Context, k spaceKey) (*store.Resource, error) {
+			out, err := client.DescribeSpace(ctx, &sagemaker.DescribeSpaceInput{
 				DomainId:  &k.domainID,
 				SpaceName: &k.name,
 			})
-			if derr != nil {
-				if isAccessDenied(derr) {
-					return nil
-				}
-				return fmt.Errorf("sagemaker:DescribeSpace %s/%s: %w", k.domainID, k.name, derr)
+			if err != nil {
+				return nil, err
 			}
 			arn := sv(out.SpaceArn)
 			if arn == "" {
-				return nil
+				return nil, nil
 			}
 			name := sv(out.SpaceName)
 			status := string(out.Status)
-			mu.Lock()
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -296,22 +214,9 @@ func scanSageMakerSpaces(ctx context.Context, client sagemakerStudioAPI, acct *a
 				CreatedAt:      tp(out.CreationTime),
 				AttributesJSON: mustJSON(out),
 				DiscoveredBy:   scanID,
-			})
-			mu.Unlock()
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert sagemaker spaces: %w", uerr)
-	}
-	return len(batch), n, nil
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListSpaces"))
 }
 
 // appKey carries the four-part composite key DescribeApp requires —
@@ -325,49 +230,28 @@ type appKey struct {
 // scanSageMakerApps lists apps across all domains then fans out DescribeApp
 // for full body (LastHealthCheckTimestamp, ResourceSpec, BuiltInLifecycleConfigArn).
 func scanSageMakerApps(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListAppsPaginator(client, &sagemaker.ListAppsInput{})
-	var keys []appKey
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListApps", acct.ID, region, perr)
-				return 0, 0, nil
+	return sagemakerDescribe[appKey]{
+		listOp: "sagemaker:ListApps", describeOp: "sagemaker:DescribeApp", notFound: []string{"ResourceNotFound"},
+		list: func(ctx context.Context, token *string) ([]appKey, *string, error) {
+			out, err := client.ListApps(ctx, &sagemaker.ListAppsInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sagemaker:ListApps: %w", perr)
-		}
-		for _, a := range out.Apps {
-			if a.DomainId == nil || a.AppName == nil || a.AppType == "" {
-				continue
+			keys := make([]appKey, len(out.Apps))
+			for i, a := range out.Apps {
+				keys[i] = appKey{domainID: sv(a.DomainId), name: sv(a.AppName), appType: a.AppType, userProfile: sv(a.UserProfileName), space: sv(a.SpaceName)}
 			}
-			k := appKey{domainID: *a.DomainId, name: *a.AppName, appType: a.AppType}
-			if a.UserProfileName != nil {
-				k.userProfile = *a.UserProfileName
+			return keys, out.NextToken, nil
+		},
+		name: func(k appKey) string {
+			if k.domainID == "" || k.name == "" || k.appType == "" || k.userProfile == "" && k.space == "" {
+				return ""
 			}
-			if a.SpaceName != nil {
-				k.space = *a.SpaceName
-			}
-			if k.userProfile == "" && k.space == "" {
-				continue
-			}
-			keys = append(keys, k)
-		}
-	}
-	if len(keys) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, k := range keys {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
+			return k.domainID + "/" + string(k.appType) + "/" + k.name
+		},
+		// No listed: the summary carries no ARN of its own, so a key whose
+		// describe fails is not stored.
+		describe: func(ctx context.Context, k appKey) (*store.Resource, error) {
 			in := &sagemaker.DescribeAppInput{
 				DomainId: &k.domainID,
 				AppType:  k.appType,
@@ -379,21 +263,17 @@ func scanSageMakerApps(ctx context.Context, client sagemakerStudioAPI, acct *acc
 			if k.space != "" {
 				in.SpaceName = &k.space
 			}
-			out, derr := client.DescribeApp(gctx, in)
-			if derr != nil {
-				if isAccessDenied(derr) {
-					return nil
-				}
-				return fmt.Errorf("sagemaker:DescribeApp %s/%s/%s: %w", k.domainID, k.appType, k.name, derr)
+			out, err := client.DescribeApp(ctx, in)
+			if err != nil {
+				return nil, err
 			}
 			arn := sv(out.AppArn)
 			if arn == "" {
-				return nil
+				return nil, nil
 			}
 			name := sv(out.AppName)
 			status := string(out.Status)
-			mu.Lock()
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -405,74 +285,40 @@ func scanSageMakerApps(ctx context.Context, client sagemakerStudioAPI, acct *acc
 				CreatedAt:      tp(out.CreationTime),
 				AttributesJSON: mustJSON(out),
 				DiscoveredBy:   scanID,
-			})
-			mu.Unlock()
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert sagemaker apps: %w", uerr)
-	}
-	return len(batch), n, nil
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListApps"))
 }
 
 // scanSageMakerAppImageConfigs lists app image configs (account+region scoped)
 // then fans out DescribeAppImageConfig for full body (KernelGatewayImageConfig,
 // JupyterLabAppImageConfig, CodeEditorAppImageConfig).
 func scanSageMakerAppImageConfigs(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListAppImageConfigsPaginator(client, &sagemaker.ListAppImageConfigsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListAppImageConfigs", acct.ID, region, perr)
-				return 0, 0, nil
+	return sagemakerDescribe[smtypes.AppImageConfigDetails]{
+		listOp: "sagemaker:ListAppImageConfigs", describeOp: "sagemaker:DescribeAppImageConfig", notFound: []string{"ResourceNotFound"},
+		list: func(ctx context.Context, token *string) ([]smtypes.AppImageConfigDetails, *string, error) {
+			out, err := client.ListAppImageConfigs(ctx, &sagemaker.ListAppImageConfigsInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sagemaker:ListAppImageConfigs: %w", perr)
-		}
-		for _, c := range out.AppImageConfigs {
-			if c.AppImageConfigName != nil {
-				names = append(names, *c.AppImageConfigName)
-			}
-		}
-	}
-	if len(names) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, name := range names {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			out, derr := client.DescribeAppImageConfig(gctx, &sagemaker.DescribeAppImageConfigInput{AppImageConfigName: &name})
-			if derr != nil {
-				if isAccessDenied(derr) {
-					return nil
-				}
-				return fmt.Errorf("sagemaker:DescribeAppImageConfig %s: %w", name, derr)
+			return out.AppImageConfigs, out.NextToken, nil
+		},
+		name: func(s smtypes.AppImageConfigDetails) string { return sv(s.AppImageConfigName) },
+		listed: func(s smtypes.AppImageConfigDetails) *store.Resource {
+			return sagemakerListedRow(acct, region, scanID, TypeSageMakerAppImageConfig, s.AppImageConfigArn, s.AppImageConfigName, s.CreationTime, "", s)
+		},
+		describe: func(ctx context.Context, s smtypes.AppImageConfigDetails) (*store.Resource, error) {
+			name := sv(s.AppImageConfigName)
+			out, err := client.DescribeAppImageConfig(ctx, &sagemaker.DescribeAppImageConfigInput{AppImageConfigName: &name})
+			if err != nil {
+				return nil, err
 			}
 			arn := sv(out.AppImageConfigArn)
 			if arn == "" {
-				return nil
+				return nil, nil
 			}
 			outName := sv(out.AppImageConfigName)
-			mu.Lock()
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -483,73 +329,39 @@ func scanSageMakerAppImageConfigs(ctx context.Context, client sagemakerStudioAPI
 				CreatedAt:      tp(out.CreationTime),
 				AttributesJSON: mustJSON(out),
 				DiscoveredBy:   scanID,
-			})
-			mu.Unlock()
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert sagemaker app-image-configs: %w", uerr)
-	}
-	return len(batch), n, nil
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListAppImageConfigs"))
 }
 
 // scanSageMakerStudioLifecycleConfigs lists Studio lifecycle configs then
 // fans out DescribeStudioLifecycleConfig for full body (StudioLifecycleConfigContent).
 func scanSageMakerStudioLifecycleConfigs(ctx context.Context, client sagemakerStudioAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sagemaker.NewListStudioLifecycleConfigsPaginator(client, &sagemaker.ListStudioLifecycleConfigsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sagemaker:ListStudioLifecycleConfigs", acct.ID, region, perr)
-				return 0, 0, nil
+	return sagemakerDescribe[smtypes.StudioLifecycleConfigDetails]{
+		listOp: "sagemaker:ListStudioLifecycleConfigs", describeOp: "sagemaker:DescribeStudioLifecycleConfig", notFound: []string{"ResourceNotFound"},
+		list: func(ctx context.Context, token *string) ([]smtypes.StudioLifecycleConfigDetails, *string, error) {
+			out, err := client.ListStudioLifecycleConfigs(ctx, &sagemaker.ListStudioLifecycleConfigsInput{MaxResults: sdkaws.Int32(sagemakerListPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sagemaker:ListStudioLifecycleConfigs: %w", perr)
-		}
-		for _, c := range out.StudioLifecycleConfigs {
-			if c.StudioLifecycleConfigName != nil {
-				names = append(names, *c.StudioLifecycleConfigName)
-			}
-		}
-	}
-	if len(names) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, name := range names {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			out, derr := client.DescribeStudioLifecycleConfig(gctx, &sagemaker.DescribeStudioLifecycleConfigInput{StudioLifecycleConfigName: &name})
-			if derr != nil {
-				if isAccessDenied(derr) {
-					return nil
-				}
-				return fmt.Errorf("sagemaker:DescribeStudioLifecycleConfig %s: %w", name, derr)
+			return out.StudioLifecycleConfigs, out.NextToken, nil
+		},
+		name: func(s smtypes.StudioLifecycleConfigDetails) string { return sv(s.StudioLifecycleConfigName) },
+		listed: func(s smtypes.StudioLifecycleConfigDetails) *store.Resource {
+			return sagemakerListedRow(acct, region, scanID, TypeSageMakerStudioLifecycleConfig, s.StudioLifecycleConfigArn, s.StudioLifecycleConfigName, s.CreationTime, "", s)
+		},
+		describe: func(ctx context.Context, s smtypes.StudioLifecycleConfigDetails) (*store.Resource, error) {
+			name := sv(s.StudioLifecycleConfigName)
+			out, err := client.DescribeStudioLifecycleConfig(ctx, &sagemaker.DescribeStudioLifecycleConfigInput{StudioLifecycleConfigName: &name})
+			if err != nil {
+				return nil, err
 			}
 			arn := sv(out.StudioLifecycleConfigArn)
 			if arn == "" {
-				return nil
+				return nil, nil
 			}
 			outName := sv(out.StudioLifecycleConfigName)
-			mu.Lock()
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
@@ -560,20 +372,7 @@ func scanSageMakerStudioLifecycleConfigs(ctx context.Context, client sagemakerSt
 				CreatedAt:      tp(out.CreationTime),
 				AttributesJSON: mustJSON(out),
 				DiscoveredBy:   scanID,
-			})
-			mu.Unlock()
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert sagemaker studio-lifecycle-configs: %w", uerr)
-	}
-	return len(batch), n, nil
+			}, nil
+		},
+	}.scan(ctx, st, acct, region, sagemakerStoreTagged(ctx, client, acct, region, st, "sagemaker:ListStudioLifecycleConfigs"))
 }
