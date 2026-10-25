@@ -168,7 +168,7 @@ func (s *Scanner) Scan(ctx context.Context, st *store.Store, scanID string) erro
 			return nil
 		}
 	}
-	accounts, err := loadAccounts(ctx, s.profile, s.regionOverride, s.roleARN, s.externalID, srcID)
+	accounts, err := loadAccounts(ctx, loadBaseConfig, s.profile, s.regionOverride, s.roleARN, s.externalID, srcID)
 	if err != nil {
 		st.ReportError(store.ScanError{
 			Provider: "aws", Service: "load-accounts", Scope: "", Message: err.Error(),
@@ -453,7 +453,10 @@ type account struct {
 	ID      string
 	Name    string
 	Regions []string
-	cfg     sdkaws.Config // credentials + endpoint config; region is set per client
+	// Partition is the AWS partition (aws, aws-cn, aws-us-gov, …) loadAccounts
+	// resolved; read it through partition(), which treats "" as aws.
+	Partition string
+	cfg       sdkaws.Config // credentials + endpoint config; region is set per client
 
 	// s3BucketEncryption holds per-bucket SSE config fetched during the S3 scan,
 	// keyed by bucket name. Populated by scanS3BucketEncryptions, consumed by
@@ -492,6 +495,16 @@ type account struct {
 	// includeServiceQuotas mirrors --include-service-quotas: when true the
 	// quota-tagged opt-in scanners join the default service set for this scan.
 	includeServiceQuotas bool
+}
+
+// partition returns the account's AWS partition. An account literal that never
+// went through loadAccounts (tests, mostly) leaves Partition empty and is in
+// the aws partition, as every account was before partitions were resolved.
+func (a *account) partition() string {
+	if a.Partition == "" {
+		return "aws"
+	}
+	return a.Partition
 }
 
 // s3BucketEncryptionEntry carries a bucket's SSE configuration alongside the

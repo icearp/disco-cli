@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -19,16 +20,22 @@ import (
 	"github.com/spf13/viper"
 )
 
+// emulatorMode reports whether AWS_ENDPOINT_URL is set — the SDK's canonical
+// "talking to a non-AWS endpoint" signal. A scan against real AWS would
+// normally leave it unset.
+func emulatorMode() bool {
+	return strings.TrimSpace(os.Getenv("AWS_ENDPOINT_URL")) != ""
+}
+
 // emulatorAccountIDOverride returns the explicit account_id the caller
 // (typically an external orchestrator) wants recorded on resources/scans,
-// gated on AWS_ENDPOINT_URL being set — the SDK's canonical "talking to a
-// non-AWS endpoint" signal, so the override is unreachable in prod (prod
-// scanners never set it). Emulators (e.g. LocalStack) return a sentinel
-// "000000000000" from sts:GetCallerIdentity that would otherwise overwrite
-// the configured account id on every scan. Returns "" when either env is
-// unset or whitespace-only.
+// gated on emulatorMode, so it is inert unless AWS_ENDPOINT_URL is set. An
+// emulator can answer sts:GetCallerIdentity with a sentinel account
+// (LocalStack returns "000000000000") that would otherwise overwrite the
+// configured account id on every scan. Returns "" when either env is unset
+// or whitespace-only.
 func emulatorAccountIDOverride() string {
-	if strings.TrimSpace(os.Getenv("AWS_ENDPOINT_URL")) == "" {
+	if !emulatorMode() {
 		return ""
 	}
 	return strings.TrimSpace(os.Getenv("DISCO_CLOUD_ACCOUNT_ID"))
@@ -45,12 +52,30 @@ type providerCfg struct {
 // the slice in order, each step using the prior step's credentials as the
 // source. Use role_chain for hub/spoke topologies that hop through an
 // intermediate "audit" role to reach a target account.
+//
+// partition, when set, must agree with the partition the role ARN and regions
+// name; when unset it is derived from them (resolvePartition), except in
+// emulator mode, where a partition other than aws must be set. profile names
+// the shared-config profile the account's base credentials come from; unset,
+// the account uses --profile or the default chain.
 type accountCfg struct {
 	ID        string   `mapstructure:"id"`
 	Name      string   `mapstructure:"name"`
 	Regions   []string `mapstructure:"regions"`
 	RoleARN   string   `mapstructure:"role_arn"`
 	RoleChain []string `mapstructure:"role_chain"`
+	Partition string   `mapstructure:"partition"`
+	Profile   string   `mapstructure:"profile"`
+}
+
+// roleTarget returns the ARN of the role the account's credentials end in,
+// and which setting it came from; role_chain wins over role_arn, as it does
+// when the credentials are built.
+func (a accountCfg) roleTarget() (string, partitionSource) {
+	if len(a.RoleChain) > 0 {
+		return a.RoleChain[len(a.RoleChain)-1], sourceRoleChain
+	}
+	return a.RoleARN, sourceRoleARN
 }
 
 // baseLoadOptions returns the SDK load options every account config derives
@@ -72,10 +97,56 @@ func baseLoadOptions(profile string) []func(*awsconfig.LoadOptions) error {
 	return opts
 }
 
+// baseConfigLoader loads the SDK config an account's credentials derive from;
+// profile "" means the default credential chain. The config's Region is what
+// the profile or environment set, "" when neither did. loadAccounts takes it
+// as a parameter so tests can substitute a stubbed config.
+type baseConfigLoader func(ctx context.Context, profile string) (sdkaws.Config, error)
+
+// loadBaseConfig is the production baseConfigLoader: the default credential
+// chain (env → ~/.aws → IAM role), or the named profile.
+func loadBaseConfig(ctx context.Context, profile string) (sdkaws.Config, error) {
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, baseLoadOptions(profile)...)
+	if err != nil {
+		return sdkaws.Config{}, explainConfigLoadError(err, profile)
+	}
+	return cfg, nil
+}
+
+// baseConfig is a loaded base config plus the region its profile or
+// environment named, kept because cfg.Region may hold the fallback instead.
+type baseConfig struct {
+	cfg           sdkaws.Config
+	profileRegion string // "" when the profile and environment name no region
+}
+
+// loadBaseFor loads profile's base config and fills in the fallback region.
+func loadBaseFor(ctx context.Context, loadBase baseConfigLoader, profile string) (baseConfig, error) {
+	cfg, err := loadBase(ctx, profile)
+	if err != nil {
+		return baseConfig{}, err
+	}
+	b := baseConfig{cfg: cfg, profileRegion: cfg.Region}
+	// Honor the region from profile/env; fall back to us-east-1 only when none
+	// is configured, since global-endpoint clients built from this config need
+	// a non-empty region. (The us-east-1-pinned probes — enabledScanRegions,
+	// region-availability SSM — set o.Region themselves, so unaffected.) The
+	// fallback is not partition evidence, so profileRegion keeps the "".
+	if b.cfg.Region == "" {
+		b.cfg.Region = "us-east-1"
+	}
+	return b, nil
+}
+
+// implicitDefaultRegions is the region list an account scans when neither the
+// account, aws.default_regions nor --regions names one.
+var implicitDefaultRegions = []string{"us-east-1"}
+
 // loadAccounts parses the viper config and returns a resolved account slice.
 // When no accounts are configured, the current account is detected via STS.
-// profile selects a named entry from ~/.aws/config ("" = default chain).
-// regionOverride, when non-empty, replaces all per-account and default regions.
+// profile selects a named entry from ~/.aws/config ("" = default chain) for
+// every account that sets no profile of its own. regionOverride, when
+// non-empty, replaces all per-account and default regions.
 //
 // When roleARNOverride is non-empty, the config-file accounts: section is
 // ignored entirely: a single synthetic account is built that assumes
@@ -83,108 +154,166 @@ func baseLoadOptions(profile string) []func(*awsconfig.LoadOptions) error {
 // non-empty). An external orchestrator (e.g. a scan-trigger Lambda) uses
 // this to drive per-tenant scans without writing config to disk in the
 // worker container.
-func loadAccounts(ctx context.Context, profile string, regionOverride []string, roleARNOverride, externalIDOverride, sourceIdentity string) ([]account, error) {
+func loadAccounts(ctx context.Context, loadBase baseConfigLoader, profile string, regionOverride []string, roleARNOverride, externalIDOverride, sourceIdentity string) ([]account, error) {
 	var cfg providerCfg
 	if err := viper.UnmarshalKey("aws", &cfg); err != nil {
 		return nil, fmt.Errorf("parse aws config: %w", err)
 	}
-	if len(cfg.DefaultRegions) == 0 {
-		cfg.DefaultRegions = []string{"us-east-1"}
-	}
 
-	// Load the base SDK config once (uses default credential chain: env → ~/.aws → IAM role).
-	baseCfg, err := awsconfig.LoadDefaultConfig(ctx, baseLoadOptions(profile)...)
-	if err != nil {
-		return nil, explainConfigLoadError(err, profile)
-	}
-
-	// Honor the region from profile/env; fall back to us-east-1 only when none
-	// is configured, since global-endpoint clients built from baseCfg need a
-	// non-empty region. (The us-east-1-pinned probes — enabledScanRegions,
-	// region-availability SSM — set o.Region themselves, so unaffected.)
-	if baseCfg.Region == "" {
-		baseCfg.Region = "us-east-1"
-	}
-
-	// CLI/Lambda override pins a single AssumeRole-driven account; ignores
-	// config-file accounts entirely. Synthetic accountCfg built here so the
-	// loop below handles role chain + region + override uniformly.
 	if roleARNOverride != "" {
-		stsClient := sts.NewFromConfig(baseCfg)
-		acctCfg := baseCfg
-		acctCfg.Credentials = cachedAssumeRole(stsClient, roleARNOverride, assumeRoleOpts(externalIDOverride, sourceIdentity))
-		// Resolve the assumed-role caller account for the synthetic ID; on
-		// error, proceed with an empty ID rather than failing the scan — the
-		// override path is meant to short-circuit STS pre-checks.
-		var acctID string
-		if envAcctID := emulatorAccountIDOverride(); envAcctID != "" {
-			acctID = envAcctID
-		} else if identity, err := sts.NewFromConfig(acctCfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}); err == nil {
-			acctID = sv(identity.Account)
+		base, err := loadBaseFor(ctx, loadBase, profile)
+		if err != nil {
+			return nil, err
 		}
-		regions := cfg.DefaultRegions
-		if len(regionOverride) > 0 {
-			regions = regionOverride
-		}
-		return []account{{
-			ID:      acctID,
-			Regions: expandAllRegions(regions),
-			cfg:     acctCfg,
-		}}, nil
+		configured := firstNonEmpty(regionOverride, cfg.DefaultRegions)
+		return loadOverrideAccount(ctx, base, roleARNOverride, assumeRoleOpts(externalIDOverride, sourceIdentity), configured)
 	}
 
+	bases := map[string]baseConfig{}
+	baseFor := func(profile string) (baseConfig, error) {
+		if b, ok := bases[profile]; ok {
+			return b, nil
+		}
+		b, err := loadBaseFor(ctx, loadBase, profile)
+		if err != nil {
+			return baseConfig{}, err
+		}
+		bases[profile] = b
+		return b, nil
+	}
+
+	type pendingAccount struct {
+		cfg       accountCfg
+		callerARN string
+	}
+	pending := make([]pendingAccount, 0, len(cfg.Accounts))
+	for _, a := range cfg.Accounts {
+		pending = append(pending, pendingAccount{cfg: a})
+	}
 	// Auto-detect the current account when none are configured. Emulator
 	// override (F28) short-circuits STS when AWS_ENDPOINT_URL is set, so
 	// emulator-backed scans record the configured account id instead of the
 	// emulator's sentinel "000000000000".
-	if len(cfg.Accounts) == 0 {
+	if len(pending) == 0 {
 		if envAcctID := emulatorAccountIDOverride(); envAcctID != "" {
-			cfg.Accounts = []accountCfg{{ID: envAcctID}}
+			pending = append(pending, pendingAccount{cfg: accountCfg{ID: envAcctID}})
 		} else {
-			stsClient := sts.NewFromConfig(baseCfg)
-			identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+			base, err := baseFor(profile)
+			if err != nil {
+				return nil, err
+			}
+			identity, err := sts.NewFromConfig(base.cfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 			if err != nil {
 				return nil, fmt.Errorf("sts:GetCallerIdentity: %w", err)
 			}
-			cfg.Accounts = []accountCfg{{ID: sv(identity.Account)}}
+			pending = append(pending, pendingAccount{cfg: accountCfg{ID: sv(identity.Account)}, callerARN: sv(identity.Arn)})
 		}
 	}
 
-	accounts := make([]account, 0, len(cfg.Accounts))
-	for _, a := range cfg.Accounts {
-		acctCfg := baseCfg // value copy; safe — aws.Config is a struct
+	type claim struct{ account, partition string }
+	claimed := map[string]claim{} // effective profile → first account resolved with it
+	accounts := make([]account, 0, len(pending))
+	for _, p := range pending {
+		a := p.cfg
+		acctProfile := cmp.Or(a.Profile, profile)
+		base, err := baseFor(acctProfile)
+		if err != nil {
+			return nil, err
+		}
+		acctCfg := base.cfg // value copy; safe — aws.Config is a struct
 
 		// Multi-hop role chaining (preferred when present): walk role_chain
 		// in order, each step's STS client built from the prior step's
 		// credentials. Each AssumeRoleProvider wraps in a CredentialsCache so
 		// the SDK's normal token refresh kicks in independently per hop.
+		roleARN, roleSource := a.roleTarget()
 		switch {
-		case len(a.RoleChain) > 0:
+		case roleSource == sourceRoleChain:
 			acctCfg.Credentials = chainAssumeRoles(acctCfg, a.RoleChain, sourceIdentity)
-		case a.RoleARN != "":
-			acctCfg.Credentials = cachedAssumeRole(sts.NewFromConfig(baseCfg), a.RoleARN, assumeRoleOpts("", sourceIdentity))
+		case roleARN != "":
+			acctCfg.Credentials = cachedAssumeRole(sts.NewFromConfig(base.cfg), roleARN, assumeRoleOpts("", sourceIdentity))
 		}
 
-		regions := a.Regions
-		if len(regions) == 0 {
-			// No per-account regions configured: use the default region list.
-			// To scan all opted-in regions, list them explicitly under accounts[].regions
-			// or set aws.default_regions in config.
-			regions = cfg.DefaultRegions
+		// The CLI --regions override wins over per-account regions, which win
+		// over aws.default_regions. To scan all opted-in regions, list "all"
+		// in any of them.
+		configured := firstNonEmpty(regionOverride, a.Regions, cfg.DefaultRegions)
+
+		label := cmp.Or(a.ID, a.Name)
+		partition, err := resolvePartition(label, partitionInputs{
+			explicit:      a.Partition,
+			roleARN:       roleARN,
+			roleSource:    roleSource,
+			callerARN:     p.callerARN,
+			regions:       configured,
+			profileRegion: base.profileRegion,
+		})
+		if err != nil {
+			return nil, err
 		}
-		// CLI --region flag overrides both per-account and default regions.
-		if len(regionOverride) > 0 {
-			regions = regionOverride
+		if first, ok := claimed[acctProfile]; !ok {
+			claimed[acctProfile] = claim{account: label, partition: partition}
+		} else if first.partition != partition {
+			return nil, &sharedCredentialsError{
+				Profile:      acctProfile,
+				FirstAccount: first.account, FirstPartition: first.partition,
+				SecondAccount: label, SecondPartition: partition,
+			}
 		}
 
 		accounts = append(accounts, account{
-			ID:      a.ID,
-			Name:    a.Name,
-			Regions: expandAllRegions(regions),
-			cfg:     acctCfg,
+			ID:        a.ID,
+			Name:      a.Name,
+			Regions:   expandAllRegions(firstNonEmpty(configured, implicitDefaultRegions)),
+			Partition: partition,
+			cfg:       acctCfg,
 		})
 	}
 	return accounts, nil
+}
+
+// loadOverrideAccount builds the single account the --role-arn override pins
+// a scan to. configured is the --regions or aws.default_regions list, empty
+// when neither is set.
+func loadOverrideAccount(ctx context.Context, base baseConfig, roleARN string, assumeOpts func(*stscreds.AssumeRoleOptions), configured []string) ([]account, error) {
+	acctCfg := base.cfg
+	acctCfg.Credentials = cachedAssumeRole(sts.NewFromConfig(base.cfg), roleARN, assumeOpts)
+	// Resolve the assumed-role caller account for the synthetic ID; on
+	// error, proceed with an empty ID rather than failing the scan — the
+	// override path is meant to short-circuit STS pre-checks.
+	var acctID, callerARN string
+	if envAcctID := emulatorAccountIDOverride(); envAcctID != "" {
+		acctID = envAcctID
+	} else if identity, err := sts.NewFromConfig(acctCfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{}); err == nil {
+		acctID = sv(identity.Account)
+		callerARN = sv(identity.Arn)
+	}
+	partition, err := resolvePartition(cmp.Or(acctID, roleARN), partitionInputs{
+		roleARN:       roleARN,
+		roleSource:    sourceRoleOverride,
+		callerARN:     callerARN,
+		regions:       configured,
+		profileRegion: base.profileRegion,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return []account{{
+		ID:        acctID,
+		Regions:   expandAllRegions(firstNonEmpty(configured, implicitDefaultRegions)),
+		Partition: partition,
+		cfg:       acctCfg,
+	}}, nil
+}
+
+// firstNonEmpty returns the first non-empty list, or nil when all are empty.
+func firstNonEmpty(lists ...[]string) []string {
+	for _, l := range lists {
+		if len(l) > 0 {
+			return l
+		}
+	}
+	return nil
 }
 
 // explainConfigLoadError augments aws-sdk-go-v2's opaque assume-role failure

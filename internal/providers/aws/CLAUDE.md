@@ -44,6 +44,8 @@ One resource type, not two. Flavor lives as sibling sub-structs (`Provisioned *.
 
 - **Scanner attribute JSON uses PascalCase keys.** `mustJSON` calls `json.Marshal` on AWS SDK v2 response structs, no json tags — `ClusterArn` stays `ClusterArn`, not `clusterArn`. Resolver structs need PascalCase tags (`json:"ClusterArn"`) or silent match nothing on real scan data while tests pass on hand-rolled JSON.
 - **ARN helpers** (`aws_arn.go`): `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash sep). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon sep). `apigatewayARN(region, path...)` → `arn:aws:apigateway:{r}::/p1/p2/...` (empty account, variadic path joined `/`). `logGroupNativeIDFromName(acct, region, name)` → `arn:aws:logs:{r}:{a}:log-group:{name}` — use it instead of `fmt.Sprintf`. The SDK returns `CloudWatchLogsLogGroupArn` with a trailing `:*`; strip it (`strings.TrimSuffix(arn, ":*")`) before NativeID lookup or the edge points at a phantom resource. Synthetic NativeIDs for APIs that issue no ARN: `macieSessionNativeID`, `ssoAssignmentNativeID`, `identityStoreUserNativeID`, `identityStoreGroupNativeID`. Resolvers rebuild target ARN from native ID, pass to `store.ResourceID(...)`. Wrong shape = phantom edge.
+- **Partition in ARNs.** New builders take a partition: `arnFor(acct.partition(), svc, region, acct, res)`, or the `*In` cores (`ec2ARNIn`, `rdsARNIn`, …). Take the partition from the parent ARN when one is at hand (`partitionOf`). The 3-arg helpers are "aws" wrappers kept until the Phase 3 sweep.
+- `TestCommercialARNLiteralRatchet` caps the `"arn:aws:` literals outside `aws_arn.go` in both directions: raise the count and it fails; lower it and it fails until you lower the ceiling. It counts single literals only, so `"arn:" + "aws:"` or a `Sprintf` with "aws" escapes it. Don't do either.
 - **KMS edges**: skip empty `KmsKeyId` / `KMSKeyArn`. AWS-managed default keys unscanned, edge = dangling target. `if sv(attrs.KmsKeyId) == "" { continue }`.
 - **EFS mount target NativeID**: no native ARN. Synthesize: `arn:aws:elasticfilesystem:{region}:{acct}:file-system/{fsid}/mount-target/{mtid}` using `FileSystemId` + `MountTargetId` from `DescribeMountTargets`.
 - **KMS grant NativeID**: `ListGrants` returns no `GrantArn` — `GrantListEntry` only has `GrantId`. Synthesize `{keyARN}/grant/{grantId}`. No real `arn:aws:kms:...:grant/...` ARN exists; pattern-matchers keyed on AWS-issued ARNs skip.
@@ -314,6 +316,23 @@ Which account and which regions a service is dispatched into, and how single-reg
 `DISCO_CLOUD_ACCOUNT_ID` is an **emulator-only** override that short-circuits the STS lookup. **Honored only when `AWS_ENDPOINT_URL` is also set** — the AWS SDK's canonical "talking to a non-AWS endpoint" signal. Prod scanners never set `AWS_ENDPOINT_URL`, so the env is inert outside emulator mode. Emulators (e.g. LocalStack) return a sentinel `"000000000000"` from `sts:GetCallerIdentity` that would otherwise overwrite the configured account id on every emulator-backed scan.
 
 The gate function `emulatorAccountIDOverride()` is the single read site; both the `--role-arn` branch and the auto-detect branch call it before STS. `TestEmulatorAccountIDOverride` in `aws_config_test.go` pins the prod-safety assertion (env value ignored when `AWS_ENDPOINT_URL` is unset).
+
+### Account partition
+
+`loadAccounts` sets `account.Partition` (`acct.partition()` returns "aws" when it is empty). The evidence, in order:
+1. explicit `accounts[].partition`;
+2. `role_arn` / the last `role_chain` hop;
+3. the STS caller ARN (only on the `--role-arn` and auto-detect paths; config-file accounts make no STS call);
+4. listed regions;
+5. the base-config region (AWS_REGION, then AWS_DEFAULT_REGION, then the profile's `region`), read BEFORE the us-east-1 fallback.
+
+The fallback is never evidence. With no evidence the partition is "aws".
+
+- **Every rung must agree**, or loading fails with `partitionConflictError`. Precedence shows only in its `First`/`Second`.
+- **Accounts in different partitions sharing one base profile** fail with `sharedCredentialsError`. The fix is a per-account `profile:`; there is no cross-partition AssumeRole.
+- **Emulator mode** (`AWS_ENDPOINT_URL`) ignores the caller ARN and the base region. Any non-aws role or regions evidence needs an explicit `partition:` (`emulatorPartitionError`).
+- **Errors are typed** (`aws_partition.go`). Tests assert the type and `Source`, never prose.
+- **Partition facts** (regex, DNS suffix, implicit global region, regions) are generated into the SDK-free `awsregions.Partitions` from the pinned SDK's `partitions.json` (`tools/genregions`, with a staleness test). Never hand-list them. An unknown partition returns ok=false and never falls back to "aws".
 
 ### `--regions all` sentinel expands to the full region list
 

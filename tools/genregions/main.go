@@ -1,12 +1,13 @@
 // Command genregions regenerates the per-service region table that lets the AWS
-// scanner skip (service × region) cells AWS does not offer.
+// scanner skip (service × region) cells AWS does not offer, and the partition
+// table copied from the SDK's partitions.json.
 //
 // Run it through go generate:
 //
 //	go generate ./internal/providers/aws/awsregions/...
 //
 // or via `make gen-regions`. The output is committed; internal/regionsgen holds
-// the logic and its test fails when the committed file drifts.
+// the logic and its tests fail when a committed file drifts.
 package main
 
 import (
@@ -19,16 +20,17 @@ import (
 )
 
 func main() {
-	out := flag.String("out", regionsgen.GeneratedFile, "path of the generated file to write")
+	out := flag.String("out", regionsgen.GeneratedFile, "path of the generated service-region file to write")
+	partitionsOut := flag.String("partitions-out", regionsgen.PartitionsFile, "path of the generated partition file to write")
 	flag.Parse()
 
-	if err := run(*out); err != nil {
+	if err := run(*out, *partitionsOut); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(out string) error {
+func run(out, partitionsOut string) error {
 	root, err := moduleRoot()
 	if err != nil {
 		return err
@@ -45,6 +47,19 @@ func run(out string) error {
 		return fmt.Errorf("genregions: write %s: %w", out, err)
 	}
 	fmt.Fprintf(os.Stderr, "genregions: wrote %s (%d services)\n", out, len(table))
+
+	parts, err := regionsgen.BuildPartitions(root)
+	if err != nil {
+		return err
+	}
+	partsSrc, err := regionsgen.RenderPartitions(parts)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(partitionsOut, partsSrc, 0o644); err != nil {
+		return fmt.Errorf("genregions: write %s: %w", partitionsOut, err)
+	}
+	fmt.Fprintf(os.Stderr, "genregions: wrote %s (%d partitions)\n", partitionsOut, len(parts))
 	return nil
 }
 

@@ -9,9 +9,12 @@
 //
 // Refresh when AWS GAs a new region. Source: aws-cli's
 // `aws ec2 describe-regions --all-regions` against a recent SDK.
+//
+// Partitions, unlike Regions, is generated from the SDK and spans every
+// partition, GovCloud and China included.
 package awsregions
 
-//go:generate go run github.com/icearp/disco-cli/tools/genregions -out services_generated.go
+//go:generate go run github.com/icearp/disco-cli/tools/genregions -out services_generated.go -partitions-out partitions_generated.go
 
 import "github.com/icearp/disco-cli/regions"
 

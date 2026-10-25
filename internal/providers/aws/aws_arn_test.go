@@ -2,6 +2,172 @@ package aws
 
 import "testing"
 
+// TestPartitionARNBuilders_CommercialUnchanged pins that every partition-taking
+// core, given "aws", produces exactly the string the builder produced before
+// partitions existed — those strings are NativeIDs, and a changed byte gives
+// every existing commercial row a new ResourceID. The aws-cn column proves the
+// partition argument reaches the output instead of being ignored.
+func TestPartitionARNBuilders_CommercialUnchanged(t *testing.T) {
+	const acct, region = "123456789012", "us-east-1"
+	cases := []struct {
+		name       string
+		build      func(partition string) string
+		legacy     string // the wrapper still used by every caller
+		commercial string // the pre-partition literal form
+		china      string
+	}{
+		{
+			"ec2", func(p string) string { return ec2ARNIn(p, region, acct, "instance", "i-1") },
+			ec2ARN(region, acct, "instance", "i-1"),
+			"arn:aws:ec2:us-east-1:123456789012:instance/i-1",
+			"arn:aws-cn:ec2:us-east-1:123456789012:instance/i-1",
+		},
+		{
+			"rds", func(p string) string { return rdsARNIn(p, region, acct, "cluster", "c1") },
+			rdsARN(region, acct, "cluster", "c1"),
+			"arn:aws:rds:us-east-1:123456789012:cluster:c1",
+			"arn:aws-cn:rds:us-east-1:123456789012:cluster:c1",
+		},
+		{
+			"apigateway", func(p string) string { return apigatewayARNIn(p, region, "restapis", "a1") },
+			apigatewayARN(region, "restapis", "a1"),
+			"arn:aws:apigateway:us-east-1::/restapis/a1",
+			"arn:aws-cn:apigateway:us-east-1::/restapis/a1",
+		},
+		{
+			"apigateway empty path", func(p string) string { return apigatewayARNIn(p, region) },
+			apigatewayARN(region),
+			"arn:aws:apigateway:us-east-1::/",
+			"arn:aws-cn:apigateway:us-east-1::/",
+		},
+		{
+			"cloudhsm", func(p string) string { return cloudhsmClusterARNIn(p, region, acct, "cluster-1") },
+			cloudhsmClusterARN(region, acct, "cluster-1"),
+			"arn:aws:cloudhsm:us-east-1:123456789012:cluster/cluster-1",
+			"arn:aws-cn:cloudhsm:us-east-1:123456789012:cluster/cluster-1",
+		},
+		{
+			"log group", func(p string) string { return logGroupARNIn(p, acct, region, "/aws/lambda/f") },
+			logGroupNativeIDFromName(acct, region, "/aws/lambda/f"),
+			"arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/f",
+			"arn:aws-cn:logs:us-east-1:123456789012:log-group:/aws/lambda/f",
+		},
+		{
+			"macie session", func(p string) string { return macieSessionNativeIDIn(p, acct, region) },
+			macieSessionNativeID(acct, region),
+			"arn:aws:macie2:us-east-1:123456789012:session",
+			"arn:aws-cn:macie2:us-east-1:123456789012:session",
+		},
+		{
+			"identity store user", func(p string) string { return identityStoreUserNativeIDIn(p, acct, "d-1", "u-1") },
+			identityStoreUserNativeID(acct, "d-1", "u-1"),
+			"arn:aws:identitystore::123456789012:user/d-1/u-1",
+			"arn:aws-cn:identitystore::123456789012:user/d-1/u-1",
+		},
+		{
+			"identity store group", func(p string) string { return identityStoreGroupNativeIDIn(p, acct, "d-1", "g-1") },
+			identityStoreGroupNativeID(acct, "d-1", "g-1"),
+			"arn:aws:identitystore::123456789012:group/d-1/g-1",
+			"arn:aws-cn:identitystore::123456789012:group/d-1/g-1",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := c.build("aws"); got != c.commercial {
+				t.Errorf("core(aws) = %q; want %q", got, c.commercial)
+			}
+			if c.legacy != c.commercial {
+				t.Errorf("wrapper = %q; want %q", c.legacy, c.commercial)
+			}
+			if got := c.build("aws-cn"); got != c.china {
+				t.Errorf("core(aws-cn) = %q; want %q", got, c.china)
+			}
+		})
+	}
+}
+
+func TestArnFor(t *testing.T) {
+	if got, want := arnFor("aws-us-gov", "s3", "", "", "bucket"), "arn:aws-us-gov:s3:::bucket"; got != want {
+		t.Errorf("arnFor(aws-us-gov, s3, \"\", \"\", bucket) = %q; want %q", got, want)
+	}
+}
+
+func TestPartitionOf(t *testing.T) {
+	cases := []struct {
+		in     string
+		want   string
+		wantOK bool
+	}{
+		{"arn:aws:iam::123456789012:role/R", "aws", true},
+		{"arn:aws-cn:iam::123456789012:role/R", "aws-cn", true},
+		{"arn:aws-us-gov:sts::123456789012:assumed-role/R/s", "aws-us-gov", true},
+		{"arn:aws-eusc:iam::123456789012:role/R", "aws-eusc", true},
+		{"arn:aws-iso-b:iam::123456789012:role/R", "aws-iso-b", true},
+		// Parses as an ARN, but no partition the SDK knows: must not read as commercial.
+		{"arn:aws-mars:iam::123456789012:role/R", "", false},
+		{"not-an-arn", "", false},
+		{"", "", false},
+	}
+	for _, c := range cases {
+		got, ok := partitionOf(c.in)
+		if got != c.want || ok != c.wantOK {
+			t.Errorf("partitionOf(%q) = (%q, %v); want (%q, %v)", c.in, got, ok, c.want, c.wantOK)
+		}
+	}
+}
+
+func TestDNSSuffix(t *testing.T) {
+	cases := []struct {
+		in     string
+		want   string
+		wantOK bool
+	}{
+		{"aws", "amazonaws.com", true},
+		{"aws-cn", "amazonaws.com.cn", true},
+		{"aws-us-gov", "amazonaws.com", true},
+		{"aws-eusc", "amazonaws.eu", true},
+		{"aws-iso", "c2s.ic.gov", true},
+		{"aws-mars", "", false},
+		{"", "", false},
+	}
+	for _, c := range cases {
+		got, ok := dnsSuffix(c.in)
+		if got != c.want || ok != c.wantOK {
+			t.Errorf("dnsSuffix(%q) = (%q, %v); want (%q, %v)", c.in, got, ok, c.want, c.wantOK)
+		}
+	}
+}
+
+func TestPartitionForRegion(t *testing.T) {
+	cases := []struct {
+		in     string
+		want   string
+		wantOK bool
+	}{
+		{"us-east-1", "aws", true},
+		{"cn-northwest-1", "aws-cn", true},
+		{"us-gov-west-1", "aws-us-gov", true},
+		{"eusc-de-east-1", "aws-eusc", true},
+		{"us-isob-east-1", "aws-iso-b", true},
+		// Listed by name only; no regionRegex matches it.
+		{"aws-us-gov-global", "aws-us-gov", true},
+		// Not listed by name in partitions.json: only the regex places them.
+		{"eu-west-9", "aws", true},
+		{"cn-south-7", "aws-cn", true},
+		{"us-gov-central-4", "aws-us-gov", true},
+		// The SDK would put these in aws; disco must not guess.
+		{"mars-north-1", "", false},
+		{"all", "", false},
+		{"", "", false},
+	}
+	for _, c := range cases {
+		got, ok := partitionForRegion(c.in)
+		if got != c.want || ok != c.wantOK {
+			t.Errorf("partitionForRegion(%q) = (%q, %v); want (%q, %v)", c.in, got, ok, c.want, c.wantOK)
+		}
+	}
+}
+
 // TestEC2ARN verifies EC2's NativeID ARN format. NativeID feeds
 // store.ResourceID, so a format change silently breaks all relationships
 // referencing EC2 resources.
