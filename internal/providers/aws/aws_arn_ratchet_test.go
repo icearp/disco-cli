@@ -15,9 +15,9 @@ import (
 // aws_arn.go that hard-code the aws partition into an ARN. Each one builds or
 // matches the commercial form only, so in aws-cn or aws-us-gov it names a
 // resource that does not exist. New code builds ARNs through the aws_arn.go
-// helpers with the account's or parent ARN's partition; the ceiling only
+// helpers with the account's partition; the ceiling only
 // falls.
-const commercialARNLiteralCeiling = 474
+const commercialARNLiteralCeiling = 473
 
 // isCommercialARNLiteral reports whether a string literal's value hard-codes
 // the aws partition: it contains "arn:aws:" or is exactly "arn:aws" (the bare
@@ -82,6 +82,80 @@ func TestCommercialARNLiteralRatchet(t *testing.T) {
 		t.Errorf("%d string literals hard-code the aws partition into an ARN, below the ceiling of %d; "+
 			"lower commercialARNLiteralCeiling to %d so the removal stays removed",
 			count, commercialARNLiteralCeiling, count)
+	}
+}
+
+// partitionCores returns the ARN builders in aws_arn.go that take the
+// partition as their first parameter, read from the source so a new core is
+// guarded without a list to update.
+func partitionCores(t *testing.T) map[string]bool {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), "aws_arn.go", nil, parser.SkipObjectResolution)
+	if err != nil {
+		t.Fatalf("parse aws_arn.go: %v", err)
+	}
+	cores := map[string]bool{}
+	for _, d := range file.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok || fd.Recv != nil || len(fd.Type.Params.List) == 0 {
+			continue
+		}
+		if first := fd.Type.Params.List[0]; len(first.Names) > 0 && first.Names[0].Name == "partition" {
+			cores[fd.Name.Name] = true
+		}
+	}
+	return cores
+}
+
+// TestPartitionArgumentIsNeverALiteral fails when production code passes a
+// string literal as the partition of an aws_arn.go builder. The partition is
+// the account's (acct.partition()); a literal "aws" builds the commercial form
+// in every partition and escapes TestCommercialARNLiteralRatchet, which only
+// sees literals that already spell "arn:aws:".
+func TestPartitionArgumentIsNeverALiteral(t *testing.T) {
+	cores := partitionCores(t)
+	for _, want := range []string{"arnFor", "ec2ARNIn", "apigatewayARNIn"} {
+		if !cores[want] {
+			t.Fatalf("partitionCores() = %v; missing %s, so the derivation read the wrong file or parameter", cores, want)
+		}
+	}
+	fset := token.NewFileSet()
+	calls := 0
+	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		name := d.Name()
+		if d.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(fset, path, nil, parser.SkipObjectResolution)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(file, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok || len(call.Args) == 0 {
+				return true
+			}
+			fn, ok := call.Fun.(*ast.Ident)
+			if !ok || !cores[fn.Name] {
+				return true
+			}
+			calls++
+			if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+				t.Errorf("%s: %s(%s, …) hard-codes the partition; pass acct.partition()",
+					fset.Position(lit.Pos()), fn.Name, lit.Value)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk package sources: %v", err)
+	}
+	if calls == 0 {
+		t.Fatal("found no calls to the partition cores; the walk most likely read no files")
 	}
 }
 

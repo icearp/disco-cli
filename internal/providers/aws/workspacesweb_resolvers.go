@@ -160,7 +160,7 @@ func resolveWSWNetworkSettingsRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if vpc := sv(attrs.VpcID); vpc != "" {
-			vARN := ec2ARN(region, acct.ID, "vpc", vpc)
+			vARN := ec2ARNIn(acct.partition(), region, acct.ID, "vpc", vpc)
 			tgtID := store.ResourceID("aws", acct.ID, vARN)
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -169,7 +169,7 @@ func resolveWSWNetworkSettingsRefs(acct *account, st *store.Store) error {
 			}
 		}
 		for _, sid := range attrs.SubnetIDs {
-			sARN := ec2ARN(region, acct.ID, "subnet", sid)
+			sARN := ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sid)
 			tgtID := store.ResourceID("aws", acct.ID, sARN)
 			if subnetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -178,7 +178,7 @@ func resolveWSWNetworkSettingsRefs(acct *account, st *store.Store) error {
 			}
 		}
 		for _, sg := range attrs.SecurityGroupIDs {
-			sgARN := ec2ARN(region, acct.ID, "security-group", sg)
+			sgARN := ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg)
 			tgtID := store.ResourceID("aws", acct.ID, sgARN)
 			if sgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {

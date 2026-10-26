@@ -178,7 +178,7 @@ func TestVPCEndpointServiceARNFromName(t *testing.T) {
 		{"com.amazonaws.vpce.us-east-1.vpce-0a", testAccountID, "", false},
 		{"", testAccountID, "", false},
 	} {
-		got, ok := vpcEndpointServiceARNFromName(tc.name, tc.owner)
+		got, ok := vpcEndpointServiceARNFromName("aws", tc.name, tc.owner)
 		if got != tc.want || ok != tc.ok {
 			t.Errorf("vpcEndpointServiceARNFromName(%q, %q) = %q, %v; want %q, %v", tc.name, tc.owner, got, ok, tc.want, tc.ok)
 		}

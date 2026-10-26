@@ -98,7 +98,7 @@ func resolveMWAAEnvironmentRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.NetworkConfiguration != nil {
 			for _, sn := range attrs.NetworkConfiguration.SubnetIDs {
-				tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
+				tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn))
 				if !subnetSet[tgt] {
 					continue
 				}
@@ -107,7 +107,7 @@ func resolveMWAAEnvironmentRefs(acct *account, st *store.Store) error {
 				}
 			}
 			for _, sg := range attrs.NetworkConfiguration.SecurityGroupIDs {
-				tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
+				tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg))
 				if !sgSet[tgt] {
 					continue
 				}

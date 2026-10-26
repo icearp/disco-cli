@@ -78,7 +78,7 @@ func resolveVPCLatticeSNVpcEndpointAssocs(acct *account, st *store.Store) error 
 			if ref.id == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, ref.kind, ref.id))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, ref.kind, ref.id))
 			if !ref.set[tgt] {
 				continue
 			}
@@ -145,7 +145,7 @@ func resolveVPCLatticeTargets(acct *account, st *store.Store) error {
 		var tgtNative string
 		switch tgType {
 		case "INSTANCE":
-			tgtNative = ec2ARN(sv(r.Region), acct.ID, "instance", id)
+			tgtNative = ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "instance", id)
 		case "LAMBDA":
 			tgtNative = lambdaStripQualifier(id)
 		case "ALB":

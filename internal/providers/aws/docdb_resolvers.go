@@ -84,7 +84,7 @@ func resolveDocDBClusterTargets(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			sgARN := ec2ARN(region, acct.ID, "security-group", id)
+			sgARN := ec2ARNIn(acct.partition(), region, acct.ID, "security-group", id)
 			rID := store.ResourceID("aws", acct.ID, sgARN)
 			if _, ok := sgIDs[rID]; ok {
 				if err := st.UpsertRelationship(c.ID, rID, store.RelUses, "directed", nil); err != nil {

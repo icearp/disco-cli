@@ -78,7 +78,7 @@ func resolveIdentityStoreGroupMembershipRefs(acct *account, st *store.Store) err
 			continue
 		}
 		if g := sv(attrs.GroupID); g != "" {
-			gARN := identityStoreGroupNativeID(owner, idStore, g)
+			gARN := identityStoreGroupNativeIDIn(acct.partition(), owner, idStore, g)
 			tgt := store.ResourceID("aws", acct.ID, gARN)
 			if groupSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
@@ -88,7 +88,7 @@ func resolveIdentityStoreGroupMembershipRefs(acct *account, st *store.Store) err
 		}
 		if attrs.MemberID != nil {
 			if u := sv(attrs.MemberID.Value); u != "" {
-				uARN := identityStoreUserNativeID(owner, idStore, u)
+				uARN := identityStoreUserNativeIDIn(acct.partition(), owner, idStore, u)
 				tgt := store.ResourceID("aws", acct.ID, uARN)
 				if userSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {

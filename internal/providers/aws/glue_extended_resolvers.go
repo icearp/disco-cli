@@ -232,7 +232,7 @@ func emitGlueDevEndpointSubnetEdge(st *store.Store, acct *account, r store.Resou
 	if id == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", id))
+	tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", id))
 	if !sets.subnetSet[tgtID] {
 		return nil
 	}
@@ -247,7 +247,7 @@ func emitGlueDevEndpointSGEdges(st *store.Store, acct *account, r store.Resource
 		if sg == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg))
 		if !sets.sgSet[tgtID] {
 			continue
 		}
@@ -398,7 +398,7 @@ func resolveGlueConnectionRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if id := sv(attrs.PhysicalConnectionRequirements.SubnetID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", id))
 			if subnetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert glue-conn→subnet: %w", err)
@@ -409,7 +409,7 @@ func resolveGlueConnectionRefs(acct *account, st *store.Store) error {
 			if sg == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg))
 			if !sgSet[tgtID] {
 				continue
 			}

@@ -119,7 +119,7 @@ func resolveBatchComputeEnvironmentTargets(acct *account, st *store.Store) error
 				if sn == "" {
 					continue
 				}
-				snARN := ec2ARN(region, acct.ID, "subnet", sn)
+				snARN := ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn)
 				sID := store.ResourceID("aws", acct.ID, snARN)
 				if _, ok := subnetIDs[sID]; ok {
 					if err := st.UpsertRelationship(e.ID, sID, store.RelUses, "directed", nil); err != nil {
@@ -131,7 +131,7 @@ func resolveBatchComputeEnvironmentTargets(acct *account, st *store.Store) error
 				if sg == "" {
 					continue
 				}
-				sgARN := ec2ARN(region, acct.ID, "security-group", sg)
+				sgARN := ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg)
 				rID := store.ResourceID("aws", acct.ID, sgARN)
 				if _, ok := sgIDs[rID]; ok {
 					if err := st.UpsertRelationship(e.ID, rID, store.RelUses, "directed", nil); err != nil {

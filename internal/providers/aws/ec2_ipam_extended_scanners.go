@@ -91,7 +91,7 @@ func scanEC2IPAMExtended(ctx context.Context, client ec2API, acct *account, regi
 
 // scanEC2ByoipCidrs stores the address ranges provisioned to EC2 through
 // BYOIP. AWS documents no ARN for a range; the NativeID is synthesized in
-// ec2ARN shape from the CIDR, which is unique within an account and region.
+// ec2ARNIn shape from the CIDR, which is unique within an account and region.
 // Deprovisioned ranges are no longer provisioned and are dropped.
 func scanEC2ByoipCidrs(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := ec2.NewDescribeByoipCidrsPaginator(client, &ec2.DescribeByoipCidrsInput{},
@@ -109,7 +109,7 @@ func scanEC2ByoipCidrs(ctx context.Context, client ec2API, acct *account, region
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2ByoipCidr,
-					NativeID:       ec2ARN(region, acct.ID, "byoip-cidr", cidr),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "byoip-cidr", cidr),
 					Name:           c.Cidr,
 					Region:         &region,
 					Status:         nonEmptyPtr(string(c.State)),
@@ -122,7 +122,7 @@ func scanEC2ByoipCidrs(ctx context.Context, client ec2API, acct *account, region
 }
 
 // scanEC2IpamByoasns stores the ASNs provisioned to IPAM. AWS documents no ARN
-// for one; the NativeID is synthesized in ec2ARN shape from the IPAM id and
+// for one; the NativeID is synthesized in ec2ARNIn shape from the IPAM id and
 // the ASN, as the IPAM pool CIDR NativeID is. Deprovisioned ASNs are dropped.
 // DescribeIpamByoasn has no SDK paginator.
 func scanEC2IpamByoasns(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -149,7 +149,7 @@ func scanEC2IpamByoasns(ctx context.Context, client ec2API, acct *account, regio
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeEC2IpamByoasn,
-				NativeID:       ec2ARN(region, acct.ID, "ipam-byoasn", ipamID+"/"+asn),
+				NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "ipam-byoasn", ipamID+"/"+asn),
 				Name:           a.Asn,
 				Region:         &region,
 				Status:         nonEmptyPtr(string(a.State)),

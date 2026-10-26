@@ -121,7 +121,7 @@ func scanSubnetCidrReservations(ctx context.Context, client ec2API, acct *accoun
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2SubnetCidrReservation,
-					NativeID:       ec2ARN(region, acct.ID, "subnet-cidr-reservation", id),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "subnet-cidr-reservation", id),
 					Name:           ec2TagName(r.Tags),
 					Region:         &region,
 					TagsJSON:       awsTagsJSON(r.Tags),
@@ -239,7 +239,7 @@ func scanVPCEndpointConnections(ctx context.Context, client ec2API, acct *accoun
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2VPCEndpointConnection,
-					NativeID:       ec2ARN(region, acct.ID, "vpc-endpoint-connection", id),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "vpc-endpoint-connection", id),
 					Name:           ec2TagName(c.Tags),
 					Region:         &region,
 					Status:         &status,
@@ -255,7 +255,7 @@ func scanVPCEndpointConnections(ctx context.Context, client ec2API, acct *accoun
 
 // scanVPCEndpointAssociations — DescribeVpcEndpointAssociations has no SDK
 // paginator. AWS documents no ARN for an association, so the NativeID is
-// synthesized in ec2ARN shape from its Id.
+// synthesized in ec2ARNIn shape from its Id.
 func scanVPCEndpointAssociations(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
 	var token *string
@@ -280,7 +280,7 @@ func scanVPCEndpointAssociations(ctx context.Context, client ec2API, acct *accou
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeEC2VPCEndpointAssociation,
-				NativeID:       ec2ARN(region, acct.ID, "vpc-endpoint-association", id),
+				NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "vpc-endpoint-association", id),
 				Name:           ec2TagName(a.Tags),
 				Region:         &region,
 				Status:         a.AssociatedResourceAccessibility,

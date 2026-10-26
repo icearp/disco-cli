@@ -42,9 +42,9 @@ func resolveNetworkInsightsAnalysisRelationships(acct *account, st *store.Store)
 			continue
 		}
 		if attrs.NetworkInsightsPathID != nil {
-			// Path NativeID is its ARN; ec2ARN reconstructs it from the path ID.
+			// Path NativeID is its ARN; ec2ARNIn reconstructs it from the path ID.
 			pathID := store.ResourceID("aws", acct.ID,
-				ec2ARN(sv(r.Region), acct.ID, "network-insights-path", *attrs.NetworkInsightsPathID))
+				ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "network-insights-path", *attrs.NetworkInsightsPathID))
 
 			if err := st.UpsertRelationship(r.ID, pathID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert network-insights-analysis→path relationship: %w", err)
@@ -72,9 +72,9 @@ func resolveNetworkInsightsAccessScopeAnalysisRelationships(acct *account, st *s
 			continue
 		}
 		if attrs.NetworkInsightsAccessScopeID != nil {
-			// Scope NativeID is its ARN; ec2ARN reconstructs it from the scope ID.
+			// Scope NativeID is its ARN; ec2ARNIn reconstructs it from the scope ID.
 			scopeID := store.ResourceID("aws", acct.ID,
-				ec2ARN(sv(r.Region), acct.ID, "network-insights-access-scope", *attrs.NetworkInsightsAccessScopeID))
+				ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "network-insights-access-scope", *attrs.NetworkInsightsAccessScopeID))
 
 			if err := st.UpsertRelationship(r.ID, scopeID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert network-insights-scope-analysis→scope relationship: %w", err)
@@ -115,7 +115,7 @@ func resolveFlowLogRelationships(acct *account, st *store.Store) error {
 		default:
 			continue
 		}
-		targetID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, arnResourceType, *attrs.ResourceID))
+		targetID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, arnResourceType, *attrs.ResourceID))
 		if err := st.UpsertRelationship(r.ID, targetID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert flow-log→resource relationship: %w", err)
 		}

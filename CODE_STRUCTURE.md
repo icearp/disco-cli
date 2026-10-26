@@ -112,7 +112,7 @@ Closure-table population pattern (`RecordHierarchyBatch`): `store/CLAUDE.md`.
 | `sv(*string) string` | safe string deref |
 | `tp(*time.Time) *string` | RFC3339 pointer |
 | `sp(string) *string` | pointer-to-string literal |
-| `ec2ARN(region, accountID, type, id) string` | build EC2 ARN |
+| `ec2ARNIn(partition, region, accountID, type, id) string` | build EC2 ARN |
 | `awsTagsJSON[T awsTag]([]T) *string` | generic over all `types.Tag` variants |
 | `mapTagsJSON(map[string]string) *string` | for SDKs returning tag maps |
 | `isAccessDenied(err) bool` | matches `AccessDenied*`, `UnauthorizedOperation`, etc. |

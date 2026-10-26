@@ -104,7 +104,7 @@ func resolveDAXClusterRefs(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", id))
 			if !ec2SgSet[tgtID] {
 				continue
 			}
@@ -166,7 +166,7 @@ func resolveDAXSubnetGroupRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if v := sv(attrs.VpcID); v != "" {
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", v))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", v))
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dax sg→vpc: %w", err)
@@ -181,7 +181,7 @@ func resolveDAXSubnetGroupRefs(acct *account, st *store.Store) error {
 			if sid == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sid))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sid))
 			if !subSet[tgtID] {
 				continue
 			}

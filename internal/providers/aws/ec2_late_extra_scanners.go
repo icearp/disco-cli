@@ -78,8 +78,8 @@ func imageAttributeNativeID(imageARN string, attr ec2types.ImageAttributeName) s
 
 // lockedSnapshotNativeID builds the NativeID of the lock on one snapshot. AWS
 // documents no ARN for it; a snapshot has at most one lock.
-func lockedSnapshotNativeID(region, accountID, snapshotID string) string {
-	return ec2ARN(region, accountID, "snapshot", snapshotID) + "/lock"
+func lockedSnapshotNativeID(partition, region, accountID, snapshotID string) string {
+	return ec2ARNIn(partition, region, accountID, "snapshot", snapshotID) + "/lock"
 }
 
 // vaLoggingConfigurationNativeID builds the NativeID of the logging
@@ -87,8 +87,8 @@ func lockedSnapshotNativeID(region, accountID, snapshotID string) string {
 // That an instance has one and only one is inferred from the API shape
 // (ModifyVerifiedAccessInstanceLoggingConfiguration, no create or delete),
 // unverified live.
-func vaLoggingConfigurationNativeID(region, accountID, instanceID string) string {
-	return ec2ARN(region, accountID, "verified-access-instance", instanceID) + "/logging-configuration"
+func vaLoggingConfigurationNativeID(partition, region, accountID, instanceID string) string {
+	return ec2ARNIn(partition, region, accountID, "verified-access-instance", instanceID) + "/logging-configuration"
 }
 
 // routeServerAssociationNativeID builds the NativeID of the association of a
@@ -264,7 +264,7 @@ func scanEC2LockedSnapshots(ctx context.Context, client ec2API, acct *account, r
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeEC2LockedSnapshot,
-				NativeID:       lockedSnapshotNativeID(region, acct.ID, id),
+				NativeID:       lockedSnapshotNativeID(acct.partition(), region, acct.ID, id),
 				Region:         &region,
 				Status:         nonEmptyPtr(string(s.LockState)),
 				CreatedAt:      tp(s.LockCreatedOn),
@@ -312,7 +312,7 @@ func scanEC2VerifiedAccessLoggingConfigurations(ctx context.Context, client ec2A
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2VerifiedAccessInstanceLoggingConfiguration,
-					NativeID:       vaLoggingConfigurationNativeID(region, acct.ID, id),
+					NativeID:       vaLoggingConfigurationNativeID(acct.partition(), region, acct.ID, id),
 					Region:         &region,
 					AttributesJSON: mustJSON(c),
 					DiscoveredBy:   scanID,
@@ -355,7 +355,7 @@ func scanEC2ApplicationStatusChecks(ctx context.Context, client ec2API, acct *ac
 				Type:        TypeEC2ApplicationStatusCheck,
 				// Kind from the Service Reference ARN format
 				// application-status-check/${ApplicationStatusCheckId}.
-				NativeID:       ec2ARN(region, acct.ID, "application-status-check", id),
+				NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "application-status-check", id),
 				Name:           ec2TagName(c.Tags),
 				Region:         &region,
 				CreatedAt:      tp(c.CreationTime),

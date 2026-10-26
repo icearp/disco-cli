@@ -189,7 +189,7 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 				if sn == "" {
 					continue
 				}
-				subnetID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
+				subnetID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn))
 				if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert lambda→subnet relationship: %w", err)
 				}
@@ -198,7 +198,7 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 				if sg == "" {
 					continue
 				}
-				sgID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
+				sgID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg))
 				if err := st.UpsertRelationship(r.ID, sgID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert lambda→security-group relationship: %w", err)
 				}

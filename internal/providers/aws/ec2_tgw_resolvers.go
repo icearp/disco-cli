@@ -63,14 +63,14 @@ func resolveTGWAttachmentRelationships(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert tgw-attachment→transit-gateway relationship: %w", err)
 			}
 		} else if attrs.TransitGatewayID != nil {
-			tgwID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
+			tgwID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
 			if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-attachment→transit-gateway relationship: %w", err)
 			}
 		}
 		// Attachment → VPC (only when ResourceType is "vpc").
 		if attrs.ResourceType != nil && *attrs.ResourceType == "vpc" && attrs.ResourceID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", *attrs.ResourceID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.ResourceID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-attachment→vpc relationship: %w", err)
 			}
@@ -99,7 +99,7 @@ func resolveTGWConnectRelationships(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if attrs.TransitGatewayID != nil {
 			tgwID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
+				ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
 
 			if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-connect→tgw relationship: %w", err)
@@ -128,7 +128,7 @@ func resolveTGWConnectPeerRelationships(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if attrs.TransitGatewayAttachmentID != nil {
 			connID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "transit-gateway-connect", *attrs.TransitGatewayAttachmentID))
+				ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway-connect", *attrs.TransitGatewayAttachmentID))
 
 			if err := st.UpsertRelationship(r.ID, connID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-connect-peer→tgw-connect relationship: %w", err)
@@ -157,7 +157,7 @@ func resolveTGWMulticastDomainRelationships(acct *account, st *store.Store) erro
 		region := sv(r.Region)
 		if attrs.TransitGatewayID != nil {
 			tgwID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
+				ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
 
 			if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-mcast-domain→tgw relationship: %w", err)
@@ -186,7 +186,7 @@ func resolveTGWRouteTableRelationships(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if attrs.TransitGatewayID != nil {
 			tgwID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
+				ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
 
 			if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-route-table→tgw relationship: %w", err)
@@ -216,7 +216,7 @@ func resolveTGWVPCAttachmentRelationships(acct *account, st *store.Store) error 
 		region := sv(r.Region)
 		if attrs.TransitGatewayID != nil {
 			tgwID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
+				ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway", *attrs.TransitGatewayID))
 
 			if err := st.UpsertRelationship(r.ID, tgwID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-vpc-att→tgw relationship: %w", err)
@@ -224,7 +224,7 @@ func resolveTGWVPCAttachmentRelationships(acct *account, st *store.Store) error 
 		}
 		if attrs.VpcID != nil {
 			vpcID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
+				ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.VpcID))
 
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw-vpc-att→vpc relationship: %w", err)

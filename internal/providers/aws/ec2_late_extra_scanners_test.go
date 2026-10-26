@@ -284,12 +284,12 @@ var elxFanPhases = []elxFanPhase{
 
 func TestEC2LateExtraNativeIDShapes(t *testing.T) {
 	cases := map[string]string{
-		elxSnapAttrID(elxSnap1):                                            "arn:aws:ec2:us-east-1:123456789012:snapshot/snap-lx-0001/attribute/createVolumePermission",
-		elxImgAttrID(elxImg1):                                              "arn:aws:ec2:us-east-1:123456789012:image/ami-lx-0001/attribute/launchPermission",
-		elxAssocID(elxRS1, elxVpc1):                                        "arn:aws:ec2:us-east-1:123456789012:route-server/rs-lx-0001/association/vpc-lx-0001",
-		elxPropID(elxRS1, elxRtb1):                                         "arn:aws:ec2:us-east-1:123456789012:route-server/rs-lx-0001/propagation/rtb-lx-0001",
-		lockedSnapshotNativeID(testRegion, testAccountID, elxSnap1):        "arn:aws:ec2:us-east-1:123456789012:snapshot/snap-lx-0001/lock",
-		vaLoggingConfigurationNativeID(testRegion, testAccountID, elxVAI1): "arn:aws:ec2:us-east-1:123456789012:verified-access-instance/vai-lx-0001/logging-configuration",
+		elxSnapAttrID(elxSnap1):     "arn:aws:ec2:us-east-1:123456789012:snapshot/snap-lx-0001/attribute/createVolumePermission",
+		elxImgAttrID(elxImg1):       "arn:aws:ec2:us-east-1:123456789012:image/ami-lx-0001/attribute/launchPermission",
+		elxAssocID(elxRS1, elxVpc1): "arn:aws:ec2:us-east-1:123456789012:route-server/rs-lx-0001/association/vpc-lx-0001",
+		elxPropID(elxRS1, elxRtb1):  "arn:aws:ec2:us-east-1:123456789012:route-server/rs-lx-0001/propagation/rtb-lx-0001",
+		lockedSnapshotNativeID("aws", testRegion, testAccountID, elxSnap1):        "arn:aws:ec2:us-east-1:123456789012:snapshot/snap-lx-0001/lock",
+		vaLoggingConfigurationNativeID("aws", testRegion, testAccountID, elxVAI1): "arn:aws:ec2:us-east-1:123456789012:verified-access-instance/vai-lx-0001/logging-configuration",
 	}
 	for got, want := range cases {
 		if got != want {
@@ -457,10 +457,10 @@ type elxWidePhase struct {
 	sdkPaginator bool
 }
 
-func elxLockID(id string) string { return lockedSnapshotNativeID(testRegion, testAccountID, id) }
+func elxLockID(id string) string { return lockedSnapshotNativeID("aws", testRegion, testAccountID, id) }
 
 func elxVALogID(id string) string {
-	return vaLoggingConfigurationNativeID(testRegion, testAccountID, id)
+	return vaLoggingConfigurationNativeID("aws", testRegion, testAccountID, id)
 }
 
 var elxWidePhases = []elxWidePhase{

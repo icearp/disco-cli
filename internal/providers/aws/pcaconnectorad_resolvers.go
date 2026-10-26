@@ -102,7 +102,7 @@ func resolvePCACAdConnectorRefs(acct *account, st *store.Store) error {
 				if sg == "" {
 					continue
 				}
-				sgARN := ec2ARN(region, acct.ID, "security-group", sg)
+				sgARN := ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg)
 				tgtID := store.ResourceID("aws", acct.ID, sgARN)
 				if sgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {

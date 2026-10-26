@@ -52,7 +52,7 @@ func scanAPIGatewayV2Core(ctx context.Context, acct *account, region string, st 
 // per region; no per-API fan-out). GetVpcLinks pages via NextToken; SDK
 // exposes no paginator helper (per AWS-CLAUDE.md "SDK paginator availability
 // per-op"). NativeID = canonical apigateway ARN
-// arn:aws:apigateway:{region}::/vpclinks/{id} via apigatewayARN.
+// arn:{partition}:apigateway:{region}::/vpclinks/{id} via apigatewayARNIn.
 func scanAPIGatewayV2VpcLinks(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := apigatewayv2.NewFromConfig(acct.cfg, func(o *apigatewayv2.Options) { o.Region = region })
 	var nextToken *string
@@ -70,7 +70,7 @@ func scanAPIGatewayV2VpcLinks(ctx context.Context, acct *account, region string,
 			if id == "" {
 				continue
 			}
-			arn := apigatewayARN(region, "vpclinks", id)
+			arn := apigatewayARNIn(acct.partition(), region, "vpclinks", id)
 			name := sv(v.Name)
 			status := string(v.VpcLinkStatus)
 			batch = append(batch, &store.Resource{
@@ -107,7 +107,7 @@ func scanAPIGatewayV2VpcLinks(ctx context.Context, acct *account, region string,
 // scanAPIGatewayHTTPAPIs discovers HTTP and WebSocket APIs (API Gateway v2),
 // then fans out to per-API child scans (authorizers) concurrently. Tags come
 // from the GetApis response — no separate tag call needed.
-// ARN format: arn:aws:apigateway:{region}::/apis/{id}
+// ARN format: arn:{partition}:apigateway:{region}::/apis/{id}
 func scanAPIGatewayHTTPAPIs(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := apigatewayv2.NewFromConfig(acct.cfg, func(o *apigatewayv2.Options) { o.Region = region })
 
@@ -124,7 +124,7 @@ func scanAPIGatewayHTTPAPIs(ctx context.Context, acct *account, region string, s
 			return 0, 0, fmt.Errorf("apigatewayv2:GetApis: %w", apiErr)
 		}
 		for _, api := range page.Items {
-			nativeID := apigatewayARN(region, "apis", sv(api.ApiId))
+			nativeID := apigatewayARNIn(acct.partition(), region, "apis", sv(api.ApiId))
 			name := sv(api.Name)
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
@@ -180,7 +180,7 @@ func scanAPIGatewayHTTPAPIs(ctx context.Context, acct *account, region string, s
 }
 
 // scanAPIGatewayV2Authorizers discovers authorizers for a single v2 (HTTP/WebSocket) API.
-// ARN format: arn:aws:apigateway:{region}::/apis/{apiId}/authorizers/{authorizerId}
+// ARN format: arn:{partition}:apigateway:{region}::/apis/{apiId}/authorizers/{authorizerId}
 func scanAPIGatewayV2Authorizers(ctx context.Context, client apigatewayv2API, acct *account, region, apiID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	input := &apigatewayv2.GetAuthorizersInput{ApiId: &apiID}
 	var batch []*store.Resource
@@ -193,7 +193,7 @@ func scanAPIGatewayV2Authorizers(ctx context.Context, client apigatewayv2API, ac
 			return 0, 0, fmt.Errorf("apigatewayv2:GetAuthorizers(%s): %w", apiID, apiErr)
 		}
 		for _, item := range page.Items {
-			nativeID := apigatewayARN(region, "apis", apiID, "authorizers", sv(item.AuthorizerId))
+			nativeID := apigatewayARNIn(acct.partition(), region, "apis", apiID, "authorizers", sv(item.AuthorizerId))
 			name := sv(item.Name)
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
@@ -224,8 +224,8 @@ func scanAPIGatewayV2Authorizers(ctx context.Context, client apigatewayv2API, ac
 }
 
 // scanAPIGatewayV2DomainNames discovers custom domain names and API mappings for API Gateway v2.
-// Domain name ARN: arn:aws:apigateway:{region}::/domainnames/{domainName}
-// API mapping ARN: arn:aws:apigateway:{region}::/domainnames/{domainName}/apimappings/{mappingId}
+// Domain name ARN: arn:{partition}:apigateway:{region}::/domainnames/{domainName}
+// API mapping ARN: arn:{partition}:apigateway:{region}::/domainnames/{domainName}/apimappings/{mappingId}
 func scanAPIGatewayV2DomainNames(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := apigatewayv2.NewFromConfig(acct.cfg, func(o *apigatewayv2.Options) { o.Region = region })
 
@@ -245,7 +245,7 @@ func scanAPIGatewayV2DomainNames(ctx context.Context, acct *account, region stri
 		for _, item := range page.Items {
 			domainName := sv(item.DomainName)
 			domainNames = append(domainNames, domainName)
-			nativeID := apigatewayARN(region, "domainnames", domainName)
+			nativeID := apigatewayARNIn(acct.partition(), region, "domainnames", domainName)
 			domains = append(domains, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -272,7 +272,7 @@ func scanAPIGatewayV2DomainNames(ctx context.Context, acct *account, region stri
 				}
 				for _, m := range mapOut.Items {
 					mappingID := sv(m.ApiMappingId)
-					mapNativeID := apigatewayARN(region, "domainnames", domainName, "apimappings", mappingID)
+					mapNativeID := apigatewayARNIn(acct.partition(), region, "domainnames", domainName, "apimappings", mappingID)
 					name := fmt.Sprintf("%s → %s", domainName, sv(m.ApiMappingKey))
 					mappings = append(mappings, &store.Resource{
 						Provider:       "aws",

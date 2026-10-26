@@ -75,7 +75,7 @@ func resolveR53REndpointIPSubnet(acct *account, st *store.Store) error {
 		if subnetID == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "subnet", subnetID))
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "subnet", subnetID))
 		if !subnets[tgtID] {
 			continue
 		}
@@ -173,7 +173,7 @@ func r53rResolveVPCField(acct *account, st *store.Store, sourceType, fieldName s
 			continue
 		}
 		region := sv(r.Region)
-		vARN := ec2ARN(region, acct.ID, "vpc", v)
+		vARN := ec2ARNIn(acct.partition(), region, acct.ID, "vpc", v)
 		tgtID := store.ResourceID("aws", acct.ID, vARN)
 		if !vpcSet[tgtID] {
 			continue
@@ -223,7 +223,7 @@ func resolveR53RQueryLogAssocRefs(acct *account, st *store.Store) error {
 		}
 		if vid := sv(attrs.ResourceID); vid != "" {
 			region := sv(r.Region)
-			vARN := ec2ARN(region, acct.ID, "vpc", vid)
+			vARN := ec2ARNIn(acct.partition(), region, acct.ID, "vpc", vid)
 			tgtID := store.ResourceID("aws", acct.ID, vARN)
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {

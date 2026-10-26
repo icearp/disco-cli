@@ -56,7 +56,7 @@ func resolveTGWPolicyTableEntryRelationships(acct *account, st *store.Store) err
 		if id == "" {
 			continue
 		}
-		rtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "transit-gateway-route-table", id))
+		rtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "transit-gateway-route-table", id))
 		if rtSet[rtID] {
 			if err := st.UpsertRelationship(r.ID, rtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert tgw policy-table-entry→route-table: %w", err)
@@ -111,7 +111,7 @@ func resolveTGWPrefixListReferenceRelationships(acct *account, st *store.Store) 
 			continue
 		}
 		if id := sv(attrs.TransitGatewayAttachment.TransitGatewayAttachmentID); id != "" {
-			attID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "transit-gateway-attachment", id))
+			attID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway-attachment", id))
 			if attSet[attID] {
 				if err := st.UpsertRelationship(r.ID, attID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert tgw prefix-list-reference→attachment: %w", err)

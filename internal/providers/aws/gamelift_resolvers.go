@@ -87,7 +87,7 @@ func resolveGameLiftVpcPeeringPeerVPC(acct *account, st *store.Store) error {
 		if peer == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", peer))
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", peer))
 		if !vpcSet[tgtID] {
 			continue
 		}

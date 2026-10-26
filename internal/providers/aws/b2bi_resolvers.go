@@ -131,7 +131,7 @@ func resolveB2BIPartnershipRefs(acct *account, st *store.Store) error {
 
 // resolveB2BIProfileLogGroup wires each B2BI profile to the CloudWatch log
 // group it streams logs to (LogGroupName). The SDK exposes only the bare
-// log-group name; rebuild the ARN per region+acct via logGroupNativeIDFromName.
+// log-group name; rebuild the ARN per region+acct via logGroupARNIn.
 func resolveB2BIProfileLogGroup(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeB2BIProfile}, Limit: util.AllResources,
@@ -157,7 +157,7 @@ func resolveB2BIProfileLogGroup(acct *account, st *store.Store) error {
 		if name == "" {
 			continue
 		}
-		lgARN := logGroupNativeIDFromName(acct.ID, sv(r.Region), name)
+		lgARN := logGroupARNIn(acct.partition(), acct.ID, sv(r.Region), name)
 		tgt := store.ResourceID("aws", acct.ID, lgARN)
 		if !lgSet[tgt] {
 			continue

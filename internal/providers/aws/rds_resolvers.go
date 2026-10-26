@@ -206,7 +206,7 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		// Instance → VPC (via subnet group)
 		if attrs.DBSubnetGroup != nil && attrs.DBSubnetGroup.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", *attrs.DBSubnetGroup.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.DBSubnetGroup.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert rds-instance→vpc relationship: %w", err)
 			}
@@ -214,7 +214,7 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 		// Instance → DB cluster
 		if attrs.DBClusterIdentifier != nil {
 			clusterID := store.ResourceID("aws", acct.ID,
-				rdsARN(region, acct.ID, "cluster", *attrs.DBClusterIdentifier))
+				rdsARNIn(acct.partition(), region, acct.ID, "cluster", *attrs.DBClusterIdentifier))
 
 			if err := st.UpsertRelationship(r.ID, clusterID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert rds-instance→cluster relationship: %w", err)
@@ -240,7 +240,7 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 				continue
 			}
 			pgID := store.ResourceID("aws", acct.ID,
-				rdsARN(region, acct.ID, "pg", *pg.DBParameterGroupName))
+				rdsARNIn(acct.partition(), region, acct.ID, "pg", *pg.DBParameterGroupName))
 
 			if err := st.UpsertRelationship(r.ID, pgID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert rds-instance→parameter-group relationship: %w", err)
@@ -252,7 +252,7 @@ func resolveRDSInstanceRelationships(acct *account, st *store.Store) error {
 				continue
 			}
 			ogID := store.ResourceID("aws", acct.ID,
-				rdsARN(region, acct.ID, "og", *ogm.OptionGroupName))
+				rdsARNIn(acct.partition(), region, acct.ID, "og", *ogm.OptionGroupName))
 
 			if err := st.UpsertRelationship(r.ID, ogID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert rds-instance→option-group relationship: %w", err)
@@ -286,7 +286,7 @@ func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 		}
 		if attrs.DBSubnetGroup != nil {
 			sngID := store.ResourceID("aws", acct.ID,
-				rdsARN(sv(r.Region), acct.ID, "subgrp", *attrs.DBSubnetGroup))
+				rdsARNIn(acct.partition(), sv(r.Region), acct.ID, "subgrp", *attrs.DBSubnetGroup))
 
 			if err := st.UpsertRelationship(r.ID, sngID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert db-cluster→subnet-group relationship: %w", err)
@@ -295,7 +295,7 @@ func resolveDBClusterRelationships(acct *account, st *store.Store) error {
 		// Cluster → DB cluster parameter group
 		if sv(attrs.DBClusterParameterGroup) != "" {
 			pgID := store.ResourceID("aws", acct.ID,
-				rdsARN(sv(r.Region), acct.ID, "cluster-pg", *attrs.DBClusterParameterGroup))
+				rdsARNIn(acct.partition(), sv(r.Region), acct.ID, "cluster-pg", *attrs.DBClusterParameterGroup))
 
 			if err := st.UpsertRelationship(r.ID, pgID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert db-cluster→cluster-parameter-group relationship: %w", err)
@@ -329,7 +329,7 @@ func resolveDBSubnetGroupRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert db-subnet-group→vpc relationship: %w", err)
 			}
@@ -355,7 +355,7 @@ func resolveDBProxyRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert db-proxy→vpc relationship: %w", err)
 			}
@@ -475,7 +475,7 @@ func resolveDBShardGroupRelationships(acct *account, st *store.Store) error {
 		}
 		if attrs.DBClusterIdentifier != nil {
 			clusterID := store.ResourceID("aws", acct.ID,
-				rdsARN(sv(r.Region), acct.ID, "cluster", *attrs.DBClusterIdentifier))
+				rdsARNIn(acct.partition(), sv(r.Region), acct.ID, "cluster", *attrs.DBClusterIdentifier))
 
 			if err := st.UpsertRelationship(r.ID, clusterID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert db-shard-group→cluster relationship: %w", err)
@@ -509,7 +509,7 @@ func resolveRDSSnapshotRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if id := sv(attrs.DBInstanceIdentifier); id != "" {
-			tgt := store.ResourceID("aws", acct.ID, rdsARN(sv(r.Region), acct.ID, "db", id))
+			tgt := store.ResourceID("aws", acct.ID, rdsARNIn(acct.partition(), sv(r.Region), acct.ID, "db", id))
 			if instSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert rds-snapshot→db-instance: %w", err)
@@ -544,7 +544,7 @@ func resolveRDSClusterSnapshotRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if id := sv(attrs.DBClusterIdentifier); id != "" {
-			tgt := store.ResourceID("aws", acct.ID, rdsARN(sv(r.Region), acct.ID, "cluster", id))
+			tgt := store.ResourceID("aws", acct.ID, rdsARNIn(acct.partition(), sv(r.Region), acct.ID, "cluster", id))
 			if clusterSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert rds-cluster-snapshot→db-cluster: %w", err)
@@ -578,7 +578,7 @@ func resolveRDSClusterEndpointRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if id := sv(attrs.DBClusterIdentifier); id != "" {
-			tgt := store.ResourceID("aws", acct.ID, rdsARN(sv(r.Region), acct.ID, "cluster", id))
+			tgt := store.ResourceID("aws", acct.ID, rdsARNIn(acct.partition(), sv(r.Region), acct.ID, "cluster", id))
 			if clusterSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert rds-cluster-endpoint→db-cluster: %w", err)
@@ -683,7 +683,7 @@ func resolveRDSTenantDatabaseRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if id := sv(attrs.DBInstanceIdentifier); id != "" {
-			tgt := store.ResourceID("aws", acct.ID, rdsARN(sv(r.Region), acct.ID, "db", id))
+			tgt := store.ResourceID("aws", acct.ID, rdsARNIn(acct.partition(), sv(r.Region), acct.ID, "db", id))
 			if instSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert rds-tenant-database→db-instance: %w", err)
@@ -718,7 +718,7 @@ func resolveRDSSnapshotTenantDatabaseRefs(acct *account, st *store.Store) error 
 			continue
 		}
 		if id := sv(attrs.DBSnapshotIdentifier); id != "" {
-			tgt := store.ResourceID("aws", acct.ID, rdsARN(sv(r.Region), acct.ID, "snapshot", id))
+			tgt := store.ResourceID("aws", acct.ID, rdsARNIn(acct.partition(), sv(r.Region), acct.ID, "snapshot", id))
 			if snapSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert rds-snapshot-tenant-database→snapshot: %w", err)

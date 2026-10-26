@@ -163,7 +163,7 @@ func resolveAppStreamStackAccessEndpoints(acct *account, st *store.Store) error 
 			if id == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc-endpoint", id))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc-endpoint", id))
 			if !vpceSet[tgt] {
 				continue
 			}
@@ -235,7 +235,7 @@ func resolveAppStreamVpcRoleDir(acct *account, st *store.Store, rtype string) er
 		region := sv(r.Region)
 		if attrs.VpcConfig != nil {
 			for _, sid := range attrs.VpcConfig.SubnetIDs {
-				sARN := ec2ARN(region, acct.ID, "subnet", sid)
+				sARN := ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sid)
 				tgtID := store.ResourceID("aws", acct.ID, sARN)
 				if subnetSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -244,7 +244,7 @@ func resolveAppStreamVpcRoleDir(acct *account, st *store.Store, rtype string) er
 				}
 			}
 			for _, sg := range attrs.VpcConfig.SecurityGroupIDs {
-				sgARN := ec2ARN(region, acct.ID, "security-group", sg)
+				sgARN := ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg)
 				tgtID := store.ResourceID("aws", acct.ID, sgARN)
 				if sgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {

@@ -68,16 +68,16 @@ type ec2LateRefAttrs struct {
 // NativeID the row references in it, "" when the row references none.
 type ec2LateRef struct {
 	target   string
-	nativeID func(region, accountID string, a ec2LateRefAttrs) string
+	nativeID func(partition, region, accountID string, a ec2LateRefAttrs) string
 }
 
-// ec2ShortIDRef is a ref to an ec2ARN-keyed target named by its short id.
+// ec2ShortIDRef is a ref to an ec2ARNIn-keyed target named by its short id.
 func ec2ShortIDRef(target, kind string, id func(ec2LateRefAttrs) *string) ec2LateRef {
-	return ec2LateRef{target: target, nativeID: func(region, accountID string, a ec2LateRefAttrs) string {
+	return ec2LateRef{target: target, nativeID: func(partition, region, accountID string, a ec2LateRefAttrs) string {
 		if sv(id(a)) == "" {
 			return ""
 		}
-		return ec2ARN(region, accountID, kind, sv(id(a)))
+		return ec2ARNIn(partition, region, accountID, kind, sv(id(a)))
 	}}
 }
 
@@ -99,7 +99,7 @@ func resolveReservedInstancesListingRelationships(acct *account, st *store.Store
 func resolveServiceLinkVirtualInterfaceRelationships(acct *account, st *store.Store) error {
 	return resolveEC2LateRefs(acct, st, TypeEC2ServiceLinkVirtualInterface,
 		ec2ShortIDRef(TypeEC2OutpostLag, "outpost-lag", func(a ec2LateRefAttrs) *string { return a.OutpostLagID }),
-		ec2LateRef{target: TypeOutpostsOutpost, nativeID: func(_, _ string, a ec2LateRefAttrs) string { return sv(a.OutpostArn) }})
+		ec2LateRef{target: TypeOutpostsOutpost, nativeID: func(_, _, _ string, a ec2LateRefAttrs) string { return sv(a.OutpostArn) }})
 }
 
 // resolveRouteServerAssociationRelationships links each route server
@@ -144,7 +144,7 @@ func resolveEC2LateRefs(acct *account, st *store.Store, source string, refs ...e
 			continue
 		}
 		for i, ref := range refs {
-			nativeID := ref.nativeID(sv(r.Region), acct.ID, attrs)
+			nativeID := ref.nativeID(acct.partition(), sv(r.Region), acct.ID, attrs)
 			if nativeID == "" {
 				continue
 			}

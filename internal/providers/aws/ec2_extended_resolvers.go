@@ -291,7 +291,7 @@ func resolveEC2VPNGatewayVPC(acct *account, st *store.Store) error {
 				continue
 			}
 			seen[id] = true
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", id))
 			if !vpcSet[tgtID] {
 				continue
 			}
@@ -331,7 +331,7 @@ func resolveEC2NetworkInterfacePermissionENI(acct *account, st *store.Store) err
 		if eni == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "network-interface", eni))
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "network-interface", eni))
 		if !eniSet[tgtID] {
 			continue
 		}
@@ -373,7 +373,7 @@ func resolveEC2TrafficMirrorTargetRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if eni := sv(attrs.NetworkInterfaceID); eni != "" {
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "network-interface", eni))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "network-interface", eni))
 			if eniSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ec2-tm-target→eni: %w", err)
@@ -420,7 +420,7 @@ func resolveEC2TrafficMirrorFilterRuleParent(acct *account, st *store.Store) err
 		if fid == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "traffic-mirror-filter", fid))
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "traffic-mirror-filter", fid))
 		if !filterSet[tgtID] {
 			continue
 		}
@@ -463,7 +463,7 @@ func resolveEC2VerifiedAccessInstanceTrustProvider(acct *account, st *store.Stor
 			if id == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "verified-access-trust-provider", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "verified-access-trust-provider", id))
 			if !tpSet[tgtID] {
 				continue
 			}
@@ -521,7 +521,7 @@ func resolveEC2ClientVPNAuthorizationRuleEndpoint(acct *account, st *store.Store
 		if epID == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "client-vpn-endpoint", epID))
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "client-vpn-endpoint", epID))
 		if !epSet[tgtID] {
 			continue
 		}
@@ -556,7 +556,7 @@ func resolveEC2ClientVPNRouteRefs(acct *account, st *store.Store) error {
 	for _, r := range rows {
 		region := sv(r.Region)
 		if epID := clientVPNEndpointFromChildARN(r.NativeID); epID != "" {
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "client-vpn-endpoint", epID))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "client-vpn-endpoint", epID))
 			if epSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ec2-cvpn-route→endpoint: %w", err)
@@ -570,7 +570,7 @@ func resolveEC2ClientVPNRouteRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if subID := sv(attrs.TargetSubnet); subID != "" {
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", subID))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", subID))
 			if subnetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ec2-cvpn-route→subnet: %w", err)
@@ -630,7 +630,7 @@ func resolveEC2NetworkInsightsPathRefs(acct *account, st *store.Store) error {
 			if tgtType == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, kind, ref))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, kind, ref))
 			set := eniSet
 			if tgtType == TypeEC2Instance {
 				set = instSet
@@ -723,7 +723,7 @@ func resolveEC2TGPeeringAttachmentParents(acct *account, st *store.Store) error 
 				return nil
 			}
 			seen[tgID] = true
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(tgRegion, acct.ID, "transit-gateway", tgID))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), tgRegion, acct.ID, "transit-gateway", tgID))
 			if !tgSet[tgtID] {
 				return nil
 			}
@@ -826,7 +826,7 @@ func resolveEC2FleetLaunchTemplate(acct *account, st *store.Store) error {
 				continue
 			}
 			seen[id] = true
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "launch-template", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "launch-template", id))
 			if !ltSet[tgtID] {
 				continue
 			}
@@ -869,7 +869,7 @@ func resolveEC2TGWMeteringPolicyRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if id := sv(attrs.TransitGatewayID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "transit-gateway", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway", id))
 			if tgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert tgw-metering-policy→tgw: %w", err)
@@ -880,7 +880,7 @@ func resolveEC2TGWMeteringPolicyRefs(acct *account, st *store.Store) error {
 			if aid == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "transit-gateway-attachment", aid))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway-attachment", aid))
 			if !attSet[tgtID] {
 				continue
 			}
@@ -929,7 +929,7 @@ func resolveEC2VPCEndpointConnectionNotificationRefs(acct *account, st *store.St
 		}
 		region := sv(r.Region)
 		if id := sv(attrs.VpcEndpointID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc-endpoint", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc-endpoint", id))
 			if vpceSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert vpce-conn-notif→vpc-endpoint: %w", err)
@@ -937,7 +937,7 @@ func resolveEC2VPCEndpointConnectionNotificationRefs(acct *account, st *store.St
 			}
 		}
 		if id := sv(attrs.ServiceID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc-endpoint-service", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc-endpoint-service", id))
 			if svcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert vpce-conn-notif→vpce-service: %w", err)
@@ -1030,7 +1030,7 @@ func resolveEC2CapacityReservationFleetMembers(acct *account, st *store.Store) e
 				continue
 			}
 			seen[id] = true
-			childID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "capacity-reservation", id))
+			childID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "capacity-reservation", id))
 			if !crSet[childID] {
 				continue
 			}

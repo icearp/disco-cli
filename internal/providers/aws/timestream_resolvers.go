@@ -149,7 +149,7 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 			}
 			region := sv(r.Region)
 			for _, sub := range attrs.VpcSubnetIDs {
-				sARN := ec2ARN(region, acct.ID, "subnet", sub)
+				sARN := ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sub)
 				tgt := store.ResourceID("aws", acct.ID, sARN)
 				if !subnetSet[tgt] {
 					continue
@@ -159,7 +159,7 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 				}
 			}
 			for _, sg := range attrs.VpcSecurityGroupIDs {
-				gARN := ec2ARN(region, acct.ID, "security-group", sg)
+				gARN := ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg)
 				tgt := store.ResourceID("aws", acct.ID, gARN)
 				if !sgSet[tgt] {
 					continue

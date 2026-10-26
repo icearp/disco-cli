@@ -146,7 +146,7 @@ func resolveAidevopsPrivateConnVPC(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || sv(attrs.VpcID) == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", sv(attrs.VpcID)))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", sv(attrs.VpcID)))
 		if !vpcSet[tgt] {
 			continue
 		}

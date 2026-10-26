@@ -48,7 +48,7 @@ func resolveLocalGatewayRouteTableVPCAssociationRelationships(acct *account, st 
 		}
 		if attrs.VpcID != nil {
 			vpcID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
+				ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.VpcID))
 
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert lgw-rtb-vpc-assoc→vpc relationship: %w", err)
@@ -85,7 +85,7 @@ func resolveLocalGatewayRouteTableVIGAssociationRelationships(acct *account, st 
 		}
 		if attrs.LocalGatewayVirtualInterfaceGroupID != nil {
 			vigID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "local-gateway-virtual-interface-group", *attrs.LocalGatewayVirtualInterfaceGroupID))
+				ec2ARNIn(acct.partition(), region, acct.ID, "local-gateway-virtual-interface-group", *attrs.LocalGatewayVirtualInterfaceGroupID))
 
 			if err := st.UpsertRelationship(r.ID, vigID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert lgw-rtb-vig-assoc→vig relationship: %w", err)

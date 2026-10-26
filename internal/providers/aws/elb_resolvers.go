@@ -61,7 +61,7 @@ func resolveELBv2LBRelationships(acct *account, st *store.Store) error {
 		if attrs.Lb == nil || attrs.Lb.VpcID == nil {
 			continue
 		}
-		vpcID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.Lb.VpcID))
+		vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", *attrs.Lb.VpcID))
 		if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert lb→vpc relationship: %w", err)
 		}
@@ -193,7 +193,7 @@ func resolveELBv2TGRelationships(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if attrs.TargetGroup.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", *attrs.TargetGroup.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.TargetGroup.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert target-group→vpc relationship: %w", err)
 			}
@@ -212,7 +212,7 @@ func resolveELBv2TGRelationships(acct *account, st *store.Store) error {
 					return fmt.Errorf("upsert target-group→lambda relationship: %w", err)
 				}
 			case "instance":
-				instARN := ec2ARN(region, acct.ID, "instance", id)
+				instARN := ec2ARNIn(acct.partition(), region, acct.ID, "instance", id)
 				instID := store.ResourceID("aws", acct.ID, instARN)
 				if err := st.UpsertRelationship(r.ID, instID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert target-group→instance relationship: %w", err)

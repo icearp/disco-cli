@@ -164,7 +164,7 @@ func resolveDMSReplicationInstanceRefs(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", id))
 			if !sgSet[tgtID] {
 				continue
 			}
@@ -207,7 +207,7 @@ func resolveDMSReplicationSubnetGroupRefs(acct *account, st *store.Store) error 
 		}
 		region := sv(r.Region)
 		if id := sv(attrs.VpcID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", id))
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dms-rsg→vpc: %w", err)
@@ -219,7 +219,7 @@ func resolveDMSReplicationSubnetGroupRefs(acct *account, st *store.Store) error 
 			if id == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", id))
 			if !subnetSet[tgtID] {
 				continue
 			}
@@ -468,7 +468,7 @@ func resolveDMSInstanceProfileRefs(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", id))
 			if !sgSet[tgtID] {
 				continue
 			}

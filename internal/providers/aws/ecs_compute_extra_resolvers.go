@@ -45,7 +45,7 @@ func resolveECSContainerInstanceRelationships(acct *account, st *store.Store) er
 			continue
 		}
 		if id := sv(attrs.Ec2InstanceID); id != "" {
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "instance", id))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "instance", id))
 			if instSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs container-instance→ec2 instance: %w", err)

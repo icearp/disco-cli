@@ -414,7 +414,7 @@ func resolveDataSyncAgentRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if vid := sv(attrs.PrivateLinkConfig.VpcEndpointID); vid != "" {
-			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc-endpoint", vid))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc-endpoint", vid))
 			if vpceSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert datasync-agent→vpce: %w", err)

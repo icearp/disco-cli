@@ -69,7 +69,7 @@ func resolveR53RFirewallConfigVPC(acct *account, st *store.Store) error {
 			continue
 		}
 		vpcID := store.ResourceID("aws", acct.ID,
-			ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.ResourceID))
+			ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", *attrs.ResourceID))
 
 		if !vpcSet[vpcID] {
 			continue
@@ -108,7 +108,7 @@ func resolveR53RResolverConfigVPC(acct *account, st *store.Store) error {
 			continue
 		}
 		vpcID := store.ResourceID("aws", acct.ID,
-			ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.ResourceID))
+			ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", *attrs.ResourceID))
 
 		if !vpcSet[vpcID] {
 			continue
@@ -150,7 +150,7 @@ func resolveR53RResolverRuleAssoc(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if attrs.VPCID != nil && *attrs.VPCID != "" {
 			vpcID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "vpc", *attrs.VPCID))
+				ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.VPCID))
 
 			if vpcSet[vpcID] {
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -298,7 +298,7 @@ func resolveR53RFirewallRuleGroupAssoc(acct *account, st *store.Store) error {
 			continue
 		}
 		vpcID := store.ResourceID("aws", acct.ID,
-			ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
+			ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
 
 		if !vpcSet[vpcID] {
 			continue

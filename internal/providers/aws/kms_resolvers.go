@@ -266,13 +266,13 @@ func resolveKMSCustomKeyStoreBackends(acct *account, st *store.Store) error {
 		}
 		var targets []string
 		if cid := sv(attrs.CloudHsmClusterID); cid != "" {
-			clusterARN := cloudhsmClusterARN(sv(ks.Region), acct.ID, cid)
+			clusterARN := cloudhsmClusterARNIn(acct.partition(), sv(ks.Region), acct.ID, cid)
 			if id := store.ResourceID("aws", acct.ID, clusterARN); clusters[id] {
 				targets = append(targets, id)
 			}
 		}
 		if xks := attrs.XksProxyConfiguration; xks != nil {
-			if svcARN, ok := vpcEndpointServiceARNFromName(sv(xks.VpcEndpointServiceName), sv(xks.VpcEndpointServiceOwner)); ok {
+			if svcARN, ok := vpcEndpointServiceARNFromName(acct.partition(), sv(xks.VpcEndpointServiceName), sv(xks.VpcEndpointServiceOwner)); ok {
 				if id := store.ResourceID("aws", acct.ID, svcARN); endpointServices[id] {
 					targets = append(targets, id)
 				}
@@ -288,16 +288,16 @@ func resolveKMSCustomKeyStoreBackends(acct *account, st *store.Store) error {
 }
 
 // vpcEndpointServiceARNFromName rebuilds the NativeID scanVPCEndpointServices
-// gives an endpoint service from its service name,
+// gives an endpoint service from its partition, its service name,
 // "com.amazonaws.vpce.<region>.<service-id>" (the model's pattern also allows
 // an "eu" first label), and the owning account. ok is false for any other
 // shape or an empty owner.
-func vpcEndpointServiceARNFromName(name, owner string) (string, bool) {
+func vpcEndpointServiceARNFromName(partition, name, owner string) (string, bool) {
 	parts := strings.Split(name, ".")
 	if len(parts) != 5 || parts[1] != "amazonaws" || parts[2] != "vpce" || !strings.HasPrefix(parts[4], "vpce-svc-") || owner == "" {
 		return "", false
 	}
-	return ec2ARN(parts[3], owner, "vpc-endpoint-service", parts[4]), true
+	return ec2ARNIn(partition, parts[3], owner, "vpc-endpoint-service", parts[4]), true
 }
 
 // resolveKMSKeyCustomKeyStores links each key created in a custom key store to

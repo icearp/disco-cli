@@ -250,7 +250,7 @@ func resolveRSSWorkgroupRefs(acct *account, st *store.Store) error {
 			if sid == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sid))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sid))
 			if !subSet[tgtID] {
 				continue
 			}
@@ -262,7 +262,7 @@ func resolveRSSWorkgroupRefs(acct *account, st *store.Store) error {
 			if gid == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", gid))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", gid))
 			if !sgSet[tgtID] {
 				continue
 			}

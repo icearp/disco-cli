@@ -101,7 +101,7 @@ func scanLocalGatewayRoutes(ctx context.Context, client ec2API, acct *account, r
 						if dest == "" {
 							continue
 						}
-						nativeID := ec2ARN(region, acct.ID, "local-gateway-route", rtID+"/"+dest)
+						nativeID := ec2ARNIn(acct.partition(), region, acct.ID, "local-gateway-route", rtID+"/"+dest)
 						status := string(r.State)
 						out = append(out, &store.Resource{
 							Provider:       "aws",
@@ -160,7 +160,7 @@ func scanLocalGatewayVirtualInterfaces(ctx context.Context, client ec2API, acct 
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2LocalGatewayVirtualInterface,
-					NativeID:       ec2ARN(region, acct.ID, "local-gateway-virtual-interface", sv(vi.LocalGatewayVirtualInterfaceId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "local-gateway-virtual-interface", sv(vi.LocalGatewayVirtualInterfaceId)),
 					Region:         &region,
 					TagsJSON:       awsTagsJSON(vi.Tags),
 					AttributesJSON: mustJSON(vi),
@@ -184,7 +184,7 @@ func scanLocalGatewayVirtualInterfaceGroups(ctx context.Context, client ec2API, 
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2LocalGatewayVirtualInterfaceGroup,
-					NativeID:       ec2ARN(region, acct.ID, "local-gateway-virtual-interface-group", sv(vig.LocalGatewayVirtualInterfaceGroupId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "local-gateway-virtual-interface-group", sv(vig.LocalGatewayVirtualInterfaceGroupId)),
 					Region:         &region,
 					TagsJSON:       awsTagsJSON(vig.Tags),
 					AttributesJSON: mustJSON(vig),
@@ -209,7 +209,7 @@ func scanLocalGatewayRouteTableVPCAssociations(ctx context.Context, client ec2AP
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2LocalGatewayRouteTableVPCAssociation,
-					NativeID:       ec2ARN(region, acct.ID, "local-gateway-route-table-vpc-assoc", sv(assoc.LocalGatewayRouteTableVpcAssociationId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "local-gateway-route-table-vpc-assoc", sv(assoc.LocalGatewayRouteTableVpcAssociationId)),
 					Region:         &region,
 					Status:         &status,
 					TagsJSON:       awsTagsJSON(assoc.Tags),
@@ -235,7 +235,7 @@ func scanLocalGatewayRouteTableVIGAssociations(ctx context.Context, client ec2AP
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2LocalGatewayRouteTableVIGAssociation,
-					NativeID:       ec2ARN(region, acct.ID, "local-gateway-route-table-vig-assoc", sv(assoc.LocalGatewayRouteTableVirtualInterfaceGroupAssociationId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "local-gateway-route-table-vig-assoc", sv(assoc.LocalGatewayRouteTableVirtualInterfaceGroupAssociationId)),
 					Region:         &region,
 					Status:         &status,
 					TagsJSON:       awsTagsJSON(assoc.Tags),

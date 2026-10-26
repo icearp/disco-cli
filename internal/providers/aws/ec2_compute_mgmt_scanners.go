@@ -97,7 +97,7 @@ func scanInstances(ctx context.Context, client ec2API, acct *account, region str
 						AccountID:      acct.ID,
 						AccountName:    &acct.Name,
 						Type:           TypeEC2Instance,
-						NativeID:       ec2ARN(region, acct.ID, "instance", sv(inst.InstanceId)),
+						NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "instance", sv(inst.InstanceId)),
 						Name:           ec2TagName(inst.Tags),
 						Region:         &region,
 						Zone:           inst.Placement.AvailabilityZoneId,
@@ -127,7 +127,7 @@ func scanSecurityGroups(ctx context.Context, client ec2API, acct *account, regio
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2SecurityGroup,
-					NativeID:       ec2ARN(region, acct.ID, "security-group", sv(sg.GroupId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sv(sg.GroupId)),
 					Name:           &name,
 					Region:         &region,
 					TagsJSON:       awsTagsJSON(sg.Tags),
@@ -166,7 +166,7 @@ func scanVolumes(ctx context.Context, client ec2API, acct *account, region strin
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2Volume,
-					NativeID:       ec2ARN(region, cmp.Or(sv(vol.OwnerId), acct.ID), "volume", sv(vol.VolumeId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, cmp.Or(sv(vol.OwnerId), acct.ID), "volume", sv(vol.VolumeId)),
 					Name:           ec2TagName(vol.Tags),
 					Region:         &region,
 					Zone:           vol.AvailabilityZoneId,
@@ -199,7 +199,7 @@ func scanImages(ctx context.Context, client ec2API, acct *account, region string
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2Image,
-					NativeID:       ec2ARN(region, acct.ID, "image", sv(img.ImageId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "image", sv(img.ImageId)),
 					Name:           img.Name,
 					Region:         &region,
 					Status:         &status,
@@ -230,7 +230,7 @@ func scanSnapshots(ctx context.Context, client ec2API, acct *account, region str
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2Snapshot,
-					NativeID:       ec2ARN(region, acct.ID, "snapshot", sv(snap.SnapshotId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "snapshot", sv(snap.SnapshotId)),
 					Name:           ec2TagName(snap.Tags),
 					Region:         &region,
 					Status:         &status,
@@ -272,7 +272,7 @@ func scanLaunchTemplates(ctx context.Context, client ec2API, acct *account, regi
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2LaunchTemplate,
-					NativeID:       ec2ARN(region, acct.ID, "launch-template", sv(lt.LaunchTemplateId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "launch-template", sv(lt.LaunchTemplateId)),
 					Name:           &name,
 					Region:         &region,
 					CreatedAt:      tp(lt.CreateTime),
@@ -303,7 +303,7 @@ func scanKeyPairs(ctx context.Context, client ec2API, acct *account, region stri
 			AccountID:      acct.ID,
 			AccountName:    &acct.Name,
 			Type:           TypeEC2KeyPair,
-			NativeID:       ec2ARN(region, acct.ID, "key-pair", sv(kp.KeyPairId)),
+			NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "key-pair", sv(kp.KeyPairId)),
 			Name:           &name,
 			Region:         &region,
 			CreatedAt:      tp(kp.CreateTime),
@@ -341,7 +341,7 @@ func scanPlacementGroups(ctx context.Context, client ec2API, acct *account, regi
 			AccountID:      acct.ID,
 			AccountName:    &acct.Name,
 			Type:           TypeEC2PlacementGroup,
-			NativeID:       ec2ARN(region, acct.ID, "placement-group", sv(pg.GroupId)),
+			NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "placement-group", sv(pg.GroupId)),
 			Name:           &name,
 			Region:         &region,
 			Status:         &status,
@@ -374,7 +374,7 @@ func scanSpotFleets(ctx context.Context, client ec2API, acct *account, region st
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2SpotFleet,
-					NativeID:       ec2ARN(region, acct.ID, "spot-fleet-request", sv(sf.SpotFleetRequestId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "spot-fleet-request", sv(sf.SpotFleetRequestId)),
 					Region:         &region,
 					CreatedAt:      tp(sf.CreateTime),
 					Status:         &status,
@@ -401,7 +401,7 @@ func scanHosts(ctx context.Context, client ec2API, acct *account, region string,
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2Host,
-					NativeID:       ec2ARN(region, acct.ID, "dedicated-host", sv(h.HostId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "dedicated-host", sv(h.HostId)),
 					Name:           ec2TagName(h.Tags),
 					Region:         &region,
 					Zone:           h.AvailabilityZoneId,
@@ -513,7 +513,7 @@ func scanEC2Fleets(ctx context.Context, client ec2API, acct *account, region str
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2Fleet,
-					NativeID:       ec2ARN(region, acct.ID, "fleet", sv(fleet.FleetId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "fleet", sv(fleet.FleetId)),
 					Region:         &region,
 					CreatedAt:      tp(fleet.CreateTime),
 					Status:         &status,
@@ -535,7 +535,7 @@ func scanSecurityGroupVPCAssociations(ctx context.Context, client ec2API, acct *
 			var out []*store.Resource
 			for _, assoc := range page.SecurityGroupVpcAssociations {
 				status := string(assoc.State)
-				nativeID := ec2ARN(region, acct.ID, "security-group-vpc-assoc",
+				nativeID := ec2ARNIn(acct.partition(), region, acct.ID, "security-group-vpc-assoc",
 					sv(assoc.GroupId)+"/"+sv(assoc.VpcId))
 				out = append(out, &store.Resource{
 					Provider:       "aws",
@@ -565,7 +565,7 @@ func scanSnapshotBlockPublicAccess(ctx context.Context, client ec2API, acct *acc
 		return 0, 0, fmt.Errorf("ec2:GetSnapshotBlockPublicAccessState: %w", err)
 	}
 	state := string(out.State)
-	nativeID := ec2ARN("", acct.ID, "snapshot-block-public-access", acct.ID)
+	nativeID := ec2ARNIn(acct.partition(), "", acct.ID, "snapshot-block-public-access", acct.ID)
 	n, err := st.UpsertResource(&store.Resource{
 		Provider:    "aws",
 		AccountID:   acct.ID,

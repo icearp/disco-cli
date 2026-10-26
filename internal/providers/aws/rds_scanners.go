@@ -742,7 +742,7 @@ func scanReservedDBInstances(ctx context.Context, client rdsAPI, acct *account, 
 				name := sv(ri.ReservedDBInstanceId)
 				nativeID := sv(ri.ReservedDBInstanceArn)
 				if nativeID == "" {
-					nativeID = rdsARN(region, acct.ID, "ri", name)
+					nativeID = rdsARNIn(acct.partition(), region, acct.ID, "ri", name)
 				}
 				out = append(out, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -852,7 +852,7 @@ func scanBlueGreenDeployments(ctx context.Context, client rdsAPI, acct *account,
 				name := sv(d.BlueGreenDeploymentName)
 				out = append(out, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSDeployment, NativeID: rdsARN(region, acct.ID, "deployment", id),
+					Type: TypeRDSDeployment, NativeID: rdsARNIn(acct.partition(), region, acct.ID, "deployment", id),
 					Name: &name, Region: &region, CreatedAt: tp(d.CreateTime),
 					Status: d.Status, TagsJSON: awsTagsJSON(d.TagList),
 					AttributesJSON: mustJSON(d), DiscoveredBy: scanID,

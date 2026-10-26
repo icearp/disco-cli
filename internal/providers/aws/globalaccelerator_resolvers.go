@@ -81,7 +81,7 @@ func resolveGACustomRoutingEndpointGroupSubnets(acct *account, st *store.Store) 
 			if subnetID == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", subnetID))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", subnetID))
 			if !subnets[tgt] {
 				continue
 			}
@@ -144,7 +144,7 @@ func resolveGlobalAcceleratorListenerParent(acct *account, st *store.Store) erro
 //   - Bare instance ID for EC2 (`i-xxx`).
 //
 // Returns ("", "") when shape unrecognised.
-func gaEndpointDispatch(endpointID, region, acctID string) (typ, native string) {
+func gaEndpointDispatch(endpointID, partition, region, acctID string) (typ, native string) {
 	if endpointID == "" {
 		return "", ""
 	}
@@ -152,9 +152,9 @@ func gaEndpointDispatch(endpointID, region, acctID string) (typ, native string) 
 	case strings.Contains(endpointID, ":loadbalancer/"):
 		return TypeELBv2LoadBalancer, endpointID
 	case strings.HasPrefix(endpointID, "eipalloc-"):
-		return TypeEC2EIP, ec2ARN(region, acctID, "elastic-ip", endpointID)
+		return TypeEC2EIP, ec2ARNIn(partition, region, acctID, "elastic-ip", endpointID)
 	case strings.HasPrefix(endpointID, "i-"):
-		return TypeEC2Instance, ec2ARN(region, acctID, "instance", endpointID)
+		return TypeEC2Instance, ec2ARNIn(partition, region, acctID, "instance", endpointID)
 	}
 	return "", ""
 }
@@ -205,7 +205,7 @@ func resolveGlobalAcceleratorEndpointGroupRefs(acct *account, st *store.Store) e
 			region = sv(r.Region)
 		}
 		for _, ep := range attrs.EndpointDescriptions {
-			ttyp, native := gaEndpointDispatch(sv(ep.EndpointID), region, acct.ID)
+			ttyp, native := gaEndpointDispatch(sv(ep.EndpointID), acct.partition(), region, acct.ID)
 			if ttyp == "" {
 				continue
 			}
@@ -255,7 +255,7 @@ func resolveGlobalAcceleratorCrossAccountAttachmentRefs(acct *account, st *store
 			if region == "" {
 				region = sv(r.Region)
 			}
-			ttyp, native := gaEndpointDispatch(sv(res.EndpointID), region, acct.ID)
+			ttyp, native := gaEndpointDispatch(sv(res.EndpointID), acct.partition(), region, acct.ID)
 			if ttyp == "" {
 				continue
 			}

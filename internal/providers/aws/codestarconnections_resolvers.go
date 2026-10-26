@@ -64,16 +64,16 @@ func resolveCSCHostNetwork(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		if err := cscHostNetEdge(st, acct.ID, r.ID, vpcSet, region, "vpc", sv(attrs.VpcConfiguration.VpcID), TypeEC2VPC, store.RelAttachedTo); err != nil {
+		if err := cscHostNetEdge(st, acct.ID, r.ID, vpcSet, acct.partition(), region, "vpc", sv(attrs.VpcConfiguration.VpcID), TypeEC2VPC, store.RelAttachedTo); err != nil {
 			return err
 		}
 		for _, sn := range attrs.VpcConfiguration.SubnetIDs {
-			if err := cscHostNetEdge(st, acct.ID, r.ID, subnetSet, region, "subnet", sn, TypeEC2Subnet, store.RelAttachedTo); err != nil {
+			if err := cscHostNetEdge(st, acct.ID, r.ID, subnetSet, acct.partition(), region, "subnet", sn, TypeEC2Subnet, store.RelAttachedTo); err != nil {
 				return err
 			}
 		}
 		for _, sg := range attrs.VpcConfiguration.SecurityGroupIDs {
-			if err := cscHostNetEdge(st, acct.ID, r.ID, sgSet, region, "security-group", sg, TypeEC2SecurityGroup, store.RelUses); err != nil {
+			if err := cscHostNetEdge(st, acct.ID, r.ID, sgSet, acct.partition(), region, "security-group", sg, TypeEC2SecurityGroup, store.RelUses); err != nil {
 				return err
 			}
 		}
@@ -83,11 +83,11 @@ func resolveCSCHostNetwork(acct *account, st *store.Store) error {
 
 // cscHostNetEdge emits one FK-safe edge from a host to the EC2 resource named by
 // rawID; skips empty refs and unscanned targets.
-func cscHostNetEdge(st *store.Store, acctID, srcID string, tgtSet map[string]bool, region, kind, rawID, tgtType, edgeKind string) error {
+func cscHostNetEdge(st *store.Store, acctID, srcID string, tgtSet map[string]bool, partition, region, kind, rawID, tgtType, edgeKind string) error {
 	if rawID == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, kind, rawID))
+	tgtID := store.ResourceID("aws", acctID, ec2ARNIn(partition, region, acctID, kind, rawID))
 	if !tgtSet[tgtID] {
 		return nil
 	}

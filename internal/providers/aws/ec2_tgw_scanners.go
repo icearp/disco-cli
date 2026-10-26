@@ -120,7 +120,7 @@ func scanTransitGatewayAttachments(ctx context.Context, client ec2API, acct *acc
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2TransitGatewayAttachment,
-					NativeID:       ec2ARN(region, acct.ID, "transit-gateway-attachment", sv(att.TransitGatewayAttachmentId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway-attachment", sv(att.TransitGatewayAttachmentId)),
 					Name:           ec2TagName(att.Tags),
 					Region:         &region,
 					CreatedAt:      tp(att.CreationTime),
@@ -148,7 +148,7 @@ func scanTGWConnects(ctx context.Context, client ec2API, acct *account, region s
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2TransitGatewayConnect,
-					NativeID:       ec2ARN(region, acct.ID, "transit-gateway-connect", sv(conn.TransitGatewayAttachmentId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway-connect", sv(conn.TransitGatewayAttachmentId)),
 					Region:         &region,
 					CreatedAt:      tp(conn.CreationTime),
 					Status:         &status,
@@ -175,7 +175,7 @@ func scanTGWConnectPeers(ctx context.Context, client ec2API, acct *account, regi
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2TransitGatewayConnectPeer,
-					NativeID:       ec2ARN(region, acct.ID, "transit-gateway-connect-peer", sv(peer.TransitGatewayConnectPeerId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway-connect-peer", sv(peer.TransitGatewayConnectPeerId)),
 					Region:         &region,
 					CreatedAt:      tp(peer.CreationTime),
 					Status:         &status,
@@ -239,7 +239,7 @@ func scanTGWMulticastDomainAssociations(ctx context.Context, client ec2API, acct
 				func(page *ec2.GetTransitGatewayMulticastDomainAssociationsOutput) []*store.Resource {
 					var out []*store.Resource
 					for _, assoc := range page.MulticastDomainAssociations {
-						nativeID := ec2ARN(region, acct.ID, "tgw-mcast-domain-assoc",
+						nativeID := ec2ARNIn(acct.partition(), region, acct.ID, "tgw-mcast-domain-assoc",
 							domainID+"/"+sv(assoc.TransitGatewayAttachmentId)+"/"+sv(assoc.Subnet.SubnetId))
 						status := string(assoc.Subnet.State)
 						out = append(out, &store.Resource{
@@ -307,7 +307,7 @@ func scanTGWMulticastGroups(ctx context.Context, client ec2API, acct *account, r
 						if isGroupMember != isMember {
 							continue
 						}
-						nativeID := ec2ARN(region, acct.ID, arnSubtype,
+						nativeID := ec2ARNIn(acct.partition(), region, acct.ID, arnSubtype,
 							domainID+"/"+sv(g.GroupIpAddress)+"/"+sv(g.NetworkInterfaceId))
 						out = append(out, &store.Resource{
 							Provider:       "aws",
@@ -344,7 +344,7 @@ func scanTGWPeeringAttachments(ctx context.Context, client ec2API, acct *account
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2TransitGatewayPeeringAttachment,
-					NativeID:       ec2ARN(region, acct.ID, "transit-gateway-peering-attachment", sv(att.TransitGatewayAttachmentId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway-peering-attachment", sv(att.TransitGatewayAttachmentId)),
 					Region:         &region,
 					CreatedAt:      tp(att.CreationTime),
 					Status:         &status,
@@ -371,7 +371,7 @@ func scanTGWRouteTables(ctx context.Context, client ec2API, acct *account, regio
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2TransitGatewayRouteTable,
-					NativeID:       ec2ARN(region, acct.ID, "transit-gateway-route-table", sv(rt.TransitGatewayRouteTableId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway-route-table", sv(rt.TransitGatewayRouteTableId)),
 					Name:           ec2TagName(rt.Tags),
 					Region:         &region,
 					CreatedAt:      tp(rt.CreationTime),
@@ -408,7 +408,7 @@ func scanTGWRouteTableAssociations(ctx context.Context, client ec2API, acct *acc
 				func(page *ec2.GetTransitGatewayRouteTableAssociationsOutput) []*store.Resource {
 					var out []*store.Resource
 					for _, assoc := range page.Associations {
-						nativeID := ec2ARN(region, acct.ID, "tgw-rtb-assoc", rtID+"/"+sv(assoc.TransitGatewayAttachmentId))
+						nativeID := ec2ARNIn(acct.partition(), region, acct.ID, "tgw-rtb-assoc", rtID+"/"+sv(assoc.TransitGatewayAttachmentId))
 						status := string(assoc.State)
 						out = append(out, &store.Resource{
 							Provider:       "aws",
@@ -455,7 +455,7 @@ func scanTGWRouteTablePropagations(ctx context.Context, client ec2API, acct *acc
 				func(page *ec2.GetTransitGatewayRouteTablePropagationsOutput) []*store.Resource {
 					var out []*store.Resource
 					for _, prop := range page.TransitGatewayRouteTablePropagations {
-						nativeID := ec2ARN(region, acct.ID, "tgw-rtb-prop", rtID+"/"+sv(prop.TransitGatewayAttachmentId))
+						nativeID := ec2ARNIn(acct.partition(), region, acct.ID, "tgw-rtb-prop", rtID+"/"+sv(prop.TransitGatewayAttachmentId))
 						status := string(prop.State)
 						out = append(out, &store.Resource{
 							Provider:       "aws",
@@ -493,7 +493,7 @@ func scanTGWVPCAttachments(ctx context.Context, client ec2API, acct *account, re
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2TransitGatewayVPCAttachment,
-					NativeID:       ec2ARN(region, acct.ID, "transit-gateway-vpc-attachment", sv(att.TransitGatewayAttachmentId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway-vpc-attachment", sv(att.TransitGatewayAttachmentId)),
 					Name:           ec2TagName(att.Tags),
 					Region:         &region,
 					CreatedAt:      tp(att.CreationTime),
@@ -543,7 +543,7 @@ func scanTGWRoutes(ctx context.Context, client ec2API, acct *account, region str
 				if dest == "" {
 					continue // skip routes with no CIDR destination
 				}
-				nativeID := ec2ARN(region, acct.ID, "transit-gateway-route", rtID+"/"+dest)
+				nativeID := ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway-route", rtID+"/"+dest)
 				status := string(route.State)
 				batch = append(batch, &store.Resource{
 					Provider:       "aws",

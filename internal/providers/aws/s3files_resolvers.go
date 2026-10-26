@@ -162,7 +162,7 @@ func resolveS3FilesMountTargetRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if v := sv(attrs.VpcID); v != "" {
-			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", v))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", v))
 			if vpcSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert s3files mount-target→vpc: %w", err)
@@ -170,7 +170,7 @@ func resolveS3FilesMountTargetRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if s := sv(attrs.SubnetID); s != "" {
-			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", s))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", s))
 			if subnetSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert s3files mount-target→subnet: %w", err)
@@ -178,7 +178,7 @@ func resolveS3FilesMountTargetRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if n := sv(attrs.NetworkInterfaceID); n != "" {
-			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "network-interface", n))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "network-interface", n))
 			if eniSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert s3files mount-target→eni: %w", err)

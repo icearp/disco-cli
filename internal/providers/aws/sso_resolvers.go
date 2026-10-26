@@ -225,14 +225,14 @@ func resolveSSOAccountAssignments(acct *account, st *store.Store) error {
 		if identityStoreID != "" && principalID != "" {
 			switch attrs.PrincipalType {
 			case "USER":
-				uID := store.ResourceID("aws", acct.ID, identityStoreUserNativeID(ownerAcct, identityStoreID, principalID))
+				uID := store.ResourceID("aws", acct.ID, identityStoreUserNativeIDIn(acct.partition(), ownerAcct, identityStoreID, principalID))
 				if _, ok := userIDs[uID]; ok {
 					if err := st.UpsertRelationship(a.ID, uID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert sso assignment→identitystore user: %w", err)
 					}
 				}
 			case "GROUP":
-				gID := store.ResourceID("aws", acct.ID, identityStoreGroupNativeID(ownerAcct, identityStoreID, principalID))
+				gID := store.ResourceID("aws", acct.ID, identityStoreGroupNativeIDIn(acct.partition(), ownerAcct, identityStoreID, principalID))
 				if _, ok := groupIDs[gID]; ok {
 					if err := st.UpsertRelationship(a.ID, gID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert sso assignment→identitystore group: %w", err)
@@ -371,14 +371,14 @@ func resolveSSOApplicationAssignmentRefs(acct *account, st *store.Store) error {
 		}
 		switch attrs.PrincipalType {
 		case "USER":
-			uID := store.ResourceID("aws", acct.ID, identityStoreUserNativeID(ownerAcct, identityStoreID, pid))
+			uID := store.ResourceID("aws", acct.ID, identityStoreUserNativeIDIn(acct.partition(), ownerAcct, identityStoreID, pid))
 			if _, ok := userIDs[uID]; ok {
 				if err := st.UpsertRelationship(a.ID, uID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sso app-assignment→identity-store user: %w", err)
 				}
 			}
 		case "GROUP":
-			gID := store.ResourceID("aws", acct.ID, identityStoreGroupNativeID(ownerAcct, identityStoreID, pid))
+			gID := store.ResourceID("aws", acct.ID, identityStoreGroupNativeIDIn(acct.partition(), ownerAcct, identityStoreID, pid))
 			if _, ok := groupIDs[gID]; ok {
 				if err := st.UpsertRelationship(a.ID, gID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert sso app-assignment→identity-store group: %w", err)

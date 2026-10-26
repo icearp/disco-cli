@@ -96,10 +96,10 @@ func resolveEVSHostRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		var edges []evsEdge
 		if id := sv(attrs.Ec2InstanceID); id != "" {
-			edges = append(edges, evsEdge{store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "instance", id)), store.RelUses})
+			edges = append(edges, evsEdge{store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "instance", id)), store.RelUses})
 		}
 		if id := sv(attrs.DedicatedHostID); id != "" {
-			edges = append(edges, evsEdge{store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "dedicated-host", id)), store.RelAttachedTo})
+			edges = append(edges, evsEdge{store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "dedicated-host", id)), store.RelAttachedTo})
 		}
 		return edges, nil
 	})
@@ -118,7 +118,7 @@ func resolveEVSVlanSubnets(acct *account, st *store.Store) error {
 		if id == "" {
 			return nil, nil
 		}
-		return []evsEdge{{store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "subnet", id)), store.RelUses}}, nil
+		return []evsEdge{{store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "subnet", id)), store.RelUses}}, nil
 	})
 }
 

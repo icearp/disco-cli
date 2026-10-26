@@ -142,7 +142,7 @@ func resolveEFSMountTargetRelationships(acct *account, st *store.Store) error {
 			}
 		}
 		if snID := sv(attrs.SubnetID); snID != "" {
-			subnetID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", snID))
+			subnetID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", snID))
 			if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert efs-mt→subnet: %w", err)
 			}

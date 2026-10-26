@@ -116,7 +116,7 @@ func emitCodeBuildFleetEdges(st *store.Store, acct *account, r store.Resource, a
 		return nil
 	}
 	if v := sv(vc.VpcID); v != "" {
-		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", v))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", v))
 		if sets.vpcSet[tgt] {
 			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert cb-fleet→vpc: %w", err)
@@ -124,7 +124,7 @@ func emitCodeBuildFleetEdges(st *store.Store, acct *account, r store.Resource, a
 		}
 	}
 	for _, sn := range vc.Subnets {
-		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn))
 		if !sets.subnetSet[tgt] {
 			continue
 		}
@@ -133,7 +133,7 @@ func emitCodeBuildFleetEdges(st *store.Store, acct *account, r store.Resource, a
 		}
 	}
 	for _, sg := range vc.SecurityGroupIDs {
-		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg))
 		if !sets.sgSet[tgt] {
 			continue
 		}
@@ -378,7 +378,7 @@ func emitCodeBuildVPCEdges(st *store.Store, acct *account, r store.Resource, reg
 		return nil
 	}
 	if vpc := sv(vc.VpcID); vpc != "" {
-		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", vpc))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", vpc))
 		if sets.vpcSet[tgt] {
 			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert codebuild project→vpc: %w", err)
@@ -389,7 +389,7 @@ func emitCodeBuildVPCEdges(st *store.Store, acct *account, r store.Resource, reg
 		if sn == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn))
 		if !sets.subnetSet[tgt] {
 			continue
 		}
@@ -401,7 +401,7 @@ func emitCodeBuildVPCEdges(st *store.Store, acct *account, r store.Resource, reg
 		if sg == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg))
 		if !sets.sgSet[tgt] {
 			continue
 		}

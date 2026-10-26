@@ -161,7 +161,7 @@ func emitRouteEdge(st *store.Store, acct *account, rtID, region string, route ma
 		if rule.gatewayPrefix != "" && !hasPrefix(v, rule.gatewayPrefix) {
 			continue
 		}
-		tgtNative := ec2ARN(region, acct.ID, rule.arnKind, v)
+		tgtNative := ec2ARNIn(acct.partition(), region, acct.ID, rule.arnKind, v)
 		tgtID := store.ResourceID("aws", acct.ID, tgtNative)
 		if !idSets[rule.dtype][tgtID] {
 			return nil // target unscanned — first-match rule, no further dispatch
@@ -198,7 +198,7 @@ func resolveSecurityGroupVPC(acct *account, st *store.Store) error {
 			continue
 		}
 		vpcID := store.ResourceID("aws", acct.ID,
-			ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
+			ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
 
 		if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert sg→vpc relationship: %w", err)
@@ -223,7 +223,7 @@ func resolveSubnetVPCRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert subnet→vpc relationship: %w", err)
 			}
@@ -251,7 +251,7 @@ func resolveIGWRelationships(acct *account, st *store.Store) error {
 		}
 		for _, att := range attrs.Attachments {
 			if att.VpcID != nil {
-				vpcID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", *att.VpcID))
+				vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", *att.VpcID))
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert igw→vpc relationship: %w", err)
 				}
@@ -293,7 +293,7 @@ func resolveRouteTableRelationships(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if attrs.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert route-table→vpc relationship: %w", err)
 			}
@@ -380,13 +380,13 @@ func resolveNatGatewayRelationships(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if attrs.SubnetID != nil {
-			subnetID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", *attrs.SubnetID))
+			subnetID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", *attrs.SubnetID))
 			if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert nat-gateway→subnet relationship: %w", err)
 			}
 		}
 		if attrs.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert nat-gateway→vpc relationship: %w", err)
 			}
@@ -413,13 +413,13 @@ func resolveEIPRelationships(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if attrs.InstanceID != nil {
-			instID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "instance", *attrs.InstanceID))
+			instID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "instance", *attrs.InstanceID))
 			if err := st.UpsertRelationship(r.ID, instID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert eip→instance relationship: %w", err)
 			}
 		}
 		if attrs.NetworkInterfaceID != nil {
-			eniID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "network-interface", *attrs.NetworkInterfaceID))
+			eniID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "network-interface", *attrs.NetworkInterfaceID))
 			if err := st.UpsertRelationship(r.ID, eniID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert eip→network-interface relationship: %w", err)
 			}
@@ -449,20 +449,20 @@ func resolveNetworkInterfaceRelationships(acct *account, st *store.Store) error 
 		}
 		region := sv(r.Region)
 		if attrs.SubnetID != nil {
-			subnetID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", *attrs.SubnetID))
+			subnetID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", *attrs.SubnetID))
 			if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert eni→subnet relationship: %w", err)
 			}
 		}
 		if attrs.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert eni→vpc relationship: %w", err)
 			}
 		}
 		for _, sg := range attrs.Groups {
 			if sg.GroupID != nil {
-				sgID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", *sg.GroupID))
+				sgID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", *sg.GroupID))
 				if err := st.UpsertRelationship(r.ID, sgID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert eni→security-group relationship: %w", err)
 				}
@@ -496,7 +496,7 @@ func resolveNetworkACLRelationships(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if attrs.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert nacl→vpc relationship: %w", err)
 			}
@@ -505,7 +505,7 @@ func resolveNetworkACLRelationships(acct *account, st *store.Store) error {
 			if assoc.SubnetID == nil || *assoc.SubnetID == "" {
 				continue
 			}
-			subID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", *assoc.SubnetID))
+			subID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", *assoc.SubnetID))
 			if !subnetSet[subID] {
 				continue
 			}
@@ -533,7 +533,7 @@ func resolveVPCEndpointRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if attrs.VpcID != nil {
-			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert vpc-endpoint→vpc relationship: %w", err)
 			}
@@ -560,7 +560,7 @@ func resolveCarrierGatewayRelationships(acct *account, st *store.Store) error {
 		}
 		if attrs.VpcID != nil {
 			vpcID := store.ResourceID("aws", acct.ID,
-				ec2ARN(sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
+				ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", *attrs.VpcID))
 
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert carrier-gateway→vpc relationship: %w", err)
@@ -588,7 +588,7 @@ func resolveVPCEndpointServicePermissionsRelationships(acct *account, st *store.
 		}
 		if attrs.ServiceID != nil {
 			svcID := store.ResourceID("aws", acct.ID,
-				ec2ARN(sv(r.Region), acct.ID, "vpc-endpoint-service", *attrs.ServiceID))
+				ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc-endpoint-service", *attrs.ServiceID))
 
 			if err := st.UpsertRelationship(r.ID, svcID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert vpc-endpoint-service-permission→service relationship: %w", err)
@@ -632,7 +632,7 @@ func resolveVPCPeeringRelationships(acct *account, st *store.Store) error {
 			if attrs.RequesterVpcInfo.Region != nil {
 				reqRegion = *attrs.RequesterVpcInfo.Region
 			}
-			vpcID := store.ResourceID("aws", reqAcct, ec2ARN(reqRegion, reqAcct, "vpc", *attrs.RequesterVpcInfo.VpcID))
+			vpcID := store.ResourceID("aws", reqAcct, ec2ARNIn(acct.partition(), reqRegion, reqAcct, "vpc", *attrs.RequesterVpcInfo.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelPeer, "directed", nil); err != nil {
 				return fmt.Errorf("upsert peering→requester-vpc relationship: %w", err)
 			}
@@ -647,7 +647,7 @@ func resolveVPCPeeringRelationships(acct *account, st *store.Store) error {
 			if attrs.AccepterVpcInfo.Region != nil {
 				accRegion = *attrs.AccepterVpcInfo.Region
 			}
-			vpcID := store.ResourceID("aws", accAcct, ec2ARN(accRegion, accAcct, "vpc", *attrs.AccepterVpcInfo.VpcID))
+			vpcID := store.ResourceID("aws", accAcct, ec2ARNIn(acct.partition(), accRegion, accAcct, "vpc", *attrs.AccepterVpcInfo.VpcID))
 			if err := st.UpsertRelationship(r.ID, vpcID, store.RelPeer, "directed", nil); err != nil {
 				return fmt.Errorf("upsert peering→accepter-vpc relationship: %w", err)
 			}

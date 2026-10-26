@@ -98,7 +98,7 @@ func resolveMSKNodeRefs(acct *account, st *store.Store) error {
 		var eniIDs []string
 		if b := attrs.BrokerNodeInfo; b != nil {
 			if s := sv(b.ClientSubnet); s != "" {
-				if err := emitMSKEdge(st, acct, r.ID, ec2ARN(region, acct.ID, "subnet", s), store.RelAttachedTo, subnets); err != nil {
+				if err := emitMSKEdge(st, acct, r.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", s), store.RelAttachedTo, subnets); err != nil {
 					return err
 				}
 			}
@@ -111,7 +111,7 @@ func resolveMSKNodeRefs(acct *account, st *store.Store) error {
 			if eni == "" {
 				continue
 			}
-			if err := emitMSKEdge(st, acct, r.ID, ec2ARN(region, acct.ID, "network-interface", eni), store.RelAttachedTo, enis); err != nil {
+			if err := emitMSKEdge(st, acct, r.ID, ec2ARNIn(acct.partition(), region, acct.ID, "network-interface", eni), store.RelAttachedTo, enis); err != nil {
 				return err
 			}
 		}

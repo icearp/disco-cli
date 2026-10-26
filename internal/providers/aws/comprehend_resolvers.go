@@ -117,12 +117,12 @@ func resolveComprehendEntityRecognizerRefs(acct *account, st *store.Store) error
 		}
 		if attrs.VpcConfig != nil {
 			for _, sid := range attrs.VpcConfig.Subnets {
-				if err := comprehendEC2Edge(st, acct.ID, r.ID, subSet, region, "subnet", sid, TypeEC2Subnet); err != nil {
+				if err := comprehendEC2Edge(st, acct.ID, r.ID, subSet, acct.partition(), region, "subnet", sid, TypeEC2Subnet); err != nil {
 					return err
 				}
 			}
 			for _, gid := range attrs.VpcConfig.SecurityGroupIDs {
-				if err := comprehendEC2Edge(st, acct.ID, r.ID, sgSet, region, "security-group", gid, TypeEC2SecurityGroup); err != nil {
+				if err := comprehendEC2Edge(st, acct.ID, r.ID, sgSet, acct.partition(), region, "security-group", gid, TypeEC2SecurityGroup); err != nil {
 					return err
 				}
 			}
@@ -140,11 +140,11 @@ func resolveComprehendEntityRecognizerRefs(acct *account, st *store.Store) error
 }
 
 // comprehendEC2Edge emits one FK-safe attached-to edge to a VPC subnet/SG.
-func comprehendEC2Edge(st *store.Store, acctID, srcID string, tgtSet map[string]bool, region, kind, rawID, tgtType string) error {
+func comprehendEC2Edge(st *store.Store, acctID, srcID string, tgtSet map[string]bool, partition, region, kind, rawID, tgtType string) error {
 	if rawID == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, kind, rawID))
+	tgtID := store.ResourceID("aws", acctID, ec2ARNIn(partition, region, acctID, kind, rawID))
 	if !tgtSet[tgtID] {
 		return nil
 	}
@@ -278,7 +278,7 @@ func resolveComprehendDocumentClassifierRefs(acct *account, st *store.Store) err
 				if sid == "" {
 					continue
 				}
-				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sid))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sid))
 				if !subSet[tgtID] {
 					continue
 				}
@@ -290,7 +290,7 @@ func resolveComprehendDocumentClassifierRefs(acct *account, st *store.Store) err
 				if gid == "" {
 					continue
 				}
-				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", gid))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", gid))
 				if !sgSet[tgtID] {
 					continue
 				}

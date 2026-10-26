@@ -113,7 +113,7 @@ func resolveAPIGatewayV2VpcLinkRelationships(acct *account, st *store.Store) err
 			if sg == "" {
 				continue
 			}
-			id := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
+			id := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg))
 			if _, ok := sgIDs[id]; ok {
 				if err := st.UpsertRelationship(l.ID, id, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert apigatewayv2-vpclink→sg: %w", err)
@@ -124,7 +124,7 @@ func resolveAPIGatewayV2VpcLinkRelationships(acct *account, st *store.Store) err
 			if sn == "" {
 				continue
 			}
-			id := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
+			id := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn))
 			if _, ok := subnetIDs[id]; ok {
 				if err := st.UpsertRelationship(l.ID, id, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert apigatewayv2-vpclink→subnet: %w", err)
@@ -318,7 +318,7 @@ func resolveAPIGatewayMethodRelationships(acct *account, st *store.Store) error 
 			}
 		}
 		if sv(integ.Type) == "VPC_LINK" && sv(integ.ConnectionID) != "" {
-			vpcLinkARN := apigatewayARN(sv(r.Region), "vpclinks", *integ.ConnectionID)
+			vpcLinkARN := apigatewayARNIn(acct.partition(), sv(r.Region), "vpclinks", *integ.ConnectionID)
 			vpcLinkID := store.ResourceID("aws", acct.ID, vpcLinkARN)
 			if err := st.UpsertRelationship(r.ID, vpcLinkID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert apigw-method→vpclink: %w", err)
@@ -352,7 +352,7 @@ func apigwLambdaInvokeARN(uri string) string {
 //   - its client certificate via uses (ClientCertificateID in attrs)
 //   - its parent REST API via contains (REST API ID extracted from the stage ARN)
 //
-// Stage ARN format: arn:aws:apigateway:{region}::/restapis/{apiId}/stages/{stageName}
+// Stage ARN format: arn:{partition}:apigateway:{region}::/restapis/{apiId}/stages/{stageName}
 func resolveAPIGatewayStageRelationships(acct *account, st *store.Store) error {
 	stages, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayStage},
@@ -393,7 +393,7 @@ func resolveAPIGatewayStageRelationships(acct *account, st *store.Store) error {
 
 		if attrs.ClientCertificateID != nil && *attrs.ClientCertificateID != "" {
 			region := sv(r.Region)
-			certARN := apigatewayARN(region, "clientcertificates", *attrs.ClientCertificateID)
+			certARN := apigatewayARNIn(acct.partition(), region, "clientcertificates", *attrs.ClientCertificateID)
 			certID := store.ResourceID("aws", acct.ID, certARN)
 			if err := st.UpsertRelationship(r.ID, certID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert stage→client-certificate: %w", err)
@@ -414,7 +414,7 @@ func resolveAPIGatewayStageRelationships(acct *account, st *store.Store) error {
 //   - its domain name via attached-to (domain name extracted from the mapping ARN)
 //   - its target REST API via routes-to (RestAPIID in attrs)
 //
-// Mapping ARN: arn:aws:apigateway:{region}::/domainnames/{domainName}/basepathmappings/{basePath}
+// Mapping ARN: arn:{partition}:apigateway:{region}::/domainnames/{domainName}/basepathmappings/{basePath}
 func resolveAPIGatewayBasePathMappingRelationships(acct *account, st *store.Store) error {
 	mappings, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,
@@ -436,7 +436,7 @@ func resolveAPIGatewayBasePathMappingRelationships(acct *account, st *store.Stor
 		// Extract domain name from ARN: .../domainnames/{domainName}/basepathmappings/...
 		domainName := apiGatewayDomainNameFromMappingARN(r.NativeID)
 		if domainName != "" {
-			domainARN := apigatewayARN(region, "domainnames", domainName)
+			domainARN := apigatewayARNIn(acct.partition(), region, "domainnames", domainName)
 			domainType := TypeAPIGatewayDomainName
 			if r.Type == TypeAPIGatewayPrivateBasePathMapping {
 				domainType = TypeAPIGatewayPrivateDomainName
@@ -462,7 +462,7 @@ func resolveAPIGatewayBasePathMappingRelationships(acct *account, st *store.Stor
 			continue
 		}
 		if attrs.RestAPIID != nil && *attrs.RestAPIID != "" {
-			restAPIARN := apigatewayARN(region, "restapis", *attrs.RestAPIID)
+			restAPIARN := apigatewayARNIn(acct.partition(), region, "restapis", *attrs.RestAPIID)
 			restAPIID := store.ResourceID("aws", acct.ID, restAPIARN)
 			if err := st.UpsertRelationship(r.ID, restAPIID, store.RelRoutesTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert base-path-mapping→rest-api: %w", err)
@@ -474,7 +474,7 @@ func resolveAPIGatewayBasePathMappingRelationships(acct *account, st *store.Stor
 
 // resolveAPIGatewayUsagePlanKeyRelationships links each usage-plan key to its
 // parent usage plan via attached-to.
-// Key ARN: arn:aws:apigateway:{region}::/usageplans/{planId}/keys/{keyId}
+// Key ARN: arn:{partition}:apigateway:{region}::/usageplans/{planId}/keys/{keyId}
 func resolveAPIGatewayUsagePlanKeyRelationships(acct *account, st *store.Store) error {
 	keys, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAPIGatewayUsagePlanKey},
@@ -501,7 +501,7 @@ func resolveAPIGatewayUsagePlanKeyRelationships(acct *account, st *store.Store) 
 // stages it covers. The scanner stores the full GetUsagePlans item as
 // attributes; APIStages[] carries {APIID, Stage} pairs. Rebuilds each stage's
 // NativeID via the scanner's ARN shape
-// (arn:aws:apigateway:{region}::/restapis/{apiId}/stages/{stage}) and emits an
+// (arn:{partition}:apigateway:{region}::/restapis/{apiId}/stages/{stage}) and emits an
 // attached-to edge.
 func resolveAPIGatewayUsagePlanStages(acct *account, st *store.Store) error {
 	plans, err := st.ListResources(store.ResourceFilter{
@@ -528,7 +528,7 @@ func resolveAPIGatewayUsagePlanStages(acct *account, st *store.Store) error {
 			if apiID == "" || stage == "" {
 				continue
 			}
-			stageARN := apigatewayARN(region, "restapis", apiID, "stages", stage)
+			stageARN := apigatewayARNIn(acct.partition(), region, "restapis", apiID, "stages", stage)
 			stageID := store.ResourceID("aws", acct.ID, stageARN)
 			if err := st.UpsertRelationship(p.ID, stageID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert usage-plan→stage: %w", err)

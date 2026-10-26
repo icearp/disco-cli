@@ -132,7 +132,7 @@ func resolveDeadlineLicenseEndpointVPC(acct *account, st *store.Store) error {
 			continue
 		}
 		if v := sv(attrs.VpcID); v != "" {
-			vpcARN := ec2ARN(sv(r.Region), acct.ID, "vpc", v)
+			vpcARN := ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", v)
 			tgtID := store.ResourceID("aws", acct.ID, vpcARN)
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -207,7 +207,7 @@ func resolveDeadlineMemberPrincipals(acct *account, st *store.Store) error {
 
 // identityStorePrincipalsByStore maps the resource part of the NativeID of
 // each stored Identity Store user and group ("user/{IdentityStoreId}/{UserId}",
-// see identityStoreUserNativeID) to the row's ResourceID.
+// see identityStoreUserNativeIDIn) to the row's ResourceID.
 func identityStorePrincipalsByStore(acct *account, st *store.Store) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,

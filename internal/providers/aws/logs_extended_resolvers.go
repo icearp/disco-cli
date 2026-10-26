@@ -84,7 +84,7 @@ func resolveLogsSyslogVPCEndpoints(acct *account, st *store.Store) error {
 		if id == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc-endpoint", id))
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc-endpoint", id))
 		if !vpceSet[tgtID] {
 			continue
 		}
@@ -373,7 +373,7 @@ func resolveLogsQueryDefinitionLogGroups(acct *account, st *store.Store) error {
 			if name == "" {
 				continue
 			}
-			arn := logGroupNativeIDFromName(acct.ID, region, name)
+			arn := logGroupARNIn(acct.partition(), acct.ID, region, name)
 			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !groupSet[tgtID] {
 				continue

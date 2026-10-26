@@ -156,7 +156,7 @@ func scanFlowLogs(ctx context.Context, client ec2API, acct *account, region stri
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2FlowLog,
-					NativeID:       ec2ARN(region, acct.ID, "vpc-flow-log", sv(fl.FlowLogId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "vpc-flow-log", sv(fl.FlowLogId)),
 					Region:         &region,
 					CreatedAt:      tp(fl.CreationTime),
 					Status:         &status,

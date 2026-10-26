@@ -222,7 +222,7 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 				}
 			}
 			if vgw := sv(attrs.VirtualGatewayID); vgw != "" {
-				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpn-gateway", vgw))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpn-gateway", vgw))
 				if vgwSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx vi→vgw: %w", err))...)
@@ -303,11 +303,11 @@ func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 		var tgtID string
 		switch ag.Type {
 		case "virtualPrivateGateway":
-			if id := store.ResourceID("aws", acct.ID, ec2ARN(sv(ag.Region), acct.ID, "vpn-gateway", sv(ag.ID))); vgwSet[id] {
+			if id := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(ag.Region), acct.ID, "vpn-gateway", sv(ag.ID))); vgwSet[id] {
 				tgtID = id
 			}
 		case "transitGateway":
-			if id := store.ResourceID("aws", acct.ID, ec2ARN(sv(ag.Region), acct.ID, "transit-gateway", sv(ag.ID))); tgwSet[id] {
+			if id := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(ag.Region), acct.ID, "transit-gateway", sv(ag.ID))); tgwSet[id] {
 				tgtID = id
 			}
 		}

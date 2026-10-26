@@ -56,10 +56,10 @@ func resolveCloudHSMClusterNetwork(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		if err := cloudHSMNetEdge(st, acct.ID, r.ID, vpcSet, region, "vpc", sv(attrs.VpcID), TypeEC2VPC, store.RelAttachedTo); err != nil {
+		if err := cloudHSMNetEdge(st, acct.ID, r.ID, vpcSet, acct.partition(), region, "vpc", sv(attrs.VpcID), TypeEC2VPC, store.RelAttachedTo); err != nil {
 			return err
 		}
-		if err := cloudHSMNetEdge(st, acct.ID, r.ID, sgSet, region, "security-group", sv(attrs.SecurityGroup), TypeEC2SecurityGroup, store.RelUses); err != nil {
+		if err := cloudHSMNetEdge(st, acct.ID, r.ID, sgSet, acct.partition(), region, "security-group", sv(attrs.SecurityGroup), TypeEC2SecurityGroup, store.RelUses); err != nil {
 			return err
 		}
 		seen := map[string]bool{}
@@ -68,7 +68,7 @@ func resolveCloudHSMClusterNetwork(acct *account, st *store.Store) error {
 				continue
 			}
 			seen[subnetID] = true
-			if err := cloudHSMNetEdge(st, acct.ID, r.ID, subnetSet, region, "subnet", subnetID, TypeEC2Subnet, store.RelAttachedTo); err != nil {
+			if err := cloudHSMNetEdge(st, acct.ID, r.ID, subnetSet, acct.partition(), region, "subnet", subnetID, TypeEC2Subnet, store.RelAttachedTo); err != nil {
 				return err
 			}
 		}
@@ -78,11 +78,11 @@ func resolveCloudHSMClusterNetwork(acct *account, st *store.Store) error {
 
 // cloudHSMNetEdge emits one FK-safe edge from src to the EC2 resource named by
 // rawID; skips empty refs and unscanned targets.
-func cloudHSMNetEdge(st *store.Store, acctID, srcID string, tgtSet map[string]bool, region, kind, rawID, tgtType, edgeKind string) error {
+func cloudHSMNetEdge(st *store.Store, acctID, srcID string, tgtSet map[string]bool, partition, region, kind, rawID, tgtType, edgeKind string) error {
 	if rawID == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, kind, rawID))
+	tgtID := store.ResourceID("aws", acctID, ec2ARNIn(partition, region, acctID, kind, rawID))
 	if !tgtSet[tgtID] {
 		return nil
 	}
@@ -120,7 +120,7 @@ func resolveCloudHSMBackupCluster(acct *account, st *store.Store) error {
 		if cid == "" {
 			continue
 		}
-		clusterARN := cloudhsmClusterARN(sv(r.Region), acct.ID, cid)
+		clusterARN := cloudhsmClusterARNIn(acct.partition(), sv(r.Region), acct.ID, cid)
 		tgtID := store.ResourceID("aws", acct.ID, clusterARN)
 		if !clusterSet[tgtID] {
 			continue

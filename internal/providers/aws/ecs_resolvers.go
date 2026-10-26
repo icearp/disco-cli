@@ -83,7 +83,7 @@ func resolveECSRelationships(acct *account, st *store.Store) error {
 				if sn == "" {
 					continue
 				}
-				subnetID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
+				subnetID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn))
 				if err := st.UpsertRelationship(r.ID, subnetID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs-service→subnet relationship: %w", err)
 				}
@@ -92,7 +92,7 @@ func resolveECSRelationships(acct *account, st *store.Store) error {
 				if sg == "" {
 					continue
 				}
-				sgID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
+				sgID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg))
 				if err := st.UpsertRelationship(r.ID, sgID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ecs-service→security-group relationship: %w", err)
 				}
@@ -193,7 +193,7 @@ func resolveECSContainerRelationships(acct *account, st *store.Store) error {
 			if c.LogConfiguration != nil && sv(c.LogConfiguration.LogDriver) == "awslogs" {
 				lgName := c.LogConfiguration.Options["awslogs-group"]
 				if lgName != "" {
-					lgNativeID := logGroupNativeIDFromName(acct.ID, region, lgName)
+					lgNativeID := logGroupARNIn(acct.partition(), acct.ID, region, lgName)
 					if err := upsert(TypeLogsLogGroup, lgNativeID); err != nil {
 						return err
 					}

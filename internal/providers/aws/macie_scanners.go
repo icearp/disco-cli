@@ -188,7 +188,7 @@ func scanMacieSession(ctx context.Context, client macie2API, acct *account, regi
 		AccountID:      acct.ID,
 		AccountName:    &acct.Name,
 		Type:           TypeMacieSession,
-		NativeID:       macieSessionNativeID(acct.ID, region),
+		NativeID:       macieSessionNativeIDIn(acct.partition(), acct.ID, region),
 		Region:         &region,
 		Status:         &status,
 		AttributesJSON: mustJSON(out),
@@ -446,7 +446,7 @@ func upsertMacieChildren(st *store.Store, acct *account, region string, batch []
 	if err != nil {
 		return 0, fmt.Errorf("upsert macie %s: %w", kind, err)
 	}
-	parentID := store.ResourceID("aws", acct.ID, macieSessionNativeID(acct.ID, region))
+	parentID := store.ResourceID("aws", acct.ID, macieSessionNativeIDIn(acct.partition(), acct.ID, region))
 	pairs := make([][2]string, len(batch))
 	for i, c := range batch {
 		pairs[i] = [2]string{c.ID, parentID}

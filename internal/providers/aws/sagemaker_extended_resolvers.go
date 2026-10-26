@@ -303,12 +303,12 @@ func emitS3Bucket(st *store.Store, srcID, s3url, acctID string, sets *sagemakerE
 }
 
 // emitSubnetEdges emits subnet `attached-to` edges for a list of bare subnet ids.
-func emitSubnetEdges(st *store.Store, srcID, region, acctID string, ids []string, sets *sagemakerEdgeSets) error {
+func emitSubnetEdges(st *store.Store, srcID, partition, region, acctID string, ids []string, sets *sagemakerEdgeSets) error {
 	for _, sn := range ids {
 		if sn == "" {
 			continue
 		}
-		snID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, "subnet", sn))
+		snID := store.ResourceID("aws", acctID, ec2ARNIn(partition, region, acctID, "subnet", sn))
 		if !sets.subnets[snID] {
 			continue
 		}
@@ -320,12 +320,12 @@ func emitSubnetEdges(st *store.Store, srcID, region, acctID string, ids []string
 }
 
 // emitSGEdges emits security-group `uses` edges for a list of bare sg ids.
-func emitSGEdges(st *store.Store, srcID, region, acctID string, ids []string, sets *sagemakerEdgeSets) error {
+func emitSGEdges(st *store.Store, srcID, partition, region, acctID string, ids []string, sets *sagemakerEdgeSets) error {
 	for _, sg := range ids {
 		if sg == "" {
 			continue
 		}
-		sgID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, "security-group", sg))
+		sgID := store.ResourceID("aws", acctID, ec2ARNIn(partition, region, acctID, "security-group", sg))
 		if !sets.sgs[sgID] {
 			continue
 		}
@@ -379,10 +379,10 @@ func resolveSageMakerNotebookInstance(acct *account, st *store.Store) error {
 		if err := emitIAMRole(st, r.ID, sv(a.RoleArn), acct.ID, sets); err != nil {
 			return fmt.Errorf("notebook→role: %w", err)
 		}
-		if err := emitSubnetEdges(st, r.ID, region, acct.ID, []string{sv(a.SubnetID)}, sets); err != nil {
+		if err := emitSubnetEdges(st, r.ID, acct.partition(), region, acct.ID, []string{sv(a.SubnetID)}, sets); err != nil {
 			return fmt.Errorf("notebook→subnet: %w", err)
 		}
-		if err := emitSGEdges(st, r.ID, region, acct.ID, a.SecurityGroups, sets); err != nil {
+		if err := emitSGEdges(st, r.ID, acct.partition(), region, acct.ID, a.SecurityGroups, sets); err != nil {
 			return fmt.Errorf("notebook→sg: %w", err)
 		}
 		if err := emitKMS(st, r.ID, sv(a.KmsKeyID), region, acct.ID, sets); err != nil {
@@ -456,14 +456,14 @@ func resolveSageMakerDomain(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if vpc := sv(a.VpcID); vpc != "" {
-			vpcID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", vpc))
+			vpcID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", vpc))
 			if sets.vpcs[vpcID] {
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("domain→vpc: %w", err)
 				}
 			}
 		}
-		if err := emitSubnetEdges(st, r.ID, region, acct.ID, a.SubnetIDs, sets); err != nil {
+		if err := emitSubnetEdges(st, r.ID, acct.partition(), region, acct.ID, a.SubnetIDs, sets); err != nil {
 			return fmt.Errorf("domain→subnet: %w", err)
 		}
 		if err := emitKMS(st, r.ID, sv(a.KmsKeyID), region, acct.ID, sets); err != nil {
@@ -869,7 +869,7 @@ func resolveSagemakerJobDef(acct *account, st *store.Store, srcType, inputKey, o
 		if err := emitJobDefRole(st, r.ID, acct.ID, raw, sets); err != nil {
 			return err
 		}
-		if err := emitJobDefNetwork(st, r.ID, region, acct.ID, raw, sets); err != nil {
+		if err := emitJobDefNetwork(st, r.ID, acct.partition(), region, acct.ID, raw, sets); err != nil {
 			return err
 		}
 		if err := emitJobDefInput(st, r.ID, region, acct.ID, raw[inputKey], sets); err != nil {
@@ -892,15 +892,15 @@ func emitJobDefRole(st *store.Store, srcID, acctID string, raw map[string]json.R
 }
 
 // emitJobDefNetwork emits subnet + sg edges from `NetworkConfig.VpcConfig`.
-func emitJobDefNetwork(st *store.Store, srcID, region, acctID string, raw map[string]json.RawMessage, sets *sagemakerEdgeSets) error {
+func emitJobDefNetwork(st *store.Store, srcID, partition, region, acctID string, raw map[string]json.RawMessage, sets *sagemakerEdgeSets) error {
 	var nc jobDefNetworkConfig
 	if err := json.Unmarshal(raw["NetworkConfig"], &nc); err != nil || nc.VpcConfig == nil {
 		return nil
 	}
-	if err := emitSubnetEdges(st, srcID, region, acctID, nc.VpcConfig.Subnets, sets); err != nil {
+	if err := emitSubnetEdges(st, srcID, partition, region, acctID, nc.VpcConfig.Subnets, sets); err != nil {
 		return err
 	}
-	return emitSGEdges(st, srcID, region, acctID, nc.VpcConfig.SecurityGroupIDs, sets)
+	return emitSGEdges(st, srcID, partition, region, acctID, nc.VpcConfig.SecurityGroupIDs, sets)
 }
 
 // emitJobDefInput emits the endpoint edge from a `*JobInput.EndpointInput`.
@@ -977,10 +977,10 @@ func resolveSageMakerProcessingJob(acct *account, st *store.Store) error {
 		}
 		if a.NetworkConfig != nil && a.NetworkConfig.VpcConfig != nil {
 			vc := a.NetworkConfig.VpcConfig
-			if err := emitSubnetEdges(st, r.ID, region, acct.ID, vc.Subnets, sets); err != nil {
+			if err := emitSubnetEdges(st, r.ID, acct.partition(), region, acct.ID, vc.Subnets, sets); err != nil {
 				return err
 			}
-			if err := emitSGEdges(st, r.ID, region, acct.ID, vc.SecurityGroupIDs, sets); err != nil {
+			if err := emitSGEdges(st, r.ID, acct.partition(), region, acct.ID, vc.SecurityGroupIDs, sets); err != nil {
 				return err
 			}
 		}
@@ -1119,10 +1119,10 @@ func resolveSageMakerCluster(acct *account, st *store.Store) error {
 			return fmt.Errorf("cluster→role: %w", err)
 		}
 		if a.VpcConfig != nil {
-			if err := emitSubnetEdges(st, r.ID, region, acct.ID, a.VpcConfig.Subnets, sets); err != nil {
+			if err := emitSubnetEdges(st, r.ID, acct.partition(), region, acct.ID, a.VpcConfig.Subnets, sets); err != nil {
 				return err
 			}
-			if err := emitSGEdges(st, r.ID, region, acct.ID, a.VpcConfig.SecurityGroupIDs, sets); err != nil {
+			if err := emitSGEdges(st, r.ID, acct.partition(), region, acct.ID, a.VpcConfig.SecurityGroupIDs, sets); err != nil {
 				return err
 			}
 		}

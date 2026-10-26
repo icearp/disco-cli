@@ -311,7 +311,7 @@ func resolveRedshiftClusterTargets(acct *account, st *store.Store) error {
 		}
 
 		if vpcID := sv(attrs.VpcID); vpcID != "" {
-			vpcARN := ec2ARN(region, acct.ID, "vpc", vpcID)
+			vpcARN := ec2ARNIn(acct.partition(), region, acct.ID, "vpc", vpcID)
 			vID := store.ResourceID("aws", acct.ID, vpcARN)
 			if _, ok := vpcIDs[vID]; ok {
 				if err := st.UpsertRelationship(c.ID, vID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -325,7 +325,7 @@ func resolveRedshiftClusterTargets(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			sgARN := ec2ARN(region, acct.ID, "security-group", id)
+			sgARN := ec2ARNIn(acct.partition(), region, acct.ID, "security-group", id)
 			rID := store.ResourceID("aws", acct.ID, sgARN)
 			if _, ok := sgIDs[rID]; ok {
 				if err := st.UpsertRelationship(c.ID, rID, store.RelUses, "directed", nil); err != nil {
@@ -404,7 +404,7 @@ func resolveRedshiftSubnetGroupTargets(acct *account, st *store.Store) error {
 		}
 
 		if vpcID := sv(attrs.VpcID); vpcID != "" {
-			vpcARN := ec2ARN(region, acct.ID, "vpc", vpcID)
+			vpcARN := ec2ARNIn(acct.partition(), region, acct.ID, "vpc", vpcID)
 			vID := store.ResourceID("aws", acct.ID, vpcARN)
 			if _, ok := vpcIDs[vID]; ok {
 				if err := st.UpsertRelationship(g.ID, vID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -418,7 +418,7 @@ func resolveRedshiftSubnetGroupTargets(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			subARN := ec2ARN(region, acct.ID, "subnet", id)
+			subARN := ec2ARNIn(acct.partition(), region, acct.ID, "subnet", id)
 			sID := store.ResourceID("aws", acct.ID, subARN)
 			if _, ok := subnetIDs[sID]; ok {
 				if err := st.UpsertRelationship(g.ID, sID, store.RelContains, "directed", nil); err != nil {

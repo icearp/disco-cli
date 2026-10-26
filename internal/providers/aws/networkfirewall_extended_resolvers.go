@@ -107,7 +107,7 @@ func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if v := sv(attrs.VpcID); v != "" {
-			tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", v))
+			tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", v))
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert nfw vea→vpc: %w", err)
@@ -116,7 +116,7 @@ func resolveNFVpcEndpointAssociationRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.SubnetMapping != nil {
 			if s := sv(attrs.SubnetMapping.SubnetID); s != "" {
-				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", s))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", s))
 				if subnetSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert nfw vea→subnet: %w", err)

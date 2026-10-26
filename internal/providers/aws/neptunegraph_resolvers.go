@@ -115,7 +115,7 @@ func resolveNeptuneGraphPrivateEndpointRefs(acct *account, st *store.Store) erro
 			continue
 		}
 		if vid := sv(attrs.VpcID); vid != "" {
-			vpcARN := ec2ARN(sv(r.Region), acct.ID, "vpc", vid)
+			vpcARN := ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", vid)
 			tgtID := store.ResourceID("aws", acct.ID, vpcARN)
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {

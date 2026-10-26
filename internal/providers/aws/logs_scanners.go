@@ -593,7 +593,7 @@ func scanLogsMetricFilters(ctx context.Context, client cwlogsAPI, acct *account,
 			for i, r := range batch {
 				lgName := sv(page.MetricFilters[i].LogGroupName)
 				parentID := store.ResourceID("aws", acct.ID,
-					logGroupNativeIDFromName(acct.ID, region, lgName))
+					logGroupARNIn(acct.partition(), acct.ID, region, lgName))
 
 				pairs = append(pairs, [2]string{r.ID, parentID})
 			}

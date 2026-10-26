@@ -81,7 +81,7 @@ func resolveFSxFileSystemRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if v := sv(attrs.VpcID); v != "" {
-			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", v))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", v))
 			if vpcSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert fsx-fs→vpc: %w", err)
@@ -89,7 +89,7 @@ func resolveFSxFileSystemRefs(acct *account, st *store.Store) error {
 			}
 		}
 		for _, sn := range attrs.SubnetIDs {
-			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn))
 			if !subnetSet[tgt] {
 				continue
 			}
@@ -98,7 +98,7 @@ func resolveFSxFileSystemRefs(acct *account, st *store.Store) error {
 			}
 		}
 		for _, eni := range attrs.NetworkInterfaceIDs {
-			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "network-interface", eni))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "network-interface", eni))
 			if !eniSet[tgt] {
 				continue
 			}

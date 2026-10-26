@@ -65,13 +65,13 @@ func loadDFVPCSets(acct *account, st *store.Store) (dfVPCSets, error) {
 
 // dfWireVPCConfig emits attached-to edges from r to the VPC, subnets and SGs of
 // cfg, FK-safe against the scanned id sets. label names the source for errors.
-func dfWireVPCConfig(st *store.Store, acctID string, r store.Resource, cfg *dfVPCConfig, sets dfVPCSets, label string) error {
+func dfWireVPCConfig(st *store.Store, acct *account, r store.Resource, cfg *dfVPCConfig, sets dfVPCSets, label string) error {
 	if cfg == nil {
 		return nil
 	}
 	region := sv(r.Region)
 	if v := sv(cfg.VpcID); v != "" {
-		tgtID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, "vpc", v))
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", v))
 		if sets.vpc[tgtID] {
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert devicefarm %s→vpc: %w", label, err)
@@ -82,7 +82,7 @@ func dfWireVPCConfig(st *store.Store, acctID string, r store.Resource, cfg *dfVP
 		if sid == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, "subnet", sid))
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sid))
 		if sets.sub[tgtID] {
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert devicefarm %s→subnet: %w", label, err)
@@ -93,7 +93,7 @@ func dfWireVPCConfig(st *store.Store, acctID string, r store.Resource, cfg *dfVP
 		if gid == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acctID, ec2ARN(region, acctID, "security-group", gid))
+		tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", gid))
 		if sets.sg[tgtID] {
 			if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert devicefarm %s→sg: %w", label, err)
@@ -213,7 +213,7 @@ func resolveDeviceFarmTestGridProjectVPC(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if err := dfWireVPCConfig(st, acct.ID, r, attrs.VpcConfig, sets, "testgrid"); err != nil {
+		if err := dfWireVPCConfig(st, acct, r, attrs.VpcConfig, sets, "testgrid"); err != nil {
 			return err
 		}
 	}
@@ -256,7 +256,7 @@ func resolveDeviceFarmProjectRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if err := dfWireVPCConfig(st, acct.ID, r, attrs.VpcConfig, sets, "project"); err != nil {
+		if err := dfWireVPCConfig(st, acct, r, attrs.VpcConfig, sets, "project"); err != nil {
 			return err
 		}
 	}

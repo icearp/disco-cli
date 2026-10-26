@@ -186,7 +186,7 @@ func scanIPAMPoolCIDRs(ctx context.Context, client ec2API, acct *account, region
 				func(page *ec2.GetIpamPoolCidrsOutput) []*store.Resource {
 					var out []*store.Resource
 					for _, cidr := range page.IpamPoolCidrs {
-						nativeID := ec2ARN(region, acct.ID, "ipam-pool-cidr", poolID+"/"+sv(cidr.Cidr))
+						nativeID := ec2ARNIn(acct.partition(), region, acct.ID, "ipam-pool-cidr", poolID+"/"+sv(cidr.Cidr))
 						status := string(cidr.State)
 						out = append(out, &store.Resource{
 							Provider:       "aws",
@@ -247,7 +247,7 @@ func scanIPAMAllocations(ctx context.Context, client ec2API, acct *account, regi
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeEC2IPAMAllocation,
-				NativeID:       ec2ARN(region, acct.ID, "ipam-allocation", poolID+"/"+id),
+				NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "ipam-allocation", poolID+"/"+id),
 				Name:           alloc.Description,
 				Region:         &region,
 				TagsJSON:       awsTagsJSON(alloc.Tags),

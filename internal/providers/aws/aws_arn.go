@@ -15,27 +15,29 @@ import (
 // bug fixes in one place instead of drifting silently.
 //
 // Conventions per service ({p} is the partition: aws, aws-cn, aws-us-gov, …):
-//   - ec2ARN: arn:{p}:ec2:{region}:{account}:{kind}/{id} — slash separator.
-//   - rdsARN: arn:{p}:rds:{region}:{account}:{kind}:{id} — colon separator.
-//   - apigatewayARN: arn:{p}:apigateway:{region}::/{path...} — empty
+//   - ec2ARNIn: arn:{p}:ec2:{region}:{account}:{kind}/{id} — slash separator.
+//   - rdsARNIn: arn:{p}:rds:{region}:{account}:{kind}:{id} — colon separator.
+//   - apigatewayARNIn: arn:{p}:apigateway:{region}::/{path...} — empty
 //     account segment, leading slash, variadic path components joined "/".
-//   - logGroupNativeIDFromName: arn:{p}:logs:{region}:{account}:log-group:{name}.
+//   - logGroupARNIn: arn:{p}:logs:{region}:{account}:log-group:{name}.
 //     SDK ARNs come back with a trailing ":*"; the NativeID strips it.
-//   - macieSessionNativeID: arn:{p}:macie2:{region}:{account}:session — the
+//   - macieSessionNativeIDIn: arn:{p}:macie2:{region}:{account}:session — the
 //     Macie API exposes no session ARN; the synthetic form mirrors the
 //     canonical macie2 shape so rescans dedupe.
 //   - ssoAssignmentNativeID: {psArn}/account/{acct}/{principalType}/{principalID}.
 //     AWS issues no canonical ARN for assignments; permission-set ARN already
 //     embeds the instance id, so extending it carries enough context.
-//   - identityStoreUserNativeID / identityStoreGroupNativeID:
+//   - identityStoreUserNativeIDIn / identityStoreGroupNativeIDIn:
 //     arn:{p}:identitystore::{ownerAcct}:{user|group}/{storeID}/{id}.
 //     Identity Store APIs return no ARNs.
-//   - cloudhsmClusterARN: arn:{p}:cloudhsm:{region}:{account}:cluster/{id} —
+//   - cloudhsmClusterARNIn: arn:{p}:cloudhsm:{region}:{account}:cluster/{id} —
 //     DescribeClusters returns no ARN field.
 //
-// Each builder has a partition-taking core named *In. The forms without a
-// partition build the aws-partition value and stay until their callers pass
-// the account's partition.
+// Each builder takes the partition first. Scanners and resolvers pass
+// acct.partition(): an account lies in one partition, and the target's own
+// scanner keys it with that partition. Don't read the partition from a source
+// row's NativeID: it adds nothing, and a synthetic NativeID can carry a
+// partition that differs from the one the target's scanner used.
 
 // arnFor builds arn:{partition}:{service}:{region}:{account}:{resource}.
 func arnFor(partition, service, region, account, resource string) string {
@@ -70,65 +72,38 @@ func lookupPartition(id string) (awsregions.Partition, bool) {
 	return awsregions.Partitions[i], true
 }
 
-// cloudhsmClusterARN builds the NativeID scanCloudHSMClusters gives a cluster.
-func cloudhsmClusterARN(region, accountID, clusterID string) string {
-	return cloudhsmClusterARNIn("aws", region, accountID, clusterID)
-}
-
+// cloudhsmClusterARNIn builds the NativeID scanCloudHSMClusters gives a cluster.
 func cloudhsmClusterARNIn(partition, region, accountID, clusterID string) string {
 	return arnFor(partition, "cloudhsm", region, accountID, "cluster/"+clusterID)
 }
 
-// ec2ARN builds a standard EC2 ARN: arn:aws:ec2:{region}:{account}:{type}/{id}.
-func ec2ARN(region, accountID, resourceType, id string) string {
-	return ec2ARNIn("aws", region, accountID, resourceType, id)
-}
-
+// ec2ARNIn builds a standard EC2 ARN: arn:{p}:ec2:{region}:{account}:{type}/{id}.
 func ec2ARNIn(partition, region, accountID, resourceType, id string) string {
 	return arnFor(partition, "ec2", region, accountID, resourceType+"/"+id)
 }
 
-// rdsARN builds a standard RDS ARN; unlike EC2's "/" separator, RDS uses ":"
+// rdsARNIn builds a standard RDS ARN; unlike EC2's "/" separator, RDS uses ":"
 // (e.g. arn:aws:rds:us-east-1:123456789012:cluster:my-cluster).
-func rdsARN(region, accountID, resource, id string) string {
-	return rdsARNIn("aws", region, accountID, resource, id)
-}
-
 func rdsARNIn(partition, region, accountID, resource, id string) string {
 	return arnFor(partition, "rds", region, accountID, resource+":"+id)
 }
 
-// apigatewayARN builds an API Gateway ARN: arn:aws:apigateway:{region}::/p1/p2/....
+// apigatewayARNIn builds an API Gateway ARN: arn:{p}:apigateway:{region}::/p1/p2/....
 // The account segment is always empty (REST and HTTP/WebSocket v2 share this shape).
-func apigatewayARN(region string, path ...string) string {
-	return apigatewayARNIn("aws", region, path...)
-}
-
 func apigatewayARNIn(partition, region string, path ...string) string {
 	return arnFor(partition, "apigateway", region, "", "/"+strings.Join(path, "/"))
 }
 
-// logGroupNativeIDFromName reconstructs the log group ARN (NativeID) from its
-// name: arn:aws:logs:{region}:{account}:log-group:{name}. The SDK sometimes
-// appends ":*" to log-group ARNs; NativeID is the clean form without it.
-func logGroupNativeIDFromName(accountID, region, name string) string {
-	return logGroupARNIn("aws", accountID, region, name)
-}
-
-// logGroupARNIn is logGroupNativeIDFromName in partition. The log-group
-// scanner stores the ARN DescribeLogGroups returns, so outside the aws
-// partition only this form matches it.
+// logGroupARNIn reconstructs the log group ARN (NativeID) from its name:
+// arn:{p}:logs:{region}:{account}:log-group:{name}. The SDK sometimes appends
+// ":*" to log-group ARNs; NativeID is the clean form without it.
 func logGroupARNIn(partition, accountID, region, name string) string {
 	return arnFor(partition, "logs", region, accountID, "log-group:"+name)
 }
 
-// macieSessionNativeID synthesises an ARN-shaped identifier for the per-region
-// Macie session. The Macie API exposes no session ARN; the synthetic form
-// matches the canonical macie2 ARN shape so rescans dedupe.
-func macieSessionNativeID(accountID, region string) string {
-	return macieSessionNativeIDIn("aws", accountID, region)
-}
-
+// macieSessionNativeIDIn synthesises an ARN-shaped identifier for the
+// per-region Macie session. The Macie API exposes no session ARN; the
+// synthetic form matches the canonical macie2 ARN shape so rescans dedupe.
 func macieSessionNativeIDIn(partition, accountID, region string) string {
 	return arnFor(partition, "macie2", region, accountID, "session")
 }
@@ -141,17 +116,9 @@ func ssoAssignmentNativeID(psArn, accountID, principalType, principalID string) 
 	return psArn + "/account/" + accountID + "/" + principalType + "/" + principalID
 }
 
-// identityStoreUserNativeID and identityStoreGroupNativeID synthesise
+// identityStoreUserNativeIDIn and identityStoreGroupNativeIDIn synthesise
 // ARN-shaped IDs scoped by the instance owner account and identity-store
 // id. Identity Store APIs do not return ARNs.
-func identityStoreUserNativeID(ownerAccountID, identityStoreID, userID string) string {
-	return identityStoreUserNativeIDIn("aws", ownerAccountID, identityStoreID, userID)
-}
-
-func identityStoreGroupNativeID(ownerAccountID, identityStoreID, groupID string) string {
-	return identityStoreGroupNativeIDIn("aws", ownerAccountID, identityStoreID, groupID)
-}
-
 func identityStoreUserNativeIDIn(partition, ownerAccountID, identityStoreID, userID string) string {
 	return arnFor(partition, "identitystore", "", ownerAccountID, "user/"+identityStoreID+"/"+userID)
 }

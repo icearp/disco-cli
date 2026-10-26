@@ -84,15 +84,15 @@ func scanEC2Late(ctx context.Context, client ec2API, acct *account, region strin
 // fastSnapshotRestoreNativeID builds the NativeID of fast snapshot restore on
 // one snapshot in one Availability Zone. AWS documents no ARN for it; the
 // (snapshot, zone) pair is the unit EnableFastSnapshotRestores turns on.
-func fastSnapshotRestoreNativeID(region, accountID, snapshotID, zone string) string {
-	return ec2ARN(region, accountID, "snapshot", snapshotID) + "/fast-snapshot-restore/" + zone
+func fastSnapshotRestoreNativeID(partition, region, accountID, snapshotID, zone string) string {
+	return ec2ARNIn(partition, region, accountID, "snapshot", snapshotID) + "/fast-snapshot-restore/" + zone
 }
 
 // fastLaunchImageNativeID builds the NativeID of the Windows fast launch
 // configuration of one AMI. AWS documents no ARN for it; an AMI has at most
 // one.
-func fastLaunchImageNativeID(region, accountID, imageID string) string {
-	return ec2ARN(region, accountID, "image", imageID) + "/fast-launch"
+func fastLaunchImageNativeID(partition, region, accountID, imageID string) string {
+	return ec2ARNIn(partition, region, accountID, "image", imageID) + "/fast-launch"
 }
 
 // scanEC2FastSnapshotRestores stores the fast snapshot restore state of each
@@ -120,7 +120,7 @@ func scanEC2FastSnapshotRestores(ctx context.Context, client ec2API, acct *accou
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2FastSnapshotRestore,
-					NativeID:       fastSnapshotRestoreNativeID(region, acct.ID, snapshotID, zone),
+					NativeID:       fastSnapshotRestoreNativeID(acct.partition(), region, acct.ID, snapshotID, zone),
 					Region:         &region,
 					Status:         nonEmptyPtr(string(f.State)),
 					CreatedAt:      tp(f.EnablingTime),
@@ -151,7 +151,7 @@ func scanEC2FastLaunchImages(ctx context.Context, client ec2API, acct *account, 
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2FastLaunchImage,
-					NativeID:       fastLaunchImageNativeID(region, acct.ID, imageID),
+					NativeID:       fastLaunchImageNativeID(acct.partition(), region, acct.ID, imageID),
 					Region:         &region,
 					Status:         nonEmptyPtr(string(f.State)),
 					AttributesJSON: mustJSON(f),
@@ -167,7 +167,7 @@ func scanEC2FastLaunchImages(ctx context.Context, client ec2API, acct *account, 
 // documents "disabled" as the state in which all AMIs are allowed). It is not
 // Managed: that state is the customer's choice, and Managed rows are left out
 // of default `disco check` input. AWS documents no ARN for it; the NativeID is
-// synthesized in ec2ARN shape and carries the Region, so Regions do not share
+// synthesized in ec2ARNIn shape and carries the Region, so Regions do not share
 // one row.
 func scanEC2AllowedImagesSetting(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.GetAllowedImagesSettings(ctx, &ec2.GetAllowedImagesSettingsInput{})
@@ -185,7 +185,7 @@ func scanEC2AllowedImagesSetting(ctx context.Context, client ec2API, acct *accou
 		AccountID:      acct.ID,
 		AccountName:    &acct.Name,
 		Type:           TypeEC2AllowedImagesSetting,
-		NativeID:       ec2ARN(region, acct.ID, "allowed-images-setting", acct.ID),
+		NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "allowed-images-setting", acct.ID),
 		Region:         &region,
 		Status:         out.State,
 		AttributesJSON: mustJSON(out),
@@ -197,7 +197,7 @@ func scanEC2AllowedImagesSetting(ctx context.Context, client ec2API, acct *accou
 // Marketplace listings that are still open. Cancelled and closed listings are
 // sale history, not live resources: the status filter keeps the unpaginated
 // response from carrying that whole history. AWS documents no ARN for a
-// listing; the NativeID is synthesized in ec2ARN shape from the listing id.
+// listing; the NativeID is synthesized in ec2ARNIn shape from the listing id.
 func scanEC2ReservedInstancesListings(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.DescribeReservedInstancesListings(ctx, &ec2.DescribeReservedInstancesListingsInput{
 		Filters: []ec2types.Filter{{
@@ -227,7 +227,7 @@ func scanEC2ReservedInstancesListings(ctx context.Context, client ec2API, acct *
 			AccountID:      acct.ID,
 			AccountName:    &acct.Name,
 			Type:           TypeEC2ReservedInstancesListing,
-			NativeID:       ec2ARN(region, acct.ID, "reserved-instances-listing", id),
+			NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "reserved-instances-listing", id),
 			Region:         &region,
 			Status:         nonEmptyPtr(string(l.Status)),
 			CreatedAt:      tp(l.CreateDate),

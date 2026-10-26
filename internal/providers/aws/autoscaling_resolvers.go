@@ -187,7 +187,7 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 		}
 		if a.LaunchTemplate != nil {
 			if ltID := sv(a.LaunchTemplate.LaunchTemplateID); ltID != "" {
-				ltARN := ec2ARN(region, acct.ID, "launch-template", ltID)
+				ltARN := ec2ARNIn(acct.partition(), region, acct.ID, "launch-template", ltID)
 				ltResID := store.ResourceID("aws", acct.ID, ltARN)
 				if ltIDs[ltResID] {
 					if err := st.UpsertRelationship(g.ID, ltResID, store.RelUses, "directed", nil); err != nil {
@@ -209,7 +209,7 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 			if id == "" {
 				continue
 			}
-			instARN := ec2ARN(region, acct.ID, "instance", id)
+			instARN := ec2ARNIn(acct.partition(), region, acct.ID, "instance", id)
 			instResID := store.ResourceID("aws", acct.ID, instARN)
 			if instanceIDs[instResID] {
 				if err := st.UpsertRelationship(g.ID, instResID, store.RelContains, "directed", nil); err != nil {
@@ -223,7 +223,7 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 				if sn == "" {
 					continue
 				}
-				snARN := ec2ARN(region, acct.ID, "subnet", sn)
+				snARN := ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn)
 				snResID := store.ResourceID("aws", acct.ID, snARN)
 				if subnetIDs[snResID] {
 					if err := st.UpsertRelationship(g.ID, snResID, store.RelUses, "directed", nil); err != nil {
@@ -274,7 +274,7 @@ func resolveAutoScalingLaunchConfigEdges(acct *account, st *store.Store, instPro
 			if sg == "" {
 				continue
 			}
-			sgARN := ec2ARN(region, acct.ID, "security-group", sg)
+			sgARN := ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg)
 			sgID := store.ResourceID("aws", acct.ID, sgARN)
 			if sgIDs[sgID] {
 				if err := st.UpsertRelationship(lc.ID, sgID, store.RelUses, "directed", nil); err != nil {

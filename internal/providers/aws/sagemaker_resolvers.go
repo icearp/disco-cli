@@ -227,7 +227,7 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 				continue
 			}
 			snID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "subnet", sn))
+				ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn))
 
 			if !subnetSet[snID] {
 				continue
@@ -241,7 +241,7 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 				continue
 			}
 			sgID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "security-group", sg))
+				ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg))
 
 			if !sgSet[sgID] {
 				continue

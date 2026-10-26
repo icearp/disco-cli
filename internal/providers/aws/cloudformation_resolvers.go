@@ -77,12 +77,12 @@ type cfnStackSetAttrs struct {
 // physID alone can't rebuild the canonical ARN.
 type cfnTypeBinding struct {
 	discoType  string
-	toNativeID func(physID, region, acctID string) string
+	toNativeID func(physID, partition, region, acctID string) string
 }
 
 // passthrough returns physID verbatim, for services where CloudFormation's
 // PhysicalResourceID already matches disco NativeID (full ARNs).
-func passthrough(physID, _, _ string) string { return physID }
+func passthrough(physID, _, _, _ string) string { return physID }
 
 // cfnTypeMap dispatches `AWS::Service::Resource` to disco type + NativeID
 // synthesis. A new service edge is one row here, no resolver changes needed.
@@ -93,7 +93,7 @@ func passthrough(physID, _, _ string) string { return physID }
 var cfnTypeMap = map[string]cfnTypeBinding{
 	"AWS::S3::Bucket": {
 		discoType: TypeS3Bucket,
-		toNativeID: func(name, _, _ string) string {
+		toNativeID: func(name, _, _, _ string) string {
 			if name == "" {
 				return ""
 			}
@@ -102,7 +102,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::IAM::Role": {
 		discoType: TypeIAMRole,
-		toNativeID: func(name, _, acct string) string {
+		toNativeID: func(name, _, _, acct string) string {
 			if name == "" {
 				return ""
 			}
@@ -111,7 +111,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::IAM::User": {
 		discoType: TypeIAMUser,
-		toNativeID: func(name, _, acct string) string {
+		toNativeID: func(name, _, _, acct string) string {
 			if name == "" {
 				return ""
 			}
@@ -124,7 +124,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::Lambda::Function": {
 		discoType: TypeLambdaFunction,
-		toNativeID: func(name, region, acct string) string {
+		toNativeID: func(name, _, region, acct string) string {
 			if name == "" {
 				return ""
 			}
@@ -137,43 +137,43 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::EC2::Instance": {
 		discoType: TypeEC2Instance,
-		toNativeID: func(id, region, acct string) string {
+		toNativeID: func(id, partition, region, acct string) string {
 			if id == "" {
 				return ""
 			}
-			return ec2ARN(region, acct, "instance", id)
+			return ec2ARNIn(partition, region, acct, "instance", id)
 		},
 	},
 	"AWS::EC2::SecurityGroup": {
 		discoType: TypeEC2SecurityGroup,
-		toNativeID: func(id, region, acct string) string {
+		toNativeID: func(id, partition, region, acct string) string {
 			if id == "" {
 				return ""
 			}
-			return ec2ARN(region, acct, "security-group", id)
+			return ec2ARNIn(partition, region, acct, "security-group", id)
 		},
 	},
 	"AWS::EC2::VPC": {
 		discoType: TypeEC2VPC,
-		toNativeID: func(id, region, acct string) string {
+		toNativeID: func(id, partition, region, acct string) string {
 			if id == "" {
 				return ""
 			}
-			return ec2ARN(region, acct, "vpc", id)
+			return ec2ARNIn(partition, region, acct, "vpc", id)
 		},
 	},
 	"AWS::EC2::Subnet": {
 		discoType: TypeEC2Subnet,
-		toNativeID: func(id, region, acct string) string {
+		toNativeID: func(id, partition, region, acct string) string {
 			if id == "" {
 				return ""
 			}
-			return ec2ARN(region, acct, "subnet", id)
+			return ec2ARNIn(partition, region, acct, "subnet", id)
 		},
 	},
 	"AWS::DynamoDB::Table": {
 		discoType: TypeDynamoDBTable,
-		toNativeID: func(name, region, acct string) string {
+		toNativeID: func(name, _, region, acct string) string {
 			if name == "" {
 				return ""
 			}
@@ -187,7 +187,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 		// queue NativeID is the ARN. Take the trailing path segment as the
 		// queue name; region/acct come from the stack row, not the URL.
 		discoType: TypeSQSQueue,
-		toNativeID: func(url, region, acct string) string {
+		toNativeID: func(url, _, region, acct string) string {
 			if url == "" {
 				return ""
 			}
@@ -200,16 +200,16 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::Logs::LogGroup": {
 		discoType: TypeLogsLogGroup,
-		toNativeID: func(name, region, acct string) string {
+		toNativeID: func(name, partition, region, acct string) string {
 			if name == "" {
 				return ""
 			}
-			return logGroupNativeIDFromName(acct, region, name)
+			return logGroupARNIn(partition, acct, region, name)
 		},
 	},
 	"AWS::KMS::Key": {
 		discoType: TypeKMSKey,
-		toNativeID: func(id, region, acct string) string {
+		toNativeID: func(id, _, region, acct string) string {
 			if id == "" {
 				return ""
 			}
@@ -219,20 +219,20 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	"AWS::SecretsManager::Secret": {discoType: TypeSecretsManagerSecret, toNativeID: passthrough},
 	"AWS::RDS::DBInstance": {
 		discoType: TypeRDSDBInstance,
-		toNativeID: func(id, region, acct string) string {
+		toNativeID: func(id, partition, region, acct string) string {
 			if id == "" {
 				return ""
 			}
-			return rdsARN(region, acct, "db", id)
+			return rdsARNIn(partition, region, acct, "db", id)
 		},
 	},
 	"AWS::RDS::DBCluster": {
 		discoType: TypeRDSDBCluster,
-		toNativeID: func(id, region, acct string) string {
+		toNativeID: func(id, partition, region, acct string) string {
 			if id == "" {
 				return ""
 			}
-			return rdsARN(region, acct, "cluster", id)
+			return rdsARNIn(partition, region, acct, "cluster", id)
 		},
 	},
 	"AWS::StepFunctions::StateMachine": {discoType: TypeSFNStateMachine, toNativeID: passthrough},
@@ -243,7 +243,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 		// is just the rule name; custom-bus shows as `BusName|RuleName` in
 		// some templates — reject the pipe form too.
 		discoType: TypeEventsRule,
-		toNativeID: func(name, region, acct string) string {
+		toNativeID: func(name, _, region, acct string) string {
 			if name == "" || strings.ContainsAny(name, "|") {
 				return ""
 			}
@@ -252,7 +252,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::Events::EventBus": {
 		discoType: TypeEventsEventBus,
-		toNativeID: func(name, region, acct string) string {
+		toNativeID: func(name, _, region, acct string) string {
 			if name == "" {
 				return ""
 			}
@@ -261,7 +261,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::EFS::FileSystem": {
 		discoType: TypeEFSFileSystem,
-		toNativeID: func(id, region, acct string) string {
+		toNativeID: func(id, _, region, acct string) string {
 			if id == "" {
 				return ""
 			}
@@ -270,7 +270,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::ECR::Repository": {
 		discoType: TypeECRRepository,
-		toNativeID: func(name, region, acct string) string {
+		toNativeID: func(name, _, region, acct string) string {
 			if name == "" {
 				return ""
 			}
@@ -279,7 +279,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::Kinesis::Stream": {
 		discoType: TypeKinesisStream,
-		toNativeID: func(name, region, acct string) string {
+		toNativeID: func(name, _, region, acct string) string {
 			if name == "" {
 				return ""
 			}
@@ -291,7 +291,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 		// slash bare names have in the API. Disco's SSM scanner stores the
 		// canonical ARN as `parameter/{name}` (no double slash).
 		discoType: TypeSSMParameter,
-		toNativeID: func(name, region, acct string) string {
+		toNativeID: func(name, _, region, acct string) string {
 			if name == "" {
 				return ""
 			}
@@ -302,20 +302,20 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	"AWS::ElasticLoadBalancingV2::TargetGroup":  {discoType: TypeELBv2TargetGroup, toNativeID: passthrough},
 	"AWS::ApiGateway::RestApi": {
 		discoType: TypeAPIGatewayRestAPI,
-		toNativeID: func(id, region, _ string) string {
+		toNativeID: func(id, partition, region, _ string) string {
 			if id == "" {
 				return ""
 			}
-			return apigatewayARN(region, "restapis", id)
+			return apigatewayARNIn(partition, region, "restapis", id)
 		},
 	},
 	"AWS::ApiGatewayV2::Api": {
 		discoType: TypeAPIGatewayV2API,
-		toNativeID: func(id, region, _ string) string {
+		toNativeID: func(id, partition, region, _ string) string {
 			if id == "" {
 				return ""
 			}
-			return "arn:aws:apigateway:" + region + "::/apis/" + id
+			return apigatewayARNIn(partition, region, "apis", id)
 		},
 	},
 	"AWS::CloudFormation::Stack": {
@@ -380,7 +380,7 @@ func resolveCloudFormationStackResources(acct *account, st *store.Store) error {
 			if !ok {
 				continue
 			}
-			nativeID := binding.toNativeID(physID, region, acct.ID)
+			nativeID := binding.toNativeID(physID, acct.partition(), region, acct.ID)
 			if nativeID == "" {
 				continue
 			}

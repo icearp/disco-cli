@@ -222,7 +222,7 @@ func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store)
 		}
 
 		if vpc := sv(attrs.Firewall.VpcID); vpc != "" {
-			vpcARN := ec2ARN(region, acct.ID, "vpc", vpc)
+			vpcARN := ec2ARNIn(acct.partition(), region, acct.ID, "vpc", vpc)
 			vpcID := store.ResourceID("aws", acct.ID, vpcARN)
 			if known[vpcID] {
 				if err := st.UpsertRelationship(f.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -236,7 +236,7 @@ func resolveNetworkFirewallFirewallRelationships(acct *account, st *store.Store)
 			if sn == "" {
 				continue
 			}
-			snARN := ec2ARN(region, acct.ID, "subnet", sn)
+			snARN := ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn)
 			snID := store.ResourceID("aws", acct.ID, snARN)
 			if !known[snID] {
 				continue

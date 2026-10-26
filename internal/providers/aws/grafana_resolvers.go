@@ -89,8 +89,8 @@ func resolveGrafanaPermissionPrincipals(acct *account, st *store.Store) error {
 }
 
 // identityStorePrincipalIndex maps the user or group id that ends the
-// NativeID of each stored row of typ (identityStoreUserNativeID,
-// identityStoreGroupNativeID) to the row's ResourceID.
+// NativeID of each stored row of typ (identityStoreUserNativeIDIn,
+// identityStoreGroupNativeIDIn) to the row's ResourceID.
 func identityStorePrincipalIndex(acct *account, st *store.Store, typ string) (map[string]string, error) {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID,

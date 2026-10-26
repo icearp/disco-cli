@@ -120,7 +120,7 @@ func resolveEMRClusterRefs(acct *account, st *store.Store) error {
 		if attrs.Ec2InstanceAttributes != nil {
 			ea := attrs.Ec2InstanceAttributes
 			if sn := sv(ea.Ec2SubnetID); sn != "" {
-				tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
+				tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn))
 				if subnetSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert emr-cluster→subnet: %w", err)
@@ -138,7 +138,7 @@ func resolveEMRClusterRefs(acct *account, st *store.Store) error {
 				if sg == "" {
 					continue
 				}
-				tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
+				tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg))
 				if !sgSet[tgt] {
 					continue
 				}
@@ -185,7 +185,7 @@ func resolveEMRStudioVPC(acct *account, st *store.Store) error {
 		if v == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, ec2ARN(sv(r.Region), acct.ID, "vpc", v))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), sv(r.Region), acct.ID, "vpc", v))
 		if !vpcSet[tgt] {
 			continue
 		}

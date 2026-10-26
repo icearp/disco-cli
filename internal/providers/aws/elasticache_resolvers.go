@@ -59,7 +59,7 @@ func resolveElastiCacheSubnetGroupVPC(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if v := sv(attrs.VpcID); v != "" {
-			vpcARN := ec2ARN(region, acct.ID, "vpc", v)
+			vpcARN := ec2ARNIn(acct.partition(), region, acct.ID, "vpc", v)
 			tgtID := store.ResourceID("aws", acct.ID, vpcARN)
 			if vpcSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -72,7 +72,7 @@ func resolveElastiCacheSubnetGroupVPC(acct *account, st *store.Store) error {
 			if id == "" {
 				continue
 			}
-			subARN := ec2ARN(region, acct.ID, "subnet", id)
+			subARN := ec2ARNIn(acct.partition(), region, acct.ID, "subnet", id)
 			tgtID := store.ResourceID("aws", acct.ID, subARN)
 			if subnetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {

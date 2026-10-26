@@ -189,11 +189,11 @@ func isEC2RegionFeatureGap(err error) bool {
 }
 
 // errEC2ParentNativeID marks a stored parent whose NativeID lacks the
-// ec2ARN `{kind}/{id}` shape its own scanner writes.
-var errEC2ParentNativeID = errors.New("ec2 parent NativeID is not an ec2ARN of its kind")
+// ec2ARNIn `{kind}/{id}` shape its own scanner writes.
+var errEC2ParentNativeID = errors.New("ec2 parent NativeID is not an EC2 ARN ending in {kind}/{id} for its own kind")
 
 // ec2StoredParents returns the parentType rows this scan stored in region,
-// keyed by the id ec2ARN put after kind, except those whose Status is one of
+// keyed by the id ec2ARNIn put after kind, except those whose Status is one of
 // gone. A late phase reads its parents here because the category that lists
 // them runs inside runScanners and hands nothing back.
 func ec2StoredParents(st *store.Store, acct *account, region, scanID, parentType, kind string, gone ...string) ([]childParent, error) {

@@ -31,7 +31,7 @@ func init() {
 // file: CapacityManager data exports, AWS Network Performance metric
 // subscriptions, TransitGateway metering policies, VPC encryption controls,
 // VPN concentrators. None carry native ARN fields on the SDK summary —
-// synthesize via ec2ARN.
+// synthesize via ec2ARNIn.
 func scanEC2MiscExtra(ctx context.Context, client ec2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return runScanners(
 		ctx,
@@ -83,7 +83,7 @@ func scanCapacityManagerDataExports(ctx context.Context, client ec2API, acct *ac
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeEC2CapacityManagerDataExport,
-				NativeID:       ec2ARN(region, acct.ID, "capacity-manager-data-export", id),
+				NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "capacity-manager-data-export", id),
 				Region:         &region,
 				TagsJSON:       awsTagsJSON(e.Tags),
 				AttributesJSON: mustJSON(e),
@@ -113,7 +113,7 @@ func scanNetworkPerformanceMetricSubscriptions(ctx context.Context, client ec2AP
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2NetworkPerformanceMetricSubscription,
-					NativeID:       ec2ARN(region, acct.ID, "network-performance-metric-subscription", key),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "network-performance-metric-subscription", key),
 					Region:         &region,
 					AttributesJSON: mustJSON(s),
 					DiscoveredBy:   scanID,
@@ -149,7 +149,7 @@ func scanTransitGatewayMeteringPolicies(ctx context.Context, client ec2API, acct
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeEC2TransitGatewayMeteringPolicy,
-				NativeID:       ec2ARN(region, acct.ID, "transit-gateway-metering-policy", id),
+				NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "transit-gateway-metering-policy", id),
 				Region:         &region,
 				TagsJSON:       awsTagsJSON(p.Tags),
 				AttributesJSON: mustJSON(p),
@@ -186,7 +186,7 @@ func scanVPCEncryptionControls(ctx context.Context, client ec2API, acct *account
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeEC2VPCEncryptionControl,
-				NativeID:       ec2ARN(region, acct.ID, "vpc-encryption-control", id),
+				NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "vpc-encryption-control", id),
 				Region:         &region,
 				TagsJSON:       awsTagsJSON(c.Tags),
 				AttributesJSON: mustJSON(c),
@@ -225,7 +225,7 @@ func scanVPNConcentrators(ctx context.Context, client ec2API, acct *account, reg
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2VPNConcentrator,
-					NativeID:       ec2ARN(region, acct.ID, "vpn-concentrator", id),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "vpn-concentrator", id),
 					Region:         &region,
 					Status:         &status,
 					TagsJSON:       awsTagsJSON(c.Tags),

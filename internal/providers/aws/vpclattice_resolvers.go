@@ -105,7 +105,7 @@ func resolveVPCLatticeSNVA(acct *account, st *store.Store) error {
 		}
 		if attrs.VpcID != nil && *attrs.VpcID != "" {
 			vpcID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "vpc", *attrs.VpcID))
+				ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.VpcID))
 
 			if vpcSet[vpcID] {
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -243,7 +243,7 @@ func resolveVPCLatticeTargetGroup(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if attrs.VpcIdentifier != nil && *attrs.VpcIdentifier != "" {
 			vpcID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "vpc", *attrs.VpcIdentifier))
+				ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.VpcIdentifier))
 
 			if vpcSet[vpcID] {
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -436,7 +436,7 @@ func resolveVPCLatticeResourceGateway(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if attrs.VpcIdentifier != nil && *attrs.VpcIdentifier != "" {
 			vpcID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "vpc", *attrs.VpcIdentifier))
+				ec2ARNIn(acct.partition(), region, acct.ID, "vpc", *attrs.VpcIdentifier))
 
 			if vpcSet[vpcID] {
 				if err := st.UpsertRelationship(r.ID, vpcID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -449,7 +449,7 @@ func resolveVPCLatticeResourceGateway(acct *account, st *store.Store) error {
 				continue
 			}
 			snID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "subnet", sn))
+				ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn))
 
 			if !subnetSet[snID] {
 				continue
@@ -463,7 +463,7 @@ func resolveVPCLatticeResourceGateway(acct *account, st *store.Store) error {
 				continue
 			}
 			sgID := store.ResourceID("aws", acct.ID,
-				ec2ARN(region, acct.ID, "security-group", sg))
+				ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg))
 
 			if !sgSet[sgID] {
 				continue

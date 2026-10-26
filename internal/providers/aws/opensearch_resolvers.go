@@ -160,7 +160,7 @@ func emitOpenSearchVPCEdges(st *store.Store, acct *account, d store.Resource, re
 		return nil
 	}
 	if vpcID := sv(attrs.VPCOptions.VPCId); vpcID != "" {
-		vpcARN := ec2ARN(region, acct.ID, "vpc", vpcID)
+		vpcARN := ec2ARNIn(acct.partition(), region, acct.ID, "vpc", vpcID)
 		vID := store.ResourceID("aws", acct.ID, vpcARN)
 		if _, ok := sets.vpcIDs[vID]; ok {
 			if err := st.UpsertRelationship(d.ID, vID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -172,7 +172,7 @@ func emitOpenSearchVPCEdges(st *store.Store, acct *account, d store.Resource, re
 		if sn == "" {
 			continue
 		}
-		sARN := ec2ARN(region, acct.ID, "subnet", sn)
+		sARN := ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn)
 		sID := store.ResourceID("aws", acct.ID, sARN)
 		if _, ok := sets.subnetIDs[sID]; ok {
 			if err := st.UpsertRelationship(d.ID, sID, store.RelUses, "directed", nil); err != nil {
@@ -184,7 +184,7 @@ func emitOpenSearchVPCEdges(st *store.Store, acct *account, d store.Resource, re
 		if sg == "" {
 			continue
 		}
-		sgARN := ec2ARN(region, acct.ID, "security-group", sg)
+		sgARN := ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg)
 		sID := store.ResourceID("aws", acct.ID, sgARN)
 		if _, ok := sets.sgIDs[sID]; ok {
 			if err := st.UpsertRelationship(d.ID, sID, store.RelUses, "directed", nil); err != nil {

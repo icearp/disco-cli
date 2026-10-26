@@ -109,7 +109,7 @@ func resolveDSLogSubscriptions(acct *account, st *store.Store) error {
 		if name == "" {
 			continue
 		}
-		groupID := store.ResourceID("aws", acct.ID, logGroupNativeIDFromName(acct.ID, sv(r.Region), name))
+		groupID := store.ResourceID("aws", acct.ID, logGroupARNIn(acct.partition(), acct.ID, sv(r.Region), name))
 		if !groups[groupID] {
 			continue
 		}
@@ -158,7 +158,7 @@ func resolveDirectoryServiceVpcRefs(acct *account, st *store.Store) error {
 			}
 			region := sv(r.Region)
 			if v := sv(attrs.VpcSettings.VpcID); v != "" {
-				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", v))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", v))
 				if vpcSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert ds %s→vpc: %w", t, err)
@@ -169,7 +169,7 @@ func resolveDirectoryServiceVpcRefs(acct *account, st *store.Store) error {
 				if sid == "" {
 					continue
 				}
-				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sid))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sid))
 				if !subSet[tgtID] {
 					continue
 				}
@@ -178,7 +178,7 @@ func resolveDirectoryServiceVpcRefs(acct *account, st *store.Store) error {
 				}
 			}
 			if g := sv(attrs.VpcSettings.SecurityGroupID); g != "" {
-				tgtID := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", g))
+				tgtID := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", g))
 				if sgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert ds %s→sg: %w", t, err)

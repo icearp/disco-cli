@@ -86,7 +86,7 @@ func scanAPIGatewayV2Deployments(ctx context.Context, client apigatewayv2ExtAPI,
 			if id == "" {
 				continue
 			}
-			arn := apigatewayARN(region, "apis", apiID, "deployments", id)
+			arn := apigatewayARNIn(acct.partition(), region, "apis", apiID, "deployments", id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -120,7 +120,7 @@ func scanAPIGatewayV2IntegrationsAndResponses(ctx context.Context, client apigat
 			if id == "" {
 				continue
 			}
-			arn := apigatewayARN(region, "apis", apiID, "integrations", id)
+			arn := apigatewayARNIn(acct.partition(), region, "apis", apiID, "integrations", id)
 			label := id
 			intIDs = append(intIDs, id)
 			batch = append(batch, &store.Resource{
@@ -166,7 +166,7 @@ func scanAPIGatewayV2IntegrationResponses(ctx context.Context, client apigateway
 			if id == "" {
 				continue
 			}
-			arn := apigatewayARN(region, "apis", apiID, "integrations", intID, "integrationresponses", id)
+			arn := apigatewayARNIn(acct.partition(), region, "apis", apiID, "integrations", intID, "integrationresponses", id)
 			label := sv(ir.IntegrationResponseKey)
 			if label == "" {
 				label = id
@@ -202,7 +202,7 @@ func scanAPIGatewayV2Models(ctx context.Context, client apigatewayv2ExtAPI, acct
 			if id == "" {
 				continue
 			}
-			arn := apigatewayARN(region, "apis", apiID, "models", id)
+			arn := apigatewayARNIn(acct.partition(), region, "apis", apiID, "models", id)
 			label := sv(m.Name)
 			if label == "" {
 				label = id
@@ -239,7 +239,7 @@ func scanAPIGatewayV2RoutesAndResponses(ctx context.Context, client apigatewayv2
 			if id == "" {
 				continue
 			}
-			arn := apigatewayARN(region, "apis", apiID, "routes", id)
+			arn := apigatewayARNIn(acct.partition(), region, "apis", apiID, "routes", id)
 			label := sv(r.RouteKey)
 			if label == "" {
 				label = id
@@ -288,7 +288,7 @@ func scanAPIGatewayV2RouteResponses(ctx context.Context, client apigatewayv2ExtA
 			if id == "" {
 				continue
 			}
-			arn := apigatewayARN(region, "apis", apiID, "routes", routeID, "routeresponses", id)
+			arn := apigatewayARNIn(acct.partition(), region, "apis", apiID, "routes", routeID, "routeresponses", id)
 			label := sv(rr.RouteResponseKey)
 			if label == "" {
 				label = id
@@ -324,7 +324,7 @@ func scanAPIGatewayV2Stages(ctx context.Context, client apigatewayv2ExtAPI, acct
 			if name == "" {
 				continue
 			}
-			arn := apigatewayARN(region, "apis", apiID, "stages", name)
+			arn := apigatewayARNIn(acct.partition(), region, "apis", apiID, "stages", name)
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

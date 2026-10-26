@@ -44,10 +44,12 @@ func lateClient(handlers map[string]func(in any) (any, error)) ec2API {
 }
 
 func lateFSRID(snap, zone string) string {
-	return fastSnapshotRestoreNativeID(testRegion, testAccountID, snap, zone)
+	return fastSnapshotRestoreNativeID("aws", testRegion, testAccountID, snap, zone)
 }
 
-func lateFLID(image string) string { return fastLaunchImageNativeID(testRegion, testAccountID, image) }
+func lateFLID(image string) string {
+	return fastLaunchImageNativeID("aws", testRegion, testAccountID, image)
+}
 
 func lateListingID(id string) string {
 	return ec2ARN(testRegion, testAccountID, "reserved-instances-listing", id)

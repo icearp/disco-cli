@@ -119,12 +119,12 @@ func resolveOpenSearchVpcEndpoints(acct *account, st *store.Store) error {
 		edges := []openSearchEdge{{store.ResourceID("aws", acct.ID, sv(attrs.DomainArn)), domains, store.RelAttachedTo}}
 		if o := attrs.VpcOptions; o != nil {
 			region := sv(r.Region)
-			edges = append(edges, openSearchEdge{store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "vpc", sv(o.VPCId))), vpcs, store.RelAttachedTo})
+			edges = append(edges, openSearchEdge{store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "vpc", sv(o.VPCId))), vpcs, store.RelAttachedTo})
 			for _, id := range o.SubnetIDs {
-				edges = append(edges, openSearchEdge{store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", id)), subnets, store.RelUses})
+				edges = append(edges, openSearchEdge{store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", id)), subnets, store.RelUses})
 			}
 			for _, id := range o.SecurityGroupIDs {
-				edges = append(edges, openSearchEdge{store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", id)), sgs, store.RelUses})
+				edges = append(edges, openSearchEdge{store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", id)), sgs, store.RelUses})
 			}
 		}
 		for _, e := range edges {

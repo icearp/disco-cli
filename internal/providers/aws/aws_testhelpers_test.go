@@ -173,6 +173,38 @@ func newTestAccount(id string) *account {
 	return &account{ID: id, Name: "Test Account", Regions: []string{"us-east-1"}, scanRegions: []string{"us-east-1"}}
 }
 
+// Commercial-partition forms of the aws_arn.go builders, for the expected
+// NativeIDs of tests whose fixtures are all in the aws partition. Production
+// code passes a partition to the *In cores.
+
+func ec2ARN(region, accountID, resourceType, id string) string {
+	return ec2ARNIn("aws", region, accountID, resourceType, id)
+}
+
+func rdsARN(region, accountID, resource, id string) string {
+	return rdsARNIn("aws", region, accountID, resource, id)
+}
+
+func apigatewayARN(region string, path ...string) string {
+	return apigatewayARNIn("aws", region, path...)
+}
+
+func logGroupNativeIDFromName(accountID, region, name string) string {
+	return logGroupARNIn("aws", accountID, region, name)
+}
+
+func macieSessionNativeID(accountID, region string) string {
+	return macieSessionNativeIDIn("aws", accountID, region)
+}
+
+func identityStoreUserNativeID(ownerAccountID, identityStoreID, userID string) string {
+	return identityStoreUserNativeIDIn("aws", ownerAccountID, identityStoreID, userID)
+}
+
+func identityStoreGroupNativeID(ownerAccountID, identityStoreID, groupID string) string {
+	return identityStoreGroupNativeIDIn("aws", ownerAccountID, identityStoreID, groupID)
+}
+
 // assertRelationship fails the test if no relationship with the given
 // (from, to, kind) exists in the rels slice.
 func assertRelationship(t *testing.T, rels []store.Relationship, fromID, toID, kind string) {

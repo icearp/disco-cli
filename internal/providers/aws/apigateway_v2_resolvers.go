@@ -64,7 +64,7 @@ func noopAPIGatewayV2PortalHierarchy(_ *account, _ *store.Store) error {
 }
 
 // apigatewayV2APIARNFromChild extracts the parent API ARN
-// `arn:aws:apigateway:{r}::/apis/{apiId}` from any child NativeID of shape
+// `arn:{partition}:apigateway:{r}::/apis/{apiId}` from any child NativeID of shape
 // `…::/apis/{apiId}/<kind>/<id>[/...]`.
 func apigatewayV2APIARNFromChild(arn string) string {
 	const prefix = "/apis/"
@@ -81,7 +81,7 @@ func apigatewayV2APIARNFromChild(arn string) string {
 }
 
 // apigatewayV2DomainARNFromChild extracts the parent domain ARN
-// `arn:aws:apigateway:{r}::/domainnames/{name}` from any child of shape
+// `arn:{partition}:apigateway:{r}::/domainnames/{name}` from any child of shape
 // `…::/domainnames/{name}/<kind>/<id>`.
 func apigatewayV2DomainARNFromChild(arn string) string {
 	const prefix = "/domainnames/"
@@ -252,7 +252,7 @@ func resolveAPIGatewayV2BasePathMappingTargets(acct *account, st *store.Store) e
 			continue
 		}
 		region := sv(r.Region)
-		apiARN := apigatewayARN(region, "apis", apiID)
+		apiARN := apigatewayARNIn(acct.partition(), region, "apis", apiID)
 		apiTgt := store.ResourceID("aws", acct.ID, apiARN)
 		if apiSet[apiTgt] {
 			if err := st.UpsertRelationship(r.ID, apiTgt, store.RelRoutesTo, "directed", nil); err != nil {
@@ -263,7 +263,7 @@ func resolveAPIGatewayV2BasePathMappingTargets(acct *account, st *store.Store) e
 		if stage == "" {
 			continue
 		}
-		stageARN := apigatewayARN(region, "apis", apiID, "stages", stage)
+		stageARN := apigatewayARNIn(acct.partition(), region, "apis", apiID, "stages", stage)
 		stageTgt := store.ResourceID("aws", acct.ID, stageARN)
 		if !stageSet[stageTgt] {
 			continue
@@ -312,7 +312,7 @@ func resolveAPIGatewayV2RouteTargets(acct *account, st *store.Store) error {
 		}
 		apiID := apiARN[strings.LastIndexByte(apiARN, '/')+1:]
 		if aid := sv(attrs.AuthorizerID); aid != "" {
-			authARN := apigatewayARN(region, "apis", apiID, "authorizers", aid)
+			authARN := apigatewayARNIn(acct.partition(), region, "apis", apiID, "authorizers", aid)
 			tgtID := store.ResourceID("aws", acct.ID, authARN)
 			if authSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
@@ -322,7 +322,7 @@ func resolveAPIGatewayV2RouteTargets(acct *account, st *store.Store) error {
 		}
 		if target := sv(attrs.Target); strings.HasPrefix(target, "integrations/") {
 			intID := strings.TrimPrefix(target, "integrations/")
-			intARN := apigatewayARN(region, "apis", apiID, "integrations", intID)
+			intARN := apigatewayARNIn(acct.partition(), region, "apis", apiID, "integrations", intID)
 			tgtID := store.ResourceID("aws", acct.ID, intARN)
 			if intSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
@@ -367,7 +367,7 @@ func resolveAPIGatewayV2IntegrationVpcLink(acct *account, st *store.Store) error
 		region := sv(r.Region)
 		if sv(attrs.ConnectionType) == "VPC_LINK" {
 			if cid := sv(attrs.ConnectionID); cid != "" {
-				vlARN := apigatewayARN(region, "vpclinks", cid)
+				vlARN := apigatewayARNIn(acct.partition(), region, "vpclinks", cid)
 				tgtID := store.ResourceID("aws", acct.ID, vlARN)
 				if vlSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -421,7 +421,7 @@ func resolveAPIGatewayV2StageRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		apiID := apiARN[strings.LastIndexByte(apiARN, '/')+1:]
-		depARN := apigatewayARN(region, "apis", apiID, "deployments", dep)
+		depARN := apigatewayARNIn(acct.partition(), region, "apis", apiID, "deployments", dep)
 		tgtID := store.ResourceID("aws", acct.ID, depARN)
 		if !depSet[tgtID] {
 			continue

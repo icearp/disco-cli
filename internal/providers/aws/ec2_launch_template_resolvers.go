@@ -146,7 +146,7 @@ func emitLTAMIEdge(st *store.Store, acct *account, r store.Resource, region stri
 	if !strings.HasPrefix(id, "ami-") {
 		return nil
 	}
-	tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "image", id))
+	tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "image", id))
 	if !sets.imgSet[tgt] {
 		return nil
 	}
@@ -198,7 +198,7 @@ func emitLTNetworkEdges(st *store.Store, acct *account, r store.Resource, region
 	sgIDs := append([]string(nil), d.SecurityGroupIDs...)
 	for _, ni := range d.NetworkInterfaces {
 		if sn := sv(ni.SubnetID); sn != "" {
-			tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "subnet", sn))
+			tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "subnet", sn))
 			if sets.subnetSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert lt→subnet: %w", err)
@@ -211,7 +211,7 @@ func emitLTNetworkEdges(st *store.Store, acct *account, r store.Resource, region
 		if sg == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, ec2ARN(region, acct.ID, "security-group", sg))
+		tgt := store.ResourceID("aws", acct.ID, ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sg))
 		if !sets.sgSet[tgt] {
 			continue
 		}

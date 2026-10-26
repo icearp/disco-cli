@@ -375,7 +375,7 @@ func resolveAppRunnerVPCConnectorTargets(acct *account, st *store.Store) error {
 			if snID == "" {
 				continue
 			}
-			snARN := ec2ARN(region, acct.ID, "subnet", snID)
+			snARN := ec2ARNIn(acct.partition(), region, acct.ID, "subnet", snID)
 			sID := store.ResourceID("aws", acct.ID, snARN)
 			if _, ok := subnetIDs[sID]; ok {
 				if err := st.UpsertRelationship(c.ID, sID, store.RelUses, "directed", nil); err != nil {
@@ -387,7 +387,7 @@ func resolveAppRunnerVPCConnectorTargets(acct *account, st *store.Store) error {
 			if sgID == "" {
 				continue
 			}
-			sgARN := ec2ARN(region, acct.ID, "security-group", sgID)
+			sgARN := ec2ARNIn(acct.partition(), region, acct.ID, "security-group", sgID)
 			rID := store.ResourceID("aws", acct.ID, sgARN)
 			if _, ok := sgIDs[rID]; ok {
 				if err := st.UpsertRelationship(c.ID, rID, store.RelUses, "directed", nil); err != nil {

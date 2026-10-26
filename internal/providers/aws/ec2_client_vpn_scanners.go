@@ -53,7 +53,7 @@ func scanClientVPNEndpoints(ctx context.Context, client ec2API, acct *account, r
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           TypeEC2ClientVPNEndpoint,
-					NativeID:       ec2ARN(region, acct.ID, "client-vpn-endpoint", sv(ep.ClientVpnEndpointId)),
+					NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "client-vpn-endpoint", sv(ep.ClientVpnEndpointId)),
 					Region:         &region,
 					Status:         &status,
 					TagsJSON:       awsTagsJSON(ep.Tags),
@@ -88,7 +88,7 @@ func scanClientVPNAuthorizationRules(ctx context.Context, client ec2API, acct *a
 				func(page *ec2.DescribeClientVpnAuthorizationRulesOutput) []*store.Resource {
 					var out []*store.Resource
 					for _, rule := range page.AuthorizationRules {
-						nativeID := ec2ARN(region, acct.ID, "client-vpn-auth-rule",
+						nativeID := ec2ARNIn(acct.partition(), region, acct.ID, "client-vpn-auth-rule",
 							epID+"/"+sv(rule.DestinationCidr)+"/"+sv(rule.GroupId))
 						var status string
 						if rule.Status != nil {
@@ -139,7 +139,7 @@ func scanClientVPNRoutes(ctx context.Context, client ec2API, acct *account, regi
 				func(page *ec2.DescribeClientVpnRoutesOutput) []*store.Resource {
 					var out []*store.Resource
 					for _, route := range page.Routes {
-						nativeID := ec2ARN(region, acct.ID, "client-vpn-route",
+						nativeID := ec2ARNIn(acct.partition(), region, acct.ID, "client-vpn-route",
 							epID+"/"+sv(route.DestinationCidr)+"/"+sv(route.TargetSubnet))
 						var status string
 						if route.Status != nil {
@@ -199,7 +199,7 @@ func scanClientVPNTargetNetworkAssociations(ctx context.Context, client ec2API, 
 							AccountID:      acct.ID,
 							AccountName:    &acct.Name,
 							Type:           TypeEC2ClientVPNTargetNetworkAssociation,
-							NativeID:       ec2ARN(region, acct.ID, "client-vpn-target-network", sv(assoc.AssociationId)),
+							NativeID:       ec2ARNIn(acct.partition(), region, acct.ID, "client-vpn-target-network", sv(assoc.AssociationId)),
 							Region:         &region,
 							Status:         &status,
 							AttributesJSON: mustJSON(assoc),
