@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 )
@@ -18,29 +20,22 @@ func init() {
 }
 
 // idStoreMembershipParse extracts (ownerAccountID, identityStoreID) from a
-// membership NativeID: `arn:aws:identitystore::{owner}:membership/{store}/{mid}`.
-func idStoreMembershipParse(arn string) (owner, store string) {
-	const prefix = "arn:aws:identitystore::"
-	if !strings.HasPrefix(arn, prefix) {
+// membership NativeID, arn:{p}:identitystore::{owner}:membership/{store}/{mid},
+// in any partition.
+func idStoreMembershipParse(id string) (owner, storeID string) {
+	a, err := arn.Parse(id)
+	if err != nil || a.Service != "identitystore" || a.Region != "" {
 		return "", ""
 	}
-	tail := arn[len(prefix):]
-	colon := strings.IndexByte(tail, ':')
-	if colon < 0 {
+	rest, ok := strings.CutPrefix(a.Resource, "membership/")
+	if !ok {
 		return "", ""
 	}
-	owner = tail[:colon]
-	rest := tail[colon+1:]
-	if !strings.HasPrefix(rest, "membership/") {
+	storeID, _, ok = strings.Cut(rest, "/")
+	if !ok {
 		return "", ""
 	}
-	rest = rest[len("membership/"):]
-	slash := strings.IndexByte(rest, '/')
-	if slash < 0 {
-		return "", ""
-	}
-	store = rest[:slash]
-	return owner, store
+	return a.AccountID, storeID
 }
 
 // resolveIdentityStoreGroupMembershipRefs wires each membership to its

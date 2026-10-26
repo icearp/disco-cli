@@ -10,11 +10,11 @@ import (
 func TestResolveMMIngressPointRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	rsARN := mmARN(testRegion, acct.ID, "rule-set", "rs-1")
+	rsARN := mmARN("aws", testRegion, acct.ID, "rule-set", "rs-1")
 	rsID := upsertTestResource(t, st, "aws", acct.ID, TypeSESMailManagerRuleSet, rsARN, testRegion, "{}")
-	tpARN := mmARN(testRegion, acct.ID, "traffic-policy", "tp-1")
+	tpARN := mmARN("aws", testRegion, acct.ID, "traffic-policy", "tp-1")
 	tpID := upsertTestResource(t, st, "aws", acct.ID, TypeSESMailManagerTrafficPolicy, tpARN, testRegion, "{}")
-	ipARN := mmARN(testRegion, acct.ID, "ingress-point", "ip-1")
+	ipARN := mmARN("aws", testRegion, acct.ID, "ingress-point", "ip-1")
 	ipID := upsertTestResource(t, st, "aws", acct.ID, TypeSESMailManagerIngressPoint, ipARN, testRegion,
 		`{"RuleSetId":"rs-1","TrafficPolicyId":"tp-1"}`)
 	if err := resolveMMIngressPointRefs(acct, st); err != nil {
@@ -30,7 +30,7 @@ func TestResolveMMArchiveKMS(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/k-1", testRegion, acct.ID)
 	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
-	aARN := mmARN(testRegion, acct.ID, "archive", "a-1")
+	aARN := mmARN("aws", testRegion, acct.ID, "archive", "a-1")
 	aID := upsertTestResource(t, st, "aws", acct.ID, TypeSESMailManagerArchive, aARN, testRegion,
 		fmt.Sprintf(`{"KmsKeyArn":"%s"}`, keyARN))
 	if err := resolveMMArchiveKMS(acct, st); err != nil {

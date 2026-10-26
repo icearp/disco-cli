@@ -56,7 +56,7 @@ func scanMigrationHubProgressUpdateStreams(ctx context.Context, client migration
 			}
 			// Progress-update-stream summaries carry only the name; synthesize the
 			// canonical mgh ARN for a stable NativeID.
-			arn := fmt.Sprintf("arn:aws:mgh:%s:%s:progressUpdateStream/%s", region, acct.ID, name)
+			arn := arnFor(acct.partition(), "mgh", region, acct.ID, "progressUpdateStream/"+name)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeMigrationHubProgressUpdateStream, NativeID: arn, Name: &name, Region: &region,

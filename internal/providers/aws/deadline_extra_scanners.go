@@ -29,7 +29,7 @@ func scanDeadlineBudgets(ctx context.Context, client deadlineAPI, acct *account,
 			if id == "" {
 				return nil, "budgets have an empty BudgetId", cmp.Or(sv(b.DisplayName), "(a budget with no name)") + " of farm " + farmID
 			}
-			r := deadlineRow(acct, region, scanID, TypeDeadlineBudget, deadlineFarmARN(region, acct.ID, farmID)+"/budget/"+id, cmp.Or(sv(b.DisplayName), id), b)
+			r := deadlineRow(acct, region, scanID, TypeDeadlineBudget, deadlineFarmARN(acct.partition(), region, acct.ID, farmID)+"/budget/"+id, cmp.Or(sv(b.DisplayName), id), b)
 			r.Status = nonEmptyPtr(string(b.Status))
 			return r, "", ""
 		}, tags, p)

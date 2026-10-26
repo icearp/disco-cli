@@ -154,8 +154,8 @@ func scanInspector2Connectors(ctx context.Context, client inspector2API, acct *a
 // inspector2DelegatedAdminNativeID synthesises an identifier for a delegated
 // administrator row: Inspector v2 issues no ARN for it. It is keyed by the
 // listing account, mirroring the Detective organization-admin shape.
-func inspector2DelegatedAdminNativeID(region, listingAccountID, adminAccountID string) string {
-	return fmt.Sprintf("arn:aws:inspector2:%s:%s:delegated-admin/%s", region, listingAccountID, adminAccountID)
+func inspector2DelegatedAdminNativeID(partition, region, listingAccountID, adminAccountID string) string {
+	return arnFor(partition, "inspector2", region, listingAccountID, "delegated-admin/"+adminAccountID)
 }
 
 // scanInspector2DelegatedAdmins lists the organization's Inspector v2
@@ -191,7 +191,7 @@ func scanInspector2DelegatedAdmins(ctx context.Context, client inspector2API, ac
 			r := &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeInspector2DelegatedAdminAccount,
-				NativeID: inspector2DelegatedAdminNativeID(region, acct.ID, adminID),
+				NativeID: inspector2DelegatedAdminNativeID(acct.partition(), region, acct.ID, adminID),
 				Name:     &adminID, Region: &region,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			}

@@ -51,7 +51,7 @@ func resolveCloudTrailRelationships(acct *account, st *store.Store) error {
 		t := a.Trail
 		// Trail → S3 bucket
 		if bucket := sv(t.S3BucketName); bucket != "" {
-			bucketARN := "arn:aws:s3:::" + bucket
+			bucketARN := s3BucketARN(acct.partition(), bucket)
 			bucketID := store.ResourceID("aws", acct.ID, bucketARN)
 			if err := st.UpsertRelationship(r.ID, bucketID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert cloudtrail→s3: %w", err)

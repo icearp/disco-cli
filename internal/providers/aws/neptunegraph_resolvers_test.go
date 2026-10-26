@@ -10,7 +10,7 @@ import (
 func TestResolveNeptuneGraphSnapshotRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	gARN := neptuneGraphARN(testRegion, acct.ID, "g-1")
+	gARN := neptuneGraphARN("aws", testRegion, acct.ID, "g-1")
 	gID := upsertTestResource(t, st, "aws", acct.ID, TypeNeptuneGraphGraph, gARN, testRegion, "{}")
 	kARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abcdef-1234", testRegion, acct.ID)
 	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, kARN, testRegion, "{}")
@@ -28,7 +28,7 @@ func TestResolveNeptuneGraphSnapshotRefs(t *testing.T) {
 func TestResolveNeptuneGraphPrivateEndpointRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	gARN := neptuneGraphARN(testRegion, acct.ID, "g-1")
+	gARN := neptuneGraphARN("aws", testRegion, acct.ID, "g-1")
 	gID := upsertTestResource(t, st, "aws", acct.ID, TypeNeptuneGraphGraph, gARN, testRegion, "{}")
 	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vpcARN, testRegion, "{}")

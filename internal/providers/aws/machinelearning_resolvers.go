@@ -49,23 +49,23 @@ type mlRef struct {
 // has a path; linking them needs a role-name index this resolver does not build.
 // The Data Pipeline id is unique on its own, so building it in the object's
 // region cannot pick the wrong pipeline; a pipeline elsewhere gets no edge.
-func (a mlRefAttrs) refs(typ, region, acctID string) []mlRef {
+func (a mlRefAttrs) refs(partition, typ, region, acctID string) []mlRef {
 	var out []mlRef
 	if arn := sv(a.RoleARN); arn != "" {
 		out = append(out, mlRef{arn, store.RelAssumes})
 	}
 	if a.RDSMetadata != nil {
 		if id := sv(a.RDSMetadata.DataPipelineID); id != "" {
-			out = append(out, mlRef{fmt.Sprintf("arn:aws:datapipeline:%s:%s:pipeline/%s", region, acctID, id), store.RelUses})
+			out = append(out, mlRef{arnFor(partition, "datapipeline", region, acctID, "pipeline/"+id), store.RelUses})
 		}
 	}
 	for _, id := range []*string{a.TrainingDataSourceID, a.EvaluationDataSourceID, a.BatchPredictionDataSourceID} {
 		if sv(id) != "" {
-			out = append(out, mlRef{mlNativeID(region, acctID, "datasource", sv(id)), store.RelUses})
+			out = append(out, mlRef{mlNativeID(partition, region, acctID, "datasource", sv(id)), store.RelUses})
 		}
 	}
 	if id := sv(a.MLModelID); id != "" && typ != TypeMachineLearningMLModel {
-		out = append(out, mlRef{mlNativeID(region, acctID, "mlmodel", id), store.RelUses})
+		out = append(out, mlRef{mlNativeID(partition, region, acctID, "mlmodel", id), store.RelUses})
 	}
 	return out
 }
@@ -108,7 +108,7 @@ func resolveMachineLearningRefs(acct *account, st *store.Store) error {
 			decodeErrs = append(decodeErrs, fmt.Errorf("decode %s attributes of %s: %w", r.Type, r.NativeID, err))
 			continue
 		}
-		for _, ref := range a.refs(r.Type, sv(r.Region), acct.ID) {
+		for _, ref := range a.refs(acct.partition(), r.Type, sv(r.Region), acct.ID) {
 			tgt := store.ResourceID("aws", acct.ID, ref.nativeID)
 			if !scanned[tgt] {
 				continue

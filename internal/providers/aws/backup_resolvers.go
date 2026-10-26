@@ -149,7 +149,7 @@ func resolveBackupPlanVaultRefs(acct *account, st *store.Store) error {
 				continue
 			}
 			seen[n] = true
-			vARN := fmt.Sprintf("arn:aws:backup:%s:%s:backup-vault:%s", region, acct.ID, n)
+			vARN := arnFor(acct.partition(), "backup", region, acct.ID, "backup-vault:"+n)
 			tgt := store.ResourceID("aws", acct.ID, vARN)
 			if !vaultSet[tgt] {
 				continue

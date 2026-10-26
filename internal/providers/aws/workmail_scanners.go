@@ -126,7 +126,7 @@ func scanWorkMailOrganizations(ctx context.Context, client workMailAPI, acct *ac
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:workmail:%s:%s:organization/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "workmail", region, acct.ID, "organization/"+id)
 			label := sv(o.Alias)
 			if label == "" {
 				label = id

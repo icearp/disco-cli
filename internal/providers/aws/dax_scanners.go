@@ -106,7 +106,7 @@ func scanDAXParameterGroups(ctx context.Context, client daxAPI, acct *account, r
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:dax:%s:%s:parameter-group/%s", region, acct.ID, name)
+			arn := daxARN(acct.partition(), region, acct.ID, "parameter-group", name)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeDAXParameterGroup, NativeID: arn,
@@ -145,7 +145,7 @@ func scanDAXSubnetGroups(ctx context.Context, client daxAPI, acct *account, regi
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:dax:%s:%s:subnet-group/%s", region, acct.ID, name)
+			arn := daxARN(acct.partition(), region, acct.ID, "subnet-group", name)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeDAXSubnetGroup, NativeID: arn,

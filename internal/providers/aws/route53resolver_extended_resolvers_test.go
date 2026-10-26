@@ -14,7 +14,7 @@ func TestResolveR53RResolverEndpointVPC(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	vARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
 	vID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vARN, testRegion, "{}")
-	eARN := r53rARN(testRegion, acct.ID, "resolver-endpoint", "rslvr-in-001")
+	eARN := r53rARN("aws", testRegion, acct.ID, "resolver-endpoint", "rslvr-in-001")
 	attrs := `{"HostVPCId":"vpc-1"}`
 	eID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverEndpoint, eARN, testRegion, attrs)
 	if err := resolveR53RResolverEndpointVPC(acct, st); err != nil {
@@ -29,7 +29,7 @@ func TestResolveR53RDNSSECConfigVPC(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	vARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-2")
 	vID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vARN, testRegion, "{}")
-	cARN := r53rARN(testRegion, acct.ID, "resolver-dnssec-config", "cfg-1")
+	cARN := r53rARN("aws", testRegion, acct.ID, "resolver-dnssec-config", "cfg-1")
 	attrs := `{"ResourceId":"vpc-2"}`
 	cID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverDNSSECConfig, cARN, testRegion, attrs)
 	if err := resolveR53RDNSSECConfigVPC(acct, st); err != nil {
@@ -44,9 +44,9 @@ func TestResolveR53RQueryLogAssocRefs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	vARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-3")
 	vID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vARN, testRegion, "{}")
-	cfgARN := r53rARN(testRegion, acct.ID, "resolver-query-logging-config", "qlc-1")
+	cfgARN := r53rARN("aws", testRegion, acct.ID, "resolver-query-logging-config", "qlc-1")
 	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, cfgARN, testRegion, `{"Id":"qlc-1"}`)
-	aARN := r53rARN(testRegion, acct.ID, "resolver-query-logging-config-association", "a-1")
+	aARN := r53rARN("aws", testRegion, acct.ID, "resolver-query-logging-config-association", "a-1")
 	attrs := `{"ResolverQueryLogConfigId":"qlc-1","ResourceId":"vpc-3"}`
 	aID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfigAssociation, aARN, testRegion, attrs)
 	if err := resolveR53RQueryLogAssocRefs(acct, st); err != nil {
@@ -114,9 +114,9 @@ func TestResolveR53RFirewallRuleDomainList(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	// The index keys on the list ARN, so the rows carry no attributes.
-	ownedID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverFirewallDomainList, r53rARN(testRegion, acct.ID, "firewall-domain-list", "rslvr-fdl-1"), testRegion, "{}")
-	managedID := r53rUpsertManaged(t, st, TypeRoute53ResolverFirewallDomainList, r53rARN(testRegion, acct.ID, "firewall-domain-list", "rslvr-fdl-m"), "{}")
-	upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverFirewallDomainList, r53rARN("eu-west-1", acct.ID, "firewall-domain-list", "rslvr-fdl-eu"), "eu-west-1", "{}")
+	ownedID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverFirewallDomainList, r53rARN("aws", testRegion, acct.ID, "firewall-domain-list", "rslvr-fdl-1"), testRegion, "{}")
+	managedID := r53rUpsertManaged(t, st, TypeRoute53ResolverFirewallDomainList, r53rARN("aws", testRegion, acct.ID, "firewall-domain-list", "rslvr-fdl-m"), "{}")
+	upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverFirewallDomainList, r53rARN("aws", "eu-west-1", acct.ID, "firewall-domain-list", "rslvr-fdl-eu"), "eu-west-1", "{}")
 	rule := func(native string, r r53rtypes.FirewallRule) string {
 		return upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverFirewallRule, native, testRegion, mustJSON(r))
 	}

@@ -41,9 +41,9 @@ type aidevopsAPI interface {
 }
 
 // aidevops resources carry no AWS-issued ARN; NativeIDs are synthesized in the
-// canonical arn:aws:aidevops:{region}:{account}:{kind}/{id} shape.
-func aidevopsARN(region, acctID, kind, id string) string {
-	return fmt.Sprintf("arn:aws:aidevops:%s:%s:%s/%s", region, acctID, kind, id)
+// canonical arn:{p}:aidevops:{region}:{account}:{kind}/{id} shape.
+func aidevopsARN(partition, region, acctID, kind, id string) string {
+	return arnFor(partition, "aidevops", region, acctID, kind+"/"+id)
 }
 
 func scanAidevops(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -68,7 +68,7 @@ func scanAidevopsAll(ctx context.Context, client aidevopsAPI, acct *account, reg
 		{"aidevops:ListAgentSpaces", func() (int, int, error) {
 			spaceIDs, t, i, err := scanAidevopsAgentSpaces(ctx, client, acct, region, st, scanID)
 			for _, id := range spaceIDs {
-				spaces = append(spaces, childParent{id: id, arn: aidevopsARN(region, acct.ID, "agent-space", id)})
+				spaces = append(spaces, childParent{id: id, arn: aidevopsARN(acct.partition(), region, acct.ID, "agent-space", id)})
 			}
 			return t, i, err
 		}},
@@ -134,7 +134,7 @@ func scanAidevopsAgentSpaces(ctx context.Context, client aidevopsAPI, acct *acco
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeAidevopsAgentSpace,
-				NativeID:       aidevopsARN(region, acct.ID, "agent-space", id),
+				NativeID:       aidevopsARN(acct.partition(), region, acct.ID, "agent-space", id),
 				Name:           &name,
 				Region:         &region,
 				CreatedAt:      tp(a.CreatedAt),
@@ -173,7 +173,7 @@ func scanAidevopsServices(ctx context.Context, client aidevopsAPI, acct *account
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeAidevopsService,
-				NativeID:       aidevopsARN(region, acct.ID, "service", id),
+				NativeID:       aidevopsARN(acct.partition(), region, acct.ID, "service", id),
 				Name:           &name,
 				Region:         &region,
 				AttributesJSON: mustJSON(s),
@@ -238,7 +238,7 @@ func scanAidevopsAssociations(ctx context.Context, client aidevopsAPI, acct *acc
 				if id == "" {
 					continue
 				}
-				nativeID := aidevopsARN(region, acct.ID, "association", id)
+				nativeID := aidevopsARN(acct.partition(), region, acct.ID, "association", id)
 				listed = append(listed, aidevopsAssociation{spaceID: space.id, parent: childParent{id: id, arn: nativeID}, config: a.Configuration})
 				batch = append(batch, &store.Resource{
 					Provider:       "aws",
@@ -286,7 +286,7 @@ func scanAidevopsPrivateConnections(ctx context.Context, client aidevopsAPI, acc
 			AccountID:      acct.ID,
 			AccountName:    &acct.Name,
 			Type:           TypeAidevopsPrivateConnection,
-			NativeID:       aidevopsARN(region, acct.ID, "private-connection", name),
+			NativeID:       aidevopsARN(acct.partition(), region, acct.ID, "private-connection", name),
 			Name:           &n,
 			Region:         &region,
 			AttributesJSON: mustJSON(c),

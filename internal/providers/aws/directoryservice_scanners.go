@@ -144,7 +144,7 @@ func scanDSDirectories(ctx context.Context, client directoryServiceAPI, acct *ac
 			default:
 				continue
 			}
-			arn := dsDirectoryARN(region, acct.ID, id)
+			arn := dsDirectoryARN(acct.partition(), region, acct.ID, id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: discoType, NativeID: arn,
@@ -163,8 +163,8 @@ func scanDSDirectories(ctx context.Context, client directoryServiceAPI, acct *ac
 
 // dsDirectoryARN is a directory's NativeID, shared with the Directory Service
 // Data scanner, whose users and groups are keyed under it.
-func dsDirectoryARN(region, accountID, id string) string {
-	return fmt.Sprintf("arn:aws:ds:%s:%s:directory/%s", region, accountID, id)
+func dsDirectoryARN(partition, region, accountID, id string) string {
+	return arnFor(partition, "ds", region, accountID, "directory/"+id)
 }
 
 // dsLive reports whether a directory's documented Stage still admits child

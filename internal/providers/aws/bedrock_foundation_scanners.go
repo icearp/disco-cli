@@ -3,7 +3,6 @@ package aws
 import (
 	"cmp"
 	"context"
-	"fmt"
 	"strings"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -234,7 +233,7 @@ func scanBedrockEnforcedGuardrails(ctx context.Context, client bedrockAPI, acct 
 			if id == "" {
 				return nil, "enforced guardrail configurations have an empty ConfigId", cmp.Or(sv(g.GuardrailArn), "(a configuration with no guardrail)")
 			}
-			arn := fmt.Sprintf("arn:aws:bedrock:%s:%s:enforced-guardrail-configuration/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "bedrock", region, acct.ID, "enforced-guardrail-configuration/"+id)
 			return bacRowAt(acct, region, scanID, TypeBedrockEnforcedGuardrailConfiguration, arn, id, g), "", ""
 		})
 }

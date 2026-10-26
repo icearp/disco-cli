@@ -120,7 +120,7 @@ func re2ViewName(arn string) string {
 }
 
 // scanRE2DefaultView captures the per-(account, region) default-view
-// singleton. Synth ARN: arn:aws:resource-explorer-2:{r}:{a}:default-view-association.
+// singleton. Synth ARN: arn:{p}:resource-explorer-2:{r}:{a}:default-view-association.
 func scanRE2DefaultView(ctx context.Context, client resourceExplorer2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.GetDefaultView(ctx, &resourceexplorer2.GetDefaultViewInput{})
 	if err != nil {
@@ -132,7 +132,7 @@ func scanRE2DefaultView(ctx context.Context, client resourceExplorer2API, acct *
 	if sv(out.ViewArn) == "" {
 		return 0, 0, nil
 	}
-	arn := fmt.Sprintf("arn:aws:resource-explorer-2:%s:%s:default-view-association", region, acct.ID)
+	arn := arnFor(acct.partition(), "resource-explorer-2", region, acct.ID, "default-view-association")
 	label := "default-view-association"
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

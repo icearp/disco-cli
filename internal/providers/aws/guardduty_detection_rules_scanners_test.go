@@ -74,7 +74,7 @@ var (
 		},
 		empty: func() any { return &guardduty.ListCustomDetectionRuleOrgConfigurationsOutput{} },
 		native: func(item string) string {
-			return gdRuleOrgConfigNativeID(testRegion, testAccountID, "r-"+item, gdtypes.AssociationModeDryRun)
+			return gdRuleOrgConfigNativeID("aws", testRegion, testAccountID, "r-"+item, gdtypes.AssociationModeDryRun)
 		},
 		token: func(in any) string {
 			return sdkaws.ToString(in.(*guardduty.ListCustomDetectionRuleOrgConfigurationsInput).NextToken)

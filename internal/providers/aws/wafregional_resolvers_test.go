@@ -11,7 +11,7 @@ func TestResolveWAFRegionalWebACLAssociations(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	webaclARN := wafRegionalARN(testRegion, acct.ID, "webacl", "acl-1")
+	webaclARN := wafRegionalARN("aws", testRegion, acct.ID, "webacl", "acl-1")
 	webaclID := upsertTestResource(t, st, "aws", acct.ID, TypeWAFRegionalWebACL, webaclARN, testRegion,
 		`{"WebACLId":"acl-1","Name":"my-acl"}`)
 
@@ -34,7 +34,7 @@ func TestResolveWAFRegionalWebACLAssociations_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	webaclARN := wafRegionalARN(testRegion, acct.ID, "webacl", "acl-1")
+	webaclARN := wafRegionalARN("aws", testRegion, acct.ID, "webacl", "acl-1")
 	assocNative := webaclARN + "/association/abc123"
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeWAFRegionalWebACLAssociation, assocNative, testRegion, "{}")
 

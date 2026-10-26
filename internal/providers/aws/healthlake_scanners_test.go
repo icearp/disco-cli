@@ -211,7 +211,7 @@ func scanHLVersions(t *testing.T, st *store.Store, handler func(in any) (any, er
 	parents := make([]childParent, 0, len(profiles))
 	arns := make([]string, 0, len(profiles))
 	for _, id := range profiles {
-		arn := healthLakeProfileARN(testRegion, testAccountID, id)
+		arn := healthLakeProfileARN("aws", testRegion, testAccountID, id)
 		parents = append(parents, childParent{id: id, arn: arn})
 		arns = append(arns, arn)
 	}

@@ -58,8 +58,8 @@ func scanServiceCatalogExtendedPhases(ctx context.Context, client servicecatalog
 	}
 }
 
-func scARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:servicecatalog:%s:%s:%s/%s", region, acct, kind, id)
+func scARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "servicecatalog", region, acct, kind+"/"+id)
 }
 
 func scanSCAcceptedShares(ctx context.Context, client servicecatalogAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -151,7 +151,7 @@ func scanSCServiceActions(ctx context.Context, client servicecatalogAPI, acct *a
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeServiceCatalogServiceAction, NativeID: scARN(region, acct.ID, "service-action", id),
+				Type: TypeServiceCatalogServiceAction, NativeID: scARN(acct.partition(), region, acct.ID, "service-action", id),
 				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}
@@ -192,7 +192,7 @@ func scanSCTagOptions(ctx context.Context, client servicecatalogAPI, acct *accou
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeServiceCatalogTagOption, NativeID: scARN(region, acct.ID, "tag-option", id),
+				Type: TypeServiceCatalogTagOption, NativeID: scARN(acct.partition(), region, acct.ID, "tag-option", id),
 				Name: &label, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
 			})
 		}
@@ -222,7 +222,7 @@ func scanSCTagOptionAssociations(ctx context.Context, client servicecatalogAPI, 
 				if rid == "" {
 					continue
 				}
-				arn := scARN(region, acct.ID, "tag-option-association", toID+"/"+rid)
+				arn := scARN(acct.partition(), region, acct.ID, "tag-option-association", toID+"/"+rid)
 				label := toID + "/" + rid
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -267,7 +267,7 @@ func scanSCPortfolioShares(ctx context.Context, client servicecatalogAPI, acct *
 					if principal == "" {
 						continue
 					}
-					arn := scARN(region, acct.ID, "portfolio-share", pid+"/"+string(sType)+"/"+principal)
+					arn := scARN(acct.partition(), region, acct.ID, "portfolio-share", pid+"/"+string(sType)+"/"+principal)
 					label := string(sType) + ":" + principal
 					batch = append(batch, &store.Resource{
 						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -302,7 +302,7 @@ func scanSCPortfolioPrincipals(ctx context.Context, client servicecatalogAPI, ac
 				if parn == "" {
 					continue
 				}
-				arn := scARN(region, acct.ID, "portfolio-principal-association", pid+"/"+parn)
+				arn := scARN(acct.partition(), region, acct.ID, "portfolio-principal-association", pid+"/"+parn)
 				label := parn
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -356,7 +356,7 @@ func scanSCConstraints(ctx context.Context, client servicecatalogAPI, acct *acco
 				default:
 					continue
 				}
-				arn := scARN(region, acct.ID, "constraint", cid)
+				arn := scARN(acct.partition(), region, acct.ID, "constraint", cid)
 				label := cid
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

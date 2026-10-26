@@ -22,10 +22,10 @@ type dlRow struct{ typ, arn string }
 // with tags for every resource whose own id is "tagged".
 var dlNames = []string{"tagged", "bare"}
 
-func dlFarm(name string) string { return deadlineFarmARN(testRegion, testAccountID, name) }
+func dlFarm(name string) string { return deadlineFarmARN("aws", testRegion, testAccountID, name) }
 
 func dlLicenseEndpoint(name string) string {
-	return deadlineLicenseEndpointARN(testRegion, testAccountID, name)
+	return deadlineLicenseEndpointARN("aws", testRegion, testAccountID, name)
 }
 
 // dlTaggedRows is every row of a type whose tags are read: two farms, each

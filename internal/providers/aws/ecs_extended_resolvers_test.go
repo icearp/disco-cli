@@ -12,7 +12,7 @@ func TestResolveECSCapacityProviderToASG(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	asgARN := fmt.Sprintf("arn:aws:autoscaling:%s:%s:autoScalingGroup:abc:autoScalingGroupName/asg-1", testRegion, acct.ID)
 	asgID := upsertTestResource(t, st, "aws", acct.ID, TypeAutoScalingGroup, asgARN, testRegion, "{}")
-	cpARN := ecsCapacityProviderARN(testRegion, acct.ID, "cp-1")
+	cpARN := ecsCapacityProviderARN("aws", testRegion, acct.ID, "cp-1")
 	attrs := fmt.Sprintf(`{"AutoScalingGroupProvider":{"AutoScalingGroupArn":"%s"}}`, asgARN)
 	cpID := upsertTestResource(t, st, "aws", acct.ID, TypeECSCapacityProvider, cpARN, testRegion, attrs)
 	if err := resolveECSCapacityProviderToASG(acct, st); err != nil {
@@ -27,7 +27,7 @@ func TestResolveECSCCPARefs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	clARN := fmt.Sprintf("arn:aws:ecs:%s:%s:cluster/cl-1", testRegion, acct.ID)
 	clID := upsertTestResource(t, st, "aws", acct.ID, TypeECSCluster, clARN, testRegion, "{}")
-	cpARN := ecsCapacityProviderARN(testRegion, acct.ID, "cp-1")
+	cpARN := ecsCapacityProviderARN("aws", testRegion, acct.ID, "cp-1")
 	cpID := upsertTestResource(t, st, "aws", acct.ID, TypeECSCapacityProvider, cpARN, testRegion, "{}")
 	ccpaARN := clARN + "/capacity-provider-associations"
 	attrs := `{"CapacityProviders":["cp-1"]}`

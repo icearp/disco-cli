@@ -9,7 +9,7 @@ import (
 func TestResolveR53RResolverConfigVPC(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	cfgARN := r53rARN(testRegion, acct.ID, "resolver-config", "vpc-001")
+	cfgARN := r53rARN("aws", testRegion, acct.ID, "resolver-config", "vpc-001")
 	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverConfig, cfgARN, testRegion, `{"ResourceId":"vpc-001"}`)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
 
@@ -29,7 +29,7 @@ func TestResolveR53RResolverConfigVPC(t *testing.T) {
 func TestResolveR53RResolverConfigVPC_UnscannedVPCSkipped(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	cfgARN := r53rARN(testRegion, acct.ID, "resolver-config", "vpc-missing")
+	cfgARN := r53rARN("aws", testRegion, acct.ID, "resolver-config", "vpc-missing")
 	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverConfig, cfgARN, testRegion, `{"ResourceId":"vpc-missing"}`)
 	if err := resolveR53RResolverConfigVPC(acct, st); err != nil {
 		t.Fatalf("resolveR53RResolverConfigVPC: %v", err)
@@ -43,11 +43,11 @@ func TestResolveR53RResolverConfigVPC_UnscannedVPCSkipped(t *testing.T) {
 func TestResolveR53RResolverRuleAssoc(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	assocARN := r53rARN(testRegion, acct.ID, "resolver-rule-association", "rslvr-assoc-001")
+	assocARN := r53rARN("aws", testRegion, acct.ID, "resolver-rule-association", "rslvr-assoc-001")
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverRuleAssociation, assocARN, testRegion,
 		`{"VPCId":"vpc-001","ResolverRuleId":"rslvr-rr-001"}`)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
-	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverRule, r53rARN(testRegion, acct.ID, "resolver-rule", "rslvr-rr-001"), testRegion, "{}")
+	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverRule, r53rARN("aws", testRegion, acct.ID, "resolver-rule", "rslvr-rr-001"), testRegion, "{}")
 
 	if err := resolveR53RResolverRuleAssoc(acct, st); err != nil {
 		t.Fatalf("resolveR53RResolverRuleAssoc: %v", err)
@@ -67,7 +67,7 @@ func TestResolveR53RResolverRuleAssoc_EmptyAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverRuleAssociation,
-		r53rARN(testRegion, acct.ID, "resolver-rule-association", "rslvr-assoc-bare"), testRegion, "{}")
+		r53rARN("aws", testRegion, acct.ID, "resolver-rule-association", "rslvr-assoc-bare"), testRegion, "{}")
 	if err := resolveR53RResolverRuleAssoc(acct, st); err != nil {
 		t.Fatalf("resolveR53RResolverRuleAssoc: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestResolveR53RResolverRuleAssoc_EmptyAttrs(t *testing.T) {
 func TestResolveR53RFirewallRuleGroupAssoc(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	assocARN := r53rARN(testRegion, acct.ID, "firewall-rule-group-association", "rslvr-frgassoc-001")
+	assocARN := r53rARN("aws", testRegion, acct.ID, "firewall-rule-group-association", "rslvr-frgassoc-001")
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverFirewallRuleGroupAssociation, assocARN, testRegion, `{"VpcId":"vpc-001"}`)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
 
@@ -100,9 +100,9 @@ func TestResolveR53RFirewallRuleGroupAssoc(t *testing.T) {
 func TestResolveR53RResolverRuleEndpoint(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	epARN := r53rARN(testRegion, acct.ID, "resolver-endpoint", "rslvr-out-1")
+	epARN := r53rARN("aws", testRegion, acct.ID, "resolver-endpoint", "rslvr-out-1")
 	epID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverEndpoint, epARN, testRegion, `{}`)
-	ruleARN := r53rARN(testRegion, acct.ID, "resolver-rule", "rslvr-rr-1")
+	ruleARN := r53rARN("aws", testRegion, acct.ID, "resolver-rule", "rslvr-rr-1")
 	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverRule, ruleARN, testRegion, `{"ResolverEndpointId":"rslvr-out-1"}`)
 
 	if err := resolveR53RResolverRuleEndpoint(acct, st); err != nil {
@@ -128,9 +128,9 @@ func TestResolveR53RQueryLogConfigDestination_S3LogsFirehose(t *testing.T) {
 	fhARN := "arn:aws:firehose:" + testRegion + ":" + acct.ID + ":deliverystream/dns-logs"
 	fhID := upsertTestResource(t, st, "aws", acct.ID, TypeFirehoseDeliveryStream, fhARN, testRegion, `{}`)
 
-	cfgS3 := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN(testRegion, acct.ID, "resolver-query-log-config", "s3"), testRegion, `{"DestinationArn":"`+bucketARN+`"}`)
-	cfgLG := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN(testRegion, acct.ID, "resolver-query-log-config", "lg"), testRegion, `{"DestinationArn":"`+lgARN+`:*"}`)
-	cfgFH := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN(testRegion, acct.ID, "resolver-query-log-config", "fh"), testRegion, `{"DestinationArn":"`+fhARN+`"}`)
+	cfgS3 := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN("aws", testRegion, acct.ID, "resolver-query-log-config", "s3"), testRegion, `{"DestinationArn":"`+bucketARN+`"}`)
+	cfgLG := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN("aws", testRegion, acct.ID, "resolver-query-log-config", "lg"), testRegion, `{"DestinationArn":"`+lgARN+`:*"}`)
+	cfgFH := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN("aws", testRegion, acct.ID, "resolver-query-log-config", "fh"), testRegion, `{"DestinationArn":"`+fhARN+`"}`)
 
 	if err := resolveR53RQueryLogConfigDestination(acct, st); err != nil {
 		t.Fatalf("resolveR53RQueryLogConfigDestination: %v", err)
@@ -146,7 +146,7 @@ func TestResolveR53RQueryLogConfigDestination_S3LogsFirehose(t *testing.T) {
 func TestResolveR53RQueryLogConfigDestination_EmptyAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN(testRegion, acct.ID, "resolver-query-log-config", "bare"), testRegion, `{}`)
+	upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN("aws", testRegion, acct.ID, "resolver-query-log-config", "bare"), testRegion, `{}`)
 	if err := resolveR53RQueryLogConfigDestination(acct, st); err != nil {
 		t.Fatalf("resolveR53RQueryLogConfigDestination: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestResolveR53RQueryLogConfigDestination_EmptyAttrs(t *testing.T) {
 func TestResolveR53RFirewallConfigVPC(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	cfgARN := r53rARN(testRegion, acct.ID, "firewall-config", "rslvr-fc-001")
+	cfgARN := r53rARN("aws", testRegion, acct.ID, "firewall-config", "rslvr-fc-001")
 	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverFirewallConfig, cfgARN, testRegion, `{"Id":"rslvr-fc-001","ResourceId":"vpc-001"}`)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-001"), testRegion, "{}")
 	if err := resolveR53RFirewallConfigVPC(acct, st); err != nil {
@@ -168,7 +168,7 @@ func TestResolveR53RFirewallConfigVPC(t *testing.T) {
 func TestResolveR53RFirewallConfigVPC_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	cfgARN := r53rARN(testRegion, acct.ID, "firewall-config", "rslvr-fc-001")
+	cfgARN := r53rARN("aws", testRegion, acct.ID, "firewall-config", "rslvr-fc-001")
 	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverFirewallConfig, cfgARN, testRegion, "{}")
 	if err := resolveR53RFirewallConfigVPC(acct, st); err != nil {
 		t.Fatalf("resolveR53RFirewallConfigVPC (no attrs): %v", err)

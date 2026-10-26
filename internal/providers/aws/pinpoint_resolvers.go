@@ -58,8 +58,8 @@ func init() {
 // pinpointAppARN builds the canonical Pinpoint app ARN — mirrors
 // `pinpointARN` in pinpoint_scanners.go for the parent app itself
 // (no kind suffix under `apps/{id}`).
-func pinpointAppARN(region, acctID, appID string) string {
-	return fmt.Sprintf("arn:aws:mobiletargeting:%s:%s:apps/%s", region, acctID, appID)
+func pinpointAppARN(partition, region, acctID, appID string) string {
+	return arnFor(partition, "mobiletargeting", region, acctID, "apps/"+appID)
 }
 
 // pinpointAppIDOnly carries only the field needed to recover the parent
@@ -75,7 +75,7 @@ func linkPinpointApp(acct *account, st *store.Store, appSet map[string]bool, r s
 	if appID == "" {
 		return nil
 	}
-	appResID := store.ResourceID("aws", acct.ID, pinpointAppARN(sv(r.Region), acct.ID, appID))
+	appResID := store.ResourceID("aws", acct.ID, pinpointAppARN(acct.partition(), sv(r.Region), acct.ID, appID))
 	if !appSet[appResID] {
 		return nil
 	}
@@ -227,7 +227,7 @@ func resolvePinpointCampaigns(acct *account, st *store.Store) error {
 			return err
 		}
 		if seg := sv(attrs.SegmentID); seg != "" && appID != "" {
-			segARN := pinpointARN(region, acct.ID, "segments/"+seg, appID)
+			segARN := pinpointARN(acct.partition(), region, acct.ID, "segments/"+seg, appID)
 			segID := store.ResourceID("aws", acct.ID, segARN)
 			if segSet[segID] {
 				if err := st.UpsertRelationship(c.ID, segID, store.RelUses, "directed", nil); err != nil {

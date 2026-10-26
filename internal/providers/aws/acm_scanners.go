@@ -294,7 +294,7 @@ func listACMAcmeDomainValidations(ctx context.Context, client acmAPI, acct *acco
 
 // scanACMAccountConfig discovers the per-(account, region) ACM expiry-events
 // config as a single aws:acm:account row. NativeID synthesized:
-// arn:aws:acm:{r}:{a}:account.
+// arn:{p}:acm:{r}:{a}:account.
 func scanACMAccountConfig(ctx context.Context, client acmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.GetAccountConfiguration(ctx, &acm.GetAccountConfigurationInput{})
 	if err != nil {
@@ -303,7 +303,7 @@ func scanACMAccountConfig(ctx context.Context, client acmAPI, acct *account, reg
 		}
 		return 0, 0, fmt.Errorf("acm:GetAccountConfiguration: %w", err)
 	}
-	arn := fmt.Sprintf("arn:aws:acm:%s:%s:account", region, acct.ID)
+	arn := arnFor(acct.partition(), "acm", region, acct.ID, "account")
 	name := "account"
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

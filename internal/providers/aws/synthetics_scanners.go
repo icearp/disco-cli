@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/synthetics"
@@ -52,7 +51,7 @@ func scanSynthetics(ctx context.Context, acct *account, region string, st *store
 // scanSyntheticsCanaries stores every canary DescribeCanaries lists, those
 // read before a failed page included, each with the tags its element carries.
 // Canary has no native ARN, so the NativeID is synthesized as
-// arn:aws:synthetics:{r}:{a}:canary:{name}; a canary listed without a name is
+// arn:{p}:synthetics:{r}:{a}:canary:{name}; a canary listed without a name is
 // not stored and is warned about under its id. A denial is warned about once;
 // any other error is returned after the rows are stored.
 func scanSyntheticsCanaries(ctx context.Context, client syntheticsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -77,7 +76,7 @@ func scanSyntheticsCanaries(ctx context.Context, client syntheticsAPI, acct *acc
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSyntheticsCanary, NativeID: fmt.Sprintf("arn:aws:synthetics:%s:%s:canary:%s", region, acct.ID, name),
+				Type: TypeSyntheticsCanary, NativeID: arnFor(acct.partition(), "synthetics", region, acct.ID, "canary:"+name),
 				Name: &name, Region: &region, Status: status,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 				TagsJSON: mapTagsJSON(c.Tags),

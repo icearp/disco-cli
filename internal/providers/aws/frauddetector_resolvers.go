@@ -21,8 +21,8 @@ func init() {
 	)
 }
 
-func fdARN(region, acct, kind, name string) string {
-	return fmt.Sprintf("arn:aws:frauddetector:%s:%s:%s/%s", region, acct, kind, name)
+func fdARN(partition, region, acct, kind, name string) string {
+	return arnFor(partition, "frauddetector", region, acct, kind+"/"+name)
 }
 
 // resolveFDDetectorEventType wires each detector to its event-type via
@@ -52,7 +52,7 @@ func resolveFDDetectorEventType(acct *account, st *store.Store) error {
 		if name == "" {
 			continue
 		}
-		arn := fdARN(sv(r.Region), acct.ID, "event-type", name)
+		arn := fdARN(acct.partition(), sv(r.Region), acct.ID, "event-type", name)
 		tgtID := store.ResourceID("aws", acct.ID, arn)
 		if !etSet[tgtID] {
 			continue
@@ -103,7 +103,7 @@ func resolveFDEventTypeRefs(acct *account, st *store.Store) error {
 				if n == "" {
 					continue
 				}
-				arn := fdARN(region, acct.ID, kind, n)
+				arn := fdARN(acct.partition(), region, acct.ID, kind, n)
 				tgtID := store.ResourceID("aws", acct.ID, arn)
 				if !set[tgtID] {
 					continue

@@ -367,8 +367,8 @@ func (u *bacUnauthorized) warn(st *store.Store, op string, acct *account, region
 	}
 }
 
-func bacARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:bedrock-agentcore:%s:%s:%s/%s", region, acct, kind, id)
+func bacARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "bedrock-agentcore", region, acct, kind+"/"+id)
 }
 
 func scanBACApiKeyCreds(ctx context.Context, client bedrockAgentCoreAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
@@ -534,7 +534,7 @@ func scanBACGateways(ctx context.Context, client bedrockAgentCoreAPI, acct *acco
 			if id == "" {
 				return nil, "gateways have an empty GatewayId", cmp.Or(sv(g.Name), "(a gateway with no name)")
 			}
-			return bacRowAt(acct, region, scanID, TypeBedrockAgentCoreGateway, bacARN(region, acct.ID, "gateway", id), cmp.Or(sv(g.Name), id), g), "", ""
+			return bacRowAt(acct, region, scanID, TypeBedrockAgentCoreGateway, bacARN(acct.partition(), region, acct.ID, "gateway", id), cmp.Or(sv(g.Name), id), g), "", ""
 		},
 		func(g bactypes.GatewaySummary) string { return sv(g.GatewayId) },
 		tags, p)
@@ -558,7 +558,7 @@ func scanBACGatewayTargets(ctx context.Context, client bedrockAgentCoreAPI, acct
 			if id == "" {
 				return nil, "gateway targets have an empty TargetId", cmp.Or(sv(t.Name), "(a target with no name) of gateway "+gateway)
 			}
-			return bacRowAt(acct, region, scanID, TypeBedrockAgentCoreGatewayTarget, bacARN(region, acct.ID, "gateway-target", gateway+"/"+id), cmp.Or(sv(t.Name), id), t), "", ""
+			return bacRowAt(acct, region, scanID, TypeBedrockAgentCoreGatewayTarget, bacARN(acct.partition(), region, acct.ID, "gateway-target", gateway+"/"+id), cmp.Or(sv(t.Name), id), t), "", ""
 		})
 }
 

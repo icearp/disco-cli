@@ -159,7 +159,7 @@ func resolveR53RResolverRuleAssoc(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.ResolverRuleID != nil && *attrs.ResolverRuleID != "" {
-			ruleARN := r53rARN(region, acct.ID, "resolver-rule", *attrs.ResolverRuleID)
+			ruleARN := r53rARN(acct.partition(), region, acct.ID, "resolver-rule", *attrs.ResolverRuleID)
 			ruleID := store.ResourceID("aws", acct.ID, ruleARN)
 			if ruleSet[ruleID] {
 				if err := st.UpsertRelationship(r.ID, ruleID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -196,7 +196,7 @@ func resolveR53RResolverRuleEndpoint(acct *account, st *store.Store) error {
 		if attrs.ResolverEndpointID == nil || *attrs.ResolverEndpointID == "" {
 			continue
 		}
-		epARN := r53rARN(sv(r.Region), acct.ID, "resolver-endpoint", *attrs.ResolverEndpointID)
+		epARN := r53rARN(acct.partition(), sv(r.Region), acct.ID, "resolver-endpoint", *attrs.ResolverEndpointID)
 		epID := store.ResourceID("aws", acct.ID, epARN)
 		if !epSet[epID] {
 			continue

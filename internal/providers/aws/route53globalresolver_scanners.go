@@ -248,7 +248,7 @@ func scanR53GRFirewallRules(ctx context.Context, client r53grAPI, acct *account,
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:route53globalresolver:%s:%s:dns-view/%s/firewall-rule/%s", region, acct.ID, viewID, id)
+			arn := arnFor(acct.partition(), "route53globalresolver", region, acct.ID, "dns-view/"+viewID+"/firewall-rule/"+id)
 			label := sv(r.Name)
 			if label == "" {
 				label = id

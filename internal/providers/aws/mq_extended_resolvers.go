@@ -56,7 +56,7 @@ func resolveMQConfigurationAssociationRefs(acct *account, st *store.Store) error
 			}
 		}
 		if attrs.Configuration != "" {
-			cfgARN := fmt.Sprintf("arn:aws:mq:%s:%s:configuration:%s", sv(r.Region), acct.ID, attrs.Configuration)
+			cfgARN := arnFor(acct.partition(), "mq", sv(r.Region), acct.ID, "configuration:"+attrs.Configuration)
 			tgtID := store.ResourceID("aws", acct.ID, cfgARN)
 			if cfgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {

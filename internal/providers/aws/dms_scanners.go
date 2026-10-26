@@ -346,7 +346,7 @@ func scanDMSReplicationInstances(ctx context.Context, client dmsAPI, acct *accou
 }
 
 func scanDMSReplicationSubnetGroups(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	// ReplicationSubnetGroup has no ARN field; synthesize per DMS ARN format: arn:aws:dms:{r}:{a}:subgrp:{Identifier}.
+	// ReplicationSubnetGroup has no ARN field; synthesize per DMS ARN format: arn:{p}:dms:{r}:{a}:subgrp:{Identifier}.
 	pager := databasemigrationservice.NewDescribeReplicationSubnetGroupsPaginator(client, &databasemigrationservice.DescribeReplicationSubnetGroupsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -363,7 +363,7 @@ func scanDMSReplicationSubnetGroups(ctx context.Context, client dmsAPI, acct *ac
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:dms:%s:%s:subgrp:%s", region, acct.ID, id)
+			arn := dmsReplicationSubnetGroupARNFromName(acct.partition(), region, acct.ID, id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

@@ -340,7 +340,7 @@ func TestLFOptInARN_Identity(t *testing.T) {
 
 func mustLFOptInARN(t *testing.T, o lftypes.LakeFormationOptInsInfo) string {
 	t.Helper()
-	id, err := lfOptInARN(testRegion, testAccountID, o)
+	id, err := lfOptInARN("aws", testRegion, testAccountID, o)
 	if err != nil {
 		t.Fatalf("lfOptInARN: %v", err)
 	}

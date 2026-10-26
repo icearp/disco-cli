@@ -27,8 +27,8 @@ func init() {
 	)
 }
 
-func ecsCapacityProviderARN(region, acct, name string) string {
-	return fmt.Sprintf("arn:aws:ecs:%s:%s:capacity-provider/%s", region, acct, name)
+func ecsCapacityProviderARN(partition, region, acct, name string) string {
+	return arnFor(partition, "ecs", region, acct, "capacity-provider/"+name)
 }
 
 // resolveECSCapacityProviderToASG wires each capacity-provider to its
@@ -118,7 +118,7 @@ func resolveECSCCPARefs(acct *account, st *store.Store) error {
 			}
 			cpARN := cpName
 			if !strings.HasPrefix(cpName, "arn:") {
-				cpARN = ecsCapacityProviderARN(region, acct.ID, cpName)
+				cpARN = ecsCapacityProviderARN(acct.partition(), region, acct.ID, cpName)
 			}
 			tgtID := store.ResourceID("aws", acct.ID, cpARN)
 			if !cpSet[tgtID] {

@@ -414,7 +414,7 @@ func scanIdentityStoreUsersGroups(ctx context.Context, client identitystoreAPI, 
 }
 
 // scanIdentityStoreGroupMemberships discovers per-group user memberships.
-// Synth ARN: arn:aws:identitystore::{ownerAccount}:membership/{identityStoreId}/{membershipId}.
+// Synth ARN: arn:{p}:identitystore::{ownerAccount}:membership/{identityStoreId}/{membershipId}.
 func scanIdentityStoreGroupMemberships(ctx context.Context, client identitystoreAPI, acct *account, region, identityStoreID, ownerAccountID string, st *store.Store, scanID string) (total, inserted int, err error) {
 	groupPager := identitystore.NewListGroupsPaginator(client, &identitystore.ListGroupsInput{IdentityStoreId: &identityStoreID})
 	var groupIDs []string
@@ -454,7 +454,7 @@ func scanIdentityStoreGroupMemberships(ctx context.Context, client identitystore
 				if mid == "" {
 					continue
 				}
-				arn := fmt.Sprintf("arn:aws:identitystore::%s:membership/%s/%s", ownerAccountID, identityStoreID, mid)
+				arn := arnFor(acct.partition(), "identitystore", "", ownerAccountID, "membership/"+identityStoreID+"/"+mid)
 				label := mid
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

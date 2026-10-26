@@ -12,7 +12,7 @@ import (
 func TestResolveBedrockAgentRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	gARN := bedrockGuardrailARN(testRegion, acct.ID, "g-1")
+	gARN := bedrockGuardrailARN("aws", testRegion, acct.ID, "g-1")
 	gID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockGuardrail, gARN, testRegion, "{}")
 	agentARN := bedrockAgentARN(testRegion, acct.ID, "agent-1")
 	agentID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockAgent, agentARN, testRegion,
@@ -122,7 +122,7 @@ func TestResolveBedrockDataSourceKB_UnscannedSkipped(t *testing.T) {
 func TestResolveBedrockGuardrailVersion(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	gARN := bedrockGuardrailARN(testRegion, acct.ID, "g-1")
+	gARN := bedrockGuardrailARN("aws", testRegion, acct.ID, "g-1")
 	gID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockGuardrail, gARN, testRegion, "{}")
 	gvNative := gARN + ":1"
 	gvID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockGuardrailVersion, gvNative, testRegion,
@@ -144,7 +144,7 @@ func TestResolveBedrockGuardrailVersion(t *testing.T) {
 func TestResolveBedrockGuardrailVersion_UnscannedSkipped(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	gvNative := bedrockGuardrailARN(testRegion, acct.ID, "missing") + ":1"
+	gvNative := bedrockGuardrailARN("aws", testRegion, acct.ID, "missing") + ":1"
 	gvID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockGuardrailVersion, gvNative, testRegion, "{}")
 	if err := resolveBedrockGuardrailVersion(acct, st); err != nil {
 		t.Fatalf("resolveBedrockGuardrailVersion: %v", err)

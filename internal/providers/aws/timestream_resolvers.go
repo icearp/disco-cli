@@ -178,7 +178,7 @@ func resolveTSInfluxRefs(acct *account, st *store.Store) error {
 			}
 			if attrs.LogDeliveryConfiguration != nil && attrs.LogDeliveryConfiguration.S3Configuration != nil {
 				if b := sv(attrs.LogDeliveryConfiguration.S3Configuration.BucketName); b != "" {
-					tgt := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+b)
+					tgt := store.ResourceID("aws", acct.ID, s3BucketARN(acct.partition(), b))
 					if bucketSet[tgt] {
 						if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 							return fmt.Errorf("upsert ts-influx→s3: %w", err)
@@ -269,7 +269,7 @@ func resolveTSTableMagneticS3(acct *account, st *store.Store) error {
 		}
 		s3c := attrs.MagneticStoreWriteProperties.MagneticStoreRejectedDataLocation.S3Configuration
 		if b := sv(s3c.BucketName); b != "" {
-			tgt := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+b)
+			tgt := store.ResourceID("aws", acct.ID, s3BucketARN(acct.partition(), b))
 			if bucketSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert timestream table→s3: %w", err)
@@ -361,7 +361,7 @@ func resolveTSScheduledQueryRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.ErrorReportConfiguration != nil && attrs.ErrorReportConfiguration.S3Configuration != nil {
 			if b := sv(attrs.ErrorReportConfiguration.S3Configuration.BucketName); b != "" {
-				tgt := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+b)
+				tgt := store.ResourceID("aws", acct.ID, s3BucketARN(acct.partition(), b))
 				if bucketSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert timestream sq→s3: %w", err)

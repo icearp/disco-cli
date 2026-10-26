@@ -395,8 +395,8 @@ func listGACustomRoutingEndpointGroupRows(ctx context.Context, client globalAcce
 // Global Accelerator. The API issues no ARN or id for it, and a bare CIDR is
 // not a namespaced identity (EC2 BYOIP and IPAM ranges use the same strings),
 // so the id is ARN-shaped in the globalaccelerator namespace.
-func gaByoipCidrNativeID(accountID, cidr string) string {
-	return "arn:aws:globalaccelerator::" + accountID + ":byoip-cidr/" + cidr
+func gaByoipCidrNativeID(partition, accountID, cidr string) string {
+	return arnFor(partition, "globalaccelerator", "", accountID, "byoip-cidr/"+cidr)
 }
 
 // scanGAByoipCidrs stores the address ranges provisioned to Global Accelerator.
@@ -423,7 +423,7 @@ func scanGAByoipCidrs(ctx context.Context, client globalAcceleratorAPI, acct *ac
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeGlobalAcceleratorByoipCidr, NativeID: gaByoipCidrNativeID(acct.ID, cidr),
+				Type: TypeGlobalAcceleratorByoipCidr, NativeID: gaByoipCidrNativeID(acct.partition(), acct.ID, cidr),
 				Name: &cidr, Region: regionGlobal, Status: nonEmptyPtr(string(c.State)),
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})

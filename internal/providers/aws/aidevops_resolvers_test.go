@@ -18,19 +18,19 @@ func TestResolveAidevopsRefs(t *testing.T) {
 	vpcID := "vpc-aaa"
 	vpcRowID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", vpcID), testRegion, "{}")
 
-	spaceNative := aidevopsARN(testRegion, acct.ID, "agent-space", "space-1")
+	spaceNative := aidevopsARN("aws", testRegion, acct.ID, "agent-space", "space-1")
 	spaceID := upsertTestResource(t, st, "aws", acct.ID, TypeAidevopsAgentSpace, spaceNative, testRegion,
 		fmt.Sprintf(`{"AgentSpaceId":"space-1","KmsKeyArn":%q}`, keyARN))
 
-	svcNative := aidevopsARN(testRegion, acct.ID, "service", "svc-1")
+	svcNative := aidevopsARN("aws", testRegion, acct.ID, "service", "svc-1")
 	svcID := upsertTestResource(t, st, "aws", acct.ID, TypeAidevopsService, svcNative, testRegion,
 		fmt.Sprintf(`{"ServiceId":"svc-1","KmsKeyArn":%q}`, keyARN))
 
-	assocNative := aidevopsARN(testRegion, acct.ID, "association", "assoc-1")
+	assocNative := aidevopsARN("aws", testRegion, acct.ID, "association", "assoc-1")
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeAidevopsAssociations, assocNative, testRegion,
 		`{"AssociationId":"assoc-1","AgentSpaceId":"space-1","ServiceId":"svc-1"}`)
 
-	pcNative := aidevopsARN(testRegion, acct.ID, "private-connection", "pc-1")
+	pcNative := aidevopsARN("aws", testRegion, acct.ID, "private-connection", "pc-1")
 	pcID := upsertTestResource(t, st, "aws", acct.ID, TypeAidevopsPrivateConnection, pcNative, testRegion,
 		fmt.Sprintf(`{"Name":"pc-1","VpcId":%q}`, vpcID))
 
@@ -55,9 +55,9 @@ func TestResolveAidevopsRefs_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	spaceNative := aidevopsARN(testRegion, acct.ID, "agent-space", "space-1")
+	spaceNative := aidevopsARN("aws", testRegion, acct.ID, "agent-space", "space-1")
 	spaceID := upsertTestResource(t, st, "aws", acct.ID, TypeAidevopsAgentSpace, spaceNative, testRegion, "{}")
-	assocNative := aidevopsARN(testRegion, acct.ID, "association", "assoc-1")
+	assocNative := aidevopsARN("aws", testRegion, acct.ID, "association", "assoc-1")
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeAidevopsAssociations, assocNative, testRegion, "{}")
 
 	if err := resolveAidevopsRefs(acct, st); err != nil {

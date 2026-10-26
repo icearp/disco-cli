@@ -148,7 +148,7 @@ func describeDataPipelines(ctx context.Context, client dataPipelineAPI, acct *ac
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDataPipelinePipeline, NativeID: fmt.Sprintf("arn:aws:datapipeline:%s:%s:pipeline/%s", region, acct.ID, id),
+				Type: TypeDataPipelinePipeline, NativeID: arnFor(acct.partition(), "datapipeline", region, acct.ID, "pipeline/"+id),
 				Name: p.Name, Region: &region,
 				AttributesJSON: mustJSON(p), TagsJSON: kvTagsJSON(p.Tags, dataPipelineTagKV), DiscoveredBy: scanID,
 			}, "", ""

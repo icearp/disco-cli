@@ -163,8 +163,8 @@ func scanDataZone(ctx context.Context, acct *account, region string, st *store.S
 	return total, inserted, errs.join(st, acct, region)
 }
 
-func dzARN(region, acct, domainID, kind, id string) string {
-	return fmt.Sprintf("arn:aws:datazone:%s:%s:domain/%s/%s/%s", region, acct, domainID, kind, id)
+func dzARN(partition, region, acct, domainID, kind, id string) string {
+	return arnFor(partition, "datazone", region, acct, "domain/"+domainID+"/"+kind+"/"+id)
 }
 
 const (
@@ -317,7 +317,7 @@ func scanDataZoneDomainUnits(ctx context.Context, client dataZoneAPI, acct *acco
 					}
 					batch = append(batch, &store.Resource{
 						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeDataZoneDomainUnit, NativeID: dzARN(region, acct.ID, d.id, "domain-unit", id),
+						Type: TypeDataZoneDomainUnit, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "domain-unit", id),
 						Name: &label, Region: &region, AttributesJSON: mustJSON(u), DiscoveredBy: scanID,
 					})
 				}
@@ -352,7 +352,7 @@ func scanDataZoneProjects(ctx context.Context, client dataZoneAPI, acct *account
 				}
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeDataZoneProject, NativeID: dzARN(region, acct.ID, d.id, "project", id),
+					Type: TypeDataZoneProject, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "project", id),
 					Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 				})
 			}
@@ -385,7 +385,7 @@ func scanDataZoneProjectProfiles(ctx context.Context, client dataZoneAPI, acct *
 				}
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeDataZoneProjectProfile, NativeID: dzARN(region, acct.ID, d.id, "project-profile", id),
+					Type: TypeDataZoneProjectProfile, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "project-profile", id),
 					Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 				})
 			}
@@ -420,7 +420,7 @@ func scanDataZoneProjectMemberships(ctx context.Context, client dataZoneAPI, acc
 					}
 					batch = append(batch, &store.Resource{
 						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeDataZoneProjectMembership, NativeID: dzARN(region, acct.ID, d.id, "project-membership", id),
+						Type: TypeDataZoneProjectMembership, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "project-membership", id),
 						Name: &label, Region: &region, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
 					})
 				}
@@ -459,7 +459,7 @@ func scanDataZoneEnvironments(ctx context.Context, client dataZoneAPI, acct *acc
 					}
 					batch = append(batch, &store.Resource{
 						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeDataZoneEnvironment, NativeID: dzARN(region, acct.ID, d.id, "environment", id),
+						Type: TypeDataZoneEnvironment, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "environment", id),
 						Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 					})
 				}
@@ -493,7 +493,7 @@ func scanDataZoneEnvironmentProfiles(ctx context.Context, client dataZoneAPI, ac
 				}
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeDataZoneEnvironmentProfile, NativeID: dzARN(region, acct.ID, d.id, "environment-profile", id),
+					Type: TypeDataZoneEnvironmentProfile, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "environment-profile", id),
 					Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 				})
 			}
@@ -530,7 +530,7 @@ func scanDataZoneEnvironmentActions(ctx context.Context, client dataZoneAPI, acc
 					}
 					batch = append(batch, &store.Resource{
 						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeDataZoneEnvironmentActions, NativeID: dzARN(region, acct.ID, d.id, "environment-action", envID+"/"+id),
+						Type: TypeDataZoneEnvironmentActions, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "environment-action", envID+"/"+id),
 						Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 					})
 				}
@@ -561,7 +561,7 @@ func scanDataZoneEnvironmentBlueprintConfigurations(ctx context.Context, client 
 				name := bpID
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeDataZoneEnvironmentBlueprintConfiguration, NativeID: dzARN(region, acct.ID, d.id, "environment-blueprint-configuration", bpID),
+					Type: TypeDataZoneEnvironmentBlueprintConfiguration, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "environment-blueprint-configuration", bpID),
 					Name: &name, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 				})
 			}
@@ -598,7 +598,7 @@ func scanDataZoneSubscriptionTargets(ctx context.Context, client dataZoneAPI, ac
 					}
 					batch = append(batch, &store.Resource{
 						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeDataZoneSubscriptionTarget, NativeID: dzARN(region, acct.ID, d.id, "subscription-target", id),
+						Type: TypeDataZoneSubscriptionTarget, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "subscription-target", id),
 						Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 					})
 				}
@@ -636,7 +636,7 @@ func scanDataZoneDataSources(ctx context.Context, client dataZoneAPI, acct *acco
 					}
 					batch = append(batch, &store.Resource{
 						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeDataZoneDataSource, NativeID: dzARN(region, acct.ID, d.id, "data-source", id),
+						Type: TypeDataZoneDataSource, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "data-source", id),
 						Name: &label, Region: &region, AttributesJSON: mustJSON(ds), DiscoveredBy: scanID,
 					})
 				}
@@ -670,7 +670,7 @@ func scanDataZoneConnections(ctx context.Context, client dataZoneAPI, acct *acco
 				}
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeDataZoneConnection, NativeID: dzARN(region, acct.ID, d.id, "connection", id),
+					Type: TypeDataZoneConnection, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "connection", id),
 					Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 				})
 			}

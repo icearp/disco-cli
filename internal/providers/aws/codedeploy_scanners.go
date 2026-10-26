@@ -94,7 +94,7 @@ func scanCDApplications(ctx context.Context, client codeDeployAPI, acct *account
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:codedeploy:%s:%s:application:%s", region, acct.ID, name)
+			arn := codeDeployARN(acct.partition(), region, acct.ID, "application", name)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCodeDeployApplication, NativeID: arn,
@@ -196,7 +196,7 @@ func scanCDDeploymentConfigs(ctx context.Context, client codeDeployAPI, acct *ac
 		if out.DeploymentConfigInfo == nil {
 			continue
 		}
-		arn := fmt.Sprintf("arn:aws:codedeploy:%s:%s:deploymentconfig:%s", region, acct.ID, nm)
+		arn := codeDeployARN(acct.partition(), region, acct.ID, "deploymentconfig", nm)
 		managed := strings.HasPrefix(nm, "CodeDeployDefault.")
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

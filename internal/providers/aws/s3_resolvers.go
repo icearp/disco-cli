@@ -110,7 +110,7 @@ func resolveS3BucketEncryptionRelationships(acct *account, st *store.Store) erro
 		if entry.Config == nil {
 			continue
 		}
-		bucketARN := fmt.Sprintf("arn:aws:s3:::%s", bucket)
+		bucketARN := s3BucketARN(acct.partition(), bucket)
 		bucketID := store.ResourceID("aws", acct.ID, bucketARN)
 		for _, rule := range entry.Config.Rules {
 			if rule.ApplyServerSideEncryptionByDefault == nil {
@@ -134,7 +134,7 @@ func resolveS3BucketEncryptionRelationships(acct *account, st *store.Store) erro
 }
 
 // resolveS3BucketPolicyRelationships links each bucket policy to its bucket.
-// The policy NativeID is arn:aws:s3:::{bucket}/policy; stripping "/policy" gives
+// The policy NativeID is arn:{p}:s3:::{bucket}/policy; stripping "/policy" gives
 // the bucket ARN stored by the S3 bucket scanner.
 func resolveS3BucketPolicyRelationships(acct *account, st *store.Store) error {
 	policies, err := st.ListResources(store.ResourceFilter{
@@ -145,7 +145,7 @@ func resolveS3BucketPolicyRelationships(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range policies {
-		// NativeID = arn:aws:s3:::{bucket}/policy → strip "/policy" suffix.
+		// NativeID = arn:{p}:s3:::{bucket}/policy → strip "/policy" suffix.
 		bucketARN := strings.TrimSuffix(r.NativeID, "/policy")
 		bucketID := store.ResourceID("aws", acct.ID, bucketARN)
 		if err := st.UpsertRelationship(r.ID, bucketID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -237,7 +237,7 @@ func resolveS3AccessGrantsLocationRelationships(acct *account, st *store.Store) 
 
 // resolveS3AccessPointRelationships links each S3 access point to its bucket.
 // The bucket name is stored in the Bucket attribute; the bucket ARN is
-// arn:aws:s3:::{bucket-name}.
+// arn:{p}:s3:::{bucket-name}.
 func resolveS3AccessPointRelationships(acct *account, st *store.Store) error {
 	aps, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3AccessPoint},
@@ -256,7 +256,7 @@ func resolveS3AccessPointRelationships(acct *account, st *store.Store) error {
 		if attrs.Bucket == nil {
 			continue
 		}
-		bucketARN := fmt.Sprintf("arn:aws:s3:::%s", *attrs.Bucket)
+		bucketARN := s3BucketARN(acct.partition(), *attrs.Bucket)
 		bucketID := store.ResourceID("aws", acct.ID, bucketARN)
 		if err := st.UpsertRelationship(r.ID, bucketID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert access-point→bucket relationship: %w", err)

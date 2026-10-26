@@ -45,8 +45,8 @@ func scanSESMailManager(ctx context.Context, client mailManagerAPI, acct *accoun
 	return total, inserted, nil
 }
 
-func mmARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:ses:%s:%s:mailmanager-%s/%s", region, acct, kind, id)
+func mmARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "ses", region, acct, "mailmanager-"+kind+"/"+id)
 }
 
 func scanMMAddonInstances(ctx context.Context, client mailManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -173,7 +173,7 @@ func scanMMArchives(ctx context.Context, client mailManagerAPI, acct *account, r
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESMailManagerArchive, NativeID: mmARN(region, acct.ID, "archive", id),
+				Type: TypeSESMailManagerArchive, NativeID: mmARN(acct.partition(), region, acct.ID, "archive", id),
 				Name: &label, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
@@ -213,7 +213,7 @@ func scanMMIngressPoints(ctx context.Context, client mailManagerAPI, acct *accou
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESMailManagerIngressPoint, NativeID: mmARN(region, acct.ID, "ingress-point", id),
+				Type: TypeSESMailManagerIngressPoint, NativeID: mmARN(acct.partition(), region, acct.ID, "ingress-point", id),
 				Name: &label, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
 			})
 		}
@@ -244,7 +244,7 @@ func scanMMRelays(ctx context.Context, client mailManagerAPI, acct *account, reg
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESMailManagerRelay, NativeID: mmARN(region, acct.ID, "relay", id),
+				Type: TypeSESMailManagerRelay, NativeID: mmARN(acct.partition(), region, acct.ID, "relay", id),
 				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
 		}
@@ -275,7 +275,7 @@ func scanMMRuleSets(ctx context.Context, client mailManagerAPI, acct *account, r
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESMailManagerRuleSet, NativeID: mmARN(region, acct.ID, "rule-set", id),
+				Type: TypeSESMailManagerRuleSet, NativeID: mmARN(acct.partition(), region, acct.ID, "rule-set", id),
 				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
 		}
@@ -306,7 +306,7 @@ func scanMMTrafficPolicies(ctx context.Context, client mailManagerAPI, acct *acc
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESMailManagerTrafficPolicy, NativeID: mmARN(region, acct.ID, "traffic-policy", id),
+				Type: TypeSESMailManagerTrafficPolicy, NativeID: mmARN(acct.partition(), region, acct.ID, "traffic-policy", id),
 				Name: &label, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
 			})
 		}

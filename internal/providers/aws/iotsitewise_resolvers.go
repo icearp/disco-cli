@@ -92,7 +92,7 @@ func resolveIoTSWAssetToModel(acct *account, st *store.Store) error {
 		if mid == "" {
 			continue
 		}
-		mARN := iotSWARN(sv(r.Region), acct.ID, "asset-model", mid)
+		mARN := iotSWARN(acct.partition(), sv(r.Region), acct.ID, "asset-model", mid)
 		tgtID := store.ResourceID("aws", acct.ID, mARN)
 		if !modelSet[tgtID] {
 			continue
@@ -144,7 +144,7 @@ func resolveIoTSWAccessPolicyTarget(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if attrs.Resource.Portal != nil {
 			if id := sv(attrs.Resource.Portal.ID); id != "" {
-				tgtID := store.ResourceID("aws", acct.ID, iotSWARN(region, acct.ID, "portal", id))
+				tgtID := store.ResourceID("aws", acct.ID, iotSWARN(acct.partition(), region, acct.ID, "portal", id))
 				if portalSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert iotsitewise ap→portal: %w", err)
@@ -154,7 +154,7 @@ func resolveIoTSWAccessPolicyTarget(acct *account, st *store.Store) error {
 		}
 		if attrs.Resource.Project != nil {
 			if id := sv(attrs.Resource.Project.ID); id != "" {
-				tgtID := store.ResourceID("aws", acct.ID, iotSWARN(region, acct.ID, "project", id))
+				tgtID := store.ResourceID("aws", acct.ID, iotSWARN(acct.partition(), region, acct.ID, "project", id))
 				if projectSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert iotsitewise ap→project: %w", err)
@@ -242,7 +242,7 @@ func resolveIoTSWComputationModelBindings(acct *account, st *store.Store) error 
 	walk = func(v computationBindingValue, region string, srcID string) error {
 		if v.AssetModelProperty != nil {
 			if id := sv(v.AssetModelProperty.AssetModelID); id != "" {
-				tgt := store.ResourceID("aws", acct.ID, iotSWARN(region, acct.ID, "asset-model", id))
+				tgt := store.ResourceID("aws", acct.ID, iotSWARN(acct.partition(), region, acct.ID, "asset-model", id))
 				if modelSet[tgt] {
 					if err := st.UpsertRelationship(srcID, tgt, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert iotsitewise computation-model→asset-model: %w", err)
@@ -252,7 +252,7 @@ func resolveIoTSWComputationModelBindings(acct *account, st *store.Store) error 
 		}
 		if v.AssetProperty != nil {
 			if id := sv(v.AssetProperty.AssetID); id != "" {
-				tgt := store.ResourceID("aws", acct.ID, iotSWARN(region, acct.ID, "asset", id))
+				tgt := store.ResourceID("aws", acct.ID, iotSWARN(acct.partition(), region, acct.ID, "asset", id))
 				if assetSet[tgt] {
 					if err := st.UpsertRelationship(srcID, tgt, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert iotsitewise computation-model→asset: %w", err)
@@ -317,7 +317,7 @@ func resolveIoTSWAssetModelHierarchies(acct *account, st *store.Store) error {
 			if cid == "" {
 				continue
 			}
-			tgt := store.ResourceID("aws", acct.ID, iotSWARN(region, acct.ID, "asset-model", cid))
+			tgt := store.ResourceID("aws", acct.ID, iotSWARN(acct.partition(), region, acct.ID, "asset-model", cid))
 			if tgt == r.ID || !modelSet[tgt] {
 				continue
 			}

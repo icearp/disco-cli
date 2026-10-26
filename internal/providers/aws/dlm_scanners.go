@@ -18,7 +18,7 @@ func init() {
 }
 
 // scanDLM discovers Data Lifecycle Manager lifecycle policies. Synth ARN:
-// arn:aws:dlm:{r}:{a}:policy/{policyId}.
+// arn:{p}:dlm:{r}:{a}:policy/{policyId}.
 func scanDLM(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := dlm.NewFromConfig(acct.cfg, func(o *dlm.Options) { o.Region = region })
 
@@ -35,7 +35,7 @@ func scanDLM(ctx context.Context, acct *account, region string, st *store.Store,
 		if id == "" {
 			continue
 		}
-		arn := fmt.Sprintf("arn:aws:dlm:%s:%s:policy/%s", region, acct.ID, id)
+		arn := arnFor(acct.partition(), "dlm", region, acct.ID, "policy/"+id)
 		status := string(p.State)
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

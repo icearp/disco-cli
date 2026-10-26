@@ -151,7 +151,7 @@ var (
 
 // scanGSEphemerides lists the account's ephemerides. EphemerisItem carries no
 // ARN, so NativeID is built in the Service Reference format
-// arn:aws:groundstation:{region}:{account}:ephemeris/{id}. Whether ephemerides
+// arn:{p}:groundstation:{region}:{account}:ephemeris/{id}. Whether ephemerides
 // are regional is UNVERIFIED: no AWS source shows an ephemeris ARN or says, and
 // a satellite (account-global) reports one current ephemeris across ground
 // stations in several regions. If they prove global, this lane stores one
@@ -184,7 +184,7 @@ func scanGSEphemerides(ctx context.Context, client groundStationAPI, acct *accou
 			r := &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeGroundStationEphemeris,
-				NativeID: "arn:aws:groundstation:" + region + ":" + acct.ID + ":ephemeris/" + id,
+				NativeID: arnFor(acct.partition(), "groundstation", region, acct.ID, "ephemeris/"+id),
 				Name:     &label, Region: &region, CreatedAt: tp(e.CreationTime),
 				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 				// Service-managed ephemerides are the defaults AWS derives

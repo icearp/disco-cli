@@ -350,7 +350,7 @@ func resolveSSMResourceDataSyncRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if name := sv(attrs.S3Destination.BucketName); name != "" {
-			bArn := "arn:aws:s3:::" + name
+			bArn := s3BucketARN(acct.partition(), name)
 			tgtID := store.ResourceID("aws", acct.ID, bArn)
 			if bucketSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {

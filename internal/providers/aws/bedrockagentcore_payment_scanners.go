@@ -39,7 +39,7 @@ func scanBACPaymentManagers(ctx context.Context, client bedrockAgentCoreAPI, acc
 // scanBACPaymentConnectors lists the connectors of each manager the manager
 // phase stored. PaymentConnectorSummary carries no ARN, so NativeID is
 // synthesized as
-// `arn:aws:bedrock-agentcore:r:a:payment-connector/{managerID}/{connectorID}` —
+// `arn:{p}:bedrock-agentcore:r:a:payment-connector/{managerID}/{connectorID}` —
 // the resolver recovers the parent manager from it. The op's model lists no
 // not-found code, so a manager deleted after it was listed fails the phase
 // with whatever code the service answers with (decision #14, a known race).
@@ -57,7 +57,7 @@ func scanBACPaymentConnectors(ctx context.Context, client bedrockAgentCoreAPI, a
 			if cid == "" {
 				return nil, "payment connectors have an empty PaymentConnectorId", cmp.Or(sv(c.Name), "(a connector with no name) of manager "+manager)
 			}
-			r := bacRowAt(acct, region, scanID, TypeBedrockAgentCorePaymentConnector, bacARN(region, acct.ID, "payment-connector", manager+"/"+cid), cmp.Or(sv(c.Name), cid), c)
+			r := bacRowAt(acct, region, scanID, TypeBedrockAgentCorePaymentConnector, bacARN(acct.partition(), region, acct.ID, "payment-connector", manager+"/"+cid), cmp.Or(sv(c.Name), cid), c)
 			status := string(c.Status)
 			r.Status = &status
 			return r, "", ""

@@ -66,8 +66,8 @@ type wafPhase struct {
 // wafARN synthesizes a stable global ARN for a WAF Classic resource. List ops
 // return only {Id, Name} with no ARN, so we build the documented global-scope
 // shape (empty region segment).
-func wafARN(account, kind, id string) string {
-	return fmt.Sprintf("arn:aws:waf::%s:%s/%s", account, kind, id)
+func wafARN(partition, account, kind, id string) string {
+	return arnFor(partition, "waf", "", account, kind+"/"+id)
 }
 
 // scanWAF discovers WAF Classic (v1) resources. The service is global — API
@@ -80,7 +80,7 @@ func scanWAF(ctx context.Context, acct *account, _ string, st *store.Store, scan
 		return 0, 0, err
 	}
 	client := waf.NewFromConfig(acct.cfg, func(o *waf.Options) { o.Region = region })
-	arnFn := func(kind, id string) string { return wafARN(acct.ID, kind, id) }
+	arnFn := func(kind, id string) string { return wafARN(acct.partition(), acct.ID, kind, id) }
 	t, i, _, ferr := scanWAFPhases(ctx, wafPhases(client), acct, region, regionGlobal, st, scanID, "waf", arnFn)
 	return t, i, ferr
 }

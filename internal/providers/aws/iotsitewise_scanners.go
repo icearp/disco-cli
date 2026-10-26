@@ -58,8 +58,8 @@ type iotSWAPI interface {
 	ListApplications(context.Context, *iotsitewise.ListApplicationsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListApplicationsOutput, error)
 }
 
-func iotSWARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:iotsitewise:%s:%s:%s/%s", region, acct, kind, id)
+func iotSWARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "iotsitewise", region, acct, kind+"/"+id)
 }
 
 func scanIoTSiteWise(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -296,7 +296,7 @@ func scanIoTSWGateways(ctx context.Context, client iotSWAPI, acct *account, regi
 			if id == "" {
 				continue
 			}
-			arn := iotSWARN(region, acct.ID, "gateway", id)
+			arn := iotSWARN(acct.partition(), region, acct.ID, "gateway", id)
 			label := sv(g.GatewayName)
 			if label == "" {
 				label = id
@@ -380,7 +380,7 @@ func scanIoTSWPortals(ctx context.Context, client iotSWAPI, acct *account, regio
 			if id == "" {
 				continue
 			}
-			arn := iotSWARN(region, acct.ID, "portal", id)
+			arn := iotSWARN(acct.partition(), region, acct.ID, "portal", id)
 			label := sv(p.Name)
 			if label == "" {
 				label = id
@@ -416,7 +416,7 @@ func scanIoTSWProjects(ctx context.Context, client iotSWAPI, acct *account, regi
 			if id == "" {
 				continue
 			}
-			arn := iotSWARN(region, acct.ID, "project", id)
+			arn := iotSWARN(acct.partition(), region, acct.ID, "project", id)
 			label := sv(p.Name)
 			if label == "" {
 				label = id
@@ -431,10 +431,10 @@ func scanIoTSWProjects(ctx context.Context, client iotSWAPI, acct *account, regi
 	}
 	t, i, err := upsertBatch(st, batch, "iotsitewise projects")
 	if err == nil && len(ids) > 0 {
-		portalRowID := store.ResourceID("aws", acct.ID, iotSWARN(region, acct.ID, "portal", pid))
+		portalRowID := store.ResourceID("aws", acct.ID, iotSWARN(acct.partition(), region, acct.ID, "portal", pid))
 		pairs := make([][2]string, 0, len(ids))
 		for _, projID := range ids {
-			childID := store.ResourceID("aws", acct.ID, iotSWARN(region, acct.ID, "project", projID))
+			childID := store.ResourceID("aws", acct.ID, iotSWARN(acct.partition(), region, acct.ID, "project", projID))
 			pairs = append(pairs, [2]string{childID, portalRowID})
 		}
 		if herr := st.RecordHierarchyBatch(pairs); herr != nil {
@@ -462,7 +462,7 @@ func scanIoTSWDashboards(ctx context.Context, client iotSWAPI, acct *account, re
 			if id == "" {
 				continue
 			}
-			arn := iotSWARN(region, acct.ID, "dashboard", id)
+			arn := iotSWARN(acct.partition(), region, acct.ID, "dashboard", id)
 			label := sv(d.Name)
 			if label == "" {
 				label = id
@@ -476,7 +476,7 @@ func scanIoTSWDashboards(ctx context.Context, client iotSWAPI, acct *account, re
 	}
 	t, i, err := upsertBatch(st, batch, "iotsitewise dashboards")
 	if err == nil && len(batch) > 0 {
-		projectRowID := store.ResourceID("aws", acct.ID, iotSWARN(region, acct.ID, "project", pid))
+		projectRowID := store.ResourceID("aws", acct.ID, iotSWARN(acct.partition(), region, acct.ID, "project", pid))
 		pairs := make([][2]string, 0, len(batch))
 		for _, b := range batch {
 			pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, b.NativeID), projectRowID})
@@ -509,7 +509,7 @@ func scanIoTSWAccessPolicies(ctx context.Context, client iotSWAPI, acct *account
 			if id == "" {
 				continue
 			}
-			arn := iotSWARN(region, acct.ID, "access-policy", id)
+			arn := iotSWARN(acct.partition(), region, acct.ID, "access-policy", id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

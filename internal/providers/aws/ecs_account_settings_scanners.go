@@ -28,8 +28,8 @@ type ecsAccountSettingsAPI interface {
 // ecsAccountSettingNativeID builds the NativeID of an account setting. ECS
 // issues no ARN for a setting; the region and the setting name identify the
 // effective value within an account.
-func ecsAccountSettingNativeID(region, accountID string, name ecstypes.SettingName) string {
-	return fmt.Sprintf("arn:aws:ecs:%s:%s:account-setting/%s", region, accountID, name)
+func ecsAccountSettingNativeID(partition, region, accountID string, name ecstypes.SettingName) string {
+	return arnFor(partition, "ecs", region, accountID, "account-setting/"+string(name))
 }
 
 // scanECSAccountSettings stores one row per account setting in the region, as
@@ -75,7 +75,7 @@ func scanECSAccountSettings(ctx context.Context, client ecsAccountSettingsAPI, a
 			name := string(s.Name)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeECSAccountSetting, NativeID: ecsAccountSettingNativeID(region, acct.ID, s.Name),
+				Type: TypeECSAccountSetting, NativeID: ecsAccountSettingNativeID(acct.partition(), region, acct.ID, s.Name),
 				Name: &name, Region: &region,
 				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 			})

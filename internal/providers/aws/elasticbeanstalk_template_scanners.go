@@ -60,8 +60,8 @@ const beanstalkDescribeConfigurationSettingsOp = "elasticbeanstalk:DescribeConfi
 // within their application. Neither name has a pattern trait, so names
 // containing "/" can make two templates share an ARN (application a/b with
 // template c, application a with template b/c), as in AWS's own format.
-func beanstalkTemplateARN(region, accountID, appName, templateName string) string {
-	return "arn:aws:elasticbeanstalk:" + region + ":" + accountID + ":configurationtemplate/" + appName + "/" + templateName
+func beanstalkTemplateARN(partition, region, accountID, appName, templateName string) string {
+	return arnFor(partition, "elasticbeanstalk", region, accountID, "configurationtemplate/"+appName+"/"+templateName)
 }
 
 // beanstalkTemplate is one saved configuration template named by an
@@ -90,7 +90,7 @@ func scanBeanstalkConfigurationTemplates(ctx context.Context, client elasticbean
 			if name == "" {
 				continue
 			}
-			arn := beanstalkTemplateARN(region, acct.ID, a.name, name)
+			arn := beanstalkTemplateARN(acct.partition(), region, acct.ID, a.name, name)
 			parents = append(parents, childParent{id: arn, arn: a.arn})
 			templates[arn] = beanstalkTemplate{appName: a.name, name: name}
 		}

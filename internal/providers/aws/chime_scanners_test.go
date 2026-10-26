@@ -104,7 +104,9 @@ func runChime(t *testing.T, st *store.Store, handlers map[string]func(in any) (a
 	return scanChime(context.Background(), acct, testRegion, st, testScanID)
 }
 
-func chimeSipRuleID(id string) string { return chimeSipRuleNativeID(testRegion, testAccountID, id) }
+func chimeSipRuleID(id string) string {
+	return chimeSipRuleNativeID("aws", testRegion, testAccountID, id)
+}
 
 func TestScanChime_SipRulesAndGroupsStoreEveryPageAfterEveryOtherPhase(t *testing.T) {
 	st := newTestStore(t)
@@ -400,7 +402,7 @@ func TestScanChime_VoiceConnectorGroupWithoutARNWarnsOnce(t *testing.T) {
 }
 
 func TestChimeSipRuleNativeID(t *testing.T) {
-	got := chimeSipRuleNativeID("eu-west-2", "123456789012", "abc-123")
+	got := chimeSipRuleNativeID("aws", "eu-west-2", "123456789012", "abc-123")
 	if want := "arn:aws:chime:eu-west-2:123456789012:sip-rule/abc-123"; got != want {
 		t.Errorf("chimeSipRuleNativeID = %q, want %q", got, want)
 	}

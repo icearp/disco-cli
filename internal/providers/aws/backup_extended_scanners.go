@@ -171,7 +171,7 @@ func scanBackupRestoreTestingSelections(ctx context.Context, client backupAPI, a
 			if selName == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:backup:%s:%s:restore-testing-plan:%s/selection/%s", region, acct.ID, pn, selName)
+			arn := arnFor(acct.partition(), "backup", region, acct.ID, "restore-testing-plan:"+pn+"/selection/"+selName)
 			label := selName
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

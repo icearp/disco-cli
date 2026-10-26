@@ -218,7 +218,7 @@ func TestScanKMS_StoresKeysAndCustomKeyStores(t *testing.T) {
 	if n := len(rowsByNativeID(t, st, TypeKMSKey)); n != 1 {
 		t.Errorf("key rows = %d; want 1", n)
 	}
-	if _, ok := rowsByNativeID(t, st, TypeKMSCustomKeyStore)[kmsCustomKeyStoreNativeID(testRegion, testAccountID, kmsHSMStoreID)]; !ok {
+	if _, ok := rowsByNativeID(t, st, TypeKMSCustomKeyStore)[kmsCustomKeyStoreNativeID("aws", testRegion, testAccountID, kmsHSMStoreID)]; !ok {
 		t.Error("custom key store row missing")
 	}
 }

@@ -102,7 +102,7 @@ func dsDataParents(ctx context.Context, client dsDataDirectoriesAPI, acct *accou
 		}
 		for _, d := range out.DirectoryDescriptions {
 			if id := sv(d.DirectoryId); id != "" && dsDataReadable(d, region) {
-				parents = append(parents, childParent{id: id, arn: dsDirectoryARN(region, acct.ID, id)})
+				parents = append(parents, childParent{id: id, arn: dsDirectoryARN(acct.partition(), region, acct.ID, id)})
 			}
 		}
 	}

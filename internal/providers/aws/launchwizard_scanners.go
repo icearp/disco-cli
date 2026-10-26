@@ -18,7 +18,7 @@ func init() {
 }
 
 // scanLaunchWizard discovers Launch Wizard deployments. Synth ARN:
-// arn:aws:launchwizard:{r}:{a}:deployment/{id}.
+// arn:{p}:launchwizard:{r}:{a}:deployment/{id}.
 func scanLaunchWizard(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := launchwizard.NewFromConfig(acct.cfg, func(o *launchwizard.Options) { o.Region = region })
 
@@ -37,7 +37,7 @@ func scanLaunchWizard(ctx context.Context, acct *account, region string, st *sto
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:launchwizard:%s:%s:deployment/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "launchwizard", region, acct.ID, "deployment/"+id)
 			status := string(d.Status)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

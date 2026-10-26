@@ -32,8 +32,8 @@ type appflowAPI interface {
 // appflowConnectorNativeID synthesizes the NativeID for an AppFlow Custom
 // Connector. ConnectorDetail carries no ARN; the (account, region, label)
 // triple uniquely identifies a registered connector.
-func appflowConnectorNativeID(region, acct, label string) string {
-	return fmt.Sprintf("arn:aws:appflow:%s:%s:connector/%s", region, acct, label)
+func appflowConnectorNativeID(partition, region, acct, label string) string {
+	return arnFor(partition, "appflow", region, acct, "connector/"+label)
 }
 
 func scanAppFlow(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -55,7 +55,7 @@ func scanAppFlow(ctx context.Context, acct *account, region string, st *store.St
 
 // scanAppFlowConnectors enumerates custom (registered) connectors via
 // appflow:ListConnectors. ConnectorDetail has no AWS-issued ARN; NativeID
-// synthesized as arn:aws:appflow:{region}:{acct}:connector/{ConnectorLabel}.
+// synthesized as arn:{p}:appflow:{region}:{acct}:connector/{ConnectorLabel}.
 // ListConnectors uses manual NextToken pagination (no SDK paginator helper).
 func scanAppFlowConnectors(ctx context.Context, client appflowAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var nextToken *string
@@ -73,7 +73,7 @@ func scanAppFlowConnectors(ctx context.Context, client appflowAPI, acct *account
 			if label == "" {
 				continue
 			}
-			nativeID := appflowConnectorNativeID(region, acct.ID, label)
+			nativeID := appflowConnectorNativeID(acct.partition(), region, acct.ID, label)
 			name := label
 			batch = append(batch, &store.Resource{
 				Provider:    "aws",

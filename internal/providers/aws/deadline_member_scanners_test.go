@@ -19,8 +19,8 @@ import (
 const dlTestStore = "d-1234567890"
 
 var (
-	dlTestFarmA   = deadlineFarmARN(testRegion, testAccountID, "farm-a")
-	dlTestFarmB   = deadlineFarmARN(testRegion, testAccountID, "farm-b")
+	dlTestFarmA   = deadlineFarmARN("aws", testRegion, testAccountID, "farm-a")
+	dlTestFarmB   = deadlineFarmARN("aws", testRegion, testAccountID, "farm-b")
 	dlTestFleetA  = dlTestFarmA + "/fleet/fleet-a"
 	dlTestFleetB  = dlTestFarmB + "/fleet/fleet-b"
 	dlTestQueueA  = dlTestFarmA + "/queue/queue-a"

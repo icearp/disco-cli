@@ -19,7 +19,9 @@ var rumDenied = apiErr("AccessDeniedException", "User: arn:aws:iam::123:user/x i
 
 const rumEvidentlyARN = "arn:aws:evidently:us-east-1:123456789012:project/p1/experiment/e1"
 
-func rumMonitorARN(name string) string { return rumAppMonitorARN(testRegion, testAccountID, name) }
+func rumMonitorARN(name string) string {
+	return rumAppMonitorARN("aws", testRegion, testAccountID, name)
+}
 
 // rumMonitors stores an app monitor row for each name and returns them as parents.
 func rumMonitors(t *testing.T, st *store.Store, names ...string) []childParent {

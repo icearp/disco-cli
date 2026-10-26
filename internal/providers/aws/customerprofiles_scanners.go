@@ -49,8 +49,8 @@ type cpAPI interface {
 	ListRecommenderSchemas(context.Context, *customerprofiles.ListRecommenderSchemasInput, ...func(*customerprofiles.Options)) (*customerprofiles.ListRecommenderSchemasOutput, error)
 }
 
-func cpARN(region, acct string, segs ...string) string {
-	s := fmt.Sprintf("arn:aws:profile:%s:%s:domains", region, acct)
+func cpARN(partition, region, acct string, segs ...string) string {
+	s := arnFor(partition, "profile", region, acct, "domains")
 	for _, seg := range segs {
 		s += "/" + seg
 	}
@@ -203,7 +203,7 @@ func cpDomainRow(ctx context.Context, client cpAPI, acct *account, region, scanI
 	}
 	return &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-		Type: TypeCPDomain, NativeID: cpARN(region, acct.ID, name),
+		Type: TypeCPDomain, NativeID: cpARN(acct.partition(), region, acct.ID, name),
 		Name: &name, Region: &region, AttributesJSON: attrs,
 		TagsJSON: mapTagsJSON(d.Tags), DiscoveredBy: scanID,
 	}, err
@@ -310,7 +310,7 @@ func scanCPCalcAttrDefs(ctx context.Context, client cpAPI, acct *account, region
 				return nil
 			}
 			return cpRow(acct, region, scanID, TypeCPCalculatedAttributeDefinition,
-				cpARN(region, acct.ID, domain, "calculated-attributes", name), name, c, c.Tags)
+				cpARN(acct.partition(), region, acct.ID, domain, "calculated-attributes", name), name, c, c.Tags)
 		})
 }
 
@@ -351,7 +351,7 @@ func scanCPEventTriggers(ctx context.Context, client cpAPI, acct *account, regio
 				return nil
 			}
 			return cpRow(acct, region, scanID, TypeCPEventTrigger,
-				cpARN(region, acct.ID, domain, "event-triggers", name), name, e, e.Tags)
+				cpARN(acct.partition(), region, acct.ID, domain, "event-triggers", name), name, e, e.Tags)
 		})
 }
 
@@ -374,7 +374,7 @@ func scanCPIntegrations(ctx context.Context, client cpAPI, acct *account, region
 				return nil
 			}
 			return cpRow(acct, region, scanID, TypeCPIntegration,
-				cpARN(region, acct.ID, domain, "integrations", uri), uri, it, it.Tags)
+				cpARN(acct.partition(), region, acct.ID, domain, "integrations", uri), uri, it, it.Tags)
 		})
 }
 
@@ -395,7 +395,7 @@ func scanCPObjectTypes(ctx context.Context, client cpAPI, acct *account, region 
 				return nil
 			}
 			return cpRow(acct, region, scanID, TypeCPObjectType,
-				cpARN(region, acct.ID, domain, "object-types", name), name, ot, ot.Tags)
+				cpARN(acct.partition(), region, acct.ID, domain, "object-types", name), name, ot, ot.Tags)
 		})
 }
 
@@ -436,7 +436,7 @@ func scanCPRecommenders(ctx context.Context, client cpAPI, acct *account, region
 				return nil
 			}
 			return cpRow(acct, region, scanID, TypeCPRecommender,
-				cpARN(region, acct.ID, domain, "recommenders", name), name, r, r.Tags)
+				cpARN(acct.partition(), region, acct.ID, domain, "recommenders", name), name, r, r.Tags)
 		})
 }
 
@@ -457,7 +457,7 @@ func scanCPLayouts(ctx context.Context, client cpAPI, acct *account, region stri
 				return nil
 			}
 			return cpRow(acct, region, scanID, TypeCustomerProfilesLayouts,
-				cpARN(region, acct.ID, domain, "layout", name), name, l, l.Tags)
+				cpARN(acct.partition(), region, acct.ID, domain, "layout", name), name, l, l.Tags)
 		})
 }
 
@@ -478,7 +478,7 @@ func scanCPDomainObjectTypes(ctx context.Context, client cpAPI, acct *account, r
 				return nil
 			}
 			return cpRow(acct, region, scanID, TypeCustomerProfilesDomainObjectTypes,
-				cpARN(region, acct.ID, domain, "object-type", name), name, ot, ot.Tags)
+				cpARN(acct.partition(), region, acct.ID, domain, "object-type", name), name, ot, ot.Tags)
 		})
 }
 
@@ -499,7 +499,7 @@ func scanCPRecommenderFilters(ctx context.Context, client cpAPI, acct *account, 
 				return nil
 			}
 			return cpRow(acct, region, scanID, TypeCustomerProfilesRecommenderFilters,
-				cpARN(region, acct.ID, domain, "recommender-filter", name), name, f, f.Tags)
+				cpARN(acct.partition(), region, acct.ID, domain, "recommender-filter", name), name, f, f.Tags)
 		})
 }
 
@@ -522,6 +522,6 @@ func scanCPRecommenderSchemas(ctx context.Context, client cpAPI, acct *account, 
 				return nil
 			}
 			return cpRow(acct, region, scanID, TypeCustomerProfilesRecommenderSchemas,
-				cpARN(region, acct.ID, domain, "recommender-schema", name), name, s, nil)
+				cpARN(acct.partition(), region, acct.ID, domain, "recommender-schema", name), name, s, nil)
 		})
 }

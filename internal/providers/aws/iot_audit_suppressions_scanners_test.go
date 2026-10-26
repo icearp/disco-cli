@@ -231,7 +231,7 @@ func TestIoTResourceIdentifierKey(t *testing.T) {
 // A check name containing "/" is escaped, so it cannot shift the boundary
 // between the check and the identifier.
 func TestIoTAuditSuppressionNativeID_EscapesCheckName(t *testing.T) {
-	got := iotAuditSuppressionNativeID(testRegion, testAccountID, iottypes.AuditSuppression{
+	got := iotAuditSuppressionNativeID("aws", testRegion, testAccountID, iottypes.AuditSuppression{
 		CheckName:          ptrStr("A/B"),
 		ResourceIdentifier: &iottypes.ResourceIdentifier{ClientId: ptrStr("c")},
 	})

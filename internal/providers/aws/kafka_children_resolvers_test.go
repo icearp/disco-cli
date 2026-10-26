@@ -106,9 +106,9 @@ func TestResolveMSKChannelRefs_S3AndIceberg(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	const keyARN = "arn:aws:kms:us-east-1:123456789012:key/11111111-2222-3333-4444-555555555555"
 	topic := upsertTestResource(t, st, "aws", testAccountID, TypeMSKTopic, kafkaTestTopicX1, testRegion, "{}")
-	lake := upsertTestResource(t, st, "aws", testAccountID, TypeS3Bucket, s3BucketARN("lake"), testRegion, "{}")
-	dlq := upsertTestResource(t, st, "aws", testAccountID, TypeS3Bucket, s3BucketARN("dlq"), testRegion, "{}")
-	iceDLQ := upsertTestResource(t, st, "aws", testAccountID, TypeS3Bucket, s3BucketARN("ice-dlq"), testRegion, "{}")
+	lake := upsertTestResource(t, st, "aws", testAccountID, TypeS3Bucket, s3BucketARN("aws", "lake"), testRegion, "{}")
+	dlq := upsertTestResource(t, st, "aws", testAccountID, TypeS3Bucket, s3BucketARN("aws", "dlq"), testRegion, "{}")
+	iceDLQ := upsertTestResource(t, st, "aws", testAccountID, TypeS3Bucket, s3BucketARN("aws", "ice-dlq"), testRegion, "{}")
 	role := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, "arn:aws:iam::123456789012:role/msk-delivery", "", "{}")
 	iceRole := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, "arn:aws:iam::123456789012:role/msk-iceberg", "", "{}")
 	key := upsertTestResource(t, st, "aws", testAccountID, TypeKMSKey, keyARN, testRegion, "{}")
@@ -119,15 +119,15 @@ func TestResolveMSKChannelRefs_S3AndIceberg(t *testing.T) {
 		EncryptionConfiguration: &kafkatypes.EncryptionConfiguration{KmsKeyArn: sdkaws.String(keyARN)},
 		S3DestinationConfiguration: &kafkatypes.S3DestinationConfiguration{
 			ServiceExecutionRoleArn: sdkaws.String("arn:aws:iam::123456789012:role/msk-delivery"),
-			Storage:                 &kafkatypes.S3Storage{BucketArn: sdkaws.String(s3BucketARN("lake"))},
-			DeadLetterQueueS3:       &kafkatypes.DeadLetterQueueS3{BucketArn: sdkaws.String(s3BucketARN("dlq"))},
+			Storage:                 &kafkatypes.S3Storage{BucketArn: sdkaws.String(s3BucketARN("aws", "lake"))},
+			DeadLetterQueueS3:       &kafkatypes.DeadLetterQueueS3{BucketArn: sdkaws.String(s3BucketARN("aws", "dlq"))},
 		},
 	}))
 	iceChannel := upsertTestResource(t, st, "aws", testAccountID, TypeMSKChannel, kafkaTestChannel2, testRegion, mustJSON(kafka.DescribeChannelOutput{
 		ChannelArn: sdkaws.String(kafkaTestChannel2),
 		IcebergDestinationConfiguration: &kafkatypes.IcebergDestinationConfiguration{
 			ServiceExecutionRoleArn: sdkaws.String("arn:aws:iam::123456789012:role/msk-iceberg"),
-			DeadLetterQueueS3:       &kafkatypes.DeadLetterQueueS3{BucketArn: sdkaws.String(s3BucketARN("ice-dlq"))},
+			DeadLetterQueueS3:       &kafkatypes.DeadLetterQueueS3{BucketArn: sdkaws.String(s3BucketARN("aws", "ice-dlq"))},
 		},
 	}))
 

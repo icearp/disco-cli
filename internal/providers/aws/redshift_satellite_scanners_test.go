@@ -81,8 +81,8 @@ func rsListCases() []rsListCase {
 			},
 			empty: &redshift.DescribeAuthenticationProfilesOutput{},
 			wantIDs: []string{
-				redshiftARN(testRegion, testAccountID, "authenticationprofile", "p1"),
-				redshiftARN(testRegion, testAccountID, "authenticationprofile", "p2"),
+				redshiftARN("aws", testRegion, testAccountID, "authenticationprofile", "p1"),
+				redshiftARN("aws", testRegion, testAccountID, "authenticationprofile", "p2"),
 			},
 			run: runner(scanRedshiftAuthenticationProfiles),
 		},
@@ -227,7 +227,7 @@ func TestScanRedshiftListPhases_RowFields(t *testing.T) {
 		}
 	}
 
-	profile := rowsByNativeID(t, st, TypeRedshiftAuthenticationProfile)[redshiftARN(testRegion, testAccountID, "authenticationprofile", "p1")]
+	profile := rowsByNativeID(t, st, TypeRedshiftAuthenticationProfile)[redshiftARN("aws", testRegion, testAccountID, "authenticationprofile", "p1")]
 	var pAttrs map[string]string
 	if err := json.Unmarshal([]byte(profile.AttributesJSON), &pAttrs); err != nil {
 		t.Fatalf("profile attrs: %v", err)
@@ -236,14 +236,14 @@ func TestScanRedshiftListPhases_RowFields(t *testing.T) {
 		t.Errorf("profile name = %q, attrs = %v; want p1 with content redacted", sv(profile.Name), pAttrs)
 	}
 
-	node := rowsByNativeID(t, st, TypeRedshiftReservedNode)[redshiftARN(testRegion, testAccountID, "reservednode", "rn-1")]
+	node := rowsByNativeID(t, st, TypeRedshiftReservedNode)[redshiftARN("aws", testRegion, testAccountID, "reservednode", "rn-1")]
 	if sv(node.Name) != "rn-1" || sv(node.Status) != "active" || sv(node.CreatedAt) != sv(tp(&rsStart)) {
 		t.Errorf("reserved node name/status/created = %q/%q/%q", sv(node.Name), sv(node.Status), sv(node.CreatedAt))
 	}
 	if !jsonHasString(t, node.AttributesJSON, "NodeType", "ra3.xlplus") {
 		t.Errorf("reserved node attrs = %s, want NodeType ra3.xlplus", node.AttributesJSON)
 	}
-	if bare := rowsByNativeID(t, st, TypeRedshiftReservedNode)[redshiftARN(testRegion, testAccountID, "reservednode", "rn-2")]; bare.Status != nil {
+	if bare := rowsByNativeID(t, st, TypeRedshiftReservedNode)[redshiftARN("aws", testRegion, testAccountID, "reservednode", "rn-2")]; bare.Status != nil {
 		t.Errorf("reserved node without state has status %q, want unset", sv(bare.Status))
 	}
 

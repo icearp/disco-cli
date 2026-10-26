@@ -181,7 +181,7 @@ func resolveLocationTrackerConsumerRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if name := sv(attrs.TrackerName); name != "" {
-			tgtID := store.ResourceID("aws", acct.ID, locARN(region, acct.ID, "tracker", name))
+			tgtID := store.ResourceID("aws", acct.ID, locARN(acct.partition(), region, acct.ID, "tracker", name))
 			if trackerSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert location tracker-consumer→tracker: %w", err)

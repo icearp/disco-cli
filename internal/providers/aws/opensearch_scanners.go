@@ -116,11 +116,11 @@ func scanOpenSearch(ctx context.Context, acct *account, region string, st *store
 }
 
 // openSearchARN builds an es-namespace ARN-shaped NativeID,
-// arn:aws:es:{region}:{account}:{resource}. Used for the domain ARN a
+// arn:{p}:es:{region}:{account}:{resource}. Used for the domain ARN a
 // connection names by parts, and for resources the API returns no ARN for
 // (VPC endpoints, packages, reserved instances), whose shape is synthetic.
-func openSearchARN(region, accountID, resource string) string {
-	return "arn:aws:es:" + region + ":" + accountID + ":" + resource
+func openSearchARN(partition, region, accountID, resource string) string {
+	return arnFor(partition, "es", region, accountID, resource)
 }
 
 // scanOpenSearchDomains lists the region's domain names, describes and stores

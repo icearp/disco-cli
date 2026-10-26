@@ -259,7 +259,7 @@ func resolveDataBrewDatasetRefs(acct *account, st *store.Store) error {
 		if b == "" {
 			continue
 		}
-		barn := "arn:aws:s3:::" + b
+		barn := s3BucketARN(acct.partition(), b)
 		tgt := store.ResourceID("aws", acct.ID, barn)
 		if !bucketSet[tgt] {
 			continue

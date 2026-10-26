@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"sync"
 	"testing"
 
@@ -157,7 +159,7 @@ func runS3ConfigKind(t *testing.T, k s3ConfigKind, list func(bucket string, toke
 	t.Helper()
 	run := s3ConfigRun{st: newTestStore(t), regions: map[string]string{}, tokens: map[string][]string{}}
 	for name := range s3TestHomes {
-		upsertTestResource(t, run.st, "aws", testAccountID, TypeS3Bucket, s3BucketARN(name), "global", "{}")
+		upsertTestResource(t, run.st, "aws", testAccountID, TypeS3Bucket, s3BucketARN("aws", name), "global", "{}")
 	}
 	run.warns = countOpWarnings(run.st, "s3:"+k.op)
 	var mu sync.Mutex
@@ -215,7 +217,7 @@ func TestScanS3BucketConfigs_StoresEveryPageInHomeRegion(t *testing.T) {
 				if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs["Id"] != id {
 					t.Errorf("attrs = %s (%v), want Id %q", r.AttributesJSON, err, id)
 				}
-				assertContainsNative(t, run.st, s3BucketARN(bucket), r.NativeID)
+				assertContainsNative(t, run.st, s3BucketARN("aws", bucket), r.NativeID)
 			}
 			if got := run.regions; got["b-east"] != "us-east-1" || got["b-west"] != "us-west-2" {
 				t.Errorf("request regions = %v; want each bucket's home region", got)
@@ -453,7 +455,7 @@ func TestScanS3_StoresBucketConfigs(t *testing.T) {
 			if _, ok := rowsByNativeID(t, st, k.typ)[want]; !ok {
 				t.Errorf("no %s row %s", k.typ, want)
 			}
-			assertContainsNative(t, st, s3BucketARN(bucket), want)
+			assertContainsNative(t, st, s3BucketARN("aws", bucket), want)
 		}
 	}
 }
@@ -743,21 +745,29 @@ func TestScanS3_UnknownRegionKeepsBucketSkipsReads(t *testing.T) {
 	if _, _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
 		t.Fatalf("scanS3: %v", err)
 	}
-	if n := len(rowsByNativeID(t, st, TypeS3Bucket)); n != 2 {
-		t.Errorf("buckets = %d; want 2 (the unknown-region bucket is kept)", n)
+	// The account is in aws-us-gov, so every S3 id the scan builds is too.
+	const east, west = "arn:aws-us-gov:s3:::b-east", "arn:aws-us-gov:s3:::b-west"
+	buckets := rowsByNativeID(t, st, TypeS3Bucket)
+	_, okEast := buckets[east]
+	_, okWest := buckets[west]
+	if !okEast || !okWest || len(buckets) != 2 {
+		t.Errorf("bucket rows = %v; want exactly %s and %s (the unknown-region bucket is kept)", slices.Sorted(maps.Keys(buckets)), east, west)
 	}
 	policies := rowsByNativeID(t, st, TypeS3BucketPolicy)
-	if len(policies) != 1 {
-		t.Errorf("bucket policies = %d; want 1, for b-west only", len(policies))
+	if _, ok := policies[west+"/policy"]; !ok || len(policies) != 1 {
+		t.Errorf("bucket policy rows = %v; want only %s", slices.Sorted(maps.Keys(policies)), west+"/policy")
 	}
 	if _, ok := acct.s3BucketEncryption["b-east"]; ok {
 		t.Error("b-east encryption was read; its region is unknown")
 	}
 	for _, k := range s3ConfigKinds {
 		rows := rowsByNativeID(t, st, k.typ)
-		if _, ok := rows[s3ConfigNativeID(k, "b-west", "c")]; !ok || len(rows) != 1 {
-			t.Errorf("%s rows = %d; want only b-west's", k.typ, len(rows))
+		want := west + "/" + k.segment + "/c"
+		if _, ok := rows[want]; !ok || len(rows) != 1 {
+			t.Errorf("%s rows = %v; want only %s", k.typ, slices.Sorted(maps.Keys(rows)), want)
+			continue
 		}
+		assertContainsNative(t, st, west, want)
 	}
 	if *warns != 1 {
 		t.Errorf("s3:HeadBucket warnings = %d; want 1", *warns)

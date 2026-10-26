@@ -3,7 +3,6 @@ package aws
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/mediatailor"
@@ -188,7 +187,7 @@ func scanMTChannelPolicies(ctx context.Context, client mediatailorAPI, acct *acc
 			return []*mediatailor.GetChannelPolicyOutput{out}, nil, nil
 		},
 		func(channel string, out *mediatailor.GetChannelPolicyOutput) (*store.Resource, string, string) {
-			arn := fmt.Sprintf("arn:aws:mediatailor:%s:%s:channel/%s/policy", region, acct.ID, channel)
+			arn := arnFor(acct.partition(), "mediatailor", region, acct.ID, "channel/"+channel+"/policy")
 			return mtRow(acct, region, scanID, TypeMediaTailorChannelPolicy, arn, &channel, out, nil), "", ""
 		})
 }

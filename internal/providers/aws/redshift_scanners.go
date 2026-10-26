@@ -164,11 +164,11 @@ func redshiftSubnetGroupARN(region, accountID, name string) string {
 
 // redshiftIDARN is redshiftARN, or "" when id is empty, so that redshiftList
 // warns about the element instead of storing it under an ARN with no id.
-func redshiftIDARN(region, acct, kind, id string) string {
+func redshiftIDARN(partition, region, acct, kind, id string) string {
 	if id == "" {
 		return ""
 	}
-	return redshiftARN(region, acct, kind, id)
+	return redshiftARN(partition, region, acct, kind, id)
 }
 
 func redshiftTagKV(t redshifttypes.Tag) (key, value *string) { return t.Key, t.Value }
@@ -251,7 +251,7 @@ func scanRedshiftSnapshots(ctx context.Context, client redshiftAPI, acct *accoun
 			name := sv(s.SnapshotIdentifier)
 			nativeID := sv(s.SnapshotArn)
 			if nativeID == "" && name != "" {
-				nativeID = redshiftARN(region, acct.ID, "snapshot", sv(s.ClusterIdentifier)+"/"+name)
+				nativeID = redshiftARN(acct.partition(), region, acct.ID, "snapshot", sv(s.ClusterIdentifier)+"/"+name)
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -275,7 +275,7 @@ func scanRedshiftSnapshotSchedules(ctx context.Context, client redshiftAPI, acct
 			name := sv(s.ScheduleIdentifier)
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftSnapshotSchedule, NativeID: redshiftIDARN(region, acct.ID, "snapshotschedule", name),
+				Type: TypeRedshiftSnapshotSchedule, NativeID: redshiftIDARN(acct.partition(), region, acct.ID, "snapshotschedule", name),
 				Name: &name, Region: &region, AttributesJSON: mustJSON(s), TagsJSON: kvTagsJSON(s.Tags, redshiftTagKV),
 				DiscoveredBy: scanID,
 			}
@@ -295,7 +295,7 @@ func scanRedshiftSnapshotCopyGrants(ctx context.Context, client redshiftAPI, acc
 			name := sv(g.SnapshotCopyGrantName)
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftSnapshotCopyGrant, NativeID: redshiftIDARN(region, acct.ID, "snapshotcopygrant", name),
+				Type: TypeRedshiftSnapshotCopyGrant, NativeID: redshiftIDARN(acct.partition(), region, acct.ID, "snapshotcopygrant", name),
 				Name: &name, Region: &region, AttributesJSON: mustJSON(g), TagsJSON: kvTagsJSON(g.Tags, redshiftTagKV),
 				DiscoveredBy: scanID,
 			}
@@ -315,7 +315,7 @@ func scanRedshiftUsageLimits(ctx context.Context, client redshiftAPI, acct *acco
 			name := sv(u.UsageLimitId)
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftUsageLimit, NativeID: redshiftIDARN(region, acct.ID, "usagelimit", name),
+				Type: TypeRedshiftUsageLimit, NativeID: redshiftIDARN(acct.partition(), region, acct.ID, "usagelimit", name),
 				Name: &name, Region: &region, AttributesJSON: mustJSON(u), TagsJSON: kvTagsJSON(u.Tags, redshiftTagKV),
 				DiscoveredBy: scanID,
 			}
@@ -340,7 +340,7 @@ func scanRedshiftHsmClientCertificates(ctx context.Context, client redshiftAPI, 
 			name := sv(c.HsmClientCertificateIdentifier)
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftHsmClientCertificate, NativeID: redshiftIDARN(region, acct.ID, "hsmclientcertificate", name),
+				Type: TypeRedshiftHsmClientCertificate, NativeID: redshiftIDARN(acct.partition(), region, acct.ID, "hsmclientcertificate", name),
 				Name: &name, Region: &region, AttributesJSON: mustJSON(c), TagsJSON: kvTagsJSON(c.Tags, redshiftTagKV),
 				DiscoveredBy: scanID,
 			}
@@ -360,7 +360,7 @@ func scanRedshiftHsmConfigurations(ctx context.Context, client redshiftAPI, acct
 			name := sv(c.HsmConfigurationIdentifier)
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftHsmConfiguration, NativeID: redshiftIDARN(region, acct.ID, "hsmconfiguration", name),
+				Type: TypeRedshiftHsmConfiguration, NativeID: redshiftIDARN(acct.partition(), region, acct.ID, "hsmconfiguration", name),
 				Name: &name, Region: &region, AttributesJSON: mustJSON(c), TagsJSON: kvTagsJSON(c.Tags, redshiftTagKV),
 				DiscoveredBy: scanID,
 			}

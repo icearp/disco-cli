@@ -146,7 +146,7 @@ func TestResolveRedshiftSnapshotRefs(t *testing.T) {
 	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftCluster,
 		redshiftClusterARN(testRegion, acct.ID, "my-cluster"), testRegion, "{}")
 	snID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSnapshot,
-		redshiftARN(testRegion, acct.ID, "snapshot", "my-cluster/snap-1"), testRegion,
+		redshiftARN("aws", testRegion, acct.ID, "snapshot", "my-cluster/snap-1"), testRegion,
 		mustJSON(redshifttypes.Snapshot{ClusterIdentifier: ptrStr("my-cluster")}))
 	if err := resolveRedshiftSnapshotRefs(acct, st); err != nil {
 		t.Fatalf("resolveRedshiftSnapshotRefs: %v", err)
@@ -159,7 +159,7 @@ func TestResolveRedshiftSnapshotRefs_Empty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	snID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSnapshot,
-		redshiftARN(testRegion, acct.ID, "snapshot", "gone/snap-1"), testRegion, "{}")
+		redshiftARN("aws", testRegion, acct.ID, "snapshot", "gone/snap-1"), testRegion, "{}")
 	if err := resolveRedshiftSnapshotRefs(acct, st); err != nil {
 		t.Fatalf("resolveRedshiftSnapshotRefs: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestResolveRedshiftUsageLimitRefs(t *testing.T) {
 	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftCluster,
 		redshiftClusterARN(testRegion, acct.ID, "my-cluster"), testRegion, "{}")
 	ulID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftUsageLimit,
-		redshiftARN(testRegion, acct.ID, "usagelimit", "ul-1"), testRegion,
+		redshiftARN("aws", testRegion, acct.ID, "usagelimit", "ul-1"), testRegion,
 		mustJSON(redshifttypes.UsageLimit{ClusterIdentifier: ptrStr("my-cluster"), UsageLimitId: ptrStr("ul-1")}))
 	if err := resolveRedshiftUsageLimitRefs(acct, st); err != nil {
 		t.Fatalf("resolveRedshiftUsageLimitRefs: %v", err)
@@ -187,7 +187,7 @@ func TestResolveRedshiftUsageLimitRefs_Empty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ulID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftUsageLimit,
-		redshiftARN(testRegion, acct.ID, "usagelimit", "ul-1"), testRegion, "{}")
+		redshiftARN("aws", testRegion, acct.ID, "usagelimit", "ul-1"), testRegion, "{}")
 	if err := resolveRedshiftUsageLimitRefs(acct, st); err != nil {
 		t.Fatalf("resolveRedshiftUsageLimitRefs: %v", err)
 	}
@@ -202,7 +202,7 @@ func TestResolveRedshiftSnapshotCopyGrantRefs(t *testing.T) {
 	kARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", testRegion, acct.ID, testRedshiftKMSKeyID)
 	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, kARN, testRegion, "{}")
 	gID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSnapshotCopyGrant,
-		redshiftARN(testRegion, acct.ID, "snapshotcopygrant", "grant-1"), testRegion,
+		redshiftARN("aws", testRegion, acct.ID, "snapshotcopygrant", "grant-1"), testRegion,
 		mustJSON(redshifttypes.SnapshotCopyGrant{SnapshotCopyGrantName: ptrStr("grant-1"), KmsKeyId: ptrStr(kARN)}))
 	if err := resolveRedshiftSnapshotCopyGrantRefs(acct, st); err != nil {
 		t.Fatalf("resolveRedshiftSnapshotCopyGrantRefs: %v", err)
@@ -215,7 +215,7 @@ func TestResolveRedshiftSnapshotCopyGrantRefs_Empty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSnapshotCopyGrant,
-		redshiftARN(testRegion, acct.ID, "snapshotcopygrant", "grant-1"), testRegion, "{}")
+		redshiftARN("aws", testRegion, acct.ID, "snapshotcopygrant", "grant-1"), testRegion, "{}")
 	if err := resolveRedshiftSnapshotCopyGrantRefs(acct, st); err != nil {
 		t.Fatalf("resolveRedshiftSnapshotCopyGrantRefs: %v", err)
 	}

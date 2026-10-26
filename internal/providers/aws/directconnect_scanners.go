@@ -191,7 +191,7 @@ func scanDXVirtualInterfaces(ctx context.Context, client dxAPI, acct *account, r
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: dt, NativeID: "arn:aws:directconnect:" + region + ":" + acct.ID + ":dxvif/" + id,
+				Type: dt, NativeID: arnFor(acct.partition(), "directconnect", region, acct.ID, "dxvif/"+id),
 				Name: dxName(vi.VirtualInterfaceName, id), Region: &region, Status: nonEmptyPtr(string(vi.VirtualInterfaceState)),
 				AttributesJSON: mustJSON(vi), TagsJSON: dxTagsJSON(vi.Tags), DiscoveredBy: scanID,
 			}, "", ""

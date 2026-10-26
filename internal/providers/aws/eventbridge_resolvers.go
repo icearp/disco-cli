@@ -60,7 +60,7 @@ func resolveEventBridgeRelationships(acct *account, st *store.Store) error {
 		if busARN == "" && sv(a.Rule.EventBusName) != "" {
 			// Default bus has no ARN field; reconstruct from region+account.
 			region := sv(r.Region)
-			busARN = fmt.Sprintf("arn:aws:events:%s:%s:event-bus/%s", region, acct.ID, sv(a.Rule.EventBusName))
+			busARN = arnFor(acct.partition(), "events", region, acct.ID, "event-bus/"+sv(a.Rule.EventBusName))
 		}
 		if busARN != "" {
 			busID := store.ResourceID("aws", acct.ID, busARN)

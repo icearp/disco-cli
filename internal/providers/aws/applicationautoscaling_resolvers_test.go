@@ -17,8 +17,8 @@ func TestResolveApplicationAutoScalingScheduledActionToTarget(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	region := testRegion
 
-	targetNative := applicationAutoScalingScalableTargetNativeID(region, acct.ID, "ecs", "service/cluster/web", "ecs:service:DesiredCount")
-	otherNative := applicationAutoScalingScalableTargetNativeID(region, acct.ID, "ecs", "service/cluster/api", "ecs:service:DesiredCount")
+	targetNative := applicationAutoScalingScalableTargetNativeID("aws", region, acct.ID, "ecs", "service/cluster/web", "ecs:service:DesiredCount")
+	otherNative := applicationAutoScalingScalableTargetNativeID("aws", region, acct.ID, "ecs", "service/cluster/api", "ecs:service:DesiredCount")
 	targetID := upsertTestResource(t, st, "aws", acct.ID, TypeApplicationAutoScalingScalableTarget, targetNative, region, "{}")
 	upsertTestResource(t, st, "aws", acct.ID, TypeApplicationAutoScalingScalableTarget, otherNative, region, "{}")
 
@@ -52,7 +52,7 @@ func TestResolveApplicationAutoScalingScheduledActionToTarget(t *testing.T) {
 func TestResolveApplicationAutoScalingScheduledActionToTarget_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	targetNative := applicationAutoScalingScalableTargetNativeID(testRegion, acct.ID, "", "", "")
+	targetNative := applicationAutoScalingScalableTargetNativeID("aws", testRegion, acct.ID, "", "", "")
 	upsertTestResource(t, st, "aws", acct.ID, TypeApplicationAutoScalingScalableTarget, targetNative, testRegion, "{}")
 	actionID := upsertTestResource(t, st, "aws", acct.ID, TypeApplicationAutoScalingScheduledAction, aasTestActionWeb, testRegion, "{}")
 
@@ -78,7 +78,7 @@ func TestResolveApplicationAutoScalingRelationships_DecodeErrorReturned(t *testi
 			acct := newTestAccount(testAccountID)
 			upsertTestResourceNamed(t, st, typ, "bad", testRegion, `{"ResourceId":7}`, "a-bad")
 			targetID := upsertTestResource(t, st, "aws", acct.ID, TypeApplicationAutoScalingScalableTarget,
-				applicationAutoScalingScalableTargetNativeID(testRegion, acct.ID, "ecs", "service/cluster/web", "ecs:service:DesiredCount"), testRegion, "{}")
+				applicationAutoScalingScalableTargetNativeID("aws", testRegion, acct.ID, "ecs", "service/cluster/web", "ecs:service:DesiredCount"), testRegion, "{}")
 			goodID := upsertTestResourceNamed(t, st, typ, "good", testRegion,
 				`{"ServiceNamespace":"ecs","ResourceId":"service/cluster/web","ScalableDimension":"ecs:service:DesiredCount"}`, "b-good")
 
@@ -106,7 +106,7 @@ func TestResolveApplicationAutoScalingPolicyToTarget(t *testing.T) {
 	rid := "service/cluster/svc"
 	dim := "ecs:service:DesiredCount"
 
-	targetNative := applicationAutoScalingScalableTargetNativeID(region, acct.ID, ns, rid, dim)
+	targetNative := applicationAutoScalingScalableTargetNativeID("aws", region, acct.ID, ns, rid, dim)
 	policyARN := "arn:aws:autoscaling:us-east-1:123456789012:scalingPolicy:abc:resource/ecs/service/cluster/svc:policyName/foo"
 	policyAttrs := fmt.Sprintf(`{"ServiceNamespace":"%s","ResourceId":"%s","ScalableDimension":"%s"}`, ns, rid, dim)
 
@@ -155,7 +155,7 @@ func TestResolveApplicationAutoScalingPolicyToTarget_NoAttrs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	region := testRegion
 	upsertTestResource(t, st, "aws", acct.ID, TypeApplicationAutoScalingScalableTarget,
-		applicationAutoScalingScalableTargetNativeID(region, acct.ID, "", "", ""), region, "{}")
+		applicationAutoScalingScalableTargetNativeID("aws", region, acct.ID, "", "", ""), region, "{}")
 
 	policyARN := "arn:aws:autoscaling:us-east-1:123456789012:scalingPolicy:abc:resource/ecs/service/cluster/svc:policyName/baz"
 	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeApplicationAutoScalingScalingPolicy, policyARN, region, "{}")

@@ -24,7 +24,7 @@ func scanOpenSearchDataSources(ctx context.Context, client opensearchAPI, acct *
 			}
 			return 0, 0, fmt.Errorf("opensearch:ListDataSources %s: %w", name, derr)
 		}
-		domainARN := fmt.Sprintf("arn:aws:es:%s:%s:domain/%s", region, acct.ID, name)
+		domainARN := openSearchARN(acct.partition(), region, acct.ID, "domain/"+name)
 		for _, ds := range out.DataSources {
 			dsName := sv(ds.Name)
 			if dsName == "" {

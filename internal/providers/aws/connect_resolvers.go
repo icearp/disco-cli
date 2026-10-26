@@ -357,7 +357,7 @@ func resolveConnectInstanceStorageConfigRefs(acct *account, st *store.Store) err
 		region := sv(r.Region)
 		if attrs.S3Config != nil {
 			if name := sv(attrs.S3Config.BucketName); name != "" {
-				tgtARN := s3BucketARNFromName(name)
+				tgtARN := s3BucketARN(acct.partition(), name)
 				tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 				if bucketSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {

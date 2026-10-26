@@ -9,7 +9,7 @@ import (
 )
 
 // scanDetectiveOrgAdmins captures Detective delegated administrator
-// accounts. Synth ARN: arn:aws:detective:{r}:{a}:organization-admin/{id}.
+// accounts. Synth ARN: arn:{p}:detective:{r}:{a}:organization-admin/{id}.
 func scanDetectiveOrgAdmins(ctx context.Context, client detectiveAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	var nextToken *string
@@ -27,7 +27,7 @@ func scanDetectiveOrgAdmins(ctx context.Context, client detectiveAPI, acct *acco
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:detective:%s:%s:organization-admin/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "detective", region, acct.ID, "organization-admin/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

@@ -110,8 +110,8 @@ func resolveFSxFileSystemRefs(acct *account, st *store.Store) error {
 	return errors.Join(decodeErrs...)
 }
 
-func fsxARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:fsx:%s:%s:%s/%s", region, acct, kind, id)
+func fsxARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "fsx", region, acct, kind+"/"+id)
 }
 
 // resolveFSxChildrenToFileSystem wires per-FS children — volumes, storage
@@ -144,7 +144,7 @@ func resolveFSxChildrenToFileSystem(acct *account, st *store.Store) error {
 			if fsID == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, fsxARN(sv(r.Region), acct.ID, "file-system", fsID))
+			tgtID := store.ResourceID("aws", acct.ID, fsxARN(acct.partition(), sv(r.Region), acct.ID, "file-system", fsID))
 			if !fsSet[tgtID] {
 				continue
 			}
@@ -187,7 +187,7 @@ func resolveFSxSnapshotToVolume(acct *account, st *store.Store) error {
 		if vid == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, fsxARN(sv(r.Region), acct.ID, "volume", vid))
+		tgtID := store.ResourceID("aws", acct.ID, fsxARN(acct.partition(), sv(r.Region), acct.ID, "volume", vid))
 		if !volSet[tgtID] {
 			continue
 		}

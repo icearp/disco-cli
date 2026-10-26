@@ -12,7 +12,7 @@ func TestResolveSupplyChainInstanceChildren(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 
 	instID := "instance-abc123"
-	instARN := scnInstanceARN(testRegion, acct.ID, instID)
+	instARN := scnInstanceARN("aws", testRegion, acct.ID, instID)
 	instRowID := upsertTestResource(t, st, "aws", acct.ID, TypeSupplyChainInstance, instARN, testRegion, "{}")
 
 	flowARN := fmt.Sprintf("%s/data-integration-flow/myflow", instARN)
@@ -37,7 +37,7 @@ func TestResolveSupplyChainInstanceChildren_NoAttrs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 
 	instID := "instance-abc123"
-	instARN := scnInstanceARN(testRegion, acct.ID, instID)
+	instARN := scnInstanceARN("aws", testRegion, acct.ID, instID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeSupplyChainInstance, instARN, testRegion, "{}")
 
 	// Namespace row with empty attrs must not panic or yield an edge.

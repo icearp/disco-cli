@@ -160,8 +160,8 @@ func isSecurityHubNotEnabled(err error) bool {
 // securityHubHubNativeID synthesises the canonical hub ARN when DescribeHub
 // returns no HubArn. Hub is a singleton per (acct, region); shape matches
 // the AWS-issued ARN.
-func securityHubHubNativeID(accountID, region string) string {
-	return fmt.Sprintf("arn:aws:securityhub:%s:%s:hub/default", region, accountID)
+func securityHubHubNativeID(partition, region, accountID string) string {
+	return arnFor(partition, "securityhub", region, accountID, "hub/default")
 }
 
 func scanSecurityHubHub(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (hubARN string, present bool, total, inserted int, err error) {
@@ -181,7 +181,7 @@ func scanSecurityHubHub(ctx context.Context, client securityhubAPI, acct *accoun
 	}
 	nid := sv(out.HubArn)
 	if nid == "" {
-		nid = securityHubHubNativeID(acct.ID, region)
+		nid = securityHubHubNativeID(acct.partition(), region, acct.ID)
 	}
 	r := &store.Resource{
 		Provider:       "aws",

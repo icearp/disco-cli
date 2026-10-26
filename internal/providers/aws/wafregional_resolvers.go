@@ -38,7 +38,7 @@ func resolveWAFRegionalWebACLAssociations(acct *account, st *store.Store) error 
 		if a.WebACLId == "" {
 			continue
 		}
-		target := wafRegionalARN(sv(r.Region), acct.ID, "webacl", a.WebACLId)
+		target := wafRegionalARN(acct.partition(), sv(r.Region), acct.ID, "webacl", a.WebACLId)
 		targetID := store.ResourceID("aws", acct.ID, target)
 		if err := st.UpsertRelationship(r.ID, targetID, store.RelAttachedTo, "directed", nil); err != nil {
 			return fmt.Errorf("upsert wafregional-association→web-acl: %w", err)

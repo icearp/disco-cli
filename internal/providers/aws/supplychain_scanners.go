@@ -32,8 +32,8 @@ type supplyChainAPI interface {
 
 // scnInstanceARN synthesizes the Supply Chain instance ARN — the Instance SDK
 // shape exposes only InstanceId, no ARN field.
-func scnInstanceARN(region, acct, instanceID string) string {
-	return fmt.Sprintf("arn:aws:scn:%s:%s:instance/%s", region, acct, instanceID)
+func scnInstanceARN(partition, region, acct, instanceID string) string {
+	return arnFor(partition, "scn", region, acct, "instance/"+instanceID)
 }
 
 func scanSupplyChain(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -94,7 +94,7 @@ func scanSCNInstances(ctx context.Context, client supplyChainAPI, acct *account,
 				continue
 			}
 			ids = append(ids, id)
-			arn := scnInstanceARN(region, acct.ID, id)
+			arn := scnInstanceARN(acct.partition(), region, acct.ID, id)
 			name := sv(in.InstanceName)
 			status := string(in.State)
 			batch = append(batch, &store.Resource{
@@ -128,7 +128,7 @@ func scanSCNFlows(ctx context.Context, client supplyChainAPI, acct *account, reg
 			}
 			// DataIntegrationFlow has no ARN field; synthesize one off the
 			// instance ARN + flow name.
-			arn := fmt.Sprintf("%s/data-integration-flow/%s", scnInstanceARN(region, acct.ID, id), name)
+			arn := fmt.Sprintf("%s/data-integration-flow/%s", scnInstanceARN(acct.partition(), region, acct.ID, id), name)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSupplyChainDataIntegrationFlow, NativeID: arn,

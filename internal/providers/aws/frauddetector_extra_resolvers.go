@@ -54,7 +54,7 @@ func resolveFraudDetectorRuleRelationships(acct *account, st *store.Store) error
 		if did == "" {
 			continue
 		}
-		detARN := fmt.Sprintf("arn:aws:frauddetector:%s:%s:detector/%s", sv(r.Region), acct.ID, did)
+		detARN := arnFor(acct.partition(), "frauddetector", sv(r.Region), acct.ID, "detector/"+did)
 		tgt := store.ResourceID("aws", acct.ID, detARN)
 		if detSet[tgt] {
 			if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {

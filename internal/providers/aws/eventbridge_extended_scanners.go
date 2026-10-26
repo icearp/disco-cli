@@ -51,7 +51,7 @@ func scanEBArchives(ctx context.Context, client eventbridgeAPI, acct *account, r
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:events:%s:%s:archive/%s", region, acct.ID, name)
+			arn := arnFor(acct.partition(), "events", region, acct.ID, "archive/"+name)
 			status := string(a.State)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

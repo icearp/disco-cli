@@ -24,8 +24,8 @@ func init() {
 	)
 }
 
-func daxARN(region, acct, kind, name string) string {
-	return fmt.Sprintf("arn:aws:dax:%s:%s:%s/%s", region, acct, kind, name)
+func daxARN(partition, region, acct, kind, name string) string {
+	return arnFor(partition, "dax", region, acct, kind+"/"+name)
 }
 
 // resolveDAXClusterRefs wires each cluster to its parameter group, subnet
@@ -80,7 +80,7 @@ func resolveDAXClusterRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if attrs.ParameterGroup != nil {
 			if n := sv(attrs.ParameterGroup.ParameterGroupName); n != "" {
-				tgtID := store.ResourceID("aws", acct.ID, daxARN(region, acct.ID, "parameter-group", n))
+				tgtID := store.ResourceID("aws", acct.ID, daxARN(acct.partition(), region, acct.ID, "parameter-group", n))
 				if pgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert dax cl→pg: %w", err)
@@ -89,7 +89,7 @@ func resolveDAXClusterRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if n := sv(attrs.SubnetGroup); n != "" {
-			tgtID := store.ResourceID("aws", acct.ID, daxARN(region, acct.ID, "subnet-group", n))
+			tgtID := store.ResourceID("aws", acct.ID, daxARN(acct.partition(), region, acct.ID, "subnet-group", n))
 			if sgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert dax cl→sg: %w", err)

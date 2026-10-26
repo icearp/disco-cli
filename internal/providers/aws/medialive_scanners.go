@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/medialive"
@@ -138,8 +137,8 @@ func scanMLAll(ctx context.Context, client mediaLiveAPI, acct *account, region s
 	return phases.result(st, acct, region)
 }
 
-func mlARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:medialive:%s:%s:%s/%s", region, acct, kind, id)
+func mlARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "medialive", region, acct, kind+"/"+id)
 }
 
 // mediaLiveRow builds the row of a listed MediaLive element.
@@ -458,7 +457,7 @@ func scanMLMultiplexPrograms(ctx context.Context, client mediaLiveAPI, acct *acc
 			if name == "" {
 				return nil, "multiplex programs have an empty ProgramName (first names their multiplex)", mid
 			}
-			return mediaLiveRow(acct, region, scanID, TypeMediaLiveMultiplexProgram, mlARN(region, acct.ID, "multiplexprogram", mid+"/"+name), name, p, nil), "", ""
+			return mediaLiveRow(acct, region, scanID, TypeMediaLiveMultiplexProgram, mlARN(acct.partition(), region, acct.ID, "multiplexprogram", mid+"/"+name), name, p, nil), "", ""
 		})
 }
 

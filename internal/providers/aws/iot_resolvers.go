@@ -97,11 +97,6 @@ func dynamodbTableARNFromName(region, acctID, name string) string {
 	return fmt.Sprintf("arn:aws:dynamodb:%s:%s:table/%s", region, acctID, name)
 }
 
-// s3BucketARNFromName builds the canonical bucket ARN.
-func s3BucketARNFromName(name string) string {
-	return "arn:aws:s3:::" + name
-}
-
 // sqsQueueARNFromURL parses an SQS queue URL — `https://sqs.{region}.amazonaws.com/{acct}/{name}`
 // — into the canonical queue ARN. Returns "" if not a parseable URL.
 func sqsQueueARNFromURL(u string) string {
@@ -650,7 +645,7 @@ func resolveIoTTopicRuleActionRefs(acct *account, st *store.Store) error {
 			actions = append(actions, *attrs.Rule.ErrorAction)
 		}
 		for _, a := range actions {
-			if err := emitIoTTopicRuleActionEdges(st, &r, a, sets, region, acct.ID); err != nil {
+			if err := emitIoTTopicRuleActionEdges(st, &r, a, sets, acct.partition(), region, acct.ID); err != nil {
 				return err
 			}
 		}
@@ -660,7 +655,7 @@ func resolveIoTTopicRuleActionRefs(acct *account, st *store.Store) error {
 
 // emitIoTTopicRuleActionEdges fans out one Action entry to its typed target
 // (and IAM role, when the typed action carries `RoleArn`).
-func emitIoTTopicRuleActionEdges(st *store.Store, r *store.Resource, a iotTopicRuleAction, sets iotTopicRuleTargetSets, region, acctID string) error {
+func emitIoTTopicRuleActionEdges(st *store.Store, r *store.Resource, a iotTopicRuleAction, sets iotTopicRuleTargetSets, partition, region, acctID string) error {
 	roleARNs := iotCollectActionRoles(a)
 	for _, ra := range roleARNs {
 		if ra == "" {
@@ -717,7 +712,7 @@ func emitIoTTopicRuleActionEdges(st *store.Store, r *store.Resource, a iotTopicR
 		})
 	}
 	if a.S3 != nil && sv(a.S3.BucketName) != "" {
-		emits = append(emits, emit{true, TypeS3Bucket, sets.s3, s3BucketARNFromName(sv(a.S3.BucketName)), "s3"})
+		emits = append(emits, emit{true, TypeS3Bucket, sets.s3, s3BucketARN(partition, sv(a.S3.BucketName)), "s3"})
 	}
 	if a.StepFunctions != nil && sv(a.StepFunctions.StateMachineName) != "" {
 		emits = append(emits, emit{

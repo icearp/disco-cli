@@ -187,7 +187,7 @@ func storedRowCount(t *testing.T, st *store.Store) int {
 	return len(rows)
 }
 
-var ecsTestSettingID = ecsAccountSettingNativeID(testRegion, testAccountID, ecstypes.SettingNameContainerInsights)
+var ecsTestSettingID = ecsAccountSettingNativeID("aws", testRegion, testAccountID, ecstypes.SettingNameContainerInsights)
 
 func TestScanECS_StoresSettingsAndClusters(t *testing.T) {
 	st := newTestStore(t)

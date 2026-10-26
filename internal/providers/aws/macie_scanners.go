@@ -149,7 +149,7 @@ func scanMacieMembers(ctx context.Context, client macie2API, acct *account, regi
 				if memberAcct == "" {
 					continue
 				}
-				arn = fmt.Sprintf("arn:aws:macie2:%s:%s:member/%s", region, acct.ID, memberAcct)
+				arn = arnFor(acct.partition(), "macie2", region, acct.ID, "member/"+memberAcct)
 			}
 			status := string(m.RelationshipStatus)
 			r := &store.Resource{

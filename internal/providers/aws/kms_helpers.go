@@ -2,7 +2,6 @@ package aws
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -69,7 +68,7 @@ func loadKMSResolveIndex(acct *account, st *store.Store) (*kmsResolveIndex, erro
 			region = *a.Region
 		}
 		// TargetKeyID is the bare key UUID; build the canonical key ARN.
-		keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, acct.ID, *attrs.TargetKeyID)
+		keyARN := arnFor(acct.partition(), "kms", region, acct.ID, "key/"+*attrs.TargetKeyID)
 		idx.aliasToKeyARN[*attrs.AliasName] = keyARN
 		if attrs.AliasArn != nil {
 			idx.aliasToKeyARN[*attrs.AliasArn] = keyARN

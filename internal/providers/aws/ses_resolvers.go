@@ -341,7 +341,7 @@ func resolveSESReceiptRuleTargets(acct *account, st *store.Store) error {
 			continue
 		}
 		for _, a := range attrs.Actions {
-			if err := emitReceiptRuleAction(st, r.ID, region, acct.ID, a, bucketSet, snsSet, lambdaSet, kmsIdx); err != nil {
+			if err := emitReceiptRuleAction(st, r.ID, acct.partition(), region, acct.ID, a, bucketSet, snsSet, lambdaSet, kmsIdx); err != nil {
 				return err
 			}
 		}
@@ -351,10 +351,10 @@ func resolveSESReceiptRuleTargets(acct *account, st *store.Store) error {
 
 // emitReceiptRuleAction fans out edges for a single action block. Split
 // from the loop to keep complexity below the gocognit ceiling.
-func emitReceiptRuleAction(st *store.Store, ruleID, region, acctID string, a sesReceiptAction, bucketSet, snsSet, lambdaSet map[string]bool, kmsIdx *kmsResolveIndex) error {
+func emitReceiptRuleAction(st *store.Store, ruleID, partition, region, acctID string, a sesReceiptAction, bucketSet, snsSet, lambdaSet map[string]bool, kmsIdx *kmsResolveIndex) error {
 	if a.S3Action != nil {
 		if b := sv(a.S3Action.BucketName); b != "" {
-			bID := store.ResourceID("aws", acctID, "arn:aws:s3:::"+b)
+			bID := store.ResourceID("aws", acctID, s3BucketARN(partition, b))
 			if bucketSet[bID] {
 				if err := st.UpsertRelationship(ruleID, bID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ses receipt-rule→s3: %w", err)

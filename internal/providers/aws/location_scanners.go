@@ -37,8 +37,8 @@ type locationAPI interface {
 	DescribeTracker(context.Context, *location.DescribeTrackerInput, ...func(*location.Options)) (*location.DescribeTrackerOutput, error)
 }
 
-func locARN(region, acct, kind, name string) string {
-	return fmt.Sprintf("arn:aws:geo:%s:%s:%s/%s", region, acct, kind, name)
+func locARN(partition, region, acct, kind, name string) string {
+	return arnFor(partition, "geo", region, acct, kind+"/"+name)
 }
 
 func scanLocation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -99,7 +99,7 @@ func scanLocationKeys(ctx context.Context, client locationAPI, acct *account, re
 			if name == "" {
 				continue
 			}
-			arn := locARN(region, acct.ID, "api-key", name)
+			arn := locARN(acct.partition(), region, acct.ID, "api-key", name)
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -131,7 +131,7 @@ func scanLocationGeofenceCollections(ctx context.Context, client locationAPI, ac
 			if name == "" {
 				continue
 			}
-			arn := locARN(region, acct.ID, "geofence-collection", name)
+			arn := locARN(acct.partition(), region, acct.ID, "geofence-collection", name)
 			label := name
 			parents = append(parents, childParent{id: name, arn: arn})
 			// Enrich via DescribeGeofenceCollection — list summary lacks
@@ -235,7 +235,7 @@ func scanLocationMaps(ctx context.Context, client locationAPI, acct *account, re
 			if name == "" {
 				continue
 			}
-			arn := locARN(region, acct.ID, "map", name)
+			arn := locARN(acct.partition(), region, acct.ID, "map", name)
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -264,7 +264,7 @@ func scanLocationPlaceIndexes(ctx context.Context, client locationAPI, acct *acc
 			if name == "" {
 				continue
 			}
-			arn := locARN(region, acct.ID, "place-index", name)
+			arn := locARN(acct.partition(), region, acct.ID, "place-index", name)
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -293,7 +293,7 @@ func scanLocationRouteCalculators(ctx context.Context, client locationAPI, acct 
 			if name == "" {
 				continue
 			}
-			arn := locARN(region, acct.ID, "route-calculator", name)
+			arn := locARN(acct.partition(), region, acct.ID, "route-calculator", name)
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -323,7 +323,7 @@ func scanLocationTrackers(ctx context.Context, client locationAPI, acct *account
 			if name == "" {
 				continue
 			}
-			arn := locARN(region, acct.ID, "tracker", name)
+			arn := locARN(acct.partition(), region, acct.ID, "tracker", name)
 			label := name
 			names = append(names, name)
 			// Enrich via DescribeTracker — list summary lacks KmsKeyId.
@@ -362,7 +362,7 @@ func scanLocationTrackerConsumers(ctx context.Context, client locationAPI, acct 
 			if consumerARN == "" {
 				continue
 			}
-			trackerARN := locARN(region, acct.ID, "tracker", trackerName)
+			trackerARN := locARN(acct.partition(), region, acct.ID, "tracker", trackerName)
 			arn := fmt.Sprintf("%s/consumer/%s", trackerARN, consumerARN)
 			label := consumerARN
 			batch = append(batch, &store.Resource{

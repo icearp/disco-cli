@@ -35,8 +35,8 @@ type ossAPI interface {
 	BatchGetVpcEndpoint(context.Context, *opensearchserverless.BatchGetVpcEndpointInput, ...func(*opensearchserverless.Options)) (*opensearchserverless.BatchGetVpcEndpointOutput, error)
 }
 
-func ossARN(region, acct, kind, key string) string {
-	return fmt.Sprintf("arn:aws:aoss:%s:%s:%s/%s", region, acct, kind, key)
+func ossARN(partition, region, acct, kind, key string) string {
+	return arnFor(partition, "aoss", region, acct, kind+"/"+key)
 }
 
 func scanOpenSearchServerless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -184,7 +184,7 @@ func scanOSSVpcEndpoints(ctx context.Context, client ossAPI, acct *account, regi
 			if id == "" {
 				continue
 			}
-			arn := ossARN(region, acct.ID, "vpce", id)
+			arn := ossARN(acct.partition(), region, acct.ID, "vpce", id)
 			label := sv(v.Name)
 			if label == "" {
 				label = id
@@ -220,7 +220,7 @@ func scanOSSAccessPolicies(ctx context.Context, client ossAPI, acct *account, re
 			if name == "" {
 				continue
 			}
-			arn := ossARN(region, acct.ID, "access-policy", fmt.Sprintf("%s/%s", string(ptype), name))
+			arn := ossARN(acct.partition(), region, acct.ID, "access-policy", fmt.Sprintf("%s/%s", string(ptype), name))
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -249,7 +249,7 @@ func scanOSSLifecyclePolicies(ctx context.Context, client ossAPI, acct *account,
 			if name == "" {
 				continue
 			}
-			arn := ossARN(region, acct.ID, "lifecycle-policy", fmt.Sprintf("%s/%s", string(ptype), name))
+			arn := ossARN(acct.partition(), region, acct.ID, "lifecycle-policy", fmt.Sprintf("%s/%s", string(ptype), name))
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -278,7 +278,7 @@ func scanOSSSecurityPolicies(ctx context.Context, client ossAPI, acct *account, 
 			if name == "" {
 				continue
 			}
-			arn := ossARN(region, acct.ID, "security-policy", fmt.Sprintf("%s/%s", string(ptype), name))
+			arn := ossARN(acct.partition(), region, acct.ID, "security-policy", fmt.Sprintf("%s/%s", string(ptype), name))
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -307,7 +307,7 @@ func scanOSSSecurityConfigs(ctx context.Context, client ossAPI, acct *account, r
 			if id == "" {
 				continue
 			}
-			arn := ossARN(region, acct.ID, "security-config", fmt.Sprintf("%s/%s", string(ctype), id))
+			arn := ossARN(acct.partition(), region, acct.ID, "security-config", fmt.Sprintf("%s/%s", string(ctype), id))
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

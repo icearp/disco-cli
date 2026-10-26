@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/pinpoint"
 	pptypes "github.com/aws/aws-sdk-go-v2/service/pinpoint/types"
@@ -149,8 +148,8 @@ func scanPinpoint(ctx context.Context, acct *account, region string, st *store.S
 	return p.result(st, acct, region)
 }
 
-func pinpointARN(region, acct, kind, appID string) string {
-	return fmt.Sprintf("arn:aws:mobiletargeting:%s:%s:apps/%s/%s", region, acct, appID, kind)
+func pinpointARN(partition, region, acct, kind, appID string) string {
+	return arnFor(partition, "mobiletargeting", region, acct, "apps/"+appID+"/"+kind)
 }
 
 // pinpointListedRow builds the row of a listed Pinpoint resource, named by
@@ -213,7 +212,7 @@ func pinpointPerAppPhase[Body any](ctx context.Context, apps pinpointApps, op, r
 				n := name
 				return &store.Resource{
 					Provider: "aws", AccountID: apps.acct.ID, AccountName: &apps.acct.Name,
-					Type: rtype, NativeID: pinpointARN(apps.region, apps.acct.ID, path, appID),
+					Type: rtype, NativeID: pinpointARN(apps.acct.partition(), apps.region, apps.acct.ID, path, appID),
 					Name: &n, Region: &apps.region, AttributesJSON: mustJSON(body), DiscoveredBy: apps.scanID,
 				}, "", ""
 			})

@@ -26,8 +26,8 @@ type arcZonalShiftAPI interface {
 // arcZonalShiftObserverNativeID synthesizes the NativeID for the per-(account,
 // region) singleton autoshift-observer notification status. AWS exposes no
 // ARN for this configuration; the get-only API returns just the Status enum.
-func arcZonalShiftObserverNativeID(region, acct string) string {
-	return fmt.Sprintf("arn:aws:arc-zonal-shift:%s:%s:autoshift-observer-notification-status", region, acct)
+func arcZonalShiftObserverNativeID(partition, region, acct string) string {
+	return arnFor(partition, "arc-zonal-shift", region, acct, "autoshift-observer-notification-status")
 }
 
 // arcZonalShiftConfigNativeID synthesizes the NativeID for the per-managed-
@@ -58,7 +58,7 @@ func scanARCZonalShiftObserver(ctx context.Context, client arcZonalShiftAPI, acc
 		}
 		return 0, 0, fmt.Errorf("arc-zonal-shift:GetAutoshiftObserverNotificationStatus: %w", err)
 	}
-	arn := arcZonalShiftObserverNativeID(region, acct.ID)
+	arn := arcZonalShiftObserverNativeID(acct.partition(), region, acct.ID)
 	name := "autoshift-observer-notification-status"
 	status := string(out.Status)
 	r := &store.Resource{

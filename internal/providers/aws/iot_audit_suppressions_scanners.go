@@ -26,18 +26,18 @@ const iotAuditSuppressionPageCap = 250
 // suppression, which has no ARN or id: the API keys it by (checkName,
 // resourceIdentifier) within an account and region. Shape:
 //
-//	arn:aws:iot:{region}:{account}:audit-suppression/{PathEscape(checkName)}/{identifier}
+//	arn:{p}:iot:{region}:{account}:audit-suppression/{PathEscape(checkName)}/{identifier}
 //
 // {identifier} is iotResourceIdentifierKey's query-string encoding. Both parts
 // are escaped, so the "/" between them stays the only separator and the id is
 // injective. Returns "" when either part is empty.
-func iotAuditSuppressionNativeID(region, accountID string, s iottypes.AuditSuppression) string {
+func iotAuditSuppressionNativeID(partition, region, accountID string, s iottypes.AuditSuppression) string {
 	check := sv(s.CheckName)
 	key := iotResourceIdentifierKey(s.ResourceIdentifier)
 	if check == "" || key == "" {
 		return ""
 	}
-	return fmt.Sprintf("arn:aws:iot:%s:%s:audit-suppression/%s/%s", region, accountID, url.PathEscape(check), key)
+	return arnFor(partition, "iot", region, accountID, "audit-suppression/"+url.PathEscape(check)+"/"+key)
 }
 
 // iotResourceIdentifierKey encodes a ResourceIdentifier as a query string
@@ -108,7 +108,7 @@ func scanIoTAuditSuppressions(ctx context.Context, client iotAuditSuppressionAPI
 		}
 		batch := make([]*store.Resource, 0, len(out.Suppressions))
 		for _, s := range out.Suppressions {
-			nativeID := iotAuditSuppressionNativeID(region, acct.ID, s)
+			nativeID := iotAuditSuppressionNativeID(acct.partition(), region, acct.ID, s)
 			if nativeID == "" {
 				unkeyed++
 				continue

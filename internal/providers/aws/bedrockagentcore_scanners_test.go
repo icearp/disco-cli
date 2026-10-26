@@ -214,10 +214,10 @@ func TestScanBACBrowsersAndCodeInterpreters_SystemVsCustom(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	custBrArn := bacARN(testRegion, testAccountID, "browser", "cust-1")
-	sysBrArn := bacARN(testRegion, testAccountID, "browser", "aws.browser.v1")
-	custCIArn := bacARN(testRegion, testAccountID, "code-interpreter", "cust-1")
-	sysCIArn := bacARN(testRegion, testAccountID, "code-interpreter", "aws.codeinterpreter.v1")
+	custBrArn := bacARN("aws", testRegion, testAccountID, "browser", "cust-1")
+	sysBrArn := bacARN("aws", testRegion, testAccountID, "browser", "aws.browser.v1")
+	custCIArn := bacARN("aws", testRegion, testAccountID, "code-interpreter", "cust-1")
+	sysCIArn := bacARN("aws", testRegion, testAccountID, "code-interpreter", "aws.codeinterpreter.v1")
 	cb, sb, cc, sc := "cust-1", "aws.browser.v1", "cust-1", "aws.codeinterpreter.v1"
 	stub := &stubBAC{
 		customBrowsers: []bactypes.BrowserSummary{{BrowserArn: &custBrArn, BrowserId: &cb}},
@@ -271,7 +271,7 @@ func TestScanBACBrowsers_Empty(t *testing.T) {
 // phase added after the established ones.
 func TestScanBACAll_StoresNewTypes(t *testing.T) {
 	st := newTestStore(t)
-	gwARN := bacARN(testRegion, testAccountID, "gateway", "gw-1")
+	gwARN := bacARN("aws", testRegion, testAccountID, "gateway", "gw-1")
 	control := &stubBAC{
 		gateways:      []bactypes.GatewaySummary{{GatewayId: sdkaws.String("gw-1"), Name: sdkaws.String("gw")}},
 		capacityPages: [][]bactypes.CapacityProviderSummary{{bacCapacityProvider("cp")}},
@@ -284,11 +284,11 @@ func TestScanBACAll_StoresNewTypes(t *testing.T) {
 		t.Fatalf("scanBACAll: %v", err)
 	}
 	for _, c := range []struct{ nativeID, rtype string }{
-		{bacARN(testRegion, testAccountID, "capacity-provider", "cp"), TypeBedrockAgentCoreCapacityProvider},
-		{bacARN(testRegion, testAccountID, "consent-portal", "cpt"), TypeBedrockAgentCoreConsentPortal},
+		{bacARN("aws", testRegion, testAccountID, "capacity-provider", "cp"), TypeBedrockAgentCoreCapacityProvider},
+		{bacARN("aws", testRegion, testAccountID, "consent-portal", "cpt"), TypeBedrockAgentCoreConsentPortal},
 		{gwARN + "/rule/r1", TypeBedrockAgentCoreGatewayRule},
 		{gwARN + "/rate-limit/l1", TypeBedrockAgentCoreGatewayRateLimit},
-		{bacARN(testRegion, testAccountID, "ab-test", "ab"), TypeBedrockAgentCoreABTest},
+		{bacARN("aws", testRegion, testAccountID, "ab-test", "ab"), TypeBedrockAgentCoreABTest},
 	} {
 		r, err := st.GetResource(store.ResourceID("aws", testAccountID, c.nativeID))
 		if err != nil {
@@ -307,7 +307,7 @@ func TestScanBACAll_FanOutErrorKeepsAccountLists(t *testing.T) {
 	st := newTestStore(t)
 	// The payment credential provider phase is the last established phase, so
 	// its row pins that every new phase runs after the established ones.
-	credARN := bacARN(testRegion, testAccountID, "token-vault/default/paymentcredentialprovider", "pcp")
+	credARN := bacARN("aws", testRegion, testAccountID, "token-vault/default/paymentcredentialprovider", "pcp")
 	control := &stubBAC{
 		gateways:      []bactypes.GatewaySummary{{GatewayId: sdkaws.String("gw-1")}},
 		credProviders: []bactypes.PaymentCredentialProviderItem{{CredentialProviderArn: sdkaws.String(credARN)}},
@@ -322,9 +322,9 @@ func TestScanBACAll_FanOutErrorKeepsAccountLists(t *testing.T) {
 	}
 	for _, arn := range []string{
 		credARN,
-		bacARN(testRegion, testAccountID, "capacity-provider", "cp"),
-		bacARN(testRegion, testAccountID, "consent-portal", "cpt"),
-		bacARN(testRegion, testAccountID, "ab-test", "ab"),
+		bacARN("aws", testRegion, testAccountID, "capacity-provider", "cp"),
+		bacARN("aws", testRegion, testAccountID, "consent-portal", "cpt"),
+		bacARN("aws", testRegion, testAccountID, "ab-test", "ab"),
 	} {
 		if _, err := st.GetResource(store.ResourceID("aws", testAccountID, arn)); err != nil {
 			t.Errorf("%s missing after fan-out error: %v", arn, err)

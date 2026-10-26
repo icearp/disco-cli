@@ -108,7 +108,7 @@ func resolveEntityResolutionMatchingWorkflowRefs(acct *account, st *store.Store)
 					continue
 				}
 				seenBucket[bucket] = struct{}{}
-				bARN := "arn:aws:s3:::" + bucket
+				bARN := s3BucketARN(acct.partition(), bucket)
 				tgt := store.ResourceID("aws", acct.ID, bARN)
 				if !bucketSet[tgt] {
 					continue

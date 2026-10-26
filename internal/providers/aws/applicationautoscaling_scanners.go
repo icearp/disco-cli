@@ -54,8 +54,8 @@ type applicationAutoScalingAPI interface {
 // applicationAutoScalingScalableTargetNativeID synthesizes the NativeID for
 // a scalable target. The SDK exposes no ARN; uniqueness is the
 // (namespace, ResourceId, ScalableDimension) triple.
-func applicationAutoScalingScalableTargetNativeID(region, acct, namespace, resourceID, dimension string) string {
-	return fmt.Sprintf("arn:aws:application-autoscaling:%s:%s:scalable-target/%s/%s/%s", region, acct, namespace, resourceID, dimension)
+func applicationAutoScalingScalableTargetNativeID(partition, region, acct, namespace, resourceID, dimension string) string {
+	return arnFor(partition, "application-autoscaling", region, acct, "scalable-target/"+namespace+"/"+resourceID+"/"+dimension)
 }
 
 // scanApplicationAutoScaling discovers Application Auto Scaling scalable
@@ -142,7 +142,7 @@ func listApplicationAutoScalingScalableTargets(ctx context.Context, client appli
 			if resourceID == "" || dimension == "" {
 				continue
 			}
-			nativeID := applicationAutoScalingScalableTargetNativeID(region, acct.ID, string(ns), resourceID, dimension)
+			nativeID := applicationAutoScalingScalableTargetNativeID(acct.partition(), region, acct.ID, string(ns), resourceID, dimension)
 			name := resourceID
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",

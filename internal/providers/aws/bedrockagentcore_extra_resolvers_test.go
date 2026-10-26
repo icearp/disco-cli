@@ -7,8 +7,8 @@ import (
 )
 
 func TestResolveBACGatewayChildParents(t *testing.T) {
-	gw1 := bacARN(testRegion, testAccountID, "gateway", "gw-1")
-	gw2 := bacARN(testRegion, testAccountID, "gateway", "gw-1x")
+	gw1 := bacARN("aws", testRegion, testAccountID, "gateway", "gw-1")
+	gw2 := bacARN("aws", testRegion, testAccountID, "gateway", "gw-1x")
 	cases := []struct {
 		name      string
 		resolve   func(*account, *store.Store) error

@@ -25,8 +25,8 @@ type autoScalingPlansAPI interface {
 // autoScalingPlanARN synthesizes a NativeID for a scaling plan. AWS issues
 // no ARN on the SDK shape; identity is (name, version) per AWS docs. Synth
 // shape mirrors the parent-child path precedent.
-func autoScalingPlanARN(region, accountID, name string, version int64) string {
-	return fmt.Sprintf("arn:aws:autoscaling:%s:%s:scalingPlan/%s/%d", region, accountID, name, version)
+func autoScalingPlanARN(partition, region, accountID, name string, version int64) string {
+	return arnFor(partition, "autoscaling", region, accountID, fmt.Sprintf("scalingPlan/%s/%d", name, version))
 }
 
 // scanAutoScalingPlans paginates DescribeScalingPlans via manual NextToken
@@ -56,7 +56,7 @@ func scanAutoScalingPlansEntities(ctx context.Context, client autoScalingPlansAP
 			if p.ScalingPlanVersion != nil {
 				version = *p.ScalingPlanVersion
 			}
-			arn := autoScalingPlanARN(region, acct.ID, name, version)
+			arn := autoScalingPlanARN(acct.partition(), region, acct.ID, name, version)
 			status := string(p.StatusCode)
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",

@@ -10,9 +10,9 @@ import (
 func TestResolveIoTSWAssetToModel(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	mARN := iotSWARN(testRegion, acct.ID, "asset-model", "m-1")
+	mARN := iotSWARN("aws", testRegion, acct.ID, "asset-model", "m-1")
 	mID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWAssetModel, mARN, testRegion, "{}")
-	aARN := iotSWARN(testRegion, acct.ID, "asset", "a-1")
+	aARN := iotSWARN("aws", testRegion, acct.ID, "asset", "a-1")
 	aID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWAsset, aARN, testRegion, `{"AssetModelId":"m-1"}`)
 	if err := resolveIoTSWAssetToModel(acct, st); err != nil {
 		t.Fatalf("resolveIoTSWAssetToModel: %v", err)
@@ -24,14 +24,14 @@ func TestResolveIoTSWAssetToModel(t *testing.T) {
 func TestResolveIoTSWAccessPolicyTarget(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	pARN := iotSWARN(testRegion, acct.ID, "portal", "p-1")
+	pARN := iotSWARN("aws", testRegion, acct.ID, "portal", "p-1")
 	pID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWPortal, pARN, testRegion, "{}")
-	prjARN := iotSWARN(testRegion, acct.ID, "project", "prj-1")
+	prjARN := iotSWARN("aws", testRegion, acct.ID, "project", "prj-1")
 	prjID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWProject, prjARN, testRegion, "{}")
-	apPortalARN := iotSWARN(testRegion, acct.ID, "access-policy", "ap-1")
+	apPortalARN := iotSWARN("aws", testRegion, acct.ID, "access-policy", "ap-1")
 	apPortalID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWAccessPolicy, apPortalARN, testRegion,
 		`{"Resource":{"Portal":{"Id":"p-1"}}}`)
-	apPrjARN := iotSWARN(testRegion, acct.ID, "access-policy", "ap-2")
+	apPrjARN := iotSWARN("aws", testRegion, acct.ID, "access-policy", "ap-2")
 	apPrjID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWAccessPolicy, apPrjARN, testRegion,
 		`{"Resource":{"Project":{"Id":"prj-1"}}}`)
 	if err := resolveIoTSWAccessPolicyTarget(acct, st); err != nil {
@@ -48,7 +48,7 @@ func TestResolveIoTSWPortalRole(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/iotsw-portal", acct.ID)
 	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
-	pARN := iotSWARN(testRegion, acct.ID, "portal", "p-1")
+	pARN := iotSWARN("aws", testRegion, acct.ID, "portal", "p-1")
 	pID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWPortal, pARN, testRegion,
 		fmt.Sprintf(`{"RoleArn":%q}`, roleARN))
 	if err := resolveIoTSWPortalRole(acct, st); err != nil {
@@ -73,7 +73,7 @@ func TestResolveIoTSWGatewayThing(t *testing.T) {
 		t.Fatalf("upsert thing: %v", err)
 	}
 	thingID := store.ResourceID("aws", acct.ID, thingARN)
-	gARN := iotSWARN(testRegion, acct.ID, "gateway", "gw-1")
+	gARN := iotSWARN("aws", testRegion, acct.ID, "gateway", "gw-1")
 	gAttrs := fmt.Sprintf(`{"GatewayPlatform":{"GreengrassV2":{"CoreDeviceThingName":%q}}}`, thingName)
 	gID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWGateway, gARN, testRegion, gAttrs)
 	if err := resolveIoTSWGatewayThing(acct, st); err != nil {
@@ -87,9 +87,9 @@ func TestResolveIoTSWComputationModelBindings(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	cmARN := iotSWARN(testRegion, acct.ID, "computation-model", "cm-1")
-	mARN := iotSWARN(testRegion, acct.ID, "asset-model", "m-1")
-	aARN := iotSWARN(testRegion, acct.ID, "asset", "a-1")
+	cmARN := iotSWARN("aws", testRegion, acct.ID, "computation-model", "cm-1")
+	mARN := iotSWARN("aws", testRegion, acct.ID, "asset-model", "m-1")
+	aARN := iotSWARN("aws", testRegion, acct.ID, "asset", "a-1")
 	attrs := `{"ComputationModelDataBinding":{"v1":{"AssetModelProperty":{"AssetModelId":"m-1","PropertyId":"p-1"}},"v2":{"AssetProperty":{"AssetId":"a-1","PropertyId":"p-1"}}}}`
 
 	cmID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWComputationModel, cmARN, testRegion, attrs)
@@ -108,8 +108,8 @@ func TestResolveIoTSWAssetModelHierarchies(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	parentARN := iotSWARN(testRegion, acct.ID, "asset-model", "m-parent")
-	childARN := iotSWARN(testRegion, acct.ID, "asset-model", "m-child")
+	parentARN := iotSWARN("aws", testRegion, acct.ID, "asset-model", "m-parent")
+	childARN := iotSWARN("aws", testRegion, acct.ID, "asset-model", "m-child")
 	attrs := `{"AssetModelHierarchies":[{"ChildAssetModelId":"m-child"}]}`
 
 	pID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTSWAssetModel, parentARN, testRegion, attrs)
@@ -126,7 +126,7 @@ func TestResolveIoTSWDatasetRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	dARN := iotSWARN(testRegion, acct.ID, "dataset", "d-1")
+	dARN := iotSWARN("aws", testRegion, acct.ID, "dataset", "d-1")
 	kbARN := "arn:aws:bedrock:" + testRegion + ":" + testAccountID + ":knowledge-base/kb-xyz"
 	roleARN := "arn:aws:iam::" + testAccountID + ":role/iotsw-ds"
 	attrs := fmt.Sprintf(`{"DatasetSource":{"SourceDetail":{"Kendra":{"KnowledgeBaseArn":%q,"RoleArn":%q}}}}`, kbARN, roleARN)

@@ -501,7 +501,7 @@ func upsertIWParents(st *store.Store, batch []*store.Resource, label string, par
 
 // iwEventConfigParentKinds is the Service Reference ARN resource type of each
 // identifier type that is the id in that ARN
-// (arn:aws:iotwireless:{region}:{account}:{kind}/{id}). Sidewalk is the only
+// (arn:{p}:iotwireless:{region}:{account}:{kind}/{id}). Sidewalk is the only
 // partner type the model has.
 var iwEventConfigParentKinds = map[iwtypes.IdentifierType]string{
 	iwtypes.IdentifierTypeWirelessDeviceId:  "WirelessDevice",
@@ -517,12 +517,12 @@ var iwEventConfigParentKinds = map[iwtypes.IdentifierType]string{
 // (an EUI) is not the id in an ARN, so the identifier type stands in for the
 // ARN resource type (DevEui/{eui}); no IoT Wireless ARN resource type is
 // named after an identifier type, so the forms cannot collide.
-func iwEventConfigNativeID(region, accountID string, item iwtypes.EventConfigurationItem) string {
+func iwEventConfigNativeID(partition, region, accountID string, item iwtypes.EventConfigurationItem) string {
 	kind, ok := iwEventConfigParentKinds[item.IdentifierType]
 	if !ok {
 		kind = string(item.IdentifierType)
 	}
-	return "arn:aws:iotwireless:" + region + ":" + accountID + ":" + kind + "/" + sv(item.Identifier) + "/event-configuration"
+	return arnFor(partition, "iotwireless", region, accountID, kind+"/"+sv(item.Identifier)+"/event-configuration")
 }
 
 // scanIWEventConfigurations stores the event notification configuration of
@@ -550,7 +550,7 @@ func scanIWEventConfigurations(ctx context.Context, client iotWirelessAPI, acct 
 			}
 			child := containedChild{row: &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTWirelessEventConfiguration, NativeID: iwEventConfigNativeID(region, acct.ID, item),
+				Type: TypeIoTWirelessEventConfiguration, NativeID: iwEventConfigNativeID(acct.partition(), region, acct.ID, item),
 				Name: item.Identifier, Region: &region, AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
 			}}
 			if parentARN, ok := parents[item.IdentifierType][sv(item.Identifier)]; ok {

@@ -126,7 +126,7 @@ func (s *stubIMI) ListManagedThingAccountAssociations(_ context.Context, in *iot
 
 type imiScanFn func(context.Context, iotManagedIntegrationsAPI, *account, string, *store.Store, string) (int, int, error)
 
-func imiNID(kind, id string) string { return imiARN(testRegion, testAccountID, kind, id) }
+func imiNID(kind, id string) string { return imiARN("aws", testRegion, testAccountID, kind, id) }
 
 // imiCase describes one account-wide sub-scanner: fill installs two pages
 // (page 1 carries a valid item plus one lacking its identity field, page 2 one

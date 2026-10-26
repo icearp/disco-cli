@@ -63,7 +63,7 @@ func resolveS3FilesFileSystemRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if b := sv(attrs.Bucket); b != "" {
-			bArn := "arn:aws:s3:::" + b
+			bArn := s3BucketARN(acct.partition(), b)
 			tgt := store.ResourceID("aws", acct.ID, bArn)
 			if bucketSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {

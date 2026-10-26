@@ -93,11 +93,11 @@ func passthrough(physID, _, _, _ string) string { return physID }
 var cfnTypeMap = map[string]cfnTypeBinding{
 	"AWS::S3::Bucket": {
 		discoType: TypeS3Bucket,
-		toNativeID: func(name, _, _, _ string) string {
+		toNativeID: func(name, partition, _, _ string) string {
 			if name == "" {
 				return ""
 			}
-			return "arn:aws:s3:::" + name
+			return s3BucketARN(partition, name)
 		},
 	},
 	"AWS::IAM::Role": {

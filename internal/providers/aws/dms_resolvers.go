@@ -102,9 +102,9 @@ func resolveDMSEndpointRefs(acct *account, st *store.Store) error {
 
 // dmsReplicationSubnetGroupARNFromName synthesizes the subnet group ARN from
 // its identifier — DMS exposes only the bare identifier on ReplicationInstance.
-// Shape: `arn:aws:dms:{region}:{acct}:subgrp:{identifier}`.
-func dmsReplicationSubnetGroupARNFromName(region, acctID, name string) string {
-	return fmt.Sprintf("arn:aws:dms:%s:%s:subgrp:%s", region, acctID, name)
+// Shape: `arn:{p}:dms:{region}:{acct}:subgrp:{identifier}`.
+func dmsReplicationSubnetGroupARNFromName(partition, region, acctID, name string) string {
+	return arnFor(partition, "dms", region, acctID, "subgrp:"+name)
 }
 
 func resolveDMSReplicationInstanceRefs(acct *account, st *store.Store) error {
@@ -151,7 +151,7 @@ func resolveDMSReplicationInstanceRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.ReplicationSubnetGroup != nil {
 			if name := sv(attrs.ReplicationSubnetGroup.ReplicationSubnetGroupIdentifier); name != "" {
-				tgtID := store.ResourceID("aws", acct.ID, dmsReplicationSubnetGroupARNFromName(region, acct.ID, name))
+				tgtID := store.ResourceID("aws", acct.ID, dmsReplicationSubnetGroupARNFromName(acct.partition(), region, acct.ID, name))
 				if rsgSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 						return fmt.Errorf("upsert dms-ri→rsg: %w", err)

@@ -51,7 +51,7 @@ func snsPhone(phone string) snstypes.PhoneNumberInformation {
 }
 
 func snsPhoneID(phone string) string {
-	return snsOriginationNumberNativeID(testRegion, testAccountID, phone)
+	return snsOriginationNumberNativeID("aws", testRegion, testAccountID, phone)
 }
 
 // snsTwoPages maps a call's NextToken to the page it asks for: 0 without
@@ -100,7 +100,7 @@ func snsClient(h map[string]func(any) (any, error)) *sns.Client {
 }
 
 func TestSNSOriginationNumberNativeID(t *testing.T) {
-	got := snsOriginationNumberNativeID("eu-west-1", "111122223333", snsPhone1)
+	got := snsOriginationNumberNativeID("aws", "eu-west-1", "111122223333", snsPhone1)
 	if want := "arn:aws:sns:eu-west-1:111122223333:origination-number/+12065550100"; got != want {
 		t.Errorf("NativeID = %q; want %q", got, want)
 	}

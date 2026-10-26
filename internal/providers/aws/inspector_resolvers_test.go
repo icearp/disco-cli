@@ -19,7 +19,7 @@ func TestResolveInspector2MemberOrgAccount_HappyPath(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	memberNativeID := inspector2MemberNativeID(testRegion, testAccountID, testInspector2Member)
+	memberNativeID := inspector2MemberNativeID("aws", testRegion, testAccountID, testInspector2Member)
 	memberAttrs := fmt.Sprintf(`{"AccountId":%q,"RelationshipStatus":"ENABLED"}`, testInspector2Member)
 	memberID := upsertTestResource(t, st, "aws", acct.ID, TypeInspector2Member, memberNativeID, testRegion, memberAttrs)
 
@@ -43,7 +43,7 @@ func TestResolveInspector2MemberOrgAccount_FKSafe(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	memberNativeID := inspector2MemberNativeID(testRegion, testAccountID, testInspector2Member)
+	memberNativeID := inspector2MemberNativeID("aws", testRegion, testAccountID, testInspector2Member)
 	memberAttrs := fmt.Sprintf(`{"AccountId":%q}`, testInspector2Member)
 	memberID := upsertTestResource(t, st, "aws", acct.ID, TypeInspector2Member, memberNativeID, testRegion, memberAttrs)
 
@@ -67,14 +67,14 @@ func TestResolveInspector2MemberOrgAccount_MalformedAttrs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 
 	upsertTestResource(t, st, "aws", acct.ID, TypeInspector2Member,
-		inspector2MemberNativeID(testRegion, testAccountID, "888888888888"),
+		inspector2MemberNativeID("aws", testRegion, testAccountID, "888888888888"),
 		testRegion, `not json`)
 	b, err := json.Marshal(i2types.Member{AccountId: sdkaws.String(testInspector2Member)})
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}
 	memberID := upsertTestResource(t, st, "aws", acct.ID, TypeInspector2Member,
-		inspector2MemberNativeID(testRegion, testAccountID, testInspector2Member), testRegion, string(b))
+		inspector2MemberNativeID("aws", testRegion, testAccountID, testInspector2Member), testRegion, string(b))
 	orgAcctID := seedI2OrgAccount(t, st, testInspector2Member)
 
 	err = resolveInspector2MemberOrgAccount(acct, st)
@@ -94,7 +94,7 @@ func seedI2DelegatedAdmin(t *testing.T, st *store.Store, adminID string, el i2ty
 		t.Fatalf("marshal: %v", err)
 	}
 	return upsertTestResource(t, st, "aws", testAccountID, TypeInspector2DelegatedAdminAccount,
-		inspector2DelegatedAdminNativeID(testRegion, testAccountID, adminID), testRegion, string(b))
+		inspector2DelegatedAdminNativeID("aws", testRegion, testAccountID, adminID), testRegion, string(b))
 }
 
 // seedI2OrgAccount stores an Organizations account row and returns its id.
@@ -149,7 +149,7 @@ func TestResolveInspector2DelegatedAdminOrgAccount_NoOrgTree(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	adminID := seedI2DelegatedAdmin(t, st, testInspector2Member, i2types.DelegatedAdminAccount{AccountId: sdkaws.String(testInspector2Member)})
 	upsertTestResource(t, st, "aws", acct.ID, TypeInspector2DelegatedAdminAccount,
-		inspector2DelegatedAdminNativeID(testRegion, testAccountID, "888888888888"), testRegion, `not json`)
+		inspector2DelegatedAdminNativeID("aws", testRegion, testAccountID, "888888888888"), testRegion, `not json`)
 
 	if err := resolveInspector2DelegatedAdminOrgAccount(acct, st); err != nil {
 		t.Fatalf("resolveInspector2DelegatedAdminOrgAccount: %v", err)
@@ -166,7 +166,7 @@ func TestResolveInspector2DelegatedAdminOrgAccount_DecodeErrorKeepsOtherEdges(t 
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeInspector2DelegatedAdminAccount,
-		inspector2DelegatedAdminNativeID(testRegion, testAccountID, "888888888888"), testRegion, `not json`)
+		inspector2DelegatedAdminNativeID("aws", testRegion, testAccountID, "888888888888"), testRegion, `not json`)
 	adminID := seedI2DelegatedAdmin(t, st, testInspector2Member, i2types.DelegatedAdminAccount{AccountId: sdkaws.String(testInspector2Member)})
 	orgAcctID := seedI2OrgAccount(t, st, testInspector2Member)
 

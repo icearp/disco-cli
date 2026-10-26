@@ -50,9 +50,9 @@ func scanComputeOptimizer(ctx context.Context, acct *account, region string, st 
 // preference: the API issues no ARN, and a preference is identified by its
 // resource type and scope. The scope value goes last because a ResourceArn
 // scope's value is an ARN.
-func computeOptimizerPreferenceNativeID(region, accountID string, resourceType cotypes.ResourceType, scopeName cotypes.ScopeName, scopeValue string) string {
-	return "arn:aws:compute-optimizer:" + region + ":" + accountID + ":recommendation-preferences/" +
-		string(resourceType) + "/" + string(scopeName) + "/" + scopeValue
+func computeOptimizerPreferenceNativeID(partition, region, accountID string, resourceType cotypes.ResourceType, scopeName cotypes.ScopeName, scopeValue string) string {
+	return arnFor(partition, "compute-optimizer", region, accountID,
+		"recommendation-preferences/"+string(resourceType)+"/"+string(scopeName)+"/"+scopeValue)
 }
 
 // scanComputeOptimizerPreferences lists the recommendation preferences of
@@ -120,7 +120,7 @@ func listComputeOptimizerPreferences(ctx context.Context, client computeOptimize
 			rows = append(rows, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:           TypeComputeOptimizerRecommendationPreference,
-				NativeID:       computeOptimizerPreferenceNativeID(region, acct.ID, rt, p.Scope.Name, sv(p.Scope.Value)),
+				NativeID:       computeOptimizerPreferenceNativeID(acct.partition(), region, acct.ID, rt, p.Scope.Name, sv(p.Scope.Value)),
 				Region:         &region,
 				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			})

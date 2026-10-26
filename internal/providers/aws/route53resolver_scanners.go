@@ -130,8 +130,8 @@ func scanR53RRegionPhases(ctx context.Context, client route53ResolverAPI, acct *
 	return total, inserted, parents, nil
 }
 
-func r53rARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:route53resolver:%s:%s:%s/%s", region, acct, kind, id)
+func r53rARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "route53resolver", region, acct, kind+"/"+id)
 }
 
 func scanR53RFirewallDomainLists(ctx context.Context, client route53ResolverAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -407,7 +407,7 @@ func scanR53RResolverConfigs(ctx context.Context, client route53ResolverAPI, acc
 			if rid == "" {
 				continue
 			}
-			arn := r53rARN(region, acct.ID, "resolver-config", rid)
+			arn := r53rARN(acct.partition(), region, acct.ID, "resolver-config", rid)
 			label := rid
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -436,7 +436,7 @@ func scanR53RResolverDnssecConfigs(ctx context.Context, client route53ResolverAP
 			if rid == "" {
 				continue
 			}
-			arn := r53rARN(region, acct.ID, "resolver-dnssec-config", rid)
+			arn := r53rARN(acct.partition(), region, acct.ID, "resolver-dnssec-config", rid)
 			label := rid
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -540,7 +540,7 @@ func scanR53RResolverQueryLogConfigAssocs(ctx context.Context, client route53Res
 			if id == "" {
 				continue
 			}
-			arn := r53rARN(region, acct.ID, "resolver-query-log-config-association", id)
+			arn := r53rARN(acct.partition(), region, acct.ID, "resolver-query-log-config-association", id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -603,7 +603,7 @@ func scanR53RResolverRuleAssocs(ctx context.Context, client route53ResolverAPI, 
 			if id == "" {
 				continue
 			}
-			arn := r53rARN(region, acct.ID, "resolver-rule-association", id)
+			arn := r53rARN(acct.partition(), region, acct.ID, "resolver-rule-association", id)
 			label := sv(a.Name)
 			if label == "" {
 				label = id
@@ -640,7 +640,7 @@ func scanR53RFirewallConfigs(ctx context.Context, client route53ResolverAPI, acc
 			if id == "" {
 				continue
 			}
-			arn := r53rARN(region, acct.ID, "firewall-config", id)
+			arn := r53rARN(acct.partition(), region, acct.ID, "firewall-config", id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

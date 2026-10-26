@@ -150,7 +150,7 @@ func scanSDInstances(ctx context.Context, client serviceDiscoveryAPI, acct *acco
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:servicediscovery:%s:%s:service/%s/instance/%s", region, acct.ID, sid, id)
+			arn := arnFor(acct.partition(), "servicediscovery", region, acct.ID, "service/"+sid+"/instance/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

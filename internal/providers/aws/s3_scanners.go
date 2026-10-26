@@ -67,7 +67,7 @@ func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) 
 	var batch []*store.Resource
 	for _, b := range out.Buckets {
 		name := sv(b.Name)
-		arn := s3BucketARN(name)
+		arn := s3BucketARN(acct.partition(), name)
 		r := &store.Resource{
 			Provider:       "aws",
 			AccountID:      acct.ID,
@@ -220,7 +220,7 @@ func s3BucketConfigFanOut(
 ) (int, int, error) {
 	parents := make([]childParent, 0, len(homed))
 	for name := range homed {
-		parents = append(parents, childParent{id: name, arn: s3BucketARN(name)})
+		parents = append(parents, childParent{id: name, arn: s3BucketARN(acct.partition(), name)})
 	}
 	return childFanOut(ctx, st, acct, sv(regionGlobal), op, parents, s3BucketGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
@@ -228,7 +228,7 @@ func s3BucketConfigFanOut(
 		})
 }
 
-func s3BucketARN(name string) string { return "arn:aws:s3:::" + name }
+func s3BucketARN(partition, name string) string { return arnFor(partition, "s3", "", "", name) }
 
 // s3BucketConfigRow builds the row for one configuration of bucket. The
 // configurations have no ARN, so the NativeID is {bucketARN}/<kind>/{id};
@@ -243,7 +243,7 @@ func s3BucketConfigRow(acct *account, scanID, typ, kind, bucket string, id *stri
 		AccountName:    &acct.Name,
 		Region:         regionGlobal,
 		Type:           typ,
-		NativeID:       s3BucketARN(bucket) + "/" + kind + "/" + *id,
+		NativeID:       s3BucketARN(acct.partition(), bucket) + "/" + kind + "/" + *id,
 		Name:           id,
 		Status:         nonEmptyPtr(status),
 		AttributesJSON: mustJSON(cfg),
@@ -454,7 +454,7 @@ func scanS3BucketPolicies(ctx context.Context, acct *account, client s3API, buck
 				}
 				return fmt.Errorf("s3:GetBucketPolicy %s: %w", name, err)
 			}
-			arn := s3BucketARN(name) + "/policy"
+			arn := s3BucketARN(acct.partition(), name) + "/policy"
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,

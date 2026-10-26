@@ -17,7 +17,7 @@ import (
 // resource that does not exist. New code builds ARNs through the aws_arn.go
 // helpers with the account's partition; the ceiling only
 // falls.
-const commercialARNLiteralCeiling = 473
+const commercialARNLiteralCeiling = 310
 
 // isCommercialARNLiteral reports whether a string literal's value hard-codes
 // the aws partition: it contains "arn:aws:" or is exactly "arn:aws" (the bare
@@ -85,42 +85,10 @@ func TestCommercialARNLiteralRatchet(t *testing.T) {
 	}
 }
 
-// partitionCores returns the ARN builders in aws_arn.go that take the
-// partition as their first parameter, read from the source so a new core is
-// guarded without a list to update.
-func partitionCores(t *testing.T) map[string]bool {
+// productionFiles parses every non-test .go file of the package.
+func productionFiles(t *testing.T, fset *token.FileSet) []*ast.File {
 	t.Helper()
-	file, err := parser.ParseFile(token.NewFileSet(), "aws_arn.go", nil, parser.SkipObjectResolution)
-	if err != nil {
-		t.Fatalf("parse aws_arn.go: %v", err)
-	}
-	cores := map[string]bool{}
-	for _, d := range file.Decls {
-		fd, ok := d.(*ast.FuncDecl)
-		if !ok || fd.Recv != nil || len(fd.Type.Params.List) == 0 {
-			continue
-		}
-		if first := fd.Type.Params.List[0]; len(first.Names) > 0 && first.Names[0].Name == "partition" {
-			cores[fd.Name.Name] = true
-		}
-	}
-	return cores
-}
-
-// TestPartitionArgumentIsNeverALiteral fails when production code passes a
-// string literal as the partition of an aws_arn.go builder. The partition is
-// the account's (acct.partition()); a literal "aws" builds the commercial form
-// in every partition and escapes TestCommercialARNLiteralRatchet, which only
-// sees literals that already spell "arn:aws:".
-func TestPartitionArgumentIsNeverALiteral(t *testing.T) {
-	cores := partitionCores(t)
-	for _, want := range []string{"arnFor", "ec2ARNIn", "apigatewayARNIn"} {
-		if !cores[want] {
-			t.Fatalf("partitionCores() = %v; missing %s, so the derivation read the wrong file or parameter", cores, want)
-		}
-	}
-	fset := token.NewFileSet()
-	calls := 0
+	var files []*ast.File
 	err := filepath.WalkDir(".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -133,29 +101,91 @@ func TestPartitionArgumentIsNeverALiteral(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		ast.Inspect(file, func(n ast.Node) bool {
-			call, ok := n.(*ast.CallExpr)
-			if !ok || len(call.Args) == 0 {
-				return true
-			}
-			fn, ok := call.Fun.(*ast.Ident)
-			if !ok || !cores[fn.Name] {
-				return true
-			}
-			calls++
-			if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-				t.Errorf("%s: %s(%s, …) hard-codes the partition; pass acct.partition()",
-					fset.Position(lit.Pos()), fn.Name, lit.Value)
-			}
-			return true
-		})
+		files = append(files, file)
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walk package sources: %v", err)
 	}
+	return files
+}
+
+// partitionTakers returns, by name, the package's functions and methods whose
+// first parameter is named partition, read from the source so a new builder
+// is guarded without a list to update.
+func partitionTakers(files []*ast.File) (funcs, methods map[string]bool) {
+	funcs, methods = map[string]bool{}, map[string]bool{}
+	for _, file := range files {
+		for _, d := range file.Decls {
+			fd, ok := d.(*ast.FuncDecl)
+			if !ok || len(fd.Type.Params.List) == 0 {
+				continue
+			}
+			first := fd.Type.Params.List[0]
+			if len(first.Names) == 0 || first.Names[0].Name != "partition" {
+				continue
+			}
+			if fd.Recv != nil {
+				methods[fd.Name.Name] = true
+			} else {
+				funcs[fd.Name.Name] = true
+			}
+		}
+	}
+	return funcs, methods
+}
+
+// TestPartitionArgumentIsNeverALiteral fails when production code passes a
+// string literal as the partition of any function or method in the package
+// that takes one first. The partition is the account's (acct.partition()); a
+// literal "aws" builds the commercial form in every partition and escapes
+// TestCommercialARNLiteralRatchet, which only sees literals that already
+// spell "arn:aws:". Methods are matched by name alone, so a same-named method
+// of another type called with a literal first argument also fails.
+func TestPartitionArgumentIsNeverALiteral(t *testing.T) {
+	fset := token.NewFileSet()
+	files := productionFiles(t, fset)
+	funcs, methods := partitionTakers(files)
+	for _, want := range []string{"arnFor", "ec2ARNIn", "s3BucketARN", "codeDeployARN"} {
+		if !funcs[want] {
+			t.Fatalf("partitionTakers() funcs = %v; missing %s, so the derivation read the wrong files or parameter", funcs, want)
+		}
+	}
+	if !methods["refs"] {
+		t.Fatalf("partitionTakers() methods = %v; missing mlRefAttrs.refs", methods)
+	}
+	calls := 0
+	for _, file := range files {
+		ast.Inspect(file, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok || len(call.Args) == 0 {
+				return true
+			}
+			var name string
+			switch fn := call.Fun.(type) {
+			case *ast.Ident:
+				if !funcs[fn.Name] {
+					return true
+				}
+				name = fn.Name
+			case *ast.SelectorExpr:
+				if !methods[fn.Sel.Name] {
+					return true
+				}
+				name = fn.Sel.Name
+			default:
+				return true
+			}
+			calls++
+			if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+				t.Errorf("%s: %s(%s, …) hard-codes the partition; pass acct.partition()",
+					fset.Position(lit.Pos()), name, lit.Value)
+			}
+			return true
+		})
+	}
 	if calls == 0 {
-		t.Fatal("found no calls to the partition cores; the walk most likely read no files")
+		t.Fatal("found no calls to functions taking a partition; the walk most likely read no files")
 	}
 }
 

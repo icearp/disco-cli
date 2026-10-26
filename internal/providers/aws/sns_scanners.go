@@ -229,8 +229,8 @@ func scanSNSPlatformApplications(ctx context.Context, client snsAPI, acct *accou
 // PhoneNumber @sensitive, yet it is the id and Name: redaction is for
 // credentials, and this is the account's own sending number (as for
 // smsvoice phone numbers and location's).
-func snsOriginationNumberNativeID(region, accountID, phoneNumber string) string {
-	return "arn:aws:sns:" + region + ":" + accountID + ":origination-number/" + phoneNumber
+func snsOriginationNumberNativeID(partition, region, accountID, phoneNumber string) string {
+	return arnFor(partition, "sns", region, accountID, "origination-number/"+phoneNumber)
 }
 
 // scanSNSOriginationNumbers stores the account's dedicated SMS origination
@@ -252,7 +252,7 @@ func scanSNSOriginationNumbers(ctx context.Context, client snsAPI, acct *account
 				}
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeSNSOriginationNumber, NativeID: snsOriginationNumberNativeID(region, acct.ID, phone),
+					Type: TypeSNSOriginationNumber, NativeID: snsOriginationNumberNativeID(acct.partition(), region, acct.ID, phone),
 					Name: &phone, Region: &region, Status: nonEmptyPtr(sv(n.Status)),
 					CreatedAt: tp(n.CreatedAt), AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
 				})

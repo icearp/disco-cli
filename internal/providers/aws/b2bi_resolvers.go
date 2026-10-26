@@ -59,7 +59,7 @@ func resolveB2BICapabilityS3(acct *account, st *store.Store) error {
 				continue
 			}
 			seen[b] = struct{}{}
-			bARN := "arn:aws:s3:::" + b
+			bARN := s3BucketARN(acct.partition(), b)
 			tgt := store.ResourceID("aws", acct.ID, bARN)
 			if !bucketSet[tgt] {
 				continue

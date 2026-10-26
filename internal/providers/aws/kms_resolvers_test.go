@@ -68,7 +68,7 @@ const (
 func kmsStoreRow(t *testing.T, st *store.Store, ks kmstypes.CustomKeyStoresListEntry) string {
 	t.Helper()
 	return upsertTestResource(t, st, "aws", testAccountID, TypeKMSCustomKeyStore,
-		kmsCustomKeyStoreNativeID(testRegion, testAccountID, sdkaws.ToString(ks.CustomKeyStoreId)), testRegion, mustJSON(ks))
+		kmsCustomKeyStoreNativeID("aws", testRegion, testAccountID, sdkaws.ToString(ks.CustomKeyStoreId)), testRegion, mustJSON(ks))
 }
 
 func kmsRelsFrom(t *testing.T, st *store.Store, id string) []store.Relationship {
@@ -148,7 +148,7 @@ func TestResolveKMSCustomKeyStoreBackends_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeCloudHSMCluster, kmsTestClusterARN, testRegion, "{}")
-	id := upsertTestResource(t, st, "aws", acct.ID, TypeKMSCustomKeyStore, kmsCustomKeyStoreNativeID(testRegion, acct.ID, "cks-empty"), testRegion, "{}")
+	id := upsertTestResource(t, st, "aws", acct.ID, TypeKMSCustomKeyStore, kmsCustomKeyStoreNativeID("aws", testRegion, acct.ID, "cks-empty"), testRegion, "{}")
 	if err := resolveKMSCustomKeyStoreBackends(acct, st); err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestResolveKMSCustomKeyStoreBackends_NoAttrs(t *testing.T) {
 func TestResolveKMSCustomKeyStoreBackends_DecodeErrorReturned(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	upsertTestResource(t, st, "aws", acct.ID, TypeKMSCustomKeyStore, kmsCustomKeyStoreNativeID(testRegion, acct.ID, "cks-bad"), testRegion, `{"CloudHsmClusterId":7}`)
+	upsertTestResource(t, st, "aws", acct.ID, TypeKMSCustomKeyStore, kmsCustomKeyStoreNativeID("aws", testRegion, acct.ID, "cks-bad"), testRegion, `{"CloudHsmClusterId":7}`)
 	if err := resolveKMSCustomKeyStoreBackends(acct, st); err == nil {
 		t.Fatal("resolve: nil error; want the decode error")
 	}

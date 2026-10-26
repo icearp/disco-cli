@@ -289,8 +289,8 @@ func resolveBedrockARPolicyVersion(acct *account, st *store.Store) error {
 // bedrockGuardrailARN rebuilds the canonical guardrail ARN.
 // AgentSummary.GuardrailConfiguration carries either the bare ID or the full
 // ARN — callers handle both shapes.
-func bedrockGuardrailARN(region, acct, id string) string {
-	return fmt.Sprintf("arn:aws:bedrock:%s:%s:guardrail/%s", region, acct, id)
+func bedrockGuardrailARN(partition, region, acct, id string) string {
+	return arnFor(partition, "bedrock", region, acct, "guardrail/"+id)
 }
 
 // resolveBedrockAgentRefs links each agent to the guardrail referenced via
@@ -323,7 +323,7 @@ func resolveBedrockAgentRefs(acct *account, st *store.Store) error {
 		// Handle bare-ID and full-ARN forms; build the canonical ARN.
 		gARN := ref
 		if !strings.HasPrefix(ref, "arn:") {
-			gARN = bedrockGuardrailARN(sv(r.Region), acct.ID, ref)
+			gARN = bedrockGuardrailARN(acct.partition(), sv(r.Region), acct.ID, ref)
 		}
 		gID := store.ResourceID("aws", acct.ID, gARN)
 		if !guardSet[gID] {

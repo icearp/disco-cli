@@ -672,7 +672,7 @@ func scanLogsResourcePolicies(ctx context.Context, client cwlogsAPI, acct *accou
 			name := sv(p.PolicyName)
 			// Region+account-qualified synthetic ARN: the bare policy name is unique
 			// only per (account, region), so it must carry region to be a global id.
-			nativeID := fmt.Sprintf("arn:aws:logs:%s:%s:resource-policy:%s", region, acct.ID, name)
+			nativeID := arnFor(acct.partition(), "logs", region, acct.ID, "resource-policy:"+name)
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,

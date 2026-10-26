@@ -510,7 +510,7 @@ func TestScanDirectoryServiceData_CallsScanRegion(t *testing.T) {
 	if got := regions.distinct(); !slices.Equal(got, want) {
 		t.Errorf("calls = %v; want %v", got, want)
 	}
-	if _, ok := rowsByNativeID(t, st, TypeDSDataUser)[dsDirectoryARN(region, testAccountID, "d-std")+"/user/"+dsSID("1104")]; !ok {
+	if _, ok := rowsByNativeID(t, st, TypeDSDataUser)[dsDirectoryARN("aws", region, testAccountID, "d-std")+"/user/"+dsSID("1104")]; !ok {
 		t.Errorf("no user row under the %s directory", region)
 	}
 }

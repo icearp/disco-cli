@@ -99,9 +99,9 @@ func loadSSOInstanceIndex(acct *account, st *store.Store) (*ssoInstanceIndex, er
 }
 
 // permissionSetArn → instanceArn: the instance id is encoded in the
-// permission-set ARN shape `arn:aws:sso:::permissionSet/{ssoins-id}/{ps-id}`;
-// maps back to the canonical instance ARN `arn:aws:sso:::instance/{ssoins-id}`.
-func instanceArnFromPermissionSetArn(psArn string) string {
+// permission-set ARN shape `arn:{p}:sso:::permissionSet/{ssoins-id}/{ps-id}`;
+// maps back to the canonical instance ARN `arn:{p}:sso:::instance/{ssoins-id}`.
+func instanceArnFromPermissionSetArn(partition, psArn string) string {
 	_, tail, ok := strings.Cut(psArn, ":permissionSet/")
 	if !ok {
 		return ""
@@ -110,7 +110,7 @@ func instanceArnFromPermissionSetArn(psArn string) string {
 	if !ok {
 		return ""
 	}
-	return "arn:aws:sso:::instance/" + insID
+	return arnFor(partition, "sso", "", "", "instance/"+insID)
 }
 
 // resolveSSOPermissionSetInstance emits a `contains` edge from each
@@ -132,7 +132,7 @@ func resolveSSOPermissionSetInstance(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, ps := range pSets {
-		insArn := instanceArnFromPermissionSetArn(ps.NativeID)
+		insArn := instanceArnFromPermissionSetArn(acct.partition(), ps.NativeID)
 		if insArn == "" {
 			continue
 		}
@@ -215,7 +215,7 @@ func resolveSSOAccountAssignments(acct *account, st *store.Store) error {
 			}
 		}
 
-		insArn := instanceArnFromPermissionSetArn(psArn)
+		insArn := instanceArnFromPermissionSetArn(acct.partition(), psArn)
 		identityStoreID := insIdx.identityStoreID[insArn]
 		ownerAcct := insIdx.ownerAcct[insArn]
 		if ownerAcct == "" {

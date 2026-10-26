@@ -51,8 +51,8 @@ const appInsightsPageLimit = 40
 // applicationInsightsAppNativeID synthesizes a NativeID for ApplicationInsights
 // applications. The SDK exposes no application ARN — identity is the
 // resource-group name. Shape mirrors the standard AWS service-resource form.
-func applicationInsightsAppNativeID(region, acct, rgName string) string {
-	return fmt.Sprintf("arn:aws:applicationinsights:%s:%s:application/resource-group/%s", region, acct, rgName)
+func applicationInsightsAppNativeID(partition, region, acct, rgName string) string {
+	return arnFor(partition, "applicationinsights", region, acct, "application/resource-group/"+rgName)
 }
 
 // appInsightsComponentNativeID and its siblings below build child NativeIDs:
@@ -140,7 +140,7 @@ func scanApplicationInsightsApplications(ctx context.Context, client application
 			if rg == "" {
 				continue
 			}
-			arn := applicationInsightsAppNativeID(region, acct.ID, rg)
+			arn := applicationInsightsAppNativeID(acct.partition(), region, acct.ID, rg)
 			listed = append(listed, childParent{id: rg, arn: arn})
 			name := rg
 			batch = append(batch, &store.Resource{

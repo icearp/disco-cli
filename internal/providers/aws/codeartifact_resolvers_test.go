@@ -12,7 +12,7 @@ func TestResolveCodeArtifactDomainToKMS(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	kARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc", testRegion, acct.ID)
 	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, kARN, testRegion, "{}")
-	dARN := codeArtifactDomainARN(testRegion, acct.ID, "d1")
+	dARN := codeArtifactDomainARN("aws", testRegion, acct.ID, "d1")
 	dID := upsertTestResource(t, st, "aws", acct.ID, TypeCodeArtifactDomain, dARN, testRegion, fmt.Sprintf(`{"EncryptionKey":"%s"}`, kARN))
 	if err := resolveCodeArtifactDomainToKMS(acct, st); err != nil {
 		t.Fatalf("resolveCodeArtifactDomainToKMS: %v", err)
@@ -24,7 +24,7 @@ func TestResolveCodeArtifactDomainToKMS(t *testing.T) {
 func TestResolveCodeArtifactChildrenToDomain(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	dARN := codeArtifactDomainARN(testRegion, acct.ID, "d1")
+	dARN := codeArtifactDomainARN("aws", testRegion, acct.ID, "d1")
 	dID := upsertTestResource(t, st, "aws", acct.ID, TypeCodeArtifactDomain, dARN, testRegion, "{}")
 	rARN := fmt.Sprintf("arn:aws:codeartifact:%s:%s:repository/d1/r1", testRegion, acct.ID)
 	rID := upsertTestResource(t, st, "aws", acct.ID, TypeCodeArtifactRepository, rARN, testRegion, `{"DomainName":"d1"}`)

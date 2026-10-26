@@ -38,7 +38,7 @@ func scanHealthImaging(ctx context.Context, acct *account, region string, st *st
 				if id == "" {
 					continue
 				}
-				arn = fmt.Sprintf("arn:aws:medical-imaging:%s:%s:datastore/%s", region, acct.ID, id)
+				arn = arnFor(acct.partition(), "medical-imaging", region, acct.ID, "datastore/"+id)
 			}
 			status := string(d.DatastoreStatus)
 			attrsJSON := mustJSON(d)

@@ -54,7 +54,7 @@ func scanDataZoneGroupProfiles(ctx context.Context, client dataZoneAPI, acct *ac
 					status := string(g.Status)
 					batch = append(batch, &store.Resource{
 						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeDataZoneGroupProfile, NativeID: dzARN(region, acct.ID, d.id, "group-profile", id),
+						Type: TypeDataZoneGroupProfile, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "group-profile", id),
 						Name: &name, Region: &region, Status: &status,
 						AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
 					})
@@ -89,7 +89,7 @@ func scanDataZoneUserProfiles(ctx context.Context, client dataZoneAPI, acct *acc
 					status := string(u.Status)
 					batch = append(batch, &store.Resource{
 						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeDataZoneUserProfile, NativeID: dzARN(region, acct.ID, d.id, "user-profile", id),
+						Type: TypeDataZoneUserProfile, NativeID: dzARN(acct.partition(), region, acct.ID, d.id, "user-profile", id),
 						Name: &id, Region: &region, Status: &status,
 						AttributesJSON: mustJSON(u), DiscoveredBy: scanID,
 					})

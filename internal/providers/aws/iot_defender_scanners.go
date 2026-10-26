@@ -74,7 +74,7 @@ func scanIoTAccountAuditConfiguration(ctx context.Context, client iotDefenderAPI
 		}
 		return 0, 0, fmt.Errorf("iot:DescribeAccountAuditConfiguration: %w", err)
 	}
-	arn := fmt.Sprintf("arn:aws:iot:%s:%s:account-audit-configuration", region, acct.ID)
+	arn := arnFor(acct.partition(), "iot", region, acct.ID, "account-audit-configuration")
 	name := "audit-configuration"
 	r := &store.Resource{
 		Provider:       "aws",

@@ -101,7 +101,7 @@ func resolveAuditManagerAssessmentTargets(acct *account, st *store.Store) error 
 			if attrs.Metadata.AssessmentReportsDestination != nil {
 				dest := attrs.Metadata.AssessmentReportsDestination
 				if sv(dest.DestinationType) == "S3" {
-					if bucketARN := s3BucketARNFromS3URL(sv(dest.Destination)); bucketARN != "" {
+					if bucketARN := s3BucketARNFromS3URL(acct.partition(), sv(dest.Destination)); bucketARN != "" {
 						bID := store.ResourceID("aws", acct.ID, bucketARN)
 						if _, ok := bucketIDs[bID]; ok {
 							if err := st.UpsertRelationship(a.ID, bID, store.RelUses, "directed", nil); err != nil {

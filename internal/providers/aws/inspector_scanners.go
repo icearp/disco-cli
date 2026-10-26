@@ -118,8 +118,8 @@ func scanInspector2(ctx context.Context, acct *account, region string, st *store
 // shape mirrors Detective members (`{parentARN}/member/{accountId}`) but
 // uses the delegated-admin's pseudo-ARN as the parent so multi-admin
 // rescans dedupe.
-func inspector2MemberNativeID(region, adminAccountID, memberAccountID string) string {
-	return fmt.Sprintf("arn:aws:inspector2:%s:%s:member/%s", region, adminAccountID, memberAccountID)
+func inspector2MemberNativeID(partition, region, adminAccountID, memberAccountID string) string {
+	return arnFor(partition, "inspector2", region, adminAccountID, "member/"+memberAccountID)
 }
 
 // scanInspector2Filters stores the finding filters ListFilters returns,
@@ -162,7 +162,7 @@ func scanInspector2Members(ctx context.Context, client inspector2API, acct *acco
 			if memberAcct == "" {
 				continue
 			}
-			nativeID := inspector2MemberNativeID(region, acct.ID, memberAcct)
+			nativeID := inspector2MemberNativeID(acct.partition(), region, acct.ID, memberAcct)
 			status := string(m.RelationshipStatus)
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",

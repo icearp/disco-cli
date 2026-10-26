@@ -57,7 +57,7 @@ func scanRedshiftAuthenticationProfiles(ctx context.Context, client redshiftSate
 			name := sv(p.AuthenticationProfileName)
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftAuthenticationProfile, NativeID: redshiftIDARN(region, acct.ID, "authenticationprofile", name),
+				Type: TypeRedshiftAuthenticationProfile, NativeID: redshiftIDARN(acct.partition(), region, acct.ID, "authenticationprofile", name),
 				Name: &name, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			}
 		}, "authentication profiles", "AuthenticationProfileName")
@@ -77,7 +77,7 @@ func scanRedshiftReservedNodes(ctx context.Context, client redshiftSatelliteAPI,
 			id := sv(n.ReservedNodeId)
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftReservedNode, NativeID: redshiftIDARN(region, acct.ID, "reservednode", id),
+				Type: TypeRedshiftReservedNode, NativeID: redshiftIDARN(acct.partition(), region, acct.ID, "reservednode", id),
 				Name: &id, Region: &region, Status: nonEmptyPtr(sv(n.State)), CreatedAt: tp(n.StartTime),
 				AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
 			}

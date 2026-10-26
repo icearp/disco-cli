@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 )
@@ -244,12 +246,11 @@ func isS3WebsiteEndpoint(dns string) bool {
 }
 
 // buildS3BucketNameIndex maps lowercased bucket name → bucket resource ID
-// for every scanned S3 bucket. Bucket NativeID is `arn:aws:s3:::<name>`;
-// the name is the suffix after the prefix. S3 bucket names are globally
-// unique and case-folded by AWS — the lowercasing here is only to match
-// record FQDNs (which the resolver also lowercases).
+// for every scanned S3 bucket. Bucket NativeID is `arn:{partition}:s3:::<name>`
+// in the account's partition; the name is the ARN's resource. S3 bucket names
+// are unique within a partition and case-folded by AWS — the lowercasing here
+// is only to match record FQDNs (which the resolver also lowercases).
 func buildS3BucketNameIndex(acct *account, st *store.Store) (map[string]string, error) {
-	const arnPrefix = "arn:aws:s3:::"
 	rs, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeS3Bucket},
 		Limit: util.AllResources,
@@ -259,13 +260,11 @@ func buildS3BucketNameIndex(acct *account, st *store.Store) (map[string]string, 
 	}
 	index := make(map[string]string, len(rs))
 	for _, r := range rs {
-		if !strings.HasPrefix(r.NativeID, arnPrefix) {
+		a, err := arn.Parse(r.NativeID)
+		if err != nil || a.Service != "s3" || a.Region != "" || a.AccountID != "" || a.Resource == "" {
 			continue
 		}
-		name := strings.ToLower(r.NativeID[len(arnPrefix):])
-		if name == "" {
-			continue
-		}
+		name := strings.ToLower(a.Resource)
 		index[name] = r.ID
 	}
 	return index, nil

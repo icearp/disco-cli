@@ -25,7 +25,7 @@ type elbClassicAPI interface {
 
 // scanELBClassic discovers Classic (v1) load balancers in one region.
 // Classic ELBs have no ARN in the API response; we synthesise one as
-// arn:aws:elasticloadbalancing:<region>:<accountID>:loadbalancer/<name>.
+// arn:{p}:elasticloadbalancing:<region>:<accountID>:loadbalancer/<name>.
 func scanELBClassic(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := elasticloadbalancing.NewFromConfig(acct.cfg, func(o *elasticloadbalancing.Options) { o.Region = region })
 	return scanELBClassicLoadBalancers(ctx, client, acct, region, st, scanID)
@@ -46,7 +46,7 @@ func scanELBClassicLoadBalancers(ctx context.Context, client elbClassicAPI, acct
 		for _, lb := range page.LoadBalancerDescriptions {
 			name := sv(lb.LoadBalancerName)
 			// Synthesise ARN — classic ELBs predate ARNs in the API.
-			nativeID := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/%s", region, acct.ID, name)
+			nativeID := arnFor(acct.partition(), "elasticloadbalancing", region, acct.ID, "loadbalancer/"+name)
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,

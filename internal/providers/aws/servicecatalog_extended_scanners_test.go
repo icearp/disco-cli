@@ -313,9 +313,9 @@ func TestScanServiceCatalog_PortfolioPhasesStoreRows(t *testing.T) {
 		}
 	}
 	for typ, native := range map[string]string{
-		TypeServiceCatalogPortfolioShare:                scARN(testRegion, testAccountID, "portfolio-share", "port-1/ACCOUNT/210987654321"),
-		TypeServiceCatalogPortfolioPrincipalAssociation: scARN(testRegion, testAccountID, "portfolio-principal-association", "port-1/arn:aws:iam::123456789012:role/dev"),
-		TypeServiceCatalogLaunchRoleConstraint:          scARN(testRegion, testAccountID, "constraint", "cons-1"),
+		TypeServiceCatalogPortfolioShare:                scARN("aws", testRegion, testAccountID, "portfolio-share", "port-1/ACCOUNT/210987654321"),
+		TypeServiceCatalogPortfolioPrincipalAssociation: scARN("aws", testRegion, testAccountID, "portfolio-principal-association", "port-1/arn:aws:iam::123456789012:role/dev"),
+		TypeServiceCatalogLaunchRoleConstraint:          scARN("aws", testRegion, testAccountID, "constraint", "cons-1"),
 	} {
 		if rows := rowsByNativeID(t, st, typ); len(rows) != 1 || rows[native].NativeID != native {
 			t.Errorf("%s rows = %v, want only %s", typ, rows, native)

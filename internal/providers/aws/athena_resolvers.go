@@ -137,7 +137,7 @@ func resolveAthenaWorkgroupTargets(acct *account, st *store.Store) error {
 		}
 		rc := attrs.Configuration.ResultConfiguration
 
-		if bucketARN := s3BucketARNFromS3URL(sv(rc.OutputLocation)); bucketARN != "" {
+		if bucketARN := s3BucketARNFromS3URL(acct.partition(), sv(rc.OutputLocation)); bucketARN != "" {
 			bID := store.ResourceID("aws", acct.ID, bucketARN)
 			if _, ok := bucketIDs[bID]; ok {
 				if err := st.UpsertRelationship(wg.ID, bID, store.RelUses, "directed", nil); err != nil {

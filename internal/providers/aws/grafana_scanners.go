@@ -123,7 +123,7 @@ func scanGrafanaWorkspaces(ctx context.Context, client grafanaAPI, acct *account
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:grafana:%s:%s:/workspaces/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "grafana", region, acct.ID, "/workspaces/"+id)
 			status := string(w.Status)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

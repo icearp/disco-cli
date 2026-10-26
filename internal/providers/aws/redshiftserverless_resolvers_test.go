@@ -15,7 +15,7 @@ func TestResolveRSSNamespaceRefs(t *testing.T) {
 	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, kARN, testRegion, "{}")
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/rs-svc", acct.ID)
 	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
-	nsARN := rssNamespaceARN(testRegion, acct.ID, "ns1")
+	nsARN := rssNamespaceARN("aws", testRegion, acct.ID, "ns1")
 	attrs := fmt.Sprintf(`{"KmsKeyId":"%s","IamRoles":["%s"]}`, kARN, roleARN)
 	nsID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftServerlessNamespace, nsARN, testRegion, attrs)
 	if err := resolveRSSNamespaceRefs(acct, st); err != nil {
@@ -29,7 +29,7 @@ func TestResolveRSSNamespaceRefs(t *testing.T) {
 func TestResolveRSSWorkgroupRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	nsARN := rssNamespaceARN(testRegion, acct.ID, "ns1")
+	nsARN := rssNamespaceARN("aws", testRegion, acct.ID, "ns1")
 	nsID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftServerlessNamespace, nsARN, testRegion, "{}")
 	subARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")
 	subID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subARN, testRegion, "{}")
@@ -50,7 +50,7 @@ func TestResolveRSSWorkgroupRefs(t *testing.T) {
 func TestResolveRSSSnapshotRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	nsARN := rssNamespaceARN(testRegion, acct.ID, "ns1")
+	nsARN := rssNamespaceARN("aws", testRegion, acct.ID, "ns1")
 	nsID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftServerlessNamespace, nsARN, testRegion, "{}")
 	kARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc", testRegion, acct.ID)
 	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, kARN, testRegion, "{}")
@@ -97,7 +97,7 @@ func TestResolveRSSEndpointAccessRefs_Empty(t *testing.T) {
 func TestResolveRSSRecoveryPointRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	nsARN := rssNamespaceARN(testRegion, acct.ID, "ns1")
+	nsARN := rssNamespaceARN("aws", testRegion, acct.ID, "ns1")
 	nsID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftServerlessNamespace, nsARN, testRegion, "{}")
 	rpARN := fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:recovery-point/rp-1", testRegion, acct.ID)
 	rpID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftServerlessRecoveryPoint, rpARN, testRegion,

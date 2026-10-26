@@ -86,7 +86,7 @@ func scanSQTemplateEntries(ctx context.Context, client sqTemplateAPI, acct *acco
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeServiceQuotasServiceQuotaIncreaseRequestInTemplate,
-				NativeID: sqTemplateEntryNativeID(awsRegion, acct.ID, serviceCode, quotaCode),
+				NativeID: sqTemplateEntryNativeID(acct.partition(), awsRegion, acct.ID, serviceCode, quotaCode),
 				Name:     e.QuotaName, Region: regionGlobal,
 				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			})
@@ -98,9 +98,9 @@ func scanSQTemplateEntries(ctx context.Context, client sqTemplateAPI, acct *acco
 // sqTemplateEntryNativeID builds the identity of one template entry. AWS issues
 // no ARN for it; the template holds at most one entry per (region, service
 // code, quota code), so it extends the quota's own ARN
-// (arn:aws:servicequotas:{region}:{account}:{serviceCode}/{quotaCode}, Service
+// (arn:{p}:servicequotas:{region}:{account}:{serviceCode}/{quotaCode}, Service
 // Reference) with a /request-template suffix. None of the parts can contain
 // "/" (model patterns ^[a-zA-Z][a-zA-Z0-9-]...).
-func sqTemplateEntryNativeID(awsRegion, accountID, serviceCode, quotaCode string) string {
-	return "arn:aws:servicequotas:" + awsRegion + ":" + accountID + ":" + serviceCode + "/" + quotaCode + "/request-template"
+func sqTemplateEntryNativeID(partition, awsRegion, accountID, serviceCode, quotaCode string) string {
+	return arnFor(partition, "servicequotas", awsRegion, accountID, serviceCode+"/"+quotaCode+"/request-template")
 }

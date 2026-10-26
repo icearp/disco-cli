@@ -26,13 +26,13 @@ func TestResolveBACPaymentEdges(t *testing.T) {
 	roleArn := fmt.Sprintf("arn:aws:iam::%s:role/payment-role", testAccountID)
 	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleArn, "", `{"Arn":"`+roleArn+`"}`)
 
-	mgrArn := bacARN(testRegion, testAccountID, "payment-manager", "pm-1")
+	mgrArn := bacARN("aws", testRegion, testAccountID, "payment-manager", "pm-1")
 	mgrID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockAgentCorePaymentManager, mgrArn, testRegion,
 		bacAttrs(t, bactypes.PaymentManagerSummary{
 			PaymentManagerArn: &mgrArn, PaymentManagerId: sdkaws.String("pm-1"), RoleArn: &roleArn,
 		}))
 
-	connArn := bacARN(testRegion, testAccountID, "payment-connector", "pm-1/pc-1")
+	connArn := bacARN("aws", testRegion, testAccountID, "payment-connector", "pm-1/pc-1")
 	connID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockAgentCorePaymentConnector, connArn, testRegion,
 		bacAttrs(t, bactypes.PaymentConnectorSummary{PaymentConnectorId: sdkaws.String("pc-1")}))
 
@@ -57,13 +57,13 @@ func TestResolveBACPaymentEdges_NoEdge(t *testing.T) {
 
 	// manager with RoleArn pointing at a role that was never scanned (FK-safe path)
 	unscannedRole := fmt.Sprintf("arn:aws:iam::%s:role/never-scanned", testAccountID)
-	mgrArn := bacARN(testRegion, testAccountID, "payment-manager", "pm-1")
+	mgrArn := bacARN("aws", testRegion, testAccountID, "payment-manager", "pm-1")
 	mgrID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockAgentCorePaymentManager, mgrArn, testRegion,
 		bacAttrs(t, bactypes.PaymentManagerSummary{
 			PaymentManagerArn: &mgrArn, PaymentManagerId: sdkaws.String("pm-1"), RoleArn: &unscannedRole,
 		}))
 
-	connArn := bacARN(testRegion, testAccountID, "payment-connector", "pm-missing/pc-1")
+	connArn := bacARN("aws", testRegion, testAccountID, "payment-connector", "pm-missing/pc-1")
 	connID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockAgentCorePaymentConnector, connArn, testRegion,
 		bacAttrs(t, bactypes.PaymentConnectorSummary{PaymentConnectorId: sdkaws.String("pc-1")}))
 

@@ -149,7 +149,7 @@ func scanGlueSchemaVersionMetadata(ctx context.Context, client glueAPI, versionI
 			}
 			for key, info := range out.MetadataInfoMap {
 				k := key
-				arn := fmt.Sprintf("arn:aws:glue:%s:%s:schema-version/%s/metadata/%s", region, acct.ID, vid, k)
+				arn := arnFor(acct.partition(), "glue", region, acct.ID, "schema-version/"+vid+"/metadata/"+k)
 				batch = append(batch, &store.Resource{
 					Provider:       "aws",
 					AccountID:      acct.ID,

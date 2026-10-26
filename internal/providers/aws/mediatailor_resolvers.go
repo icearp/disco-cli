@@ -27,13 +27,13 @@ func init() {
 	)
 }
 
-func mtSourceLocationARN(region, acct, name string) string {
-	return fmt.Sprintf("arn:aws:mediatailor:%s:%s:sourceLocation/%s", region, acct, name)
+func mtSourceLocationARN(partition, region, acct, name string) string {
+	return arnFor(partition, "mediatailor", region, acct, "sourceLocation/"+name)
 }
 
 // resolveMediaTailorChannelPolicyToChannel wires channel-policy → channel by
 // stripping the trailing `/policy` segment. Channel ARN:
-// `arn:aws:mediatailor:r:a:channel/{name}`; policy NativeID adds `/policy`.
+// `arn:{partition}:mediatailor:{r}:{a}:channel/{name}`; policy NativeID adds `/policy`.
 func resolveMediaTailorChannelPolicyToChannel(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeMediaTailorChannelPolicy}, Limit: util.AllResources,
@@ -92,7 +92,7 @@ func resolveMediaTailorSourcesToSourceLocation(acct *account, st *store.Store) e
 			if n == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, mtSourceLocationARN(sv(r.Region), acct.ID, n))
+			tgtID := store.ResourceID("aws", acct.ID, mtSourceLocationARN(acct.partition(), sv(r.Region), acct.ID, n))
 			if !slSet[tgtID] {
 				continue
 			}

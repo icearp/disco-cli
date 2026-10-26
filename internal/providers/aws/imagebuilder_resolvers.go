@@ -134,7 +134,7 @@ func resolveImageBuilderInfraInstanceProfile(acct *account, st *store.Store) err
 		if name == "" {
 			continue
 		}
-		ipARN := fmt.Sprintf("arn:aws:iam::%s:instance-profile/%s", acct.ID, name)
+		ipARN := arnFor(acct.partition(), "iam", "", acct.ID, "instance-profile/"+name)
 		tgtID := store.ResourceID("aws", acct.ID, ipARN)
 		if !ipSet[tgtID] {
 			continue

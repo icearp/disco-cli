@@ -247,7 +247,7 @@ func scanCassandraTypes(ctx context.Context, client cassandraAPI, ksNames []stri
 					continue
 				}
 				typeName := name
-				arn := fmt.Sprintf("arn:aws:cassandra:%s:%s:keyspace/%s/type/%s", region, acct.ID, ksName, typeName)
+				arn := arnFor(acct.partition(), "cassandra", region, acct.ID, "keyspace/"+ksName+"/type/"+typeName)
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeCassandraType, NativeID: arn,

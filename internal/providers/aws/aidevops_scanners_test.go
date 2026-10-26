@@ -32,11 +32,11 @@ func adoClient(handlers map[string]func(in any) (any, error)) *devopsagent.Clien
 }
 
 func adoSpaceARN(id string) string {
-	return aidevopsARN(testRegion, testAccountID, "agent-space", id)
+	return aidevopsARN("aws", testRegion, testAccountID, "agent-space", id)
 }
 
 func adoAssocARN(id string) string {
-	return aidevopsARN(testRegion, testAccountID, "association", id)
+	return aidevopsARN("aws", testRegion, testAccountID, "association", id)
 }
 
 // adoSeedSpaces stores the agent-space rows the children are linked under.

@@ -108,8 +108,8 @@ func scanGDCustomRuleAssociations(ctx context.Context, client guardDutyExtAPI, a
 // require RuleId and Mode), so both go in, under the rule's path in the
 // association ARN shape; RuleId's model pattern ^[a-z0-9]+(-[a-z0-9]+)*$
 // admits no "/".
-func gdRuleOrgConfigNativeID(region, accountID, ruleID string, mode gdtypes.AssociationMode) string {
-	return fmt.Sprintf("arn:aws:guardduty:%s:%s:detection-rule/custom/%s/org-configuration/%s", region, accountID, ruleID, mode)
+func gdRuleOrgConfigNativeID(partition, region, accountID, ruleID string, mode gdtypes.AssociationMode) string {
+	return arnFor(partition, "guardduty", region, accountID, "detection-rule/custom/"+ruleID+"/org-configuration/"+string(mode))
 }
 
 // scanGDCustomRuleOrgConfigurations stores the organization configurations
@@ -136,7 +136,7 @@ func scanGDCustomRuleOrgConfigurations(ctx context.Context, client guardDutyExtA
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeGuardDutyCustomDetectionRuleOrgConfiguration,
-				NativeID: gdRuleOrgConfigNativeID(region, acct.ID, ruleID, c.Mode),
+				NativeID: gdRuleOrgConfigNativeID(acct.partition(), region, acct.ID, ruleID, c.Mode),
 				Name:     &ruleID, Region: &region, Status: nonEmptyPtr(string(c.Status)), CreatedAt: tp(c.CreatedAt),
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			}

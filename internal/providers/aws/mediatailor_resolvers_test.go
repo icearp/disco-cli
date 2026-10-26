@@ -153,7 +153,7 @@ func TestResolveMediaTailorChannelPolicyToChannel(t *testing.T) {
 func TestResolveMediaTailorSourcesToSourceLocation(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	slARN := mtSourceLocationARN(testRegion, acct.ID, "sl1")
+	slARN := mtSourceLocationARN("aws", testRegion, acct.ID, "sl1")
 	slID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaTailorSourceLocation, slARN, testRegion, "{}")
 	lsARN := fmt.Sprintf("arn:aws:mediatailor:%s:%s:liveSource/sl1/ls1", testRegion, acct.ID)
 	lsID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaTailorLiveSource, lsARN, testRegion, `{"SourceLocationName":"sl1"}`)
@@ -176,7 +176,7 @@ func TestResolveMediaTailorSourcesToSourceLocation(t *testing.T) {
 func TestResolveMediaTailorSourcesToSourceLocation_UndecodableRowsReported(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	slID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaTailorSourceLocation, mtSourceLocationARN(testRegion, acct.ID, "sl1"), testRegion, "{}")
+	slID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaTailorSourceLocation, mtSourceLocationARN("aws", testRegion, acct.ID, "sl1"), testRegion, "{}")
 	sourceAttrs := mustJSON(mttypes.LiveSource{SourceLocationName: ptrStr("sl1")})
 	var good []string
 	for _, src := range []struct{ typ, kind, name, attrs string }{

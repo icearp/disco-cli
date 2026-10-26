@@ -19,8 +19,8 @@ type redshiftExtAPI interface {
 	DescribeScheduledActions(context.Context, *redshift.DescribeScheduledActionsInput, ...func(*redshift.Options)) (*redshift.DescribeScheduledActionsOutput, error)
 }
 
-func redshiftARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:redshift:%s:%s:%s:%s", region, acct, kind, id)
+func redshiftARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "redshift", region, acct, kind+":"+id)
 }
 
 func scanRedshiftClusterParameterGroups(ctx context.Context, client redshiftExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -35,7 +35,7 @@ func scanRedshiftClusterParameterGroups(ctx context.Context, client redshiftExtA
 			name := sv(p.ParameterGroupName)
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftClusterParameterGroup, NativeID: redshiftIDARN(region, acct.ID, "parametergroup", name),
+				Type: TypeRedshiftClusterParameterGroup, NativeID: redshiftIDARN(acct.partition(), region, acct.ID, "parametergroup", name),
 				Name: &name, Region: &region, AttributesJSON: mustJSON(p), TagsJSON: kvTagsJSON(p.Tags, redshiftTagKV),
 				DiscoveredBy: scanID,
 			}
@@ -55,7 +55,7 @@ func scanRedshiftEndpointAccess(ctx context.Context, client redshiftExtAPI, acct
 			name := sv(e.EndpointName)
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftEndpointAccess, NativeID: redshiftIDARN(region, acct.ID, "endpointaccess", name),
+				Type: TypeRedshiftEndpointAccess, NativeID: redshiftIDARN(acct.partition(), region, acct.ID, "endpointaccess", name),
 				Name: &name, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			}
 		}, "endpoint accesses", "EndpointName")
@@ -77,7 +77,7 @@ func scanRedshiftEndpointAuthorization(ctx context.Context, client redshiftExtAP
 			label := fmt.Sprintf("%s→%s", grantor, grantee)
 			var arn string
 			if grantor != "" && grantee != "" && cluster != "" {
-				arn = redshiftARN(region, acct.ID, "endpointauthorization", fmt.Sprintf("%s/%s/%s", cluster, grantor, grantee))
+				arn = redshiftARN(acct.partition(), region, acct.ID, "endpointauthorization", fmt.Sprintf("%s/%s/%s", cluster, grantor, grantee))
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -100,7 +100,7 @@ func scanRedshiftEventSubscriptions(ctx context.Context, client redshiftExtAPI, 
 			id := sv(e.CustSubscriptionId)
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftEventSubscription, NativeID: redshiftIDARN(region, acct.ID, "eventsubscription", id),
+				Type: TypeRedshiftEventSubscription, NativeID: redshiftIDARN(acct.partition(), region, acct.ID, "eventsubscription", id),
 				Name: &id, Region: &region, AttributesJSON: mustJSON(e), TagsJSON: kvTagsJSON(e.Tags, redshiftTagKV),
 				DiscoveredBy: scanID,
 			}
@@ -144,7 +144,7 @@ func scanRedshiftScheduledActions(ctx context.Context, client redshiftExtAPI, ac
 			name := sv(s.ScheduledActionName)
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftScheduledAction, NativeID: redshiftIDARN(region, acct.ID, "scheduledaction", name),
+				Type: TypeRedshiftScheduledAction, NativeID: redshiftIDARN(acct.partition(), region, acct.ID, "scheduledaction", name),
 				Name: &name, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 			}
 		}, "scheduled actions", "ScheduledActionName")

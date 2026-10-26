@@ -144,7 +144,7 @@ func resolveMacieClassificationJobBuckets(acct *account, st *store.Store) error 
 				if name == "" {
 					continue
 				}
-				bucketID := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+name)
+				bucketID := store.ResourceID("aws", acct.ID, s3BucketARN(acct.partition(), name))
 				if !buckets[bucketID] {
 					continue
 				}
@@ -190,7 +190,7 @@ func resolveMacieAllowListBucket(acct *account, st *store.Store) error {
 		if name == "" {
 			continue
 		}
-		bucketID := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+name)
+		bucketID := store.ResourceID("aws", acct.ID, s3BucketARN(acct.partition(), name))
 		if !buckets[bucketID] {
 			continue
 		}

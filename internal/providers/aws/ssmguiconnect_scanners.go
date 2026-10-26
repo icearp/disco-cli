@@ -19,7 +19,7 @@ func init() {
 
 // scanSSMGuiConnect captures the per-(account,region) SSM GUI Connect
 // connection recording preferences (singleton). Synth ARN:
-// arn:aws:ssm-guiconnect:{r}:{a}:preferences.
+// arn:{p}:ssm-guiconnect:{r}:{a}:preferences.
 func scanSSMGuiConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := ssmguiconnect.NewFromConfig(acct.cfg, func(o *ssmguiconnect.Options) { o.Region = region })
 
@@ -36,7 +36,7 @@ func scanSSMGuiConnect(ctx context.Context, acct *account, region string, st *st
 	if out.ConnectionRecordingPreferences == nil {
 		return 0, 0, nil
 	}
-	arn := fmt.Sprintf("arn:aws:ssm-guiconnect:%s:%s:preferences", region, acct.ID)
+	arn := arnFor(acct.partition(), "ssm-guiconnect", region, acct.ID, "preferences")
 	label := acct.ID
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

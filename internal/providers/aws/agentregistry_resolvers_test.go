@@ -21,9 +21,9 @@ func arRecordAttrs(t *testing.T, sources ...artypes.ProvenanceSummary) string {
 
 func TestResolveAgentRegistryRecordSources_LinksScannedSources(t *testing.T) {
 	st := newTestStore(t)
-	runtimeARN := bacARN(testRegion, testAccountID, "runtime", "rt-1")
-	gatewayARN := bacARN(testRegion, testAccountID, "gateway", "gw-1")
-	unscannedARN := bacARN(testRegion, testAccountID, "runtime", "rt-unscanned")
+	runtimeARN := bacARN("aws", testRegion, testAccountID, "runtime", "rt-1")
+	gatewayARN := bacARN("aws", testRegion, testAccountID, "gateway", "gw-1")
+	unscannedARN := bacARN("aws", testRegion, testAccountID, "runtime", "rt-unscanned")
 	runtimeID := upsertTestResource(t, st, "aws", testAccountID, TypeBedrockAgentCoreRuntime, runtimeARN, testRegion, "{}")
 	gatewayID := upsertTestResource(t, st, "aws", testAccountID, TypeBedrockAgentCoreGateway, gatewayARN, testRegion, "{}")
 	fromRuntime := upsertTestResource(t, st, "aws", testAccountID, TypeAgentRegistryRegistryRecord, arRecordARN("r1", "c1"), testRegion,
@@ -60,7 +60,7 @@ func TestResolveAgentRegistryRecordSources_LinksScannedSources(t *testing.T) {
 // rows their edges.
 func TestResolveAgentRegistryRecordSources_NoProvenanceAndBadAttrs(t *testing.T) {
 	st := newTestStore(t)
-	runtimeARN := bacARN(testRegion, testAccountID, "runtime", "rt-1")
+	runtimeARN := bacARN("aws", testRegion, testAccountID, "runtime", "rt-1")
 	runtimeID := upsertTestResource(t, st, "aws", testAccountID, TypeBedrockAgentCoreRuntime, runtimeARN, testRegion, "{}")
 	plain := upsertTestResource(t, st, "aws", testAccountID, TypeAgentRegistryRegistryRecord, arRecordARN("r1", "c1"), testRegion, arRecordAttrs(t))
 	empty := upsertTestResource(t, st, "aws", testAccountID, TypeAgentRegistryRegistryRecord, arRecordARN("r1", "c2"), testRegion, "{}")

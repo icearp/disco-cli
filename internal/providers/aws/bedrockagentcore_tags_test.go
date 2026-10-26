@@ -81,7 +81,9 @@ func (c *bacCalls) count(op string) int {
 	return c.ops[op]
 }
 
-func bacTestARN(kind, name string) string { return bacARN(testRegion, testAccountID, kind, name) }
+func bacTestARN(kind, name string) string {
+	return bacARN("aws", testRegion, testAccountID, kind, name)
+}
 
 // bacTagged is one type the tag read covers: its listing op and the ARN kind
 // of its two fixture resources, "tagged" and "bare".

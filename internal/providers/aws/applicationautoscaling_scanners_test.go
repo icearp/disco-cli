@@ -42,7 +42,7 @@ func (s *stubApplicationAutoScaling) DescribeScheduledActions(context.Context, *
 }
 
 func TestApplicationAutoScalingScalableTargetNativeID(t *testing.T) {
-	got := applicationAutoScalingScalableTargetNativeID("us-east-1", "111111111111", "ecs", "service/cluster/svc", "ecs:service:DesiredCount")
+	got := applicationAutoScalingScalableTargetNativeID("aws", "us-east-1", "111111111111", "ecs", "service/cluster/svc", "ecs:service:DesiredCount")
 	want := "arn:aws:application-autoscaling:us-east-1:111111111111:scalable-target/ecs/service/cluster/svc/ecs:service:DesiredCount"
 	if got != want {
 		t.Errorf("native id = %q, want %q", got, want)
@@ -71,7 +71,7 @@ func TestScanApplicationAutoScalingScalableTargets(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Errorf("total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	want := applicationAutoScalingScalableTargetNativeID(region, acct.ID, "ecs", rid, string(dim))
+	want := applicationAutoScalingScalableTargetNativeID("aws", region, acct.ID, "ecs", rid, string(dim))
 	rows, err := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeApplicationAutoScalingScalableTarget}, Limit: 100})
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)

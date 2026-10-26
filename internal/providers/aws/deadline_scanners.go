@@ -82,16 +82,16 @@ type dlChildKey struct{ farmID, id string }
 // scanner hardcodes arn:aws, so in aws-cn and aws-us-gov the NativeID is not
 // the resource's ARN and ListTagsForResource fails for each row. Fixing it is
 // a package-wide change, not a Deadline one.
-func deadlineARN(region, acct, resource string) string {
-	return fmt.Sprintf("arn:aws:deadline:%s:%s:%s", region, acct, resource)
+func deadlineARN(partition, region, acct, resource string) string {
+	return arnFor(partition, "deadline", region, acct, resource)
 }
 
-func deadlineFarmARN(region, acct, farmID string) string {
-	return deadlineARN(region, acct, "farm/"+farmID)
+func deadlineFarmARN(partition, region, acct, farmID string) string {
+	return deadlineARN(partition, region, acct, "farm/"+farmID)
 }
 
-func deadlineLicenseEndpointARN(region, acct, id string) string {
-	return deadlineARN(region, acct, "license-endpoint/"+id)
+func deadlineLicenseEndpointARN(partition, region, acct, id string) string {
+	return deadlineARN(partition, region, acct, "license-endpoint/"+id)
 }
 
 // deadlineFarmParents is the farms as the parents of the per-farm phases,
@@ -255,7 +255,7 @@ func scanDeadlineFarms(ctx context.Context, client deadlineAPI, acct *account, r
 			if id == "" {
 				return nil, "farms have an empty FarmId", cmp.Or(sv(f.DisplayName), "(a farm with no name)")
 			}
-			return deadlineRow(acct, region, scanID, TypeDeadlineFarm, deadlineFarmARN(region, acct.ID, id), cmp.Or(sv(f.DisplayName), id), f), "", ""
+			return deadlineRow(acct, region, scanID, TypeDeadlineFarm, deadlineFarmARN(acct.partition(), region, acct.ID, id), cmp.Or(sv(f.DisplayName), id), f), "", ""
 		},
 		func(f dltypes.FarmSummary) string { return sv(f.FarmId) },
 		tags, p)
@@ -297,7 +297,7 @@ func scanDeadlineFleets(ctx context.Context, client deadlineAPI, acct *account, 
 			if id == "" {
 				return nil, "fleets have an empty FleetId", cmp.Or(sv(f.DisplayName), "(a fleet with no name)") + " of farm " + farmID
 			}
-			r := deadlineRow(acct, region, scanID, TypeDeadlineFleet, deadlineFarmARN(region, acct.ID, farmID)+"/fleet/"+id, cmp.Or(sv(f.DisplayName), id), f)
+			r := deadlineRow(acct, region, scanID, TypeDeadlineFleet, deadlineFarmARN(acct.partition(), region, acct.ID, farmID)+"/fleet/"+id, cmp.Or(sv(f.DisplayName), id), f)
 			keys[r] = dlChildKey{farmID: farmID, id: id}
 			return r, "", ""
 		}, tags, p)
@@ -324,7 +324,7 @@ func scanDeadlineQueues(ctx context.Context, client deadlineAPI, acct *account, 
 			if id == "" {
 				return nil, "queues have an empty QueueId", cmp.Or(sv(q.DisplayName), "(a queue with no name)") + " of farm " + farmID
 			}
-			r := deadlineRow(acct, region, scanID, TypeDeadlineQueue, deadlineFarmARN(region, acct.ID, farmID)+"/queue/"+id, cmp.Or(sv(q.DisplayName), id), q)
+			r := deadlineRow(acct, region, scanID, TypeDeadlineQueue, deadlineFarmARN(acct.partition(), region, acct.ID, farmID)+"/queue/"+id, cmp.Or(sv(q.DisplayName), id), q)
 			keys[r] = dlChildKey{farmID: farmID, id: id}
 			return r, "", ""
 		}, tags, p)
@@ -348,7 +348,7 @@ func scanDeadlineLimits(ctx context.Context, client deadlineAPI, acct *account, 
 			if id == "" {
 				return nil, "limits have an empty LimitId", cmp.Or(sv(l.DisplayName), "(a limit with no name)") + " of farm " + farmID
 			}
-			return deadlineRow(acct, region, scanID, TypeDeadlineLimit, deadlineFarmARN(region, acct.ID, farmID)+"/limit/"+id, cmp.Or(sv(l.DisplayName), id), l), "", ""
+			return deadlineRow(acct, region, scanID, TypeDeadlineLimit, deadlineFarmARN(acct.partition(), region, acct.ID, farmID)+"/limit/"+id, cmp.Or(sv(l.DisplayName), id), l), "", ""
 		})
 }
 
@@ -368,7 +368,7 @@ func scanDeadlineStorageProfiles(ctx context.Context, client deadlineAPI, acct *
 			if id == "" {
 				return nil, "storage profiles have an empty StorageProfileId", cmp.Or(sv(sp.DisplayName), "(a storage profile with no name)") + " of farm " + farmID
 			}
-			return deadlineRow(acct, region, scanID, TypeDeadlineStorageProfile, deadlineFarmARN(region, acct.ID, farmID)+"/storage-profile/"+id, cmp.Or(sv(sp.DisplayName), id), sp), "", ""
+			return deadlineRow(acct, region, scanID, TypeDeadlineStorageProfile, deadlineFarmARN(acct.partition(), region, acct.ID, farmID)+"/storage-profile/"+id, cmp.Or(sv(sp.DisplayName), id), sp), "", ""
 		})
 }
 
@@ -389,7 +389,7 @@ func scanDeadlineQueueFleetAssociations(ctx context.Context, client deadlineAPI,
 			if qid == "" || fid == "" {
 				return nil, "queue-fleet associations have an empty QueueId or FleetId", fmt.Sprintf("queue %q fleet %q of farm %s", qid, fid, farmID)
 			}
-			arn := fmt.Sprintf("%s/queue/%s/fleet/%s/association", deadlineFarmARN(region, acct.ID, farmID), qid, fid)
+			arn := fmt.Sprintf("%s/queue/%s/fleet/%s/association", deadlineFarmARN(acct.partition(), region, acct.ID, farmID), qid, fid)
 			return deadlineRow(acct, region, scanID, TypeDeadlineQueueFleetAssociation, arn, qid+"/"+fid, a), "", ""
 		})
 }
@@ -411,7 +411,7 @@ func scanDeadlineQueueLimitAssociations(ctx context.Context, client deadlineAPI,
 			if qid == "" || lid == "" {
 				return nil, "queue-limit associations have an empty QueueId or LimitId", fmt.Sprintf("queue %q limit %q of farm %s", qid, lid, farmID)
 			}
-			arn := fmt.Sprintf("%s/queue/%s/limit/%s/association", deadlineFarmARN(region, acct.ID, farmID), qid, lid)
+			arn := fmt.Sprintf("%s/queue/%s/limit/%s/association", deadlineFarmARN(acct.partition(), region, acct.ID, farmID), qid, lid)
 			return deadlineRow(acct, region, scanID, TypeDeadlineQueueLimitAssociation, arn, qid+"/"+lid, a), "", ""
 		})
 }
@@ -457,7 +457,7 @@ func scanDeadlineLicenseEndpoints(ctx context.Context, client deadlineAPI, acct 
 			if id == "" {
 				return nil, "license endpoints have an empty LicenseEndpointId", cmp.Or(sv(le.VpcId), "(a license endpoint with no VPC)")
 			}
-			return deadlineRow(acct, region, scanID, TypeDeadlineLicenseEndpoint, deadlineLicenseEndpointARN(region, acct.ID, id), id, le), "", ""
+			return deadlineRow(acct, region, scanID, TypeDeadlineLicenseEndpoint, deadlineLicenseEndpointARN(acct.partition(), region, acct.ID, id), id, le), "", ""
 		},
 		func(le dltypes.LicenseEndpointSummary) string { return sv(le.LicenseEndpointId) },
 		tags, p)
@@ -480,7 +480,7 @@ func scanDeadlineMeteredProducts(ctx context.Context, client deadlineAPI, acct *
 			if pid == "" {
 				return nil, "metered products have an empty ProductId", cmp.Or(sv(m.Family), "(a product with no family)") + " of license endpoint " + leID
 			}
-			return deadlineRow(acct, region, scanID, TypeDeadlineMeteredProduct, deadlineLicenseEndpointARN(region, acct.ID, leID)+"/metered-product/"+pid, pid, m), "", ""
+			return deadlineRow(acct, region, scanID, TypeDeadlineMeteredProduct, deadlineLicenseEndpointARN(acct.partition(), region, acct.ID, leID)+"/metered-product/"+pid, pid, m), "", ""
 		})
 }
 
@@ -499,7 +499,7 @@ func scanDeadlineMonitors(ctx context.Context, client deadlineAPI, acct *account
 			if id == "" {
 				return nil, "monitors have an empty MonitorId", cmp.Or(sv(m.DisplayName), "(a monitor with no name)")
 			}
-			return deadlineRow(acct, region, scanID, TypeDeadlineMonitor, deadlineARN(region, acct.ID, "monitor/"+id), cmp.Or(sv(m.DisplayName), id), m), "", ""
+			return deadlineRow(acct, region, scanID, TypeDeadlineMonitor, deadlineARN(acct.partition(), region, acct.ID, "monitor/"+id), cmp.Or(sv(m.DisplayName), id), m), "", ""
 		},
 		tags, p)
 }

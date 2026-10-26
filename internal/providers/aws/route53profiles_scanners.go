@@ -105,7 +105,7 @@ func scanR53PProfileAssociations(ctx context.Context, client route53ProfilesAPI,
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:route53profiles:%s:%s:profile-association/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "route53profiles", region, acct.ID, "profile-association/"+id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRoute53ProfilesProfileAssociation, NativeID: arn,

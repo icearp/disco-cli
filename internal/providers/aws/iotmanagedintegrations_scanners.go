@@ -276,10 +276,10 @@ func scanIMIProvisioningProfiles(ctx context.Context, client iotManagedIntegrati
 // imiARN synthesizes an ARN-shaped NativeID for the types whose List element
 // carries no ARN. The shape follows the Service Reference ARN formats of the
 // service's ARN-bearing kinds, with the partition pinned to aws
-// (arn:aws:iotmanagedintegrations:{r}:{a}:{kind}/{id});
+// (arn:{p}:iotmanagedintegrations:{r}:{a}:{kind}/{id});
 // none of the kinds passed here is listed there, so these are not AWS ARNs.
-func imiARN(region, accountID, kind, id string) string {
-	return "arn:aws:iotmanagedintegrations:" + region + ":" + accountID + ":" + kind + "/" + id
+func imiARN(partition, region, accountID, kind, id string) string {
+	return arnFor(partition, "iotmanagedintegrations", region, accountID, kind+"/"+id)
 }
 
 // imiRow is the type-specific part of one stored row: nativeID "" drops the
@@ -335,7 +335,7 @@ func scanIMICloudConnectors(ctx context.Context, client iotManagedIntegrationsAP
 			if id == "" {
 				return imiRow{}
 			}
-			return imiRow{nativeID: imiARN(region, acct.ID, "cloud-connector", id), name: c.Name}
+			return imiRow{nativeID: imiARN(acct.partition(), region, acct.ID, "cloud-connector", id), name: c.Name}
 		})
 }
 
@@ -355,9 +355,9 @@ func scanIMIConnectorDestinations(ctx context.Context, client iotManagedIntegrat
 			if id == "" {
 				return imiRow{}
 			}
-			r := imiRow{nativeID: imiARN(region, acct.ID, "connector-destination", id), name: d.Name}
+			r := imiRow{nativeID: imiARN(acct.partition(), region, acct.ID, "connector-destination", id), name: d.Name}
 			if connectorID := sv(d.CloudConnectorId); connectorID != "" {
-				r.parentNativeID = imiARN(region, acct.ID, "cloud-connector", connectorID)
+				r.parentNativeID = imiARN(acct.partition(), region, acct.ID, "cloud-connector", connectorID)
 			}
 			return r
 		})
@@ -379,7 +379,7 @@ func scanIMIDestinations(ctx context.Context, client iotManagedIntegrationsAPI, 
 			if name == "" {
 				return imiRow{}
 			}
-			return imiRow{nativeID: imiARN(region, acct.ID, "destination", name), name: d.Name}
+			return imiRow{nativeID: imiARN(acct.partition(), region, acct.ID, "destination", name), name: d.Name}
 		})
 }
 
@@ -399,7 +399,7 @@ func scanIMIEventLogConfigurations(ctx context.Context, client iotManagedIntegra
 			if id == "" {
 				return imiRow{}
 			}
-			return imiRow{nativeID: imiARN(region, acct.ID, "event-log-configuration", id)}
+			return imiRow{nativeID: imiARN(acct.partition(), region, acct.ID, "event-log-configuration", id)}
 		})
 }
 
@@ -421,7 +421,7 @@ func scanIMINotificationConfigurations(ctx context.Context, client iotManagedInt
 			if eventType == "" {
 				return imiRow{}
 			}
-			return imiRow{nativeID: imiARN(region, acct.ID, "notification-configuration", eventType), name: &eventType}
+			return imiRow{nativeID: imiARN(acct.partition(), region, acct.ID, "notification-configuration", eventType), name: &eventType}
 		})
 }
 
@@ -441,7 +441,7 @@ func scanIMIOtaTaskConfigurations(ctx context.Context, client iotManagedIntegrat
 			if id == "" {
 				return imiRow{}
 			}
-			return imiRow{nativeID: imiARN(region, acct.ID, "ota-task-configuration", id), name: c.Name}
+			return imiRow{nativeID: imiARN(acct.partition(), region, acct.ID, "ota-task-configuration", id), name: c.Name}
 		})
 }
 

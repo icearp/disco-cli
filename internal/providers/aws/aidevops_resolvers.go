@@ -106,7 +106,7 @@ func resolveAidevopsAssociations(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if id := sv(attrs.AgentSpaceID); id != "" {
-			tgt := store.ResourceID("aws", acct.ID, aidevopsARN(region, acct.ID, "agent-space", id))
+			tgt := store.ResourceID("aws", acct.ID, aidevopsARN(acct.partition(), region, acct.ID, "agent-space", id))
 			if spaceSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert aidevops-assoc→agent-space: %w", err)
@@ -114,7 +114,7 @@ func resolveAidevopsAssociations(acct *account, st *store.Store) error {
 			}
 		}
 		if id := sv(attrs.ServiceID); id != "" {
-			tgt := store.ResourceID("aws", acct.ID, aidevopsARN(region, acct.ID, "service", id))
+			tgt := store.ResourceID("aws", acct.ID, aidevopsARN(acct.partition(), region, acct.ID, "service", id))
 			if svcSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert aidevops-assoc→service: %w", err)

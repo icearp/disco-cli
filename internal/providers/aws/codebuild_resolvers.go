@@ -193,7 +193,7 @@ func resolveCodeBuildReportGroupRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if b := sv(s3.Bucket); b != "" {
-			tgt := store.ResourceID("aws", acct.ID, s3BucketARN(b))
+			tgt := store.ResourceID("aws", acct.ID, s3BucketARN(acct.partition(), b))
 			if bucketSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {
 					return errors.Join(append(decodeErrs, fmt.Errorf("upsert cb-rg→s3: %w", err))...)
@@ -430,7 +430,7 @@ func emitCodeBuildBucketEdge(st *store.Store, acct *account, r store.Resource, s
 	if i := strings.IndexByte(bucketName, '/'); i >= 0 {
 		bucketName = bucketName[:i]
 	}
-	tgt := store.ResourceID("aws", acct.ID, s3BucketARN(bucketName))
+	tgt := store.ResourceID("aws", acct.ID, s3BucketARN(acct.partition(), bucketName))
 	if !sets.bucketSet[tgt] {
 		return nil
 	}

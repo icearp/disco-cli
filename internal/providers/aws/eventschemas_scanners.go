@@ -207,7 +207,7 @@ func readESRegistryPolicy(ctx context.Context, client eventSchemasAPI, acct *acc
 	}
 	return esPolicyRead{row: &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-		Type: TypeEventSchemasRegistryPolicy, NativeID: fmt.Sprintf("arn:aws:schemas:%s:%s:registry/%s/policy", region, acct.ID, name),
+		Type: TypeEventSchemasRegistryPolicy, NativeID: arnFor(acct.partition(), "schemas", region, acct.ID, "registry/"+name+"/policy"),
 		Name: &name, Region: &region,
 		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}}

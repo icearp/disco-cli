@@ -103,7 +103,7 @@ func scanInterconnectEnvironments(ctx context.Context, client *interconnect.Clie
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:interconnect:%s:%s:environment/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "interconnect", region, acct.ID, "environment/"+id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeInterconnectEnvironment, NativeID: arn,

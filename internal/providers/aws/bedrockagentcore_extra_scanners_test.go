@@ -73,7 +73,7 @@ func countWarnings(st *store.Store) *int {
 }
 
 func bacCapacityProvider(id string) bactypes.CapacityProviderSummary {
-	arn := bacARN(testRegion, testAccountID, "capacity-provider", id)
+	arn := bacARN("aws", testRegion, testAccountID, "capacity-provider", id)
 	if id == "" {
 		arn = ""
 	}
@@ -84,7 +84,7 @@ func bacCapacityProvider(id string) bactypes.CapacityProviderSummary {
 }
 
 func bacConsentPortal(id string) bactypes.ConsentPortalSummary {
-	arn := bacARN(testRegion, testAccountID, "consent-portal", id)
+	arn := bacARN("aws", testRegion, testAccountID, "consent-portal", id)
 	if id == "" {
 		arn = ""
 	}
@@ -95,7 +95,7 @@ func bacConsentPortal(id string) bactypes.ConsentPortalSummary {
 }
 
 func bacABTest(id string) bacdatatypes.ABTestSummary {
-	arn := bacARN(testRegion, testAccountID, "ab-test", id)
+	arn := bacARN("aws", testRegion, testAccountID, "ab-test", id)
 	if id == "" {
 		arn = ""
 	}
@@ -139,8 +139,8 @@ func TestScanBACAccountLists_TwoPages(t *testing.T) {
 				return runBACCapacityProviders(st, stub)
 			},
 			want: []bacWant{
-				{bacARN(testRegion, testAccountID, "capacity-provider", "a"), TypeBedrockAgentCoreCapacityProvider, "cp-a", "READY", "CapacityProviderId", "a", false},
-				{bacARN(testRegion, testAccountID, "capacity-provider", "b"), TypeBedrockAgentCoreCapacityProvider, "cp-b", "READY", "CapacityProviderId", "b", false},
+				{bacARN("aws", testRegion, testAccountID, "capacity-provider", "a"), TypeBedrockAgentCoreCapacityProvider, "cp-a", "READY", "CapacityProviderId", "a", false},
+				{bacARN("aws", testRegion, testAccountID, "capacity-provider", "b"), TypeBedrockAgentCoreCapacityProvider, "cp-b", "READY", "CapacityProviderId", "b", false},
 			},
 		},
 		{
@@ -152,8 +152,8 @@ func TestScanBACAccountLists_TwoPages(t *testing.T) {
 				return runBACPhase(st, stub, scanBACConsentPortals)
 			},
 			want: []bacWant{
-				{bacARN(testRegion, testAccountID, "consent-portal", "a"), TypeBedrockAgentCoreConsentPortal, "portal-a", "ACTIVE", "ConsentPortalId", "a", true},
-				{bacARN(testRegion, testAccountID, "consent-portal", "b"), TypeBedrockAgentCoreConsentPortal, "portal-b", "ACTIVE", "ConsentPortalId", "b", true},
+				{bacARN("aws", testRegion, testAccountID, "consent-portal", "a"), TypeBedrockAgentCoreConsentPortal, "portal-a", "ACTIVE", "ConsentPortalId", "a", true},
+				{bacARN("aws", testRegion, testAccountID, "consent-portal", "b"), TypeBedrockAgentCoreConsentPortal, "portal-b", "ACTIVE", "ConsentPortalId", "b", true},
 			},
 		},
 		{
@@ -165,8 +165,8 @@ func TestScanBACAccountLists_TwoPages(t *testing.T) {
 				return scanBACABTests(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
 			},
 			want: []bacWant{
-				{bacARN(testRegion, testAccountID, "ab-test", "a"), TypeBedrockAgentCoreABTest, "ab-a", "ACTIVE", "AbTestId", "a", true},
-				{bacARN(testRegion, testAccountID, "ab-test", "b"), TypeBedrockAgentCoreABTest, "ab-b", "ACTIVE", "AbTestId", "b", true},
+				{bacARN("aws", testRegion, testAccountID, "ab-test", "a"), TypeBedrockAgentCoreABTest, "ab-a", "ACTIVE", "AbTestId", "a", true},
+				{bacARN("aws", testRegion, testAccountID, "ab-test", "b"), TypeBedrockAgentCoreABTest, "ab-b", "ACTIVE", "AbTestId", "b", true},
 			},
 		},
 	}
@@ -249,9 +249,9 @@ func bacRateLimit(id string) bactypes.GatewayRateLimitDetail {
 }
 
 var bacTestGateways = []childParent{
-	{id: "gw-a", arn: bacARN(testRegion, testAccountID, "gateway", "gw-a")},
-	{id: "gw-b", arn: bacARN(testRegion, testAccountID, "gateway", "gw-b")},
-	{id: "gw-c", arn: bacARN(testRegion, testAccountID, "gateway", "gw-c")},
+	{id: "gw-a", arn: bacARN("aws", testRegion, testAccountID, "gateway", "gw-a")},
+	{id: "gw-b", arn: bacARN("aws", testRegion, testAccountID, "gateway", "gw-b")},
+	{id: "gw-c", arn: bacARN("aws", testRegion, testAccountID, "gateway", "gw-c")},
 }
 
 // bacGatewayChildCase drives the two per-gateway fan-out scanners through the
@@ -323,7 +323,7 @@ func TestScanBACGatewayChildren_FanOut(t *testing.T) {
 			}
 			for _, c := range []struct{ gid, id string }{{"gw-a", "x1"}, {"gw-a", "x2"}, {"gw-c", "x3"}} {
 				assertBACRow(t, st, bacWant{
-					nativeID: bacARN(testRegion, testAccountID, "gateway", c.gid) + tc.seg + c.id,
+					nativeID: bacARN("aws", testRegion, testAccountID, "gateway", c.gid) + tc.seg + c.id,
 					rtype:    tc.rtype, name: c.id, status: "ACTIVE", attrKey: tc.idKey, attrVal: c.id, createdAt: true,
 				})
 			}
@@ -376,7 +376,7 @@ func TestScanBACGatewayChildren_Errors(t *testing.T) {
 				}
 				gid := map[string]string{"x1": "gw-a", "x3": "gw-c"}
 				for _, id := range tc.wantIDs {
-					nativeID := bacARN(testRegion, testAccountID, "gateway", gid[id]) + sc.seg + id
+					nativeID := bacARN("aws", testRegion, testAccountID, "gateway", gid[id]) + sc.seg + id
 					if _, err := st.GetResource(store.ResourceID("aws", testAccountID, nativeID)); err != nil {
 						t.Errorf("row %s missing: %v", nativeID, err)
 					}

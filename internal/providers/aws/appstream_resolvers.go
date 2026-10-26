@@ -263,7 +263,7 @@ func resolveAppStreamVpcRoleDir(acct *account, st *store.Store, rtype string) er
 		}
 		if attrs.DomainJoinInfo != nil {
 			if dn := sv(attrs.DomainJoinInfo.DirectoryName); dn != "" {
-				dARN := fmt.Sprintf("arn:aws:appstream:%s:%s:directory-config/%s", region, acct.ID, dn)
+				dARN := asARN(acct.partition(), region, acct.ID, "directory-config", dn)
 				tgtID := store.ResourceID("aws", acct.ID, dARN)
 				if dirSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
@@ -586,7 +586,7 @@ func resolveAppStreamApplicationEntitlementAssoc(acct *account, st *store.Store)
 				return fmt.Errorf("upsert appstream app-ent→stack: %w", err)
 			}
 		}
-		entARN := fmt.Sprintf("arn:aws:appstream:%s:%s:entitlement/%s/%s", region, acct.ID, stack, entitlement)
+		entARN := asARN(acct.partition(), region, acct.ID, "entitlement", stack+"/"+entitlement)
 		entTgt := store.ResourceID("aws", acct.ID, entARN)
 		if entSet[entTgt] {
 			if err := st.UpsertRelationship(r.ID, entTgt, store.RelAttachedTo, "directed", nil); err != nil {
@@ -637,7 +637,7 @@ func resolveAppStreamAppBlockS3(acct *account, st *store.Store) error {
 		if b == "" {
 			continue
 		}
-		barn := "arn:aws:s3:::" + b
+		barn := s3BucketARN(acct.partition(), b)
 		tgt := store.ResourceID("aws", acct.ID, barn)
 		if !bucketSet[tgt] {
 			continue

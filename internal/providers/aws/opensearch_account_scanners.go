@@ -108,7 +108,7 @@ func openSearchTagsJSON(tags []opensearchtypes.Tag) *string {
 // ids are described in one DescribeVpcEndpoints call. The batch reuses the
 // list's page size because the model sets no limit on VpcEndpointIdList. An
 // endpoint has no ARN, so its NativeID is the synthetic
-// arn:aws:es:{region}:{account}:vpc-endpoint/{VpcEndpointId}.
+// arn:{p}:es:{region}:{account}:vpc-endpoint/{VpcEndpointId}.
 func scanOpenSearchVpcEndpoints(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	const listOp = "opensearch:ListVpcEndpoints"
 	var (
@@ -181,7 +181,7 @@ func describeOpenSearchVpcEndpoints(ctx context.Context, client opensearchAPI, a
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeOpenSearchVpcEndpoint, NativeID: openSearchARN(region, acct.ID, "vpc-endpoint/"+id),
+				Type: TypeOpenSearchVpcEndpoint, NativeID: openSearchARN(acct.partition(), region, acct.ID, "vpc-endpoint/"+id),
 				Name: e.VpcEndpointId, Region: &region, Status: nonEmptyPtr(string(e.Status)),
 				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			})
@@ -199,7 +199,7 @@ const openSearchAWSPackageOwner = "AWS"
 
 // scanOpenSearchPackages discovers custom packages (dictionaries, plugins,
 // licenses, configs). A package has no ARN, so its NativeID is the synthetic
-// arn:aws:es:{region}:{account}:package/{PackageID}. DELETED packages are
+// arn:{p}:es:{region}:{account}:package/{PackageID}. DELETED packages are
 // skipped. Domain associations are not fetched: ListDomainsForPackage is one
 // call per package.
 func scanOpenSearchPackages(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -218,7 +218,7 @@ func scanOpenSearchPackages(ctx context.Context, client opensearchAPI, acct *acc
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeOpenSearchPackage, NativeID: openSearchARN(region, acct.ID, "package/"+id),
+				Type: TypeOpenSearchPackage, NativeID: openSearchARN(acct.partition(), region, acct.ID, "package/"+id),
 				Name: pkg.PackageName, Region: &region, Status: nonEmptyPtr(string(pkg.PackageStatus)),
 				CreatedAt: tp(pkg.CreatedAt), AttributesJSON: mustJSON(pkg), DiscoveredBy: scanID,
 			}
@@ -228,7 +228,7 @@ func scanOpenSearchPackages(ctx context.Context, client opensearchAPI, acct *acc
 // scanOpenSearchReservedInstances discovers purchased reserved-instance
 // reservations, in every state, as the EC2/RDS/ElastiCache reservation
 // scanners do. A reservation has no ARN, so its NativeID is the synthetic
-// arn:aws:es:{region}:{account}:reserved-instance/{ReservedInstanceId}.
+// arn:{p}:es:{region}:{account}:reserved-instance/{ReservedInstanceId}.
 func scanOpenSearchReservedInstances(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	p := opensearch.NewDescribeReservedInstancesPaginator(client, &opensearch.DescribeReservedInstancesInput{},
 		func(o *opensearch.DescribeReservedInstancesPaginatorOptions) { o.Limit = openSearchPageLimit })
@@ -245,7 +245,7 @@ func scanOpenSearchReservedInstances(ctx context.Context, client opensearchAPI, 
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeOpenSearchReservedInstance, NativeID: openSearchARN(region, acct.ID, "reserved-instance/"+id),
+				Type: TypeOpenSearchReservedInstance, NativeID: openSearchARN(acct.partition(), region, acct.ID, "reserved-instance/"+id),
 				Name: ri.ReservationName, Region: &region, Status: nonEmptyPtr(sv(ri.State)),
 				CreatedAt: tp(ri.StartTime), AttributesJSON: mustJSON(ri), DiscoveredBy: scanID,
 			}
@@ -254,7 +254,7 @@ func scanOpenSearchReservedInstances(ctx context.Context, client opensearchAPI, 
 
 // openSearchConnectionDomainARN is the ARN of the domain a connection side
 // names, or "" when a part is missing.
-func openSearchConnectionDomainARN(c *opensearchtypes.DomainInformationContainer) string {
+func openSearchConnectionDomainARN(partition string, c *opensearchtypes.DomainInformationContainer) string {
 	if c == nil || c.AWSDomainInformation == nil {
 		return ""
 	}
@@ -263,7 +263,7 @@ func openSearchConnectionDomainARN(c *opensearchtypes.DomainInformationContainer
 	if region == "" || owner == "" || name == "" {
 		return ""
 	}
-	return openSearchARN(region, owner, "domain/"+name)
+	return openSearchARN(partition, region, owner, "domain/"+name)
 }
 
 // Cross-cluster connections are stored once per side, under the side's own
@@ -289,7 +289,7 @@ func scanOpenSearchOutboundConnections(ctx context.Context, client opensearchAPI
 			return out.Connections
 		},
 		func(c opensearchtypes.OutboundConnection) *store.Resource {
-			id, domainARN := sv(c.ConnectionId), openSearchConnectionDomainARN(c.LocalDomainInfo)
+			id, domainARN := sv(c.ConnectionId), openSearchConnectionDomainARN(acct.partition(), c.LocalDomainInfo)
 			var status string
 			if c.ConnectionStatus != nil {
 				status = string(c.ConnectionStatus.StatusCode)
@@ -320,7 +320,7 @@ func scanOpenSearchInboundConnections(ctx context.Context, client opensearchAPI,
 			return out.Connections
 		},
 		func(c opensearchtypes.InboundConnection) *store.Resource {
-			id, domainARN := sv(c.ConnectionId), openSearchConnectionDomainARN(c.RemoteDomainInfo)
+			id, domainARN := sv(c.ConnectionId), openSearchConnectionDomainARN(acct.partition(), c.RemoteDomainInfo)
 			var status string
 			if c.ConnectionStatus != nil {
 				status = string(c.ConnectionStatus.StatusCode)

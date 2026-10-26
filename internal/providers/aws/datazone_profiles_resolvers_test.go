@@ -15,7 +15,7 @@ func TestResolveDataZoneGroupProfileRefs(t *testing.T) {
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/dz-session", acct.ID)
 	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
 
-	gpARN := dzARN(testRegion, acct.ID, "dom-1", "group-profile", "gp-1")
+	gpARN := dzARN("aws", testRegion, acct.ID, "dom-1", "group-profile", "gp-1")
 	gpBody, _ := json.Marshal(dztypes.GroupProfileSummary{
 		Id: ptrStr("gp-1"), GroupName: ptrStr("analysts"), RolePrincipalArn: ptrStr(roleARN),
 	})
@@ -31,7 +31,7 @@ func TestResolveDataZoneGroupProfileRefs(t *testing.T) {
 func TestResolveDataZoneGroupProfileRefs_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	gpARN := dzARN(testRegion, acct.ID, "dom-1", "group-profile", "gp-1")
+	gpARN := dzARN("aws", testRegion, acct.ID, "dom-1", "group-profile", "gp-1")
 	gpID := upsertTestResource(t, st, "aws", acct.ID, TypeDataZoneGroupProfile, gpARN, testRegion, "{}")
 	if err := resolveDataZoneGroupProfileRefs(acct, st); err != nil {
 		t.Fatalf("resolveDataZoneGroupProfileRefs: %v", err)

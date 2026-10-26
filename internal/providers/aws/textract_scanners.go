@@ -23,8 +23,8 @@ type textractAPI interface {
 	ListAdapterVersions(context.Context, *textract.ListAdapterVersionsInput, ...func(*textract.Options)) (*textract.ListAdapterVersionsOutput, error)
 }
 
-func textractAdapterNativeID(region, acct, adapterID string) string {
-	return fmt.Sprintf("arn:aws:textract:%s:%s:adapter/%s", region, acct, adapterID)
+func textractAdapterNativeID(partition, region, acct, adapterID string) string {
+	return arnFor(partition, "textract", region, acct, "adapter/"+adapterID)
 }
 
 func scanTextract(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -69,7 +69,7 @@ func scanTextractAdapters(ctx context.Context, client textractAPI, acct *account
 			ids = append(ids, aid)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTextractAdapter, NativeID: textractAdapterNativeID(region, acct.ID, aid),
+				Type: TypeTextractAdapter, NativeID: textractAdapterNativeID(acct.partition(), region, acct.ID, aid),
 				Name: a.AdapterName, Region: &region,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
@@ -98,7 +98,7 @@ func scanTextractAdapterVersions(ctx context.Context, client textractAPI, acct *
 				continue
 			}
 			status := string(v.Status)
-			nid := textractAdapterNativeID(region, acct.ID, sv(v.AdapterId)) + "/adapter-version/" + ver
+			nid := textractAdapterNativeID(acct.partition(), region, acct.ID, sv(v.AdapterId)) + "/adapter-version/" + ver
 			label := ver
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

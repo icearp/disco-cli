@@ -152,7 +152,7 @@ func gaAttrs(t *testing.T, r store.Resource) map[string]any {
 	return m
 }
 
-func gaByoipID(cidr string) string { return gaByoipCidrNativeID(testAccountID, cidr) }
+func gaByoipID(cidr string) string { return gaByoipCidrNativeID("aws", testAccountID, cidr) }
 
 func TestScanGlobalAccelerator_StoresCustomRoutingAndByoip(t *testing.T) {
 	st := newTestStore(t)
@@ -232,7 +232,7 @@ func TestScanGlobalAccelerator_StoresCustomRoutingAndByoip(t *testing.T) {
 }
 
 func TestGAByoipCidrNativeID(t *testing.T) {
-	if got, want := gaByoipCidrNativeID("123456789012", "203.0.113.0/24"), "arn:aws:globalaccelerator::123456789012:byoip-cidr/203.0.113.0/24"; got != want {
+	if got, want := gaByoipCidrNativeID("aws", "123456789012", "203.0.113.0/24"), "arn:aws:globalaccelerator::123456789012:byoip-cidr/203.0.113.0/24"; got != want {
 		t.Errorf("gaByoipCidrNativeID = %q, want %q", got, want)
 	}
 }

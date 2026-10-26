@@ -290,8 +290,8 @@ func emitKMS(st *store.Store, srcID, ref, region, acctID string, sets *sagemaker
 
 // emitS3Bucket emits a source → S3 bucket `uses` edge when the s3:// URL
 // resolves to a scanned bucket.
-func emitS3Bucket(st *store.Store, srcID, s3url, acctID string, sets *sagemakerEdgeSets) error {
-	bucketARN := s3BucketARNFromS3URL(s3url)
+func emitS3Bucket(st *store.Store, srcID, partition, s3url, acctID string, sets *sagemakerEdgeSets) error {
+	bucketARN := s3BucketARNFromS3URL(partition, s3url)
 	if bucketARN == "" {
 		return nil
 	}
@@ -687,7 +687,7 @@ func resolveSageMakerFeatureGroup(acct *account, st *store.Store) error {
 		}
 		if a.OfflineStoreConfig != nil && a.OfflineStoreConfig.S3StorageConfig != nil {
 			s3 := a.OfflineStoreConfig.S3StorageConfig
-			if err := emitS3Bucket(st, r.ID, sv(s3.S3Uri), acct.ID, sets); err != nil {
+			if err := emitS3Bucket(st, r.ID, acct.partition(), sv(s3.S3Uri), acct.ID, sets); err != nil {
 				return fmt.Errorf("feature-group→s3: %w", err)
 			}
 			if err := emitKMS(st, r.ID, sv(s3.KmsKeyID), region, acct.ID, sets); err != nil {
@@ -875,7 +875,7 @@ func resolveSagemakerJobDef(acct *account, st *store.Store, srcType, inputKey, o
 		if err := emitJobDefInput(st, r.ID, region, acct.ID, raw[inputKey], sets); err != nil {
 			return err
 		}
-		if err := emitJobDefOutput(st, r.ID, region, acct.ID, raw[outputKey], sets); err != nil {
+		if err := emitJobDefOutput(st, r.ID, acct.partition(), region, acct.ID, raw[outputKey], sets); err != nil {
 			return err
 		}
 	}
@@ -916,7 +916,7 @@ func emitJobDefInput(st *store.Store, srcID, region, acctID string, raw json.Raw
 }
 
 // emitJobDefOutput emits S3 + KMS edges from a `*JobOutputConfig` block.
-func emitJobDefOutput(st *store.Store, srcID, region, acctID string, raw json.RawMessage, sets *sagemakerEdgeSets) error {
+func emitJobDefOutput(st *store.Store, srcID, partition, region, acctID string, raw json.RawMessage, sets *sagemakerEdgeSets) error {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -931,7 +931,7 @@ func emitJobDefOutput(st *store.Store, srcID, region, acctID string, raw json.Ra
 		if mo.S3Output == nil {
 			continue
 		}
-		if err := emitS3Bucket(st, srcID, sv(mo.S3Output.S3Uri), acctID, sets); err != nil {
+		if err := emitS3Bucket(st, srcID, partition, sv(mo.S3Output.S3Uri), acctID, sets); err != nil {
 			return err
 		}
 	}
@@ -992,7 +992,7 @@ func resolveSageMakerProcessingJob(acct *account, st *store.Store) error {
 				if o.S3Output == nil {
 					continue
 				}
-				if err := emitS3Bucket(st, r.ID, sv(o.S3Output.S3Uri), acct.ID, sets); err != nil {
+				if err := emitS3Bucket(st, r.ID, acct.partition(), sv(o.S3Output.S3Uri), acct.ID, sets); err != nil {
 					return err
 				}
 			}
@@ -1055,7 +1055,7 @@ func resolveSageMakerMlflowTrackingServer(acct *account, st *store.Store) error 
 		if err := emitIAMRole(st, r.ID, sv(a.RoleArn), acct.ID, sets); err != nil {
 			return fmt.Errorf("mlflow→role: %w", err)
 		}
-		if err := emitS3Bucket(st, r.ID, sv(a.ArtifactStoreURI), acct.ID, sets); err != nil {
+		if err := emitS3Bucket(st, r.ID, acct.partition(), sv(a.ArtifactStoreURI), acct.ID, sets); err != nil {
 			return fmt.Errorf("mlflow→s3: %w", err)
 		}
 	}
@@ -1157,7 +1157,7 @@ func resolveSageMakerDeviceFleet(acct *account, st *store.Store) error {
 			return fmt.Errorf("device-fleet→role: %w", err)
 		}
 		if a.OutputConfig != nil {
-			if err := emitS3Bucket(st, r.ID, sv(a.OutputConfig.S3OutputLocation), acct.ID, sets); err != nil {
+			if err := emitS3Bucket(st, r.ID, acct.partition(), sv(a.OutputConfig.S3OutputLocation), acct.ID, sets); err != nil {
 				return err
 			}
 			if err := emitKMS(st, r.ID, sv(a.OutputConfig.KmsKeyID), region, acct.ID, sets); err != nil {

@@ -370,7 +370,7 @@ func scanIoTPrincipals(
 					AccountID:      acct.ID,
 					AccountName:    &acct.Name,
 					Type:           ph.typ,
-					NativeID:       fmt.Sprintf("arn:aws:iot:%s:%s:%s/%s/principal/%s", region, acct.ID, ph.kind, key, principal),
+					NativeID:       arnFor(acct.partition(), "iot", region, acct.ID, ph.kind+"/"+key+"/principal/"+principal),
 					Name:           &principal,
 					Region:         &region,
 					AttributesJSON: mustJSON(map[string]string{ph.keyAttr: key, "Principal": principal}),

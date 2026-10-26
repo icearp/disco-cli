@@ -131,7 +131,7 @@ func TestScanQAppsCategories_Fields(t *testing.T) {
 			"inst-2": {qappsCategory("cat-2", "IT", 0)},
 		}, nil),
 	})
-	instances := qappsInstances(testRegion, testAccountID, []string{"inst-1", "inst-2"})
+	instances := qappsInstances("aws", testRegion, testAccountID, []string{"inst-1", "inst-2"})
 
 	total, _, err := scanQAppsCategories(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, instances)
 	if err != nil {
@@ -167,7 +167,7 @@ func TestScanQAppsCategories_Empty(t *testing.T) {
 		"ListCategories": qappsCategoriesHandler(&calls, nil, nil),
 	})
 	total, _, err := scanQAppsCategories(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
-		qappsInstances(testRegion, testAccountID, []string{"inst-1"}))
+		qappsInstances("aws", testRegion, testAccountID, []string{"inst-1"}))
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -185,7 +185,7 @@ func TestScanQAppsLibraryItems_PagesAndFields(t *testing.T) {
 			"inst-2": {{qappsLibraryItem("li-3")}},
 		}, nil),
 	})
-	instances := qappsInstances(testRegion, testAccountID, []string{"inst-1", "inst-2"})
+	instances := qappsInstances("aws", testRegion, testAccountID, []string{"inst-1", "inst-2"})
 
 	total, _, err := scanQAppsLibraryItems(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, instances)
 	if err != nil {
@@ -244,7 +244,7 @@ func TestScanQAppsQApps_PagesAndFields(t *testing.T) {
 			"inst-2": {{qappsQApp("inst-2", "app-3", "Notes")}},
 		}, nil),
 	})
-	instances := qappsInstances(testRegion, testAccountID, []string{"inst-1", "inst-2"})
+	instances := qappsInstances("aws", testRegion, testAccountID, []string{"inst-1", "inst-2"})
 
 	total, _, err := scanQAppsQApps(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, instances)
 	if err != nil || total != 3 {
@@ -277,7 +277,7 @@ func TestScanQAppsQApps_HardErrorKeepsEarlierPages(t *testing.T) {
 		}, map[string]error{"inst-1/p2": apiErr("ConflictException", "bad")}),
 	})
 	total, _, err := scanQAppsQApps(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
-		qappsInstances(testRegion, testAccountID, []string{"inst-1"}))
+		qappsInstances("aws", testRegion, testAccountID, []string{"inst-1"}))
 	if !isAPIErrorCode(err, "ConflictException") {
 		t.Errorf("err = %v; want the ConflictException", err)
 	}
@@ -296,7 +296,7 @@ func TestScanQAppsLibraryItems_Empty(t *testing.T) {
 		"ListLibraryItems": qappsLibraryHandler(&calls, nil, nil),
 	})
 	total, _, err := scanQAppsLibraryItems(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
-		qappsInstances(testRegion, testAccountID, []string{"inst-1"}))
+		qappsInstances("aws", testRegion, testAccountID, []string{"inst-1"}))
 	if err != nil || total != 0 {
 		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
 	}
@@ -369,7 +369,7 @@ func TestScanQAppsChildPhases_PerInstanceErrors(t *testing.T) {
 				warns := countOpWarnings(st, ph.op)
 				var calls parentCalls
 				client := newQAppsTestClient(ph.handlers(&calls, map[string]error{"inst-2": tc.err, "inst-3": tc.err}))
-				instances := qappsInstances(testRegion, testAccountID, []string{"inst-1", "inst-2", "inst-3"})
+				instances := qappsInstances("aws", testRegion, testAccountID, []string{"inst-1", "inst-2", "inst-3"})
 
 				_, _, err := ph.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, instances)
 				if tc.wantErr {
@@ -402,7 +402,7 @@ func TestScanQAppsLibraryItems_SkipKeepsEarlierPages(t *testing.T) {
 		}, map[string]error{"inst-1/p2": apiErr("ResourceNotFoundException", "gone")}),
 	})
 	total, _, err := scanQAppsLibraryItems(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
-		qappsInstances(testRegion, testAccountID, []string{"inst-1"}))
+		qappsInstances("aws", testRegion, testAccountID, []string{"inst-1"}))
 	if err != nil || total != 1 {
 		t.Fatalf("total, err = %d, %v; want 1, nil", total, err)
 	}
@@ -438,7 +438,7 @@ func TestScanQAppsPaginatedPhases_RepeatedTokenStops(t *testing.T) {
 				},
 			})
 			_, _, err := tc.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID,
-				qappsInstances(testRegion, testAccountID, []string{"inst-1"}))
+				qappsInstances("aws", testRegion, testAccountID, []string{"inst-1"}))
 			if err != nil {
 				t.Errorf("err = %v; want nil", err)
 			}

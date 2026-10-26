@@ -53,7 +53,7 @@ func TestScanBcmPricingCalculatorBillScenarios(t *testing.T) {
 	if total != 1 {
 		t.Fatalf("total=%d want 1", total)
 	}
-	expectedARN := bcmPricingCalculatorNativeID(acct.ID, "bill-scenario", id)
+	expectedARN := bcmPricingCalculatorNativeID("aws", acct.ID, "bill-scenario", id)
 	if want := []childParent{{id: id, arn: expectedARN}}; !slices.Equal(parents, want) {
 		t.Errorf("parents = %v; want %v", parents, want)
 	}
@@ -86,11 +86,11 @@ func TestScanBcmPricingCalculatorEstimates(t *testing.T) {
 	if weTotal != 1 {
 		t.Errorf("workload-estimate total=%d want 1", weTotal)
 	}
-	beARN := bcmPricingCalculatorNativeID(acct.ID, "bill-estimate", beID)
+	beARN := bcmPricingCalculatorNativeID("aws", acct.ID, "bill-estimate", beID)
 	if _, err := st.GetResource(store.ResourceID("aws", acct.ID, beARN)); err != nil {
 		t.Errorf("bill-estimate missing: %v", err)
 	}
-	weARN := bcmPricingCalculatorNativeID(acct.ID, "workload-estimate", weID)
+	weARN := bcmPricingCalculatorNativeID("aws", acct.ID, "workload-estimate", weID)
 	if want := []childParent{{id: weID, arn: weARN}}; !slices.Equal(weParents, want) {
 		t.Errorf("workload parents = %v; want %v", weParents, want)
 	}
@@ -345,7 +345,7 @@ func bcmPCSeedParents(t *testing.T, st *store.Store, ph bcmPCChildPhase, ids ...
 	t.Helper()
 	var parents []childParent
 	for _, id := range ids {
-		arn := bcmPricingCalculatorNativeID(testAccountID, ph.parentKind, id)
+		arn := bcmPricingCalculatorNativeID("aws", testAccountID, ph.parentKind, id)
 		upsertTestResource(t, st, "aws", testAccountID, ph.parentType, arn, "global", "{}")
 		parents = append(parents, childParent{id: id, arn: arn})
 	}
@@ -536,7 +536,7 @@ func bcmPCTopLevelParent(ph bcmPCChildPhase) string {
 }
 
 func bcmPCTopLevelParentARN(ph bcmPCChildPhase) string {
-	return bcmPricingCalculatorNativeID(testAccountID, ph.parentKind, bcmPCTopLevelParent(ph))
+	return bcmPricingCalculatorNativeID("aws", testAccountID, ph.parentKind, bcmPCTopLevelParent(ph))
 }
 
 func bcmPCChildNativeID(ph bcmPCChildPhase) string {

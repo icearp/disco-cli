@@ -10,9 +10,9 @@ import (
 func TestResolveCodeDeployDGRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	appARN := codeDeployARN(testRegion, acct.ID, "application", "myApp")
+	appARN := codeDeployARN("aws", testRegion, acct.ID, "application", "myApp")
 	appID := upsertTestResource(t, st, "aws", acct.ID, TypeCodeDeployApplication, appARN, testRegion, "{}")
-	dcARN := codeDeployARN(testRegion, acct.ID, "deploymentconfig", "OneAtATime")
+	dcARN := codeDeployARN("aws", testRegion, acct.ID, "deploymentconfig", "OneAtATime")
 	dcID := upsertTestResource(t, st, "aws", acct.ID, TypeCodeDeployDeploymentConfig, dcARN, testRegion, "{}")
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/cd-svc", acct.ID)
 	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")

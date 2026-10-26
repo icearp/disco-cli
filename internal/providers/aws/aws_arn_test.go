@@ -468,7 +468,7 @@ func TestLogGroupARNIn_DSLogSubscriptionUsesAccountPartition(t *testing.T) {
 			group := upsertTestResource(t, st, "aws", acct.ID, TypeLogsLogGroup,
 				partitionARN(pf.partition, "logs", pf.region, "log-group:/aws/ds/d-1"), pf.region, "{}")
 			sub := upsertTestResource(t, st, "aws", acct.ID, TypeDSLogSubscription,
-				dsDirectoryARN(pf.region, acct.ID, "d-1")+"/log-subscription//aws/ds/d-1", pf.region,
+				dsDirectoryARN(pf.partition, pf.region, acct.ID, "d-1")+"/log-subscription//aws/ds/d-1", pf.region,
 				mustJSON(dstypes.LogSubscription{DirectoryId: ptrStr("d-1"), LogGroupName: ptrStr("/aws/ds/d-1")}))
 			if err := resolveDSLogSubscriptions(acct, st); err != nil {
 				t.Fatalf("resolveDSLogSubscriptions: %v", err)

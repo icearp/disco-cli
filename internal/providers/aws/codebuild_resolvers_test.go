@@ -117,7 +117,7 @@ func TestResolveCodeBuildReportGroupRefs(t *testing.T) {
 // edge.
 func TestResolveCodeBuildRefs_DecodeErrorKeepsOtherRows(t *testing.T) {
 	roleARN := "arn:aws:iam::" + testAccountID + ":role/r"
-	bucketARN := s3BucketARN("cb-reports")
+	bucketARN := s3BucketARN("aws", "cb-reports")
 	for _, tc := range []struct {
 		name, typ, kindSeg string
 		resolve            func(*account, *store.Store) error

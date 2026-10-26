@@ -133,7 +133,7 @@ func resolveRSSRecoveryPointRefs(acct *account, st *store.Store) error {
 		arn := sv(attrs.NamespaceArn)
 		if arn == "" {
 			if n := sv(attrs.NamespaceName); n != "" {
-				arn = rssNamespaceARN(sv(r.Region), acct.ID, n)
+				arn = rssNamespaceARN(acct.partition(), sv(r.Region), acct.ID, n)
 			}
 		}
 		if arn == "" {
@@ -149,8 +149,8 @@ func resolveRSSRecoveryPointRefs(acct *account, st *store.Store) error {
 	return nil
 }
 
-func rssNamespaceARN(region, acct, name string) string {
-	return fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:namespace/%s", region, acct, name)
+func rssNamespaceARN(partition, region, acct, name string) string {
+	return arnFor(partition, "redshift-serverless", region, acct, "namespace/"+name)
 }
 
 // resolveRSSNamespaceRefs wires each namespace to its KMS key and IAM roles.
@@ -239,7 +239,7 @@ func resolveRSSWorkgroupRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if n := sv(attrs.NamespaceName); n != "" {
-			tgtID := store.ResourceID("aws", acct.ID, rssNamespaceARN(region, acct.ID, n))
+			tgtID := store.ResourceID("aws", acct.ID, rssNamespaceARN(acct.partition(), region, acct.ID, n))
 			if nsSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert rss wg→ns: %w", err)
@@ -304,7 +304,7 @@ func resolveRSSSnapshotRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if n := sv(attrs.NamespaceName); n != "" {
-			tgtID := store.ResourceID("aws", acct.ID, rssNamespaceARN(region, acct.ID, n))
+			tgtID := store.ResourceID("aws", acct.ID, rssNamespaceARN(acct.partition(), region, acct.ID, n))
 			if nsSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert rss snap→ns: %w", err)

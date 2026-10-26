@@ -24,7 +24,7 @@ type paymentCryptographyAPI interface {
 }
 
 // scanPaymentCryptography discovers Payment Cryptography keys and aliases.
-// Alias has no native ARN; synth as arn:aws:payment-cryptography:{r}:{a}:alias/{name}.
+// Alias has no native ARN; synth as arn:{p}:payment-cryptography:{r}:{a}:alias/{name}.
 func scanPaymentCryptography(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := paymentcryptography.NewFromConfig(acct.cfg, func(o *paymentcryptography.Options) { o.Region = region })
 
@@ -93,7 +93,7 @@ func scanPCAliases(ctx context.Context, client paymentCryptographyAPI, acct *acc
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:payment-cryptography:%s:%s:%s", region, acct.ID, name)
+			arn := arnFor(acct.partition(), "payment-cryptography", region, acct.ID, name)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypePaymentCryptographyAlias, NativeID: arn,

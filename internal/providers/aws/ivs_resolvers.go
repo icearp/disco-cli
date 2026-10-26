@@ -136,7 +136,7 @@ func resolveIVSS3Bucket(acct *account, st *store.Store, sourceType string, extra
 		if bucket == "" {
 			continue
 		}
-		bArn := "arn:aws:s3:::" + bucket
+		bArn := s3BucketARN(acct.partition(), bucket)
 		tgtID := store.ResourceID("aws", acct.ID, bArn)
 		if !bucketSet[tgtID] {
 			continue

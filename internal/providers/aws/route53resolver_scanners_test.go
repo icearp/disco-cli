@@ -416,7 +416,7 @@ func r53rTopLevelHandlers(calls *parentCalls) map[string]func(in any) (any, erro
 	}
 }
 
-var r53rFirewallConfigFC1 = r53rARN(testRegion, testAccountID, "firewall-config", "fc-1")
+var r53rFirewallConfigFC1 = r53rARN("aws", testRegion, testAccountID, "firewall-config", "fc-1")
 
 func scanR53RTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()

@@ -18,7 +18,7 @@ func init() {
 }
 
 // scanKendraRanking discovers Kendra Ranking rescore execution plans. Synth
-// ARN: arn:aws:kendra-ranking:{r}:{a}:rescore-execution-plan/{id}.
+// ARN: arn:{p}:kendra-ranking:{r}:{a}:rescore-execution-plan/{id}.
 func scanKendraRanking(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := kendraranking.NewFromConfig(acct.cfg, func(o *kendraranking.Options) { o.Region = region })
 
@@ -37,7 +37,7 @@ func scanKendraRanking(ctx context.Context, acct *account, region string, st *st
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:kendra-ranking:%s:%s:rescore-execution-plan/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "kendra-ranking", region, acct.ID, "rescore-execution-plan/"+id)
 			status := string(p.Status)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

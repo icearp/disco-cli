@@ -146,7 +146,7 @@ pages:
 			if principal == "" {
 				continue
 			}
-			id, kerr := lfOptInARN(region, acct.ID, o)
+			id, kerr := lfOptInARN(acct.partition(), region, acct.ID, o)
 			if kerr != nil { // unreachable in practice: these SDK types always encode
 				err = kerr
 				break pages
@@ -170,7 +170,7 @@ const lfOptInOp = "lakeformation:ListLakeFormationOptIns"
 // hash covers exactly those three and leaves out the LastModified and
 // LastUpdatedBy metadata. It hashes their canonical JSON (lfCanonical), so an
 // optional member a module bump adds, or a reordered list, keeps the id.
-func lfOptInARN(region, accountID string, o lftypes.LakeFormationOptInsInfo) (string, error) {
+func lfOptInARN(partition, region, accountID string, o lftypes.LakeFormationOptInsInfo) (string, error) {
 	raw, err := json.Marshal(struct {
 		Principal *lftypes.DataLakePrincipal
 		Resource  *lftypes.Resource
@@ -191,7 +191,7 @@ func lfOptInARN(region, accountID string, o lftypes.LakeFormationOptInsInfo) (st
 		return "", fmt.Errorf("encode canonical lakeformation opt-in key: %w", err)
 	}
 	sum := sha256.Sum256(canonical)
-	return fmt.Sprintf("arn:aws:lakeformation:%s:%s:lake-formation-opt-in/%s", region, accountID, hex.EncodeToString(sum[:8])), nil
+	return arnFor(partition, "lakeformation", region, accountID, "lake-formation-opt-in/"+hex.EncodeToString(sum[:8])), nil
 }
 
 // lfCanonical rewrites a decoded JSON value in place so that absent members

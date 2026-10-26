@@ -20,7 +20,7 @@ func init() {
 
 // scanCUR discovers Cost and Usage Report definitions. CUR is global; called
 // in its home region (homeRegion; us-east-1 for aws).
-// Synth ARN: arn:aws:cur::{a}:definition/{name}.
+// Synth ARN: arn:{p}:cur::{a}:definition/{name}.
 func scanCUR(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region, err := acct.homeRegion("costandusagereportservice")
 	if err != nil {
@@ -43,7 +43,7 @@ func scanCUR(ctx context.Context, acct *account, _ string, st *store.Store, scan
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:cur::%s:definition/%s", acct.ID, name)
+			arn := arnFor(acct.partition(), "cur", "", acct.ID, "definition/"+name)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCURReportDefinition, NativeID: arn,

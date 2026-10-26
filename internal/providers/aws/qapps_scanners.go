@@ -92,7 +92,7 @@ func scanQApps(ctx context.Context, acct *account, region string, st *store.Stor
 	}
 
 	client := qapps.NewFromConfig(acct.cfg, func(o *qapps.Options) { o.Region = region })
-	instances := qappsInstances(region, acct.ID, instanceIDs)
+	instances := qappsInstances(acct.partition(), region, acct.ID, instanceIDs)
 	qt, qi, qerr := scanQAppsQApps(ctx, client, acct, region, st, scanID, instances)
 	ct, ci, cerr := scanQAppsCategories(ctx, client, acct, region, st, scanID, instances)
 	lt, li, lerr := scanQAppsLibraryItems(ctx, client, acct, region, st, scanID, instances)
@@ -165,8 +165,8 @@ func storeQAppsQApps(ctx context.Context, client qappsAPI, acct *account, region
 // puts every Q App of an instance under. Categories and library items have
 // no ARN of their own, so their NativeIDs extend it with a kind segment that
 // no qapp ARN uses.
-func qappsInstanceARN(region, accountID, instanceID string) string {
-	return fmt.Sprintf("arn:aws:qapps:%s:%s:application/%s", region, accountID, instanceID)
+func qappsInstanceARN(partition, region, accountID, instanceID string) string {
+	return arnFor(partition, "qapps", region, accountID, "application/"+instanceID)
 }
 
 // qappsCategoryNativeID and qappsLibraryItemNativeID key a child by its
@@ -180,10 +180,10 @@ func qappsLibraryItemNativeID(instanceARN, libraryItemID string) string {
 }
 
 // qappsInstances pairs each listed instance id with its qapps ARN prefix.
-func qappsInstances(region, accountID string, instanceIDs []string) []childParent {
+func qappsInstances(partition, region, accountID string, instanceIDs []string) []childParent {
 	instances := make([]childParent, len(instanceIDs))
 	for i, id := range instanceIDs {
-		instances[i] = childParent{id: id, arn: qappsInstanceARN(region, accountID, id)}
+		instances[i] = childParent{id: id, arn: qappsInstanceARN(partition, region, accountID, id)}
 	}
 	return instances
 }

@@ -31,8 +31,8 @@ type transcribeAPI interface {
 
 // transcribeNativeID synthesizes an ARN for name-addressed Transcribe
 // resources (SDK returns names, not ARNs).
-func transcribeNativeID(region, acct, kind, name string) string {
-	return fmt.Sprintf("arn:aws:transcribe:%s:%s:%s/%s", region, acct, kind, name)
+func transcribeNativeID(partition, region, acct, kind, name string) string {
+	return arnFor(partition, "transcribe", region, acct, kind+"/"+name)
 }
 
 // transcribeRegionErr classifies Transcribe's two BadRequestException
@@ -109,7 +109,7 @@ func scanTranscribeCallAnalyticsCategories(ctx context.Context, client transcrib
 			nm := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTranscribeCallAnalyticsCategory, NativeID: transcribeNativeID(region, acct.ID, "call-analytics-category", name),
+				Type: TypeTranscribeCallAnalyticsCategory, NativeID: transcribeNativeID(acct.partition(), region, acct.ID, "call-analytics-category", name),
 				Name: &nm, Region: &region,
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
@@ -141,7 +141,7 @@ func scanTranscribeLanguageModels(ctx context.Context, client transcribeAPI, acc
 			status := string(m.ModelStatus)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTranscribeLanguageModel, NativeID: transcribeNativeID(region, acct.ID, "language-model", name),
+				Type: TypeTranscribeLanguageModel, NativeID: transcribeNativeID(acct.partition(), region, acct.ID, "language-model", name),
 				Name: &nm, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
 			})
@@ -173,7 +173,7 @@ func scanTranscribeVocabularies(ctx context.Context, client transcribeAPI, acct 
 			status := string(v.VocabularyState)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTranscribeVocabulary, NativeID: transcribeNativeID(region, acct.ID, "vocabulary", name),
+				Type: TypeTranscribeVocabulary, NativeID: transcribeNativeID(acct.partition(), region, acct.ID, "vocabulary", name),
 				Name: &nm, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
 			})
@@ -204,7 +204,7 @@ func scanTranscribeVocabularyFilters(ctx context.Context, client transcribeAPI, 
 			nm := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTranscribeVocabularyFilter, NativeID: transcribeNativeID(region, acct.ID, "vocabulary-filter", name),
+				Type: TypeTranscribeVocabularyFilter, NativeID: transcribeNativeID(acct.partition(), region, acct.ID, "vocabulary-filter", name),
 				Name: &nm, Region: &region,
 				AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
 			})
@@ -236,7 +236,7 @@ func scanTranscribeMedicalVocabularies(ctx context.Context, client transcribeAPI
 			status := string(v.VocabularyState)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTranscribeMedicalVocabulary, NativeID: transcribeNativeID(region, acct.ID, "medical-vocabulary", name),
+				Type: TypeTranscribeMedicalVocabulary, NativeID: transcribeNativeID(acct.partition(), region, acct.ID, "medical-vocabulary", name),
 				Name: &nm, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
 			})

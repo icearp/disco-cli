@@ -45,7 +45,7 @@ func scanPollyLexicons(ctx context.Context, client pollyAPI, acct *account, regi
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:polly:%s:%s:lexicon/%s", region, acct.ID, name)
+			arn := arnFor(acct.partition(), "polly", region, acct.ID, "lexicon/"+name)
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

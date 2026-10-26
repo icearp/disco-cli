@@ -51,12 +51,12 @@ func rsOptARN(kind string) func(key string) *string {
 		if key == "" {
 			return nil
 		}
-		return ptrStr(redshiftARN(testRegion, testAccountID, kind, key))
+		return ptrStr(redshiftARN("aws", testRegion, testAccountID, kind, key))
 	}
 }
 
 func rsKindID(kind string) func(key string) string {
-	return func(key string) string { return redshiftARN(testRegion, testAccountID, kind, key) }
+	return func(key string) string { return redshiftARN("aws", testRegion, testAccountID, kind, key) }
 }
 
 // rsRun adapts a list phase to the case's runner, whatever narrow client
@@ -267,7 +267,7 @@ func rsListedCases() []rsListedCase {
 				return o
 			},
 			nativeID: func(key string) string {
-				return redshiftARN(testRegion, testAccountID, "endpointauthorization", key+"/111111111111/222222222222")
+				return redshiftARN("aws", testRegion, testAccountID, "endpointauthorization", key+"/111111111111/222222222222")
 			},
 			run: rsRun(scanRedshiftEndpointAuthorization),
 		},

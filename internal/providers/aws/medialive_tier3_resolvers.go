@@ -25,21 +25,21 @@ func init() {
 	)
 }
 
-func mediaLiveColonARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:medialive:%s:%s:%s:%s", region, acct, kind, id)
+func mediaLiveColonARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "medialive", region, acct, kind+":"+id)
 }
 
 // listOrARN coerces a "channel id or full ARN" entry into an ARN of the given
 // kind. ISG.Channels and SdiSource.Inputs are documented as ID lists but
 // callers occasionally see ARNs — accept both.
-func listOrARN(entry, region, acct, kind string) string {
+func listOrARN(partition, entry, region, acct, kind string) string {
 	if entry == "" {
 		return ""
 	}
 	if strings.HasPrefix(entry, "arn:") {
 		return entry
 	}
-	return mediaLiveColonARN(region, acct, kind, entry)
+	return mediaLiveColonARN(partition, region, acct, kind, entry)
 }
 
 // resolveMediaLiveISGRefs wires each input-security-group to the channels +
@@ -73,7 +73,7 @@ func resolveMediaLiveISGRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		for _, c := range attrs.Channels {
-			arn := listOrARN(c, region, acct.ID, "channel")
+			arn := listOrARN(acct.partition(), c, region, acct.ID, "channel")
 			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !chSet[tgtID] {
 				continue
@@ -83,7 +83,7 @@ func resolveMediaLiveISGRefs(acct *account, st *store.Store) error {
 			}
 		}
 		for _, i := range attrs.Inputs {
-			arn := listOrARN(i, region, acct.ID, "input")
+			arn := listOrARN(acct.partition(), i, region, acct.ID, "input")
 			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !inSet[tgtID] {
 				continue
@@ -121,7 +121,7 @@ func resolveMediaLiveSdiSourceRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		for _, i := range attrs.Inputs {
-			arn := listOrARN(i, region, acct.ID, "input")
+			arn := listOrARN(acct.partition(), i, region, acct.ID, "input")
 			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !inSet[tgtID] {
 				continue
@@ -159,7 +159,7 @@ func resolveMediaLiveNetworkRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		for _, c := range attrs.AssociatedClusterIDs {
-			arn := listOrARN(c, region, acct.ID, "cluster")
+			arn := listOrARN(acct.partition(), c, region, acct.ID, "cluster")
 			tgtID := store.ResourceID("aws", acct.ID, arn)
 			if !clSet[tgtID] {
 				continue

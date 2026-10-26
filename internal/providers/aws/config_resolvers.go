@@ -90,7 +90,7 @@ func resolveConfigDeliveryChannels(acct *account, st *store.Store) error {
 			continue
 		}
 		if bucket := sv(attrs.S3BucketName); bucket != "" {
-			bid := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+bucket)
+			bid := store.ResourceID("aws", acct.ID, s3BucketARN(acct.partition(), bucket))
 			if err := st.UpsertRelationship(r.ID, bid, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert config-dc→s3: %w", err)
 			}

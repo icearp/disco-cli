@@ -68,7 +68,7 @@ func TestResolveCPDomainRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	domARN := cpARN(testRegion, acct.ID, "dom1")
+	domARN := cpARN("aws", testRegion, acct.ID, "dom1")
 	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-cp"
 	dlqURL := fmt.Sprintf("https://sqs.us-east-1.amazonaws.com/%s/cp-dlq", testAccountID)
 	dlqARN := "arn:aws:sqs:us-east-1:" + testAccountID + ":cp-dlq"
@@ -93,7 +93,7 @@ func TestResolveCPDomainRefs_ListDomainsElement(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attrs := mustJSON(cptypes.ListDomainItem{DomainName: ptrStr("dom1"), Tags: map[string]string{"team": "crm"}})
-	dID := upsertTestResource(t, st, "aws", acct.ID, TypeCPDomain, cpARN(testRegion, acct.ID, "dom1"), testRegion, attrs)
+	dID := upsertTestResource(t, st, "aws", acct.ID, TypeCPDomain, cpARN("aws", testRegion, acct.ID, "dom1"), testRegion, attrs)
 	upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, "arn:aws:kms:us-east-1:"+testAccountID+":key/k-cp", testRegion, "{}")
 	upsertTestResource(t, st, "aws", acct.ID, TypeSQSQueue, "arn:aws:sqs:us-east-1:"+testAccountID+":cp-dlq", testRegion, "{}")
 

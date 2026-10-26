@@ -51,8 +51,8 @@ type wafRegionalAPI interface {
 
 // wafRegionalARN synthesizes a stable regional ARN for a WAF Classic resource.
 // Regional List ops return only {Id, Name} with no ARN.
-func wafRegionalARN(region, account, kind, id string) string {
-	return fmt.Sprintf("arn:aws:waf-regional:%s:%s:%s/%s", region, account, kind, id)
+func wafRegionalARN(partition, region, account, kind, id string) string {
+	return arnFor(partition, "waf-regional", region, account, kind+"/"+id)
 }
 
 // scanWAFRegional discovers WAF Classic (v1) regional resources per region,
@@ -61,7 +61,7 @@ func wafRegionalARN(region, account, kind, id string) string {
 func scanWAFRegional(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := wafregional.NewFromConfig(acct.cfg, func(o *wafregional.Options) { o.Region = region })
 	rg := region
-	arnFn := func(kind, id string) string { return wafRegionalARN(region, acct.ID, kind, id) }
+	arnFn := func(kind, id string) string { return wafRegionalARN(acct.partition(), region, acct.ID, kind, id) }
 
 	total, inserted, webACLIDs, err := scanWAFPhases(ctx, wafRegionalPhases(client), acct, region, &rg, st, scanID, "wafregional", arnFn)
 	if err != nil {
@@ -227,7 +227,7 @@ func scanWAFRegionalAssociations(ctx context.Context, client wafRegionalAPI, acc
 	}
 	var batch []*store.Resource
 	for _, id := range webACLIDs {
-		webaclARN := wafRegionalARN(region, acct.ID, "webacl", id)
+		webaclARN := wafRegionalARN(acct.partition(), region, acct.ID, "webacl", id)
 		for _, rt := range rtypes {
 			wid := id
 			out, err := client.ListResourcesForWebACL(ctx, &wafregional.ListResourcesForWebACLInput{

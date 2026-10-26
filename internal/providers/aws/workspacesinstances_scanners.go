@@ -65,7 +65,7 @@ func scanWorkspacesInstancesIn(ctx context.Context, client workspacesInstancesAP
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:workspaces-instances:%s:%s:workspace-instance/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "workspaces-instances", region, acct.ID, "workspace-instance/"+id)
 			label := id
 			status := string(w.ProvisionState)
 			batch = append(batch, &store.Resource{

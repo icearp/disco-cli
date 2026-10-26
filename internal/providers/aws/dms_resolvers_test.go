@@ -28,7 +28,7 @@ func TestResolveDMSEndpointRefs(t *testing.T) {
 func TestResolveDMSReplicationInstanceRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	rsgARN := dmsReplicationSubnetGroupARNFromName(testRegion, acct.ID, "default")
+	rsgARN := dmsReplicationSubnetGroupARNFromName("aws", testRegion, acct.ID, "default")
 	rsgID := upsertTestResource(t, st, "aws", acct.ID, TypeDMSReplicationSubnetGroup, rsgARN, testRegion, "{}")
 	sgARN := ec2ARN(testRegion, acct.ID, "security-group", "sg-1")
 	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup, sgARN, testRegion, "{}")
@@ -50,7 +50,7 @@ func TestResolveDMSReplicationSubnetGroupRefs(t *testing.T) {
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vpcARN, testRegion, "{}")
 	subARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")
 	subID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subARN, testRegion, "{}")
-	rsgARN := dmsReplicationSubnetGroupARNFromName(testRegion, acct.ID, "g1")
+	rsgARN := dmsReplicationSubnetGroupARNFromName("aws", testRegion, acct.ID, "g1")
 	attrs := `{"VpcId":"vpc-1","Subnets":[{"SubnetIdentifier":"subnet-1"}]}`
 	rsgID := upsertTestResource(t, st, "aws", acct.ID, TypeDMSReplicationSubnetGroup, rsgARN, testRegion, attrs)
 	if err := resolveDMSReplicationSubnetGroupRefs(acct, st); err != nil {

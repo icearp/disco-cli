@@ -115,8 +115,8 @@ func gateMachineLearning(ctx context.Context, client machineLearningAPI) error {
 // mlNativeID builds the Service Reference ARN
 // arn:${Partition}:machinelearning:${Region}:${Account}:<kind>/<id>; the API
 // returns ids only. Shared with machinelearning_resolvers.go.
-func mlNativeID(region, acctID, kind, id string) string {
-	return fmt.Sprintf("arn:aws:machinelearning:%s:%s:%s/%s", region, acctID, kind, id)
+func mlNativeID(partition, region, acctID, kind, id string) string {
+	return arnFor(partition, "machinelearning", region, acctID, kind+"/"+id)
 }
 
 // mlFields are the parts of a listed element that become row columns.
@@ -172,7 +172,7 @@ func scanMLObjects[T any](
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           typ,
-				NativeID:       mlNativeID(region, acct.ID, kind, id),
+				NativeID:       mlNativeID(acct.partition(), region, acct.ID, kind, id),
 				Name:           f.name,
 				Status:         nonEmptyPtr(f.status),
 				Region:         &region,

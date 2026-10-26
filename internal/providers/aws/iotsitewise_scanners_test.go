@@ -446,7 +446,7 @@ func TestScanIoTSiteWise_WorkspaceFamilyAfterExistingPhases(t *testing.T) {
 	if total != 5 {
 		t.Errorf("total = %d; want 5 (gateway, workspace, application, pipeline, task)", total)
 	}
-	gw := iotSWARN(testRegion, testAccountID, "gateway", "gw")
+	gw := iotSWARN("aws", testRegion, testAccountID, "gateway", "gw")
 	if _, ok := qsRows(t, st, TypeIoTSWGateway)[gw]; !ok {
 		t.Errorf("pre-existing gateway phase did not store %s", gw)
 	}

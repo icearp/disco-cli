@@ -67,7 +67,7 @@ func resolveAppIntegrationsRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(e.Region)
-		busARN := fmt.Sprintf("arn:aws:events:%s:%s:event-bus/%s", region, acct.ID, busName)
+		busARN := arnFor(acct.partition(), "events", region, acct.ID, "event-bus/"+busName)
 		busID := store.ResourceID("aws", acct.ID, busARN)
 		if _, ok := busIDs[busID]; ok {
 			if err := st.UpsertRelationship(e.ID, busID, store.RelUses, "directed", nil); err != nil {

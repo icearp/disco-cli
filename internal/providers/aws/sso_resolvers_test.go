@@ -27,12 +27,12 @@ func ssoInstanceAttrs() string {
 }
 
 func TestInstanceArnFromPermissionSetArn(t *testing.T) {
-	got := instanceArnFromPermissionSetArn(ssoPermSetARN())
+	got := instanceArnFromPermissionSetArn("aws", ssoPermSetARN())
 	want := ssoInstanceARN()
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
-	if instanceArnFromPermissionSetArn("not an arn") != "" {
+	if instanceArnFromPermissionSetArn("aws", "not an arn") != "" {
 		t.Errorf("expected empty for malformed input")
 	}
 }

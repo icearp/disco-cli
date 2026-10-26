@@ -298,14 +298,14 @@ func TestScanDataZone_ChildPhaseErrorRunsLaterPhases(t *testing.T) {
 	if !errors.Is(err, profilesErr) || !errors.Is(err, projectsErr) {
 		t.Fatalf("err = %v, want both phase errors", err)
 	}
-	if _, ok := dzRows(t, st, TypeDataZoneProject)[dzARN(testRegion, testAccountID, "dom-1", "project", "prj-1")]; !ok {
+	if _, ok := dzRows(t, st, TypeDataZoneProject)[dzARN("aws", testRegion, testAccountID, "dom-1", "project", "prj-1")]; !ok {
 		t.Error("dom-1 project not stored beside dom-2's failure")
 	}
-	if _, ok := dzRows(t, st, TypeDataZoneNotebook)[dzARN(testRegion, testAccountID, "dom-1", "notebook", "nb-1")]; !ok {
+	if _, ok := dzRows(t, st, TypeDataZoneNotebook)[dzARN("aws", testRegion, testAccountID, "dom-1", "notebook", "nb-1")]; !ok {
 		t.Error("dom-1 notebook (last phase, under its stored project) not stored")
 	}
 	for _, dom := range []string{"dom-1", "dom-2"} {
-		if _, ok := dzRows(t, st, TypeDataZoneSubscription)[dzARN(testRegion, testAccountID, dom, "subscription", "sub-1")]; !ok {
+		if _, ok := dzRows(t, st, TypeDataZoneSubscription)[dzARN("aws", testRegion, testAccountID, dom, "subscription", "sub-1")]; !ok {
 			t.Errorf("%s subscription (later phase) not stored", dom)
 		}
 	}
@@ -358,7 +358,7 @@ func TestScanDataZone_DomainErrorStillListsChildren(t *testing.T) {
 	}
 	projects := dzRows(t, st, TypeDataZoneProject)
 	for _, dom := range []string{"dom-1", "dom-2"} {
-		if _, ok := projects[dzARN(testRegion, testAccountID, dom, "project", "prj-1")]; !ok {
+		if _, ok := projects[dzARN("aws", testRegion, testAccountID, dom, "project", "prj-1")]; !ok {
 			t.Errorf("%s project not stored", dom)
 		}
 	}

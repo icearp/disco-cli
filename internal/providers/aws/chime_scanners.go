@@ -424,8 +424,8 @@ func chimeVoiceRouting(ctx context.Context, client chimeVoiceRoutingAPI, acct *a
 // chimeSipRuleNativeID builds a SIP rule's NativeID. AWS issues no SIP-rule ARN
 // (SipRule carries only SipRuleId, and the Service Reference lists no sip-rule
 // resource), so the id is synthesized in the chime ARN shape.
-func chimeSipRuleNativeID(region, accountID, sipRuleID string) string {
-	return "arn:aws:chime:" + region + ":" + accountID + ":sip-rule/" + sipRuleID
+func chimeSipRuleNativeID(partition, region, accountID, sipRuleID string) string {
+	return arnFor(partition, "chime", region, accountID, "sip-rule/"+sipRuleID)
 }
 
 func chimeSipRules(ctx context.Context, client chimeVoiceRoutingAPI, acct *account, region string, st *store.Store, scanID string, batch *[]*store.Resource) error {
@@ -444,7 +444,7 @@ func chimeSipRules(ctx context.Context, client chimeVoiceRoutingAPI, acct *accou
 			}
 			*batch = append(*batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeChimeSipRule, NativeID: chimeSipRuleNativeID(region, acct.ID, id),
+				Type: TypeChimeSipRule, NativeID: chimeSipRuleNativeID(acct.partition(), region, acct.ID, id),
 				Name: r.Name, Region: &region, CreatedAt: tp(r.CreatedTimestamp),
 				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})

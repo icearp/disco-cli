@@ -225,7 +225,7 @@ func scanObsTelemetryEnrichment(ctx context.Context, client obsAdminAPI, acct *a
 		}
 		return 0, 0, fmt.Errorf("observabilityadmin:GetTelemetryEnrichmentStatus: %w", err)
 	}
-	arn := fmt.Sprintf("arn:aws:observabilityadmin:%s:%s:telemetry-enrichment", region, acct.ID)
+	arn := arnFor(acct.partition(), "observabilityadmin", region, acct.ID, "telemetry-enrichment")
 	label := "telemetry-enrichment"
 	status := string(out.Status)
 	r := &store.Resource{

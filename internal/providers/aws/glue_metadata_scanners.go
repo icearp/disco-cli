@@ -77,7 +77,7 @@ func scanGlueResourcePolicy(ctx context.Context, client glueAPI, acct *account, 
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type:     TypeGlueResourcePolicy,
-		NativeID: fmt.Sprintf("arn:aws:glue:%s:%s:resource-policy", region, acct.ID),
+		NativeID: arnFor(acct.partition(), "glue", region, acct.ID, "resource-policy"),
 		Name:     &name, Region: &region, CreatedAt: tp(out.CreateTime),
 		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}

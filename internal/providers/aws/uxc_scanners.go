@@ -20,7 +20,7 @@ func init() {
 
 // scanUXC captures the per-account console-customization config (singleton).
 // UXC is global; called once, in its home region (homeRegion).
-// Synth ARN: arn:aws:uxc::{a}:account-customization.
+// Synth ARN: arn:{p}:uxc::{a}:account-customization.
 func scanUXC(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
 	region, err := acct.homeRegion("uxc")
 	if err != nil {
@@ -35,7 +35,7 @@ func scanUXC(ctx context.Context, acct *account, _ string, st *store.Store, scan
 		}
 		return 0, 0, fmt.Errorf("uxc:GetAccountCustomizations: %w", err)
 	}
-	arn := fmt.Sprintf("arn:aws:uxc::%s:account-customization", acct.ID)
+	arn := arnFor(acct.partition(), "uxc", "", acct.ID, "account-customization")
 	label := acct.ID
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

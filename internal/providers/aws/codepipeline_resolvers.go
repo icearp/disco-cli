@@ -84,7 +84,7 @@ func resolveCodePipelinePipelineRefs(acct *account, st *store.Store) error {
 		}
 		for _, as := range stores {
 			if loc := sv(as.Location); loc != "" {
-				barn := "arn:aws:s3:::" + loc
+				barn := s3BucketARN(acct.partition(), loc)
 				tgt := store.ResourceID("aws", acct.ID, barn)
 				if bucketSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {

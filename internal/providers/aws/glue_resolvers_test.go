@@ -190,7 +190,7 @@ func TestS3BucketARNFromS3URL(t *testing.T) {
 		{"s3://", ""},
 	}
 	for _, c := range cases {
-		if got := s3BucketARNFromS3URL(c.in); got != c.want {
+		if got := s3BucketARNFromS3URL("aws", c.in); got != c.want {
 			t.Errorf("s3BucketARNFromS3URL(%q) = %q, want %q", c.in, got, c.want)
 		}
 	}

@@ -31,8 +31,8 @@ func noopCodeArtifactHierarchy(_ *account, _ *store.Store) error {
 	return nil
 }
 
-func codeArtifactDomainARN(region, acct, name string) string {
-	return fmt.Sprintf("arn:aws:codeartifact:%s:%s:domain/%s", region, acct, name)
+func codeArtifactDomainARN(partition, region, acct, name string) string {
+	return arnFor(partition, "codeartifact", region, acct, "domain/"+name)
 }
 
 // resolveCodeArtifactDomainToKMS wires each domain to its encryption key via
@@ -96,7 +96,7 @@ func resolveCodeArtifactChildrenToDomain(acct *account, st *store.Store) error {
 			if n == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, codeArtifactDomainARN(sv(r.Region), acct.ID, n))
+			tgtID := store.ResourceID("aws", acct.ID, codeArtifactDomainARN(acct.partition(), sv(r.Region), acct.ID, n))
 			if !domainSet[tgtID] {
 				continue
 			}

@@ -214,8 +214,8 @@ func resolveServiceCatalogServiceActionAssociations(acct *account, st *store.Sto
 				return fmt.Errorf("upsert servicecatalog saa→product: %w", err)
 			}
 		}
-		// Service-action NativeID is `arn:aws:servicecatalog:{r}:{a}:service-action/{saID}`.
-		saARN := scARN(sv(a.Region), acct.ID, "service-action", saID)
+		// Service-action NativeID is `arn:{p}:servicecatalog:{r}:{a}:service-action/{saID}`.
+		saARN := scARN(acct.partition(), sv(a.Region), acct.ID, "service-action", saID)
 		saRID := store.ResourceID("aws", acct.ID, saARN)
 		if saIDs[saRID] {
 			if err := st.UpsertRelationship(a.ID, saRID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -347,7 +347,7 @@ func resolveServiceCatalogPortfolioPrincipals(acct *account, st *store.Store) er
 	}
 	for _, a := range assocs {
 		// Recover bare portfolio id from NativeID:
-		// arn:aws:servicecatalog:{r}:{a}:portfolio-principal-association/{pid}/{principalARN}
+		// arn:{p}:servicecatalog:{r}:{a}:portfolio-principal-association/{pid}/{principalARN}
 		parts := splitNativePath(a.NativeID, ":portfolio-principal-association/")
 		if len(parts) >= 1 {
 			if portRID, ok := portIdx[parts[0]]; ok {
@@ -407,13 +407,13 @@ func resolveServiceCatalogTagOptionAssociations(acct *account, st *store.Store) 
 		return err
 	}
 	for _, a := range assocs {
-		// NativeID: arn:aws:servicecatalog:{r}:{a}:tag-option-association/{toID}/{rid}.
+		// NativeID: arn:{p}:servicecatalog:{r}:{a}:tag-option-association/{toID}/{rid}.
 		parts := splitNativePath(a.NativeID, ":tag-option-association/")
 		if len(parts) < 1 {
 			continue
 		}
 		toID := parts[0]
-		toARN := scARN(sv(a.Region), acct.ID, "tag-option", toID)
+		toARN := scARN(acct.partition(), sv(a.Region), acct.ID, "tag-option", toID)
 		toRID := store.ResourceID("aws", acct.ID, toARN)
 		if !toIDs[toRID] {
 			continue

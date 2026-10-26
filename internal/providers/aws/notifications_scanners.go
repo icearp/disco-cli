@@ -140,7 +140,7 @@ func scanNotifHubs(ctx context.Context, client notifsAPI, acct *account, region 
 		if hubReg == "" {
 			continue
 		}
-		arn := fmt.Sprintf("arn:aws:notifications::%s:notification-hub/%s", acct.ID, hubReg)
+		arn := arnFor(acct.partition(), "notifications", "", acct.ID, "notification-hub/"+hubReg)
 		label := hubReg
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

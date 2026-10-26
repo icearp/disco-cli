@@ -61,7 +61,7 @@ func (s *stubAppFlow) DescribeConnectorProfiles(_ context.Context, _ *appflow.De
 }
 
 func TestAppFlowConnectorNativeID(t *testing.T) {
-	got := appflowConnectorNativeID("us-east-1", "111111111111", "MyCustom")
+	got := appflowConnectorNativeID("aws", "us-east-1", "111111111111", "MyCustom")
 	want := "arn:aws:appflow:us-east-1:111111111111:connector/MyCustom"
 	if got != want {
 		t.Errorf("appflowConnectorNativeID = %q, want %q", got, want)
@@ -86,7 +86,7 @@ func TestScanAppFlowConnectors(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Errorf("total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	want := appflowConnectorNativeID(region, acct.ID, label)
+	want := appflowConnectorNativeID("aws", region, acct.ID, label)
 	rows, err := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeAppFlowConnector}, Limit: 100})
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)

@@ -69,8 +69,8 @@ func TestScanDataZoneProfiles(t *testing.T) {
 	for _, tc := range []struct {
 		typ, want string
 	}{
-		{TypeDataZoneGroupProfile, dzARN(testRegion, acct.ID, "dom-1", "group-profile", "gp-1")},
-		{TypeDataZoneUserProfile, dzARN(testRegion, acct.ID, "dom-1", "user-profile", "up-1")},
+		{TypeDataZoneGroupProfile, dzARN("aws", testRegion, acct.ID, "dom-1", "group-profile", "gp-1")},
+		{TypeDataZoneUserProfile, dzARN("aws", testRegion, acct.ID, "dom-1", "user-profile", "up-1")},
 	} {
 		rows, err := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{tc.typ}, Limit: util.AllResources})
 		if err != nil {

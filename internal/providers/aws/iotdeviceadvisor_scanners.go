@@ -18,7 +18,7 @@ func init() {
 }
 
 // scanIoTDeviceAdvisor discovers IoT Core Device Advisor suite definitions.
-// Synth ARN: arn:aws:iotdeviceadvisor:{r}:{a}:suitedefinition/{id}.
+// Synth ARN: arn:{p}:iotdeviceadvisor:{r}:{a}:suitedefinition/{id}.
 func scanIoTDeviceAdvisor(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := iotdeviceadvisor.NewFromConfig(acct.cfg, func(o *iotdeviceadvisor.Options) { o.Region = region })
 
@@ -37,7 +37,7 @@ func scanIoTDeviceAdvisor(ctx context.Context, acct *account, region string, st 
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:iotdeviceadvisor:%s:%s:suitedefinition/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "iotdeviceadvisor", region, acct.ID, "suitedefinition/"+id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeIoTDeviceAdvisorSuiteDefinition, NativeID: arn,

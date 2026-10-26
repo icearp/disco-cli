@@ -109,8 +109,8 @@ var wafv2ARNScope = map[types.Scope]string{
 // non-CloudFront key is usable only in its own region. The id follows the
 // sibling WAFv2 ARN shape with the key last, since its model pattern (\S)
 // allows "/".
-func wafv2APIKeyNativeID(region, accountID string, scope types.Scope, apiKey string) string {
-	return "arn:aws:wafv2:" + region + ":" + accountID + ":" + wafv2ARNScope[scope] + "/apikey/" + apiKey
+func wafv2APIKeyNativeID(partition, region, accountID string, scope types.Scope, apiKey string) string {
+	return arnFor(partition, "wafv2", region, accountID, wafv2ARNScope[scope]+"/apikey/"+apiKey)
 }
 
 // scanWAFv2APIKeys lists the CAPTCHA API keys of one scope. The pages read
@@ -139,7 +139,7 @@ func scanWAFv2APIKeys(ctx context.Context, client wafv2API, acct *account, regio
 			}
 			keys = append(keys, containedChild{row: &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWAFv2APIKey, NativeID: wafv2APIKeyNativeID(region, acct.ID, scope, key),
+				Type: TypeWAFv2APIKey, NativeID: wafv2APIKeyNativeID(acct.partition(), region, acct.ID, scope, key),
 				Region: &region, CreatedAt: tp(k.CreationTimestamp),
 				AttributesJSON: mustJSON(k), DiscoveredBy: scanID,
 			}})

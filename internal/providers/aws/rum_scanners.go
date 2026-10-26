@@ -46,8 +46,8 @@ func scanRUM(ctx context.Context, acct *account, region string, st *store.Store,
 
 // rumAppMonitorARN is the app monitor ARN (Service Reference format
 // appmonitor/${Name}); ListAppMonitors returns no ARN.
-func rumAppMonitorARN(region, acctID, name string) string {
-	return fmt.Sprintf("arn:aws:rum:%s:%s:appmonitor/%s", region, acctID, name)
+func rumAppMonitorARN(partition, region, acctID, name string) string {
+	return arnFor(partition, "rum", region, acctID, "appmonitor/"+name)
 }
 
 // scanRUMAppMonitors stores the app monitors a page at a time and returns the
@@ -75,7 +75,7 @@ func scanRUMAppMonitors(ctx context.Context, client rum.ListAppMonitorsAPIClient
 			if name == "" {
 				continue
 			}
-			arn := rumAppMonitorARN(region, acct.ID, name)
+			arn := rumAppMonitorARN(acct.partition(), region, acct.ID, name)
 			status := string(m.State)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

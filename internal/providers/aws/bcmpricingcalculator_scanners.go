@@ -69,9 +69,9 @@ type bcmPricingCalculatorAPI interface {
 // bcmPricingCalculatorNativeID synthesizes the canonical ARN for a pricing-
 // calculator artifact (the SDK summaries carry only an Id). The service is
 // account-global, so the ARN's region segment is empty:
-// arn:aws:bcm-pricing-calculator::{acct}:{kind}/{id}.
-func bcmPricingCalculatorNativeID(acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:bcm-pricing-calculator::%s:%s/%s", acct, kind, id)
+// arn:{p}:bcm-pricing-calculator::{acct}:{kind}/{id}.
+func bcmPricingCalculatorNativeID(partition, acct, kind, id string) string {
+	return arnFor(partition, "bcm-pricing-calculator", "", acct, kind+"/"+id)
 }
 
 // bcmPCListErr classifies a BCM Pricing Calculator List* page error into the
@@ -191,7 +191,7 @@ func scanBcmPricingCalculatorBillScenarios(ctx context.Context, client bcmPricin
 			}
 			name := sv(s.Name)
 			status := string(s.Status)
-			arn := bcmPricingCalculatorNativeID(acct.ID, "bill-scenario", id)
+			arn := bcmPricingCalculatorNativeID(acct.partition(), acct.ID, "bill-scenario", id)
 			parents = append(parents, childParent{id: id, arn: arn})
 			rows = append(rows, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -227,7 +227,7 @@ func scanBcmPricingCalculatorBillEstimates(ctx context.Context, client bcmPricin
 			rows = append(rows, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeBcmPricingCalculatorBillEstimate,
-				NativeID: bcmPricingCalculatorNativeID(acct.ID, "bill-estimate", id),
+				NativeID: bcmPricingCalculatorNativeID(acct.partition(), acct.ID, "bill-estimate", id),
 				Name:     &name, Region: regionGlobal, Status: &status, CreatedAt: tp(e.CreatedAt),
 				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			})
@@ -254,7 +254,7 @@ func scanBcmPricingCalculatorWorkloadEstimates(ctx context.Context, client bcmPr
 			}
 			name := sv(e.Name)
 			status := string(e.Status)
-			arn := bcmPricingCalculatorNativeID(acct.ID, "workload-estimate", id)
+			arn := bcmPricingCalculatorNativeID(acct.partition(), acct.ID, "workload-estimate", id)
 			parents = append(parents, childParent{id: id, arn: arn})
 			rows = append(rows, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

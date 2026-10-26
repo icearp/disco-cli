@@ -277,7 +277,7 @@ func TestScanDataZoneGovernance_PagesFieldsAndFanout(t *testing.T) {
 				t.Fatalf("stored %d rows, want 3: %v", len(rows), rows)
 			}
 			for _, w := range []struct{ parent, id string }{{tc.first, "a"}, {tc.first, "b"}, {tc.second, "c"}} {
-				native := dzARN(testRegion, acct.ID, dzParentDomain(w.parent), tc.kind, w.id)
+				native := dzARN("aws", testRegion, acct.ID, dzParentDomain(w.parent), tc.kind, w.id)
 				r, ok := rows[native]
 				if !ok {
 					t.Errorf("missing row %s", native)
@@ -287,7 +287,7 @@ func TestScanDataZoneGovernance_PagesFieldsAndFanout(t *testing.T) {
 					t.Errorf("%s: type=%s region=%s", native, r.Type, sv(r.Region))
 				}
 			}
-			a := rows[dzARN(testRegion, acct.ID, dzParentDomain(tc.first), tc.kind, "a")]
+			a := rows[dzARN("aws", testRegion, acct.ID, dzParentDomain(tc.first), tc.kind, "a")]
 			wantName := "n-a"
 			if tc.typ == TypeDataZoneSubscription || tc.typ == TypeDataZoneSubscriptionGrant {
 				wantName = "a"
@@ -376,7 +376,7 @@ func TestScanDataZoneGovernance_OtherErrorKeepsSiblings(t *testing.T) {
 			if !errors.Is(err, bad) {
 				t.Fatalf("err=%v, want the failing parent's error returned", err)
 			}
-			if _, ok := dzRows(t, st, tc.typ)[dzARN(testRegion, testAccountID, dzParentDomain(tc.second), tc.kind, "c")]; total != 1 || !ok {
+			if _, ok := dzRows(t, st, tc.typ)[dzARN("aws", testRegion, testAccountID, dzParentDomain(tc.second), tc.kind, "c")]; total != 1 || !ok {
 				t.Errorf("total=%d, sibling row c stored=%v; want 1/true", total, ok)
 			}
 		})
@@ -440,7 +440,7 @@ func TestScanDataZoneEnvironmentBlueprints_ManagedFlag(t *testing.T) {
 	}
 	rows := dzRows(t, st, TypeDataZoneEnvironmentBlueprint)
 	for id, want := range map[string]bool{"custom": false, "aws": true} {
-		r, ok := rows[dzARN(testRegion, acct.ID, "dom-1", "environment-blueprint", id)]
+		r, ok := rows[dzARN("aws", testRegion, acct.ID, "dom-1", "environment-blueprint", id)]
 		if !ok {
 			t.Errorf("missing blueprint %s", id)
 			continue
@@ -463,7 +463,7 @@ func TestScanDataZoneEnvironmentBlueprints_BothPassesStoredOnceAsManaged(t *test
 	if err != nil || total != 1 {
 		t.Fatalf("total=%d err=%v, want 1/nil", total, err)
 	}
-	r, ok := dzRows(t, st, TypeDataZoneEnvironmentBlueprint)[dzARN(testRegion, acct.ID, "dom-1", "environment-blueprint", "dup")]
+	r, ok := dzRows(t, st, TypeDataZoneEnvironmentBlueprint)[dzARN("aws", testRegion, acct.ID, "dom-1", "environment-blueprint", "dup")]
 	if !ok || !r.ManagedByProvider {
 		t.Errorf("row present=%t managed=%t, want present and managed", ok, r.ManagedByProvider)
 	}
@@ -653,7 +653,7 @@ func TestScanDataZone_GovernancePhasesWiredAndOrdered(t *testing.T) {
 				t.Fatalf("scanDataZone err=%v, wantErr=%t", err, tc.wantErr)
 			}
 			for _, w := range tc.want {
-				if _, ok := dzRows(t, st, w.typ)[dzARN(testRegion, testAccountID, "dom-1", w.kind, w.id)]; !ok {
+				if _, ok := dzRows(t, st, w.typ)[dzARN("aws", testRegion, testAccountID, "dom-1", w.kind, w.id)]; !ok {
 					t.Errorf("%s row %s not stored", w.typ, w.id)
 				}
 			}

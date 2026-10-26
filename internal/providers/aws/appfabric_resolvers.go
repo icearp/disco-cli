@@ -173,7 +173,7 @@ func resolveAppFabricDestination(acct *account, st *store.Store) error {
 			continue
 		}
 		if name := sv(attrs.S3BucketName); name != "" {
-			tgtID := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+name)
+			tgtID := store.ResourceID("aws", acct.ID, s3BucketARN(acct.partition(), name))
 			if bucketSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appfabric dest→s3: %w", err)

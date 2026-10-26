@@ -199,7 +199,7 @@ func scanCSCSyncConfigurations(ctx context.Context, client codeStarConnectionsAP
 					if resName == "" {
 						continue
 					}
-					arn := fmt.Sprintf("arn:aws:codestar-connections:%s:%s:sync-configuration/%s/%s/%s", region, acct.ID, id, st2, resName)
+					arn := arnFor(acct.partition(), "codestar-connections", region, acct.ID, "sync-configuration/"+id+"/"+string(st2)+"/"+resName)
 					label := resName
 					batch = append(batch, &store.Resource{
 						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

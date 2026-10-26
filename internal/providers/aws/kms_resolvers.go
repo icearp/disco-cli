@@ -331,7 +331,7 @@ func resolveKMSKeyCustomKeyStores(acct *account, st *store.Store) error {
 		if storeID == "" {
 			continue
 		}
-		tgt := store.ResourceID("aws", acct.ID, kmsCustomKeyStoreNativeID(sv(k.Region), acct.ID, storeID))
+		tgt := store.ResourceID("aws", acct.ID, kmsCustomKeyStoreNativeID(acct.partition(), sv(k.Region), acct.ID, storeID))
 		if !keyStores[tgt] {
 			continue
 		}

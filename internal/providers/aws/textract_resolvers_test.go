@@ -13,7 +13,7 @@ func TestResolveTextractAdapterVersion(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 
 	adapterID := "ad-0001"
-	adapterNID := textractAdapterNativeID(testRegion, acct.ID, adapterID)
+	adapterNID := textractAdapterNativeID("aws", testRegion, acct.ID, adapterID)
 	verNID := adapterNID + "/adapter-version/1"
 
 	aID := upsertTestResource(t, st, "aws", acct.ID, TypeTextractAdapter, adapterNID, testRegion, "{}")
@@ -31,7 +31,7 @@ func TestResolveTextractAdapterVersion_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	verNID := textractAdapterNativeID(testRegion, acct.ID, "ad-x") + "/adapter-version/1"
+	verNID := textractAdapterNativeID("aws", testRegion, acct.ID, "ad-x") + "/adapter-version/1"
 	vID := upsertTestResource(t, st, "aws", acct.ID, TypeTextractAdapterVersion, verNID, testRegion, "{}")
 
 	if err := resolveTextractAdapterVersion(acct, st); err != nil {

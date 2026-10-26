@@ -9,16 +9,16 @@ import (
 )
 
 func TestResolveFSxExtra_DecodeErrorReturned(t *testing.T) {
-	fsARN := fsxARN(testRegion, testAccountID, "file-system", "fs-1")
+	fsARN := fsxARN("aws", testRegion, testAccountID, "file-system", "fs-1")
 	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-1"
 	runFSxDecodeCases(t, []fsxDecodeCase{
 		{
 			"backup", resolveFSxBackupRelationships, TypeFSxFileSystem, fsARN, TypeFSxBackup, TypeFSxBackup,
-			fsxARN(testRegion, testAccountID, "backup", "backup-1"), mustJSON(fsxtypes.Backup{FileSystem: &fsxtypes.FileSystem{ResourceARN: &fsARN}}),
+			fsxARN("aws", testRegion, testAccountID, "backup", "backup-1"), mustJSON(fsxtypes.Backup{FileSystem: &fsxtypes.FileSystem{ResourceARN: &fsARN}}),
 		},
 		{
 			"file cache", resolveFSxFileCacheRelationships, TypeKMSKey, keyARN, TypeFSxFileCache, TypeFSxFileCache,
-			fsxARN(testRegion, testAccountID, "file-cache", "fc-1"), mustJSON(fsxtypes.FileCache{KmsKeyId: &keyARN}),
+			fsxARN("aws", testRegion, testAccountID, "file-cache", "fc-1"), mustJSON(fsxtypes.FileCache{KmsKeyId: &keyARN}),
 		},
 	})
 }

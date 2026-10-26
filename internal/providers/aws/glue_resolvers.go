@@ -119,7 +119,7 @@ func resolveGlueJobRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.Command != nil {
-			if bARN := s3BucketARNFromS3URL(sv(attrs.Command.ScriptLocation)); bARN != "" {
+			if bARN := s3BucketARNFromS3URL(acct.partition(), sv(attrs.Command.ScriptLocation)); bARN != "" {
 				bID := store.ResourceID("aws", acct.ID, bARN)
 				if bucketSet[bID] {
 					if err := st.UpsertRelationship(r.ID, bID, store.RelUses, "directed", nil); err != nil {
@@ -187,7 +187,7 @@ func resolveGlueCrawlerRefs(acct *account, st *store.Store) error {
 		if attrs.Targets != nil {
 			seen := map[string]bool{}
 			for _, t := range attrs.Targets.S3Targets {
-				bARN := s3BucketARNFromS3URL(sv(t.Path))
+				bARN := s3BucketARNFromS3URL(acct.partition(), sv(t.Path))
 				if bARN == "" || seen[bARN] {
 					continue
 				}
@@ -246,7 +246,7 @@ func resolveGlueTableS3Location(acct *account, st *store.Store) error {
 		if attrs.StorageDescriptor == nil {
 			continue
 		}
-		bucketARN := s3BucketARNFromS3URL(sv(attrs.StorageDescriptor.Location))
+		bucketARN := s3BucketARNFromS3URL(acct.partition(), sv(attrs.StorageDescriptor.Location))
 		if bucketARN == "" {
 			continue
 		}
@@ -262,11 +262,11 @@ func resolveGlueTableS3Location(acct *account, st *store.Store) error {
 }
 
 // s3BucketARNFromS3URL collapses an `s3://bucket[/prefix...]` URL to the
-// canonical bucket ARN `arn:aws:s3:::bucket`; returns "" for non-s3://
+// canonical bucket ARN `arn:{p}:s3:::bucket` in the given partition; returns "" for non-s3://
 // schemes (HDFS, JDBC, etc.) or malformed input. Sibling of
 // `s3BucketARNFromLocation`, which handles `arn:aws:s3:::` prefixes from
 // Lake Formation registered locations.
-func s3BucketARNFromS3URL(url string) string {
+func s3BucketARNFromS3URL(partition, url string) string {
 	const scheme = "s3://"
 	if !strings.HasPrefix(url, scheme) {
 		return ""
@@ -278,5 +278,5 @@ func s3BucketARNFromS3URL(url string) string {
 	if rest == "" {
 		return ""
 	}
-	return "arn:aws:s3:::" + rest
+	return s3BucketARN(partition, rest)
 }

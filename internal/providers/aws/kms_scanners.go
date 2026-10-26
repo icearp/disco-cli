@@ -75,8 +75,8 @@ func scanKMS(ctx context.Context, acct *account, region string, st *store.Store,
 // store: DescribeCustomKeyStores returns none, and the Service Reference
 // defines no custom key store ARN. Keys name their store by the bare id, so
 // the key resolver rebuilds this from the key's region.
-func kmsCustomKeyStoreNativeID(region, accountID, storeID string) string {
-	return "arn:aws:kms:" + region + ":" + accountID + ":custom-key-store/" + storeID
+func kmsCustomKeyStoreNativeID(partition, region, accountID, storeID string) string {
+	return arnFor(partition, "kms", region, accountID, "custom-key-store/"+storeID)
 }
 
 // scanKMSCustomKeyStores lists the region's CloudHSM and external key stores.
@@ -97,7 +97,7 @@ func scanKMSCustomKeyStores(ctx context.Context, client kmsAPI, acct *account, r
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeKMSCustomKeyStore,
-				NativeID:       kmsCustomKeyStoreNativeID(region, acct.ID, id),
+				NativeID:       kmsCustomKeyStoreNativeID(acct.partition(), region, acct.ID, id),
 				Name:           ks.CustomKeyStoreName,
 				Region:         &region,
 				Status:         nonEmptyPtr(string(ks.ConnectionState)),

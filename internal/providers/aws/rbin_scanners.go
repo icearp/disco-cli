@@ -20,7 +20,7 @@ func init() {
 
 // scanRbin discovers Recycle Bin retention rules. ListRules requires a
 // ResourceType filter; iterate all known types. Synth ARN:
-// arn:aws:rbin:{r}:{a}:rule/{identifier}.
+// arn:{p}:rbin:{r}:{a}:rule/{identifier}.
 func scanRbin(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := rbin.NewFromConfig(acct.cfg, func(o *rbin.Options) { o.Region = region })
 
@@ -49,7 +49,7 @@ func scanRbin(ctx context.Context, acct *account, region string, st *store.Store
 				seen[id] = true
 				arn := sv(r.RuleArn)
 				if arn == "" {
-					arn = fmt.Sprintf("arn:aws:rbin:%s:%s:rule/%s", region, acct.ID, id)
+					arn = arnFor(acct.partition(), "rbin", region, acct.ID, "rule/"+id)
 				}
 				status := string(r.LockState)
 				batch = append(batch, &store.Resource{

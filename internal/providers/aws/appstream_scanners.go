@@ -183,8 +183,8 @@ func scanASOlderPhases(ctx context.Context, client appStreamAPI, acct *account, 
 	return total, inserted, images, builders, nil
 }
 
-func asARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:appstream:%s:%s:%s/%s", region, acct, kind, id)
+func asARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "appstream", region, acct, kind+"/"+id)
 }
 
 func scanASAppBlocks(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -375,7 +375,7 @@ func scanASAppFleetAssocs(ctx context.Context, client appStreamAPI, acct *accoun
 				if appArn == "" {
 					continue
 				}
-				arn := asARN(region, acct.ID, "application-fleet-association", fname+"/"+appArn)
+				arn := asARN(acct.partition(), region, acct.ID, "application-fleet-association", fname+"/"+appArn)
 				label := fname + "/" + appArn
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -408,7 +408,7 @@ func scanASDirectoryConfigs(ctx context.Context, client appStreamAPI, acct *acco
 			if name == "" {
 				continue
 			}
-			arn := asARN(region, acct.ID, "directory-config", name)
+			arn := asARN(acct.partition(), region, acct.ID, "directory-config", name)
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -444,7 +444,7 @@ func scanASEntitlements(ctx context.Context, client appStreamAPI, acct *account,
 					continue
 				}
 				keys = append(keys, asEntitlementKey{stack: sn, entitlement: name})
-				arn := asARN(region, acct.ID, "entitlement", sn+"/"+name)
+				arn := asARN(acct.partition(), region, acct.ID, "entitlement", sn+"/"+name)
 				label := name
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -597,7 +597,7 @@ func scanASStackFleetAssocs(ctx context.Context, client appStreamAPI, acct *acco
 				if fname == "" {
 					continue
 				}
-				arn := asARN(region, acct.ID, "stack-fleet-association", sn+"/"+fname)
+				arn := asARN(acct.partition(), region, acct.ID, "stack-fleet-association", sn+"/"+fname)
 				label := sn + "/" + fname
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -642,7 +642,7 @@ func scanASUserStackAssocs(ctx context.Context, client appStreamAPI, acct *accou
 				if user == "" || stack == "" {
 					continue
 				}
-				arn := asARN(region, acct.ID, "user-stack-association", stack+"/"+string(a.AuthenticationType)+"/"+user)
+				arn := asARN(acct.partition(), region, acct.ID, "user-stack-association", stack+"/"+string(a.AuthenticationType)+"/"+user)
 				label := stack + "/" + user
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -726,7 +726,7 @@ func scanASAppEntitlementAssocs(ctx context.Context, client appStreamAPI, acct *
 				if appID == "" {
 					continue
 				}
-				arn := asARN(region, acct.ID, "application-entitlement-association", k.stack+"/"+k.entitlement+"/"+appID)
+				arn := asARN(acct.partition(), region, acct.ID, "application-entitlement-association", k.stack+"/"+k.entitlement+"/"+appID)
 				label := k.entitlement + "/" + appID
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

@@ -21,7 +21,7 @@ func coPrefAttrs(t *testing.T, p cotypes.RecommendationPreferencesDetail) string
 // lists the rows in the order the test needs.
 func coUpsertPref(t *testing.T, st *store.Store, p cotypes.RecommendationPreferencesDetail, attrs, name string) string {
 	t.Helper()
-	id := computeOptimizerPreferenceNativeID(testRegion, testAccountID, p.ResourceType, p.Scope.Name, sv(p.Scope.Value))
+	id := computeOptimizerPreferenceNativeID("aws", testRegion, testAccountID, p.ResourceType, p.Scope.Name, sv(p.Scope.Value))
 	return upsertTestResourceNamed(t, st, TypeComputeOptimizerRecommendationPreference, id, testRegion, attrs, name)
 }
 

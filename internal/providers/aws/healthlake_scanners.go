@@ -92,8 +92,8 @@ func scanHealthLakeDatastores(ctx context.Context, client healthLakeAPI, acct *a
 
 // healthLakeProfileARN builds the profile ARN the Service Authorization
 // Reference documents; the list API returns only the profile id.
-func healthLakeProfileARN(region, accountID, profileID string) string {
-	return "arn:aws:healthlake:" + region + ":" + accountID + ":dataTransformationProfile/" + profileID
+func healthLakeProfileARN(partition, region, accountID, profileID string) string {
+	return arnFor(partition, "healthlake", region, accountID, "dataTransformationProfile/"+profileID)
 }
 
 // scanHealthLakeProfiles stores the profiles listHealthLakeProfiles lists and
@@ -141,7 +141,7 @@ func listHealthLakeProfiles(ctx context.Context, client healthLakeAPI, acct *acc
 				if id == "" {
 					continue
 				}
-				arn := healthLakeProfileARN(region, acct.ID, id)
+				arn := healthLakeProfileARN(acct.partition(), region, acct.ID, id)
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeHealthLakeDataTransformationProfile, NativeID: arn,

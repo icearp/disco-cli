@@ -157,7 +157,7 @@ func seedChimeSMA(t *testing.T, st *store.Store, region, id string) string {
 
 func seedChimeSipRule(t *testing.T, st *store.Store, id string, targets ...cvtypes.SipRuleTargetApplication) string {
 	t.Helper()
-	return upsertTestResource(t, st, "aws", testAccountID, TypeChimeSipRule, chimeSipRuleNativeID(testRegion, testAccountID, id), testRegion,
+	return upsertTestResource(t, st, "aws", testAccountID, TypeChimeSipRule, chimeSipRuleNativeID("aws", testRegion, testAccountID, id), testRegion,
 		mustJSON(cvtypes.SipRule{SipRuleId: &id, TargetApplications: targets}))
 }
 
@@ -195,7 +195,7 @@ func TestResolveChimeSipRuleTargets_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	seedChimeSMA(t, st, testRegion, "sma-1")
-	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeChimeSipRule, chimeSipRuleNativeID(testRegion, acct.ID, "r"), testRegion, "{}")
+	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeChimeSipRule, chimeSipRuleNativeID("aws", testRegion, acct.ID, "r"), testRegion, "{}")
 
 	if err := resolveChimeSipRuleTargets(acct, st); err != nil {
 		t.Fatalf("resolveChimeSipRuleTargets: %v", err)
@@ -211,7 +211,7 @@ func TestResolveChimeSipRuleTargets_BadAttrsReportedOthersWired(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	smaID := seedChimeSMA(t, st, testRegion, "sma-1")
 	before := seedChimeSipRule(t, st, "a", chimeTarget(testRegion, "sma-1"))
-	upsertTestResource(t, st, "aws", acct.ID, TypeChimeSipRule, chimeSipRuleNativeID(testRegion, acct.ID, "b"), testRegion, `{"TargetApplications":7}`)
+	upsertTestResource(t, st, "aws", acct.ID, TypeChimeSipRule, chimeSipRuleNativeID("aws", testRegion, acct.ID, "b"), testRegion, `{"TargetApplications":7}`)
 	after := seedChimeSipRule(t, st, "c", chimeTarget(testRegion, "sma-1"))
 
 	var typeErr *json.UnmarshalTypeError

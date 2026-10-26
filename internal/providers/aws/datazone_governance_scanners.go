@@ -129,7 +129,7 @@ func scanDataZoneAccountPools(ctx context.Context, client dataZoneAPI, acct *acc
 			if label == "" {
 				label = id
 			}
-			batch = append(batch, dzResource(acct, region, scanID, TypeDataZoneAccountPool, dzARN(region, acct.ID, d.id, "account-pool", id), label, p))
+			batch = append(batch, dzResource(acct, region, scanID, TypeDataZoneAccountPool, dzARN(acct.partition(), region, acct.ID, d.id, "account-pool", id), label, p))
 		}
 	}
 	return f.finish(batch)
@@ -167,7 +167,7 @@ func scanDataZoneEnvironmentBlueprints(ctx context.Context, client dataZoneAPI, 
 				if label == "" {
 					label = id
 				}
-				r := dzResource(acct, region, scanID, TypeDataZoneEnvironmentBlueprint, dzARN(region, acct.ID, d.id, "environment-blueprint", id), label, b)
+				r := dzResource(acct, region, scanID, TypeDataZoneEnvironmentBlueprint, dzARN(acct.partition(), region, acct.ID, d.id, "environment-blueprint", id), label, b)
 				r.CreatedAt = tp(b.CreatedAt)
 				r.ManagedByProvider = managed
 				batch = append(batch, r)
@@ -200,7 +200,7 @@ func scanDataZoneNotebooks(ctx context.Context, client dataZoneAPI, acct *accoun
 				if label == "" {
 					label = id
 				}
-				r := dzResource(acct, region, scanID, TypeDataZoneNotebook, dzARN(region, acct.ID, d.id, "notebook", id), label, n)
+				r := dzResource(acct, region, scanID, TypeDataZoneNotebook, dzARN(acct.partition(), region, acct.ID, d.id, "notebook", id), label, n)
 				r.CreatedAt = tp(n.CreatedAt)
 				dzStatus(r, string(n.Status))
 				batch = append(batch, r)
@@ -246,7 +246,7 @@ func scanDataZoneRules(ctx context.Context, client dataZoneAPI, acct *account, r
 				if label == "" {
 					label = id
 				}
-				batch = append(batch, dzResource(acct, region, scanID, TypeDataZoneRule, dzARN(region, acct.ID, d.id, "rule", id), label, r))
+				batch = append(batch, dzResource(acct, region, scanID, TypeDataZoneRule, dzARN(acct.partition(), region, acct.ID, d.id, "rule", id), label, r))
 			}
 		}
 	}
@@ -274,7 +274,7 @@ func scanDataZoneSubscriptions(ctx context.Context, client dataZoneAPI, acct *ac
 				f.noID(d.id)
 				continue
 			}
-			r := dzResource(acct, region, scanID, TypeDataZoneSubscription, dzARN(region, acct.ID, d.id, "subscription", id), id, s)
+			r := dzResource(acct, region, scanID, TypeDataZoneSubscription, dzARN(acct.partition(), region, acct.ID, d.id, "subscription", id), id, s)
 			r.CreatedAt = tp(s.CreatedAt)
 			dzStatus(r, string(s.Status))
 			batch = append(batch, r)
@@ -301,7 +301,7 @@ func scanDataZoneSubscriptionGrants(ctx context.Context, client dataZoneAPI, acc
 				f.noID(d.id)
 				continue
 			}
-			r := dzResource(acct, region, scanID, TypeDataZoneSubscriptionGrant, dzARN(region, acct.ID, d.id, "subscription-grant", id), id, g)
+			r := dzResource(acct, region, scanID, TypeDataZoneSubscriptionGrant, dzARN(acct.partition(), region, acct.ID, d.id, "subscription-grant", id), id, g)
 			r.CreatedAt = tp(g.CreatedAt)
 			dzStatus(r, string(g.Status))
 			batch = append(batch, r)

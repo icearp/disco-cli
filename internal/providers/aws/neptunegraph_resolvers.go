@@ -22,8 +22,8 @@ func init() {
 	)
 }
 
-func neptuneGraphARN(region, acct, id string) string {
-	return fmt.Sprintf("arn:aws:neptune-graph:%s:%s:graph/%s", region, acct, id)
+func neptuneGraphARN(partition, region, acct, id string) string {
+	return arnFor(partition, "neptune-graph", region, acct, "graph/"+id)
 }
 
 // resolveNeptuneGraphSnapshotRefs wires each graph-snapshot to its source
@@ -56,7 +56,7 @@ func resolveNeptuneGraphSnapshotRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if gid := sv(attrs.SourceGraphID); gid != "" {
-			tgtID := store.ResourceID("aws", acct.ID, neptuneGraphARN(region, acct.ID, gid))
+			tgtID := store.ResourceID("aws", acct.ID, neptuneGraphARN(acct.partition(), region, acct.ID, gid))
 			if gSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert ng-snapshot→graph: %w", err)

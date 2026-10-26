@@ -118,7 +118,7 @@ func resolveGuardDutyIPSetLocation(acct *account, st *store.Store) error {
 		if bucket == "" {
 			continue
 		}
-		bucketID := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+bucket)
+		bucketID := store.ResourceID("aws", acct.ID, s3BucketARN(acct.partition(), bucket))
 		if err := st.UpsertRelationship(r.ID, bucketID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert guardduty-ipset→s3: %w", err)
 		}

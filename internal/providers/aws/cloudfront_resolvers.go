@@ -332,7 +332,7 @@ func resolveDistributionOrigins(acct *account, st *store.Store) error {
 			// S3 origin bucket: DomainName ends in .s3.amazonaws.com or .s3-*.amazonaws.com
 			if domain := sv(o.DomainName); domain != "" {
 				if bucket := cloudfrontS3BucketFromDomain(domain); bucket != "" {
-					bucketARN := "arn:aws:s3:::" + bucket
+					bucketARN := s3BucketARN(acct.partition(), bucket)
 					if err := upsert(TypeS3Bucket, bucketARN); err != nil {
 						return err
 					}
@@ -514,7 +514,7 @@ func resolveCloudFrontStreamingDistributionOrigins(acct *account, st *store.Stor
 		if bucket == "" {
 			continue
 		}
-		targetID := store.ResourceID("aws", acct.ID, "arn:aws:s3:::"+bucket)
+		targetID := store.ResourceID("aws", acct.ID, s3BucketARN(acct.partition(), bucket))
 		if !bucketSet[targetID] {
 			continue
 		}

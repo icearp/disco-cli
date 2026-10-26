@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"fmt"
 	"math"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -221,7 +220,7 @@ func scanFSxS3AccessPointAttachments(ctx context.Context, client fsxAPI, acct *a
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeFSxS3AccessPointAttachment,
-				NativeID: fmt.Sprintf("arn:aws:fsx:%s:%s:s3-access-point-attachment/%s", region, acct.ID, name),
+				NativeID: arnFor(acct.partition(), "fsx", region, acct.ID, "s3-access-point-attachment/"+name),
 				Name:     &name, Region: &region, Status: nonEmptyPtr(string(a.Lifecycle)),
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			}, "", ""

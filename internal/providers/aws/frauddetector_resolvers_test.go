@@ -9,9 +9,9 @@ import (
 func TestResolveFDDetectorEventType(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	etARN := fdARN(testRegion, acct.ID, "event-type", "purchase")
+	etARN := fdARN("aws", testRegion, acct.ID, "event-type", "purchase")
 	etID := upsertTestResource(t, st, "aws", acct.ID, TypeFraudDetectorEventType, etARN, testRegion, "{}")
-	dARN := fdARN(testRegion, acct.ID, "detector", "buyer-detector")
+	dARN := fdARN("aws", testRegion, acct.ID, "detector", "buyer-detector")
 	attrs := `{"EventTypeName":"purchase"}`
 	dID := upsertTestResource(t, st, "aws", acct.ID, TypeFraudDetectorDetector, dARN, testRegion, attrs)
 	if err := resolveFDDetectorEventType(acct, st); err != nil {
@@ -24,13 +24,13 @@ func TestResolveFDDetectorEventType(t *testing.T) {
 func TestResolveFDEventTypeRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	enARN := fdARN(testRegion, acct.ID, "entity-type", "buyer")
+	enARN := fdARN("aws", testRegion, acct.ID, "entity-type", "buyer")
 	enID := upsertTestResource(t, st, "aws", acct.ID, TypeFraudDetectorEntityType, enARN, testRegion, "{}")
-	lARN := fdARN(testRegion, acct.ID, "label", "fraud")
+	lARN := fdARN("aws", testRegion, acct.ID, "label", "fraud")
 	lID := upsertTestResource(t, st, "aws", acct.ID, TypeFraudDetectorLabel, lARN, testRegion, "{}")
-	vARN := fdARN(testRegion, acct.ID, "variable", "ip_address")
+	vARN := fdARN("aws", testRegion, acct.ID, "variable", "ip_address")
 	vID := upsertTestResource(t, st, "aws", acct.ID, TypeFraudDetectorVariable, vARN, testRegion, "{}")
-	etARN := fdARN(testRegion, acct.ID, "event-type", "purchase")
+	etARN := fdARN("aws", testRegion, acct.ID, "event-type", "purchase")
 	attrs := `{"EntityTypes":["buyer"],"Labels":["fraud"],"EventVariables":["ip_address"]}`
 	etID := upsertTestResource(t, st, "aws", acct.ID, TypeFraudDetectorEventType, etARN, testRegion, attrs)
 	if err := resolveFDEventTypeRefs(acct, st); err != nil {
