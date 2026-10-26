@@ -114,33 +114,55 @@ func loadBaseConfig(ctx context.Context, profile string) (sdkaws.Config, error) 
 }
 
 // baseConfig is a loaded base config plus the region its profile or
-// environment named, kept because cfg.Region may hold the fallback instead.
+// environment named.
 type baseConfig struct {
-	cfg           sdkaws.Config
-	profileRegion string // "" when the profile and environment name no region
+	cfg           sdkaws.Config // Region is "" when profileRegion is
+	profileRegion string        // "" when the profile and environment name no region
 }
 
-// loadBaseFor loads profile's base config and fills in the fallback region.
+// loadBaseFor loads profile's base config. Its region is left as the profile
+// or environment set it: the fallback depends on the partition, which is not
+// known until the account is resolved (see forPartition).
 func loadBaseFor(ctx context.Context, loadBase baseConfigLoader, profile string) (baseConfig, error) {
 	cfg, err := loadBase(ctx, profile)
 	if err != nil {
 		return baseConfig{}, err
 	}
-	b := baseConfig{cfg: cfg, profileRegion: cfg.Region}
-	// Honor the region from profile/env; fall back to us-east-1 only when none
-	// is configured, since global-endpoint clients built from this config need
-	// a non-empty region. (The us-east-1-pinned probes — enabledScanRegions,
-	// region-availability SSM — set o.Region themselves, so unaffected.) The
-	// fallback is not partition evidence, so profileRegion keeps the "".
-	if b.cfg.Region == "" {
-		b.cfg.Region = "us-east-1"
-	}
-	return b, nil
+	return baseConfig{cfg: cfg, profileRegion: cfg.Region}, nil
 }
 
-// implicitDefaultRegions is the region list an account scans when neither the
-// account, aws.default_regions nor --regions names one.
-var implicitDefaultRegions = []string{"us-east-1"}
+// forPartition returns the base config with its region filled in for
+// partition: the profile or environment region when one is set, otherwise the
+// partition's home region (us-east-1 for aws). Global-endpoint clients and STS
+// built from the config need a non-empty region, and one outside the
+// partition would send the account's credentials to another partition. The
+// fallback is not partition evidence; resolvePartition reads profileRegion.
+func (b baseConfig) forPartition(partition string) (sdkaws.Config, error) {
+	cfg := b.cfg
+	if cfg.Region != "" {
+		return cfg, nil
+	}
+	home, err := partitionHomeOf(partition)
+	if err != nil {
+		return sdkaws.Config{}, err
+	}
+	cfg.Region = home
+	return cfg, nil
+}
+
+// scanRegionsFor returns the regions an account scans: configured, with "all"
+// expanded to the partition's regions, or the partition's home region when
+// neither the account, aws.default_regions nor --regions names one.
+func scanRegionsFor(partition string, configured []string) ([]string, error) {
+	if len(configured) > 0 {
+		return expandAllRegions(partition, configured), nil
+	}
+	home, err := partitionHomeOf(partition)
+	if err != nil {
+		return nil, err
+	}
+	return []string{home}, nil
+}
 
 // loadAccounts parses the viper config and returns a resolved account slice.
 // When no accounts are configured, the current account is detected via STS.
@@ -202,9 +224,19 @@ func loadAccounts(ctx context.Context, loadBase baseConfigLoader, profile string
 			if err != nil {
 				return nil, err
 			}
-			identity, err := sts.NewFromConfig(base.cfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+			// The caller ARN is the evidence this call fetches, so the
+			// region it is sent to comes from the evidence available
+			// before it; the account's own resolution below must agree.
+			stsCfg, err := preliminaryConfig(cmp.Or(profile, "auto-detected"), base, partitionInputs{
+				regions:       firstNonEmpty(regionOverride, cfg.DefaultRegions),
+				profileRegion: base.profileRegion,
+			})
 			if err != nil {
-				return nil, fmt.Errorf("sts:GetCallerIdentity: %w", err)
+				return nil, err
+			}
+			identity, err := sts.NewFromConfig(stsCfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+			if err != nil {
+				return nil, &callerIdentityError{Region: stsCfg.Region, Cause: err}
 			}
 			pending = append(pending, pendingAccount{cfg: accountCfg{ID: sv(identity.Account)}, callerARN: sv(identity.Arn)})
 		}
@@ -220,24 +252,12 @@ func loadAccounts(ctx context.Context, loadBase baseConfigLoader, profile string
 		if err != nil {
 			return nil, err
 		}
-		acctCfg := base.cfg // value copy; safe — aws.Config is a struct
-
-		// Multi-hop role chaining (preferred when present): walk role_chain
-		// in order, each step's STS client built from the prior step's
-		// credentials. Each AssumeRoleProvider wraps in a CredentialsCache so
-		// the SDK's normal token refresh kicks in independently per hop.
-		roleARN, roleSource := a.roleTarget()
-		switch {
-		case roleSource == sourceRoleChain:
-			acctCfg.Credentials = chainAssumeRoles(acctCfg, a.RoleChain, sourceIdentity)
-		case roleARN != "":
-			acctCfg.Credentials = cachedAssumeRole(sts.NewFromConfig(base.cfg), roleARN, assumeRoleOpts("", sourceIdentity))
-		}
 
 		// The CLI --regions override wins over per-account regions, which win
 		// over aws.default_regions. To scan all opted-in regions, list "all"
 		// in any of them.
 		configured := firstNonEmpty(regionOverride, a.Regions, cfg.DefaultRegions)
+		roleARN, roleSource := a.roleTarget()
 
 		label := cmp.Or(a.ID, a.Name)
 		partition, err := resolvePartition(label, partitionInputs{
@@ -261,10 +281,33 @@ func loadAccounts(ctx context.Context, loadBase baseConfigLoader, profile string
 			}
 		}
 
+		// The partition is resolved before any credentials are built, so the
+		// STS calls behind them go to a region inside it.
+		acctCfg, err := base.forPartition(partition)
+		if err != nil {
+			return nil, err
+		}
+		stsCfg := acctCfg // value copy; safe — aws.Config is a struct
+
+		// Multi-hop role chaining (preferred when present): walk role_chain
+		// in order, each step's STS client built from the prior step's
+		// credentials. Each AssumeRoleProvider wraps in a CredentialsCache so
+		// the SDK's normal token refresh kicks in independently per hop.
+		switch {
+		case roleSource == sourceRoleChain:
+			acctCfg.Credentials = chainAssumeRoles(stsCfg, a.RoleChain, sourceIdentity)
+		case roleARN != "":
+			acctCfg.Credentials = cachedAssumeRole(sts.NewFromConfig(stsCfg), roleARN, assumeRoleOpts("", sourceIdentity))
+		}
+
+		regions, err := scanRegionsFor(partition, configured)
+		if err != nil {
+			return nil, err
+		}
 		accounts = append(accounts, account{
 			ID:        a.ID,
 			Name:      a.Name,
-			Regions:   expandAllRegions(firstNonEmpty(configured, implicitDefaultRegions)),
+			Regions:   regions,
 			Partition: partition,
 			cfg:       acctCfg,
 		})
@@ -276,8 +319,21 @@ func loadAccounts(ctx context.Context, loadBase baseConfigLoader, profile string
 // a scan to. configured is the --regions or aws.default_regions list, empty
 // when neither is set.
 func loadOverrideAccount(ctx context.Context, base baseConfig, roleARN string, assumeOpts func(*stscreds.AssumeRoleOptions), configured []string) ([]account, error) {
-	acctCfg := base.cfg
-	acctCfg.Credentials = cachedAssumeRole(sts.NewFromConfig(base.cfg), roleARN, assumeOpts)
+	evidence := partitionInputs{
+		roleARN:       roleARN,
+		roleSource:    sourceRoleOverride,
+		regions:       configured,
+		profileRegion: base.profileRegion,
+	}
+	// The STS calls below run before the caller ARN is known, so their region
+	// comes from the rest of the evidence; the resolution after them adds the
+	// caller ARN and must agree with it.
+	stsCfg, err := preliminaryConfig(roleARN, base, evidence)
+	if err != nil {
+		return nil, err
+	}
+	acctCfg := stsCfg
+	acctCfg.Credentials = cachedAssumeRole(sts.NewFromConfig(stsCfg), roleARN, assumeOpts)
 	// Resolve the assumed-role caller account for the synthetic ID; on
 	// error, proceed with an empty ID rather than failing the scan — the
 	// override path is meant to short-circuit STS pre-checks.
@@ -288,22 +344,33 @@ func loadOverrideAccount(ctx context.Context, base baseConfig, roleARN string, a
 		acctID = sv(identity.Account)
 		callerARN = sv(identity.Arn)
 	}
-	partition, err := resolvePartition(cmp.Or(acctID, roleARN), partitionInputs{
-		roleARN:       roleARN,
-		roleSource:    sourceRoleOverride,
-		callerARN:     callerARN,
-		regions:       configured,
-		profileRegion: base.profileRegion,
-	})
+	evidence.callerARN = callerARN
+	partition, err := resolvePartition(cmp.Or(acctID, roleARN), evidence)
+	if err != nil {
+		return nil, err
+	}
+	regions, err := scanRegionsFor(partition, configured)
 	if err != nil {
 		return nil, err
 	}
 	return []account{{
 		ID:        acctID,
-		Regions:   expandAllRegions(firstNonEmpty(configured, implicitDefaultRegions)),
+		Regions:   regions,
 		Partition: partition,
 		cfg:       acctCfg,
 	}}, nil
+}
+
+// preliminaryConfig returns base's config with its region filled in for the
+// partition the evidence gathered before an STS call names, for the STS
+// calls that fetch the caller ARN. A conflict in that evidence fails here, as
+// it would in the account's own resolution.
+func preliminaryConfig(account string, base baseConfig, in partitionInputs) (sdkaws.Config, error) {
+	partition, err := resolvePartition(account, in)
+	if err != nil {
+		return sdkaws.Config{}, err
+	}
+	return base.forPartition(partition)
 }
 
 // firstNonEmpty returns the first non-empty list, or nil when all are empty.

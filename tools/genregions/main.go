@@ -1,6 +1,7 @@
 // Command genregions regenerates the per-service region table that lets the AWS
-// scanner skip (service × region) cells AWS does not offer, and the partition
-// table copied from the SDK's partitions.json.
+// scanner skip (service × region) cells AWS does not offer, the partition and
+// region tables copied from the SDK's partitions.json, and the per-partition
+// home region and once-region of each SDK service package the scanners import.
 //
 // Run it through go generate:
 //
@@ -22,44 +23,60 @@ import (
 func main() {
 	out := flag.String("out", regionsgen.GeneratedFile, "path of the generated service-region file to write")
 	partitionsOut := flag.String("partitions-out", regionsgen.PartitionsFile, "path of the generated partition file to write")
+	homesOut := flag.String("homes-out", regionsgen.HomesFile, "path of the generated SDK-package home file to write")
 	flag.Parse()
 
-	if err := run(*out, *partitionsOut); err != nil {
+	if err := run(*out, *partitionsOut, *homesOut); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run(out, partitionsOut string) error {
+func run(out, partitionsOut, homesOut string) error {
 	root, err := moduleRoot()
 	if err != nil {
 		return err
 	}
-	table, err := regionsgen.Build(root)
+	src, err := regionsgen.Load(root)
 	if err != nil {
 		return err
 	}
-	src, err := regionsgen.Render(table)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(out, src, 0o644); err != nil {
-		return fmt.Errorf("genregions: write %s: %w", out, err)
-	}
-	fmt.Fprintf(os.Stderr, "genregions: wrote %s (%d services)\n", out, len(table))
 
-	parts, err := regionsgen.BuildPartitions(root)
+	table := src.ServiceRegions()
+	tableSrc, err := regionsgen.Render(table)
 	if err != nil {
 		return err
 	}
-	partsSrc, err := regionsgen.RenderPartitions(parts)
+	if err := write(out, tableSrc); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "genregions: wrote %s (%d services)\n", out, len(table.Regions))
+
+	partsSrc, err := regionsgen.RenderPartitions(src.Partitions)
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(partitionsOut, partsSrc, 0o644); err != nil {
-		return fmt.Errorf("genregions: write %s: %w", partitionsOut, err)
+	if err := write(partitionsOut, partsSrc); err != nil {
+		return err
 	}
-	fmt.Fprintf(os.Stderr, "genregions: wrote %s (%d partitions)\n", partitionsOut, len(parts))
+	fmt.Fprintf(os.Stderr, "genregions: wrote %s (%d partitions)\n", partitionsOut, len(src.Partitions))
+
+	homes := src.Homes()
+	homesSrc, err := regionsgen.RenderHomes(homes, src.OnceRegions())
+	if err != nil {
+		return err
+	}
+	if err := write(homesOut, homesSrc); err != nil {
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "genregions: wrote %s (%d SDK packages with a home)\n", homesOut, len(homes))
+	return nil
+}
+
+func write(path string, src []byte) error {
+	if err := os.WriteFile(path, src, 0o644); err != nil {
+		return fmt.Errorf("genregions: write %s: %w", path, err)
+	}
 	return nil
 }
 

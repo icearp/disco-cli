@@ -154,12 +154,15 @@ func loadServiceRegionAvailability(ctx context.Context, client ssmRegionAvailabi
 	return out, denyErr
 }
 
+// regionScopeWarningService names the warning that region scoping is off for
+// an account, so every service is tried in every configured region.
+const regionScopeWarningService = "preflight:region-scope"
+
 // buildRegionAvailability populates acct.availByCode from the SSM global-infra
 // catalog, so scanRegion can skip services AWS doesn't offer in a region. No-op
 // (leaves availByCode nil → full fail-open) when scoping is disabled or only one
-// region is scanned. The SSM client is pinned to us-east-1, where the
-// commercial-partition global-infra parameters live. A blanket access-denied (no
-// data at all) warns once that the optimisation is off.
+// region is scanned. A blanket access-denied (no data at all), or a partition
+// with no SSM region to read from, warns once that the optimisation is off.
 func buildRegionAvailability(ctx context.Context, acct *account, services []string, st *store.Store, kept []string) {
 	if acct.regionScopeDisabled || len(kept) <= 1 {
 		return
@@ -168,12 +171,23 @@ func buildRegionAvailability(ctx context.Context, acct *account, services []stri
 	if len(codes) == 0 {
 		return
 	}
-	client := ssm.NewFromConfig(acct.cfg, func(o *ssm.Options) { o.Region = "us-east-1" })
+	// The catalog is read once, from SSM's once-region. With none (the SSM
+	// table lists no region to pick in the partition) it is not read: the
+	// same fail-open, and the same warning, as a denied read.
+	region, err := acct.onceRegion("ssm")
+	if err != nil {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: regionScopeWarningService, Scope: acct.ID,
+			Message: "could not read service region availability (" + err.Error() + "); scanning all configured regions",
+		})
+		return
+	}
+	client := ssm.NewFromConfig(acct.cfg, func(o *ssm.Options) { o.Region = region })
 	avail, denyErr := loadServiceRegionAvailability(ctx, client, codes)
 	if len(avail) == 0 {
 		if denyErr != nil {
 			st.ReportWarning(store.ScanWarning{
-				Provider: "aws", Service: "preflight:region-scope", Scope: acct.ID,
+				Provider: "aws", Service: regionScopeWarningService, Scope: acct.ID,
 				Message: "could not read service region availability (ssm:GetParametersByPath denied); scanning all configured regions",
 			})
 		}

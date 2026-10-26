@@ -26,7 +26,7 @@ func init() {
 	registerService(serviceEntry{
 		name:   "aws:devicefarm",
 		fn:     scanDeviceFarm,
-		global: true, // Device Farm has a single regional endpoint: us-west-2.
+		global: true, // Device Farm has a single regional endpoint (us-west-2 for aws).
 	})
 }
 
@@ -47,7 +47,10 @@ type deviceFarmAPI interface {
 // device catalog; test runs and their job/suite/test/sample/artifact/session
 // children.
 func scanDeviceFarm(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-west-2"
+	region, err := acct.homeRegion("devicefarm")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := devicefarm.NewFromConfig(acct.cfg, func(o *devicefarm.Options) { o.Region = region })
 
 	projectARNs, t, i, ferr := scanDeviceFarmProjects(ctx, client, acct, region, st, scanID)

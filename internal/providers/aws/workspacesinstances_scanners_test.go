@@ -2,6 +2,8 @@ package aws
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/workspacesinstances"
@@ -101,5 +103,27 @@ func TestListWorkspacesInstancesRegions(t *testing.T) {
 	}
 	if set["ap-northeast-3"] {
 		t.Error("ap-northeast-3 should be absent")
+	}
+}
+
+// ListRegions is read from the home region; with none confirmed in the
+// account's partition the scanner makes no call and reports unavailable.
+func TestScanWorkspacesInstances_HomePerPartition(t *testing.T) {
+	var regions parentCalls
+	acct := testAccountIn("aws")
+	acct.cfg = recordCallRegions(opStubConfig(nil, apiErr("AccessDeniedException", "denied")), &regions)
+	if _, _, err := scanWorkspacesInstances(context.Background(), acct, "eu-west-1", newTestStore(t), testScanID); err != nil {
+		t.Fatalf("aws: %v", err)
+	}
+	if got := regions.distinct(); !slices.Equal(got, []string{"us-east-1"}) {
+		t.Errorf("aws: ListRegions called in %v; want [us-east-1]", got)
+	}
+
+	var govRegions parentCalls
+	gov := testAccountIn("aws-us-gov")
+	gov.cfg = recordCallRegions(opStubConfig(nil, apiErr("AccessDeniedException", "denied")), &govRegions)
+	_, _, err := scanWorkspacesInstances(context.Background(), gov, "us-gov-west-1", newTestStore(t), testScanID)
+	if !errors.Is(err, errServiceUnavailable) || len(govRegions.distinct()) != 0 {
+		t.Errorf("aws-us-gov: err %v, calls %v; want errServiceUnavailable and no call", err, govRegions.distinct())
 	}
 }

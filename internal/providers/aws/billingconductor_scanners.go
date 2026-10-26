@@ -18,10 +18,6 @@ func isBillingConductorPayerOnly(err error) bool {
 	return isAccessDeniedWithMessage(err, "Only payer account is authorized")
 }
 
-// AWS Billing Conductor is a global service — endpoints resolve only via
-// us-east-1.
-const billingConductorRegion = "us-east-1"
-
 func init() {
 	registerType(restype.Descriptor{Type: TypeBillingConductorBillingGroup, Service: "billingconductor"})
 	registerType(restype.Descriptor{Type: TypeBillingConductorCustomLineItem, Service: "billingconductor"})
@@ -31,8 +27,12 @@ func init() {
 		name:   "aws:billingconductor",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-			client := billingconductor.NewFromConfig(acct.cfg, func(o *billingconductor.Options) { o.Region = billingConductorRegion })
-			return scanBillingConductor(ctx, client, acct, st, scanID)
+			region, err := acct.homeRegion("billingconductor")
+			if err != nil {
+				return 0, 0, err
+			}
+			client := billingconductor.NewFromConfig(acct.cfg, func(o *billingconductor.Options) { o.Region = region })
+			return scanBillingConductor(ctx, client, acct, region, st, scanID)
 		},
 	})
 }
@@ -47,23 +47,23 @@ type billingConductorAPI interface {
 	ListPricingRules(context.Context, *billingconductor.ListPricingRulesInput, ...func(*billingconductor.Options)) (*billingconductor.ListPricingRulesOutput, error)
 }
 
-func scanBillingConductor(ctx context.Context, client billingConductorAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	bgT, bgI, err := scanBillingConductorBillingGroups(ctx, client, acct, st, scanID)
+func scanBillingConductor(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+	bgT, bgI, err := scanBillingConductorBillingGroups(ctx, client, acct, region, st, scanID)
 	total, inserted = total+bgT, inserted+bgI
 	if err != nil {
 		return total, inserted, err
 	}
-	cliT, cliI, err := scanBillingConductorCustomLineItems(ctx, client, acct, st, scanID)
+	cliT, cliI, err := scanBillingConductorCustomLineItems(ctx, client, acct, region, st, scanID)
 	total, inserted = total+cliT, inserted+cliI
 	if err != nil {
 		return total, inserted, err
 	}
-	ppT, ppI, err := scanBillingConductorPricingPlans(ctx, client, acct, st, scanID)
+	ppT, ppI, err := scanBillingConductorPricingPlans(ctx, client, acct, region, st, scanID)
 	total, inserted = total+ppT, inserted+ppI
 	if err != nil {
 		return total, inserted, err
 	}
-	prT, prI, err := scanBillingConductorPricingRules(ctx, client, acct, st, scanID)
+	prT, prI, err := scanBillingConductorPricingRules(ctx, client, acct, region, st, scanID)
 	total, inserted = total+prT, inserted+prI
 	return total, inserted, err
 }
@@ -78,8 +78,7 @@ func epochMillisToTime(ms int64) *time.Time {
 	return &t
 }
 
-func scanBillingConductorBillingGroups(ctx context.Context, client billingConductorAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := billingConductorRegion
+func scanBillingConductorBillingGroups(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := billingconductor.NewListBillingGroupsPaginator(client, &billingconductor.ListBillingGroupsInput{})
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
@@ -124,8 +123,7 @@ func scanBillingConductorBillingGroups(ctx context.Context, client billingConduc
 	return total, inserted, nil
 }
 
-func scanBillingConductorCustomLineItems(ctx context.Context, client billingConductorAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := billingConductorRegion
+func scanBillingConductorCustomLineItems(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := billingconductor.NewListCustomLineItemsPaginator(client, &billingconductor.ListCustomLineItemsInput{})
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
@@ -170,8 +168,7 @@ func scanBillingConductorCustomLineItems(ctx context.Context, client billingCond
 	return total, inserted, nil
 }
 
-func scanBillingConductorPricingPlans(ctx context.Context, client billingConductorAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := billingConductorRegion
+func scanBillingConductorPricingPlans(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := billingconductor.NewListPricingPlansPaginator(client, &billingconductor.ListPricingPlansInput{})
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)
@@ -220,8 +217,7 @@ func scanBillingConductorPricingPlans(ctx context.Context, client billingConduct
 	return total, inserted, nil
 }
 
-func scanBillingConductorPricingRules(ctx context.Context, client billingConductorAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := billingConductorRegion
+func scanBillingConductorPricingRules(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	pager := billingconductor.NewListPricingRulesPaginator(client, &billingconductor.ListPricingRulesInput{})
 	for pager.HasMorePages() {
 		out, perr := pager.NextPage(ctx)

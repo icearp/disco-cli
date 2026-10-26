@@ -34,9 +34,13 @@ type notifsAPI interface {
 	ListManagedNotificationChannelAssociations(context.Context, *notifications.ListManagedNotificationChannelAssociationsInput, ...func(*notifications.Options)) (*notifications.ListManagedNotificationChannelAssociationsOutput, error)
 }
 
-// Notifications is a global service callable from us-east-1; gate other regions out.
+// Notifications is a global service, called once in its home region
+// (homeRegion; us-east-1 for aws).
 func scanNotifications(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-east-1"
+	region, err := acct.homeRegion("notifications")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := notifications.NewFromConfig(acct.cfg, func(o *notifications.Options) { o.Region = region })
 
 	configARNs, t, i, ferr := scanNotifConfigs(ctx, client, acct, region, st, scanID)

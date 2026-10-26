@@ -888,3 +888,27 @@ func TestQuotaPeriodUnit(t *testing.T) {
 		}
 	}
 }
+
+// Global quotas are written from Service Quotas' once-region in the account's
+// partition when the scanner runs there, and otherwise from the smallest
+// region it runs in.
+func TestGlobalQuotaRegion_PerPartition(t *testing.T) {
+	cases := []struct {
+		partition string
+		regions   []string
+		want      string
+	}{
+		{"aws", []string{"eu-west-1", "us-east-1"}, "us-east-1"},
+		{"aws", []string{"us-west-2", "eu-west-1"}, "eu-west-1"},
+		{"aws-us-gov", []string{"us-gov-east-1", "us-gov-west-1"}, "us-gov-west-1"},
+		{"aws-us-gov", []string{"us-gov-east-1"}, "us-gov-east-1"},
+		{"aws-cn", []string{"cn-north-1", "cn-northwest-1"}, "cn-northwest-1"},
+	}
+	for _, c := range cases {
+		acct := testAccountIn(c.partition)
+		acct.scanRegions = c.regions
+		if got := globalQuotaRegion(acct); got != c.want {
+			t.Errorf("globalQuotaRegion(%s, %v) = %q; want %q", c.partition, c.regions, got, c.want)
+		}
+	}
+}

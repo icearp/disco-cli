@@ -1,6 +1,8 @@
 package aws
 
-import "testing"
+import (
+	"testing"
+)
 
 // TestPartitionARNBuilders_CommercialUnchanged pins that every partition-taking
 // core, given "aws", produces exactly the string the builder produced before
@@ -134,36 +136,6 @@ func TestDNSSuffix(t *testing.T) {
 		got, ok := dnsSuffix(c.in)
 		if got != c.want || ok != c.wantOK {
 			t.Errorf("dnsSuffix(%q) = (%q, %v); want (%q, %v)", c.in, got, ok, c.want, c.wantOK)
-		}
-	}
-}
-
-func TestPartitionForRegion(t *testing.T) {
-	cases := []struct {
-		in     string
-		want   string
-		wantOK bool
-	}{
-		{"us-east-1", "aws", true},
-		{"cn-northwest-1", "aws-cn", true},
-		{"us-gov-west-1", "aws-us-gov", true},
-		{"eusc-de-east-1", "aws-eusc", true},
-		{"us-isob-east-1", "aws-iso-b", true},
-		// Listed by name only; no regionRegex matches it.
-		{"aws-us-gov-global", "aws-us-gov", true},
-		// Not listed by name in partitions.json: only the regex places them.
-		{"eu-west-9", "aws", true},
-		{"cn-south-7", "aws-cn", true},
-		{"us-gov-central-4", "aws-us-gov", true},
-		// The SDK would put these in aws; disco must not guess.
-		{"mars-north-1", "", false},
-		{"all", "", false},
-		{"", "", false},
-	}
-	for _, c := range cases {
-		got, ok := partitionForRegion(c.in)
-		if got != c.want || ok != c.wantOK {
-			t.Errorf("partitionForRegion(%q) = (%q, %v); want (%q, %v)", c.in, got, ok, c.want, c.wantOK)
 		}
 	}
 }

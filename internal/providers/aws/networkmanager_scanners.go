@@ -77,11 +77,14 @@ var nmMaxResults = sdkaws.Int32(500)
 // deleted since it was listed.
 var nmNotFound = []string{"ResourceNotFoundException"}
 
-// scanNetworkManager runs only in us-west-2 — NetworkManager is a global,
-// single-home-region service; other regions return the same data
-// redundantly.
+// scanNetworkManager runs only in its home region (homeRegion; us-west-2 for
+// aws) — NetworkManager is a global, single-home-region service; other regions
+// return the same data redundantly.
 func scanNetworkManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-west-2"
+	region, err := acct.homeRegion("networkmanager")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := networkmanager.NewFromConfig(acct.cfg, func(o *networkmanager.Options) { o.Region = region })
 	return scanNMAll(ctx, client, acct, region, st, scanID)
 }

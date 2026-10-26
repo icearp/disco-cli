@@ -55,25 +55,36 @@ type greengrassAPI interface {
 	ListGroupVersions(context.Context, *greengrass.ListGroupVersionsInput, ...func(*greengrass.Options)) (*greengrass.ListGroupVersionsOutput, error)
 }
 
-// greengrassV1Regions enumerates the AWS Regions where IoT Greengrass V1
-// control-plane operations are available. SDK still resolves
+// greengrassV1CommercialRegions enumerates the commercial regions where IoT
+// Greengrass V1 control-plane operations are available. SDK still resolves
 // <svc>.<region>.amazonaws.com for unsupported regions; AWS rejects with
 // TooManyRequestsException 429 → SDK retries 10x → ~2m wall time before
 // surfacing. Allowlist short-circuits the cost on call #1.
 // Source: https://docs.aws.amazon.com/general/latest/gr/greengrass.html
-var greengrassV1Regions = map[string]bool{
+// It is kept by hand for the aws partition because the SDK endpoint table of
+// the greengrass package lists commercial regions this list excludes; see
+// greengrassV1RegionSupported for the other partitions.
+var greengrassV1CommercialRegions = map[string]bool{
 	"us-east-1": true, "us-east-2": true, "us-west-2": true,
 	"ap-south-1":     true,
 	"ap-northeast-1": true, "ap-northeast-2": true,
 	"ap-southeast-1": true, "ap-southeast-2": true,
 	"eu-central-1": true,
 	"eu-west-1":    true, "eu-west-2": true,
-	"cn-north-1":    true,
-	"us-gov-east-1": true, "us-gov-west-1": true,
+}
+
+// greengrassV1RegionSupported reports whether Greengrass V1 is scanned in
+// region: the commercial allowlist for aws accounts, the SDK endpoint table
+// for every other partition.
+func greengrassV1RegionSupported(acct *account, region string) bool {
+	if acct.partition() == "aws" {
+		return greengrassV1CommercialRegions[region]
+	}
+	return sdkTableAllows("aws:greengrass", region)
 }
 
 func scanGreengrass(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	if !greengrassV1Regions[region] {
+	if !greengrassV1RegionSupported(acct, region) {
 		return 0, 0, nil
 	}
 	client := greengrass.NewFromConfig(acct.cfg, func(o *greengrass.Options) { o.Region = region })

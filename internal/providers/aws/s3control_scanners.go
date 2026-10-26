@@ -50,7 +50,7 @@ func init() {
 // scanS3Control discovers S3 Control resources for the given region.
 // Regional resources (Access Grants, Access Points, Storage Lens) scan in
 // every region; global resources (Multi-Region Access Points) scan only in
-// us-east-1.
+// us-west-2, and only for aws accounts.
 func scanS3Control(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := newS3ControlClient(acct.cfg, region)
 	// Regional resources: scan in every region.
@@ -70,8 +70,11 @@ func scanS3Control(ctx context.Context, acct *account, region string, st *store.
 		total += tt
 		inserted += nn
 	}
-	// MRAPs are a global resource but the API endpoint is only available in
-	// us-west-2 — scan once with a client pinned to that region.
+	// MRAPs are a global resource but the commercial API endpoint is only
+	// available in us-west-2 — scan once with a client pinned to that region.
+	// No SDK table names the MRAP endpoint of any partition (s3control's own
+	// home, us-east-1, is not it), and us-west-2 belongs to aws alone, so
+	// accounts in other partitions make no MRAP call.
 	if region == "us-west-2" {
 		mrapClient := newS3ControlClient(acct.cfg, "us-west-2")
 		tt, nn, e := scanMultiRegionAccessPoints(ctx, acct, mrapClient, st, scanID)
@@ -253,7 +256,7 @@ func scanS3AccessPoints(ctx context.Context, acct *account, region string, clien
 }
 
 // scanMultiRegionAccessPoints lists all Multi-Region Access Points (global,
-// always routed through us-east-1) and then fetches each one's policy.
+// control plane routed through us-west-2 for aws accounts) and then fetches each one's policy.
 func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
 	var mraps []s3ctypes.MultiRegionAccessPointReport
 	p := s3control.NewListMultiRegionAccessPointsPaginator(client, &s3control.ListMultiRegionAccessPointsInput{AccountId: &acct.ID})

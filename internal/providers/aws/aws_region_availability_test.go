@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
@@ -214,5 +215,53 @@ func TestBedrockAgentCoreOverride(t *testing.T) {
 		if got := serviceAvailableInRegion(catalog, service, code, region); got != want {
 			t.Errorf("serviceAvailableInRegion(%s, %s) = %v, want %v", service, region, got, want)
 		}
+	}
+}
+
+// The SSM global-infrastructure catalog is read in SSM's once-region in the
+// account's partition, never in commercial us-east-1 for another partition's
+// account.
+func TestBuildRegionAvailability_ReadsSSMOnceRegion(t *testing.T) {
+	for partition, kept := range map[string][]string{
+		"aws":        {"us-east-1", "eu-west-1"},
+		"aws-us-gov": {"us-gov-east-1", "us-gov-west-1"},
+		"aws-cn":     {"cn-north-1", "cn-northwest-1"},
+	} {
+		t.Run(partition, func(t *testing.T) {
+			acct := testAccountIn(partition)
+			want, err := acct.onceRegion("ssm")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var regions parentCalls
+			acct.cfg = recordCallRegions(opStubConfig(map[string]func(any) (any, error){
+				"GetParametersByPath": func(any) (any, error) { return &ssm.GetParametersByPathOutput{}, nil },
+			}, apiErr("AccessDeniedException", "denied")), &regions)
+			buildRegionAvailability(context.Background(), acct, nil, newTestStore(t), kept)
+			if got := regions.distinct(); !slices.Equal(got, []string{want}) {
+				t.Errorf("SSM catalog read in %v; want [%s]", got, want)
+			}
+		})
+	}
+}
+
+// With no SSM region to read the catalog from in the account's partition,
+// scoping is off and says so with the region-scope warning, as a denied read
+// does; no call is made.
+func TestBuildRegionAvailability_NoSSMRegionWarns(t *testing.T) {
+	var regions parentCalls
+	st := newTestStore(t)
+	warns := countOpWarnings(st, regionScopeWarningService)
+	acct := testAccountIn("aws-mars") // a partition the pinned SDK does not know: no once-region
+	acct.cfg = recordCallRegions(opStubConfig(nil, apiErr("AccessDeniedException", "denied")), &regions)
+	buildRegionAvailability(context.Background(), acct, nil, st, []string{"mars-east-1", "mars-west-1"})
+	if *warns != 1 {
+		t.Errorf("%s warnings = %d; want 1", regionScopeWarningService, *warns)
+	}
+	if acct.availByCode != nil {
+		t.Errorf("availByCode = %v; want nil (fail open)", acct.availByCode)
+	}
+	if got := regions.distinct(); len(got) != 0 {
+		t.Errorf("SSM called in %v; want no call", got)
 	}
 }

@@ -40,9 +40,10 @@ func TestValid(t *testing.T) {
 	}{
 		{"aws", "us-east-1", true},
 		{"aws", "ap-southeast-6", true},
-		{"aws", "us-gov-west-1", false}, // GovCloud excluded
-		{"aws", "cn-north-1", false},    // China excluded
-		{"aws", "us-esat-1", false},     // typo
+		{"aws", "us-gov-west-1", true}, // every partition is listed
+		{"aws", "cn-north-1", true},    // every partition is listed
+		{"aws", "aws-global", false},   // endpoint pseudo-region, not a region
+		{"aws", "us-esat-1", false},    // typo
 		{"azure", "eastus", true},
 		{"azure", "us-east-1", false},
 		{"gcp", "us-central1", true},
@@ -148,5 +149,50 @@ func TestRegisterServicesRoundTrips(t *testing.T) {
 	regions.RegisterServices("test", map[string][]string{"test:other": {"r1"}})
 	if known, _ := regions.ServiceAvailable("test:thing", "r1"); known {
 		t.Error("re-registering left a stale row for test:thing")
+	}
+}
+
+// A service table speaks only for the regions its provider's coverage function
+// covers; ServiceAvailable answers unknown everywhere else.
+func TestServiceAvailable_Coverage(t *testing.T) {
+	regions.RegisterServices("zz", map[string][]string{"zz:svc": {"a-1"}})
+	regions.RegisterServiceCoverage("zz", func(_, region string) bool { return region != "b-1" })
+	t.Cleanup(func() {
+		regions.RegisterServices("zz", nil)
+		regions.RegisterServiceCoverage("zz", nil)
+	})
+	cases := []struct {
+		region             string
+		wantKnown, wantAvl bool
+	}{
+		{"a-1", true, true},
+		{"a-2", true, false},  // covered, not listed
+		{"b-1", false, false}, // not covered: no opinion
+	}
+	for _, c := range cases {
+		if known, avail := regions.ServiceAvailable("zz:svc", c.region); known != c.wantKnown || avail != c.wantAvl {
+			t.Errorf("ServiceAvailable(zz:svc, %s) = %v, %v; want %v, %v", c.region, known, avail, c.wantKnown, c.wantAvl)
+		}
+	}
+}
+
+// AWS service lists speak per partition: commercial Savings Plans is a global
+// (non-regionalized) entry, so the cn-only list says nothing about us-east-1.
+func TestServiceAvailable_AWSPerPartition(t *testing.T) {
+	cases := []struct {
+		service, region    string
+		wantKnown, wantAvl bool
+	}{
+		{"aws:savingsplans", "us-east-1", false, false},
+		{"aws:appsync", "us-gov-west-1", false, false}, // gov entry lists no real region
+		{"aws:savingsplans", "cn-north-1", true, true},
+		{"aws:greengrass", "cn-north-1", true, true},
+		{"aws:greengrass", "cn-northwest-1", true, false}, // cn regionalized, region omitted
+		{"aws:greengrass", "us-east-1", true, true},
+	}
+	for _, c := range cases {
+		if known, avail := regions.ServiceAvailable(c.service, c.region); known != c.wantKnown || avail != c.wantAvl {
+			t.Errorf("ServiceAvailable(%s, %s) = %v, %v; want %v, %v", c.service, c.region, known, avail, c.wantKnown, c.wantAvl)
+		}
 	}
 }

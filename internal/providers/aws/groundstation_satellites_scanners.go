@@ -13,8 +13,8 @@ import (
 // (arn:aws:groundstation::{account}:satellite/{id}) and every regional endpoint
 // lists the same set. Scanned from the regional aws:ground-station lane, each
 // region would upsert the same NativeID with its own Region and version-split
-// the row several times per scan, so they are scanned once per account from a
-// fixed home endpoint instead. DNS cannot pick the home: groundstation.us-east-1,
+// the row several times per scan, so they are scanned once per account from
+// one region instead (onceRegion). DNS cannot pick the home: groundstation.us-east-1,
 // us-east-2 and us-west-2 all resolve and all are in the SDK endpoint table.
 // us-west-2 hosts ground stations (Oregon 1, Alaska 1, Hawaii 1 in the user
 // guide's location table) while us-east-1 hosts none, so it is a full Ground
@@ -27,7 +27,11 @@ func init() {
 		name:   "aws:ground-station-satellites",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
-			client := groundstation.NewFromConfig(acct.cfg, func(o *groundstation.Options) { o.Region = groundStationSatelliteRegion })
+			region, err := acct.onceRegion("groundstation")
+			if err != nil {
+				return 0, 0, err
+			}
+			client := groundstation.NewFromConfig(acct.cfg, func(o *groundstation.Options) { o.Region = region })
 			return scanGSSatellites(ctx, client, acct, st, scanID)
 		},
 	})

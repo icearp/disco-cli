@@ -61,11 +61,14 @@ type asEntitlementKey struct {
 	entitlement string
 }
 
-// appStreamSupportedRegions enumerates regions where AppStream 2.0 is
-// deployed (per AWS service-availability docs). Other regions resolve
-// the appstream2.<region>.amazonaws.com endpoint via DNS but TCP-dial
-// times out — silent-skip rather than burn retries on every scan.
-var appStreamSupportedRegions = map[string]bool{
+// appStreamCommercialRegions enumerates the commercial regions where AppStream
+// 2.0 is deployed (per AWS service-availability docs). Other regions resolve
+// the appstream2.<region>.amazonaws.com endpoint via DNS but TCP-dial times
+// out — silent-skip rather than burn retries on every scan. It is kept by
+// hand for the aws partition because the SDK endpoint table lists commercial
+// regions this list excludes; see appStreamRegionSupported for the other
+// partitions.
+var appStreamCommercialRegions = map[string]bool{
 	"us-east-1":      true,
 	"us-east-2":      true,
 	"us-west-2":      true,
@@ -77,8 +80,16 @@ var appStreamSupportedRegions = map[string]bool{
 	"eu-central-1":   true,
 	"eu-west-1":      true,
 	"eu-west-2":      true,
-	"us-gov-east-1":  true,
-	"us-gov-west-1":  true,
+}
+
+// appStreamRegionSupported reports whether AppStream is scanned in region: the
+// commercial allowlist for aws accounts, the SDK endpoint table for every
+// other partition.
+func appStreamRegionSupported(acct *account, region string) bool {
+	if acct.partition() == "aws" {
+		return appStreamCommercialRegions[region]
+	}
+	return sdkTableAllows("aws:appstream", region)
 }
 
 // scanAppStream discovers the AppStream 2.0 resources of one region.
@@ -92,7 +103,7 @@ var appStreamSupportedRegions = map[string]bool{
 // error: joined, it would be buried in the hard error instead of reported under
 // its op, and the rest are joined; the counts of all three are summed.
 func scanAppStream(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	if !appStreamSupportedRegions[region] {
+	if !appStreamRegionSupported(acct, region) {
 		return 0, 0, nil
 	}
 	client := appstream.NewFromConfig(acct.cfg, func(o *appstream.Options) { o.Region = region })

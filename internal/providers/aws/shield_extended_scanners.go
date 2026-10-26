@@ -10,7 +10,7 @@ import (
 
 // scanShieldDRTAccess captures the SRT (DDoS Response Team) access config
 // as a per-account singleton. Synth ARN: arn:aws:shield::{a}:drt-access.
-func scanShieldDRTAccess(ctx context.Context, client shieldAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanShieldDRTAccess(ctx context.Context, client shieldAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.DescribeDRTAccess(ctx, &shield.DescribeDRTAccessInput{})
 	if err != nil {
 		if isAccessDenied(err) || isShieldNotSubscribed(err) {
@@ -21,7 +21,6 @@ func scanShieldDRTAccess(ctx context.Context, client shieldAPI, acct *account, s
 	if sv(out.RoleArn) == "" && len(out.LogBucketList) == 0 {
 		return 0, 0, nil
 	}
-	region := "us-east-1"
 	arn := fmt.Sprintf("arn:aws:shield::%s:drt-access", acct.ID)
 	label := acct.ID
 	r := &store.Resource{
@@ -36,7 +35,7 @@ func scanShieldDRTAccess(ctx context.Context, client shieldAPI, acct *account, s
 // scanShieldProactiveEngagement captures the proactive-engagement
 // emergency-contact list as a per-account singleton. Synth ARN:
 // arn:aws:shield::{a}:proactive-engagement.
-func scanShieldProactiveEngagement(ctx context.Context, client shieldAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
+func scanShieldProactiveEngagement(ctx context.Context, client shieldAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.DescribeEmergencyContactSettings(ctx, &shield.DescribeEmergencyContactSettingsInput{})
 	if err != nil {
 		if isAccessDenied(err) || isShieldNotSubscribed(err) {
@@ -47,7 +46,6 @@ func scanShieldProactiveEngagement(ctx context.Context, client shieldAPI, acct *
 	if len(out.EmergencyContactList) == 0 {
 		return 0, 0, nil
 	}
-	region := "us-east-1"
 	arn := fmt.Sprintf("arn:aws:shield::%s:proactive-engagement", acct.ID)
 	label := acct.ID
 	r := &store.Resource{

@@ -74,9 +74,14 @@ func init() {
 }
 
 // scanCloudFront is the orchestrator for all CloudFront resource types.
-// All CloudFront resources are global; the client is always created against us-east-1.
+// All CloudFront resources are global; the client is created against the
+// partition's home region (homeRegion).
 func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := cloudfront.NewFromConfig(acct.cfg, func(o *cloudfront.Options) { o.Region = "us-east-1" })
+	region, err := acct.homeRegion("cloudfront")
+	if err != nil {
+		return 0, 0, err
+	}
+	client := cloudfront.NewFromConfig(acct.cfg, func(o *cloudfront.Options) { o.Region = region })
 	return runScanners(
 		ctx,
 		func(ctx context.Context) (int, int, error) {

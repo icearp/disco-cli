@@ -46,6 +46,7 @@ One resource type, not two. Flavor lives as sibling sub-structs (`Provisioned *.
 - **ARN helpers** (`aws_arn.go`): `ec2ARN(region, acct, kind, id)` → `arn:aws:ec2:{r}:{a}:{kind}/{id}` (slash sep). `rdsARN(region, acct, kind, id)` → `arn:aws:rds:{r}:{a}:{kind}:{id}` (colon sep). `apigatewayARN(region, path...)` → `arn:aws:apigateway:{r}::/p1/p2/...` (empty account, variadic path joined `/`). `logGroupNativeIDFromName(acct, region, name)` → `arn:aws:logs:{r}:{a}:log-group:{name}` — use it instead of `fmt.Sprintf`. The SDK returns `CloudWatchLogsLogGroupArn` with a trailing `:*`; strip it (`strings.TrimSuffix(arn, ":*")`) before NativeID lookup or the edge points at a phantom resource. Synthetic NativeIDs for APIs that issue no ARN: `macieSessionNativeID`, `ssoAssignmentNativeID`, `identityStoreUserNativeID`, `identityStoreGroupNativeID`. Resolvers rebuild target ARN from native ID, pass to `store.ResourceID(...)`. Wrong shape = phantom edge.
 - **Partition in ARNs.** New builders take a partition: `arnFor(acct.partition(), svc, region, acct, res)`, or the `*In` cores (`ec2ARNIn`, `rdsARNIn`, …). Take the partition from the parent ARN when one is at hand (`partitionOf`). The 3-arg helpers are "aws" wrappers kept until the Phase 3 sweep.
 - `TestCommercialARNLiteralRatchet` caps the `"arn:aws:` literals outside `aws_arn.go` in both directions: raise the count and it fails; lower it and it fails until you lower the ceiling. It counts single literals only, so `"arn:" + "aws:"` or a `Sprintf` with "aws" escapes it. Don't do either.
+- **S3 empty LocationConstraint:** "" means us-east-1 only in "aws". Elsewhere `s3BucketRegion` asks HeadBucket (`BucketRegion` / `x-amz-bucket-region` on a 301). If S3 answers without naming a region, it returns `*s3BucketRegionUnknownError`: the row is kept with a warning and the config reads are skipped. Cancellations, transient errors and deleted buckets pass through raw, so deadlines stay deadlines.
 - **KMS edges**: skip empty `KmsKeyId` / `KMSKeyArn`. AWS-managed default keys unscanned, edge = dangling target. `if sv(attrs.KmsKeyId) == "" { continue }`.
 - **EFS mount target NativeID**: no native ARN. Synthesize: `arn:aws:elasticfilesystem:{region}:{acct}:file-system/{fsid}/mount-target/{mtid}` using `FileSystemId` + `MountTargetId` from `DescribeMountTargets`.
 - **KMS grant NativeID**: `ListGrants` returns no `GrantArn` — `GrantListEntry` only has `GrantId`. Synthesize `{keyARN}/grant/{grantId}`. No real `arn:aws:kms:...:grant/...` ARN exists; pattern-matchers keyed on AWS-issued ARNs skip.
@@ -339,7 +340,8 @@ The fallback is never evidence. With no evidence the partition is "aws".
 `loadAccounts` (`aws_config.go`) wraps every finalized region slice
 (`--regions` override, per-account `regions`, or `aws.default_regions`) through
 `expandAllRegions` (`aws_regions.go`): the case-insensitive `all` token expands
-to a clone of `awsregions.Regions` (the full static list). Expansion happens
+to the account partition's list, `awsregions.RegionsByPartition[partition]`
+(`awsregions.Regions` is the generated every-partition union). Expansion happens
 *before* `scanAccount` → `enabledScanRegions`, so the opted-in filter below then
 trims it to what the account can actually reach. `disco scan aws --regions all`
 and `aws.default_regions: [all]` are equivalent. cmd stays provider-agnostic —
@@ -349,7 +351,7 @@ it doesn't expand the sentinel, only records it as the compact string `"all"` in
 ### Account-disabled regions filtered before fan-out (not at dispatcher)
 
 `scanAccount` (`aws_scanner.go`) calls `enabledScanRegions` once per account before the
-per-region fan-out: a single `ec2:DescribeRegions` probe (from always-enabled `us-east-1`,
+per-region fan-out: a single `ec2:DescribeRegions` probe (from `acct.onceRegion("ec2")`, us-east-1 for aws,
 under the account's own/assumed credentials — opt-in status is per-account) builds the
 enabled-region set via `enabledRegionSet` (`aws_config.go`, opt-in-status filter mirrors
 `aws_coverage.go::FetchRegions`), then `filterToEnabled` drops not-opted-in regions. Skipped
@@ -368,8 +370,9 @@ to a dispatcher silent-skip: that would mask real credential failures. Fix at th
 `buildRegionAvailability` (`aws_region_availability.go`) runs once per account in
 `scanAccount`, after `enabledScanRegions`, when `--scope-regions` is on (default)
 AND more than one region is scanned. It queries the SSM global-infra catalog
-(`/aws/service/global-infrastructure/services/<code>/regions`, `ssm` client pinned
-to `us-east-1`) per distinct service code and caches `acct.availByCode`
+(`/aws/service/global-infrastructure/services/<code>/regions`, `ssm` client on
+`acct.onceRegion("ssm")`; none in the partition → `preflight:region-scope` warning,
+fail open) per distinct service code and caches `acct.availByCode`
 (code → region set). `scanRegion` then skips dispatching a service into a region
 the catalog says AWS doesn't offer it in — surfacing `(region: unavailable)`.
 
@@ -388,16 +391,34 @@ feature-gap codes) — those catch sub-feature gaps the service-level catalog ca
 Toggle: `--scope-regions=false` (or `aws.scope_to_available_regions: false`).
 Capability: `providers.RegionScopeToggler`.
 
-### Single-region globals → `global: true`, hardcode home in client
+The SDK table speaks only for partitions in `awsregions.ServicePartitions[svc]`, meaning
+partitions with a regionalized entry that lists at least one real region. Elsewhere
+`regions.ServiceAvailable` answers unknown, so the scan fails open. Legacy non-commercial
+endpoint tables are often empty or incomplete; never treat an empty entry as "not offered".
 
-AWS exposes some services with account-wide scope but a single regional endpoint (IAM, Route53, CloudFront, Globalaccelerator us-west-2, Budgets us-east-1, Route53 Recovery us-west-2, Route53 Global Resolver us-east-2, etc.). Register these with `global: true` on the `serviceEntry`; the dispatcher (`aws_scanner.go::scanAccount`) calls them once per account with `region=""`, regardless of `--regions`. Inside the scanner, hardcode the home in the SDK client option-fn:
+### Single-region globals → `global: true`, home from `acct.homeRegion`
 
-```go
-region := "us-west-2"
-client := globalaccelerator.NewFromConfig(acct.cfg, func(o *globalaccelerator.Options) { o.Region = region })
-```
-
-Use **short var decl `region := "X"`**, not `const region = "X"`. Untyped string constants are not addressable, so `&region` for `Region: *string` in resource batch fields fails to compile (`cannot take address of region (untyped string constant ...)`). The short-decl form is gofmt-stable and lint-clean.
+AWS exposes some services with account-wide scope but a single regional endpoint (IAM, Route53, CloudFront, Globalaccelerator us-west-2, Budgets us-east-1, Route53 Recovery us-west-2, Route53 Global Resolver us-east-2, etc.). Register these with `global: true` on the `serviceEntry`; the dispatcher (`aws_scanner.go::scanAccount`) calls them once per account with `region=""`, regardless of `--regions`. Inside the scanner, take the home with `region, err := acct.homeRegion("<sdk package>")`
+and set it in the client option-fn. Never use a literal region.
+- **Home region (`homeRegion`):** the region an account-wide call must go to. It comes from
+  the generated `awsregions.Homes`: the partition endpoint's credentialScope region, or the
+  partition's sole listed region. It is never inferred from "listed in the implicit global region".
+- **Once-region (`onceRegion`):** a region chosen only so the call runs once. Use it only for
+  ops that answer the same partition-wide from any listed region (S3 ListBuckets, EC2
+  DescribeRegions, the SSM catalog, Direct Connect gateways, RAM AWS-managed permissions,
+  Ground Station satellites, the Service Quotas global election). Never use it where the
+  signing region matters.
+- **No home:** `*noRegionError` satisfies `errors.Is(errServiceUnavailable)`, so no call is
+  made. With `Listed` set (the SDK lists the package but confirms no home), the dispatcher
+  also warns, so the gap is not read as "not offered".
+- **Commercial pins the SDK lacks or contradicts** live in `commercialHomeOverrides` /
+  `commercialOnceOverrides`, which apply to "aws" only. `TestHomeRegion_OverridesStillDisagreeWithSDK`
+  fails once the SDK agrees, so the entry can be dropped. The argument must be a literal SDK
+  package the aws package imports (AST guard `TestHomeRegion_CallsNameAnImportedSDKPackage`);
+  a typo would silently read as unavailable.
+- **Comment the rule once, on `homeRegion`.** Do not repeat "other partitions report
+  unavailable" per scanner: an SDK bump changes which partitions have homes and makes every
+  copy false.
 
 Substituting the home in a local variable (rather than relying on the dispatcher arg) keeps `Resource.Region`, error scopes, and `skipIfAccessDenied` reports accurate. Precedents: `route53_scanners.go`, `globalaccelerator_scanners.go`.
 
@@ -409,7 +430,7 @@ CLI: `--skip-globals` (defined in `cmd/scan.go`, plumbed via `providers.GlobalsS
 
 ### Per-op region gates (sub-API only available in one region)
 
-Some scanners are regional, but a subset of their ops only work in a specific region — Lightsail's `GetDistributions` and `GetDomains` are us-east-1-only while the rest of the Lightsail surface is regional. AWS rejects from other regions with `InvalidInputException: ${kind}-related APIs are only available in the ${region} Region`. Gate per-phase (`if region != "us-east-1" { return 0, 0, nil }` at the top of `scanLSDistributions`), not via `global: true` on registerService — that would skip the regional ops too. Precedent: `lightsail_extended_scanners.go` `scanLSDistributions` / `scanLSDomains`.
+Some scanners are regional, but a subset of their ops only work in a specific region — Lightsail's `GetDistributions` and `GetDomains` are us-east-1-only while the rest of the Lightsail surface is regional. AWS rejects from other regions with `InvalidInputException: ${kind}-related APIs are only available in the ${region} Region`. Gate per-phase (`if !acct.homeGate(st, "lightsail", lsGetDistributionsOp, region) { return 0, 0, nil }` at the top of `scanLSDistributions`; it warns once per scan when the package is Listed without a home), not via `global: true` on registerService — that would skip the regional ops too. Precedent: `lightsail_extended_scanners.go` `scanLSDistributions` / `scanLSDomains`.
 
 ### DNS probe to confirm global-service region
 
@@ -417,7 +438,7 @@ Before relying on AWS docs (or existing scanner code) for which region a global 
 
 ### WAFv2 scope pattern
 
-WAFv2 two scopes: `REGIONAL` (per-region) + `CLOUDFRONT` (global). CLOUDFRONT scope reachable only from `us-east-1` — other regions error. Guard with `if region == "us-east-1"` before CLOUDFRONT-scope calls to dodge duplicates.
+WAFv2 two scopes: `REGIONAL` (per-region) + `CLOUDFRONT` (global). CLOUDFRONT scope is called only in CloudFront's home (`acct.homeGate(st, "cloudfront", …)`; us-east-1 for aws). aws-cn follows the SDK's CloudFront home and is unverified live.
 
 ## Errors, skips and dispatch states
 

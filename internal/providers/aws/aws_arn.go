@@ -1,7 +1,6 @@
 package aws
 
 import (
-	"regexp"
 	"slices"
 	"strings"
 
@@ -62,38 +61,6 @@ func dnsSuffix(partition string) (string, bool) {
 	p, ok := lookupPartition(partition)
 	return p.DNSSuffix, ok
 }
-
-// partitionForRegion returns the partition a region belongs to, and false
-// when no partition lists it or matches it.
-//
-// The order mirrors the SDK's own lookup (awsrulesfn.GetPartition): a region a
-// partition lists by name wins over every regex, and only then are the regexes
-// tried in table order. Unlike the SDK, an unmatched region is not assigned to
-// the commercial partition.
-func partitionForRegion(region string) (string, bool) {
-	for _, p := range awsregions.Partitions {
-		if slices.Contains(p.Regions, region) {
-			return p.ID, true
-		}
-	}
-	for i, re := range partitionRegexps {
-		if re.MatchString(region) {
-			return awsregions.Partitions[i].ID, true
-		}
-	}
-	return "", false
-}
-
-// partitionRegexps holds each partition's compiled regionRegex, index-aligned
-// with awsregions.Partitions. The generator rejects a pattern that does not
-// compile, so MustCompile cannot fire on a committed table.
-var partitionRegexps = func() []*regexp.Regexp {
-	out := make([]*regexp.Regexp, len(awsregions.Partitions))
-	for i, p := range awsregions.Partitions {
-		out[i] = regexp.MustCompile(p.RegionRegex)
-	}
-	return out
-}()
 
 func lookupPartition(id string) (awsregions.Partition, bool) {
 	i := slices.IndexFunc(awsregions.Partitions, func(p awsregions.Partition) bool { return p.ID == id })

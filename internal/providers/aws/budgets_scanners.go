@@ -33,9 +33,12 @@ type budgetsAPI interface {
 }
 
 // scanBudgets discovers Budgets budgets and budget actions. Global service;
-// gated to us-east-1 to dedupe across regions.
+// called once, in its home region (homeRegion; us-east-1 for aws).
 func scanBudgets(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-east-1"
+	region, err := acct.homeRegion("budgets")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := budgets.NewFromConfig(acct.cfg, func(o *budgets.Options) { o.Region = region })
 
 	t, i, ferr := scanBudgetsBudgets(ctx, client, acct, region, st, scanID)

@@ -6,6 +6,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"slices"
 	"strings"
@@ -300,12 +301,13 @@ func resolveRelationships(ctx context.Context, acct *account, st *store.Store) {
 // returns AuthFailure / UnrecognizedClientException on every service call —
 // which read like token-expiry errors and, under the 10-attempt adaptive
 // retryer, cost minutes of doomed retries. One ec2:DescribeRegions probe (from
-// always-enabled us-east-1, under the account's own credentials) replaces that
-// storm. If the probe fails (e.g. ec2:DescribeRegions denied), fall back to the
-// full list so restricted roles still scan — they just forgo the speedup.
+// EC2's once-region in the account's partition, under the account's own
+// credentials) replaces that storm; for aws that is us-east-1, which is enabled
+// in every commercial account. If the probe fails (e.g. ec2:DescribeRegions denied),
+// fall back to the full list so restricted roles still scan — they just forgo
+// the speedup.
 func enabledScanRegions(ctx context.Context, acct *account, st *store.Store) []string {
-	client := ec2.NewFromConfig(acct.cfg, func(o *ec2.Options) { o.Region = "us-east-1" })
-	enabled, err := enabledRegionSet(ctx, client)
+	enabled, err := probeEnabledRegions(ctx, acct)
 	if err != nil {
 		st.ReportWarning(store.ScanWarning{
 			Provider: "aws", Service: "preflight:regions", Scope: acct.ID,
@@ -325,6 +327,17 @@ func enabledScanRegions(ctx context.Context, acct *account, st *store.Store) []s
 		})
 	}
 	return kept
+}
+
+// probeEnabledRegions runs the enabledScanRegions probe once, from EC2's
+// once-region: DescribeRegions lists the same opt-in state from any region.
+func probeEnabledRegions(ctx context.Context, acct *account) (map[string]bool, error) {
+	region, err := acct.onceRegion("ec2")
+	if err != nil {
+		return nil, err
+	}
+	client := ec2.NewFromConfig(acct.cfg, func(o *ec2.Options) { o.Region = region })
+	return enabledRegionSet(ctx, client)
 }
 
 // scanRegion runs all regional service scanners in parallel, bounded by
@@ -387,6 +400,13 @@ func reportServiceOutcome(st *store.Store, service, label, errScope string, tota
 		st.ReportService(service, label, 0, 0, 0, 0, store.ServiceNotEntitled)
 		return
 	case outcomeUnavailable:
+		// A package the SDK lists in the partition but gives no confirmed home
+		// is skipped like an absent one, with a warning so the skip does not
+		// read as "not offered".
+		var nr *noRegionError
+		if errors.As(err, &nr) && nr.Listed {
+			st.ReportWarning(store.ScanWarning{Provider: "aws", Service: service, Scope: errScope, Message: nr.Error()})
+		}
 		st.ReportService(service, label, 0, 0, 0, 0, store.ServiceUnavailable)
 		return
 	case outcomeBlocked:
@@ -472,6 +492,10 @@ type account struct {
 	wsiRegionsOnce sync.Once
 	wsiRegions     map[string]bool
 	wsiRegionsErr  error
+
+	// listedGateWarned records the "<package> <op>" pairs homeGate has warned
+	// about, so its warning is once per scan, not once per region.
+	listedGateWarned sync.Map
 
 	// snowballUSAddresses lets the US regions list the account's Snowball
 	// addresses one at a time, until one has stored every page. See

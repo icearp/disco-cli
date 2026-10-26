@@ -44,9 +44,10 @@ type RegionOverrider interface {
 // capability list covers — AWS partitions (us-east-1, ...), Azure ARM
 // locations (eastus, ...), GCP compute regions (us-central1, ...): disco's
 // opinion of "what could be scanned"; providers scan a subset based on
-// config/creds at runtime. Static — refresh the per-provider list when a
-// new cloud region launches. cmd/scan.go uses it to compute the scope
-// column width for aligned progress output.
+// config/creds at runtime. The list is fixed at build time: AWS generates its
+// list from the pinned SDK, while other providers keep a hand list that needs
+// a refresh when a new cloud region launches. cmd/scan.go uses it to compute
+// the scope column width for aligned progress output.
 type RegionNamer interface {
 	RegionNames() []string
 }

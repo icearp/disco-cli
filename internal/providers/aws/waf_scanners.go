@@ -71,10 +71,14 @@ func wafARN(account, kind, id string) string {
 }
 
 // scanWAF discovers WAF Classic (v1) resources. The service is global — API
-// hosted only in us-east-1 — so it registers global=true, pins the client to
-// us-east-1, and stores resources with region "global".
+// hosted in one home region (homeRegion; us-east-1 for aws) — so it registers
+// global=true, pins the client to that region, and stores resources with
+// region "global".
 func scanWAF(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-east-1"
+	region, err := acct.homeRegion("waf")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := waf.NewFromConfig(acct.cfg, func(o *waf.Options) { o.Region = region })
 	arnFn := func(kind, id string) string { return wafARN(acct.ID, kind, id) }
 	t, i, _, ferr := scanWAFPhases(ctx, wafPhases(client), acct, region, regionGlobal, st, scanID, "waf", arnFn)

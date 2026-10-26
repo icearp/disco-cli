@@ -47,8 +47,8 @@ const (
 	gaPageLimit = 100
 )
 
-// scanGlobalAccelerator discovers Global Accelerator resources. The API is
-// hosted only in us-west-2 (global=true, dispatched once per account,
+// scanGlobalAccelerator discovers Global Accelerator resources. For aws
+// accounts the API is called in us-west-2 (global=true, dispatched once per account,
 // dispatcher passes region=""); substitute the canonical home to keep
 // resource Region columns and per-op error scopes accurate.
 //
@@ -60,7 +60,10 @@ const (
 // the hard error instead of reported under its op; the rest are joined and the
 // counts summed.
 func scanGlobalAccelerator(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
-	region := "us-west-2"
+	region, err := acct.homeRegion("globalaccelerator")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := globalaccelerator.NewFromConfig(acct.cfg, func(o *globalaccelerator.Options) { o.Region = region })
 	total, inserted, err := scanGAOlderPhases(ctx, client, acct, region, st, scanID)
 	var errs phaseErrs

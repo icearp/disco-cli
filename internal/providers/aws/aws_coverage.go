@@ -232,10 +232,10 @@ func markCFNOnly(cfn, sr []coverage.UpstreamType) []coverage.UpstreamType {
 	return cfn
 }
 
-// FetchRegions calls ec2:DescribeRegions(AllRegions=true) and returns the
-// authoritative AWS region-name list, filtered to commercial-partition
-// regions the caller can opt into. Excludes regions the account hasn't
-// opted into (Status != "opt-in-not-required" && != "opted-in") so they
+// FetchRegions calls ec2:DescribeRegions(AllRegions=true) in us-east-1, or in
+// the first region --regions names, and returns the region names it lists,
+// which are those of that endpoint's partition. Excludes regions the account
+// hasn't opted into (Status != "opt-in-not-required" && != "opted-in") so they
 // don't masquerade as missing in `disco coverage --regions`.
 func (coverageProvider) FetchRegions(ctx context.Context, opts coverage.FetchOptions) ([]string, error) {
 	region := "us-east-1"

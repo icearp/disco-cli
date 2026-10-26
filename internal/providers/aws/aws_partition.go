@@ -151,6 +151,21 @@ func (e *sharedCredentialsError) Error() string {
 		e.FirstAccount, e.FirstPartition, e.SecondAccount, e.SecondPartition, shared)
 }
 
+// callerIdentityError reports that the auto-detect sts:GetCallerIdentity call
+// failed. That call goes to the partition the evidence before it names (aws
+// when none does), so credentials of another partition can fail there.
+type callerIdentityError struct {
+	Region string // the region the call was sent to
+	Cause  error
+}
+
+func (e *callerIdentityError) Error() string {
+	return fmt.Sprintf("sts:GetCallerIdentity in %s: %v; if these credentials belong to another partition, "+
+		"set AWS_REGION, --regions or aws.default_regions to one of its regions", e.Region, e.Cause)
+}
+
+func (e *callerIdentityError) Unwrap() error { return e.Cause }
+
 // resolvePartition returns an account's partition from, in precedence order:
 // the explicit partition, the role ARN, the STS caller ARN, the configured
 // regions, the profile region. Every input that names a partition must name
@@ -183,8 +198,7 @@ func resolvePartition(account string, in partitionInputs) (string, error) {
 
 	if len(evidence) == 0 {
 		// Nothing names a partition: keep aws, the partition every account
-		// had before partitions were resolved and the one the implicit
-		// us-east-1 default and the "all" region list belong to.
+		// had before partitions were resolved.
 		return "aws", nil
 	}
 	for _, e := range evidence[1:] {
@@ -228,7 +242,7 @@ func derivePartitions(account string, in partitionInputs) ([]partitionEvidence, 
 	if region != nil {
 		out = append(out, *region)
 	}
-	if p, ok := partitionForRegion(in.profileRegion); ok {
+	if p, ok := awsregions.PartitionForRegion(in.profileRegion); ok {
 		out = append(out, partitionEvidence{Partition: p, Source: baseRegionSource(in.profileRegion), Value: in.profileRegion})
 	}
 	return out, nil
@@ -242,7 +256,7 @@ func derivePartitions(account string, in partitionInputs) ([]partitionEvidence, 
 func regionsPartition(account string, regions []string) (*partitionEvidence, error) {
 	var first *partitionEvidence
 	for _, r := range regions {
-		p, ok := partitionForRegion(r)
+		p, ok := awsregions.PartitionForRegion(r)
 		if !ok {
 			continue
 		}

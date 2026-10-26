@@ -84,13 +84,19 @@ func scanWorkspacesInstancesIn(ctx context.Context, client workspacesInstancesAP
 // ListRegions API. Computed once per account (result is account-global) and
 // cached — concurrent per-region scanners share it.
 //
-// Pinned to us-east-1: a regional endpoint where the service is NOT enabled
-// sends an HTTP/2 GOAWAY instead of a clean error, so the enabled set can't be
-// discovered from an arbitrary region. ListRegions is an account-global
-// control call.
+// Pinned to the home region (us-east-1 for aws): a regional endpoint where the
+// service is NOT enabled sends an HTTP/2 GOAWAY instead of a clean error, so
+// the enabled set can't be discovered from an arbitrary region. ListRegions is
+// an account-global control call. A partition with no home returns the
+// *noHomeRegionError, making no call.
 func workspacesInstancesEnabledRegions(ctx context.Context, acct *account) (map[string]bool, error) {
 	acct.wsiRegionsOnce.Do(func() {
-		client := workspacesinstances.NewFromConfig(acct.cfg, func(o *workspacesinstances.Options) { o.Region = "us-east-1" })
+		home, err := acct.homeRegion("workspacesinstances")
+		if err != nil {
+			acct.wsiRegionsErr = err
+			return
+		}
+		client := workspacesinstances.NewFromConfig(acct.cfg, func(o *workspacesinstances.Options) { o.Region = home })
 		acct.wsiRegions, acct.wsiRegionsErr = listWorkspacesInstancesRegions(ctx, client)
 	})
 	return acct.wsiRegions, acct.wsiRegionsErr

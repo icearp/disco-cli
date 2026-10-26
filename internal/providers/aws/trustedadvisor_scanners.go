@@ -28,7 +28,10 @@ type trustedAdvisorAPI interface {
 // due to support level" and surface as (not available to this account) —
 // can't self-enable without upgrading support.
 func scanTrustedAdvisor(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-east-1"
+	region, err := acct.homeRegion("trustedadvisor")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := trustedadvisor.NewFromConfig(acct.cfg, func(o *trustedadvisor.Options) { o.Region = region })
 	return scanTrustedAdvisorChecks(ctx, client, acct, region, st, scanID)
 }

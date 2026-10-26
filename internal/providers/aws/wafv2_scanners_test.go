@@ -819,7 +819,9 @@ func TestWAFv2RegionalResourceTypesCoverEnum(t *testing.T) {
 // A resource type whose owning service AWS does not offer in the region is
 // not requested there; the other types still are.
 func TestScanWAFv2_AssociationTypesOnlyWhereOwnerOffered(t *testing.T) {
-	const region = "xx-nowhere-1" // in no SDK endpoint table, so only the catalog below offers services there
+	// A commercial-shaped region in no SDK endpoint table, so only the catalog
+	// below offers services there.
+	const region = "us-nowhere-9"
 	var calls wafAPIKeyCalls
 	h := wafv2Handlers(&calls)
 	wafWithACLs(h, nil)
@@ -1376,6 +1378,58 @@ func TestScanWAFv2_AssociationSkipsWarnOncePerCause(t *testing.T) {
 			}
 			if n := len(rowsByNativeID(t, st, TypeWAFv2WebACLAssociation)); n != tc.wantRows {
 				t.Errorf("associations stored = %d, want %d", n, tc.wantRows)
+			}
+		})
+	}
+}
+
+// The CLOUDFRONT scope is listed only from CloudFront's home in the account's
+// partition (us-east-1 for aws); a region elsewhere, or a partition the SDK
+// gives CloudFront no home in, makes no CLOUDFRONT call.
+func TestScanWAFv2_CloudFrontScopeOnlyInCloudFrontHome(t *testing.T) {
+	cases := []struct {
+		partition, region string
+		wantCloudFront    bool
+	}{
+		{"aws", "us-east-1", true},
+		{"aws", "us-west-2", false},
+		{"aws-us-gov", "us-gov-west-1", false},
+		{"aws-iso", "us-iso-east-1", false},
+		{"aws-iso-b", "us-isob-east-1", false},
+		// The SDK gives CloudFront a cn home (cn-northwest-1); unverified live.
+		{"aws-cn", "cn-northwest-1", true},
+		{"aws-cn", "cn-north-1", false},
+	}
+	for _, c := range cases {
+		t.Run(c.partition+"/"+c.region, func(t *testing.T) {
+			var (
+				mu     sync.Mutex
+				scopes = map[types.Scope]bool{}
+			)
+			record := func(scope types.Scope) {
+				mu.Lock()
+				scopes[scope] = true
+				mu.Unlock()
+			}
+			acct := testAccountIn(c.partition)
+			acct.cfg = opStubConfig(map[string]func(any) (any, error){
+				"ListWebACLs": func(in any) (any, error) {
+					record(in.(*wafv2.ListWebACLsInput).Scope)
+					return &wafv2.ListWebACLsOutput{}, nil
+				},
+				"ListAPIKeys": func(in any) (any, error) {
+					record(in.(*wafv2.ListAPIKeysInput).Scope)
+					return &wafv2.ListAPIKeysOutput{}, nil
+				},
+			}, apiErr("AccessDeniedException", "denied"))
+			if _, _, err := scanWAFv2(context.Background(), acct, c.region, newTestStore(t), testScanID); err != nil {
+				t.Fatalf("scanWAFv2: %v", err)
+			}
+			if !scopes[types.ScopeRegional] {
+				t.Errorf("no REGIONAL call; scopes called %v", scopes)
+			}
+			if scopes[types.ScopeCloudfront] != c.wantCloudFront {
+				t.Errorf("CLOUDFRONT called = %v; want %v", scopes[types.ScopeCloudfront], c.wantCloudFront)
 			}
 		})
 	}

@@ -61,8 +61,8 @@ const dxPageLimit = 100
 
 // scanDirectConnect discovers DirectConnect resources. Connections, LAGs,
 // interconnects, resiliency groups and VirtualInterfaces are regional.
-// DirectConnectGateway and association objects are global; gated to us-east-1
-// to avoid duplicate upserts across regions.
+// DirectConnectGateway and association objects are global; gated to one
+// region (isOnceRegion) to avoid duplicate upserts.
 func scanDirectConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := directconnect.NewFromConfig(acct.cfg, func(o *directconnect.Options) { o.Region = region })
 	return scanDirectConnectAll(ctx, client, acct, region, st, scanID)
@@ -200,9 +200,10 @@ func scanDXVirtualInterfaces(ctx context.Context, client dxAPI, acct *account, r
 
 // scanDXGateways stores the account's Direct Connect gateways and returns the
 // ids of those stored, read before a failed page included. Gateways are
-// global, so only the us-east-1 scan lists them, once per account.
+// global, so only the scan of Direct Connect's once-region (onceRegion) lists
+// them, once per account.
 func scanDXGateways(ctx context.Context, client dxAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	if region != "us-east-1" {
+	if !acct.isOnceRegion("directconnect", region) {
 		return nil, 0, 0, nil
 	}
 	gateways, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]directconnecttypes.DirectConnectGateway, *string, error) {
@@ -310,7 +311,7 @@ type dxResiliencyGroupAttrs struct {
 // too unless it was a denial.
 //
 // The group ARN has no region segment, like the dx-gateway ARN whose phase is
-// gated to us-east-1, yet this phase scans every region: the model documents
+// gated to one region, yet this phase scans every region: the model documents
 // ListResiliencyGroups as listing "the resiliency groups owned by your Amazon
 // Web Services account in the current Amazon Web Services Region". That is not
 // yet confirmed against a live account; if one group were listed in two

@@ -27,9 +27,13 @@ type costExplorerAPI interface {
 }
 
 // scanCostExplorer discovers anomaly monitors, anomaly subscriptions, and
-// cost category definitions. CE is global, accessed via us-east-1.
+// cost category definitions. CE is global, called in its home region
+// (homeRegion; us-east-1 for aws).
 func scanCostExplorer(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-east-1"
+	region, err := acct.homeRegion("costexplorer")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := costexplorer.NewFromConfig(acct.cfg, func(o *costexplorer.Options) { o.Region = region })
 
 	for _, phase := range []func() (int, int, error){

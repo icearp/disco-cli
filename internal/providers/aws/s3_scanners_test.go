@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"sync"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/smithy-go"
 	smithymw "github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -555,5 +557,209 @@ func TestScanS3MetricsConfigs_NamesFilterMember(t *testing.T) {
 		if attrs.FilterMember != want[0] || attrs.Filter.Value != want[1] || attrs.ID != id {
 			t.Errorf("%s attrs = %s; want filterMember %q, Filter.Value %q, Id kept", id, r.AttributesJSON, want[0], want[1])
 		}
+	}
+}
+
+// s3Answer is the error S3 returns for an HTTP answer with status code and
+// headers, wrapping cause (nil for an anonymous one).
+func s3Answer(status int, header http.Header, cause error) error {
+	if cause == nil {
+		cause = errors.New(http.StatusText(status))
+	}
+	return &smithyhttp.ResponseError{Response: &smithyhttp.Response{Response: &http.Response{StatusCode: status, Header: header}}, Err: cause}
+}
+
+// s3ForbiddenNoRegion is S3 answering HeadBucket without naming the region.
+var s3ForbiddenNoRegion = s3Answer(http.StatusForbidden, http.Header{}, nil)
+
+// An empty LocationConstraint is us-east-1 for aws only; elsewhere the region
+// comes from HeadBucket (its BucketRegion, or the x-amz-bucket-region header of
+// the 301 S3 answers from another region), and an answer naming none is
+// unknown, never guessed. The legacy "EU" constraint is eu-west-1 and any
+// other is itself.
+func TestS3BucketRegion_PerPartition(t *testing.T) {
+	headOK := func(any) (any, error) { return &s3.HeadBucketOutput{BucketRegion: sdkaws.String("us-gov-east-1")}, nil }
+	headMoved := func(any) (any, error) {
+		return nil, s3Answer(http.StatusMovedPermanently, http.Header{"X-Amz-Bucket-Region": {"cn-north-1"}}, nil)
+	}
+	headNoRegion := func(any) (any, error) { return nil, s3ForbiddenNoRegion }
+	headNoBucketRegion := func(any) (any, error) { return &s3.HeadBucketOutput{}, nil }
+	cases := []struct {
+		name       string
+		partition  string
+		constraint s3types.BucketLocationConstraint
+		head       func(any) (any, error) // nil: no HeadBucket handler
+		want       string                 // "": region unknown
+	}{
+		{"aws empty is us-east-1", "aws", "", nil, "us-east-1"},
+		{"gov empty reads HeadBucket", "aws-us-gov", "", headOK, "us-gov-east-1"},
+		{"cn empty reads the 301 header", "aws-cn", "", headMoved, "cn-north-1"},
+		{"gov empty, S3 answers without a region", "aws-us-gov", "", headNoRegion, ""},
+		{"gov empty, HeadBucket succeeds without BucketRegion", "aws-us-gov", "", headNoBucketRegion, ""},
+		{"aws legacy EU", "aws", s3types.BucketLocationConstraintEu, nil, "eu-west-1"},
+		{"gov explicit", "aws-us-gov", "us-gov-east-1", nil, "us-gov-east-1"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			handlers := map[string]func(any) (any, error){
+				"GetBucketLocation": func(any) (any, error) {
+					return &s3.GetBucketLocationOutput{LocationConstraint: c.constraint}, nil
+				},
+			}
+			if c.head != nil {
+				handlers["HeadBucket"] = c.head
+			}
+			cfg := opStubConfig(handlers, errors.New("test did not expect this call"))
+			got, err := s3BucketRegion(context.Background(), testAccountIn(c.partition), s3.NewFromConfig(cfg), "b")
+			if c.want == "" {
+				var unknown *s3BucketRegionUnknownError
+				if !errors.As(err, &unknown) || unknown.Bucket != "b" {
+					t.Errorf("s3BucketRegion = %q, %v; want *s3BucketRegionUnknownError for b", got, err)
+				}
+				return
+			}
+			if err != nil || got != c.want {
+				t.Errorf("s3BucketRegion(%s, %q) = %q, %v; want %q, nil", c.partition, c.constraint, got, err, c.want)
+			}
+		})
+	}
+}
+
+// A HeadBucket failure that is not S3 answering without a region comes back
+// raw, so the caller classifies it as it does every other per-bucket error: a
+// cancelled scan, a transient failure, a vanished bucket, or no HTTP answer.
+func TestS3BucketRegion_RawHeadBucketErrors(t *testing.T) {
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	cases := []struct {
+		name  string
+		ctx   context.Context
+		err   error
+		check func(error) bool
+	}{
+		{"context cancelled", canceled, s3ForbiddenNoRegion, func(err error) bool { return err != nil }},
+		{"transient", context.Background(), s3Answer(http.StatusServiceUnavailable, http.Header{}, &smithy.GenericAPIError{Code: "ServiceUnavailable"}), isTransientNetworkError},
+		{"bucket gone", context.Background(), s3Answer(http.StatusNotFound, http.Header{}, &smithy.GenericAPIError{Code: "NotFound"}), s3BucketRegionGone},
+		{"no HTTP answer", context.Background(), errors.New("dial failed"), func(err error) bool { return err != nil }},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := opStubConfig(map[string]func(any) (any, error){
+				"GetBucketLocation": func(any) (any, error) { return &s3.GetBucketLocationOutput{}, nil },
+				"HeadBucket":        func(any) (any, error) { return nil, c.err },
+			}, errors.New("test did not expect this call"))
+			_, err := s3BucketRegion(c.ctx, testAccountIn("aws-us-gov"), s3.NewFromConfig(cfg), "b")
+			var unknown *s3BucketRegionUnknownError
+			if errors.As(err, &unknown) || !c.check(err) {
+				t.Errorf("s3BucketRegion err = %v (%T); want the raw error, not *s3BucketRegionUnknownError", err, err)
+			}
+		})
+	}
+}
+
+// A deadline hit while reading a bucket's region reaches the dispatcher raw
+// through every phase that reads it, so the scan is classified outcomeDeadline,
+// not a skipped bucket.
+func TestScanS3_HeadBucketDeadlineIsDeadline(t *testing.T) {
+	acct := testAccountIn("aws-us-gov")
+	h := s3ServiceHandlers("")
+	h["GetBucketLocation"] = func(string, any) (any, error) { return &s3.GetBucketLocationOutput{}, nil }
+	h["HeadBucket"] = func(string, any) (any, error) { return nil, context.DeadlineExceeded }
+	acct.cfg = s3StubConfig(h)
+	client := s3.NewFromConfig(acct.cfg)
+	buckets := s3TestBuckets("b-east")
+	ctx := context.Background()
+	st := newTestStore(t)
+	sites := map[string]func() error{
+		"scanS3": func() error { _, _, err := scanS3(ctx, acct, st, testScanID); return err },
+		"scanS3BucketPolicies": func() error {
+			_, _, err := scanS3BucketPolicies(ctx, acct, client, buckets, st, testScanID)
+			return err
+		},
+		"scanS3BucketEncryptions": func() error { return scanS3BucketEncryptions(ctx, acct, client, buckets) },
+		"s3HomedBuckets":          func() error { _, err := s3HomedBuckets(ctx, acct, client, buckets, st); return err },
+	}
+	for name, run := range sites {
+		if err := run(); classifyServiceError(err) != outcomeDeadline {
+			t.Errorf("%s: classifyServiceError(%v) = %v; want outcomeDeadline", name, err, classifyServiceError(err))
+		}
+	}
+}
+
+// A bucket that vanished before its region was read (HeadBucket answers 404
+// NotFound) is skipped silently by every phase that reads the region, as a
+// vanished bucket is everywhere else.
+func TestScanS3_HeadBucketGoneIsSilent(t *testing.T) {
+	acct := testAccountIn("aws-us-gov")
+	h := s3ServiceHandlers("")
+	h["GetBucketLocation"] = func(string, any) (any, error) { return &s3.GetBucketLocationOutput{}, nil }
+	h["HeadBucket"] = func(string, any) (any, error) {
+		return nil, s3Answer(http.StatusNotFound, http.Header{}, &smithy.GenericAPIError{Code: "NotFound"})
+	}
+	acct.cfg = s3StubConfig(h)
+	client := s3.NewFromConfig(acct.cfg)
+	buckets := s3TestBuckets("b-east")
+	ctx := context.Background()
+	st := newTestStore(t)
+	var (
+		mu    sync.Mutex
+		warns int
+	)
+	st.OnWarn = func(store.ScanWarning) { mu.Lock(); warns++; mu.Unlock() }
+	sites := map[string]func() error{
+		"scanS3BucketPolicies": func() error {
+			_, _, err := scanS3BucketPolicies(ctx, acct, client, buckets, st, testScanID)
+			return err
+		},
+		"scanS3BucketEncryptions": func() error { return scanS3BucketEncryptions(ctx, acct, client, buckets) },
+		"s3HomedBuckets":          func() error { _, err := s3HomedBuckets(ctx, acct, client, buckets, st); return err },
+	}
+	for name, run := range sites {
+		if err := run(); err != nil {
+			t.Errorf("%s: err = %v; want nil (vanished bucket skipped)", name, err)
+		}
+	}
+	if warns != 0 {
+		t.Errorf("warnings = %d; want 0", warns)
+	}
+}
+
+// Outside aws, a bucket whose region cannot be read keeps its row, gets one
+// warning naming it, and has no policy, encryption or configuration read;
+// a sibling bucket with a known region is read in full.
+func TestScanS3_UnknownRegionKeepsBucketSkipsReads(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "s3:HeadBucket")
+	acct := testAccountIn("aws-us-gov")
+	h := s3ServiceHandlers("")
+	h["GetBucketLocation"] = func(_ string, in any) (any, error) {
+		if sv(in.(*s3.GetBucketLocationInput).Bucket) == "b-west" {
+			return &s3.GetBucketLocationOutput{LocationConstraint: "us-gov-east-1"}, nil
+		}
+		return &s3.GetBucketLocationOutput{}, nil
+	}
+	h["HeadBucket"] = func(string, any) (any, error) { return nil, s3ForbiddenNoRegion }
+	acct.cfg = s3StubConfig(h)
+	if _, _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
+		t.Fatalf("scanS3: %v", err)
+	}
+	if n := len(rowsByNativeID(t, st, TypeS3Bucket)); n != 2 {
+		t.Errorf("buckets = %d; want 2 (the unknown-region bucket is kept)", n)
+	}
+	policies := rowsByNativeID(t, st, TypeS3BucketPolicy)
+	if len(policies) != 1 {
+		t.Errorf("bucket policies = %d; want 1, for b-west only", len(policies))
+	}
+	if _, ok := acct.s3BucketEncryption["b-east"]; ok {
+		t.Error("b-east encryption was read; its region is unknown")
+	}
+	for _, k := range s3ConfigKinds {
+		rows := rowsByNativeID(t, st, k.typ)
+		if _, ok := rows[s3ConfigNativeID(k, "b-west", "c")]; !ok || len(rows) != 1 {
+			t.Errorf("%s rows = %d; want only b-west's", k.typ, len(rows))
+		}
+	}
+	if *warns != 1 {
+		t.Errorf("s3:HeadBucket warnings = %d; want 1", *warns)
 	}
 }

@@ -19,9 +19,13 @@ func init() {
 }
 
 // scanNotificationsContacts discovers AWS User Notifications Contacts email
-// contacts. Global service, gated to us-east-1 to dedupe across regions.
+// contacts. Global service, called once in its home region (homeRegion;
+// us-east-1 for aws).
 func scanNotificationsContacts(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-east-1"
+	region, err := acct.homeRegion("notificationscontacts")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := notificationscontacts.NewFromConfig(acct.cfg, func(o *notificationscontacts.Options) { o.Region = region })
 
 	var batch []*store.Resource

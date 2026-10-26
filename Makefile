@@ -33,10 +33,12 @@ GOVULNCHECK_VERSION ?= v1.6.0
 check-migrations:
 	./scripts/check-migrations.sh
 
-# gen-regions rebuilds the per-service region table the AWS scanner uses to skip
-# (service x region) pairs AWS does not offer. Output is committed; there is no
-# matching check target because regionsgen's own test is what gates staleness in
-# CI, which runs go test and no make targets.
+# gen-regions rebuilds the generated AWS region tables from the pinned SDK: the
+# per-service region table the scanner uses to skip (service x region) pairs AWS
+# does not offer, the partition table, and each SDK package's home region and
+# once-region (one listed region, so a dedupe call runs once) per partition. Output is committed; there is no matching check target because
+# regionsgen's own tests are what gate staleness in CI, which runs go test and no
+# make targets.
 gen-regions:
 	go generate ./internal/providers/aws/awsregions/...
 

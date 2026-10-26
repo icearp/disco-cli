@@ -52,10 +52,13 @@ const lmPageSize = 100
 
 // scanLicenseManager discovers License Manager licenses, grants, license
 // configurations, report generators, asset groups and rulesets, received
-// licenses and tokens. Global service; gated to us-east-1 to avoid duplicate
-// scans across regions.
+// licenses and tokens. Global service; called once, in its home region
+// (homeRegion; us-east-1 for aws), to avoid duplicate scans across regions.
 func scanLicenseManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-east-1"
+	region, err := acct.homeRegion("licensemanager")
+	if err != nil {
+		return 0, 0, err
+	}
 	// The SDK neither lists RateLimitExceededException, License Manager's HTTP
 	// 429 throttle, among its throttle codes nor retries a 429 by status, so
 	// without this a single throttle fails the call unretried. It gets standard

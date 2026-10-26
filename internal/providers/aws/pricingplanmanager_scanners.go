@@ -20,7 +20,11 @@ func init() {
 		name:   "aws:pricingplanmanager",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
-			client := pricingplanmanager.NewFromConfig(acct.cfg, func(o *pricingplanmanager.Options) { o.Region = pricingPlanManagerRegion })
+			region, err := acct.homeRegion("pricingplanmanager")
+			if err != nil {
+				return 0, 0, err
+			}
+			client := pricingplanmanager.NewFromConfig(acct.cfg, func(o *pricingplanmanager.Options) { o.Region = region })
 			return scanPricingPlanManagerSubscriptions(ctx, client, acct, st, scanID)
 		},
 	})

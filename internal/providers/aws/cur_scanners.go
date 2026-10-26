@@ -18,10 +18,14 @@ func init() {
 	})
 }
 
-// scanCUR discovers Cost and Usage Report definitions. CUR is global; gate
-// to us-east-1. Synth ARN: arn:aws:cur::{a}:definition/{name}.
+// scanCUR discovers Cost and Usage Report definitions. CUR is global; called
+// in its home region (homeRegion; us-east-1 for aws).
+// Synth ARN: arn:aws:cur::{a}:definition/{name}.
 func scanCUR(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-east-1"
+	region, err := acct.homeRegion("costandusagereportservice")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := costandusagereportservice.NewFromConfig(acct.cfg, func(o *costandusagereportservice.Options) { o.Region = region })
 
 	var batch []*store.Resource

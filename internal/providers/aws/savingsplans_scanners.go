@@ -10,17 +10,18 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// Savings Plans is a global service — the endpoint resolves only via us-east-1.
-const savingsPlansRegion = "us-east-1"
-
 func init() {
 	registerType(restype.Descriptor{Type: TypeSavingsPlansSavingsPlan, Service: "savingsplans"})
 	registerService(serviceEntry{
 		name:   "aws:savingsplans",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-			client := savingsplans.NewFromConfig(acct.cfg, func(o *savingsplans.Options) { o.Region = savingsPlansRegion })
-			return scanSavingsPlans(ctx, client, acct, st, scanID)
+			region, err := acct.homeRegion("savingsplans")
+			if err != nil {
+				return 0, 0, err
+			}
+			client := savingsplans.NewFromConfig(acct.cfg, func(o *savingsplans.Options) { o.Region = region })
+			return scanSavingsPlans(ctx, client, acct, region, st, scanID)
 		},
 	})
 }
@@ -31,8 +32,9 @@ type savingsPlansAPI interface {
 	DescribeSavingsPlans(context.Context, *savingsplans.DescribeSavingsPlansInput, ...func(*savingsplans.Options)) (*savingsplans.DescribeSavingsPlansOutput, error)
 }
 
-func scanSavingsPlans(ctx context.Context, client savingsPlansAPI, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := savingsPlansRegion
+// scanSavingsPlans lists the account's Savings Plans; region is the home its
+// client calls, which scopes any warning.
+func scanSavingsPlans(ctx context.Context, client savingsPlansAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	var batch []*store.Resource
 	token := ""
 	for {

@@ -33,13 +33,17 @@ type shieldAPI interface {
 }
 
 // scanShield discovers Shield Advanced protections and protection groups.
-// Shield is a global service; the client always uses us-east-1. A phase-0
+// Shield is a global service; the client uses its home region (homeRegion). A phase-0
 // DescribeSubscription gate detects accounts without an active Advanced
 // subscription (ResourceNotFoundException) and short-circuits via
 // markServiceDisabled. Per-phase isShieldNotSubscribed skips remain as a
 // safety net for the rare partial-IAM-grant case.
 func scanShield(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := shield.NewFromConfig(acct.cfg, func(o *shield.Options) { o.Region = "us-east-1" })
+	region, err := acct.homeRegion("shield")
+	if err != nil {
+		return 0, 0, err
+	}
+	client := shield.NewFromConfig(acct.cfg, func(o *shield.Options) { o.Region = region })
 
 	// Phase 0: subscription gate (no resource upsert — config, not a resource).
 	if ferr := gateShieldSubscription(ctx, client, acct, st); ferr != nil {
@@ -68,7 +72,7 @@ func scanShield(ctx context.Context, acct *account, st *store.Store, scanID stri
 
 	// Phase 4: DRT access + proactive engagement (per-account singletons).
 	{
-		t, i, ferr := scanShieldDRTAccess(ctx, client, acct, st, scanID)
+		t, i, ferr := scanShieldDRTAccess(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}
@@ -76,7 +80,7 @@ func scanShield(ctx context.Context, acct *account, st *store.Store, scanID stri
 		inserted += i
 	}
 	{
-		t, i, ferr := scanShieldProactiveEngagement(ctx, client, acct, st, scanID)
+		t, i, ferr := scanShieldProactiveEngagement(ctx, client, acct, region, st, scanID)
 		if ferr != nil {
 			return total, inserted, ferr
 		}

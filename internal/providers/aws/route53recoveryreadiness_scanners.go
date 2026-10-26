@@ -41,10 +41,14 @@ type r53rrAPI interface {
 
 // scanR53RecoveryReadiness discovers Route53 Recovery Readiness cells, readiness
 // checks, recovery groups, and resource sets; ARNs are native on every type.
-// The service is account-wide with its only endpoint in us-west-2, so it is
-// registered global and the client is pinned there.
+// The service is account-wide; for aws accounts its only endpoint is in
+// us-west-2, so it is registered global and the client is pinned to its home
+// region (homeRegion).
 func scanR53RecoveryReadiness(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
-	region := "us-west-2"
+	region, err := acct.homeRegion("route53recoveryreadiness")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := route53recoveryreadiness.NewFromConfig(acct.cfg, func(o *route53recoveryreadiness.Options) { o.Region = region })
 	return scanR53RRAll(ctx, client, acct, region, st, scanID)
 }

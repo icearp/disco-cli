@@ -10,7 +10,8 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// AWS Billing API is global — endpoints resolve only via us-east-1.
+// AWS Billing API is global — for aws accounts endpoints resolve only via
+// us-east-1.
 const billingRegion = "us-east-1"
 
 func init() {
@@ -19,7 +20,11 @@ func init() {
 		name:   "aws:billing",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-			client := billing.NewFromConfig(acct.cfg, func(o *billing.Options) { o.Region = billingRegion })
+			region, err := acct.homeRegion("billing")
+			if err != nil {
+				return 0, 0, err
+			}
+			client := billing.NewFromConfig(acct.cfg, func(o *billing.Options) { o.Region = region })
 			return scanBillingViews(ctx, client, acct, st, scanID)
 		},
 	})

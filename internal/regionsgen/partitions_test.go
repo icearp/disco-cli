@@ -3,7 +3,10 @@ package regionsgen
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
+
+	"github.com/icearp/disco-cli/internal/providers/aws/awsregions"
 )
 
 // TestGeneratedPartitionsFileIsCurrent is the partition table's staleness
@@ -13,10 +16,7 @@ import (
 func TestGeneratedPartitionsFileIsCurrent(t *testing.T) {
 	root := repoRoot(t)
 
-	parts, err := BuildPartitions(root)
-	if err != nil {
-		t.Fatalf("BuildPartitions: %v", err)
-	}
+	parts := loadSource(t).Partitions
 	want, err := RenderPartitions(parts)
 	if err != nil {
 		t.Fatalf("RenderPartitions: %v", err)
@@ -71,4 +71,29 @@ func TestParsePartitions_RejectsIncompletePartition(t *testing.T) {
 			t.Errorf("parsePartitions(complete).Regions = %v; want [us-east-1 us-west-2] (sorted)", p.Regions)
 		}
 	})
+}
+
+// The global pseudo-region names an endpoint, not a region a scan can be sent
+// to, so it is not one of a partition's real regions.
+func TestRealRegions_DropsPseudoRegions(t *testing.T) {
+	p := awsregions.Partition{ID: "aws", RegionRegex: `^(us|eu)\-\w+\-\d+$`, Regions: []string{"aws-global", "eu-west-1", "us-east-1"}}
+	if got := realRegions(p); !slices.Equal(got, []string{"eu-west-1", "us-east-1"}) {
+		t.Errorf("realRegions(%v) = %v; want [eu-west-1 us-east-1]", p.Regions, got)
+	}
+}
+
+// A region two partitions list would make the account partition read from it
+// ambiguous, so generation fails instead of picking one.
+func TestRenderPartitions_RejectsSharedRegion(t *testing.T) {
+	parts := []awsregions.Partition{
+		{ID: "aws", RegionRegex: `^us\-\w+\-\d+$`, DNSSuffix: "amazonaws.com", Regions: []string{"us-east-1"}},
+		{ID: "aws-x", RegionRegex: `^us\-\w+\-\d+$`, DNSSuffix: "example", Regions: []string{"us-east-1"}},
+	}
+	if _, err := RenderPartitions(parts); err == nil {
+		t.Error("RenderPartitions with us-east-1 in two partitions = nil error; want an error")
+	}
+	parts[1].Regions = []string{"us-east-2"}
+	if _, err := RenderPartitions(parts); err != nil {
+		t.Errorf("RenderPartitions with disjoint regions: %v", err)
+	}
 }

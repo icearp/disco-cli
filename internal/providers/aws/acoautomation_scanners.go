@@ -27,7 +27,11 @@ func init() {
 		name:   "aws:aco-automation",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
-			client := computeoptimizerautomation.NewFromConfig(acct.cfg, func(o *computeoptimizerautomation.Options) { o.Region = acoAutomationRegion })
+			region, err := acct.homeRegion("computeoptimizerautomation")
+			if err != nil {
+				return 0, 0, err
+			}
+			client := computeoptimizerautomation.NewFromConfig(acct.cfg, func(o *computeoptimizerautomation.Options) { o.Region = region })
 			return scanACOAutomationRules(ctx, client, acct, st, scanID)
 		},
 	})

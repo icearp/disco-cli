@@ -102,9 +102,9 @@ func scanRAMResourceShares(ctx context.Context, client ramAPI, acct *account, re
 }
 
 // scanRAMPermissions stores the region's customer-managed permissions and,
-// from us-east-1 only, the AWS-managed catalogue. PermissionType and
-// ResourceType are left unset, so the listing reads both kinds for every
-// resource type.
+// from one region only (RAM's once-region, onceRegion), the AWS-managed
+// catalogue. PermissionType and ResourceType are left unset, so the listing
+// reads both kinds for every resource type.
 func scanRAMPermissions(ctx context.Context, client ramAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	return storeTokenList(ctx, st, acct, region, ramPermissionsOp,
 		func(ctx context.Context, token *string) ([]types.ResourceSharePermissionSummary, *string, error) {
@@ -114,8 +114,8 @@ func scanRAMPermissions(ctx context.Context, client ramAPI, acct *account, regio
 			}
 			// The AWS-managed catalogue is partition-global with region-less
 			// ARNs; emitted from every region's concurrent upsert it collides
-			// on the region-excluded natural key, so only us-east-1 keeps it.
-			if region != "us-east-1" {
+			// on the region-excluded natural key, so only the once-region keeps it.
+			if !acct.isOnceRegion("ram", region) {
 				return slices.DeleteFunc(out.Permissions, ramManagedPermission), out.NextToken, nil
 			}
 			return out.Permissions, out.NextToken, nil

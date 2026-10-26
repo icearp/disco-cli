@@ -378,12 +378,13 @@ type ecrPublicAPI interface {
 
 // scanECRPublic adds the public repository phase, then the public registry
 // phase, to p under their ops. ecrpublic is global but only callable from
-// us-east-1, so other regions add nothing and each account's rows are stored
-// once. The registry phase runs whatever error the repository phase
+// its home region (us-east-1 for aws; the SDK lists it in no other
+// partition), so other regions add nothing and each account's rows are
+// stored once. The registry phase runs whatever error the repository phase
 // returned, except a failed write; it then links only the repositories stored.
 // It reports whether a write failed, after which the scanner must stop.
 func scanECRPublic(ctx context.Context, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (storeWriteFailed bool) {
-	if region != "us-east-1" {
+	if !acct.homeGate(st, "ecrpublic", ecrPublicRepositoriesOp, region) {
 		return false
 	}
 	client := ecrpublic.NewFromConfig(acct.cfg, func(o *ecrpublic.Options) { o.Region = region })

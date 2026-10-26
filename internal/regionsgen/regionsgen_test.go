@@ -3,8 +3,27 @@ package regionsgen
 import (
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
+
+var (
+	sourceOnce sync.Once
+	source     *Source
+	sourceErr  error
+)
+
+// loadSource is Load on the repository, run once for every test that needs
+// it: Load shells out to go list -m all.
+func loadSource(t *testing.T) *Source {
+	t.Helper()
+	root := repoRoot(t)
+	sourceOnce.Do(func() { source, sourceErr = Load(root) })
+	if sourceErr != nil {
+		t.Fatalf("Load: %v", sourceErr)
+	}
+	return source
+}
 
 // repoRoot walks up to the directory holding go.mod, mirroring what the
 // generator does when go generate runs it from a package directory.
@@ -34,10 +53,7 @@ func repoRoot(t *testing.T) string {
 func TestGeneratedFileIsCurrent(t *testing.T) {
 	root := repoRoot(t)
 
-	table, err := Build(root)
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
+	table := loadSource(t).ServiceRegions()
 	want, err := Render(table)
 	if err != nil {
 		t.Fatalf("Render: %v", err)
@@ -50,27 +66,24 @@ func TestGeneratedFileIsCurrent(t *testing.T) {
 	}
 	if string(got) != string(want) {
 		t.Errorf("%s is stale (%d services regenerate to %d bytes, file has %d); run `make gen-regions` and commit the result",
-			GeneratedFile, len(table), len(want), len(got))
+			GeneratedFile, len(table.Regions), len(want), len(got))
 	}
 }
 
-// TestBuildCoversTheScannerSurface guards the generator's own failure mode,
-// which is quiet: a parse that matches nothing yields an empty table, region
-// scoping silently switches off everywhere, and every scan still succeeds — just
-// slower. Build refuses to return an empty table for exactly this reason, so the
-// assertions here are about the shape it does return.
-func TestBuildCoversTheScannerSurface(t *testing.T) {
-	table, err := Build(repoRoot(t))
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
+// TestServiceRegionsCoverTheScannerSurface guards the generator's own failure
+// mode, which is quiet: a parse that matches nothing yields an empty table,
+// region scoping silently switches off everywhere, and every scan still
+// succeeds — just slower. Load refuses to return an empty Source for exactly this reason, so
+// the assertions here are about the shape ServiceRegions does return.
+func TestServiceRegionsCoverTheScannerSurface(t *testing.T) {
+	table := loadSource(t).ServiceRegions().Regions
 
 	// The AWS surface is ~300 services and roughly three quarters resolve to an
 	// SDK endpoint table. A floor well under that catches a parser that half
 	// works — the case a non-empty check sails past.
 	const floor = 150
 	if len(table) < floor {
-		t.Errorf("Build resolved %d services, want at least %d; the scanner-file or endpoints-file shape likely changed", len(table), floor)
+		t.Errorf("ServiceRegions resolved %d services, want at least %d; the scanner-file or endpoints-file shape likely changed", len(table), floor)
 	}
 
 	regions, ok := table["aws:cassandra"]

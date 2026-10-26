@@ -31,8 +31,8 @@ func isMigrationRequiredIAMDeny(err error) bool {
 	return isAccessDeniedWithMessage(err, "Migrate the policies in your account to use the new IAM actions")
 }
 
-// AWS BCM Pricing Calculator is account-global — the SDK endpoint resolves
-// only via us-east-1 (mirrors aws:billing / aws:ce).
+// AWS BCM Pricing Calculator is account-global — for aws accounts the SDK
+// endpoint resolves only via us-east-1 (mirrors aws:billing / aws:ce).
 const bcmPricingCalculatorRegion = "us-east-1"
 
 func init() {
@@ -46,7 +46,11 @@ func init() {
 		name:   "aws:bcmpricingcalculator",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
-			client := bcmpricingcalculator.NewFromConfig(acct.cfg, func(o *bcmpricingcalculator.Options) { o.Region = bcmPricingCalculatorRegion })
+			region, err := acct.homeRegion("bcmpricingcalculator")
+			if err != nil {
+				return 0, 0, err
+			}
+			client := bcmpricingcalculator.NewFromConfig(acct.cfg, func(o *bcmpricingcalculator.Options) { o.Region = region })
 			return scanBcmPricingCalculator(ctx, client, acct, st, scanID)
 		},
 	})

@@ -52,7 +52,7 @@ func TestScanBillingConductor(t *testing.T) {
 		plans:  []bctypes.PricingPlanListElement{{Arn: &ppArn, Name: &ppName, CreationTime: 1700000002000}},
 		rules:  []bctypes.PricingRuleListElement{{Arn: &prArn, Name: &prName, CreationTime: 1700000003000}},
 	}
-	total, inserted, err := scanBillingConductor(context.Background(), stub, acct, st, testScanID)
+	total, inserted, err := scanBillingConductor(context.Background(), stub, acct, "us-east-1", st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}
@@ -75,7 +75,7 @@ func TestScanBillingConductorEmpty(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubBillingConductor{}
-	total, inserted, err := scanBillingConductor(context.Background(), stub, acct, st, testScanID)
+	total, inserted, err := scanBillingConductor(context.Background(), stub, acct, "us-east-1", st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
 	}

@@ -136,7 +136,7 @@ func scanServiceQuotasWithClient(ctx context.Context, client serviceQuotasAPI, a
 		}
 		return 0, 0, fmt.Errorf("servicequotas:ListServices: %w", err)
 	}
-	home := homeGlobalRegion(acct)
+	home := globalQuotaRegion(acct)
 
 	var (
 		mu              sync.Mutex
@@ -502,18 +502,24 @@ func quotaPeriodUnit(u sqtypes.PeriodUnit) string {
 // it as a literal because regionsgen reads the name from the literal.
 const serviceQuotasService = "aws:servicequotas"
 
-// homeGlobalRegion elects the single region that emits global quotas: us-east-1
-// (AWS's commercial home region for global quota increases) when this scanner
-// runs there, otherwise the lexicographically smallest region it runs in, so
-// globals are still recorded when --regions excludes us-east-1 or the account
-// has not enabled it. It elects only among the regions the scanner is
-// dispatched to: an elected region that never runs would store no global
-// quota at all. The elected row is region-less, so the choice only governs
-// which scan invocation writes it — never the row itself.
-func homeGlobalRegion(acct *account) string {
+// globalQuotaRegion elects the single region that emits global quotas: Service
+// Quotas' once-region (onceRegion) when this scanner runs there, otherwise the
+// lexicographically smallest region it runs in, so globals are still recorded
+// when --regions excludes it, the account has not enabled it, or the partition
+// lists none. Global quotas read the same from every region, so this is a
+// dedupe choice, not the template scanner's home (homeRegion), which must be
+// the one region the request template lives in. It elects only among the
+// regions the scanner is dispatched to: an elected region that never runs
+// would store no global quota at all. The elected row is region-less, so the
+// choice only governs which scan invocation writes it — never the row itself.
+//
+// The dispatched set is never empty here: scanRegion runs this scanner only in
+// a region of acct.scanRegions that dispatchesTo accepts, and dispatchedRegions
+// is that same filter over the same list.
+func globalQuotaRegion(acct *account) string {
 	regions := acct.dispatchedRegions(serviceQuotasService)
-	if len(regions) == 0 || slices.Contains(regions, "us-east-1") {
-		return "us-east-1"
+	if once, err := acct.onceRegion("servicequotas"); err == nil && slices.Contains(regions, once) {
+		return once
 	}
 	return slices.Min(regions)
 }

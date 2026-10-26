@@ -9,7 +9,8 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// AWS BCM Dashboards is account-global — endpoints resolve only via us-east-1.
+// AWS BCM Dashboards is account-global — for aws accounts endpoints resolve
+// only via us-east-1.
 const bcmDashboardsRegion = "us-east-1"
 
 func init() {
@@ -19,7 +20,11 @@ func init() {
 		name:   "aws:bcmdashboards",
 		global: true,
 		fn: func(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
-			client := bcmdashboards.NewFromConfig(acct.cfg, func(o *bcmdashboards.Options) { o.Region = bcmDashboardsRegion })
+			region, err := acct.homeRegion("bcmdashboards")
+			if err != nil {
+				return 0, 0, err
+			}
+			client := bcmdashboards.NewFromConfig(acct.cfg, func(o *bcmdashboards.Options) { o.Region = region })
 			return scanBCMDashboards(ctx, client, acct, st, scanID)
 		},
 	})

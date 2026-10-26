@@ -9,15 +9,6 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// sqTemplateRegion is the endpoint the template ops are called on. The
-// template is one per organization and each entry names the region it applies
-// to (AwsRegion), so a single unfiltered list from one endpoint returns every
-// region's entries; calling it per scanned region would list the same entries
-// again. us-east-1 is assumed from the AWS user guide, not observed live: a
-// TemplatesNotAvailableInRegionException here means the assumption is wrong,
-// so it is returned rather than skipped.
-const sqTemplateRegion = "us-east-1"
-
 func init() {
 	registerType(restype.Descriptor{Type: TypeServiceQuotasServiceQuotaIncreaseRequestInTemplate, Service: "servicequotas"})
 	// Separate from aws:servicequotas because that one is per-region and
@@ -40,8 +31,20 @@ type sqTemplateAPI interface {
 	ListServiceQuotaIncreaseRequestsInTemplate(context.Context, *servicequotas.ListServiceQuotaIncreaseRequestsInTemplateInput, ...func(*servicequotas.Options)) (*servicequotas.ListServiceQuotaIncreaseRequestsInTemplateOutput, error)
 }
 
+// scanServiceQuotasTemplate lists the template from its home region
+// (homeRegion). The template is one per organization and each entry names the
+// region it applies to (AwsRegion), so a single unfiltered list from one
+// endpoint returns every region's entries; calling it per scanned region would
+// list the same entries again. The commercial home, us-east-1, is assumed from
+// the AWS user guide, not observed live: a
+// TemplatesNotAvailableInRegionException means the home is wrong, so it is
+// returned rather than skipped.
 func scanServiceQuotasTemplate(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
-	client := servicequotas.NewFromConfig(acct.cfg, func(o *servicequotas.Options) { o.Region = sqTemplateRegion })
+	region, err := acct.homeRegion("servicequotas")
+	if err != nil {
+		return 0, 0, err
+	}
+	client := servicequotas.NewFromConfig(acct.cfg, func(o *servicequotas.Options) { o.Region = region })
 	return scanSQTemplateEntries(ctx, client, acct, st, scanID)
 }
 

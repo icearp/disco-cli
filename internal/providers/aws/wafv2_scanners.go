@@ -49,8 +49,8 @@ type wafv2API interface {
 }
 
 // scanWAFv2 discovers WAFv2 resources in one region, across both scopes:
-// REGIONAL (per region) and CLOUDFRONT (global, reachable only from us-east-1
-// — fetched only there to avoid duplicates).
+// REGIONAL (per region) and CLOUDFRONT (global, reachable only from
+// CloudFront's home region — fetched only there to avoid duplicates).
 //
 // The API-key phase runs after the older per-scope phases whatever they
 // returned, so a failure on either side does not stop the other from listing.
@@ -61,7 +61,12 @@ func scanWAFv2(ctx context.Context, acct *account, region string, st *store.Stor
 	client := wafv2.NewFromConfig(acct.cfg, func(o *wafv2.Options) { o.Region = region })
 
 	scopes := []types.Scope{types.ScopeRegional}
-	if region == "us-east-1" {
+	// The CLOUDFRONT scope protects CloudFront distributions and answers only in
+	// CloudFront's home region, so only that region's scan lists it; a partition
+	// with no CloudFront home makes no CLOUDFRONT call. In aws-cn this follows
+	// the SDK's CloudFront home (cn-northwest-1); that WAFv2 serves the
+	// CLOUDFRONT scope there is unverified against a live account.
+	if acct.homeGate(st, "cloudfront", "wafv2:ListWebACLs", region) {
 		scopes = append(scopes, types.ScopeCloudfront)
 	}
 

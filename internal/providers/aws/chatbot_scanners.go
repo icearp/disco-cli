@@ -58,7 +58,8 @@ const (
 
 // scanChatbot discovers Chatbot custom actions, channel configurations (Slack +
 // Microsoft Teams), Chime webhook configurations, and Slack and Microsoft Teams
-// user identities. Global service; its API is called in us-east-2.
+// user identities. Global service; its API is called in its home region
+// (homeRegion), us-east-2 for aws accounts.
 //
 // Phases run in order. A phase's error does not stop the later phases; only a
 // failed store write does, since every later write would fail too. The user
@@ -66,7 +67,10 @@ const (
 // stored; an identity whose configuration that phase did not store stays
 // unlinked.
 func scanChatbot(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
-	region := "us-east-2"
+	region, err := acct.homeRegion("chatbot")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := chatbot.NewFromConfig(acct.cfg, func(o *chatbot.Options) { o.Region = region })
 	return scanChatbotAll(ctx, client, acct, region, st, scanID)
 }

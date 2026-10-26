@@ -687,3 +687,24 @@ func TestDispatch_TransientAfterRows(t *testing.T) {
 		})
 	}
 }
+
+// The opted-in-regions probe runs in the account partition's home: a GovCloud
+// credential sent to commercial us-east-1 would be refused and the scan would
+// lose its filter.
+func TestProbeEnabledRegions_PartitionHome(t *testing.T) {
+	for partition, want := range map[string]string{"aws": "us-east-1", "aws-us-gov": "us-gov-west-1", "aws-cn": "cn-northwest-1"} {
+		t.Run(partition, func(t *testing.T) {
+			var regions parentCalls
+			acct := testAccountIn(partition)
+			acct.cfg = recordCallRegions(opStubConfig(map[string]func(any) (any, error){
+				"DescribeRegions": func(any) (any, error) { return &ec2.DescribeRegionsOutput{}, nil },
+			}, apiErr("AccessDeniedException", "denied")), &regions)
+			if _, err := probeEnabledRegions(context.Background(), acct); err != nil {
+				t.Fatalf("probeEnabledRegions: %v", err)
+			}
+			if got := regions.distinct(); !slices.Equal(got, []string{want}) {
+				t.Errorf("DescribeRegions called in %v; want [%s]", got, want)
+			}
+		})
+	}
+}

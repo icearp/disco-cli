@@ -88,6 +88,23 @@ func RegisterServices(provider string, m map[string][]string) {
 	serviceRegistry[provider] = m
 }
 
+// coverageRegistry maps provider name → its coverage function, which reports
+// whether the provider's service table speaks for a (service, region) pair.
+// Populated by each <p>regions leaf package's init() via
+// RegisterServiceCoverage. A provider with no coverage function has its table
+// speak for every region.
+var coverageRegistry = map[string]func(service, region string) bool{}
+
+// RegisterServiceCoverage records which (service, region) pairs provider's
+// service table speaks for. ServiceAvailable answers known only for a covered
+// pair; elsewhere the table has no opinion and callers fail open. A provider
+// whose table lists a service only for some of its regions' groups (AWS: per
+// partition) registers one, so a region outside those groups is not read as
+// "not offered". Later calls for the same provider replace earlier ones.
+func RegisterServiceCoverage(provider string, covers func(service, region string) bool) {
+	coverageRegistry[provider] = covers
+}
+
 // ServiceRegions returns the regions the provider offers service in, sorted, or
 // nil when nothing is registered for it. service is the provider-qualified name
 // ("aws:cassandra"). The returned slice is a copy the caller may retain or mutate.
@@ -104,13 +121,18 @@ func ServiceRegions(service string) []string {
 // ServiceAvailable reports whether the provider offers service in region.
 //
 // known distinguishes "not offered there" from "no data": it is false when
-// nothing is registered for service, in which case avail is meaningless and the
-// caller MUST fail open and scan anyway. Registration is best-effort per
+// nothing is registered for service, or when the provider's coverage function
+// (RegisterServiceCoverage) says its table does not speak for region; avail is
+// then meaningless and the caller MUST fail open and scan anyway. Registration is best-effort per
 // provider — azure and gcp register nothing today — so an unknown service is the
 // normal case, not an error.
 func ServiceAvailable(service, region string) (known, avail bool) {
 	src := serviceRegionsFor(service)
 	if len(src) == 0 {
+		return false, false
+	}
+	provider, _, _ := strings.Cut(service, ":")
+	if covers := coverageRegistry[provider]; covers != nil && !covers(service, region) {
 		return false, false
 	}
 	return true, slices.Contains(src, region)

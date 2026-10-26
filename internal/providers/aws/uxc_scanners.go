@@ -19,10 +19,13 @@ func init() {
 }
 
 // scanUXC captures the per-account console-customization config (singleton).
-// UXC is global; gate to us-east-1 to avoid duplicate scans across regions.
+// UXC is global; called once, in its home region (homeRegion).
 // Synth ARN: arn:aws:uxc::{a}:account-customization.
 func scanUXC(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-east-1"
+	region, err := acct.homeRegion("uxc")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := uxc.NewFromConfig(acct.cfg, func(o *uxc.Options) { o.Region = region })
 
 	out, err := client.GetAccountCustomizations(ctx, &uxc.GetAccountCustomizationsInput{})

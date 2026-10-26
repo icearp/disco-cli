@@ -27,6 +27,8 @@ type fakeBases struct {
 	regions map[string]string
 	loaded  []string
 	assumed []string
+	// calls records the region of every STS call the configs answer.
+	calls parentCalls
 }
 
 func baseRegionFor(profile string) string { return "base-region-" + profile }
@@ -59,7 +61,7 @@ func (f *fakeBases) load(_ context.Context, profile string) (sdkaws.Config, erro
 	if r, ok := f.regions[profile]; ok {
 		cfg.Region = r
 	}
-	return cfg, nil
+	return recordCallRegions(cfg, &f.calls), nil
 }
 
 // setAWSConfig installs the aws: config section loadAccounts reads, outside
@@ -158,17 +160,54 @@ func TestLoadAccounts_RegionOverrideIsEvidence(t *testing.T) {
 	}
 }
 
-// TestLoadAccounts_ImplicitDefaultRegionUnchanged pins today's region
-// behaviour, which this phase must not move: no configured region scans
-// us-east-1.
-func TestLoadAccounts_ImplicitDefaultRegionUnchanged(t *testing.T) {
-	setAWSConfig(t, accountsSection(map[string]any{"id": "1", "partition": "aws-us-gov"}))
-	got := loadOne(t, &fakeBases{}, nil, "")
-	if !slices.Equal(got.Regions, []string{"us-east-1"}) {
-		t.Errorf("Regions = %v; want [us-east-1]", got.Regions)
+// TestLoadAccounts_ImplicitDefaultRegionIsPartitionHome pins that an account
+// with no configured region scans its partition's home region, us-east-1 for
+// aws, and that the default is not partition evidence.
+func TestLoadAccounts_ImplicitDefaultRegionIsPartitionHome(t *testing.T) {
+	for partition, home := range map[string]string{"aws": "us-east-1", "aws-cn": "cn-northwest-1", "aws-us-gov": "us-gov-west-1"} {
+		t.Run(partition, func(t *testing.T) {
+			setAWSConfig(t, accountsSection(map[string]any{"id": "1", "partition": partition}))
+			got := loadOne(t, &fakeBases{}, nil, "")
+			if !slices.Equal(got.Regions, []string{home}) {
+				t.Errorf("Regions = %v; want [%s]", got.Regions, home)
+			}
+			if got.Partition != partition {
+				t.Errorf("Partition = %q; want %s (the implicit default region is not evidence)", got.Partition, partition)
+			}
+		})
 	}
-	if got.Partition != "aws-us-gov" {
-		t.Errorf("Partition = %q; want aws-us-gov (the implicit default region is not evidence)", got.Partition)
+}
+
+// TestLoadAccounts_STSCallsStayInPartition pins that, with no region in the
+// profile or environment, STS is called in the account partition's home: a
+// GovCloud credential sent to the commercial us-east-1 would be refused.
+func TestLoadAccounts_STSCallsStayInPartition(t *testing.T) {
+	cases := []struct {
+		name         string
+		section      map[string]any
+		callerARN    string
+		roleOverride string
+		want         string
+	}{
+		{"auto-detect from gov regions", map[string]any{"default_regions": []string{"us-gov-east-1"}}, callerGov, "", "us-gov-west-1"},
+		{"gov role override", map[string]any{}, callerGov, roleGov, "us-gov-west-1"},
+		{"gov config role", accountsSection(map[string]any{"id": "1", "role_arn": roleGov}), "", "", "us-gov-west-1"},
+		{"cn config role", accountsSection(map[string]any{"id": "1", "role_arn": roleCN}), "", "", "cn-northwest-1"},
+		{"commercial config role", accountsSection(map[string]any{"id": "1", "role_arn": roleAWS}), "", "", "us-east-1"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			setAWSConfig(t, c.section)
+			f := &fakeBases{callerARN: c.callerARN, regions: map[string]string{"": ""}}
+			acct := loadOne(t, f, nil, c.roleOverride)
+			// Config-file accounts assume their role lazily, on first use.
+			if _, err := acct.cfg.Credentials.Retrieve(context.Background()); err != nil {
+				t.Fatalf("Retrieve: %v", err)
+			}
+			if got := f.calls.distinct(); !slices.Equal(got, []string{c.want}) {
+				t.Errorf("STS called in %v; want only [%s]", got, c.want)
+			}
+		})
 	}
 }
 
@@ -179,6 +218,36 @@ func TestLoadAccounts_AutoDetectReadsCallerARN(t *testing.T) {
 	got := loadOne(t, &fakeBases{callerARN: callerGov}, nil, "")
 	if got.ID != "222222222222" || got.Partition != "aws-us-gov" {
 		t.Errorf("account = (%q, %q); want (222222222222, aws-us-gov)", got.ID, got.Partition)
+	}
+}
+
+// A failed auto-detect sts:GetCallerIdentity is a *callerIdentityError naming
+// the region the call went to, so the partition hint can be shown.
+func TestLoadAccounts_AutoDetectCallerIdentityFailure(t *testing.T) {
+	setAWSConfig(t, map[string]any{})
+	_, err := loadAccounts(context.Background(), (&fakeBases{regions: map[string]string{"": ""}}).load, "", nil, "", "", "")
+	var cie *callerIdentityError
+	if !errors.As(err, &cie) {
+		t.Fatalf("loadAccounts err = %v (%T); want *callerIdentityError", err, err)
+	}
+	if cie.Region != "us-east-1" || cie.Cause == nil {
+		t.Errorf("callerIdentityError = {Region: %q, Cause: %v}; want Region us-east-1 and the STS cause", cie.Region, cie.Cause)
+	}
+}
+
+// Auto-detect checks the profile region against the other evidence before its
+// STS call: a GovCloud profile region with a commercial --regions conflicts
+// there, and no sts:GetCallerIdentity is sent.
+func TestLoadAccounts_AutoDetectConflictFailsBeforeSTS(t *testing.T) {
+	setAWSConfig(t, map[string]any{})
+	f := &fakeBases{regions: map[string]string{"": "us-gov-east-1"}}
+	_, err := loadAccounts(context.Background(), f.load, "", []string{"us-east-1"}, "", "", "")
+	var conflict *partitionConflictError
+	if !errors.As(err, &conflict) {
+		t.Fatalf("loadAccounts err = %v (%T); want *partitionConflictError", err, err)
+	}
+	if got := f.calls.distinct(); len(got) != 0 {
+		t.Errorf("STS called in %v; want no call", got)
 	}
 }
 
@@ -540,13 +609,21 @@ func TestLoadAccounts_ProfileRegion(t *testing.T) {
 		}
 	})
 
-	t.Run("fallback region is not evidence", func(t *testing.T) {
-		// us-east-1 from the fallback would conflict with the explicit
-		// partition if it counted.
+	t.Run("fallback region is the partition home", func(t *testing.T) {
+		// A profile naming no region gets the partition's home region,
+		// which is not evidence either.
 		setAWSConfig(t, accountsSection(map[string]any{"id": "1", "profile": "none", "partition": "aws-us-gov"}))
 		got := loadOne(t, &fakeBases{regions: map[string]string{"none": ""}}, nil, "")
-		if got.Partition != "aws-us-gov" || got.cfg.Region != "us-east-1" {
-			t.Errorf("account = (partition %q, cfg region %q); want (aws-us-gov, us-east-1 fallback)", got.Partition, got.cfg.Region)
+		if got.Partition != "aws-us-gov" || got.cfg.Region != "us-gov-west-1" {
+			t.Errorf("account = (partition %q, cfg region %q); want (aws-us-gov, us-gov-west-1 fallback)", got.Partition, got.cfg.Region)
+		}
+	})
+
+	t.Run("commercial fallback stays us-east-1", func(t *testing.T) {
+		setAWSConfig(t, accountsSection(map[string]any{"id": "1", "profile": "none"}))
+		got := loadOne(t, &fakeBases{regions: map[string]string{"none": ""}}, nil, "")
+		if got.Partition != "aws" || got.cfg.Region != "us-east-1" {
+			t.Errorf("account = (partition %q, cfg region %q); want (aws, us-east-1 fallback)", got.Partition, got.cfg.Region)
 		}
 	})
 

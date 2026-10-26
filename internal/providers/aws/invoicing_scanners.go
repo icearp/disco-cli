@@ -28,8 +28,8 @@ type invoicingAPI interface {
 }
 
 // scanInvoicing discovers Invoicing invoice units and procurement portal
-// preferences. Service is global; gate to us-east-1 to avoid duplicate scans
-// across regions.
+// preferences. Service is global; called once, in its home region
+// (homeRegion).
 //
 // Phases run in order and stop at the first hard error, returning the counts
 // each phase reports, the failing phase's included. Procurement portal
@@ -43,7 +43,10 @@ type invoicingAPI interface {
 // when every phase was; otherwise it returns nil with the counts, because the
 // dispatcher discards a sentinel's counts.
 func scanInvoicing(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-east-1"
+	region, err := acct.homeRegion("invoicing")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := invoicing.NewFromConfig(acct.cfg, func(o *invoicing.Options) { o.Region = region })
 	phases := []func() (int, int, error){
 		func() (int, int, error) { return scanInvoicingInvoiceUnits(ctx, client, acct, region, st, scanID) },

@@ -37,11 +37,15 @@ type r53grAPI interface {
 type r53grRef struct{ id, arn string }
 
 // scanRoute53GlobalResolver discovers Route53 Global Resolver resources.
-// Global service, single regional endpoint (route53globalresolver.us-east-2.api.aws);
-// registered global=true, so the dispatcher passes region="" — substitute the canonical
-// home to keep Resource.Region and per-op error scopes accurate.
+// Global service, single regional endpoint for aws accounts
+// (route53globalresolver.us-east-2.api.aws), read through homeRegion. It is
+// registered global=true, so the dispatcher passes region="" — substitute
+// the home to keep Resource.Region and per-op error scopes accurate.
 func scanRoute53GlobalResolver(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-east-2"
+	region, err := acct.homeRegion("route53globalresolver")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := route53globalresolver.NewFromConfig(acct.cfg, func(o *route53globalresolver.Options) { o.Region = region })
 
 	resolvers, t, i, ferr := scanR53GRResolvers(ctx, client, acct, region, st, scanID)

@@ -25,9 +25,12 @@ type artifactAPI interface {
 }
 
 // scanArtifact discovers AWS Artifact customer agreements and reports.
-// Account-global; gated to us-east-1 to avoid duplicate scans across regions.
+// Account-global; called once, in its home region (homeRegion).
 func scanArtifact(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
-	region := "us-east-1"
+	region, err := acct.homeRegion("artifact")
+	if err != nil {
+		return 0, 0, err
+	}
 	client := artifact.NewFromConfig(acct.cfg, func(o *artifact.Options) { o.Region = region })
 
 	caTotal, caInserted, ferr := scanArtifactCustomerAgreements(ctx, client, acct, region, st, scanID)

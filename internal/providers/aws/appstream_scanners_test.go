@@ -518,3 +518,23 @@ func TestListASSoftwareAssociations_FailsOnRepeatedToken(t *testing.T) {
 		t.Errorf("rows = %v, want both pages' rows %v", got, want)
 	}
 }
+
+// AppStream keeps the commercial hand list for aws accounts, which leaves out
+// regions the SDK lists, and reads the SDK table for every other partition.
+func TestAppStreamRegionSupported_PerPartition(t *testing.T) {
+	cases := []struct {
+		partition, region string
+		want              bool
+	}{
+		{"aws", "us-east-1", true},
+		{"aws", "eu-west-3", false}, // SDK lists it; the commercial list does not
+		{"aws-us-gov", "us-gov-west-1", true},
+		{"aws-us-gov", "us-gov-east-1", true},
+		{"aws-cn", "cn-north-1", true}, // the SDK's cn entry lists no region: no opinion, fail open
+	}
+	for _, c := range cases {
+		if got := appStreamRegionSupported(testAccountIn(c.partition), c.region); got != c.want {
+			t.Errorf("appStreamRegionSupported(%s, %s) = %v; want %v", c.partition, c.region, got, c.want)
+		}
+	}
+}

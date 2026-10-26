@@ -110,13 +110,13 @@ func scanLSDiskSnapshots(ctx context.Context, client lightsailAPI, acct *account
 	return t, i, err
 }
 
-// scanLSDistributions: Lightsail distribution APIs are us-east-1-only — AWS
-// rejects calls from other regions with `InvalidInputException:
-// Distribution-related APIs are only available in the us-east-1 Region`.
-// Gated per-phase rather than per-region clienting, since the API is
-// genuinely global, just exposed solely on us-east-1.
+// scanLSDistributions: Lightsail distribution APIs answer only in Lightsail's
+// home region (us-east-1 for aws) — AWS rejects calls from other regions with
+// `InvalidInputException: Distribution-related APIs are only available in the
+// us-east-1 Region`. Gated per-phase rather than per-region clienting, since
+// the API is genuinely global, just exposed solely on the home region.
 func scanLSDistributions(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	if region != "us-east-1" {
+	if !acct.homeGate(st, "lightsail", lsGetDistributionsOp, region) {
 		return 0, 0, nil
 	}
 	_, t, i, err := lsList(ctx, st, acct, region, lsGetDistributionsOp, "distributions",
@@ -132,11 +132,11 @@ func scanLSDistributions(ctx context.Context, client lightsailAPI, acct *account
 	return t, i, err
 }
 
-// scanLSDomains: Lightsail domain APIs are us-east-1-only — same gate as
+// scanLSDomains: Lightsail domain APIs answer only in the home region — same gate as
 // scanLSDistributions; AWS rejects other regions with `InvalidInputException:
 // Domain-related APIs are only available in the us-east-1 Region`.
 func scanLSDomains(ctx context.Context, client lightsailAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	if region != "us-east-1" {
+	if !acct.homeGate(st, "lightsail", lsGetDomainsOp, region) {
 		return 0, 0, nil
 	}
 	_, t, i, err := lsList(ctx, st, acct, region, lsGetDomainsOp, "domains",

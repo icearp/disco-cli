@@ -66,7 +66,11 @@ type route53ZoneSummary struct {
 // The CIDR location and block phases run last, so their failure cannot cost
 // any other phase's rows.
 func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := route53.NewFromConfig(acct.cfg, func(o *route53.Options) { o.Region = "us-east-1" })
+	region, err := acct.homeRegion("route53")
+	if err != nil {
+		return 0, 0, err
+	}
+	client := route53.NewFromConfig(acct.cfg, func(o *route53.Options) { o.Region = region })
 
 	// Collect all hosted zone IDs and summaries first, then fetch tags and records.
 	var zones []route53ZoneSummary
