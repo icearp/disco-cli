@@ -127,7 +127,7 @@ func scanKendraIndices(ctx context.Context, client kendraAPI, acct *account, reg
 				continue
 			}
 			ids = append(ids, id)
-			arn := fmt.Sprintf("arn:aws:kendra:%s:%s:index/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "kendra", region, acct.ID, "index/"+id)
 			status := string(idx.Status)
 			attrsJSON := mustJSON(idx)
 			if dout, derr := client.DescribeIndex(ctx, &kendra.DescribeIndexInput{Id: idx.Id}); derr == nil {
@@ -162,7 +162,7 @@ func scanKendraDataSources(ctx context.Context, client kendraAPI, acct *account,
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:kendra:%s:%s:index/%s/data-source/%s", region, acct.ID, iid, id)
+			arn := kendraChildNativeID(acct.partition(), region, acct.ID, iid, "data-source", id)
 			status := string(d.Status)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -192,7 +192,7 @@ func scanKendraFaqs(ctx context.Context, client kendraAPI, acct *account, region
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:kendra:%s:%s:index/%s/faq/%s", region, acct.ID, iid, id)
+			arn := kendraChildNativeID(acct.partition(), region, acct.ID, iid, "faq", id)
 			status := string(f.Status)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -207,8 +207,8 @@ func scanKendraFaqs(ctx context.Context, client kendraAPI, acct *account, region
 
 // kendraChildNativeID synthesizes the dominant `{indexARN}/<kind>/{id}` shape;
 // these per-index summaries carry no AWS-issued ARN.
-func kendraChildNativeID(region, acct, indexID, kind, id string) string {
-	return fmt.Sprintf("arn:aws:kendra:%s:%s:index/%s/%s/%s", region, acct, indexID, kind, id)
+func kendraChildNativeID(partition, region, acct, indexID, kind, id string) string {
+	return arnFor(partition, "kendra", region, acct, "index/"+indexID+"/"+kind+"/"+id)
 }
 
 func scanKendraAccessControlConfigurations(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indexID string) (int, int, error) {
@@ -230,7 +230,7 @@ func scanKendraAccessControlConfigurations(ctx context.Context, client kendraAPI
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKendraAccessControlConfiguration, NativeID: kendraChildNativeID(region, acct.ID, iid, "access-control-configuration", id),
+				Type: TypeKendraAccessControlConfiguration, NativeID: kendraChildNativeID(acct.partition(), region, acct.ID, iid, "access-control-configuration", id),
 				Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}
@@ -265,7 +265,7 @@ func scanKendraExperiences(ctx context.Context, client kendraAPI, acct *account,
 			if id == "" {
 				continue
 			}
-			nativeID := kendraChildNativeID(region, acct.ID, iid, "experience", id)
+			nativeID := kendraChildNativeID(acct.partition(), region, acct.ID, iid, "experience", id)
 			exps = append(exps, kendraExperience{indexID: iid, childParent: childParent{id: id, arn: nativeID}})
 			status := string(e.Status)
 			batch = append(batch, &store.Resource{
@@ -303,7 +303,7 @@ func scanKendraFeaturedResultsSets(ctx context.Context, client kendraAPI, acct *
 			status := string(f.Status)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKendraFeaturedResultsSet, NativeID: kendraChildNativeID(region, acct.ID, iid, "featured-results-set", id),
+				Type: TypeKendraFeaturedResultsSet, NativeID: kendraChildNativeID(acct.partition(), region, acct.ID, iid, "featured-results-set", id),
 				Name: f.FeaturedResultsSetName, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
 			})
@@ -336,7 +336,7 @@ func scanKendraQuerySuggestionsBlockLists(ctx context.Context, client kendraAPI,
 			status := string(b.Status)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKendraQuerySuggestionsBlockList, NativeID: kendraChildNativeID(region, acct.ID, iid, "query-suggestions-block-list", id),
+				Type: TypeKendraQuerySuggestionsBlockList, NativeID: kendraChildNativeID(acct.partition(), region, acct.ID, iid, "query-suggestions-block-list", id),
 				Name: b.Name, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
 			})
@@ -365,7 +365,7 @@ func scanKendraThesauri(ctx context.Context, client kendraAPI, acct *account, re
 			status := string(th.Status)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKendraThesaurus, NativeID: kendraChildNativeID(region, acct.ID, iid, "thesaurus", id),
+				Type: TypeKendraThesaurus, NativeID: kendraChildNativeID(acct.partition(), region, acct.ID, iid, "thesaurus", id),
 				Name: th.Name, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(th), DiscoveredBy: scanID,
 			})

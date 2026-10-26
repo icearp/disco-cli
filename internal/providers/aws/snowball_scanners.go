@@ -139,14 +139,14 @@ func isSnowballUSRegion(region string) bool {
 // address ARN, and the region is left out because a US address can be listed
 // from any US region (scanSnowballAddressesOnce); a cluster's AddressId then
 // maps to the address whichever region listed it.
-func snowballAddressNativeID(accountID, addressID string) string {
-	return fmt.Sprintf("arn:aws:snowball::%s:address/%s", accountID, addressID)
+func snowballAddressNativeID(partition, accountID, addressID string) string {
+	return arnFor(partition, "snowball", "", accountID, "address/"+addressID)
 }
 
 // snowballClusterNativeID builds the cluster identity; Snowball issues no
 // cluster ARN.
-func snowballClusterNativeID(region, accountID, clusterID string) string {
-	return fmt.Sprintf("arn:aws:snowball:%s:%s:cluster/%s", region, accountID, clusterID)
+func snowballClusterNativeID(partition, region, accountID, clusterID string) string {
+	return arnFor(partition, "snowball", region, accountID, "cluster/"+clusterID)
 }
 
 // scanSnowballAddresses stores the account's shipping addresses a page at a
@@ -182,7 +182,7 @@ func scanSnowballAddresses(ctx context.Context, client snowballAPI, acct *accoun
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSnowballAddress, NativeID: snowballAddressNativeID(acct.ID, id), Region: &rowRegion,
+				Type: TypeSnowballAddress, NativeID: snowballAddressNativeID(acct.partition(), acct.ID, id), Region: &rowRegion,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
 		}
@@ -237,7 +237,7 @@ func scanSnowballClusters(ctx context.Context, client snowballAPI, acct *account
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSnowballCluster, NativeID: snowballClusterNativeID(region, acct.ID, id), Region: &region,
+				Type: TypeSnowballCluster, NativeID: snowballClusterNativeID(acct.partition(), region, acct.ID, id), Region: &region,
 				Status: nonEmptyPtr(string(m.ClusterState)), CreatedAt: tp(m.CreationDate),
 				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
 			}, nil

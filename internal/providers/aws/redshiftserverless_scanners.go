@@ -235,7 +235,7 @@ func scanRSSRecoveryPoints(ctx context.Context, client redshiftServerlessAPI, ac
 		}
 		for _, p := range out.RecoveryPoints {
 			id := sv(p.RecoveryPointId)
-			nativeID := fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:recovery-point/%s", region, acct.ID, id)
+			nativeID := arnFor(acct.partition(), "redshift-serverless", region, acct.ID, "recovery-point/"+id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRedshiftServerlessRecoveryPoint, NativeID: nativeID,
@@ -264,7 +264,7 @@ func scanRSSManagedWorkgroups(ctx context.Context, client redshiftServerlessAPI,
 			id := sv(w.ManagedWorkgroupId)
 			nativeID := sv(w.SourceArn)
 			if nativeID == "" {
-				nativeID = fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:managed-workgroup/%s", region, acct.ID, id)
+				nativeID = arnFor(acct.partition(), "redshift-serverless", region, acct.ID, "managed-workgroup/"+id)
 			}
 			status := string(w.Status)
 			batch = append(batch, &store.Resource{

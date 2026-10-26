@@ -69,7 +69,7 @@ func scanSecurityIRCases(ctx context.Context, client securityIRAPI, acct *accoun
 			// CaseId for a stable NativeID across re-scans.
 			arn := sv(c.CaseArn)
 			if arn == "" {
-				arn = fmt.Sprintf("arn:aws:security-ir:%s:%s:case/%s", region, acct.ID, id)
+				arn = arnFor(acct.partition(), "security-ir", region, acct.ID, "case/"+id)
 			}
 			status := string(c.CaseStatus)
 			batch = append(batch, &store.Resource{
@@ -101,7 +101,7 @@ func scanSecurityIRMemberships(ctx context.Context, client securityIRAPI, acct *
 			}
 			arn := sv(m.MembershipArn)
 			if arn == "" {
-				arn = fmt.Sprintf("arn:aws:security-ir:%s:%s:membership/%s", region, acct.ID, id)
+				arn = arnFor(acct.partition(), "security-ir", region, acct.ID, "membership/"+id)
 			}
 			status := string(m.MembershipStatus)
 			label := id

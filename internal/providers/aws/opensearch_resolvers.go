@@ -218,7 +218,7 @@ func emitOpenSearchCognitoEdges(st *store.Store, acct *account, d store.Resource
 		return nil
 	}
 	if upID := sv(attrs.CognitoOptions.UserPoolID); upID != "" {
-		upARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, upID)
+		upARN := cognitoUserPoolARN(acct.partition(), region, acct.ID, upID)
 		uID := store.ResourceID("aws", acct.ID, upARN)
 		if _, ok := sets.userPoolIDs[uID]; ok {
 			if err := st.UpsertRelationship(d.ID, uID, store.RelUses, "directed", nil); err != nil {
@@ -227,7 +227,7 @@ func emitOpenSearchCognitoEdges(st *store.Store, acct *account, d store.Resource
 		}
 	}
 	if ipID := sv(attrs.CognitoOptions.IdentityPoolID); ipID != "" {
-		ipARN := fmt.Sprintf("arn:aws:cognito-identity:%s:%s:identitypool/%s", region, acct.ID, ipID)
+		ipARN := cognitoIdentityPoolARN(acct.partition(), region, acct.ID, ipID)
 		iID := store.ResourceID("aws", acct.ID, ipARN)
 		if _, ok := sets.identityPoolIDs[iID]; ok {
 			if err := st.UpsertRelationship(d.ID, iID, store.RelUses, "directed", nil); err != nil {

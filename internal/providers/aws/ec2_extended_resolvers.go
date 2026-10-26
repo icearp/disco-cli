@@ -191,7 +191,7 @@ func resolveEC2VolumeOwners(acct *account, st *store.Store) error {
 
 	placeholders := make([]*store.Resource, 0, len(owners))
 	for owner := range owners {
-		placeholders = append(placeholders, iamAccountPlaceholder(owner, volumes[0].DiscoveredBy))
+		placeholders = append(placeholders, iamAccountPlaceholder(acct.partition(), owner, volumes[0].DiscoveredBy))
 	}
 	if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
 		return fmt.Errorf("insert volume-owner account placeholders: %w", err)
@@ -199,7 +199,7 @@ func resolveEC2VolumeOwners(acct *account, st *store.Store) error {
 
 	edgeAttrs := mustJSON(map[string]string{"role": "owner"})
 	for _, e := range edges {
-		toID := store.ResourceID("aws", e.owner, iamAccountNativeID(e.owner))
+		toID := store.ResourceID("aws", e.owner, iamAccountNativeID(acct.partition(), e.owner))
 		if err := st.UpsertRelationship(e.fromID, toID, store.RelAttachedTo, "directed", &edgeAttrs); err != nil {
 			return fmt.Errorf("upsert ec2-volume→owner account: %w", err)
 		}
@@ -477,7 +477,7 @@ func resolveEC2VerifiedAccessInstanceTrustProvider(acct *account, st *store.Stor
 
 // clientVPNEndpointFromChildARN extracts the parent endpoint id from a
 // synthetic child ARN of shape
-// `arn:aws:ec2:{r}:{a}:client-vpn-{auth-rule|route}/{endpointId}/...`. The
+// `arn:{p}:ec2:{r}:{a}:client-vpn-{auth-rule|route}/{endpointId}/...`. The
 // scanner joins segments with `/`, so the endpoint id is the first segment
 // after the resource kind.
 func clientVPNEndpointFromChildARN(arn string) string {

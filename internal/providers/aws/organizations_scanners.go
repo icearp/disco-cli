@@ -106,7 +106,7 @@ func scanOrgResponsibilityTransfers(ctx context.Context, client organizationsAPI
 			arn := sv(tr.Arn)
 			if arn == "" {
 				if id := sv(tr.Id); id != "" {
-					arn = fmt.Sprintf("arn:aws:organizations::%s:responsibilitytransfer/%s", acct.ID, id)
+					arn = arnFor(acct.partition(), "organizations", "", acct.ID, "responsibilitytransfer/"+id)
 				}
 			}
 			if arn == "" || seen[arn] {
@@ -475,7 +475,7 @@ func scanOrgSCPs(ctx context.Context, client *organizations.Client, acct *accoun
 }
 
 // scanOrganizationsResourcePolicy captures the organization-level resource
-// policy (singleton). Synth ARN: arn:aws:organizations::{a}:resourcepolicy.
+// policy (singleton). Synth ARN: arn:{p}:organizations::{a}:resourcepolicy.
 func scanOrganizationsResourcePolicy(ctx context.Context, client organizationsAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.DescribeResourcePolicy(ctx, &organizations.DescribeResourcePolicyInput{})
 	switch {
@@ -492,7 +492,7 @@ func scanOrganizationsResourcePolicy(ctx context.Context, client organizationsAP
 	}
 	arn := sv(out.ResourcePolicy.ResourcePolicySummary.Arn)
 	if arn == "" {
-		arn = fmt.Sprintf("arn:aws:organizations::%s:resourcepolicy", acct.ID)
+		arn = arnFor(acct.partition(), "organizations", "", acct.ID, "resourcepolicy")
 	}
 	label := acct.ID
 	r := &store.Resource{

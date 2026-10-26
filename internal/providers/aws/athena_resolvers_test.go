@@ -28,7 +28,7 @@ func TestResolveAthenaWorkgroupTargets_HappyPath(t *testing.T) {
 	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion,
 		fmt.Sprintf(`{"KeyId":%q,"Arn":%q}`, testAthenaKMSKeyID, keyARN))
 
-	wgARN := athenaWorkGroupARN(testRegion, testAccountID, testAthenaWG)
+	wgARN := athenaWorkGroupARN("aws", testRegion, testAccountID, testAthenaWG)
 	wgAttrs := fmt.Sprintf(`{"Name":%q,"State":"ENABLED","Configuration":{"ResultConfiguration":{"OutputLocation":"s3://%s/queries/","EncryptionConfiguration":{"EncryptionOption":"SSE_KMS","KmsKey":%q}}}}`,
 		testAthenaWG, testAthenaBucket, keyARN)
 	wgID := upsertTestResource(t, st, "aws", acct.ID, TypeAthenaWorkgroup, wgARN, testRegion, wgAttrs)
@@ -50,7 +50,7 @@ func TestResolveAthenaWorkgroupTargets_NoConfig(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	wgARN := athenaWorkGroupARN(testRegion, testAccountID, testAthenaWG)
+	wgARN := athenaWorkGroupARN("aws", testRegion, testAccountID, testAthenaWG)
 	upsertTestResource(t, st, "aws", acct.ID, TypeAthenaWorkgroup, wgARN, testRegion, `{"Name":"primary"}`)
 
 	if err := resolveAthenaWorkgroupTargets(acct, st); err != nil {
@@ -67,7 +67,7 @@ func TestResolveAthenaDataCatalogLambda_HappyPath(t *testing.T) {
 	fnARN := fmt.Sprintf("arn:aws:lambda:%s:%s:function:%s", testRegion, testAccountID, testAthenaLambdaFn)
 	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, "{}")
 
-	catARN := athenaDataCatalogARN(testRegion, testAccountID, testAthenaCatalog)
+	catARN := athenaDataCatalogARN("aws", testRegion, testAccountID, testAthenaCatalog)
 	catAttrs := fmt.Sprintf(`{"Name":%q,"Type":"LAMBDA","Parameters":{"function":%q}}`, testAthenaCatalog, fnARN)
 	catID := upsertTestResource(t, st, "aws", acct.ID, TypeAthenaDataCatalog, catARN, testRegion, catAttrs)
 
@@ -92,7 +92,7 @@ func TestResolveAthenaDataCatalogLambda_GlueSkipped(t *testing.T) {
 	fnARN := fmt.Sprintf("arn:aws:lambda:%s:%s:function:other", testRegion, testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, fnARN, testRegion, "{}")
 
-	catARN := athenaDataCatalogARN(testRegion, testAccountID, "AwsDataCatalog")
+	catARN := athenaDataCatalogARN("aws", testRegion, testAccountID, "AwsDataCatalog")
 	catAttrs := `{"Name":"AwsDataCatalog","Type":"GLUE","Parameters":{"catalog-id":"123456789012"}}`
 	catID := upsertTestResource(t, st, "aws", acct.ID, TypeAthenaDataCatalog, catARN, testRegion, catAttrs)
 
@@ -120,7 +120,7 @@ func TestResolveAthenaDataCatalogLambda_HiveDualFn(t *testing.T) {
 	metaID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, metaARN, testRegion, "{}")
 	recID := upsertTestResource(t, st, "aws", acct.ID, TypeLambdaFunction, recARN, testRegion, "{}")
 
-	catARN := athenaDataCatalogARN(testRegion, testAccountID, "hive-cat")
+	catARN := athenaDataCatalogARN("aws", testRegion, testAccountID, "hive-cat")
 	catAttrs := fmt.Sprintf(`{"Type":"HIVE","Parameters":{"metadata-function":%q,"record-function":%q}}`, metaARN, recARN)
 	catID := upsertTestResource(t, st, "aws", acct.ID, TypeAthenaDataCatalog, catARN, testRegion, catAttrs)
 
@@ -139,7 +139,7 @@ func TestResolveAthenaSavedQueryWorkgroup(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	wgARN := athenaWorkGroupARN(testRegion, testAccountID, "analytics")
+	wgARN := athenaWorkGroupARN("aws", testRegion, testAccountID, "analytics")
 	wgID := upsertTestResource(t, st, "aws", acct.ID, TypeAthenaWorkgroup, wgARN, testRegion, "{}")
 
 	nqARN := wgARN + "/named-query/q-1"
@@ -162,9 +162,9 @@ func TestResolveAthenaSavedQueryWorkgroup_NoEdge(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 
 	// A different workgroup exists so the resolver runs.
-	upsertTestResource(t, st, "aws", acct.ID, TypeAthenaWorkgroup, athenaWorkGroupARN(testRegion, testAccountID, "real"), testRegion, "{}")
+	upsertTestResource(t, st, "aws", acct.ID, TypeAthenaWorkgroup, athenaWorkGroupARN("aws", testRegion, testAccountID, "real"), testRegion, "{}")
 
-	goneWG := athenaWorkGroupARN(testRegion, testAccountID, "gone")
+	goneWG := athenaWorkGroupARN("aws", testRegion, testAccountID, "gone")
 	nqARN := goneWG + "/named-query/q-1"
 	nqID := upsertTestResource(t, st, "aws", acct.ID, TypeAthenaNamedQuery, nqARN, testRegion, "{}")
 

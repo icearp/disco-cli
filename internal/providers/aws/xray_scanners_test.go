@@ -20,8 +20,8 @@ const xrayTestGroupARN = "arn:aws:xray:us-east-1:123456789012:group/team/ABC"
 var (
 	xrayTestDenied = apiErr("AccessDeniedException", "User: arn:aws:iam::123456789012:user/x is not authorized to perform: xray:Get")
 	errXRayTest    = errors.New("xray test failure")
-	xrayTestRuleA  = xrayIndexingRuleNativeID(testRegion, testAccountID, "Default")
-	xrayTestRuleB  = xrayIndexingRuleNativeID(testRegion, testAccountID, "rule-b")
+	xrayTestRuleA  = xrayIndexingRuleNativeID("aws", testRegion, testAccountID, "Default")
+	xrayTestRuleB  = xrayIndexingRuleNativeID("aws", testRegion, testAccountID, "rule-b")
 )
 
 func xrayTestRule(name *string, desired float64) xraytypes.IndexingRule {

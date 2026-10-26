@@ -79,7 +79,7 @@ func scanBudgetsBudgets(ctx context.Context, client budgetsAPI, acct *account, r
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:budgets::%s:budget/%s", acct.ID, name)
+			arn := arnFor(acct.partition(), "budgets", "", acct.ID, "budget/"+name)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeBudgetsBudget, NativeID: arn,
@@ -118,7 +118,7 @@ func scanBudgetsActions(ctx context.Context, client budgetsAPI, acct *account, r
 			if budgetName == "" || actionID == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:budgets::%s:budget/%s/action/%s", acct.ID, budgetName, actionID)
+			arn := arnFor(acct.partition(), "budgets", "", acct.ID, "budget/"+budgetName+"/action/"+actionID)
 			label := actionID
 			status := string(a.Status)
 			batch = append(batch, &store.Resource{

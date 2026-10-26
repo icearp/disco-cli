@@ -72,7 +72,7 @@ func TestScanSESConfigurationSets_StoresKeyedSigningScheme(t *testing.T) {
 	if err != nil || total != 1 {
 		t.Fatalf("total, err = %d, %v; want 1, nil", total, err)
 	}
-	r, ok := rowsByNativeID(t, st, TypeSESConfigurationSet)[sesConfigurationSetARN(testRegion, testAccountID, "cs")]
+	r, ok := rowsByNativeID(t, st, TypeSESConfigurationSet)[sesConfigurationSetARN("aws", testRegion, testAccountID, "cs")]
 	if !ok {
 		t.Fatal("configuration set row missing")
 	}

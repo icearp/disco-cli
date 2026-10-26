@@ -181,7 +181,7 @@ func resolveAppFabricDestination(acct *account, st *store.Store) error {
 			}
 		}
 		if name := sv(attrs.FirehoseStreamName); name != "" {
-			streamARN := fmt.Sprintf("arn:aws:firehose:%s:%s:deliverystream/%s", region, acct.ID, name)
+			streamARN := firehoseDeliveryStreamARNFromName(acct.partition(), region, acct.ID, name)
 			tgtID := store.ResourceID("aws", acct.ID, streamARN)
 			if streamSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {

@@ -9,7 +9,7 @@ import (
 func TestResolveRTBLinkRoutingRuleToLink(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	linkARN := rtbLinkARN(testRegion, acct.ID, "gw-1", "link-1")
+	linkARN := rtbLinkARN("aws", testRegion, acct.ID, "gw-1", "link-1")
 	linkID := upsertTestResource(t, st, "aws", acct.ID, TypeRTBFabricLink, linkARN, testRegion, "{}")
 	ruleARN := linkARN + "/routing-rule/rule-1"
 	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeRTBFabricLinkRoutingRule, ruleARN, testRegion,
@@ -24,7 +24,7 @@ func TestResolveRTBLinkRoutingRuleToLink(t *testing.T) {
 func TestResolveRTBLinkRoutingRuleToLink_UnscannedLinkSkipped(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	linkARN := rtbLinkARN(testRegion, acct.ID, "gw-1", "missing")
+	linkARN := rtbLinkARN("aws", testRegion, acct.ID, "gw-1", "missing")
 	ruleARN := linkARN + "/routing-rule/rule-1"
 	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeRTBFabricLinkRoutingRule, ruleARN, testRegion,
 		`{"RuleId":"rule-1"}`)

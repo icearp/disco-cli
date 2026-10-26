@@ -163,7 +163,7 @@ func emitLTInstanceProfileEdge(st *store.Store, acct *account, r store.Resource,
 	ipARN := sv(d.IamInstanceProfile.Arn)
 	if ipARN == "" {
 		if n := sv(d.IamInstanceProfile.Name); n != "" {
-			ipARN = arnFor(acct.partition(), "iam", "", acct.ID, "instance-profile/"+n)
+			ipARN = iamInstanceProfileARN(acct.partition(), acct.ID, n)
 		}
 	}
 	if !strings.Contains(ipARN, ":instance-profile/") {

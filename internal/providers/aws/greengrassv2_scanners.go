@@ -167,7 +167,7 @@ func scanGGV2CoreDevices(ctx context.Context, client greengrassV2API, acct *acco
 			if thing == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:greengrass:%s:%s:coreDevices:%s", region, acct.ID, thing)
+			arn := arnFor(acct.partition(), "greengrass", region, acct.ID, "coreDevices:"+thing)
 			name := thing
 			status := string(d.Status)
 			batch = append(batch, &store.Resource{
@@ -201,7 +201,7 @@ func scanGGV2Deployments(ctx context.Context, client greengrassV2API, acct *acco
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:greengrass:%s:%s:deployments:%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "greengrass", region, acct.ID, "deployments:"+id)
 			status := string(d.DeploymentStatus)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

@@ -133,7 +133,9 @@ type bedrockChildCase struct {
 	want func(parentARN, id string) (nativeID, name, status, idKey string)
 }
 
-func bedrockAgentTestARN(id string) string { return bedrockAgentARN(testRegion, testAccountID, id) }
+func bedrockAgentTestARN(id string) string {
+	return bedrockAgentARN("aws", testRegion, testAccountID, id)
+}
 
 func bedrockChildCases() []bedrockChildCase {
 	agentScan := func(fn func(context.Context, bedrockAgentAPI, *account, string, *store.Store, string, []string) (int, int, error)) func(context.Context, *bedrockChildStub, *account, string, *store.Store, string, []string) (int, int, error) {

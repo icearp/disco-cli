@@ -10,7 +10,7 @@ import (
 func TestResolveSageMakerEndpointConfig(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	cfgARN := sagemakerEndpointConfigARN(testRegion, acct.ID, "cfg-1")
+	cfgARN := sagemakerEndpointConfigARN("aws", testRegion, acct.ID, "cfg-1")
 	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerEndpointConfig, cfgARN, testRegion, "{}")
 	epARN := fmt.Sprintf("arn:aws:sagemaker:%s:%s:endpoint/ep-1", testRegion, acct.ID)
 	epID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerEndpoint, epARN, testRegion,
@@ -48,11 +48,11 @@ func TestResolveSageMakerEndpointConfigModels(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	m1 := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerModel,
-		sagemakerModelARN(testRegion, acct.ID, "model-a"), testRegion, "{}")
+		sagemakerModelARN("aws", testRegion, acct.ID, "model-a"), testRegion, "{}")
 	m2 := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerModel,
-		sagemakerModelARN(testRegion, acct.ID, "model-b"), testRegion, "{}")
+		sagemakerModelARN("aws", testRegion, acct.ID, "model-b"), testRegion, "{}")
 	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerEndpointConfig,
-		sagemakerEndpointConfigARN(testRegion, acct.ID, "cfg-1"), testRegion,
+		sagemakerEndpointConfigARN("aws", testRegion, acct.ID, "cfg-1"), testRegion,
 		`{"ProductionVariants":[{"ModelName":"model-a"},{"ModelName":"model-b"}]}`)
 
 	if err := resolveSageMakerEndpointConfigModels(acct, st); err != nil {
@@ -88,7 +88,7 @@ func TestResolveSageMakerModelRefs(t *testing.T) {
 		"VpcConfig":{"Subnets":["subnet-001"],"SecurityGroupIds":["sg-001"]}
 	}`, roleARN, imageURL)
 	modelID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerModel,
-		sagemakerModelARN(testRegion, acct.ID, "model-a"), testRegion, attrs)
+		sagemakerModelARN("aws", testRegion, acct.ID, "model-a"), testRegion, attrs)
 
 	if err := resolveSageMakerModelRefs(acct, st); err != nil {
 		t.Fatalf("resolveSageMakerModelRefs: %v", err)
@@ -110,7 +110,7 @@ func TestResolveSageMakerModelRefs_EmptyAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	modelID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerModel,
-		sagemakerModelARN(testRegion, acct.ID, "bare"), testRegion, "{}")
+		sagemakerModelARN("aws", testRegion, acct.ID, "bare"), testRegion, "{}")
 	if err := resolveSageMakerModelRefs(acct, st); err != nil {
 		t.Fatalf("resolveSageMakerModelRefs: %v", err)
 	}

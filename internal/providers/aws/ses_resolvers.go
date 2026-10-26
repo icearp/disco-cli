@@ -132,7 +132,7 @@ func resolveSESEmailIdentityConfigSet(acct *account, st *store.Store) error {
 		if cfgName == "" || ident.Region == nil {
 			continue
 		}
-		cfgARN := sesConfigurationSetARN(*ident.Region, acct.ID, cfgName)
+		cfgARN := sesConfigurationSetARN(acct.partition(), *ident.Region, acct.ID, cfgName)
 		cfgID := store.ResourceID("aws", acct.ID, cfgARN)
 		if _, ok := cfgIDs[cfgID]; !ok {
 			continue
@@ -147,7 +147,7 @@ func resolveSESEmailIdentityConfigSet(acct *account, st *store.Store) error {
 // sesEventDestinationConfigSetName extracts the configuration-set name from
 // a SES event-destination NativeID of the shape:
 //
-//	arn:aws:ses:{r}:{a}:configuration-set/{set}/event-destination/{dest}
+//	arn:{p}:ses:{r}:{a}:configuration-set/{set}/event-destination/{dest}
 //
 // Returns "" if the shape doesn't match. Used to wire the parent edge.
 func sesEventDestinationConfigSetName(nativeID string) string {
@@ -212,7 +212,7 @@ func resolveSESEventDestinationTargets(acct *account, st *store.Store) error {
 		// Parent config-set edge (synth from NativeID).
 		if name := sesEventDestinationConfigSetName(r.NativeID); name != "" {
 			cfgID := store.ResourceID("aws", acct.ID,
-				sesConfigurationSetARN(region, acct.ID, name))
+				sesConfigurationSetARN(acct.partition(), region, acct.ID, name))
 
 			if cfgSet[cfgID] {
 				if err := st.UpsertRelationship(r.ID, cfgID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -275,7 +275,7 @@ type sesReceiptRuleAttrs struct {
 }
 
 // sesReceiptRuleSetName extracts the rule-set name from a receipt-rule
-// NativeID of shape arn:aws:ses:{r}:{a}:receipt-rule-set/{set}/receipt-rule/{rule}.
+// NativeID of shape arn:{p}:ses:{r}:{a}:receipt-rule-set/{set}/receipt-rule/{rule}.
 func sesReceiptRuleSetName(nativeID string) string {
 	const prefix = "receipt-rule-set/"
 	_, rest, ok := strings.Cut(nativeID, prefix)
@@ -328,7 +328,7 @@ func resolveSESReceiptRuleTargets(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		// Parent rule-set.
 		if name := sesReceiptRuleSetName(r.NativeID); name != "" {
-			rsARN := fmt.Sprintf("arn:aws:ses:%s:%s:receipt-rule-set/%s", region, acct.ID, name)
+			rsARN := sesReceiptRuleSetARN(acct.partition(), region, acct.ID, name)
 			rsID := store.ResourceID("aws", acct.ID, rsARN)
 			if rsSet[rsID] {
 				if err := st.UpsertRelationship(r.ID, rsID, store.RelAttachedTo, "directed", nil); err != nil {

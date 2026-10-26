@@ -129,7 +129,7 @@ func scanDXConnections(ctx context.Context, client dxAPI, acct *account, region 
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDirectConnectConnection, NativeID: dxConnectionARN(region, acct.ID, id),
+				Type: TypeDirectConnectConnection, NativeID: dxConnectionARN(acct.partition(), region, acct.ID, id),
 				Name: dxName(c.ConnectionName, id), Region: &region, Status: nonEmptyPtr(string(c.ConnectionState)),
 				AttributesJSON: mustJSON(c), TagsJSON: dxTagsJSON(c.Tags), DiscoveredBy: scanID,
 			}, "", ""
@@ -152,7 +152,7 @@ func scanDXLags(ctx context.Context, client dxAPI, acct *account, region string,
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDirectConnectLag, NativeID: dxLagARN(region, acct.ID, id),
+				Type: TypeDirectConnectLag, NativeID: dxLagARN(acct.partition(), region, acct.ID, id),
 				Name: dxName(l.LagName, id), Region: &region, Status: nonEmptyPtr(string(l.LagState)),
 				AttributesJSON: mustJSON(l), TagsJSON: dxTagsJSON(l.Tags), DiscoveredBy: scanID,
 			}, "", ""
@@ -225,7 +225,7 @@ func scanDXGateways(ctx context.Context, client dxAPI, acct *account, region str
 		ids = append(ids, id)
 		return &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-			Type: TypeDirectConnectDirectConnectGateway, NativeID: dxGatewayARN(acct.ID, id),
+			Type: TypeDirectConnectDirectConnectGateway, NativeID: dxGatewayARN(acct.partition(), acct.ID, id),
 			Name: dxName(g.DirectConnectGatewayName, id), Region: &region, Status: nonEmptyPtr(string(g.DirectConnectGatewayState)),
 			AttributesJSON: mustJSON(g), TagsJSON: dxTagsJSON(g.Tags), DiscoveredBy: scanID,
 		}, "", ""
@@ -256,7 +256,7 @@ func scanDXGatewayAssociations(ctx context.Context, client dxAPI, acct *account,
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDirectConnectDirectConnectGatewayAssociation, NativeID: dxGatewayARN(acct.ID, gwID) + "/association/" + id,
+				Type: TypeDirectConnectDirectConnectGatewayAssociation, NativeID: dxGatewayARN(acct.partition(), acct.ID, gwID) + "/association/" + id,
 				Name: &id, Region: &region, Status: nonEmptyPtr(string(a.AssociationState)),
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			}, "", ""
@@ -282,7 +282,7 @@ func scanDXInterconnects(ctx context.Context, client dxAPI, acct *account, regio
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDirectConnectInterconnect, NativeID: dxInterconnectARN(region, acct.ID, id),
+				Type: TypeDirectConnectInterconnect, NativeID: dxInterconnectARN(acct.partition(), region, acct.ID, id),
 				Name: dxName(ic.InterconnectName, id), Region: &region, Status: nonEmptyPtr(string(ic.InterconnectState)),
 				AttributesJSON: mustJSON(ic), TagsJSON: dxTagsJSON(ic.Tags), DiscoveredBy: scanID,
 			}, "", ""

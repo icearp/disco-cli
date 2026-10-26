@@ -76,7 +76,7 @@ func resolveEFSReplicationDestinations(acct *account, st *store.Store) error {
 			// account, on the unverified assumption that AWS omits it only for
 			// same-account replication.
 			owner := cmp.Or(sv(d.OwnerID), acct.ID)
-			target := store.ResourceID("aws", owner, efsFileSystemARN(region, owner, fsID))
+			target := store.ResourceID("aws", owner, efsFileSystemARN(acct.partition(), region, owner, fsID))
 			if !fileSystems[target] {
 				continue
 			}
@@ -135,7 +135,7 @@ func resolveEFSMountTargetRelationships(acct *account, st *store.Store) error {
 			continue
 		}
 		if fsID := sv(attrs.FileSystemID); fsID != "" {
-			fsARN := efsFileSystemARN(region, acct.ID, fsID)
+			fsARN := efsFileSystemARN(acct.partition(), region, acct.ID, fsID)
 			fsResID := store.ResourceID("aws", acct.ID, fsARN)
 			if err := st.UpsertRelationship(fsResID, r.ID, store.RelContains, "directed", nil); err != nil {
 				return fmt.Errorf("upsert efs-fs→mt: %w", err)
@@ -174,7 +174,7 @@ func resolveEFSAccessPointRelationships(acct *account, st *store.Store) error {
 			// FileSystemID is not embedded in access point ARN; attrs required.
 			continue
 		}
-		fsARN := efsFileSystemARN(region, acct.ID, fsID)
+		fsARN := efsFileSystemARN(acct.partition(), region, acct.ID, fsID)
 		fsResID := store.ResourceID("aws", acct.ID, fsARN)
 		if err := st.UpsertRelationship(fsResID, r.ID, store.RelContains, "directed", nil); err != nil {
 			return fmt.Errorf("upsert efs-fs→ap: %w", err)

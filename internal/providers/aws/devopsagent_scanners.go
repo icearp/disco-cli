@@ -74,7 +74,7 @@ func scanDOAAgentSpaces(ctx context.Context, client devOpsAgentAPI, acct *accoun
 				continue
 			}
 			ids = append(ids, id)
-			arn := fmt.Sprintf("arn:aws:devopsagent:%s:%s:agent-space/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "devopsagent", region, acct.ID, "agent-space/"+id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeDevOpsAgentAgentSpace, NativeID: arn,
@@ -103,7 +103,7 @@ func scanDOAServices(ctx context.Context, client devOpsAgentAPI, acct *account, 
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:devopsagent:%s:%s:service/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "devopsagent", region, acct.ID, "service/"+id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeDevOpsAgentService, NativeID: arn,
@@ -132,7 +132,7 @@ func scanDOAAssociations(ctx context.Context, client devOpsAgentAPI, acct *accou
 			if aid == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:devopsagent:%s:%s:agent-space/%s/association/%s", region, acct.ID, asid, aid)
+			arn := arnFor(acct.partition(), "devopsagent", region, acct.ID, "agent-space/"+asid+"/association/"+aid)
 			label := aid
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

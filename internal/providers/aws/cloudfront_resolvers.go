@@ -367,7 +367,7 @@ func resolveDistributionTenants(acct *account, st *store.Store) error {
 			continue
 		}
 		// Construct the distribution ARN from the distribution ID.
-		distARN := fmt.Sprintf("arn:aws:cloudfront::%s:distribution/%s", acct.ID, distID)
+		distARN := arnFor(acct.partition(), "cloudfront", "", acct.ID, "distribution/"+distID)
 		targetID := store.ResourceID("aws", acct.ID, distARN)
 		if err := st.UpsertRelationship(t.ID, targetID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert cloudfront tenant→distribution relationship: %w", err)
@@ -581,7 +581,7 @@ func resolveCloudFrontConnectionGroupAnycast(acct *account, st *store.Store) err
 	}
 	byID := make(map[string]string, len(anyLists))
 	for _, a := range anyLists {
-		// ARN form: arn:aws:cloudfront::<acct>:anycast-ip-list/<id>
+		// ARN form: arn:{p}:cloudfront::<acct>:anycast-ip-list/<id>
 		if i := strings.LastIndex(a.NativeID, "/"); i >= 0 {
 			byID[a.NativeID[i+1:]] = a.ID
 		}

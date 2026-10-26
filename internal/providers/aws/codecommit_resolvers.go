@@ -60,7 +60,7 @@ func resolveCodeCommitTemplateRepos(acct *account, st *store.Store) error {
 			continue
 		}
 		for _, name := range attrs.AssociatedRepositoryNames {
-			repoID := store.ResourceID("aws", acct.ID, codeCommitRepoARN(sv(r.Region), acct.ID, name))
+			repoID := store.ResourceID("aws", acct.ID, codeCommitRepoARN(acct.partition(), sv(r.Region), acct.ID, name))
 			if !repoIDs[repoID] {
 				continue
 			}

@@ -89,7 +89,7 @@ func scanConfigAll(ctx context.Context, client configserviceAPI, acct *account, 
 		}
 		arn := sv(r.Arn)
 		if arn == "" {
-			arn = fmt.Sprintf("arn:aws:config:%s:%s:config-recorder/%s", region, acct.ID, name)
+			arn = arnFor(acct.partition(), "config", region, acct.ID, "config-recorder/"+name)
 		}
 		recBatch = append(recBatch, &store.Resource{
 			Provider:       "aws",
@@ -121,7 +121,7 @@ func scanConfigAll(ctx context.Context, client configserviceAPI, acct *account, 
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:config:%s:%s:delivery-channel/%s", region, acct.ID, name)
+			arn := arnFor(acct.partition(), "config", region, acct.ID, "delivery-channel/"+name)
 			dcBatch = append(dcBatch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,

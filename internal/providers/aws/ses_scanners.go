@@ -123,12 +123,12 @@ func scanSES(ctx context.Context, acct *account, region string, st *store.Store,
 // IdentityName (email or domain). SES v2 List/Get return only the bare name,
 // but cross-resource edges (CloudFront authorizers, Pinpoint, IAM policy doc
 // walkers) need the ARN.
-func sesEmailIdentityARN(region, accountID, name string) string {
-	return fmt.Sprintf("arn:aws:ses:%s:%s:identity/%s", region, accountID, name)
+func sesEmailIdentityARN(partition, region, accountID, name string) string {
+	return sesARN(partition, region, accountID, "identity", name)
 }
 
-func sesConfigurationSetARN(region, accountID, name string) string {
-	return fmt.Sprintf("arn:aws:ses:%s:%s:configuration-set/%s", region, accountID, name)
+func sesConfigurationSetARN(partition, region, accountID, name string) string {
+	return sesARN(partition, region, accountID, "configuration-set", name)
 }
 
 // sesIdentity is a stored email identity, handed to the certificate phase.
@@ -183,7 +183,7 @@ func scanSESEmailIdentities(ctx context.Context, client sesv2API, acct *account,
 				}
 				return fmt.Errorf("sesv2:GetEmailIdentity %s: %w", name, derr)
 			}
-			arn := sesEmailIdentityARN(region, acct.ID, name)
+			arn := sesEmailIdentityARN(acct.partition(), region, acct.ID, name)
 			status := string(out.VerificationStatus)
 			r := &store.Resource{
 				Provider:       "aws",
@@ -257,7 +257,7 @@ func scanSESConfigurationSets(ctx context.Context, client sesv2API, acct *accoun
 				}
 				return fmt.Errorf("sesv2:GetConfigurationSet %s: %w", name, derr)
 			}
-			arn := sesConfigurationSetARN(region, acct.ID, name)
+			arn := sesConfigurationSetARN(acct.partition(), region, acct.ID, name)
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,

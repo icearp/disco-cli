@@ -79,7 +79,7 @@ func resolveRedshiftSnapshotRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if id := sv(attrs.ClusterIdentifier); id != "" {
-			tgt := store.ResourceID("aws", acct.ID, redshiftClusterARN(sv(r.Region), acct.ID, id))
+			tgt := store.ResourceID("aws", acct.ID, redshiftClusterARN(acct.partition(), sv(r.Region), acct.ID, id))
 			if clusterSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert redshift-snapshot→cluster: %w", err)
@@ -113,7 +113,7 @@ func resolveRedshiftUsageLimitRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if id := sv(attrs.ClusterIdentifier); id != "" {
-			tgt := store.ResourceID("aws", acct.ID, redshiftClusterARN(sv(r.Region), acct.ID, id))
+			tgt := store.ResourceID("aws", acct.ID, redshiftClusterARN(acct.partition(), sv(r.Region), acct.ID, id))
 			if clusterSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert redshift-usage-limit→cluster: %w", err)
@@ -301,7 +301,7 @@ func resolveRedshiftClusterTargets(acct *account, st *store.Store) error {
 		}
 
 		if name := sv(attrs.ClusterSubnetGroupName); name != "" {
-			sgARN := redshiftSubnetGroupARN(region, acct.ID, name)
+			sgARN := redshiftSubnetGroupARN(acct.partition(), region, acct.ID, name)
 			sgID := store.ResourceID("aws", acct.ID, sgARN)
 			if _, ok := subnetGroupIDs[sgID]; ok {
 				if err := st.UpsertRelationship(c.ID, sgID, store.RelUses, "directed", nil); err != nil {

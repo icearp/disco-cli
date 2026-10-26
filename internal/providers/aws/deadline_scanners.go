@@ -78,10 +78,7 @@ type dlFarmRef struct {
 type dlChildKey struct{ farmID, id string }
 
 // deadlineARN builds every Deadline ARN, the NativeID each tag read sends, in
-// the commercial partition only: account carries no partition, and every AWS
-// scanner hardcodes arn:aws, so in aws-cn and aws-us-gov the NativeID is not
-// the resource's ARN and ListTagsForResource fails for each row. Fixing it is
-// a package-wide change, not a Deadline one.
+// the account's partition.
 func deadlineARN(partition, region, acct, resource string) string {
 	return arnFor(partition, "deadline", region, acct, resource)
 }

@@ -36,9 +36,9 @@ func noopEKSHierarchy(_ *account, _ *store.Store) error {
 
 // eksClusterNameFromChildARN parses cluster name out of any per-cluster child
 // ARN. All EKS child ARNs (scanner-synth + SDK-returned) share the shape
-// `arn:aws:eks:{r}:{a}:{kind}/{cluster}/...`.
+// `arn:{p}:eks:{r}:{a}:{kind}/{cluster}/...`.
 func eksClusterNameFromChildARN(arn string) string {
-	// Skip past the 5 leading ARN colons (`arn:aws:eks:r:a:`) — the resource
+	// Skip past the 5 leading ARN colons (`arn:{p}:eks:r:a:`) — the resource
 	// segment may itself contain colons (e.g. an embedded principal ARN).
 	colons := 0
 	resStart := -1
@@ -69,7 +69,7 @@ func eksClusterNameFromChildARN(arn string) string {
 // resolveEKSChildrenToCluster wires every per-cluster child type
 // (access-entry, addon, capability, fargate-profile, identity-provider-config,
 // nodegroup, pod-identity-association) to its cluster via NativeID parent
-// extract. Cluster ARN rebuilt as `arn:aws:eks:{r}:{a}:cluster/{name}`.
+// extract. Cluster ARN rebuilt as `arn:{p}:eks:{r}:{a}:cluster/{name}`.
 func resolveEKSChildrenToCluster(acct *account, st *store.Store) error {
 	clusterSet, err := scannedIDSet(acct, st, TypeEKSCluster)
 	if err != nil {
@@ -99,7 +99,7 @@ func resolveEKSChildrenToCluster(acct *account, st *store.Store) error {
 			if name == "" {
 				continue
 			}
-			tgtID := store.ResourceID("aws", acct.ID, eksClusterARN(sv(r.Region), acct.ID, name))
+			tgtID := store.ResourceID("aws", acct.ID, eksClusterARN(acct.partition(), sv(r.Region), acct.ID, name))
 			if !clusterSet[tgtID] {
 				continue
 			}

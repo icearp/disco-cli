@@ -165,7 +165,7 @@ func scanMP2ChannelPolicy(ctx context.Context, client mediaPackageV2API, acct *a
 	if sv(out.Policy) == "" {
 		return 0, 0, nil
 	}
-	arn := fmt.Sprintf("arn:aws:mediapackagev2:%s:%s:channelGroup/%s/channel/%s/policy", region, acct.ID, gn, cn)
+	arn := arnFor(acct.partition(), "mediapackagev2", region, acct.ID, "channelGroup/"+gn+"/channel/"+cn+"/policy")
 	label := cn
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -225,7 +225,7 @@ func scanMP2OriginEndpointPolicy(ctx context.Context, client mediaPackageV2API, 
 	if sv(out.Policy) == "" {
 		return 0, 0, nil
 	}
-	arn := fmt.Sprintf("arn:aws:mediapackagev2:%s:%s:channelGroup/%s/channel/%s/originEndpoint/%s/policy", region, acct.ID, gn, cn, en)
+	arn := arnFor(acct.partition(), "mediapackagev2", region, acct.ID, "channelGroup/"+gn+"/channel/"+cn+"/originEndpoint/"+en+"/policy")
 	label := en
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

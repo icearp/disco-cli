@@ -63,7 +63,7 @@ func scanDOGNotificationChannels(ctx context.Context, client devOpsGuruAPI, acct
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:devops-guru:%s:%s:notification-channel/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "devops-guru", region, acct.ID, "notification-channel/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -117,7 +117,7 @@ func scanDOGResourceCollections(ctx context.Context, client devOpsGuruAPI, acct 
 		if len(pages) == 0 {
 			continue
 		}
-		arn := fmt.Sprintf("arn:aws:devops-guru:%s:%s:resource-collection/%s", region, acct.ID, k)
+		arn := arnFor(acct.partition(), "devops-guru", region, acct.ID, "resource-collection/"+string(k))
 		label := string(k)
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -146,7 +146,7 @@ func scanDOGLogAnomalyIntegration(ctx context.Context, client devOpsGuruAPI, acc
 	if out.ServiceIntegration == nil || out.ServiceIntegration.LogsAnomalyDetection == nil {
 		return 0, 0, nil
 	}
-	arn := fmt.Sprintf("arn:aws:devops-guru:%s:%s:log-anomaly-detection-integration", region, acct.ID)
+	arn := arnFor(acct.partition(), "devops-guru", region, acct.ID, "log-anomaly-detection-integration")
 	label := string(out.ServiceIntegration.LogsAnomalyDetection.OptInStatus)
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

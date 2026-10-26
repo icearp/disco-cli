@@ -3,12 +3,26 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
+
+// ssmParameterARN builds a parameter's NativeID from its name. Names may lack
+// a leading "/", and the ARN never doubles it: "/a/b" and "a" become
+// parameter/a/b and parameter/a.
+func ssmParameterARN(partition, region, acct, name string) string {
+	return arnFor(partition, "ssm", region, acct, "parameter/"+strings.TrimPrefix(name, "/"))
+}
+
+// ssmMaintenanceWindowARN builds a maintenance window's NativeID from its id;
+// the API returns no ARN, and the target and task resolvers rebuild it.
+func ssmMaintenanceWindowARN(partition, region, acct, windowID string) string {
+	return arnFor(partition, "ssm", region, acct, "maintenancewindow/"+windowID)
+}
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeSSMDocument, Service: "ssm"})
@@ -101,13 +115,7 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 			if name == "" {
 				continue
 			}
-			// Parameter names may lack a leading '/'; add one so it joins
-			// cleanly after 'parameter' in the ARN.
-			joined := name
-			if joined[0] != '/' {
-				joined = "/" + joined
-			}
-			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:parameter%s", region, acct.ID, joined)
+			arn := ssmParameterARN(acct.partition(), region, acct.ID, name)
 			ptype := string(p.Type)
 			r := &store.Resource{
 				Provider:       "aws",
@@ -151,7 +159,7 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:document/%s", region, acct.ID, name)
+			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "document/"+name)
 			dtype := string(d.DocumentType)
 			// Enrich with DescribeDocument: List returns a skeleton
 			// DocumentIdentifier; Requires (cross-doc refs) is Describe-only.
@@ -207,7 +215,7 @@ func scanSSMAll(ctx context.Context, client ssmAPI, acct *account, region string
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:patchbaseline/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "patchbaseline/"+id)
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,

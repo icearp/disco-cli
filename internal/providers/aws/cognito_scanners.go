@@ -349,6 +349,19 @@ func readCognitoUserPool(ctx context.Context, idpClient cognitoidpAPI, acct *acc
 	}
 }
 
+// cognitoUserPoolARN builds a user pool's NativeID from its id. ListUserPools
+// returns no ARN, and resolvers rebuild it from the bare pool id other
+// services reference.
+func cognitoUserPoolARN(partition, region, acct, poolID string) string {
+	return arnFor(partition, "cognito-idp", region, acct, "userpool/"+poolID)
+}
+
+// cognitoIdentityPoolARN builds an identity pool's NativeID from its id, for
+// the same reason.
+func cognitoIdentityPoolARN(partition, region, acct, poolID string) string {
+	return arnFor(partition, "cognito-identity", region, acct, "identitypool/"+poolID)
+}
+
 // cognitoUserPoolRow builds a pool's row from its DescribeUserPool body, or
 // from its ListUserPools element when described is nil.
 func cognitoUserPoolRow(acct *account, region, scanID string, listed cognitoidptypes.UserPoolDescriptionType, described *cognitoidptypes.UserPoolType) *store.Resource {
@@ -357,7 +370,7 @@ func cognitoUserPoolRow(acct *account, region, scanID string, listed cognitoidpt
 		AccountID:      acct.ID,
 		AccountName:    &acct.Name,
 		Type:           TypeCognitoUserPool,
-		NativeID:       fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, sv(listed.Id)),
+		NativeID:       cognitoUserPoolARN(acct.partition(), region, acct.ID, sv(listed.Id)),
 		Name:           listed.Name,
 		Region:         &region,
 		AttributesJSON: mustJSON(listed),
@@ -395,7 +408,7 @@ func collectCognitoAppClients(ctx context.Context, idpClient cognitoidpAPI, acct
 			if err != nil {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s/client/%s", region, acct.ID, poolID, clientID)
+			arn := cogUPARN(acct.partition(), region, acct.ID, poolID, "client", clientID)
 			cr := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -435,7 +448,7 @@ func collectCognitoManagedLoginBranding(ctx context.Context, idpClient cognitoid
 	if mlbID == "" {
 		return
 	}
-	mlbArn := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s/branding/%s", region, acct.ID, poolID, mlbID)
+	mlbArn := cognitoUserPoolARN(acct.partition(), region, acct.ID, poolID) + "/branding/" + mlbID
 	mlbLabel := mlbID
 	b.mu.Lock()
 	b.brandings = append(b.brandings, &store.Resource{
@@ -573,7 +586,7 @@ func cognitoIdentityPoolRow(acct *account, region, scanID string, listed cognito
 		AccountID:      acct.ID,
 		AccountName:    &acct.Name,
 		Type:           TypeCognitoIdentityPool,
-		NativeID:       fmt.Sprintf("arn:aws:cognito-identity:%s:%s:identitypool/%s", region, acct.ID, sv(listed.IdentityPoolId)),
+		NativeID:       cognitoIdentityPoolARN(acct.partition(), region, acct.ID, sv(listed.IdentityPoolId)),
 		Name:           name,
 		Region:         &region,
 		AttributesJSON: mustJSON(attrs),

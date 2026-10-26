@@ -76,20 +76,3 @@ func TestRedrivePolicyDLQ(t *testing.T) {
 		}
 	}
 }
-
-// TestKMSKeyTargetARN verifies normalization to full ARN for key IDs and aliases.
-func TestKMSKeyTargetARN(t *testing.T) {
-	region, acct := "us-east-1", "123456789012"
-	tests := []struct {
-		in, want string
-	}{
-		{"arn:aws:kms:us-east-1:123456789012:key/abcd", "arn:aws:kms:us-east-1:123456789012:key/abcd"},
-		{"abcd-1234", "arn:aws:kms:us-east-1:123456789012:key/abcd-1234"},
-		{"alias/my-key", "arn:aws:kms:us-east-1:123456789012:alias/my-key"},
-	}
-	for _, tt := range tests {
-		if got := kmsKeyTargetARN(tt.in, region, acct); got != tt.want {
-			t.Errorf("kmsKeyTargetARN(%q) = %q, want %q", tt.in, got, tt.want)
-		}
-	}
-}

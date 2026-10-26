@@ -29,7 +29,7 @@ type rtbfabricAPI interface {
 
 // scanRTBFabric discovers RTBFabric (real-time bidding fabric) requester/
 // responder gateways and the links between them. Gateways return as IDs;
-// ARN synth: arn:aws:rtbfabric:{r}:{a}:gateway/{id}. Links fetched per gateway.
+// ARN synth: arn:{p}:rtbfabric:{r}:{a}:gateway/{id}. Links fetched per gateway.
 //
 // AWS::RTBFabric::InboundExternalLink / OutboundExternalLink are skip-logged:
 // the SDK exposes only Get*/Create*/Delete* per external link, no list endpoint.
@@ -89,7 +89,7 @@ func scanRTBRequesterGateways(ctx context.Context, client rtbfabricAPI, acct *ac
 				continue
 			}
 			ids = append(ids, id)
-			arn := fmt.Sprintf("arn:aws:rtbfabric:%s:%s:requester-gateway/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "rtbfabric", region, acct.ID, "requester-gateway/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -120,7 +120,7 @@ func scanRTBResponderGateways(ctx context.Context, client rtbfabricAPI, acct *ac
 				continue
 			}
 			ids = append(ids, id)
-			arn := fmt.Sprintf("arn:aws:rtbfabric:%s:%s:responder-gateway/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "rtbfabric", region, acct.ID, "responder-gateway/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -153,7 +153,7 @@ func scanRTBLinks(ctx context.Context, client rtbfabricAPI, acct *account, regio
 				continue
 			}
 			linkIDs = append(linkIDs, lid)
-			arn := rtbLinkARN(region, acct.ID, gid, lid)
+			arn := rtbLinkARN(acct.partition(), region, acct.ID, gid, lid)
 			label := lid
 			status := string(l.Status)
 			batch = append(batch, &store.Resource{
@@ -168,8 +168,8 @@ func scanRTBLinks(ctx context.Context, client rtbfabricAPI, acct *account, regio
 	return linkIDs, t, i, err
 }
 
-func rtbLinkARN(region, acctID, gatewayID, linkID string) string {
-	return fmt.Sprintf("arn:aws:rtbfabric:%s:%s:gateway/%s/link/%s", region, acctID, gatewayID, linkID)
+func rtbLinkARN(partition, region, acctID, gatewayID, linkID string) string {
+	return arnFor(partition, "rtbfabric", region, acctID, "gateway/"+gatewayID+"/link/"+linkID)
 }
 
 // scanRTBLinkRoutingRules lists routing rules for one link. ListLinkRoutingRules
@@ -177,7 +177,7 @@ func rtbLinkARN(region, acctID, gatewayID, linkID string) string {
 // + RuleId.
 func scanRTBLinkRoutingRules(ctx context.Context, client rtbfabricAPI, acct *account, region string, st *store.Store, scanID, gatewayID, linkID string) (int, int, error) {
 	gid, lid := gatewayID, linkID
-	linkARN := rtbLinkARN(region, acct.ID, gid, lid)
+	linkARN := rtbLinkARN(acct.partition(), region, acct.ID, gid, lid)
 	pager := rtbfabric.NewListLinkRoutingRulesPaginator(client, &rtbfabric.ListLinkRoutingRulesInput{GatewayId: &gid, LinkId: &lid})
 	var batch []*store.Resource
 	for pager.HasMorePages() {

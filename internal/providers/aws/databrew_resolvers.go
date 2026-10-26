@@ -23,8 +23,8 @@ func init() {
 	)
 }
 
-func dbrARN(region, acct, kind, name string) string {
-	return fmt.Sprintf("arn:aws:databrew:%s:%s:%s/%s", region, acct, kind, name)
+func dbrARN(partition, region, acct, kind, name string) string {
+	return arnFor(partition, "databrew", region, acct, kind+"/"+name)
 }
 
 // dataBrewTargetSets bundles FK-safe id sets for DataBrew per-source helpers.
@@ -104,12 +104,12 @@ func emitDataBrewJobEdges(acct *account, st *store.Store, sets dataBrewTargetSet
 		}
 		region := sv(r.Region)
 		if n := sv(attrs.DatasetName); n != "" {
-			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewDataset, dbrARN(region, acct.ID, "dataset", n), sets.dsSet, store.RelUses); err != nil {
+			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewDataset, dbrARN(acct.partition(), region, acct.ID, "dataset", n), sets.dsSet, store.RelUses); err != nil {
 				return err
 			}
 		}
 		if n := sv(attrs.ProjectName); n != "" {
-			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewProject, dbrARN(region, acct.ID, "project", n), sets.prjSet, store.RelUses); err != nil {
+			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewProject, dbrARN(acct.partition(), region, acct.ID, "project", n), sets.prjSet, store.RelUses); err != nil {
 				return err
 			}
 		}
@@ -140,12 +140,12 @@ func emitDataBrewProjectEdges(acct *account, st *store.Store, sets dataBrewTarge
 		}
 		region := sv(r.Region)
 		if n := sv(attrs.DatasetName); n != "" {
-			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewDataset, dbrARN(region, acct.ID, "dataset", n), sets.dsSet, store.RelUses); err != nil {
+			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewDataset, dbrARN(acct.partition(), region, acct.ID, "dataset", n), sets.dsSet, store.RelUses); err != nil {
 				return err
 			}
 		}
 		if n := sv(attrs.RecipeName); n != "" {
-			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewRecipe, dbrARN(region, acct.ID, "recipe", n), sets.rcpSet, store.RelUses); err != nil {
+			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewRecipe, dbrARN(acct.partition(), region, acct.ID, "recipe", n), sets.rcpSet, store.RelUses); err != nil {
 				return err
 			}
 		}
@@ -173,7 +173,7 @@ func emitDataBrewRecipeEdges(acct *account, st *store.Store, sets dataBrewTarget
 			continue
 		}
 		if n := sv(attrs.ProjectName); n != "" {
-			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewProject, dbrARN(sv(r.Region), acct.ID, "project", n), sets.prjSet, store.RelAttachedTo); err != nil {
+			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewProject, dbrARN(acct.partition(), sv(r.Region), acct.ID, "project", n), sets.prjSet, store.RelAttachedTo); err != nil {
 				return err
 			}
 		}
@@ -202,7 +202,7 @@ func emitDataBrewScheduleEdges(acct *account, st *store.Store, sets dataBrewTarg
 			if n == "" {
 				continue
 			}
-			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewJob, dbrARN(region, acct.ID, "job", n), sets.jobSet, store.RelUses); err != nil {
+			if err := emitDataBrewEdge(st, acct, r.ID, TypeDataBrewJob, dbrARN(acct.partition(), region, acct.ID, "job", n), sets.jobSet, store.RelUses); err != nil {
 				return err
 			}
 		}

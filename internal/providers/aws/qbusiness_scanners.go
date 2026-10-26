@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/service/qbusiness"
 	qbtypes "github.com/aws/aws-sdk-go-v2/service/qbusiness/types"
@@ -40,18 +41,9 @@ type qbusinessAPI interface {
 	ListWebExperiences(context.Context, *qbusiness.ListWebExperiencesInput, ...func(*qbusiness.Options)) (*qbusiness.ListWebExperiencesOutput, error)
 }
 
-func qbARN(region, acct string, segments ...string) string {
-	s := fmt.Sprintf("arn:aws:qbusiness:%s:%s", region, acct)
-	for _, seg := range segments {
-		s += "/" + seg
-	}
-	// Replace first '/' with ':' to match AWS's arn:aws:qbusiness:region:account:application/{id} format.
-	for i := len(fmt.Sprintf("arn:aws:qbusiness:%s:%s", region, acct)); i < len(s); i++ {
-		if s[i] == '/' {
-			return s[:i] + ":" + s[i+1:]
-		}
-	}
-	return s
+// qbARN builds arn:{p}:qbusiness:{region}:{acct}:{seg1}/{seg2}/….
+func qbARN(partition, region, acct string, segments ...string) string {
+	return arnFor(partition, "qbusiness", region, acct, strings.Join(segments, "/"))
 }
 
 func scanQBusiness(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -75,7 +67,7 @@ func scanQBusiness(ctx context.Context, acct *account, region string, st *store.
 			if id == "" {
 				continue
 			}
-			arn := qbARN(region, acct.ID, "application", id)
+			arn := qbARN(acct.partition(), region, acct.ID, "application", id)
 			label := sv(a.DisplayName)
 			if label == "" {
 				label = id

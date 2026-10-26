@@ -22,7 +22,7 @@ func TestResolveGlueTableS3Location_HappyPath(t *testing.T) {
 	bucketARN := "arn:aws:s3:::" + testGlueBucket
 	bID := upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, bucketARN, "", "{}")
 
-	tableARN := glueTableARN(testRegion, testAccountID, testGlueDB, testGlueTable)
+	tableARN := glueTableARN("aws", testRegion, testAccountID, testGlueDB, testGlueTable)
 	tableAttrs := fmt.Sprintf(`{"Name":%q,"DatabaseName":%q,"StorageDescriptor":{"Location":"s3://%s/raw/year=2024/"}}`,
 		testGlueTable, testGlueDB, testGlueBucket)
 	tableID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueTable, tableARN, testRegion, tableAttrs)
@@ -47,7 +47,7 @@ func TestResolveGlueTableS3Location_FKSafe(t *testing.T) {
 	// short-circuiting on the empty id-set fast path.
 	upsertTestResource(t, st, "aws", acct.ID, TypeS3Bucket, "arn:aws:s3:::other", "", "{}")
 
-	tableARN := glueTableARN(testRegion, testAccountID, testGlueDB, testGlueTable)
+	tableARN := glueTableARN("aws", testRegion, testAccountID, testGlueDB, testGlueTable)
 	tableAttrs := `{"StorageDescriptor":{"Location":"s3://ghost-bucket/data/"}}`
 	tableID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueTable, tableARN, testRegion, tableAttrs)
 
@@ -75,7 +75,7 @@ func TestResolveGlueTableS3Location_NonS3(t *testing.T) {
 		"",
 		"not a url",
 	} {
-		tableARN := glueTableARN(testRegion, testAccountID, testGlueDB, fmt.Sprintf("t%d", i))
+		tableARN := glueTableARN("aws", testRegion, testAccountID, testGlueDB, fmt.Sprintf("t%d", i))
 		tableAttrs := fmt.Sprintf(`{"StorageDescriptor":{"Location":%q}}`, loc)
 		upsertTestResource(t, st, "aws", acct.ID, TypeGlueTable, tableARN, testRegion, tableAttrs)
 	}

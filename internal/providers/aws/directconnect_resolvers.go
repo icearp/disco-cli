@@ -42,12 +42,12 @@ func init() {
 	)
 }
 
-func dxConnectionARN(region, acct, id string) string {
-	return fmt.Sprintf("arn:aws:directconnect:%s:%s:dxcon/%s", region, acct, id)
+func dxConnectionARN(partition, region, acct, id string) string {
+	return arnFor(partition, "directconnect", region, acct, "dxcon/"+id)
 }
 
-func dxLagARN(region, acct, id string) string {
-	return fmt.Sprintf("arn:aws:directconnect:%s:%s:dxlag/%s", region, acct, id)
+func dxLagARN(partition, region, acct, id string) string {
+	return arnFor(partition, "directconnect", region, acct, "dxlag/"+id)
 }
 
 // dxInterconnectARN is the connection ARN: the Service Reference gives
@@ -55,12 +55,12 @@ func dxLagARN(region, acct, id string) string {
 // This assumes DescribeConnections never lists an interconnect in the account
 // that owns it; if it did, both rows would share one NativeID and the store's
 // warning about a NativeID that maps to two types would fire.
-func dxInterconnectARN(region, acct, id string) string {
-	return dxConnectionARN(region, acct, id)
+func dxInterconnectARN(partition, region, acct, id string) string {
+	return dxConnectionARN(partition, region, acct, id)
 }
 
-func dxGatewayARN(acct, id string) string {
-	return fmt.Sprintf("arn:aws:directconnect::%s:dx-gateway/%s", acct, id)
+func dxGatewayARN(partition, acct, id string) string {
+	return arnFor(partition, "directconnect", "", acct, "dx-gateway/"+id)
 }
 
 // resolveDXLagMembers wires each connection and interconnect to its LAG via
@@ -93,7 +93,7 @@ func resolveDXLagMembers(acct *account, st *store.Store) error {
 		if lagID == "" {
 			continue
 		}
-		tgtID := store.ResourceID("aws", acct.ID, dxLagARN(sv(r.Region), acct.ID, lagID))
+		tgtID := store.ResourceID("aws", acct.ID, dxLagARN(acct.partition(), sv(r.Region), acct.ID, lagID))
 		if !lagSet[tgtID] {
 			continue
 		}
@@ -198,14 +198,14 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 			if cid := sv(attrs.ConnectionID); cid != "" {
 				// VI's ConnectionID may point to a Connection (`dxcon-...`) or LAG (`dxlag-...`).
 				if strings.HasPrefix(cid, "dxlag") {
-					tgtID := store.ResourceID("aws", acct.ID, dxLagARN(region, acct.ID, cid))
+					tgtID := store.ResourceID("aws", acct.ID, dxLagARN(acct.partition(), region, acct.ID, cid))
 					if lagSet[tgtID] {
 						if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 							return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx vi→lag: %w", err))...)
 						}
 					}
 				} else {
-					tgtID := store.ResourceID("aws", acct.ID, dxConnectionARN(region, acct.ID, cid))
+					tgtID := store.ResourceID("aws", acct.ID, dxConnectionARN(acct.partition(), region, acct.ID, cid))
 					if connSet[tgtID] {
 						if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 							return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx vi→connection: %w", err))...)
@@ -214,7 +214,7 @@ func resolveDXVIRefs(acct *account, st *store.Store) error {
 				}
 			}
 			if gw := sv(attrs.DirectConnectGatewayID); gw != "" {
-				tgtID := store.ResourceID("aws", acct.ID, dxGatewayARN(acct.ID, gw))
+				tgtID := store.ResourceID("aws", acct.ID, dxGatewayARN(acct.partition(), acct.ID, gw))
 				if dxgwSet[tgtID] {
 					if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {
 						return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx vi→dxgw: %w", err))...)
@@ -285,7 +285,7 @@ func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		if gw := sv(attrs.DirectConnectGatewayID); gw != "" {
-			tgtID := store.ResourceID("aws", acct.ID, dxGatewayARN(acct.ID, gw))
+			tgtID := store.ResourceID("aws", acct.ID, dxGatewayARN(acct.partition(), acct.ID, gw))
 			if dxgwSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx assoc→dxgw: %w", err))...)
@@ -326,7 +326,7 @@ func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 	for _, e := range ownerEdges {
 		if !owners[e.owner] {
 			owners[e.owner] = true
-			placeholders = append(placeholders, iamAccountPlaceholder(e.owner, rows[0].DiscoveredBy))
+			placeholders = append(placeholders, iamAccountPlaceholder(acct.partition(), e.owner, rows[0].DiscoveredBy))
 		}
 	}
 	if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
@@ -334,7 +334,7 @@ func resolveDXGatewayAssociationRefs(acct *account, st *store.Store) error {
 	}
 	edgeAttrs := mustJSON(map[string]string{"role": "associated-gateway-owner"})
 	for _, e := range ownerEdges {
-		toID := store.ResourceID("aws", e.owner, iamAccountNativeID(e.owner))
+		toID := store.ResourceID("aws", e.owner, iamAccountNativeID(acct.partition(), e.owner))
 		if err := st.UpsertRelationship(e.fromID, toID, store.RelUses, "directed", &edgeAttrs); err != nil {
 			return errors.Join(append(decodeErrs, fmt.Errorf("upsert dx assoc→owner account: %w", err))...)
 		}

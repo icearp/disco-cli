@@ -17,7 +17,7 @@ import (
 // resource that does not exist. New code builds ARNs through the aws_arn.go
 // helpers with the account's partition; the ceiling only
 // falls.
-const commercialARNLiteralCeiling = 310
+const commercialARNLiteralCeiling = 53
 
 // isCommercialARNLiteral reports whether a string literal's value hard-codes
 // the aws partition: it contains "arn:aws:" or is exactly "arn:aws" (the bare

@@ -57,15 +57,15 @@ type autoScalingAPI interface {
 // autoScalingLifecycleHookARN synthesizes a stable NativeID for a lifecycle
 // hook. AWS does not return an ARN on the SDK shape; this format mirrors
 // the KMS-grant/Macie-session synth precedent (parent-child path).
-func autoScalingLifecycleHookARN(region, accountID, asgName, hookName string) string {
-	return fmt.Sprintf("arn:aws:autoscaling:%s:%s:lifecycle-hook/%s/%s", region, accountID, asgName, hookName)
+func autoScalingLifecycleHookARN(partition, region, accountID, asgName, hookName string) string {
+	return arnFor(partition, "autoscaling", region, accountID, "lifecycle-hook/"+asgName+"/"+hookName)
 }
 
 // autoScalingWarmPoolARN synthesizes a NativeID for a warm pool. SDK has no
 // ARN on the WarmPoolConfiguration shape, but the warm pool is 1:1 with its
 // parent ASG so the ASG name suffices for uniqueness.
-func autoScalingWarmPoolARN(region, accountID, asgName string) string {
-	return fmt.Sprintf("arn:aws:autoscaling:%s:%s:warm-pool/%s", region, accountID, asgName)
+func autoScalingWarmPoolARN(partition, region, accountID, asgName string) string {
+	return arnFor(partition, "autoscaling", region, accountID, "warm-pool/"+asgName)
 }
 
 // autoScalingWarmPoolGroup returns the group name autoScalingWarmPoolARN put
@@ -79,8 +79,17 @@ func autoScalingWarmPoolGroup(nativeID string) string {
 // group's notification configuration for one SNS topic. AWS returns no ARN;
 // the form mirrors autoScalingLifecycleHookARN (group name, not group ARN) so
 // the row keeps its identity when the group phase fails or misses the group.
-func autoScalingNotificationConfigurationARN(region, accountID, asgName, topicARN string) string {
-	return fmt.Sprintf("arn:aws:autoscaling:%s:%s:notification-configuration/%s/%s", region, accountID, asgName, topicARN)
+func autoScalingNotificationConfigurationARN(partition, region, accountID, asgName, topicARN string) string {
+	return arnFor(partition, "autoscaling", region, accountID, "notification-configuration/"+asgName+"/"+topicARN)
+}
+
+// autoScalingLaunchConfigurationARN builds the synthetic NativeID the scanner
+// stores only when DescribeLaunchConfigurations returns no ARN. A real ARN
+// carries a UUID (launchConfiguration:{uuid}:launchConfigurationName/{name}),
+// so this "*" form never equals one; the group resolver's rebuild from
+// LaunchConfigurationName therefore matches only those fallback rows.
+func autoScalingLaunchConfigurationARN(partition, region, accountID, name string) string {
+	return arnFor(partition, "autoscaling", region, accountID, "launchConfiguration:*:launchConfigurationName/"+name)
 }
 
 // scanAutoScaling discovers EC2 Auto Scaling primitives in one region.
@@ -159,7 +168,7 @@ func scanAutoScalingGroups(ctx context.Context, client autoScalingAPI, acct *acc
 			}
 			arn := sv(g.AutoScalingGroupARN)
 			if arn == "" {
-				arn = fmt.Sprintf("arn:aws:autoscaling:%s:%s:autoScalingGroup:*:autoScalingGroupName/%s", region, acct.ID, name)
+				arn = arnFor(acct.partition(), "autoscaling", region, acct.ID, "autoScalingGroup:*:autoScalingGroupName/"+name)
 			}
 			groupIDs[name] = store.ResourceID("aws", acct.ID, arn)
 			return &store.Resource{
@@ -201,7 +210,7 @@ func scanAutoScalingLaunchConfigurations(ctx context.Context, client autoScaling
 			}
 			arn := sv(lc.LaunchConfigurationARN)
 			if arn == "" {
-				arn = fmt.Sprintf("arn:aws:autoscaling:%s:%s:launchConfiguration:*:launchConfigurationName/%s", region, acct.ID, name)
+				arn = autoScalingLaunchConfigurationARN(acct.partition(), region, acct.ID, name)
 			}
 			return &store.Resource{
 				Provider:       "aws",
@@ -317,7 +326,7 @@ func scanAutoScalingLifecycleHooks(ctx context.Context, client autoScalingAPI, a
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeAutoScalingLifecycleHook,
-				NativeID:       autoScalingLifecycleHookARN(region, acct.ID, group, hookName),
+				NativeID:       autoScalingLifecycleHookARN(acct.partition(), region, acct.ID, group, hookName),
 				Name:           &hookName,
 				Region:         &region,
 				AttributesJSON: mustJSON(h),
@@ -349,7 +358,7 @@ func scanAutoScalingWarmPools(ctx context.Context, client autoScalingAPI, acct *
 			AccountID:      acct.ID,
 			AccountName:    &acct.Name,
 			Type:           TypeAutoScalingWarmPool,
-			NativeID:       autoScalingWarmPoolARN(region, acct.ID, group),
+			NativeID:       autoScalingWarmPoolARN(acct.partition(), region, acct.ID, group),
 			Name:           &group,
 			Region:         &region,
 			AttributesJSON: mustJSON(out.WarmPoolConfiguration),
@@ -438,7 +447,7 @@ func scanAutoScalingNotificationConfigurations(ctx context.Context, client autoS
 			if group == "" || topic == "" || kind == "" {
 				continue
 			}
-			nativeID := autoScalingNotificationConfigurationARN(region, acct.ID, group, topic)
+			nativeID := autoScalingNotificationConfigurationARN(acct.partition(), region, acct.ID, group, topic)
 			c, ok := configs[nativeID]
 			if !ok {
 				c = &autoScalingNotificationConfiguration{AutoScalingGroupName: group, TopicARN: topic}

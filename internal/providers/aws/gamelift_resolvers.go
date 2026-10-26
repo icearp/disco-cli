@@ -98,11 +98,11 @@ func resolveGameLiftVpcPeeringPeerVPC(acct *account, st *store.Store) error {
 	return nil
 }
 
-// gameliftFleetARN rebuilds `arn:aws:gamelift:{region}:{acct}:fleet/{id}` from
+// gameliftFleetARN rebuilds `arn:{p}:gamelift:{region}:{acct}:fleet/{id}` from
 // a bare fleet ID. Used for refs that carry only `FleetID` (alias routing
 // strategy).
-func gameliftFleetARN(region, acct, fleetID string) string {
-	return fmt.Sprintf("arn:aws:gamelift:%s:%s:fleet/%s", region, acct, fleetID)
+func gameliftFleetARN(partition, region, acct, fleetID string) string {
+	return arnFor(partition, "gamelift", region, acct, "fleet/"+fleetID)
 }
 
 // resolveGameLiftAliasFleet links each SIMPLE-routed alias to its target
@@ -139,7 +139,7 @@ func resolveGameLiftAliasFleet(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		fARN := gameliftFleetARN(region, acct.ID, fid)
+		fARN := gameliftFleetARN(acct.partition(), region, acct.ID, fid)
 		tgtID := store.ResourceID("aws", acct.ID, fARN)
 		if !fleetSet[tgtID] {
 			continue

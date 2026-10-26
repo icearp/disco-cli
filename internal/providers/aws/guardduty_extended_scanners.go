@@ -119,7 +119,7 @@ func scanGDOrganizationConfigurations(ctx context.Context, client guardDutyExtAP
 	const op = "guardduty:DescribeOrganizationConfiguration"
 	parents := make([]childParent, len(detectorIDs))
 	for i, did := range detectorIDs {
-		parents[i] = childParent{id: did, arn: guardDutyDetectorARN(region, acct.ID, did)}
+		parents[i] = childParent{id: did, arn: guardDutyDetectorARN(acct.partition(), region, acct.ID, did)}
 	}
 	var refusedOnce sync.Once
 	warnIfRefused := func(err error) bool {
@@ -183,7 +183,7 @@ func scanGDMalwareProtectionPlans(ctx context.Context, client guardDutyExtAPI, a
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:guardduty:%s:%s:malware-protection-plan/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "guardduty", region, acct.ID, "malware-protection-plan/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -217,7 +217,7 @@ func scanGDPublishingDestinations(ctx context.Context, client guardDutyExtAPI, a
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s/publishingDestination/%s", region, acct.ID, detectorID, id)
+			arn := arnFor(acct.partition(), "guardduty", region, acct.ID, "detector/"+detectorID+"/publishingDestination/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -249,7 +249,7 @@ func scanGDThreatEntitySets(ctx context.Context, client guardDutyExtAPI, acct *a
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s/threat-entity-set/%s", region, acct.ID, detectorID, id)
+			arn := arnFor(acct.partition(), "guardduty", region, acct.ID, "detector/"+detectorID+"/threat-entity-set/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -278,7 +278,7 @@ func scanGDThreatIntelSets(ctx context.Context, client guardDutyExtAPI, acct *ac
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s/threatintelset/%s", region, acct.ID, detectorID, id)
+			arn := arnFor(acct.partition(), "guardduty", region, acct.ID, "detector/"+detectorID+"/threatintelset/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -310,7 +310,7 @@ func scanGDTrustedEntitySets(ctx context.Context, client guardDutyExtAPI, acct *
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s/trusted-entity-set/%s", region, acct.ID, detectorID, id)
+			arn := arnFor(acct.partition(), "guardduty", region, acct.ID, "detector/"+detectorID+"/trusted-entity-set/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

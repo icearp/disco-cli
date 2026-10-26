@@ -56,7 +56,7 @@ func scanGlueCatalogs(ctx context.Context, client glueAPI, acct *account, region
 			if id == "" {
 				return nil, "catalogs have an empty CatalogId", cmp.Or(sv(c.Name), "(a catalog with no name)")
 			}
-			r := glueRow(acct, region, scanID, TypeGlueCatalog, glueResourceARN(region, acct.ID, "catalog", id), cmp.Or(sv(c.Name), id), c)
+			r := glueRow(acct, region, scanID, TypeGlueCatalog, glueResourceARN(acct.partition(), region, acct.ID, "catalog", id), cmp.Or(sv(c.Name), id), c)
 			arns[r] = sv(c.ResourceArn)
 			return r, "", ""
 		}, tags, p)
@@ -163,7 +163,7 @@ func scanGlueDataCatalogEncryption(ctx context.Context, client glueAPI, acct *ac
 		}
 		return 0, 0, fmt.Errorf("glue:GetDataCatalogEncryptionSettings: %w", err)
 	}
-	arn := fmt.Sprintf("arn:aws:glue:%s:%s:data-catalog-encryption-settings", region, acct.ID)
+	arn := arnFor(acct.partition(), "glue", region, acct.ID, "data-catalog-encryption-settings")
 	name := "data-catalog-encryption-settings"
 	r := &store.Resource{
 		Provider:       "aws",
@@ -196,7 +196,7 @@ func scanGlueIdentityCenter(ctx context.Context, client glueAPI, acct *account, 
 		}
 		return 0, 0, fmt.Errorf("glue:GetGlueIdentityCenterConfiguration: %w", err)
 	}
-	arn := fmt.Sprintf("arn:aws:glue:%s:%s:identity-center-configuration", region, acct.ID)
+	arn := arnFor(acct.partition(), "glue", region, acct.ID, "identity-center-configuration")
 	name := "identity-center-configuration"
 	r := &store.Resource{
 		Provider:       "aws",
@@ -239,7 +239,7 @@ func scanGlueSecurityConfigurations(ctx context.Context, client glueAPI, acct *a
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeGlueSecurityConfiguration,
-				NativeID:       glueResourceARN(region, acct.ID, "securityConfiguration", name),
+				NativeID:       glueResourceARN(acct.partition(), region, acct.ID, "securityConfiguration", name),
 				Name:           &n,
 				Region:         &region,
 				AttributesJSON: mustJSON(s),

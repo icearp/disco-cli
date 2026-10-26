@@ -9,6 +9,12 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
+// b2biARN builds arn:{p}:b2bi:{region}:{acct}:{kind}/{id}. The list ops return
+// ids only; the scanner keys rows with it and the resolver rebuilds targets.
+func b2biARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "b2bi", region, acct, kind+"/"+id)
+}
+
 func init() {
 	registerType(restype.Descriptor{Type: TypeB2BICapability, Service: "b2bi"})
 	registerType(restype.Descriptor{Type: TypeB2BIPartnership, Service: "b2bi"})
@@ -86,7 +92,7 @@ func scanB2BICapabilities(ctx context.Context, client b2biAPI, acct *account, re
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:b2bi:%s:%s:capability/%s", region, acct.ID, id)
+			arn := b2biARN(acct.partition(), region, acct.ID, "capability", id)
 			// Enrich with GetCapability body — InstructionsDocuments[].BucketName
 			// (S3 source) is not on the list-summary shape. Fall back to summary
 			// on per-row failure.
@@ -130,7 +136,7 @@ func scanB2BIPartnerships(ctx context.Context, client b2biAPI, acct *account, re
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:b2bi:%s:%s:partnership/%s", region, acct.ID, id)
+			arn := b2biARN(acct.partition(), region, acct.ID, "partnership", id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeB2BIPartnership, NativeID: arn,
@@ -161,7 +167,7 @@ func scanB2BIProfiles(ctx context.Context, client b2biAPI, acct *account, region
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:b2bi:%s:%s:profile/%s", region, acct.ID, id)
+			arn := b2biARN(acct.partition(), region, acct.ID, "profile", id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeB2BIProfile, NativeID: arn,
@@ -192,7 +198,7 @@ func scanB2BITransformers(ctx context.Context, client b2biAPI, acct *account, re
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:b2bi:%s:%s:transformer/%s", region, acct.ID, id)
+			arn := b2biARN(acct.partition(), region, acct.ID, "transformer", id)
 			status := string(t.Status)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

@@ -10,7 +10,7 @@ func TestResolveGlueUserDefinedFunctionRelationships(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
-	dbARN := glueDatabaseARN(region, acct.ID, "mydb")
+	dbARN := glueDatabaseARN("aws", region, acct.ID, "mydb")
 	dbID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueDatabase, dbARN, region, "{}")
 	udfID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueUserDefinedFunction, dbARN+"/function/fn1", region, `{"FunctionName":"fn1"}`)
 	if err := resolveGlueUserDefinedFunctionRelationships(acct, st); err != nil {
@@ -24,7 +24,7 @@ func TestResolveGlueUserDefinedFunctionRelationships_NoParent(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
-	dbARN := glueDatabaseARN(region, acct.ID, "absent")
+	dbARN := glueDatabaseARN("aws", region, acct.ID, "absent")
 	udfID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueUserDefinedFunction, dbARN+"/function/fn1", region, "{}")
 	if err := resolveGlueUserDefinedFunctionRelationships(acct, st); err != nil {
 		t.Fatalf("no-parent: %v", err)

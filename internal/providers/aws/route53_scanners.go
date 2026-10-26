@@ -29,6 +29,13 @@ type route53API interface {
 	ListTrafficPolicyInstances(context.Context, *route53.ListTrafficPolicyInstancesInput, ...func(*route53.Options)) (*route53.ListTrafficPolicyInstancesOutput, error)
 }
 
+// route53ARN builds arn:{p}:route53:::{resource}. Route 53 list ops return
+// bare ids, so the scanner keys every row with it and the resolvers rebuild
+// zones, traffic policies and health checks from the ids other rows carry.
+func route53ARN(partition, resource string) string {
+	return arnFor(partition, "route53", "", "", resource)
+}
+
 func init() {
 	registerType(restype.Descriptor{Type: TypeRoute53HostedZone, Service: "route53"})
 	registerType(restype.Descriptor{Type: TypeRoute53RecordSet, Service: "route53"})
@@ -55,7 +62,7 @@ func init() {
 // ListHostedZones pass and reused by per-zone sub-scanners.
 type route53ZoneSummary struct {
 	id   string // bare ID, e.g. "Z1234567890" (stripped of "/hostedzone/" prefix)
-	arn  string // arn:aws:route53:::hostedzone/<id>
+	arn  string // arn:{p}:route53:::hostedzone/<id>
 	zone route53types.HostedZone
 }
 
@@ -86,7 +93,7 @@ func scanRoute53(ctx context.Context, acct *account, st *store.Store, scanID str
 		}
 		for _, z := range page.HostedZones {
 			bareID := strings.TrimPrefix(sv(z.Id), "/hostedzone/")
-			arn := fmt.Sprintf("arn:aws:route53:::hostedzone/%s", bareID)
+			arn := route53ARN(acct.partition(), "hostedzone/"+bareID)
 			zones = append(zones, route53ZoneSummary{id: bareID, arn: arn, zone: z})
 		}
 	}
@@ -223,7 +230,7 @@ func scanRoute53DelegationSets(ctx context.Context, client route53API, acct *acc
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:route53:::delegationset/%s", id)
+			arn := route53ARN(acct.partition(), "delegationset/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -258,7 +265,7 @@ func scanRoute53QueryLoggingConfigs(ctx context.Context, client route53API, acct
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:route53:::queryloggingconfig/%s", id)
+			arn := route53ARN(acct.partition(), "queryloggingconfig/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -289,7 +296,7 @@ func scanRoute53TrafficPolicies(ctx context.Context, client route53API, acct *ac
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:route53:::trafficpolicy/%s", id)
+			arn := route53ARN(acct.partition(), "trafficpolicy/"+id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Region: regionGlobal, Type: TypeRoute53TrafficPolicy, NativeID: arn,
@@ -328,7 +335,7 @@ func scanRoute53TrafficPolicyInstances(ctx context.Context, client route53API, a
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:route53:::trafficpolicyinstance/%s", id)
+			arn := route53ARN(acct.partition(), "trafficpolicyinstance/"+id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Region: regionGlobal, Type: TypeRoute53TrafficPolicyInstance, NativeID: arn,
@@ -732,7 +739,7 @@ func scanRoute53HealthChecks(
 	// Upsert health checks.
 	var batch []*store.Resource
 	for _, cs := range checks {
-		nativeID := fmt.Sprintf("arn:aws:route53:::healthcheck/%s", cs.id)
+		nativeID := route53ARN(acct.partition(), "healthcheck/"+cs.id)
 		batch = append(batch, &store.Resource{
 			Provider:       "aws",
 			AccountID:      acct.ID,

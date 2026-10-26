@@ -65,7 +65,7 @@ func init() {
 }
 
 // connectInstanceIDFromARN extracts the instance ID from a Connect resource
-// ARN of shape `arn:aws:connect:{r}:{a}:instance/{instId}/<kind>/<id>`.
+// ARN of shape `arn:{p}:connect:{r}:{a}:instance/{instId}/<kind>/<id>`.
 // Returns "" for non-instance-nested ARNs (e.g. account-level PhoneNumber).
 func connectInstanceIDFromARN(arn string) string {
 	const prefix = "instance/"
@@ -101,9 +101,9 @@ func connectInstanceChildARN(parentARN, kind, childID string) string {
 
 // connectAccountResourceARN builds an account-scoped (non-instance-nested)
 // Connect resource ARN. PhoneNumber is the canonical case:
-// `arn:aws:connect:{r}:{a}:phone-number/{id}`.
-func connectAccountResourceARN(region, acctID, kind, id string) string {
-	return fmt.Sprintf("arn:aws:connect:%s:%s:%s/%s", region, acctID, kind, id)
+// `arn:{p}:connect:{r}:{a}:phone-number/{id}`.
+func connectAccountResourceARN(partition, region, acctID, kind, id string) string {
+	return arnFor(partition, "connect", region, acctID, kind+"/"+id)
 }
 
 // resolveConnectQueueRefs walks each queue's HoursOfOperationID,
@@ -162,7 +162,7 @@ func resolveConnectQueueRefs(acct *account, st *store.Store) error {
 		}
 		// PhoneNumber is account-scoped, not instance-nested.
 		if id := sv(attrs.Queue.OutboundCallerConfig.OutboundCallerIDNumberID); id != "" {
-			tgtARN := connectAccountResourceARN(region, acct.ID, "phone-number", id)
+			tgtARN := connectAccountResourceARN(acct.partition(), region, acct.ID, "phone-number", id)
 			tgtID := store.ResourceID("aws", acct.ID, tgtARN)
 			if phoneSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelUses, "directed", nil); err != nil {

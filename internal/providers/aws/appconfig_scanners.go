@@ -39,18 +39,9 @@ type appconfigAPI interface {
 	ListHostedConfigurationVersions(context.Context, *appconfig.ListHostedConfigurationVersionsInput, ...func(*appconfig.Options)) (*appconfig.ListHostedConfigurationVersionsOutput, error)
 }
 
-func acARN(region, acct string, segs ...string) string {
-	s := fmt.Sprintf("arn:aws:appconfig:%s:%s", region, acct)
-	for _, seg := range segs {
-		s += "/" + seg
-	}
-	// Replace first '/' separator with ':' to match AWS appconfig ARN format.
-	for i := len(fmt.Sprintf("arn:aws:appconfig:%s:%s", region, acct)); i < len(s); i++ {
-		if s[i] == '/' {
-			return s[:i] + ":" + s[i+1:]
-		}
-	}
-	return s
+// acARN builds arn:{p}:appconfig:{region}:{acct}:{seg1}/{seg2}/….
+func acARN(partition, region, acct string, segs ...string) string {
+	return arnFor(partition, "appconfig", region, acct, strings.Join(segs, "/"))
 }
 
 type acAppRef struct {
@@ -155,7 +146,7 @@ func scanACApplications(ctx context.Context, client appconfigAPI, acct *account,
 			if id == "" {
 				continue
 			}
-			arn := acARN(region, acct.ID, "application", id)
+			arn := acARN(acct.partition(), region, acct.ID, "application", id)
 			label := sv(a.Name)
 			if label == "" {
 				label = id
@@ -321,7 +312,7 @@ func scanACDeploymentStrategies(ctx context.Context, client appconfigAPI, acct *
 			if id == "" {
 				continue
 			}
-			arn := acARN(region, acct.ID, "deploymentstrategy", id)
+			arn := acARN(acct.partition(), region, acct.ID, "deploymentstrategy", id)
 			label := sv(d.Name)
 			if label == "" {
 				label = id
@@ -392,7 +383,7 @@ func scanACExtensionAssociations(ctx context.Context, client appconfigAPI, acct 
 			if id == "" {
 				continue
 			}
-			arn := acARN(region, acct.ID, "extensionassociation", id)
+			arn := acARN(acct.partition(), region, acct.ID, "extensionassociation", id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -443,7 +434,7 @@ func scanACExperimentDefinitions(ctx context.Context, client appconfigAPI, acct 
 			if appID == "" || id == "" {
 				continue
 			}
-			arn := acARN(region, acct.ID, "application", appID, "experimentdefinition", id)
+			arn := acARN(acct.partition(), region, acct.ID, "application", appID, "experimentdefinition", id)
 			label := sv(d.Name)
 			if label == "" {
 				label = id

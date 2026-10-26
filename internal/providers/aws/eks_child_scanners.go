@@ -28,8 +28,8 @@ func isEKSNotFound(err error) bool { return isAPIErrorCode(err, "ResourceNotFoun
 // suffix. Within the type the id stays unique because a cluster name holds no
 // "/" and an access-policy ARN holds exactly one, so the parts split back apart
 // from the right.
-func eksAssociatedAccessPolicyNativeID(region, acct string, entry eksAccessEntryRef, policyARN string) string {
-	return eksChildARN(region, acct, "associated-access-policy", entry.cluster, entry.principalARN+"/"+policyARN)
+func eksAssociatedAccessPolicyNativeID(partition, region, acct string, entry eksAccessEntryRef, policyARN string) string {
+	return eksChildARN(partition, region, acct, "associated-access-policy", entry.cluster, entry.principalARN+"/"+policyARN)
 }
 
 // scanEKSAssociatedAccessPolicies lists the access policies associated with
@@ -66,7 +66,7 @@ func listEKSAssociatedAccessPolicies(ctx context.Context, client eksChildAPI, ac
 			rows = append(rows, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeEKSAssociatedAccessPolicy,
-				NativeID: eksAssociatedAccessPolicyNativeID(region, acct.ID, entry, policyARN),
+				NativeID: eksAssociatedAccessPolicyNativeID(acct.partition(), region, acct.ID, entry, policyARN),
 				Name:     p.PolicyArn, Region: &region, CreatedAt: tp(p.AssociatedAt),
 				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 			})
@@ -114,7 +114,7 @@ func listEKSCertificateAuthorities(ctx context.Context, client eksChildAPI, acct
 			rows = append(rows, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeEKSCertificateAuthority,
-				NativeID: eksChildARN(region, acct.ID, "certificate-authority", cluster, id),
+				NativeID: eksChildARN(acct.partition(), region, acct.ID, "certificate-authority", cluster, id),
 				Name:     &id, Region: &region, CreatedAt: tp(ca.CreatedAt), Status: nonEmptyPtr(string(ca.SigningStatus)),
 				AttributesJSON: mustJSON(ca), DiscoveredBy: scanID,
 			})

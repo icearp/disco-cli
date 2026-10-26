@@ -81,7 +81,7 @@ func scanSHOrgConfig(ctx context.Context, client securityhubAPI, acct *account, 
 		}
 		return 0, 0, fmt.Errorf("securityhub:DescribeOrganizationConfiguration: %w", err)
 	}
-	arn := fmt.Sprintf("arn:aws:securityhub:%s:%s:organization-configuration", region, acct.ID)
+	arn := arnFor(acct.partition(), "securityhub", region, acct.ID, "organization-configuration")
 	name := "organization-configuration"
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -300,7 +300,7 @@ func scanSHPolicyAssociations(ctx context.Context, client securityhubAPI, acct *
 			if policy == "" || target == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:securityhub:%s:%s:policy-association/%s/%s/%s", region, acct.ID, policy, string(a.TargetType), target)
+			arn := arnFor(acct.partition(), "securityhub", region, acct.ID, "policy-association/"+policy+"/"+string(a.TargetType)+"/"+target)
 			label := string(a.TargetType) + ":" + target
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -334,7 +334,7 @@ func scanSHSecurityControls(ctx context.Context, client securityhubAPI, acct *ac
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:securityhub:%s::security-control/%s", region, id)
+			arn := arnFor(acct.partition(), "securityhub", region, "", "security-control/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -353,7 +353,7 @@ func scanSHSecurityControls(ctx context.Context, client securityhubAPI, acct *ac
 
 // scanSHStandards — DescribeStandards returns the AWS-managed standards
 // catalogue. Mark ManagedByProvider=true. Every region lists a standard whose
-// ARN carries no region (arn:aws:securityhub:::ruleset/...) under the same
+// ARN carries no region (arn:{p}:securityhub:::ruleset/...) under the same
 // NativeID, so Region comes from the ARN and is left unset when it names none;
 // the scanned region would flip the row's Region to whichever region ran last.
 func scanSHStandards(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

@@ -36,8 +36,8 @@ func scanSESExtended(ctx context.Context, client sesv2API, acct *account, region
 	return total, inserted, nil
 }
 
-func sesARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:ses:%s:%s:%s/%s", region, acct, kind, id)
+func sesARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "ses", region, acct, kind+"/"+id)
 }
 
 func scanSESContactLists(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -60,7 +60,7 @@ func scanSESContactLists(ctx context.Context, client sesv2API, acct *account, re
 			n := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESContactList, NativeID: sesARN(region, acct.ID, "contact-list", name),
+				Type: TypeSESContactList, NativeID: sesARN(acct.partition(), region, acct.ID, "contact-list", name),
 				Name: &n, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
 		}
@@ -95,7 +95,7 @@ func scanSESCustomVerificationTemplates(ctx context.Context, client sesv2API, ac
 			n := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESCustomVerificationEmailTemplate, NativeID: sesARN(region, acct.ID, "custom-verification-email-template", name),
+				Type: TypeSESCustomVerificationEmailTemplate, NativeID: sesARN(acct.partition(), region, acct.ID, "custom-verification-email-template", name),
 				Name: &n, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
 			})
 		}
@@ -131,7 +131,7 @@ func scanSESDedicatedIPPools(ctx context.Context, client sesv2API, acct *account
 			n := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESDedicatedIPPool, NativeID: sesARN(region, acct.ID, "dedicated-ip-pool", name),
+				Type: TypeSESDedicatedIPPool, NativeID: sesARN(acct.partition(), region, acct.ID, "dedicated-ip-pool", name),
 				Name: &n, Region: &region, AttributesJSON: mustJSON(map[string]string{"PoolName": name}), DiscoveredBy: scanID,
 			})
 		}
@@ -169,7 +169,7 @@ func scanSESMultiRegionEndpoints(ctx context.Context, client sesv2API, acct *acc
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESMultiRegionEndpoint, NativeID: sesARN(region, acct.ID, "multi-region-endpoint", id),
+				Type: TypeSESMultiRegionEndpoint, NativeID: sesARN(acct.partition(), region, acct.ID, "multi-region-endpoint", id),
 				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			})
 		}
@@ -204,7 +204,7 @@ func scanSESTemplates(ctx context.Context, client sesv2API, acct *account, regio
 			n := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESTemplate, NativeID: sesARN(region, acct.ID, "template", name),
+				Type: TypeSESTemplate, NativeID: sesARN(acct.partition(), region, acct.ID, "template", name),
 				Name: &n, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
 			})
 		}
@@ -270,7 +270,7 @@ func scanSESVdmAttributes(ctx context.Context, client sesv2API, acct *account, r
 	if out.VdmAttributes == nil {
 		return 0, 0, nil
 	}
-	arn := fmt.Sprintf("arn:aws:ses:%s:%s:vdm-attributes", region, acct.ID)
+	arn := arnFor(acct.partition(), "ses", region, acct.ID, "vdm-attributes")
 	name := "vdm-attributes"
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -318,7 +318,7 @@ func scanSESEventDestinations(ctx context.Context, client sesv2API, acct *accoun
 			if edName == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:ses:%s:%s:configuration-set/%s/event-destination/%s", region, acct.ID, sname, edName)
+			arn := sesConfigurationSetARN(acct.partition(), region, acct.ID, sname) + "/event-destination/" + edName
 			label := edName
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

@@ -275,7 +275,7 @@ func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client s3co
 	for _, m := range mraps {
 		name := sv(m.Name)
 		// MRAPs have no native ARN in the list output; construct a stable one.
-		arn := fmt.Sprintf("arn:aws:s3::%s:accesspoint/%s", acct.ID, name)
+		arn := arnFor(acct.partition(), "s3", "", acct.ID, "accesspoint/"+name)
 		batch = append(batch, &store.Resource{
 			Provider:       "aws",
 			AccountID:      acct.ID,
@@ -331,7 +331,7 @@ func scanMRAPPolicies(ctx context.Context, acct *account, client s3controlAPI, m
 			if out.Policy == nil {
 				return nil // no policy attached
 			}
-			policyARN := fmt.Sprintf("arn:aws:s3::%s:accesspoint/%s/policy", acct.ID, name)
+			policyARN := arnFor(acct.partition(), "s3", "", acct.ID, "accesspoint/"+name+"/policy")
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,

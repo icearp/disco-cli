@@ -104,7 +104,7 @@ func resolveB2BIPartnershipRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if pid := sv(attrs.ProfileID); pid != "" {
-			pARN := fmt.Sprintf("arn:aws:b2bi:%s:%s:profile/%s", region, acct.ID, pid)
+			pARN := b2biARN(acct.partition(), region, acct.ID, "profile", pid)
 			tgt := store.ResourceID("aws", acct.ID, pARN)
 			if profSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
@@ -116,7 +116,7 @@ func resolveB2BIPartnershipRefs(acct *account, st *store.Store) error {
 			if cid == "" {
 				continue
 			}
-			cARN := fmt.Sprintf("arn:aws:b2bi:%s:%s:capability/%s", region, acct.ID, cid)
+			cARN := b2biARN(acct.partition(), region, acct.ID, "capability", cid)
 			tgt := store.ResourceID("aws", acct.ID, cARN)
 			if !capSet[tgt] {
 				continue

@@ -32,8 +32,8 @@ func init() {
 	)
 }
 
-func s3filesFSARN(region, acct, fsID string) string {
-	return fmt.Sprintf("arn:aws:s3files:%s:%s:file-system/%s", region, acct, fsID)
+func s3filesFSARN(partition, region, acct, fsID string) string {
+	return arnFor(partition, "s3files", region, acct, "file-system/"+fsID)
 }
 
 func resolveS3FilesFileSystemRefs(acct *account, st *store.Store) error {
@@ -114,7 +114,7 @@ func s3filesChildToFS(acct *account, st *store.Store, ttyp string) error {
 		if fid == "" {
 			continue
 		}
-		fsARN := s3filesFSARN(sv(r.Region), acct.ID, fid)
+		fsARN := s3filesFSARN(acct.partition(), sv(r.Region), acct.ID, fid)
 		tgt := store.ResourceID("aws", acct.ID, fsARN)
 		if !fsSet[tgt] {
 			continue

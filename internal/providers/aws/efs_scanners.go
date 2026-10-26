@@ -130,8 +130,7 @@ func scanEFSFileSystemsAndChildren(ctx context.Context, client efsAPI, acct *acc
 				for i := range page.MountTargets {
 					mt := page.MountTargets[i]
 					// EFS mount targets have no native ARN; synthesise one.
-					nativeID := arnFor(acct.partition(), "elasticfilesystem", region, acct.ID,
-						"file-system/"+fsID+"/mount-target/"+sv(mt.MountTargetId))
+					nativeID := efsFileSystemARN(acct.partition(), region, acct.ID, fsID) + "/mount-target/" + sv(mt.MountTargetId)
 					status := string(mt.LifeCycleState)
 					r := &store.Resource{
 						Provider:       "aws",

@@ -53,7 +53,7 @@ func resolveSageMakerExperimentTrial(acct *account, st *store.Store) error {
 			continue
 		}
 		expID := store.ResourceID("aws", acct.ID,
-			sagemakerARN(sv(r.Region), acct.ID, "experiment", name))
+			sagemakerARN(acct.partition(), sv(r.Region), acct.ID, "experiment", name))
 
 		if !expSet[expID] {
 			continue
@@ -88,7 +88,7 @@ func resolveSageMakerHubContent(acct *account, st *store.Store) error {
 			continue
 		}
 		hubID := store.ResourceID("aws", acct.ID,
-			sagemakerARN(sv(r.Region), acct.ID, "hub", name))
+			sagemakerARN(acct.partition(), sv(r.Region), acct.ID, "hub", name))
 
 		if !hubSet[hubID] {
 			continue
@@ -169,7 +169,7 @@ func resolveSageMakerEdgeDeploymentPlan(acct *account, st *store.Store) error {
 			continue
 		}
 		fleetID := store.ResourceID("aws", acct.ID,
-			sagemakerARN(sv(r.Region), acct.ID, "device-fleet", name))
+			sagemakerARN(acct.partition(), sv(r.Region), acct.ID, "device-fleet", name))
 
 		if !fleetSet[fleetID] {
 			continue

@@ -16,7 +16,7 @@ func TestResolveApplicationSignalsRelationships_NoEdges(t *testing.T) {
 	sloARN := "arn:aws:application-signals:us-east-1:123456789012:slo/example"
 	sloID := upsertTestResource(t, st, "aws", acct.ID, TypeApplicationSignalsSLO, sloARN, region, "{}")
 
-	gcNative := applicationSignalsGroupingConfigurationNativeID(region, acct.ID)
+	gcNative := applicationSignalsGroupingConfigurationNativeID("aws", region, acct.ID)
 	gcID := upsertTestResource(t, st, "aws", acct.ID, TypeApplicationSignalsGroupingConfiguration, gcNative, region, `{"GroupingAttributeDefinitions":[{"GroupingName":"BU"}]}`)
 
 	if err := resolveApplicationSignalsRelationships(acct, st); err != nil {

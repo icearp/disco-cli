@@ -272,23 +272,19 @@ func glueNamedRow(acct *account, region, scanID, typ, kind, what, name, key stri
 	if name == "" {
 		return nil, what + " have an empty name", cmp.Or(key, "(an item with no id)")
 	}
-	return glueRow(acct, region, scanID, typ, glueResourceARN(region, acct.ID, kind, name), name, item), "", ""
+	return glueRow(acct, region, scanID, typ, glueResourceARN(acct.partition(), region, acct.ID, kind, name), name, item), "", ""
 }
 
-// glueResourceARN builds the ARN in the commercial partition only: account
-// carries no partition, and every AWS scanner hardcodes arn:aws, so in aws-cn
-// and aws-us-gov the NativeID is not the resource's ARN and GetTags fails
-// for each row. Fixing it is a package-wide change, not a Glue one.
-func glueResourceARN(region, accountID, kind, id string) string {
-	return fmt.Sprintf("arn:aws:glue:%s:%s:%s/%s", region, accountID, kind, id)
+func glueResourceARN(partition, region, accountID, kind, id string) string {
+	return arnFor(partition, "glue", region, accountID, kind+"/"+id)
 }
 
-func glueDatabaseARN(region, accountID, name string) string {
-	return fmt.Sprintf("arn:aws:glue:%s:%s:database/%s", region, accountID, name)
+func glueDatabaseARN(partition, region, accountID, name string) string {
+	return glueResourceARN(partition, region, accountID, "database", name)
 }
 
-func glueTableARN(region, accountID, dbName, tableName string) string {
-	return fmt.Sprintf("arn:aws:glue:%s:%s:table/%s/%s", region, accountID, dbName, tableName)
+func glueTableARN(partition, region, accountID, dbName, tableName string) string {
+	return glueResourceARN(partition, region, accountID, "table", dbName+"/"+tableName)
 }
 
 // scanGlueDatabases stores the account's databases with their tags and
@@ -309,7 +305,7 @@ func scanGlueDatabases(ctx context.Context, client glueAPI, acct *account, regio
 			if name == "" {
 				return nil, "databases have an empty name", cmp.Or(sv(d.CatalogId), "(a database with no catalog id)")
 			}
-			return glueRow(acct, region, scanID, TypeGlueDatabase, glueDatabaseARN(region, acct.ID, name), name, d), "", ""
+			return glueRow(acct, region, scanID, TypeGlueDatabase, glueDatabaseARN(acct.partition(), region, acct.ID, name), name, d), "", ""
 		},
 		func(d gluetypes.Database) string { return sv(d.Name) },
 		tags, p)
@@ -341,7 +337,7 @@ func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region s
 		g.Go(func() error {
 			defer sem.Release(1)
 			pager := glue.NewGetTablesPaginator(client, &glue.GetTablesInput{DatabaseName: &dbName})
-			parentID := store.ResourceID("aws", acct.ID, glueDatabaseARN(region, acct.ID, dbName))
+			parentID := store.ResourceID("aws", acct.ID, glueDatabaseARN(acct.partition(), region, acct.ID, dbName))
 			for pager.HasMorePages() {
 				out, perr := pager.NextPage(gctx)
 				if perr != nil {
@@ -355,7 +351,7 @@ func scanGlueTables(ctx context.Context, client glueAPI, acct *account, region s
 					if name == "" {
 						continue
 					}
-					arn := glueTableARN(region, acct.ID, dbName, name)
+					arn := glueTableARN(acct.partition(), region, acct.ID, dbName, name)
 					r := &store.Resource{
 						Provider:       "aws",
 						AccountID:      acct.ID,

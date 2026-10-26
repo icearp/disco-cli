@@ -74,7 +74,7 @@ func resolveFMSPolicyResourceSets(acct *account, st *store.Store) error {
 			continue
 		}
 		for _, id := range attrs.ResourceSetIDs {
-			to := store.ResourceID("aws", acct.ID, fmsResourceSetARN(sv(p.Region), acct.ID, id))
+			to := store.ResourceID("aws", acct.ID, fmsResourceSetARN(acct.partition(), sv(p.Region), acct.ID, id))
 			if _, ok := sets[to]; !ok {
 				continue
 			}

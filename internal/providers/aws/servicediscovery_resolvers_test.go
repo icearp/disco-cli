@@ -12,7 +12,7 @@ func TestResolveServiceDiscoveryServiceNamespace(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 
 	nsID := "ns-abc"
-	nsARN := sdNamespaceARN(testRegion, acct.ID, nsID)
+	nsARN := sdNamespaceARN("aws", testRegion, acct.ID, nsID)
 	nsRowID := upsertTestResource(t, st, "aws", acct.ID, TypeServiceDiscoveryPrivateDNSNamespace, nsARN, testRegion, "{}")
 
 	svcARN := fmt.Sprintf("arn:aws:servicediscovery:%s:%s:service/srv-1", testRegion, acct.ID)
@@ -33,7 +33,7 @@ func TestResolveServiceDiscoveryNamespaceHostedZone(t *testing.T) {
 	zoneARN := "arn:aws:route53:::hostedzone/Z1234567890"
 	zoneID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53HostedZone, zoneARN, "", "{}")
 
-	nsARN := sdNamespaceARN(testRegion, acct.ID, "ns-abc")
+	nsARN := sdNamespaceARN("aws", testRegion, acct.ID, "ns-abc")
 	nsAttrs := `{"Properties":{"DnsProperties":{"HostedZoneId":"Z1234567890"}}}`
 	nsRowID := upsertTestResource(t, st, "aws", acct.ID, TypeServiceDiscoveryPrivateDNSNamespace, nsARN, testRegion, nsAttrs)
 

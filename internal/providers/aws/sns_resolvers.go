@@ -3,7 +3,6 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
@@ -55,19 +54,6 @@ func resolveSNSTopicRelationships(acct *account, st *store.Store) error {
 		}
 	}
 	return nil
-}
-
-// kmsKeyTargetARN normalizes a KMS key reference (key ID, alias, or ARN) to a
-// full key ARN matching a scanned KMS key's NativeID. Aliases and bare key
-// IDs are assumed to live in the caller's account and region.
-func kmsKeyTargetARN(ref, region, acct string) string {
-	if strings.HasPrefix(ref, "arn:") {
-		return ref
-	}
-	if strings.HasPrefix(ref, "alias/") {
-		return fmt.Sprintf("arn:aws:kms:%s:%s:%s", region, acct, ref)
-	}
-	return fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, acct, ref)
 }
 
 // redrivePolicyDLQ extracts deadLetterTargetArn from a RedrivePolicy JSON string.

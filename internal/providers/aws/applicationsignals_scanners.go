@@ -46,7 +46,7 @@ type applicationSignalsService struct{ name, environment, nativeID string }
 // Application Signals service. The SDK exposes no ARN — identity is the
 // required KeyAttributes map (Type/Name/Environment/…). Sorting into "k=v"
 // pairs keeps the NativeID stable regardless of Go's map-iteration order.
-func applicationSignalsServiceNativeID(region, acct string, keyAttrs map[string]string) string {
+func applicationSignalsServiceNativeID(partition, region, acct string, keyAttrs map[string]string) string {
 	keys := make([]string, 0, len(keyAttrs))
 	for k := range keyAttrs {
 		keys = append(keys, k)
@@ -56,14 +56,14 @@ func applicationSignalsServiceNativeID(region, acct string, keyAttrs map[string]
 	for _, k := range keys {
 		pairs = append(pairs, k+"="+keyAttrs[k])
 	}
-	return fmt.Sprintf("arn:aws:application-signals:%s:%s:service/%s", region, acct, strings.Join(pairs, ";"))
+	return arnFor(partition, "application-signals", region, acct, "service/"+strings.Join(pairs, ";"))
 }
 
 // applicationSignalsGroupingConfigurationNativeID synthesizes the singleton
 // per-(account, region) NativeID for the grouping configuration. The SDK
 // exposes no ARN; body enumerated via ListGroupingAttributeDefinitions.
-func applicationSignalsGroupingConfigurationNativeID(region, acct string) string {
-	return fmt.Sprintf("arn:aws:application-signals:%s:%s:grouping-configuration", region, acct)
+func applicationSignalsGroupingConfigurationNativeID(partition, region, acct string) string {
+	return arnFor(partition, "application-signals", region, acct, "grouping-configuration")
 }
 
 // scanApplicationSignals runs the SLO, grouping-configuration and services
@@ -117,7 +117,7 @@ func scanApplicationSignalsServices(ctx context.Context, client applicationSigna
 				continue
 			}
 			name := s.KeyAttributes["Name"]
-			nativeID := applicationSignalsServiceNativeID(region, acct.ID, s.KeyAttributes)
+			nativeID := applicationSignalsServiceNativeID(acct.partition(), region, acct.ID, s.KeyAttributes)
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -305,7 +305,7 @@ func scanApplicationSignalsGroupingConfiguration(ctx context.Context, client app
 	if len(agg.GroupingAttributeDefinitions) == 0 && agg.UpdatedAt == nil {
 		return 0, 0, nil
 	}
-	nativeID := applicationSignalsGroupingConfigurationNativeID(region, acct.ID)
+	nativeID := applicationSignalsGroupingConfigurationNativeID(acct.partition(), region, acct.ID)
 	name := "grouping-configuration"
 	r := &store.Resource{
 		Provider:       "aws",

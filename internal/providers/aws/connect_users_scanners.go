@@ -125,7 +125,7 @@ func scanConnectUserHierarchyGroups(ctx context.Context, client connectUsersAPI,
 
 // scanConnectUserHierarchyStructures emits one row per instance: a
 // singleton describing the agent-hierarchy config. NativeID synthesized
-// as arn:aws:connect:{region}:{acct}:instance/{instID}/agent-hierarchy.
+// as arn:{p}:connect:{region}:{acct}:instance/{instID}/agent-hierarchy.
 func scanConnectUserHierarchyStructures(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	for _, inst := range instances {
@@ -143,7 +143,7 @@ func scanConnectUserHierarchyStructures(ctx context.Context, client connectUsers
 		if out.HierarchyStructure == nil {
 			continue
 		}
-		arn := fmt.Sprintf("arn:aws:connect:%s:%s:instance/%s/agent-hierarchy", region, acct.ID, instID)
+		arn := arnFor(acct.partition(), "connect", region, acct.ID, "instance/"+instID+"/agent-hierarchy")
 		name := "agent-hierarchy"
 		batch = append(batch, &store.Resource{
 			Provider:       "aws",
@@ -204,7 +204,7 @@ func scanConnectSecurityProfiles(ctx context.Context, client connectUsersAPI, in
 
 // scanConnectPredefinedAttributes — PredefinedAttribute lacks an SDK ARN
 // field; synthesize as
-// arn:aws:connect:{region}:{acct}:instance/{instID}/predefined-attribute/{name}.
+// arn:{p}:connect:{region}:{acct}:instance/{instID}/predefined-attribute/{name}.
 func scanConnectPredefinedAttributes(ctx context.Context, client connectUsersAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	parents := make([]connectListed[cttypes.InstanceSummary], 0, len(instances))
 	for _, inst := range instances {
@@ -225,7 +225,7 @@ func scanConnectPredefinedAttributes(ctx context.Context, client connectUsersAPI
 			if name == "" {
 				return "", ""
 			}
-			return name, fmt.Sprintf("arn:aws:connect:%s:%s:instance/%s/predefined-attribute/%s", region, acct.ID, instID, name)
+			return name, arnFor(acct.partition(), "connect", region, acct.ID, "instance/"+instID+"/predefined-attribute/"+name)
 		})
 	type attrSummary = connectChild[cttypes.PredefinedAttributeSummary]
 	return connectDescribe[attrSummary]{

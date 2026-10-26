@@ -16,7 +16,7 @@ func TestResolveCodeCommitTemplateRepos_LinksScannedRepositories(t *testing.T) {
 	})
 	tID := upsertTestResource(t, st, "aws", acct.ID, TypeCodeCommitApprovalRuleTemplate, ccTemplateARN("id-t-1"), testRegion, attrs)
 	rID := upsertTestResource(t, st, "aws", acct.ID, TypeCodeCommitRepository, ccRepoARN("repo-a"), testRegion, "{}")
-	otherRegion := upsertTestResource(t, st, "aws", acct.ID, TypeCodeCommitRepository, codeCommitRepoARN("us-west-2", acct.ID, "repo-unscanned"), "us-west-2", "{}")
+	otherRegion := upsertTestResource(t, st, "aws", acct.ID, TypeCodeCommitRepository, codeCommitRepoARN("aws", "us-west-2", acct.ID, "repo-unscanned"), "us-west-2", "{}")
 
 	if err := resolveCodeCommitTemplateRepos(acct, st); err != nil {
 		t.Fatalf("resolveCodeCommitTemplateRepos: %v", err)

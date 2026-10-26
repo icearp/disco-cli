@@ -52,7 +52,7 @@ func scanIoTLoggingOptions(ctx context.Context, client iotLoggingAPI, acct *acco
 		}
 		return 0, 0, fmt.Errorf("iot:GetV2LoggingOptions: %w", err)
 	}
-	arn := fmt.Sprintf("arn:aws:iot:%s:%s:logging", region, acct.ID)
+	arn := arnFor(acct.partition(), "iot", region, acct.ID, "logging")
 	name := "logging"
 	r := &store.Resource{
 		Provider:       "aws",
@@ -100,7 +100,7 @@ func scanIoTResourceSpecificLogging(ctx context.Context, client iotLoggingAPI, a
 			if tt == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:iot:%s:%s:resource-specific-logging/%s/%s", region, acct.ID, tt, tn)
+			arn := arnFor(acct.partition(), "iot", region, acct.ID, "resource-specific-logging/"+tt+"/"+tn)
 			label := fmt.Sprintf("%s:%s", tt, tn)
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
@@ -135,7 +135,7 @@ func scanIoTEncryptionConfiguration(ctx context.Context, client iotLoggingAPI, a
 		}
 		return 0, 0, fmt.Errorf("iot:DescribeEncryptionConfiguration: %w", err)
 	}
-	arn := fmt.Sprintf("arn:aws:iot:%s:%s:encryption-configuration", region, acct.ID)
+	arn := arnFor(acct.partition(), "iot", region, acct.ID, "encryption-configuration")
 	name := "encryption-configuration"
 	r := &store.Resource{
 		Provider:       "aws",

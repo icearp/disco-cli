@@ -78,7 +78,7 @@ func scanGuardDutyDetectors(ctx context.Context, client guarddutyAPI, acct *acco
 		memberBatch   []gdChildPair
 	)
 	for _, did := range detectorIDs {
-		dArn := guardDutyDetectorARN(region, acct.ID, did)
+		dArn := guardDutyDetectorARN(acct.partition(), region, acct.ID, did)
 		dr, derr := getGuardDutyDetector(ctx, client, acct, region, scanID, did, dArn)
 		if derr != nil {
 			return 0, 0, derr
@@ -130,8 +130,8 @@ func scanGuardDutyDetectors(ctx context.Context, client guarddutyAPI, acct *acco
 	return total, inserted, nil
 }
 
-func guardDutyDetectorARN(region, accountID, detectorID string) string {
-	return fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s", region, accountID, detectorID)
+func guardDutyDetectorARN(partition, region, accountID, detectorID string) string {
+	return arnFor(partition, "guardduty", region, accountID, "detector/"+detectorID)
 }
 
 func listGuardDutyDetectorIDs(ctx context.Context, client guarddutyAPI, acct *account, region string, st *store.Store) ([]string, error) {
@@ -192,7 +192,7 @@ func collectGuardDutyFilters(ctx context.Context, client guarddutyAPI, acct *acc
 			if err != nil {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s/filter/%s", region, acct.ID, did, name)
+			arn := arnFor(acct.partition(), "guardduty", region, acct.ID, "detector/"+did+"/filter/"+name)
 			out = append(out, gdChildPair{
 				r: &store.Resource{
 					Provider:       "aws",
@@ -215,7 +215,7 @@ func collectGuardDutyFilters(ctx context.Context, client guarddutyAPI, acct *acc
 // collectGuardDutyMembers walks ListMembers — only the master/admin detector
 // returns rows; non-master accounts get empty pages. Per-member NativeID:
 //
-//	arn:aws:guardduty:{r}:{a}:detector/{did}/member/{memberAcctId}
+//	arn:{p}:guardduty:{r}:{a}:detector/{did}/member/{memberAcctId}
 //
 // Resolver consumes Members to emit edges to the org account row.
 func collectGuardDutyMembers(ctx context.Context, client guarddutyAPI, acct *account, region, scanID, did, dArn string) ([]gdChildPair, error) {
@@ -233,7 +233,7 @@ func collectGuardDutyMembers(ctx context.Context, client guarddutyAPI, acct *acc
 			if m.AccountId == nil || *m.AccountId == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s/member/%s", region, acct.ID, did, *m.AccountId)
+			arn := arnFor(acct.partition(), "guardduty", region, acct.ID, "detector/"+did+"/member/"+*m.AccountId)
 			out = append(out, gdChildPair{
 				r: &store.Resource{
 					Provider:       "aws",
@@ -269,7 +269,7 @@ func collectGuardDutyIPSets(ctx context.Context, client guarddutyAPI, acct *acco
 			if err != nil {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/%s/ipset/%s", region, acct.ID, did, id)
+			arn := arnFor(acct.partition(), "guardduty", region, acct.ID, "detector/"+did+"/ipset/"+id)
 			out = append(out, gdChildPair{
 				r: &store.Resource{
 					Provider:       "aws",

@@ -10,7 +10,7 @@ import (
 func TestResolveEMRChildrenToCluster(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	clARN := emrARN(testRegion, acct.ID, "cluster", "j-ABC")
+	clARN := emrARN("aws", testRegion, acct.ID, "cluster", "j-ABC")
 	clID := upsertTestResource(t, st, "aws", acct.ID, TypeEMRCluster, clARN, testRegion, "{}")
 	stepARN := clARN + "/step/s-1"
 	stepID := upsertTestResource(t, st, "aws", acct.ID, TypeEMRStep, stepARN, testRegion, "{}")
@@ -31,7 +31,7 @@ func TestResolveEMRChildrenToCluster(t *testing.T) {
 func TestResolveEMRStudioSessionMappingToStudio(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	stARN := emrARN(testRegion, acct.ID, "studio", "es-1")
+	stARN := emrARN("aws", testRegion, acct.ID, "studio", "es-1")
 	stID := upsertTestResource(t, st, "aws", acct.ID, TypeEMRStudio, stARN, testRegion, "{}")
 	smARN := fmt.Sprintf("%s/identity/u-1", stARN)
 	smID := upsertTestResource(t, st, "aws", acct.ID, TypeEMRStudioSessionMapping, smARN, testRegion, "{}")
@@ -47,7 +47,7 @@ func TestResolveEMRStudioVPC(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vpcARN, testRegion, "{}")
-	stARN := emrARN(testRegion, acct.ID, "studio", "es-1")
+	stARN := emrARN("aws", testRegion, acct.ID, "studio", "es-1")
 	stID := upsertTestResource(t, st, "aws", acct.ID, TypeEMRStudio, stARN, testRegion, `{"VpcId":"vpc-1"}`)
 	if err := resolveEMRStudioVPC(acct, st); err != nil {
 		t.Fatalf("resolveEMRStudioVPC: %v", err)
@@ -60,7 +60,7 @@ func TestResolveEMRClusterRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	clARN := emrARN(testRegion, acct.ID, "cluster", "j-XYZ")
+	clARN := emrARN("aws", testRegion, acct.ID, "cluster", "j-XYZ")
 	roleARN := "arn:aws:iam::" + testAccountID + ":role/EMR_DefaultRole"
 	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-emr"
 	snARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")

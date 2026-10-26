@@ -53,7 +53,7 @@ func init() {
 }
 
 // appsyncAPIARNFromChild extracts the parent api ARN from a child resource's
-// NativeID of shape `arn:aws:appsync:r:a:apis/{apiID}/<kind>/<id>`.
+// NativeID of shape `arn:{p}:appsync:r:a:apis/{apiID}/<kind>/<id>`.
 func appsyncAPIARNFromChild(arn string) string {
 	const prefix = "apis/"
 	i := strings.Index(arn, prefix)
@@ -97,7 +97,7 @@ func appsyncCognitoPoolARN(apiNativeID, acctID, region, poolID string) (string, 
 	if err != nil {
 		return "", err
 	}
-	return "arn:" + partition + ":cognito-idp:" + region + ":" + acctID + ":userpool/" + poolID, nil
+	return cognitoUserPoolARN(partition, region, acctID, poolID), nil
 }
 
 // resolveAppSyncAPIChildren links each per-API sub-resource (api-key,

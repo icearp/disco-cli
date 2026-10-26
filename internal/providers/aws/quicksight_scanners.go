@@ -798,7 +798,7 @@ func scanQSAccountSettings(ctx context.Context, client quickSightAPI, acct *acco
 	if out.AccountSettings == nil {
 		return 0, 0, nil
 	}
-	arn := fmt.Sprintf("arn:aws:quicksight:%s:%s:account-settings", region, acct.ID)
+	arn := arnFor(acct.partition(), "quicksight", region, acct.ID, "account-settings")
 	label := sv(out.AccountSettings.AccountName)
 	if label == "" {
 		label = arn
@@ -833,7 +833,7 @@ func scanQSAccountCustomization(ctx context.Context, client quickSightAPI, acct 
 	if out.AccountCustomization == nil {
 		return false
 	}
-	arn := cmp.Or(sv(out.Arn), fmt.Sprintf("arn:aws:quicksight:%s:%s:account-customization", region, acct.ID))
+	arn := cmp.Or(sv(out.Arn), arnFor(acct.partition(), "quicksight", region, acct.ID, "account-customization"))
 	rows := []*store.Resource{{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeQuickSightCustomization, NativeID: arn,
@@ -1058,7 +1058,7 @@ func scanQSKeyRegistration(ctx context.Context, client quickSightAPI, acct *acco
 	if len(out.KeyRegistration) == 0 && !cmkDataKey {
 		return 0, 0, nil
 	}
-	arn := fmt.Sprintf("arn:aws:quicksight:%s:%s:key-registration", region, acct.ID)
+	arn := arnFor(acct.partition(), "quicksight", region, acct.ID, "key-registration")
 	label := arn
 	batch := []*store.Resource{{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

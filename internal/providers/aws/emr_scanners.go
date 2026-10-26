@@ -68,8 +68,8 @@ type emrAPI interface {
 	ListStudioSessionMappings(context.Context, *emr.ListStudioSessionMappingsInput, ...func(*emr.Options)) (*emr.ListStudioSessionMappingsOutput, error)
 }
 
-func emrARN(region, acct, kind, id string) string {
-	return fmt.Sprintf("arn:aws:elasticmapreduce:%s:%s:%s/%s", region, acct, kind, id)
+func emrARN(partition, region, acct, kind, id string) string {
+	return arnFor(partition, "elasticmapreduce", region, acct, kind+"/"+id)
 }
 
 func scanEMR(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -351,7 +351,7 @@ func scanEMRSecurityConfigs(ctx context.Context, client emrAPI, acct *account, r
 			if name == "" {
 				continue
 			}
-			arn := emrARN(region, acct.ID, "security-configuration", name)
+			arn := emrARN(acct.partition(), region, acct.ID, "security-configuration", name)
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -381,7 +381,7 @@ func scanEMRStudios(ctx context.Context, client emrAPI, acct *account, region st
 			if id == "" {
 				continue
 			}
-			arn := emrARN(region, acct.ID, "studio", id)
+			arn := emrARN(acct.partition(), region, acct.ID, "studio", id)
 			label := sv(s.Name)
 			if label == "" {
 				label = id
@@ -416,7 +416,7 @@ func scanEMRStudioSessionMappings(ctx context.Context, client emrAPI, acct *acco
 			if iid == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:elasticmapreduce:%s:%s:studio/%s/identity/%s", region, acct.ID, studioID, iid)
+			arn := arnFor(acct.partition(), "elasticmapreduce", region, acct.ID, "studio/"+studioID+"/identity/"+iid)
 			label := sv(sm.IdentityName)
 			if label == "" {
 				label = iid

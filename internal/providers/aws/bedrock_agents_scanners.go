@@ -32,7 +32,7 @@ func scanBedrockAgentList(ctx context.Context, client bedrockAgentAPI, acct *acc
 			if id == "" {
 				return nil, "agents have an empty AgentId", cmp.Or(sv(a.AgentName), "(an agent with no name)")
 			}
-			return bacRowAt(acct, region, scanID, TypeBedrockAgent, bedrockAgentARN(region, acct.ID, id), cmp.Or(sv(a.AgentName), id), a), "", ""
+			return bacRowAt(acct, region, scanID, TypeBedrockAgent, bedrockAgentARN(acct.partition(), region, acct.ID, id), cmp.Or(sv(a.AgentName), id), a), "", ""
 		},
 		func(a agenttypes.AgentSummary) string { return sv(a.AgentId) },
 		tags, p)
@@ -57,7 +57,7 @@ func scanBedrockAgentAliases(ctx context.Context, client bedrockAgentAPI, acct *
 			if id == "" {
 				return nil, "agent aliases have an empty AgentAliasId", cmp.Or(sv(al.AgentAliasName), "(an alias with no name)") + " of agent " + agent
 			}
-			return bacRowAt(acct, region, scanID, TypeBedrockAgentAlias, bedrockAgentAliasARN(region, acct.ID, agent, id), cmp.Or(sv(al.AgentAliasName), id), al), "", ""
+			return bacRowAt(acct, region, scanID, TypeBedrockAgentAlias, bedrockAgentAliasARN(acct.partition(), region, acct.ID, agent, id), cmp.Or(sv(al.AgentAliasName), id), al), "", ""
 		}, tags, p)
 	return failed
 }
@@ -99,7 +99,7 @@ func scanBedrockKnowledgeBases(ctx context.Context, client bedrockAgentAPI, acct
 			if id == "" {
 				return nil, "knowledge bases have an empty KnowledgeBaseId", cmp.Or(sv(k.Name), "(a knowledge base with no name)")
 			}
-			r := bacRowAt(acct, region, scanID, TypeBedrockKnowledgeBase, bedrockKBARN(region, acct.ID, id), cmp.Or(sv(k.Name), id), k)
+			r := bacRowAt(acct, region, scanID, TypeBedrockKnowledgeBase, bedrockKBARN(acct.partition(), region, acct.ID, id), cmp.Or(sv(k.Name), id), k)
 			ids[r] = id
 			// Filled by the concurrent Gets, each through its own pointer, so
 			// the map is only read while they run.
@@ -368,25 +368,20 @@ func bedrockPromptVersionARN(arn, ver string) string {
 	return arn + ":" + ver
 }
 
-// The ARN builders below use the commercial partition only: account carries
-// no partition, and every AWS scanner hardcodes arn:aws, so in aws-cn and
-// aws-us-gov these NativeIDs are not the resources' ARNs, and the tag reads
-// sent them fail. Fixing it is a package-wide change, not a Bedrock one.
-
-func bedrockAgentARN(region, acct, agentID string) string {
-	return fmt.Sprintf("arn:aws:bedrock:%s:%s:agent/%s", region, acct, agentID)
+func bedrockAgentARN(partition, region, acct, agentID string) string {
+	return arnFor(partition, "bedrock", region, acct, "agent/"+agentID)
 }
 
-func bedrockAgentAliasARN(region, acct, agentID, aliasID string) string {
-	return fmt.Sprintf("arn:aws:bedrock:%s:%s:agent-alias/%s/%s", region, acct, agentID, aliasID)
+func bedrockAgentAliasARN(partition, region, acct, agentID, aliasID string) string {
+	return arnFor(partition, "bedrock", region, acct, "agent-alias/"+agentID+"/"+aliasID)
 }
 
-func bedrockKBARN(region, acct, kbID string) string {
-	return fmt.Sprintf("arn:aws:bedrock:%s:%s:knowledge-base/%s", region, acct, kbID)
+func bedrockKBARN(partition, region, acct, kbID string) string {
+	return arnFor(partition, "bedrock", region, acct, "knowledge-base/"+kbID)
 }
 
-func bedrockDataSourceARN(region, acct, kbID, dsID string) string {
-	return fmt.Sprintf("arn:aws:bedrock:%s:%s:knowledge-base/%s/data-source/%s", region, acct, kbID, dsID)
+func bedrockDataSourceARN(partition, region, acct, kbID, dsID string) string {
+	return bedrockKBARN(partition, region, acct, kbID) + "/data-source/" + dsID
 }
 
 // scanBedrockDataSources lists the data sources of each knowledge base the
@@ -416,7 +411,7 @@ func scanBedrockDataSources(ctx context.Context, client bedrockAgentAPI, acct *a
 			if id == "" {
 				return nil, "data sources have an empty DataSourceId", cmp.Or(sv(d.Name), "(a data source with no name)") + " of knowledge base " + kb
 			}
-			r := bacRowAt(acct, region, scanID, TypeBedrockDataSource, bedrockDataSourceARN(region, acct.ID, kb, id), cmp.Or(sv(d.Name), id), d)
+			r := bacRowAt(acct, region, scanID, TypeBedrockDataSource, bedrockDataSourceARN(acct.partition(), region, acct.ID, kb, id), cmp.Or(sv(d.Name), id), d)
 			keys[r] = [2]string{kb, id}
 			return r, "", ""
 		})

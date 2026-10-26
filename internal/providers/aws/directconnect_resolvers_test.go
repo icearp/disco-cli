@@ -14,13 +14,13 @@ import (
 func TestResolveDXLagMembers_Interconnect(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	lagID := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectLag, dxLagARN(testRegion, acct.ID, "dxlag-aaa"), testRegion, "{}")
+	lagID := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectLag, dxLagARN("aws", testRegion, acct.ID, "dxlag-aaa"), testRegion, "{}")
 	attrs, err := json.Marshal(directconnecttypes.Interconnect{InterconnectId: sdkaws.String("dxcon-ic1"), LagId: sdkaws.String("dxlag-aaa")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	icID := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectInterconnect, dxInterconnectARN(testRegion, acct.ID, "dxcon-ic1"), testRegion, string(attrs))
-	bareID := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectInterconnect, dxInterconnectARN(testRegion, acct.ID, "dxcon-ic2"), testRegion, "{}")
+	icID := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectInterconnect, dxInterconnectARN("aws", testRegion, acct.ID, "dxcon-ic1"), testRegion, string(attrs))
+	bareID := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectInterconnect, dxInterconnectARN("aws", testRegion, acct.ID, "dxcon-ic2"), testRegion, "{}")
 	if err := resolveDXLagMembers(acct, st); err != nil {
 		t.Fatalf("resolveDXLagMembers: %v", err)
 	}
@@ -34,10 +34,10 @@ func TestResolveDXLagMembers_Interconnect(t *testing.T) {
 func TestResolveDXResiliencyGroupConnections(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	conn1 := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectConnection, dxConnectionARN(testRegion, acct.ID, "dxcon-1"), testRegion, "{}")
-	conn2 := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectConnection, dxConnectionARN(testRegion, acct.ID, "dxcon-2"), testRegion, "{}")
+	conn1 := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectConnection, dxConnectionARN("aws", testRegion, acct.ID, "dxcon-1"), testRegion, "{}")
+	conn2 := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectConnection, dxConnectionARN("aws", testRegion, acct.ID, "dxcon-2"), testRegion, "{}")
 	assoc := func(id string, state directconnecttypes.ResiliencyGroupAssociationState) directconnecttypes.ResiliencyGroupAssociation {
-		return directconnecttypes.ResiliencyGroupAssociation{ConnectionArn: sdkaws.String(dxConnectionARN(testRegion, acct.ID, id)), State: state}
+		return directconnecttypes.ResiliencyGroupAssociation{ConnectionArn: sdkaws.String(dxConnectionARN("aws", testRegion, acct.ID, id)), State: state}
 	}
 	attrs, err := json.Marshal(dxResiliencyGroupAttrs{
 		ResiliencyGroup: directconnecttypes.ResiliencyGroup{ResiliencyGroupId: sdkaws.String("rg-a")},
@@ -68,9 +68,9 @@ func TestResolveDXResiliencyGroupConnections(t *testing.T) {
 func TestResolveDXLagMembers_Connection(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	lagARN := dxLagARN(testRegion, acct.ID, "dxlag-aaa")
+	lagARN := dxLagARN("aws", testRegion, acct.ID, "dxlag-aaa")
 	lagID := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectLag, lagARN, testRegion, "{}")
-	connARN := dxConnectionARN(testRegion, acct.ID, "dxcon-bbb")
+	connARN := dxConnectionARN("aws", testRegion, acct.ID, "dxcon-bbb")
 	connID := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectConnection, connARN, testRegion, `{"LagId":"dxlag-aaa"}`)
 	if err := resolveDXLagMembers(acct, st); err != nil {
 		t.Fatalf("resolveDXLagMembers: %v", err)
@@ -82,9 +82,9 @@ func TestResolveDXLagMembers_Connection(t *testing.T) {
 func TestResolveDXVIRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	connARN := dxConnectionARN(testRegion, acct.ID, "dxcon-bbb")
+	connARN := dxConnectionARN("aws", testRegion, acct.ID, "dxcon-bbb")
 	connID := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectConnection, connARN, testRegion, "{}")
-	dxgwARN := dxGatewayARN(acct.ID, "abc-1234")
+	dxgwARN := dxGatewayARN("aws", acct.ID, "abc-1234")
 	dxgwID := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectDirectConnectGateway, dxgwARN, testRegion, "{}")
 	vgwARN := ec2ARN(testRegion, acct.ID, "vpn-gateway", "vgw-1")
 	vgwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPNGateway, vgwARN, testRegion, "{}")
@@ -105,7 +105,7 @@ func TestResolveDXVIRefs(t *testing.T) {
 func TestResolveDXGatewayAssociationRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	dxgwARN := dxGatewayARN(acct.ID, "g-1")
+	dxgwARN := dxGatewayARN("aws", acct.ID, "g-1")
 	dxgwID := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectDirectConnectGateway, dxgwARN, testRegion, "{}")
 	tgwARN := ec2ARN(testRegion, acct.ID, "transit-gateway", "tgw-1")
 	tgwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2TransitGateway, tgwARN, testRegion, "{}")
@@ -138,9 +138,9 @@ func TestResolveDX_UndecodableAttrsKeepOtherRows(t *testing.T) {
 		{
 			name: "lag members", resolve: resolveDXLagMembers, typ: TypeDirectConnectConnection, kind: store.RelAttachedTo,
 			seed: func(t *testing.T, st *store.Store) (string, string, func(string) string) {
-				lag := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectLag, dxLagARN(testRegion, acct.ID, "dxlag-1"), testRegion, "{}")
+				lag := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectLag, dxLagARN("aws", testRegion, acct.ID, "dxlag-1"), testRegion, "{}")
 				return lag, mustJSON(directconnecttypes.Connection{LagId: sdkaws.String("dxlag-1")}),
-					func(id string) string { return dxConnectionARN(testRegion, acct.ID, id) }
+					func(id string) string { return dxConnectionARN("aws", testRegion, acct.ID, id) }
 			},
 		},
 		{
@@ -162,9 +162,9 @@ func TestResolveDX_UndecodableAttrsKeepOtherRows(t *testing.T) {
 		{
 			name: "gateway associations", resolve: resolveDXGatewayAssociationRefs, typ: TypeDirectConnectDirectConnectGatewayAssociation, kind: store.RelAttachedTo,
 			seed: func(t *testing.T, st *store.Store) (string, string, func(string) string) {
-				gw := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectDirectConnectGateway, dxGatewayARN(acct.ID, "g-1"), testRegion, "{}")
+				gw := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectDirectConnectGateway, dxGatewayARN("aws", acct.ID, "g-1"), testRegion, "{}")
 				return gw, mustJSON(directconnecttypes.DirectConnectGatewayAssociation{DirectConnectGatewayId: sdkaws.String("g-1")}),
-					func(id string) string { return dxGatewayARN(acct.ID, "g-1") + "/association/" + id }
+					func(id string) string { return dxGatewayARN("aws", acct.ID, "g-1") + "/association/" + id }
 			},
 		},
 	} {
@@ -204,18 +204,18 @@ func TestResolveDXGatewayAssociationRefs_CrossAccountGatewayOwner(t *testing.T) 
 		attrs := mustJSON(directconnecttypes.DirectConnectGatewayAssociation{AssociatedGateway: &directconnecttypes.AssociatedGateway{
 			Id: sdkaws.String("vgw-1"), Type: directconnecttypes.GatewayTypeVirtualPrivateGateway, Region: sdkaws.String(testRegion), OwnerAccount: sdkaws.String(owner),
 		}})
-		return upsertTestResourceNamed(t, st, TypeDirectConnectDirectConnectGatewayAssociation, dxGatewayARN(acct.ID, "g-1")+"/association/"+id, testRegion, attrs, id)
+		return upsertTestResourceNamed(t, st, TypeDirectConnectDirectConnectGatewayAssociation, dxGatewayARN("aws", acct.ID, "g-1")+"/association/"+id, testRegion, attrs, id)
 	}
 	crossID := assoc("a-cross", other)
 	// Named between the two, so the owner edge is written past a row that
 	// does not decode, whose error is still returned.
-	upsertTestResourceNamed(t, st, TypeDirectConnectDirectConnectGatewayAssociation, dxGatewayARN(acct.ID, "g-1")+"/association/a-bad", testRegion, `{"AssociatedGateway":7}`, "a-bad")
+	upsertTestResourceNamed(t, st, TypeDirectConnectDirectConnectGatewayAssociation, dxGatewayARN("aws", acct.ID, "g-1")+"/association/a-bad", testRegion, `{"AssociatedGateway":7}`, "a-bad")
 	ownID := assoc("a-own", acct.ID)
 	var typeErr *json.UnmarshalTypeError
 	if err := resolveDXGatewayAssociationRefs(acct, st); !errors.As(err, &typeErr) {
 		t.Errorf("resolveDXGatewayAssociationRefs = %v; want the decode error", err)
 	}
-	ownerID := store.ResourceID("aws", other, iamAccountNativeID(other))
+	ownerID := store.ResourceID("aws", other, iamAccountNativeID("aws", other))
 	rels, err := st.RelationshipsFrom(crossID)
 	if err != nil {
 		t.Fatal(err)
@@ -250,7 +250,7 @@ func TestResolveDX_WriteFailureKeepsDecodeErrors(t *testing.T) {
 	vgw := ec2ARN(testRegion, acct.ID, "vpn-gateway", "vgw-1")
 	tgw := ec2ARN(testRegion, acct.ID, "transit-gateway", "tgw-1")
 	vif := func(id string) string { return "arn:aws:directconnect:us-east-1:123456789012:dxvif/" + id }
-	assoc := func(id string) string { return dxGatewayARN(acct.ID, "g-1") + "/association/" + id }
+	assoc := func(id string) string { return dxGatewayARN("aws", acct.ID, "g-1") + "/association/" + id }
 	ownGateway := func(id string, typ directconnecttypes.GatewayType) string {
 		return mustJSON(directconnecttypes.DirectConnectGatewayAssociation{AssociatedGateway: &directconnecttypes.AssociatedGateway{
 			Id: sdkaws.String(id), Type: typ, Region: sdkaws.String(testRegion), OwnerAccount: sdkaws.String(acct.ID),
@@ -272,8 +272,8 @@ func TestResolveDX_WriteFailureKeepsDecodeErrors(t *testing.T) {
 		trigger  string
 	}{
 		{
-			"lag member", resolveDXLagMembers, TypeDirectConnectConnection, func(id string) string { return dxConnectionARN(testRegion, acct.ID, id) },
-			struct{ typ, nativeID string }{TypeDirectConnectLag, dxLagARN(testRegion, acct.ID, "dxlag-1")},
+			"lag member", resolveDXLagMembers, TypeDirectConnectConnection, func(id string) string { return dxConnectionARN("aws", testRegion, acct.ID, id) },
+			struct{ typ, nativeID string }{TypeDirectConnectLag, dxLagARN("aws", testRegion, acct.ID, "dxlag-1")},
 			mustJSON(directconnecttypes.Connection{LagId: sdkaws.String("dxlag-1")}), refuseEdges,
 		},
 		{
@@ -284,7 +284,7 @@ func TestResolveDX_WriteFailureKeepsDecodeErrors(t *testing.T) {
 		},
 		{
 			"vif lag", resolveDXVIRefs, TypeDirectConnectPrivateVirtualInterface, vif,
-			struct{ typ, nativeID string }{TypeDirectConnectLag, dxLagARN(testRegion, acct.ID, "dxlag-1")},
+			struct{ typ, nativeID string }{TypeDirectConnectLag, dxLagARN("aws", testRegion, acct.ID, "dxlag-1")},
 			mustJSON(directconnecttypes.VirtualInterface{ConnectionId: sdkaws.String("dxlag-1")}), refuseEdges,
 		},
 		{
@@ -294,7 +294,7 @@ func TestResolveDX_WriteFailureKeepsDecodeErrors(t *testing.T) {
 		},
 		{
 			"vif gateway", resolveDXVIRefs, TypeDirectConnectPrivateVirtualInterface, vif,
-			struct{ typ, nativeID string }{TypeDirectConnectDirectConnectGateway, dxGatewayARN(acct.ID, "g-1")},
+			struct{ typ, nativeID string }{TypeDirectConnectDirectConnectGateway, dxGatewayARN("aws", acct.ID, "g-1")},
 			mustJSON(directconnecttypes.VirtualInterface{DirectConnectGatewayId: sdkaws.String("g-1")}), refuseEdges,
 		},
 		{
@@ -304,7 +304,7 @@ func TestResolveDX_WriteFailureKeepsDecodeErrors(t *testing.T) {
 		},
 		{
 			"association gateway", resolveDXGatewayAssociationRefs, TypeDirectConnectDirectConnectGatewayAssociation, assoc,
-			struct{ typ, nativeID string }{TypeDirectConnectDirectConnectGateway, dxGatewayARN(acct.ID, "g-1")},
+			struct{ typ, nativeID string }{TypeDirectConnectDirectConnectGateway, dxGatewayARN("aws", acct.ID, "g-1")},
 			mustJSON(directconnecttypes.DirectConnectGatewayAssociation{DirectConnectGatewayId: sdkaws.String("g-1")}), refuseEdges,
 		},
 		{

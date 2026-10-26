@@ -37,8 +37,8 @@ func scanCognitoExtended(ctx context.Context, idp cognitoidpAPI, id cognitoident
 	return total, inserted, nil
 }
 
-func cogUPARN(region, acct, poolID, kind, id string) string {
-	return fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s/%s/%s", region, acct, poolID, kind, id)
+func cogUPARN(partition, region, acct, poolID, kind, id string) string {
+	return cognitoUserPoolARN(partition, region, acct, poolID) + "/" + kind + "/" + id
 }
 
 // scanCogUserPoolDomains: per-pool DescribeUserPool exposes the Domain
@@ -68,7 +68,7 @@ func scanCogUserPoolDomains(ctx context.Context, client cognitoidpAPI, acct *acc
 		if out.DomainDescription == nil {
 			continue
 		}
-		arn := cogUPARN(region, acct.ID, pid, "domain", domain)
+		arn := cogUPARN(acct.partition(), region, acct.ID, pid, "domain", domain)
 		label := domain
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -97,7 +97,7 @@ func scanCogGroups(ctx context.Context, client cognitoidpAPI, acct *account, reg
 				if name == "" {
 					continue
 				}
-				arn := cogUPARN(region, acct.ID, pid, "group", name)
+				arn := cogUPARN(acct.partition(), region, acct.ID, pid, "group", name)
 				label := name
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -128,7 +128,7 @@ func scanCogIdentityProviders(ctx context.Context, client cognitoidpAPI, acct *a
 				if name == "" {
 					continue
 				}
-				arn := cogUPARN(region, acct.ID, pid, "identityprovider", name)
+				arn := cogUPARN(acct.partition(), region, acct.ID, pid, "identityprovider", name)
 				label := name
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -159,7 +159,7 @@ func scanCogResourceServers(ctx context.Context, client cognitoidpAPI, acct *acc
 				if ident == "" {
 					continue
 				}
-				arn := cogUPARN(region, acct.ID, pid, "resourceserver", ident)
+				arn := cogUPARN(acct.partition(), region, acct.ID, pid, "resourceserver", ident)
 				label := sv(r.Name)
 				if label == "" {
 					label = ident
@@ -191,7 +191,7 @@ func scanCogRiskConfig(ctx context.Context, client cognitoidpAPI, acct *account,
 		if out.RiskConfiguration == nil {
 			continue
 		}
-		arn := cogUPARN(region, acct.ID, pid, "riskconfiguration", "_")
+		arn := cogUPARN(acct.partition(), region, acct.ID, pid, "riskconfiguration", "_")
 		name := "risk-configuration"
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -218,7 +218,7 @@ func scanCogUICustomization(ctx context.Context, client cognitoidpAPI, acct *acc
 		if out.UICustomization == nil || sv(out.UICustomization.UserPoolId) == "" {
 			continue
 		}
-		arn := cogUPARN(region, acct.ID, pid, "ui-customization", "_")
+		arn := cogUPARN(acct.partition(), region, acct.ID, pid, "ui-customization", "_")
 		name := "ui-customization"
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -243,7 +243,7 @@ func scanCogLogDelivery(ctx context.Context, client cognitoidpAPI, acct *account
 		if out.LogDeliveryConfiguration == nil {
 			continue
 		}
-		arn := cogUPARN(region, acct.ID, pid, "log-delivery", "_")
+		arn := cogUPARN(acct.partition(), region, acct.ID, pid, "log-delivery", "_")
 		name := "log-delivery"
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -272,7 +272,7 @@ func scanCogTerms(ctx context.Context, client cognitoidpAPI, acct *account, regi
 				if tid == "" {
 					continue
 				}
-				arn := cogUPARN(region, acct.ID, pid, "terms", tid)
+				arn := cogUPARN(acct.partition(), region, acct.ID, pid, "terms", tid)
 				label := sv(t.TermsName)
 				if label == "" {
 					label = tid
@@ -309,7 +309,7 @@ func scanCogIDPoolRoleAttachments(ctx context.Context, client cognitoidentityAPI
 		if len(out.Roles) == 0 && len(out.RoleMappings) == 0 {
 			continue
 		}
-		arn := fmt.Sprintf("arn:aws:cognito-identity:%s:%s:identitypool/%s/roleattachment", region, acct.ID, pid)
+		arn := cognitoIdentityPoolARN(acct.partition(), region, acct.ID, pid) + "/roleattachment"
 		name := "role-attachment"
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

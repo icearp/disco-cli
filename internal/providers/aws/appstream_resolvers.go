@@ -355,12 +355,12 @@ func resolveAppStreamImageRefs(acct *account, st *store.Store) error {
 	return nil
 }
 
-func appstreamFleetARN(region, acct, name string) string {
-	return fmt.Sprintf("arn:aws:appstream:%s:%s:fleet/%s", region, acct, name)
+func appstreamFleetARN(partition, region, acct, name string) string {
+	return asARN(partition, region, acct, "fleet", name)
 }
 
-func appstreamStackARN(region, acct, name string) string {
-	return fmt.Sprintf("arn:aws:appstream:%s:%s:stack/%s", region, acct, name)
+func appstreamStackARN(partition, region, acct, name string) string {
+	return asARN(partition, region, acct, "stack", name)
 }
 
 // resolveAppStreamApplicationFleetAssoc wires association rows to their
@@ -394,7 +394,7 @@ func resolveAppStreamApplicationFleetAssoc(acct *account, st *store.Store) error
 		}
 		region := sv(r.Region)
 		if fn := sv(attrs.FleetName); fn != "" {
-			fARN := appstreamFleetARN(region, acct.ID, fn)
+			fARN := appstreamFleetARN(acct.partition(), region, acct.ID, fn)
 			tgtID := store.ResourceID("aws", acct.ID, fARN)
 			if fleetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -442,7 +442,7 @@ func resolveAppStreamEntitlementStack(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		sARN := appstreamStackARN(region, acct.ID, sn)
+		sARN := appstreamStackARN(acct.partition(), region, acct.ID, sn)
 		tgtID := store.ResourceID("aws", acct.ID, sARN)
 		if !stackSet[tgtID] {
 			continue
@@ -485,7 +485,7 @@ func resolveAppStreamStackFleetAssoc(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if sn := sv(attrs.StackName); sn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, appstreamStackARN(region, acct.ID, sn))
+			tgtID := store.ResourceID("aws", acct.ID, appstreamStackARN(acct.partition(), region, acct.ID, sn))
 			if stackSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appstream stack-fleet→stack: %w", err)
@@ -493,7 +493,7 @@ func resolveAppStreamStackFleetAssoc(acct *account, st *store.Store) error {
 			}
 		}
 		if fn := sv(attrs.FleetName); fn != "" {
-			tgtID := store.ResourceID("aws", acct.ID, appstreamFleetARN(region, acct.ID, fn))
+			tgtID := store.ResourceID("aws", acct.ID, appstreamFleetARN(acct.partition(), region, acct.ID, fn))
 			if fleetSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert appstream stack-fleet→fleet: %w", err)
@@ -535,7 +535,7 @@ func resolveAppStreamStackUserAssoc(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		tgtID := store.ResourceID("aws", acct.ID, appstreamStackARN(region, acct.ID, sn))
+		tgtID := store.ResourceID("aws", acct.ID, appstreamStackARN(acct.partition(), region, acct.ID, sn))
 		if !stackSet[tgtID] {
 			continue
 		}
@@ -580,7 +580,7 @@ func resolveAppStreamApplicationEntitlementAssoc(acct *account, st *store.Store)
 		}
 		stack, entitlement := parts[0], parts[1]
 		region := sv(r.Region)
-		stackTgt := store.ResourceID("aws", acct.ID, appstreamStackARN(region, acct.ID, stack))
+		stackTgt := store.ResourceID("aws", acct.ID, appstreamStackARN(acct.partition(), region, acct.ID, stack))
 		if stackSet[stackTgt] {
 			if err := st.UpsertRelationship(r.ID, stackTgt, store.RelAttachedTo, "directed", nil); err != nil {
 				return fmt.Errorf("upsert appstream app-ent→stack: %w", err)

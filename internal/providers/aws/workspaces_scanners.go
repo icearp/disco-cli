@@ -140,7 +140,7 @@ func scanWSWorkspaces(ctx context.Context, client workSpacesAPI, acct *account, 
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:workspaces:%s:%s:workspace/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "workspace/"+id)
 			label := id
 			status := string(w.State)
 			batch = append(batch, &store.Resource{
@@ -179,7 +179,7 @@ func scanWSConnectionAliases(ctx context.Context, client workSpacesAPI, acct *ac
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:workspaces:%s:%s:connectionalias/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "connectionalias/"+id)
 			label := sv(a.ConnectionString)
 			if label == "" {
 				label = id
@@ -273,7 +273,7 @@ func scanWSDirectories(ctx context.Context, client workSpacesAPI, acct *account,
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:workspaces:%s:%s:directory/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "directory/"+id)
 			label := sv(d.DirectoryName)
 			if label == "" {
 				label = id
@@ -315,7 +315,7 @@ func scanWSBundles(ctx context.Context, client workSpacesAPI, acct *account, reg
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:workspaces:%s:%s:workspacebundle/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "workspacebundle/"+id)
 			label := sv(b.Name)
 			if label == "" {
 				label = id
@@ -348,7 +348,7 @@ func scanWSImages(ctx context.Context, client workSpacesAPI, acct *account, regi
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:workspaces:%s:%s:workspaceimage/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "workspaceimage/"+id)
 			label := sv(im.Name)
 			if label == "" {
 				label = id
@@ -385,7 +385,7 @@ func scanWSIpGroups(ctx context.Context, client workSpacesAPI, acct *account, re
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:workspaces:%s:%s:workspaceipgroup/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "workspaceipgroup/"+id)
 			label := sv(g.GroupName)
 			if label == "" {
 				label = id
@@ -424,7 +424,7 @@ func scanWSApplications(ctx context.Context, client workSpacesAPI, acct *account
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:workspaces:%s:%s:workspaceapplication/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "workspaceapplication/"+id)
 			label := sv(a.Name)
 			if label == "" {
 				label = id
@@ -445,7 +445,7 @@ func scanWSApplications(ctx context.Context, client workSpacesAPI, acct *account
 // scanWSAccountLinks lists the account's BYOL account links in every status
 // the API returns. A link has no ARN (the Service Reference documents none),
 // so its NativeID is the synthetic
-// arn:aws:workspaces:{region}:{account}:accountlink/{AccountLinkId}, shaped
+// arn:{p}:workspaces:{region}:{account}:accountlink/{AccountLinkId}, shaped
 // like the file's other synthesized ARNs. A LINK_NOT_FOUND element names a
 // link that does not exist and is skipped. A denial on any page warns once
 // and keeps the links already listed. Account linking is not offered in every
@@ -475,7 +475,7 @@ func scanWSAccountLinks(ctx context.Context, client workSpacesAPI, acct *account
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWorkSpacesAccountLink, NativeID: wsAccountLinkNativeID(region, acct.ID, id),
+				Type: TypeWorkSpacesAccountLink, NativeID: wsAccountLinkNativeID(acct.partition(), region, acct.ID, id),
 				Name: &id, Region: &region, Status: nonEmptyPtr(string(l.AccountLinkStatus)),
 				AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
 			})
@@ -484,8 +484,8 @@ func scanWSAccountLinks(ctx context.Context, client workSpacesAPI, acct *account
 	return upsertBatch(st, batch, "workspaces account-links")
 }
 
-func wsAccountLinkNativeID(region, acctID, linkID string) string {
-	return fmt.Sprintf("arn:aws:workspaces:%s:%s:accountlink/%s", region, acctID, linkID)
+func wsAccountLinkNativeID(partition, region, acctID, linkID string) string {
+	return arnFor(partition, "workspaces", region, acctID, "accountlink/"+linkID)
 }
 
 // isWSDirectoryGone matches a directory deregistered between its list call

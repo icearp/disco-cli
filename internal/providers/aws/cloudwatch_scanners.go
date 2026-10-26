@@ -307,7 +307,7 @@ func scanCWInsightRules(ctx context.Context, client cloudwatchAPI, acct *account
 			name := sv(rule.Name)
 			// Region+account-qualified synthetic ARN: the bare rule name is unique
 			// only per (account, region), so it must carry region to be a global id.
-			nativeID := fmt.Sprintf("arn:aws:cloudwatch:%s:%s:insight-rule/%s", region, acct.ID, name)
+			nativeID := arnFor(acct.partition(), "cloudwatch", region, acct.ID, "insight-rule/"+name)
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
@@ -400,7 +400,7 @@ func scanCWMetricStreams(ctx context.Context, client cloudwatchAPI, acct *accoun
 // scanCWOTelEnrichment discovers the singleton OTel enrichment configuration
 // per (account, region). The API has no List op — GetOTelEnrichment returns
 // a Status (Running/Stopped). Synth NativeID:
-// arn:aws:cloudwatch:{r}:{a}:otel-enrichment.
+// arn:{p}:cloudwatch:{r}:{a}:otel-enrichment.
 func scanCWOTelEnrichment(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	out, err := client.GetOTelEnrichment(ctx, &cloudwatch.GetOTelEnrichmentInput{})
 	if err != nil {
@@ -414,7 +414,7 @@ func scanCWOTelEnrichment(ctx context.Context, client cloudwatchAPI, acct *accou
 		}
 		return 0, 0, fmt.Errorf("cloudwatch:GetOTelEnrichment: %w", err)
 	}
-	arn := fmt.Sprintf("arn:aws:cloudwatch:%s:%s:otel-enrichment", region, acct.ID)
+	arn := arnFor(acct.partition(), "cloudwatch", region, acct.ID, "otel-enrichment")
 	name := "otel-enrichment"
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

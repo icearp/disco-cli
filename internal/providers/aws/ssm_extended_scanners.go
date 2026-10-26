@@ -86,7 +86,7 @@ func scanSSMExtended(ctx context.Context, client ssmAPI, acct *account, region s
 // returned only by CreateActivation, so the listed element carries no secret.
 // The API returns no ARN and the service authorization reference defines no
 // activation ARN format, so the NativeID is synthesized from the ActivationId:
-// arn:aws:ssm:{region}:{acct}:activation/{ActivationId}.
+// arn:{p}:ssm:{region}:{acct}:activation/{ActivationId}.
 func scanSSMActivations(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := ssm.NewDescribeActivationsPaginator(client, &ssm.DescribeActivationsInput{})
 	var batch []*store.Resource
@@ -103,7 +103,7 @@ func scanSSMActivations(ctx context.Context, client ssmAPI, acct *account, regio
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:activation/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "activation/"+id)
 			status := "active"
 			if a.Expired {
 				status = "expired"
@@ -127,7 +127,7 @@ func scanSSMActivations(ctx context.Context, client ssmAPI, acct *account, regio
 
 // scanSSMCloudConnectors discovers cloud connectors. The summary carries no
 // ARN; the NativeID follows the service authorization reference format
-// arn:aws:ssm:{region}:{acct}:cloud-connector/{CloudConnectorId}.
+// arn:{p}:ssm:{region}:{acct}:cloud-connector/{CloudConnectorId}.
 func scanSSMCloudConnectors(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := ssm.NewListCloudConnectorsPaginator(client, &ssm.ListCloudConnectorsInput{})
 	var batch []*store.Resource
@@ -144,7 +144,7 @@ func scanSSMCloudConnectors(ctx context.Context, client ssmAPI, acct *account, r
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:cloud-connector/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "cloud-connector/"+id)
 			label := sv(c.DisplayName)
 			if label == "" {
 				label = id
@@ -163,7 +163,7 @@ func scanSSMCloudConnectors(ctx context.Context, client ssmAPI, acct *account, r
 
 // scanSSMManagedInstances discovers SSM-managed nodes (DescribeInstanceInformation).
 // The API returns no ARN, so the NativeID is synthesized from the instance ID:
-// arn:aws:ssm:{region}:{acct}:managed-instance/{InstanceId}.
+// arn:{p}:ssm:{region}:{acct}:managed-instance/{InstanceId}.
 func scanSSMManagedInstances(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := ssm.NewDescribeInstanceInformationPaginator(client, &ssm.DescribeInstanceInformationInput{})
 	var batch []*store.Resource
@@ -180,7 +180,7 @@ func scanSSMManagedInstances(ctx context.Context, client ssmAPI, acct *account, 
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:managed-instance/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "managed-instance/"+id)
 			label := id
 			if cn := sv(in.ComputerName); cn != "" {
 				label = cn
@@ -242,7 +242,7 @@ func scanSSMAssociations(ctx context.Context, client ssmAPI, acct *account, regi
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:association/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "association/"+id)
 			label := sv(a.AssociationName)
 			if label == "" {
 				label = id
@@ -276,7 +276,7 @@ func scanSSMMaintenanceWindows(ctx context.Context, client ssmAPI, acct *account
 				continue
 			}
 			ids = append(ids, id)
-			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:maintenancewindow/%s", region, acct.ID, id)
+			arn := ssmMaintenanceWindowARN(acct.partition(), region, acct.ID, id)
 			label := sv(w.Name)
 			if label == "" {
 				label = id
@@ -310,7 +310,7 @@ func scanSSMMaintenanceWindowTargets(ctx context.Context, client ssmAPI, acct *a
 			if tid == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:windowtarget/%s/%s", region, acct.ID, wid, tid)
+			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "windowtarget/"+wid+"/"+tid)
 			label := sv(t.Name)
 			if label == "" {
 				label = tid
@@ -343,7 +343,7 @@ func scanSSMMaintenanceWindowTasks(ctx context.Context, client ssmAPI, acct *acc
 			if tid == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:windowtask/%s/%s", region, acct.ID, wid, tid)
+			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "windowtask/"+wid+"/"+tid)
 			label := sv(t.Name)
 			if label == "" {
 				label = tid
@@ -375,7 +375,7 @@ func scanSSMResourceDataSync(ctx context.Context, client ssmAPI, acct *account, 
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:ssm:%s:%s:resource-data-sync/%s", region, acct.ID, name)
+			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "resource-data-sync/"+name)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSSMResourceDataSync, NativeID: arn,

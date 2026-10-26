@@ -11,11 +11,11 @@ func TestResolveGlueDatabaseTargets(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	catARN := glueResourceARN(testRegion, acct.ID, "catalog", "shared")
+	catARN := glueResourceARN("aws", testRegion, acct.ID, "catalog", "shared")
 	catID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueCatalog, catARN, testRegion, `{}`)
-	connARN := glueResourceARN(testRegion, acct.ID, "connection", "fed-conn")
+	connARN := glueResourceARN("aws", testRegion, acct.ID, "connection", "fed-conn")
 	connID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueConnection, connARN, testRegion, `{}`)
-	dbARN := glueResourceARN(testRegion, acct.ID, "database", "mydb")
+	dbARN := glueResourceARN("aws", testRegion, acct.ID, "database", "mydb")
 	attrs := `{"TargetDatabase":{"CatalogId":"shared"},"FederatedDatabase":{"ConnectionName":"fed-conn"}}`
 	dbID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueDatabase, dbARN, testRegion, attrs)
 
@@ -64,7 +64,7 @@ func TestResolveGlueCatalogTargets(t *testing.T) {
 
 	rsARN := fmt.Sprintf("arn:aws:redshift:%s:%s:cluster:rs1", testRegion, acct.ID)
 	rsID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftCluster, rsARN, testRegion, `{}`)
-	catARN := glueResourceARN(testRegion, acct.ID, "catalog", "fed")
+	catARN := glueResourceARN("aws", testRegion, acct.ID, "catalog", "fed")
 	attrs := fmt.Sprintf(`{"TargetRedshiftCatalog":{"CatalogArn":%q}}`, rsARN)
 	catID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueCatalog, catARN, testRegion, attrs)
 

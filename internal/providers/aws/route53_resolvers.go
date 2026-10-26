@@ -97,7 +97,7 @@ func resolveRoute53QueryLoggingConfig(acct *account, st *store.Store) error {
 			continue
 		}
 		if z := sv(attrs.HostedZoneID); z != "" {
-			zoneID := store.ResourceID("aws", acct.ID, fmt.Sprintf("arn:aws:route53:::hostedzone/%s", z))
+			zoneID := store.ResourceID("aws", acct.ID, route53ARN(acct.partition(), "hostedzone/"+z))
 			if zoneSet[zoneID] {
 				if err := st.UpsertRelationship(r.ID, zoneID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert query-logging-config→zone: %w", err)
@@ -147,7 +147,7 @@ func resolveRoute53TrafficPolicyInstance(acct *account, st *store.Store) error {
 			continue
 		}
 		if z := sv(attrs.HostedZoneID); z != "" {
-			zoneID := store.ResourceID("aws", acct.ID, fmt.Sprintf("arn:aws:route53:::hostedzone/%s", z))
+			zoneID := store.ResourceID("aws", acct.ID, route53ARN(acct.partition(), "hostedzone/"+z))
 			if zoneSet[zoneID] {
 				if err := st.UpsertRelationship(r.ID, zoneID, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert traffic-policy-instance→zone: %w", err)
@@ -155,7 +155,7 @@ func resolveRoute53TrafficPolicyInstance(acct *account, st *store.Store) error {
 			}
 		}
 		if tp := sv(attrs.TrafficPolicyID); tp != "" {
-			tpID := store.ResourceID("aws", acct.ID, fmt.Sprintf("arn:aws:route53:::trafficpolicy/%s", tp))
+			tpID := store.ResourceID("aws", acct.ID, route53ARN(acct.partition(), "trafficpolicy/"+tp))
 			if tpSet[tpID] {
 				if err := st.UpsertRelationship(r.ID, tpID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert traffic-policy-instance→policy: %w", err)
@@ -390,7 +390,7 @@ func resolveRoute53Relationships(acct *account, st *store.Store) error {
 		return err
 	}
 	for _, r := range records {
-		// NativeID: "arn:aws:route53:::hostedzone/<id>/<TYPE>/<name>";
+		// NativeID: "arn:{p}:route53:::hostedzone/<id>/<TYPE>/<name>";
 		// recordSetZoneARN extracts the zone ARN prefix.
 		zoneARN := recordSetZoneARN(r.NativeID)
 		if zoneARN == "" {
@@ -404,27 +404,39 @@ func resolveRoute53Relationships(acct *account, st *store.Store) error {
 	return nil
 }
 
-// recordSetZoneARN extracts the hosted zone ARN from a record set NativeID.
-// NativeID format: "arn:aws:route53:::hostedzone/<zoneID>/<TYPE>/<name>"
-// Zone ARN format: "arn:aws:route53:::hostedzone/<zoneID>"
-func recordSetZoneARN(nativeID string) string {
-	// The zone ARN prefix is "arn:aws:route53:::hostedzone/<id>".
-	// Split off the <TYPE>/<name> suffix by finding the index of the type segment.
-	const prefix = "arn:aws:route53:::hostedzone/"
-	if !strings.HasPrefix(nativeID, prefix) {
-		return ""
+// route53ZoneChild splits the NativeID of a row under a hosted zone,
+// arn:{p}:route53:::hostedzone/<zoneID>/<rest>, into the zone's ARN (the
+// NativeID up to the zone id) and rest. The zone ARN is a prefix of the
+// child's NativeID, so it keeps whatever partition the child was stored in.
+func route53ZoneChild(nativeID string) (zoneARN, rest string, ok bool) {
+	a, err := arn.Parse(nativeID)
+	if err != nil || a.Service != "route53" || a.Region != "" || a.AccountID != "" {
+		return "", "", false
 	}
-	// zoneID is the path segment right after the prefix.
-	rest := nativeID[len(prefix):]
-	zoneID, _, ok := strings.Cut(rest, "/")
+	tail, found := strings.CutPrefix(a.Resource, "hostedzone/")
+	if !found {
+		return "", "", false
+	}
+	zoneID, rest, found := strings.Cut(tail, "/")
+	if !found || zoneID == "" {
+		return "", "", false
+	}
+	return strings.TrimSuffix(nativeID, "/"+rest), rest, true
+}
+
+// recordSetZoneARN extracts the hosted zone ARN from a record set NativeID.
+// NativeID format: "arn:{p}:route53:::hostedzone/<zoneID>/<TYPE>/<name>"
+// Zone ARN format: "arn:{p}:route53:::hostedzone/<zoneID>"
+func recordSetZoneARN(nativeID string) string {
+	zoneARN, _, ok := route53ZoneChild(nativeID)
 	if !ok {
 		return ""
 	}
-	return prefix + zoneID
+	return zoneARN
 }
 
 // resolveRoute53DNSSECRelationships links each DNSSEC resource to its hosted zone.
-// NativeID format: "arn:aws:route53:::hostedzone/<zoneID>/dnssec"
+// NativeID format: "arn:{p}:route53:::hostedzone/<zoneID>/dnssec"
 func resolveRoute53DNSSECRelationships(acct *account, st *store.Store) error {
 	resources, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRoute53DNSSEC},
@@ -447,27 +459,18 @@ func resolveRoute53DNSSECRelationships(acct *account, st *store.Store) error {
 }
 
 // dnssecZoneARN extracts the hosted zone ARN from a DNSSEC NativeID.
-// NativeID format: "arn:aws:route53:::hostedzone/<zoneID>/dnssec"
-// Zone ARN format: "arn:aws:route53:::hostedzone/<zoneID>"
+// NativeID format: "arn:{p}:route53:::hostedzone/<zoneID>/dnssec"
+// Zone ARN format: "arn:{p}:route53:::hostedzone/<zoneID>"
 func dnssecZoneARN(nativeID string) string {
-	const suffix = "/dnssec"
-	if !strings.HasSuffix(nativeID, suffix) {
+	zoneARN, rest, ok := route53ZoneChild(nativeID)
+	if !ok || rest != "dnssec" {
 		return ""
 	}
-	candidate := nativeID[:len(nativeID)-len(suffix)]
-	const prefix = "arn:aws:route53:::hostedzone/"
-	if !strings.HasPrefix(candidate, prefix) {
-		return ""
-	}
-	// Zone ID must be a single path segment (no extra slashes).
-	if strings.Contains(candidate[len(prefix):], "/") {
-		return ""
-	}
-	return candidate
+	return zoneARN
 }
 
 // resolveRoute53KSKRelationships links each key-signing key to its DNSSEC resource.
-// NativeID format: "arn:aws:route53:::hostedzone/<zoneID>/ksk/<name>"
+// NativeID format: "arn:{p}:route53:::hostedzone/<zoneID>/ksk/<name>"
 func resolveRoute53KSKRelationships(acct *account, st *store.Store) error {
 	resources, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeRoute53KeySigningKey},
@@ -490,24 +493,14 @@ func resolveRoute53KSKRelationships(acct *account, st *store.Store) error {
 }
 
 // kskDNSSECNativeID derives the DNSSEC NativeID from a KSK NativeID.
-// KSK NativeID:    "arn:aws:route53:::hostedzone/<zoneID>/ksk/<name>"
-// DNSSEC NativeID: "arn:aws:route53:::hostedzone/<zoneID>/dnssec"
+// KSK NativeID:    "arn:{p}:route53:::hostedzone/<zoneID>/ksk/<name>"
+// DNSSEC NativeID: "arn:{p}:route53:::hostedzone/<zoneID>/dnssec"
 func kskDNSSECNativeID(nativeID string) string {
-	const prefix = "arn:aws:route53:::hostedzone/"
-	if !strings.HasPrefix(nativeID, prefix) {
+	zoneARN, rest, ok := route53ZoneChild(nativeID)
+	if !ok || !strings.HasPrefix(rest, "ksk/") {
 		return ""
 	}
-	// rest = "<zoneID>/ksk/<name>"
-	rest := nativeID[len(prefix):]
-	zoneID, after, ok := strings.Cut(rest, "/")
-	if !ok || zoneID == "" {
-		return ""
-	}
-	// after must begin with "ksk/" to be a valid KSK NativeID.
-	if !strings.HasPrefix(after, "ksk/") {
-		return ""
-	}
-	return prefix + zoneID + "/dnssec"
+	return zoneARN + "/dnssec"
 }
 
 // resolveRoute53HealthCheckRelationships links each record set referencing a
@@ -532,7 +525,7 @@ func resolveRoute53HealthCheckRelationships(acct *account, st *store.Store) erro
 		if hcID == "" {
 			continue
 		}
-		hcNativeID := fmt.Sprintf("arn:aws:route53:::healthcheck/%s", hcID)
+		hcNativeID := route53ARN(acct.partition(), "healthcheck/"+hcID)
 		hcResID := store.ResourceID("aws", acct.ID, hcNativeID)
 		if err := st.UpsertRelationship(r.ID, hcResID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert route53 record-set→health-check: %w", err)

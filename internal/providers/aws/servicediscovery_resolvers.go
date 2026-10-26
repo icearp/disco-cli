@@ -28,8 +28,8 @@ func init() {
 }
 
 // sdNamespaceARN rebuilds a Cloud Map namespace ARN from its raw ID.
-func sdNamespaceARN(region, acct, nsID string) string {
-	return fmt.Sprintf("arn:aws:servicediscovery:%s:%s:namespace/%s", region, acct, nsID)
+func sdNamespaceARN(partition, region, acct, nsID string) string {
+	return arnFor(partition, "servicediscovery", region, acct, "namespace/"+nsID)
 }
 
 // resolveServiceDiscoveryServiceNamespace wires each Cloud Map service to
@@ -73,7 +73,7 @@ func resolveServiceDiscoveryServiceNamespace(acct *account, st *store.Store) err
 		if nsID == "" {
 			continue
 		}
-		nsARN := sdNamespaceARN(sv(r.Region), acct.ID, nsID)
+		nsARN := sdNamespaceARN(acct.partition(), sv(r.Region), acct.ID, nsID)
 		for _, t := range nsTypes {
 			tgt := store.ResourceID("aws", acct.ID, nsARN)
 			if !nsSets[t][tgt] {
@@ -120,10 +120,10 @@ func resolveServiceDiscoveryNamespaceHostedZone(acct *account, st *store.Store) 
 			if hz == "" {
 				continue
 			}
-			// Route53 hosted-zone NativeID = `arn:aws:route53:::hostedzone/{id}`.
+			// Route53 hosted-zone NativeID = `arn:{p}:route53:::hostedzone/{id}`.
 			// HostedZoneId may carry `/hostedzone/` prefix; strip.
 			hz = strings.TrimPrefix(hz, "/hostedzone/")
-			hzARN := "arn:aws:route53:::hostedzone/" + hz
+			hzARN := route53ARN(acct.partition(), "hostedzone/"+hz)
 			tgt := store.ResourceID("aws", acct.ID, hzARN)
 			if !hzSet[tgt] {
 				continue
@@ -138,7 +138,7 @@ func resolveServiceDiscoveryNamespaceHostedZone(acct *account, st *store.Store) 
 
 // resolveServiceDiscoveryInstanceService wires each Cloud Map instance to
 // its parent service via the synthetic NativeID shape
-// `arn:aws:servicediscovery:r:a:service/{sid}/instance/{iid}`.
+// `arn:{p}:servicediscovery:r:a:service/{sid}/instance/{iid}`.
 func resolveServiceDiscoveryInstanceService(acct *account, st *store.Store) error {
 	rows, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeServiceDiscoveryInstance},

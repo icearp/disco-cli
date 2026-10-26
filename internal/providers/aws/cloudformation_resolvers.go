@@ -102,20 +102,20 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::IAM::Role": {
 		discoType: TypeIAMRole,
-		toNativeID: func(name, _, _, acct string) string {
+		toNativeID: func(name, partition, _, acct string) string {
 			if name == "" {
 				return ""
 			}
-			return "arn:aws:iam::" + acct + ":role/" + name
+			return iamRoleARN(partition, acct, name)
 		},
 	},
 	"AWS::IAM::User": {
 		discoType: TypeIAMUser,
-		toNativeID: func(name, _, _, acct string) string {
+		toNativeID: func(name, partition, _, acct string) string {
 			if name == "" {
 				return ""
 			}
-			return "arn:aws:iam::" + acct + ":user/" + name
+			return arnFor(partition, "iam", "", acct, "user/"+name)
 		},
 	},
 	"AWS::IAM::ManagedPolicy": {
@@ -124,11 +124,11 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::Lambda::Function": {
 		discoType: TypeLambdaFunction,
-		toNativeID: func(name, _, region, acct string) string {
+		toNativeID: func(name, partition, region, acct string) string {
 			if name == "" {
 				return ""
 			}
-			return "arn:aws:lambda:" + region + ":" + acct + ":function:" + name
+			return arnFor(partition, "lambda", region, acct, "function:"+name)
 		},
 	},
 	"AWS::Lambda::LayerVersion": {
@@ -173,11 +173,11 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::DynamoDB::Table": {
 		discoType: TypeDynamoDBTable,
-		toNativeID: func(name, _, region, acct string) string {
+		toNativeID: func(name, partition, region, acct string) string {
 			if name == "" {
 				return ""
 			}
-			return "arn:aws:dynamodb:" + region + ":" + acct + ":table/" + name
+			return dynamoTableARN(partition, region, acct, name)
 		},
 	},
 	"AWS::SNS::Topic": {discoType: TypeSNSTopic, toNativeID: passthrough},
@@ -187,7 +187,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 		// queue NativeID is the ARN. Take the trailing path segment as the
 		// queue name; region/acct come from the stack row, not the URL.
 		discoType: TypeSQSQueue,
-		toNativeID: func(url, _, region, acct string) string {
+		toNativeID: func(url, partition, region, acct string) string {
 			if url == "" {
 				return ""
 			}
@@ -195,7 +195,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 			if i < 0 || i == len(url)-1 {
 				return ""
 			}
-			return "arn:aws:sqs:" + region + ":" + acct + ":" + url[i+1:]
+			return arnFor(partition, "sqs", region, acct, url[i+1:])
 		},
 	},
 	"AWS::Logs::LogGroup": {
@@ -209,11 +209,11 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 	},
 	"AWS::KMS::Key": {
 		discoType: TypeKMSKey,
-		toNativeID: func(id, _, region, acct string) string {
+		toNativeID: func(id, partition, region, acct string) string {
 			if id == "" {
 				return ""
 			}
-			return "arn:aws:kms:" + region + ":" + acct + ":key/" + id
+			return kmsKeyARN(partition, region, acct, id)
 		},
 	},
 	"AWS::SecretsManager::Secret": {discoType: TypeSecretsManagerSecret, toNativeID: passthrough},
@@ -243,47 +243,47 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 		// is just the rule name; custom-bus shows as `BusName|RuleName` in
 		// some templates — reject the pipe form too.
 		discoType: TypeEventsRule,
-		toNativeID: func(name, _, region, acct string) string {
+		toNativeID: func(name, partition, region, acct string) string {
 			if name == "" || strings.ContainsAny(name, "|") {
 				return ""
 			}
-			return "arn:aws:events:" + region + ":" + acct + ":rule/" + name
+			return arnFor(partition, "events", region, acct, "rule/"+name)
 		},
 	},
 	"AWS::Events::EventBus": {
 		discoType: TypeEventsEventBus,
-		toNativeID: func(name, _, region, acct string) string {
+		toNativeID: func(name, partition, region, acct string) string {
 			if name == "" {
 				return ""
 			}
-			return "arn:aws:events:" + region + ":" + acct + ":event-bus/" + name
+			return eventBusARN(partition, region, acct, name)
 		},
 	},
 	"AWS::EFS::FileSystem": {
 		discoType: TypeEFSFileSystem,
-		toNativeID: func(id, _, region, acct string) string {
+		toNativeID: func(id, partition, region, acct string) string {
 			if id == "" {
 				return ""
 			}
-			return "arn:aws:elasticfilesystem:" + region + ":" + acct + ":file-system/" + id
+			return efsFileSystemARN(partition, region, acct, id)
 		},
 	},
 	"AWS::ECR::Repository": {
 		discoType: TypeECRRepository,
-		toNativeID: func(name, _, region, acct string) string {
+		toNativeID: func(name, partition, region, acct string) string {
 			if name == "" {
 				return ""
 			}
-			return "arn:aws:ecr:" + region + ":" + acct + ":repository/" + name
+			return arnFor(partition, "ecr", region, acct, "repository/"+name)
 		},
 	},
 	"AWS::Kinesis::Stream": {
 		discoType: TypeKinesisStream,
-		toNativeID: func(name, _, region, acct string) string {
+		toNativeID: func(name, partition, region, acct string) string {
 			if name == "" {
 				return ""
 			}
-			return "arn:aws:kinesis:" + region + ":" + acct + ":stream/" + name
+			return kinesisStreamARNFromName(partition, region, acct, name)
 		},
 	},
 	"AWS::SSM::Parameter": {
@@ -291,11 +291,11 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 		// slash bare names have in the API. Disco's SSM scanner stores the
 		// canonical ARN as `parameter/{name}` (no double slash).
 		discoType: TypeSSMParameter,
-		toNativeID: func(name, _, region, acct string) string {
+		toNativeID: func(name, partition, region, acct string) string {
 			if name == "" {
 				return ""
 			}
-			return "arn:aws:ssm:" + region + ":" + acct + ":parameter/" + strings.TrimPrefix(name, "/")
+			return ssmParameterARN(partition, region, acct, name)
 		},
 	},
 	"AWS::ElasticLoadBalancingV2::LoadBalancer": {discoType: TypeELBv2LoadBalancer, toNativeID: passthrough},

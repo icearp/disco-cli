@@ -18,7 +18,7 @@ import (
 
 // ecrExtAPI lists the ECR ops used by the extended scanner phases: registry-
 // scoped Get* ops return singleton config, Describe* ops are account-wide.
-// Synthesized ARN format: arn:aws:ecr:{region}:{account}:{kind}/{key}.
+// Synthesized ARN format: arn:{p}:ecr:{region}:{account}:{kind}/{key}.
 type ecrExtAPI interface {
 	DescribePullThroughCacheRules(context.Context, *ecr.DescribePullThroughCacheRulesInput, ...func(*ecr.Options)) (*ecr.DescribePullThroughCacheRulesOutput, error)
 	ListPullTimeUpdateExclusions(context.Context, *ecr.ListPullTimeUpdateExclusionsInput, ...func(*ecr.Options)) (*ecr.ListPullTimeUpdateExclusionsOutput, error)
@@ -30,8 +30,8 @@ type ecrExtAPI interface {
 	BatchGetRepositoryScanningConfiguration(context.Context, *ecr.BatchGetRepositoryScanningConfigurationInput, ...func(*ecr.Options)) (*ecr.BatchGetRepositoryScanningConfigurationOutput, error)
 }
 
-func ecrSingletonARN(region, acct, kind string) string {
-	return fmt.Sprintf("arn:aws:ecr:%s:%s:%s", region, acct, kind)
+func ecrSingletonARN(partition, region, acct, kind string) string {
+	return arnFor(partition, "ecr", region, acct, kind)
 }
 
 // scanECRPullThroughCacheRules stores the region's pull through cache rules,
@@ -56,7 +56,7 @@ func scanECRPullThroughCacheRules(ctx context.Context, client ecrExtAPI, acct *a
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeECRPullThroughCacheRule,
-				NativeID: fmt.Sprintf("arn:aws:ecr:%s:%s:pull-through-cache-rule/%s", region, acct.ID, prefix),
+				NativeID: arnFor(acct.partition(), "ecr", region, acct.ID, "pull-through-cache-rule/"+prefix),
 				Name:     &prefix, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			}, "", ""
 		})
@@ -103,7 +103,7 @@ func scanECRRegistryPolicy(ctx context.Context, client ecrExtAPI, acct *account,
 	if out == nil || sv(out.PolicyText) == "" {
 		return 0, 0, nil
 	}
-	arn := ecrSingletonARN(region, acct.ID, "registry-policy")
+	arn := ecrSingletonARN(acct.partition(), region, acct.ID, "registry-policy")
 	label := arn
 	batch := []*store.Resource{{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -122,7 +122,7 @@ func scanECRRegistryScanningConfig(ctx context.Context, client ecrExtAPI, acct *
 		}
 		return 0, 0, fmt.Errorf("ecr:GetRegistryScanningConfiguration: %w", err)
 	}
-	arn := ecrSingletonARN(region, acct.ID, "registry-scanning-configuration")
+	arn := ecrSingletonARN(acct.partition(), region, acct.ID, "registry-scanning-configuration")
 	label := arn
 	batch := []*store.Resource{{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -145,7 +145,7 @@ func scanECRReplicationConfiguration(ctx context.Context, client ecrExtAPI, acct
 	if out == nil || out.ReplicationConfiguration == nil {
 		return 0, 0, nil
 	}
-	arn := ecrSingletonARN(region, acct.ID, "replication-configuration")
+	arn := ecrSingletonARN(acct.partition(), region, acct.ID, "replication-configuration")
 	label := arn
 	batch := []*store.Resource{{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -178,7 +178,7 @@ func scanECRRepositoryCreationTemplates(ctx context.Context, client ecrExtAPI, a
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeECRRepositoryCreationTemplate,
-				NativeID: fmt.Sprintf("arn:aws:ecr:%s:%s:repository-creation-template/%s", region, acct.ID, prefix),
+				NativeID: arnFor(acct.partition(), "ecr", region, acct.ID, "repository-creation-template/"+prefix),
 				Name:     &prefix, Region: &region, AttributesJSON: mustJSON(tmpl), DiscoveredBy: scanID,
 			}, "", ""
 		})
@@ -200,7 +200,7 @@ func scanECRSigningConfiguration(ctx context.Context, client ecrExtAPI, acct *ac
 		}
 		return 0, 0, fmt.Errorf("ecr:GetSigningConfiguration: %w", err)
 	}
-	arn := ecrSingletonARN(region, acct.ID, "signing-configuration")
+	arn := ecrSingletonARN(acct.partition(), region, acct.ID, "signing-configuration")
 	label := arn
 	batch := []*store.Resource{{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

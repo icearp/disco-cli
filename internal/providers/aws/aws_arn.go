@@ -126,3 +126,50 @@ func identityStoreUserNativeIDIn(partition, ownerAccountID, identityStoreID, use
 func identityStoreGroupNativeIDIn(partition, ownerAccountID, identityStoreID, groupID string) string {
 	return arnFor(partition, "identitystore", "", ownerAccountID, "group/"+identityStoreID+"/"+groupID)
 }
+
+// kmsKeyARN builds a KMS key's ARN from its bare key id: resolvers expand
+// key-id and alias-target references to the NativeID the key scanner stores.
+func kmsKeyARN(partition, region, accountID, keyID string) string {
+	return arnFor(partition, "kms", region, accountID, "key/"+keyID)
+}
+
+// iamRoleARN and iamInstanceProfileARN build the ARN of a role or instance
+// profile in accountID from the bare name another resource references.
+func iamRoleARN(partition, accountID, name string) string {
+	return arnFor(partition, "iam", "", accountID, "role/"+name)
+}
+
+func iamInstanceProfileARN(partition, accountID, name string) string {
+	return arnFor(partition, "iam", "", accountID, "instance-profile/"+name)
+}
+
+// kmsKeyRefARN returns the key ARN a key reference names: an ARN as given, or
+// a bare key id expanded in the given partition, region and account.
+func kmsKeyRefARN(partition, region, accountID, ref string) string {
+	if strings.HasPrefix(ref, "arn:") {
+		return ref
+	}
+	return kmsKeyARN(partition, region, accountID, ref)
+}
+
+// eventBusARN builds an EventBridge bus ARN from the bus name a rule, an
+// integration or a CloudFormation stack references.
+func eventBusARN(partition, region, accountID, name string) string {
+	return arnFor(partition, "events", region, accountID, "event-bus/"+name)
+}
+
+// efsFileSystemARN builds an EFS file system's ARN from its fs- id, the form
+// the file-system scanner stores and the mount-target NativeID extends.
+func efsFileSystemARN(partition, region, accountID, fsID string) string {
+	return arnFor(partition, "elasticfilesystem", region, accountID, "file-system/"+fsID)
+}
+
+// kinesisStreamARNFromName and firehoseDeliveryStreamARNFromName build the
+// stream ARN another service references by name.
+func kinesisStreamARNFromName(partition, region, accountID, name string) string {
+	return arnFor(partition, "kinesis", region, accountID, "stream/"+name)
+}
+
+func firehoseDeliveryStreamARNFromName(partition, region, accountID, name string) string {
+	return arnFor(partition, "firehose", region, accountID, "deliverystream/"+name)
+}

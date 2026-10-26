@@ -109,7 +109,7 @@ func emitGlueTriggerWorkflowEdge(st *store.Store, acct *account, r store.Resourc
 	if name == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acct.ID, glueResourceARN(region, acct.ID, "workflow", name))
+	tgtID := store.ResourceID("aws", acct.ID, glueResourceARN(acct.partition(), region, acct.ID, "workflow", name))
 	if !wfSet[tgtID] {
 		return nil
 	}
@@ -135,7 +135,7 @@ func emitGlueTriggerActionEdge(st *store.Store, acct *account, r store.Resource,
 	if name == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acct.ID, glueResourceARN(region, acct.ID, arnKind, name))
+	tgtID := store.ResourceID("aws", acct.ID, glueResourceARN(acct.partition(), region, acct.ID, arnKind, name))
 	if !set[tgtID] {
 		return nil
 	}
@@ -213,7 +213,7 @@ func loadGlueDevEndpointTargetSets(acct *account, st *store.Store) (glueDevEndpo
 }
 
 func emitGlueDevEndpointRoleEdge(st *store.Store, acct *account, r store.Resource, attrs glueDevEndpointAttrs, sets glueDevEndpointTargetSets) error {
-	arn := glueRoleARN(acct.ID, sv(attrs.RoleArn))
+	arn := glueRoleARN(acct.partition(), acct.ID, sv(attrs.RoleArn))
 	if arn == "" {
 		return nil
 	}
@@ -263,7 +263,7 @@ func emitGlueDevEndpointSecConfigEdge(st *store.Store, acct *account, r store.Re
 	if name == "" {
 		return nil
 	}
-	tgtID := store.ResourceID("aws", acct.ID, glueResourceARN(region, acct.ID, "securityConfiguration", name))
+	tgtID := store.ResourceID("aws", acct.ID, glueResourceARN(acct.partition(), region, acct.ID, "securityConfiguration", name))
 	if !sets.scSet[tgtID] {
 		return nil
 	}
@@ -321,7 +321,7 @@ func resolveGlueMLTransformRefs(acct *account, st *store.Store) error {
 }
 
 func emitGlueMLTRoleEdge(st *store.Store, acct *account, r store.Resource, attrs glueMLTAttrs, roleSet map[string]bool) error {
-	arn := glueRoleARN(acct.ID, sv(attrs.Role))
+	arn := glueRoleARN(acct.partition(), acct.ID, sv(attrs.Role))
 	if arn == "" {
 		return nil
 	}
@@ -342,7 +342,7 @@ func emitGlueMLTTableEdges(st *store.Store, acct *account, r store.Resource, reg
 		if db == "" {
 			continue
 		}
-		dbID := store.ResourceID("aws", acct.ID, glueResourceARN(region, acct.ID, "database", db))
+		dbID := store.ResourceID("aws", acct.ID, glueResourceARN(acct.partition(), region, acct.ID, "database", db))
 		if dbSet[dbID] {
 			if err := st.UpsertRelationship(r.ID, dbID, store.RelUses, "directed", nil); err != nil {
 				return fmt.Errorf("upsert glue-mlt→database: %w", err)
@@ -351,7 +351,7 @@ func emitGlueMLTTableEdges(st *store.Store, acct *account, r store.Resource, reg
 		if tbl == "" {
 			continue
 		}
-		tblID := store.ResourceID("aws", acct.ID, glueResourceARN(region, acct.ID, "table", db+"/"+tbl))
+		tblID := store.ResourceID("aws", acct.ID, glueResourceARN(acct.partition(), region, acct.ID, "table", db+"/"+tbl))
 		if !tblSet[tblID] {
 			continue
 		}
@@ -455,7 +455,7 @@ func resolveGlueSchemaRegistry(acct *account, st *store.Store) error {
 		arn := sv(attrs.RegistryID.RegistryArn)
 		if arn == "" {
 			if name := sv(attrs.RegistryID.RegistryName); name != "" {
-				arn = glueResourceARN(region, acct.ID, "registry", name)
+				arn = glueResourceARN(acct.partition(), region, acct.ID, "registry", name)
 			}
 		}
 		if arn == "" {
@@ -665,7 +665,7 @@ func resolveGlueWorkflowGraphNodes(acct *account, st *store.Store) error {
 			if name == "" || !ok {
 				continue
 			}
-			childID := store.ResourceID("aws", acct.ID, glueResourceARN(region, acct.ID, kind.arnKind, name))
+			childID := store.ResourceID("aws", acct.ID, glueResourceARN(acct.partition(), region, acct.ID, kind.arnKind, name))
 			if !kind.set[childID] || seen[childID] {
 				continue
 			}

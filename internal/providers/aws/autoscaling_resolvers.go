@@ -177,7 +177,7 @@ func resolveAutoScalingGroupEdges(acct *account, st *store.Store, groups []store
 			}
 		}
 		if lcName := sv(a.LaunchConfigurationName); lcName != "" {
-			lcARN := fmt.Sprintf("arn:aws:autoscaling:%s:%s:launchConfiguration:*:launchConfigurationName/%s", region, acct.ID, lcName)
+			lcARN := autoScalingLaunchConfigurationARN(acct.partition(), region, acct.ID, lcName)
 			lcID := store.ResourceID("aws", acct.ID, lcARN)
 			if lcIDs[lcID] {
 				if err := st.UpsertRelationship(g.ID, lcID, store.RelUses, "directed", nil); err != nil {
@@ -261,7 +261,7 @@ func resolveAutoScalingLaunchConfigEdges(acct *account, st *store.Store, instPro
 			// form is rebuilt as the canonical IAM instance-profile ARN.
 			ipARN := ip
 			if !strings.HasPrefix(ip, "arn:") {
-				ipARN = fmt.Sprintf("arn:aws:iam::%s:instance-profile/%s", acct.ID, ip)
+				ipARN = iamInstanceProfileARN(acct.partition(), acct.ID, ip)
 			}
 			ipID := store.ResourceID("aws", acct.ID, ipARN)
 			if instProfileIDs[ipID] {

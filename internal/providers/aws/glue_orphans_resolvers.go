@@ -69,7 +69,7 @@ func resolveGlueDatabaseTargets(acct *account, st *store.Store) error {
 		}
 		region := sv(d.Region)
 		if attrs.TargetDatabase != nil && sv(attrs.TargetDatabase.CatalogID) != "" {
-			catARN := glueResourceARN(region, acct.ID, "catalog", *attrs.TargetDatabase.CatalogID)
+			catARN := glueResourceARN(acct.partition(), region, acct.ID, "catalog", *attrs.TargetDatabase.CatalogID)
 			catID := store.ResourceID("aws", acct.ID, catARN)
 			if catalogSet[catID] {
 				if err := st.UpsertRelationship(d.ID, catID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -78,7 +78,7 @@ func resolveGlueDatabaseTargets(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.FederatedDatabase != nil && sv(attrs.FederatedDatabase.ConnectionName) != "" {
-			connARN := glueResourceARN(region, acct.ID, "connection", *attrs.FederatedDatabase.ConnectionName)
+			connARN := glueResourceARN(acct.partition(), region, acct.ID, "connection", *attrs.FederatedDatabase.ConnectionName)
 			connID := store.ResourceID("aws", acct.ID, connARN)
 			if connSet[connID] {
 				if err := st.UpsertRelationship(d.ID, connID, store.RelUses, "directed", nil); err != nil {

@@ -23,7 +23,7 @@ func init() {
 }
 
 // resolveCognitoAppClientRelationships links each app client to its user pool.
-// NativeID encodes both — "arn:aws:cognito-idp:<r>:<a>:userpool/<pool>/client/<id>"
+// NativeID encodes both — "arn:{p}:cognito-idp:<r>:<a>:userpool/<pool>/client/<id>"
 // — so the pool ARN is derivable from the client's own ARN.
 func resolveCognitoAppClientRelationships(acct *account, st *store.Store) error {
 	clients, err := st.ListResources(store.ResourceFilter{
@@ -100,13 +100,13 @@ func resolveCognitoIdentityPoolRelationships(acct *account, st *store.Store) err
 				parts := strings.SplitN(host, ".", 3)
 				if len(parts) >= 3 && poolNative != "" {
 					upRegion := parts[1]
-					upARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", upRegion, acct.ID, poolNative)
+					upARN := cognitoUserPoolARN(acct.partition(), upRegion, acct.ID, poolNative)
 					upID := store.ResourceID("aws", acct.ID, upARN)
 					if err := st.UpsertRelationship(r.ID, upID, store.RelUses, "directed", nil); err != nil {
 						return fmt.Errorf("upsert cognito-identity-pool→user-pool: %w", err)
 					}
 					if clientID := sv(p.ClientID); clientID != "" {
-						acARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s/client/%s", upRegion, acct.ID, poolNative, clientID)
+						acARN := cogUPARN(acct.partition(), upRegion, acct.ID, poolNative, "client", clientID)
 						acID := store.ResourceID("aws", acct.ID, acARN)
 						if err := st.UpsertRelationship(r.ID, acID, store.RelUses, "directed", nil); err != nil {
 							return fmt.Errorf("upsert cognito-identity-pool→app-client: %w", err)

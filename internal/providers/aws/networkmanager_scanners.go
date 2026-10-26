@@ -285,7 +285,7 @@ func scanNMLinkAssociations(ctx context.Context, client networkManagerAPI, acct 
 			if dev == "" || lnk == "" {
 				return nil, "link associations have an empty DeviceId or LinkId (first names their global network)", gid
 			}
-			arn := fmt.Sprintf("arn:aws:networkmanager::%s:global-network/%s/link-association/%s/%s", acct.ID, gid, dev, lnk)
+			arn := arnFor(acct.partition(), "networkmanager", "", acct.ID, "global-network/"+gid+"/link-association/"+dev+"/"+lnk)
 			return nmRow(acct, scanID, TypeNetworkManagerLinkAssociation, arn, dev+"/"+lnk, a, nil), "", ""
 		})
 }
@@ -306,7 +306,7 @@ func scanNMCGWAssociations(ctx context.Context, client networkManagerAPI, acct *
 			if cgw == "" {
 				return nil, "customer gateway associations have an empty CustomerGatewayArn (first names their global network)", gid
 			}
-			arn := fmt.Sprintf("arn:aws:networkmanager::%s:global-network/%s/cgw-association/%s", acct.ID, gid, cgw)
+			arn := arnFor(acct.partition(), "networkmanager", "", acct.ID, "global-network/"+gid+"/cgw-association/"+cgw)
 			return nmRow(acct, scanID, TypeNetworkManagerCustomerGatewayAssociation, arn, cgw, a, nil), "", ""
 		})
 }
@@ -327,7 +327,7 @@ func scanNMTGWRegistrations(ctx context.Context, client networkManagerAPI, acct 
 			if tgw == "" {
 				return nil, "transit gateway registrations have an empty TransitGatewayArn (first names their global network)", gid
 			}
-			arn := fmt.Sprintf("arn:aws:networkmanager::%s:global-network/%s/tgw-registration/%s", acct.ID, gid, tgw)
+			arn := arnFor(acct.partition(), "networkmanager", "", acct.ID, "global-network/"+gid+"/tgw-registration/"+tgw)
 			return nmRow(acct, scanID, TypeNetworkManagerTransitGatewayRegistration, arn, tgw, r, nil), "", ""
 		})
 }
@@ -384,7 +384,7 @@ func scanNMAttachments(ctx context.Context, client networkManagerAPI, acct *acco
 			if !ok {
 				return nil, "attachments have an AttachmentType disco does not map", fmt.Sprintf("%s (%s)", id, a.AttachmentType)
 			}
-			arn := fmt.Sprintf("arn:aws:networkmanager::%s:attachment/%s", acct.ID, id)
+			arn := arnFor(acct.partition(), "networkmanager", "", acct.ID, "attachment/"+id)
 			return nmRow(acct, scanID, dtype, arn, id, a, nmTagsJSON(a.Tags)), "", ""
 		})
 }
@@ -408,7 +408,7 @@ func scanNMPeerings(ctx context.Context, client networkManagerAPI, acct *account
 			if p.PeeringType != nmtypes.PeeringTypeTransitGateway {
 				return nil, "peerings have a PeeringType disco does not map", fmt.Sprintf("%s (%s)", id, p.PeeringType)
 			}
-			arn := fmt.Sprintf("arn:aws:networkmanager::%s:peering/%s", acct.ID, id)
+			arn := arnFor(acct.partition(), "networkmanager", "", acct.ID, "peering/"+id)
 			return nmRow(acct, scanID, TypeNetworkManagerTransitGatewayPeering, arn, id, p, nmTagsJSON(p.Tags)), "", ""
 		})
 }
@@ -427,7 +427,7 @@ func scanNMConnectPeers(ctx context.Context, client networkManagerAPI, acct *acc
 			if id == "" {
 				return nil, "connect peers have an empty ConnectPeerId (first names their core network)", sv(c.CoreNetworkId)
 			}
-			arn := fmt.Sprintf("arn:aws:networkmanager::%s:connect-peer/%s", acct.ID, id)
+			arn := arnFor(acct.partition(), "networkmanager", "", acct.ID, "connect-peer/"+id)
 			return nmRow(acct, scanID, TypeNetworkManagerConnectPeer, arn, id, c, nmTagsJSON(c.Tags)), "", ""
 		})
 }
@@ -446,7 +446,7 @@ func scanNMPrefixListAssocs(ctx context.Context, client networkManagerAPI, acct 
 			if plArn == "" {
 				return nil, "prefix list associations have an empty PrefixListArn (first names their core network)", cid
 			}
-			arn := fmt.Sprintf("arn:aws:networkmanager::%s:core-network/%s/prefix-list-association/%s", acct.ID, cid, plArn)
+			arn := arnFor(acct.partition(), "networkmanager", "", acct.ID, "core-network/"+cid+"/prefix-list-association/"+plArn)
 			return nmRow(acct, scanID, TypeNetworkManagerCoreNetworkPrefixListAssociation, arn, plArn, p, nil), "", ""
 		})
 }

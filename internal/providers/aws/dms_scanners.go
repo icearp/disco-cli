@@ -192,7 +192,7 @@ func scanDMSEndpoints(ctx context.Context, client dmsAPI, acct *account, region 
 }
 
 func scanDMSEventSubscriptions(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	// EventSubscription has no AWS-issued ARN field; synthesize per DMS ARN format: arn:aws:dms:{r}:{a}:es:{CustSubscriptionId}.
+	// EventSubscription has no AWS-issued ARN field; synthesize per DMS ARN format: arn:{p}:dms:{r}:{a}:es:{CustSubscriptionId}.
 	pager := databasemigrationservice.NewDescribeEventSubscriptionsPaginator(client, &databasemigrationservice.DescribeEventSubscriptionsInput{})
 	var batch []*store.Resource
 	for pager.HasMorePages() {
@@ -209,7 +209,7 @@ func scanDMSEventSubscriptions(ctx context.Context, client dmsAPI, acct *account
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:dms:%s:%s:es:%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "dms", region, acct.ID, "es:"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

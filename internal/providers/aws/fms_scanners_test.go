@@ -220,7 +220,7 @@ func TestScanFMS_StoresPolicyBodiesAndResourceSetMembers(t *testing.T) {
 	if len(sets) != 2 {
 		t.Fatalf("resource set rows = %d; want 2 (the id-less summary skipped)", len(sets))
 	}
-	rs1 := sets[fmsResourceSetARN(testRegion, testAccountID, "rs1")]
+	rs1 := sets[fmsResourceSetARN("aws", testRegion, testAccountID, "rs1")]
 	want := []string{
 		"arn:aws:ec2:us-east-1:123456789012:vpc/vpc-a",
 		"arn:aws:ec2:us-east-1:123456789012:vpc/vpc-b",
@@ -232,7 +232,7 @@ func TestScanFMS_StoresPolicyBodiesAndResourceSetMembers(t *testing.T) {
 	if sdkaws.ToString(rs1.Name) != "prod-vpcs" || sdkaws.ToString(rs1.Status) != "ACTIVE" {
 		t.Errorf("rs1 name, status = %q, %q", sdkaws.ToString(rs1.Name), sdkaws.ToString(rs1.Status))
 	}
-	if got := fmsStoredMembers(t, sets[fmsResourceSetARN(testRegion, testAccountID, "rs2")]); len(got) != 0 {
+	if got := fmsStoredMembers(t, sets[fmsResourceSetARN("aws", testRegion, testAccountID, "rs2")]); len(got) != 0 {
 		t.Errorf("rs2 members = %v; want an empty list", got)
 	}
 }
@@ -292,7 +292,7 @@ func TestScanFMS_MemberReadFailure(t *testing.T) {
 			var got []string
 			sets := rowsByNativeID(t, st, TypeFMSResourceSet)
 			for _, id := range []string{"rs1", "rs2"} {
-				r, ok := sets[fmsResourceSetARN(testRegion, testAccountID, id)]
+				r, ok := sets[fmsResourceSetARN("aws", testRegion, testAccountID, id)]
 				if !ok {
 					continue
 				}
@@ -690,7 +690,7 @@ func TestScanFMS_RegionalRowsPerRegion(t *testing.T) {
 
 	for typ, nativeID := range map[string]func(region string) string{
 		TypeFMSPolicy:              func(r string) string { return fmsPolicyARNIn(r, "p1") },
-		TypeFMSResourceSet:         func(r string) string { return fmsResourceSetARN(r, testAccountID, "rs1") },
+		TypeFMSResourceSet:         func(r string) string { return fmsResourceSetARN("aws", r, testAccountID, "rs1") },
 		TypeFMSNotificationChannel: func(r string) string { return "arn:aws:fms:" + r + ":" + testAccountID + ":notification-channel" },
 		TypeFMSAppsList:            func(r string) string { return "arn:aws:fms:" + r + ":" + testAccountID + ":applications-list/a1" },
 		TypeFMSProtocolsList:       func(r string) string { return "arn:aws:fms:" + r + ":" + testAccountID + ":protocols-list/l1" },
@@ -715,7 +715,7 @@ func TestScanFMS_RegionalRowsPerRegion(t *testing.T) {
 		t.Fatalf("resolveFMSPolicyResourceSets: %v", err)
 	}
 	for _, region := range regions {
-		set := store.ResourceID("aws", testAccountID, fmsResourceSetARN(region, testAccountID, "rs1"))
+		set := store.ResourceID("aws", testAccountID, fmsResourceSetARN("aws", region, testAccountID, "rs1"))
 		want := []string{store.ResourceID("aws", testAccountID, fmsPolicyARNIn(region, "p1"))}
 		if got := edgeSources(t, st, set, store.RelUses); !reflect.DeepEqual(got, want) {
 			t.Errorf("uses edges into %s rs1 from %v; want %v", region, got, want)

@@ -306,7 +306,7 @@ func scanServiceCatalogAssociations(ctx context.Context, client servicecatalogAP
 					if pid == "" {
 						continue
 					}
-					arn := fmt.Sprintf("arn:aws:servicecatalog:%s:%s:portfolio-product-association/%s/%s", region, acct.ID, pid, prodID)
+					arn := arnFor(acct.partition(), "servicecatalog", region, acct.ID, "portfolio-product-association/"+pid+"/"+prodID)
 					label := fmt.Sprintf("%s/%s", pid, prodID)
 					mu.Lock()
 					ppaBatch = append(ppaBatch, &store.Resource{
@@ -352,7 +352,7 @@ func scanServiceCatalogAssociations(ctx context.Context, client servicecatalogAP
 						if saID == "" {
 							continue
 						}
-						arn := fmt.Sprintf("arn:aws:servicecatalog:%s:%s:service-action-association/%s/%s/%s", region, acct.ID, prodID, artID, saID)
+						arn := arnFor(acct.partition(), "servicecatalog", region, acct.ID, "service-action-association/"+prodID+"/"+artID+"/"+saID)
 						label := fmt.Sprintf("%s/%s/%s", prodID, artID, saID)
 						mu.Lock()
 						saaBatch = append(saaBatch, &store.Resource{

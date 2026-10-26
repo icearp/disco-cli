@@ -169,7 +169,7 @@ func scanGlueWorkflows(ctx context.Context, client glueAPI, acct *account, regio
 				continue
 			}
 			wname := sv(read.workflow.Name)
-			rows = append(rows, glueRow(acct, region, scanID, TypeGlueWorkflow, glueResourceARN(region, acct.ID, "workflow", wname), wname, read.workflow))
+			rows = append(rows, glueRow(acct, region, scanID, TypeGlueWorkflow, glueResourceARN(acct.partition(), region, acct.ID, "workflow", wname), wname, read.workflow))
 		case isAPIErrorCode(err, "EntityNotFoundException"):
 		case isAccessDenied(err):
 			denied.skipped(name, err)
@@ -215,7 +215,7 @@ func scanGlueMLTransforms(ctx context.Context, client glueAPI, acct *account, re
 			if id == "" {
 				return nil, "ML transforms have an empty TransformId", cmp.Or(sv(m.Name), "(a transform with no name)")
 			}
-			return glueRow(acct, region, scanID, TypeGlueMLTransform, glueResourceARN(region, acct.ID, "mlTransform", id), cmp.Or(sv(m.Name), id), m), "", ""
+			return glueRow(acct, region, scanID, TypeGlueMLTransform, glueResourceARN(acct.partition(), region, acct.ID, "mlTransform", id), cmp.Or(sv(m.Name), id), m), "", ""
 		}, tags, p)
 }
 

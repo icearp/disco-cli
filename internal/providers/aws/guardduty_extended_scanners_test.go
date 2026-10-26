@@ -62,12 +62,12 @@ func (f *fakeGDOrgConfig) DescribeOrganizationConfiguration(_ context.Context, i
 func seedGDDetectors(t *testing.T, st *store.Store, ids ...string) {
 	t.Helper()
 	for _, id := range ids {
-		upsertTestResource(t, st, "aws", testAccountID, TypeGuardDutyDetector, guardDutyDetectorARN(testRegion, testAccountID, id), testRegion, "{}")
+		upsertTestResource(t, st, "aws", testAccountID, TypeGuardDutyDetector, guardDutyDetectorARN("aws", testRegion, testAccountID, id), testRegion, "{}")
 	}
 }
 
 func gdOrgConfigARN(detectorID string) string {
-	return guardDutyDetectorARN(testRegion, testAccountID, detectorID) + "/organization-configuration"
+	return guardDutyDetectorARN("aws", testRegion, testAccountID, detectorID) + "/organization-configuration"
 }
 
 func TestScanGDOrganizationConfigurations_MergesPagesPerDetector(t *testing.T) {
@@ -123,7 +123,7 @@ func TestScanGDOrganizationConfigurations_MergesPagesPerDetector(t *testing.T) {
 		if _, hasMeta := attrs["ResultMetadata"]; string(attrs["NextToken"]) != "null" || hasMeta {
 			t.Errorf("%s envelope NextToken=%s ResultMetadata=%s; want null and absent so the row is stable across scans", did, attrs["NextToken"], attrs["ResultMetadata"])
 		}
-		assertQSContains(t, st, guardDutyDetectorARN(testRegion, testAccountID, did), gdOrgConfigARN(did))
+		assertQSContains(t, st, guardDutyDetectorARN("aws", testRegion, testAccountID, did), gdOrgConfigARN(did))
 	}
 }
 
@@ -239,7 +239,7 @@ func TestScanGuardDuty_StoresOrganizationConfigurationUnderDetector(t *testing.T
 	if total != 3 {
 		t.Errorf("total = %d; want 3 (detector, publishing destination, organization configuration)", total)
 	}
-	assertQSContains(t, st, guardDutyDetectorARN(testRegion, testAccountID, "d"), gdOrgConfigARN("d"))
+	assertQSContains(t, st, guardDutyDetectorARN("aws", testRegion, testAccountID, "d"), gdOrgConfigARN("d"))
 }
 
 // TestScanGuardDuty_OrganizationConfigurationErrorPropagates pins that the

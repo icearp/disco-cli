@@ -154,12 +154,12 @@ func scanRedshift(ctx context.Context, acct *account, region string, st *store.S
 	return total, inserted, errs.join(st, acct, region)
 }
 
-func redshiftClusterARN(region, accountID, name string) string {
-	return fmt.Sprintf("arn:aws:redshift:%s:%s:cluster:%s", region, accountID, name)
+func redshiftClusterARN(partition, region, accountID, name string) string {
+	return redshiftARN(partition, region, accountID, "cluster", name)
 }
 
-func redshiftSubnetGroupARN(region, accountID, name string) string {
-	return fmt.Sprintf("arn:aws:redshift:%s:%s:subnetgroup:%s", region, accountID, name)
+func redshiftSubnetGroupARN(partition, region, accountID, name string) string {
+	return redshiftARN(partition, region, accountID, "subnetgroup", name)
 }
 
 // redshiftIDARN is redshiftARN, or "" when id is empty, so that redshiftList
@@ -425,7 +425,7 @@ func scanRedshiftClusters(ctx context.Context, client redshiftAPI, acct *account
 			name := sv(c.ClusterIdentifier)
 			var arn string
 			if name != "" {
-				arn = redshiftClusterARN(region, acct.ID, name)
+				arn = redshiftClusterARN(acct.partition(), region, acct.ID, name)
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -453,7 +453,7 @@ func scanRedshiftClusterSubnetGroups(ctx context.Context, client redshiftAPI, ac
 			name := sv(g.ClusterSubnetGroupName)
 			var arn string
 			if name != "" {
-				arn = redshiftSubnetGroupARN(region, acct.ID, name)
+				arn = redshiftSubnetGroupARN(acct.partition(), region, acct.ID, name)
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

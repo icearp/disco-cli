@@ -215,7 +215,7 @@ func resolveAPIGatewayV2AuthorizerCognito(acct *account, st *store.Store) error 
 		if region == "" {
 			continue
 		}
-		poolARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s", region, acct.ID, poolID)
+		poolARN := cognitoUserPoolARN(acct.partition(), region, acct.ID, poolID)
 		targetID := store.ResourceID("aws", acct.ID, poolARN)
 		if err := st.UpsertRelationship(r.ID, targetID, store.RelUses, "directed", nil); err != nil {
 			return fmt.Errorf("upsert apigw-v2-authorizer→cognito: %w", err)
@@ -330,7 +330,7 @@ func resolveAPIGatewayMethodRelationships(acct *account, st *store.Store) error 
 
 // apigwLambdaInvokeARN extracts the Lambda function ARN from an API Gateway
 // integration URI. Lambda integration URI format:
-// arn:aws:apigateway:{r}:lambda:path/2015-03-31/functions/{fnARN}/invocations
+// arn:{p}:apigateway:{r}:lambda:path/2015-03-31/functions/{fnARN}/invocations
 // Returns "" if uri is not a Lambda integration.
 func apigwLambdaInvokeARN(uri string) string {
 	const marker = ":lambda:path/2015-03-31/functions/"

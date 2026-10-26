@@ -17,19 +17,19 @@ import (
 // exposes no ARN; partitions are identified by (db, table, values[]). Values
 // are joined with "/" after URL-style escaping so a value containing "/"
 // doesn't collide.
-func gluePartitionARN(region, acct, db, table string, values []string) string {
+func gluePartitionARN(partition, region, acct, db, table string, values []string) string {
 	escaped := make([]string, len(values))
 	for i, v := range values {
 		escaped[i] = strings.ReplaceAll(v, "/", "%2F")
 	}
-	return fmt.Sprintf("arn:aws:glue:%s:%s:partition/%s/%s/%s", region, acct, db, table, strings.Join(escaped, "/"))
+	return glueResourceARN(partition, region, acct, "partition", db+"/"+table+"/"+strings.Join(escaped, "/"))
 }
 
 // glueTableOptimizerARN synthesizes a NativeID per (db, table, optimizerType),
 // mirroring CFN's AWS::Glue::TableOptimizer composite key (CatalogId, db,
 // table, type).
-func glueTableOptimizerARN(region, acct, db, table, optType string) string {
-	return fmt.Sprintf("arn:aws:glue:%s:%s:table-optimizer/%s/%s/%s", region, acct, db, table, optType)
+func glueTableOptimizerARN(partition, region, acct, db, table, optType string) string {
+	return glueResourceARN(partition, region, acct, "table-optimizer", db+"/"+table+"/"+optType)
 }
 
 // scanGluePartitions fans out GetPartitions per (db, table). Cardinality can
@@ -51,7 +51,7 @@ func scanGluePartitions(ctx context.Context, client glueAPI, acct *account, regi
 		}
 		g.Go(func() error {
 			defer sem.Release(1)
-			parentID := store.ResourceID("aws", acct.ID, glueTableARN(region, acct.ID, ref.db, ref.table))
+			parentID := store.ResourceID("aws", acct.ID, glueTableARN(acct.partition(), region, acct.ID, ref.db, ref.table))
 			pager := glue.NewGetPartitionsPaginator(client, &glue.GetPartitionsInput{
 				DatabaseName: &ref.db,
 				TableName:    &ref.table,
@@ -68,7 +68,7 @@ func scanGluePartitions(ctx context.Context, client glueAPI, acct *account, regi
 					return fmt.Errorf("glue:GetPartitions %s/%s: %w", ref.db, ref.table, perr)
 				}
 				for _, p := range out.Partitions {
-					arn := gluePartitionARN(region, acct.ID, ref.db, ref.table, p.Values)
+					arn := gluePartitionARN(acct.partition(), region, acct.ID, ref.db, ref.table, p.Values)
 					name := strings.Join(p.Values, "/")
 					r := &store.Resource{
 						Provider:       "aws",
@@ -168,9 +168,9 @@ func scanGlueTableOptimizers(ctx context.Context, client glueAPI, acct *account,
 				if out.TableOptimizer == nil {
 					return nil
 				}
-				arn := glueTableOptimizerARN(region, acct.ID, ref.db, ref.table, string(optType))
+				arn := glueTableOptimizerARN(acct.partition(), region, acct.ID, ref.db, ref.table, string(optType))
 				name := fmt.Sprintf("%s/%s/%s", ref.db, ref.table, optType)
-				parentID := store.ResourceID("aws", acct.ID, glueTableARN(region, acct.ID, ref.db, ref.table))
+				parentID := store.ResourceID("aws", acct.ID, glueTableARN(acct.partition(), region, acct.ID, ref.db, ref.table))
 				r := &store.Resource{
 					Provider:       "aws",
 					AccountID:      acct.ID,

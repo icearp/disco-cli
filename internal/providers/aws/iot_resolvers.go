@@ -78,23 +78,8 @@ func init() {
 // keep this file compiling against the canonical constant.
 
 // stateMachineARNFromName builds a Step Functions state-machine ARN.
-func stateMachineARNFromName(region, acctID, name string) string {
-	return fmt.Sprintf("arn:aws:states:%s:%s:stateMachine:%s", region, acctID, name)
-}
-
-// kinesisStreamARNFromName builds a Kinesis stream ARN.
-func kinesisStreamARNFromName(region, acctID, name string) string {
-	return fmt.Sprintf("arn:aws:kinesis:%s:%s:stream/%s", region, acctID, name)
-}
-
-// firehoseDeliveryStreamARNFromName builds a Firehose delivery-stream ARN.
-func firehoseDeliveryStreamARNFromName(region, acctID, name string) string {
-	return fmt.Sprintf("arn:aws:firehose:%s:%s:deliverystream/%s", region, acctID, name)
-}
-
-// dynamodbTableARNFromName builds a DynamoDB table ARN.
-func dynamodbTableARNFromName(region, acctID, name string) string {
-	return fmt.Sprintf("arn:aws:dynamodb:%s:%s:table/%s", region, acctID, name)
+func stateMachineARNFromName(partition, region, acctID, name string) string {
+	return arnFor(partition, "states", region, acctID, "stateMachine:"+name)
 }
 
 // sqsQueueARNFromURL parses an SQS queue URL — `https://sqs.{region}.amazonaws.com/{acct}/{name}`
@@ -116,9 +101,9 @@ func sqsQueueARNFromURL(u string) string {
 	return fmt.Sprintf("arn:aws:sqs:%s:%s:%s", region, acctID, name)
 }
 
-// iotARN builds a standard IoT-resource ARN: arn:aws:iot:{r}:{a}:{kind}/{id}.
-func iotARN(region, acctID, kind, id string) string {
-	return fmt.Sprintf("arn:aws:iot:%s:%s:%s/%s", region, acctID, kind, id)
+// iotARN builds a standard IoT-resource ARN: arn:{p}:iot:{r}:{a}:{kind}/{id}.
+func iotARN(partition, region, acctID, kind, id string) string {
+	return arnFor(partition, "iot", region, acctID, kind+"/"+id)
 }
 
 // resolveIoTThingRefs walks each Thing's ThingTypeName + BillingGroupName
@@ -151,7 +136,7 @@ func resolveIoTThingRefs(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if name := sv(attrs.ThingTypeName); name != "" {
 			tgtID := store.ResourceID("aws", acct.ID,
-				iotARN(region, acct.ID, "thingtype", name))
+				iotARN(acct.partition(), region, acct.ID, "thingtype", name))
 
 			if typeSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -160,9 +145,9 @@ func resolveIoTThingRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if name := sv(attrs.BillingGroupName); name != "" {
-			// BillingGroup ARN: arn:aws:iot:{r}:{a}:billinggroup/{name}.
+			// BillingGroup ARN: arn:{p}:iot:{r}:{a}:billinggroup/{name}.
 			tgtID := store.ResourceID("aws", acct.ID,
-				iotARN(region, acct.ID, "billinggroup", name))
+				iotARN(acct.partition(), region, acct.ID, "billinggroup", name))
 
 			if bgSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -264,7 +249,7 @@ func resolveIoTAuthorizerLambda(acct *account, st *store.Store) error {
 		}
 		// Strip trailing :version/:alias qualifier — Lambda rows key on the
 		// unqualified ARN (7 colon-separated parts):
-		// arn:aws:lambda:{r}:{a}:function:{name}[:{qual}]
+		// arn:{p}:lambda:{r}:{a}:function:{name}[:{qual}]
 		if parts := strings.Split(fnARN, ":"); len(parts) == 8 {
 			fnARN = strings.Join(parts[:7], ":")
 		}
@@ -389,7 +374,7 @@ func resolveIoTDomainConfigAuthorizer(acct *account, st *store.Store) error {
 			continue
 		}
 		region := sv(r.Region)
-		authARN := iotARN(region, acct.ID, "authorizer", name)
+		authARN := iotARN(acct.partition(), region, acct.ID, "authorizer", name)
 		authID := store.ResourceID("aws", acct.ID, authARN)
 		if !authSet[authID] {
 			continue
@@ -431,7 +416,7 @@ func resolveIoTPolicyPrincipalAttachmentRefs(acct *account, st *store.Store) err
 		}
 		region := sv(r.Region)
 		if attrs.PolicyName != "" {
-			polARN := iotARN(region, acct.ID, "policy", attrs.PolicyName)
+			polARN := iotARN(acct.partition(), region, acct.ID, "policy", attrs.PolicyName)
 			polID := store.ResourceID("aws", acct.ID, polARN)
 			if policySet[polID] {
 				if err := st.UpsertRelationship(r.ID, polID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -440,7 +425,7 @@ func resolveIoTPolicyPrincipalAttachmentRefs(acct *account, st *store.Store) err
 			}
 		}
 		// IoT certificate principal ARN shape:
-		//   arn:aws:iot:{r}:{a}:cert/{certId}
+		//   arn:{p}:iot:{r}:{a}:cert/{certId}
 		if strings.Contains(attrs.Principal, ":cert/") {
 			certID := store.ResourceID("aws", acct.ID, attrs.Principal)
 			if certSet[certID] {
@@ -482,7 +467,7 @@ func resolveIoTThingPrincipalAttachmentRefs(acct *account, st *store.Store) erro
 		}
 		region := sv(r.Region)
 		if attrs.ThingName != "" {
-			thingARN := iotARN(region, acct.ID, "thing", attrs.ThingName)
+			thingARN := iotARN(acct.partition(), region, acct.ID, "thing", attrs.ThingName)
 			thingID := store.ResourceID("aws", acct.ID, thingARN)
 			if thingSet[thingID] {
 				if err := st.UpsertRelationship(r.ID, thingID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -690,25 +675,25 @@ func emitIoTTopicRuleActionEdges(st *store.Store, r *store.Resource, a iotTopicR
 	if a.Kinesis != nil && sv(a.Kinesis.StreamName) != "" {
 		emits = append(emits, emit{
 			true, TypeKinesisStream, sets.kinesis,
-			kinesisStreamARNFromName(region, acctID, sv(a.Kinesis.StreamName)), "kinesis",
+			kinesisStreamARNFromName(partition, region, acctID, sv(a.Kinesis.StreamName)), "kinesis",
 		})
 	}
 	if a.Firehose != nil && sv(a.Firehose.DeliveryStreamName) != "" {
 		emits = append(emits, emit{
 			true, TypeFirehoseDeliveryStream, sets.firehose,
-			firehoseDeliveryStreamARNFromName(region, acctID, sv(a.Firehose.DeliveryStreamName)), "firehose",
+			firehoseDeliveryStreamARNFromName(partition, region, acctID, sv(a.Firehose.DeliveryStreamName)), "firehose",
 		})
 	}
 	if a.DynamoDB != nil && sv(a.DynamoDB.TableName) != "" {
 		emits = append(emits, emit{
 			true, TypeDynamoDBTable, sets.dynamodb,
-			dynamodbTableARNFromName(region, acctID, sv(a.DynamoDB.TableName)), "dynamodb",
+			dynamoTableARN(partition, region, acctID, sv(a.DynamoDB.TableName)), "dynamodb",
 		})
 	}
 	if a.DynamoDBv2 != nil && a.DynamoDBv2.PutItem != nil && sv(a.DynamoDBv2.PutItem.TableName) != "" {
 		emits = append(emits, emit{
 			true, TypeDynamoDBTable, sets.dynamodb,
-			dynamodbTableARNFromName(region, acctID, sv(a.DynamoDBv2.PutItem.TableName)), "dynamodb-v2",
+			dynamoTableARN(partition, region, acctID, sv(a.DynamoDBv2.PutItem.TableName)), "dynamodb-v2",
 		})
 	}
 	if a.S3 != nil && sv(a.S3.BucketName) != "" {
@@ -717,7 +702,7 @@ func emitIoTTopicRuleActionEdges(st *store.Store, r *store.Resource, a iotTopicR
 	if a.StepFunctions != nil && sv(a.StepFunctions.StateMachineName) != "" {
 		emits = append(emits, emit{
 			true, TypeSFNStateMachine, sets.sfn,
-			stateMachineARNFromName(region, acctID, sv(a.StepFunctions.StateMachineName)), "step-functions",
+			stateMachineARNFromName(partition, region, acctID, sv(a.StepFunctions.StateMachineName)), "step-functions",
 		})
 	}
 	for _, e := range emits {
@@ -884,7 +869,7 @@ func resolveIoTMitigationActionRefs(acct *account, st *store.Store) error {
 				if gn == "" {
 					continue
 				}
-				tgARN := iotARN(region, acct.ID, "thinggroup", gn)
+				tgARN := iotARN(acct.partition(), region, acct.ID, "thinggroup", gn)
 				tid := store.ResourceID("aws", acct.ID, tgARN)
 				if !tgSet[tid] {
 					continue

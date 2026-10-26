@@ -61,7 +61,7 @@ func scanConnectIntegration(ctx context.Context, client connectIntegrationAPI, i
 
 // scanConnectApprovedOrigins emits one row per (instance, origin) pair. SDK
 // returns []string, so NativeID is synthesized:
-// arn:aws:connect:{r}:{a}:instance/{instID}/approved-origin/{urlencoded}.
+// arn:{p}:connect:{r}:{a}:instance/{instID}/approved-origin/{urlencoded}.
 func scanConnectApprovedOrigins(ctx context.Context, client connectIntegrationAPI, instances []cttypes.InstanceSummary, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	var batch []*store.Resource
 	for _, inst := range instances {
@@ -82,7 +82,7 @@ func scanConnectApprovedOrigins(ctx context.Context, client connectIntegrationAP
 			}
 			for _, origin := range out.Origins {
 				origin := origin
-				arn := fmt.Sprintf("arn:aws:connect:%s:%s:instance/%s/approved-origin/%s", region, acct.ID, instID, origin)
+				arn := arnFor(acct.partition(), "connect", region, acct.ID, "instance/"+instID+"/approved-origin/"+origin)
 				batch = append(batch, &store.Resource{
 					Provider:       "aws",
 					AccountID:      acct.ID,
@@ -123,7 +123,7 @@ func scanConnectSecurityKeys(ctx context.Context, client connectIntegrationAPI, 
 					continue
 				}
 				assoc := *k.AssociationId
-				arn := fmt.Sprintf("arn:aws:connect:%s:%s:instance/%s/security-key/%s", region, acct.ID, instID, assoc)
+				arn := arnFor(acct.partition(), "connect", region, acct.ID, "instance/"+instID+"/security-key/"+assoc)
 				batch = append(batch, &store.Resource{
 					Provider:       "aws",
 					AccountID:      acct.ID,
@@ -168,7 +168,7 @@ func scanConnectInstanceStorageConfigs(ctx context.Context, client connectIntegr
 						continue
 					}
 					assoc := *c.AssociationId
-					arn := fmt.Sprintf("arn:aws:connect:%s:%s:instance/%s/storage-config/%s/%s", region, acct.ID, instID, rt, assoc)
+					arn := arnFor(acct.partition(), "connect", region, acct.ID, "instance/"+instID+"/storage-config/"+string(rt)+"/"+assoc)
 					name := fmt.Sprintf("%s:%s", rt, assoc)
 					batch = append(batch, &store.Resource{
 						Provider:       "aws",

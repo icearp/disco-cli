@@ -101,7 +101,7 @@ func resolveEMRClusterRefs(acct *account, st *store.Store) error {
 			if n == "" {
 				continue
 			}
-			rarn := arnFor(acct.partition(), "iam", "", acct.ID, "role/"+n)
+			rarn := iamRoleARN(acct.partition(), acct.ID, n)
 			tgt := store.ResourceID("aws", acct.ID, rarn)
 			if !roleSet[tgt] {
 				continue

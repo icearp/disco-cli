@@ -287,9 +287,17 @@ func assertEdgeTargets(t *testing.T, st *store.Store, from string, want ...strin
 var errUnstubbedOpDenied = apiErr("AccessDeniedException", "operation not stubbed by this test")
 
 // partitionAccount is an account as loadAccounts leaves it for partition p.
+// Its regions are the partition's fixture region, so a test cannot pair a
+// non-aws partition with a commercial region.
 func partitionAccount(partition string) *account {
 	acct := newTestAccount(testAccountID)
 	acct.Partition = partition
+	for _, pf := range partitionFixtures {
+		if pf.partition == partition {
+			acct.Regions = []string{pf.region}
+			acct.scanRegions = []string{pf.region}
+		}
+	}
 	return acct
 }
 

@@ -292,7 +292,7 @@ func resolveMFADeviceToUser(acct *account, st *store.Store) error {
 		return err
 	}
 	// FK-safe: device User.Arn may point to the AWS root user
-	// (arn:aws:iam::{acct}:root), which has no aws:iam:user resource —
+	// (arn:{p}:iam::{acct}:root), which has no aws:iam:user resource —
 	// root has no IAM-user identity. Build the scanned-user set so emit
 	// is skipped when the target is absent, regardless of arn-shape mismatch.
 	users, err := st.ListResources(store.ResourceFilter{
@@ -1048,7 +1048,7 @@ func resolveUserGroupMemberships(acct *account, st *store.Store) error {
 // emits cross-account-trust edges for any Allow Statement Principal.AWS naming
 // a different AWS account. When that account isn't in scan scope, insert-if-
 // absent an empty-attribute aws:iam:account row at its self-node natural key
-// (arn:aws:iam::<acct>:root) so the FK on relationships.to_id holds and the
+// (arn:{p}:iam::<acct>:root) so the FK on relationships.to_id holds and the
 // account is a real graph node. scanIAMAccount version-populates the
 // placeholder if that account is later scanned. ROADMAP R5.
 func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
@@ -1120,14 +1120,14 @@ func resolveIAMRoleCrossAccountTrust(acct *account, st *store.Store) error {
 
 	placeholders := make([]*store.Resource, 0, len(stubs))
 	for other := range stubs {
-		placeholders = append(placeholders, iamAccountPlaceholder(other, scanID))
+		placeholders = append(placeholders, iamAccountPlaceholder(acct.partition(), other, scanID))
 	}
 	if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
 		return fmt.Errorf("insert referenced-account placeholders: %w", err)
 	}
 
 	for _, e := range edges {
-		toID := store.ResourceID("aws", e.acctID, iamAccountNativeID(e.acctID))
+		toID := store.ResourceID("aws", e.acctID, iamAccountNativeID(acct.partition(), e.acctID))
 		attrs := mustJSON(map[string]string{"principal": e.principal, "trust-account": e.acctID})
 		if err := st.UpsertRelationship(e.fromID, toID, store.RelCrossAccountTrust, "directed", &attrs); err != nil {
 			return fmt.Errorf("upsert cross-account-trust: %w", err)
@@ -1171,7 +1171,7 @@ type principalStatement struct {
 // foreignAccountFromPrincipal extracts the account ID from a Principal.AWS entry
 // when it refers to an account other than self. Returns ok=true for:
 //   - bare 12-digit account IDs ("123456789012")
-//   - ARNs of form arn:aws:iam::<acct>:root | user/* | role/*
+//   - ARNs of form arn:{p}:iam::<acct>:root | user/* | role/*
 //
 // Wildcards, self-account refs, and malformed inputs return ok=false.
 func foreignAccountFromPrincipal(p, selfAcct string) (string, bool) {
@@ -1384,7 +1384,7 @@ func resolveIAMDelegationRequestRequestors(acct *account, st *store.Store) error
 
 	placeholders := make([]*store.Resource, 0, len(requestors))
 	for other := range requestors {
-		placeholders = append(placeholders, iamAccountPlaceholder(other, requests[0].DiscoveredBy))
+		placeholders = append(placeholders, iamAccountPlaceholder(acct.partition(), other, requests[0].DiscoveredBy))
 	}
 	if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
 		return fmt.Errorf("insert delegation-requestor account placeholders: %w", err)
@@ -1392,7 +1392,7 @@ func resolveIAMDelegationRequestRequestors(acct *account, st *store.Store) error
 
 	edgeAttrs := mustJSON(map[string]string{"role": "requestor"})
 	for _, e := range edges {
-		toID := store.ResourceID("aws", e.requestor, iamAccountNativeID(e.requestor))
+		toID := store.ResourceID("aws", e.requestor, iamAccountNativeID(acct.partition(), e.requestor))
 		if err := st.UpsertRelationship(e.fromID, toID, store.RelAttachedTo, "directed", &edgeAttrs); err != nil {
 			return fmt.Errorf("upsert delegation-request→requestor account: %w", err)
 		}

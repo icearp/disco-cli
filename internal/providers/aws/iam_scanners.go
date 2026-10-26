@@ -174,20 +174,20 @@ func scanIAM(ctx context.Context, acct *account, st *store.Store, scanID string)
 // iamAccountNativeID builds the aws:iam:account self-node key, shared by
 // scanIAMAccount and every resolver that references an account, so a
 // placeholder and the scanned row share one identity.
-func iamAccountNativeID(accountID string) string {
-	return "arn:aws:iam::" + accountID + ":root"
+func iamAccountNativeID(partition, accountID string) string {
+	return arnFor(partition, "iam", "", accountID, "root")
 }
 
 // iamAccountPlaceholder builds the aws:iam:account row a resolver inserts with
 // InsertResourcesIfAbsent for an account it references but did not scan. The
 // first resolver to insert wins, so every resolver must build the same row.
-func iamAccountPlaceholder(accountID, scanID string) *store.Resource {
+func iamAccountPlaceholder(partition, accountID, scanID string) *store.Resource {
 	name := accountID
 	return &store.Resource{
 		Provider:       "aws",
 		AccountID:      accountID,
 		Type:           TypeIAMAccount,
-		NativeID:       iamAccountNativeID(accountID),
+		NativeID:       iamAccountNativeID(partition, accountID),
 		Name:           &name,
 		Region:         regionGlobal,
 		AttributesJSON: "{}",
@@ -198,7 +198,7 @@ func iamAccountPlaceholder(accountID, scanID string) *store.Resource {
 // scanIAMAccount upserts the account self-node (aws:iam:account) carrying
 // account-level posture: IAM account summary, account alias (if any), and
 // password policy (absent if unconfigured). One row per scanned account, keyed
-// NativeID = arn:aws:iam::<acct>:root — the same natural key the resolvers
+// NativeID = arn:{p}:iam::<acct>:root — the same natural key the resolvers
 // that insert account placeholder rows use, so a foreign account first seen
 // by reference version-populates its empty placeholder once directly scanned.
 //
@@ -249,7 +249,7 @@ func scanIAMAccount(ctx context.Context, client iamAPI, acct *account, st *store
 		Provider:       "aws",
 		AccountID:      acct.ID,
 		Type:           TypeIAMAccount,
-		NativeID:       iamAccountNativeID(acct.ID),
+		NativeID:       iamAccountNativeID(acct.partition(), acct.ID),
 		Name:           &name,
 		Region:         regionGlobal,
 		AttributesJSON: mustJSON(attrs),
@@ -986,7 +986,7 @@ func scanIAMSSHPublicKeys(ctx context.Context, client iamAPI, users []childParen
 
 // iamDelegationRequestNativeID builds the delegation-request ARN in the format
 // the IAM Service Reference documents
-// (arn:aws:iam::{account}:delegation-request/{id}); the API returns no ARN.
+// (arn:{p}:iam::{account}:delegation-request/{id}); the API returns no ARN.
 // The account slot is the scanned account, the one whose listing returned the
 // request. Unverified live: AWS may fill that slot with the requestor's
 // (partner's) account (RequestorId) instead, which is plausible because the
@@ -996,8 +996,8 @@ func scanIAMSSHPublicKeys(ctx context.Context, client iamAPI, users []childParen
 // source, applied to every row, and the model does not mark OwnerAccountId
 // @required, so a row without it would need a fallback or be dropped.
 // Neither candidate can be verified here.
-func iamDelegationRequestNativeID(accountID, id string) string {
-	return "arn:aws:iam::" + accountID + ":delegation-request/" + id
+func iamDelegationRequestNativeID(partition, accountID, id string) string {
+	return arnFor(partition, "iam", "", accountID, "delegation-request/"+id)
 }
 
 // scanIAMDelegationRequests stores what an unfiltered ListDelegationRequests
@@ -1046,7 +1046,7 @@ func scanIAMDelegationRequests(ctx context.Context, client iamAPI, acct *account
 				AccountName:    &acct.Name,
 				Region:         regionGlobal,
 				Type:           TypeIAMDelegationRequest,
-				NativeID:       iamDelegationRequestNativeID(acct.ID, id),
+				NativeID:       iamDelegationRequestNativeID(acct.partition(), acct.ID, id),
 				Name:           &id,
 				Status:         nonEmptyPtr(string(r.State)),
 				CreatedAt:      tp(r.CreateDate),

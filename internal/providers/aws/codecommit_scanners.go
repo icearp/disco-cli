@@ -33,16 +33,16 @@ type codeCommitAPI interface {
 
 // codeCommitRepoARN is the repository ARN; CodeCommit returns it only from
 // GetRepository, and resolvers rebuild it from a repository name.
-func codeCommitRepoARN(region, acctID, name string) string {
-	return fmt.Sprintf("arn:aws:codecommit:%s:%s:%s", region, acctID, name)
+func codeCommitRepoARN(partition, region, acctID, name string) string {
+	return arnFor(partition, "codecommit", region, acctID, name)
 }
 
 // codeCommitTemplateNativeID keys an approval rule template, which has no ARN,
 // on its system-generated id: the name can be changed in place
 // (UpdateApprovalRuleTemplateName). A repository name cannot contain "/", so
 // the id never collides with a repository ARN.
-func codeCommitTemplateNativeID(region, acctID, templateID string) string {
-	return fmt.Sprintf("arn:aws:codecommit:%s:%s:approval-rule-template/%s", region, acctID, templateID)
+func codeCommitTemplateNativeID(partition, region, acctID, templateID string) string {
+	return arnFor(partition, "codecommit", region, acctID, "approval-rule-template/"+templateID)
 }
 
 // scanCodeCommit discovers CodeCommit repositories, approval rule templates
@@ -111,7 +111,7 @@ func scanCCRepositories(ctx context.Context, client codeCommitAPI, acct *account
 			if name == "" {
 				continue
 			}
-			arn := codeCommitRepoARN(region, acct.ID, name)
+			arn := codeCommitRepoARN(acct.partition(), region, acct.ID, name)
 			attrsJSON := mustJSON(r)
 			if gout, gerr := client.GetRepository(ctx, &codecommit.GetRepositoryInput{RepositoryName: r.RepositoryName}); gerr == nil && gout.RepositoryMetadata != nil {
 				attrsJSON = mustJSON(gout.RepositoryMetadata)
@@ -220,7 +220,7 @@ func scanCCApprovalRuleTemplates(ctx context.Context, client codeCommitAPI, acct
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeCodeCommitApprovalRuleTemplate,
-				NativeID: codeCommitTemplateNativeID(region, acct.ID, sv(tmpl.ApprovalRuleTemplateId)),
+				NativeID: codeCommitTemplateNativeID(acct.partition(), region, acct.ID, sv(tmpl.ApprovalRuleTemplateId)),
 				Name:     tmpl.ApprovalRuleTemplateName, Region: &region, CreatedAt: tp(tmpl.CreationDate),
 				AttributesJSON: mustJSON(codeCommitTemplateAttrs{ApprovalRuleTemplate: *tmpl, AssociatedRepositoryNames: repoNames}),
 				DiscoveredBy:   scanID,

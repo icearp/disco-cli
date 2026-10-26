@@ -29,7 +29,7 @@ func scanGlueBlueprints(ctx context.Context, client glueAPI, acct *account, regi
 			// store as the attributes.
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeGlueBlueprint, NativeID: glueResourceARN(region, acct.ID, "blueprint", name),
+				Type: TypeGlueBlueprint, NativeID: glueResourceARN(acct.partition(), region, acct.ID, "blueprint", name),
 				Name: &name, Region: &region, DiscoveredBy: scanID,
 			}, "", ""
 		}, tags, p)
@@ -60,7 +60,7 @@ func scanGlueUserDefinedFunctions(ctx context.Context, client glueAPI, acct *acc
 				}
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeGlueUserDefinedFunction, NativeID: glueDatabaseARN(region, acct.ID, dbName) + "/function/" + name,
+					Type: TypeGlueUserDefinedFunction, NativeID: glueDatabaseARN(acct.partition(), region, acct.ID, dbName) + "/function/" + name,
 					Name: f.FunctionName, Region: &region, AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
 				})
 			}

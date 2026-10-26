@@ -17,7 +17,7 @@ import (
 )
 
 func emrTestClusterARN(id string) string {
-	return emrARN(testRegion, testAccountID, "cluster", id)
+	return emrARN("aws", testRegion, testAccountID, "cluster", id)
 }
 
 func emrListed(id string) emrtypes.ClusterSummary {

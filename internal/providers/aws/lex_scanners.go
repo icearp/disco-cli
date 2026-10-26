@@ -110,7 +110,7 @@ func scanLexTestSets(ctx context.Context, client lexAPI, acct *account, region s
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:lex:%s:%s:test-set/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "lex", region, acct.ID, "test-set/"+id)
 			status := string(ts.Status)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -140,7 +140,7 @@ func scanLexBots(ctx context.Context, client lexAPI, acct *account, region strin
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:lex:%s:%s:bot/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "lex", region, acct.ID, "bot/"+id)
 			bots = append(bots, childParent{id: id, arn: arn})
 			status := string(b.BotStatus)
 			// Enrich via DescribeBot — list returns BotSummary (skeleton);
@@ -181,7 +181,7 @@ func scanLexBotAliases(ctx context.Context, client lexAPI, acct *account, region
 			if aid == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:lex:%s:%s:bot-alias/%s/%s", region, acct.ID, bid, aid)
+			arn := arnFor(acct.partition(), "lex", region, acct.ID, "bot-alias/"+bid+"/"+aid)
 			status := string(a.BotAliasStatus)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -211,7 +211,7 @@ func scanLexBotVersions(ctx context.Context, client lexAPI, acct *account, regio
 			if ver == "" {
 				continue
 			}
-			arn := lexBotVersionNativeID(region, acct.ID, bid, ver)
+			arn := lexBotVersionNativeID(acct.partition(), region, acct.ID, bid, ver)
 			label := ver
 			status := string(v.BotStatus)
 			batch = append(batch, &store.Resource{
@@ -257,12 +257,12 @@ const lexDraftVersion = "DRAFT"
 // type and slot list ops.
 const lexMaxPageSize = 1000
 
-func lexBotVersionNativeID(region, accountID, botID, version string) string {
-	return fmt.Sprintf("arn:aws:lex:%s:%s:bot/%s/version/%s", region, accountID, botID, version)
+func lexBotVersionNativeID(partition, region, accountID, botID, version string) string {
+	return arnFor(partition, "lex", region, accountID, "bot/"+botID+"/version/"+version)
 }
 
-func lexBotLocaleNativeID(region, accountID, botID, localeID string) string {
-	return lexBotVersionNativeID(region, accountID, botID, lexDraftVersion) + "/locale/" + localeID
+func lexBotLocaleNativeID(partition, region, accountID, botID, localeID string) string {
+	return lexBotVersionNativeID(partition, region, accountID, botID, lexDraftVersion) + "/locale/" + localeID
 }
 
 func lexIntentNativeID(localeNativeID, intentID string) string {
@@ -427,7 +427,7 @@ func listLexBotLocales(ctx context.Context, client lexAPI, acct *account, region
 					found = append(found, lexListedLocale{
 						lexLocale: lexLocale{
 							botID: bot.id, botARN: bot.arn, localeID: localeID,
-							nativeID: lexBotLocaleNativeID(region, acct.ID, bot.id, localeID),
+							nativeID: lexBotLocaleNativeID(acct.partition(), region, acct.ID, bot.id, localeID),
 						},
 						summary: l,
 					})

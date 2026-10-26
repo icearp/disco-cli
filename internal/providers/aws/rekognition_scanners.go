@@ -118,7 +118,7 @@ func scanRekCollections(ctx context.Context, client rekognitionAPI, acct *accoun
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:rekognition:%s:%s:collection/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "rekognition", region, acct.ID, "collection/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -260,7 +260,7 @@ func scanRekStreamProcessors(ctx context.Context, client rekognitionAPI, acct *a
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:rekognition:%s:%s:streamprocessor/%s", region, acct.ID, name)
+			arn := arnFor(acct.partition(), "rekognition", region, acct.ID, "streamprocessor/"+name)
 			status := string(sp.Status)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

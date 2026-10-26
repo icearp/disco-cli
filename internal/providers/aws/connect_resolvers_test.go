@@ -41,7 +41,7 @@ func TestResolveConnectQueueRefs(t *testing.T) {
 
 	hopID := upsertTestResource(t, st, "aws", acct.ID, TypeConnectHoursOfOperation,
 		connectHopARN(testRegion, acct.ID, testConnectInstance, "h-1"), testRegion, "{}")
-	phoneARN := connectAccountResourceARN(testRegion, acct.ID, "phone-number", "p-1")
+	phoneARN := connectAccountResourceARN("aws", testRegion, acct.ID, "phone-number", "p-1")
 	phoneID := upsertTestResource(t, st, "aws", acct.ID, TypeConnectPhoneNumber, phoneARN, testRegion, "{}")
 	flowID := upsertTestResource(t, st, "aws", acct.ID, TypeConnectContactFlow,
 		connectFlowARN(testRegion, acct.ID, testConnectInstance, "f-1"), testRegion, "{}")

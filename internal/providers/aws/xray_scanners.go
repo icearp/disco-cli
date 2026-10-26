@@ -103,7 +103,7 @@ func scanXRayGroups(ctx context.Context, client xrayAPI, acct *account, region s
 	return upsertBatch(st, batch, "xray groups")
 }
 
-// scanXRayResourcePolicies synthesizes ARN per policy: arn:aws:xray:{r}:{a}:resource-policy/{name}.
+// scanXRayResourcePolicies synthesizes ARN per policy: arn:{p}:xray:{r}:{a}:resource-policy/{name}.
 func scanXRayResourcePolicies(ctx context.Context, client xrayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	pager := xray.NewListResourcePoliciesPaginator(client, &xray.ListResourcePoliciesInput{})
 	var batch []*store.Resource
@@ -120,7 +120,7 @@ func scanXRayResourcePolicies(ctx context.Context, client xrayAPI, acct *account
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:xray:%s:%s:resource-policy/%s", region, acct.ID, name)
+			arn := arnFor(acct.partition(), "xray", region, acct.ID, "resource-policy/"+name)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeXRayResourcePolicy, NativeID: arn,
@@ -176,7 +176,7 @@ func scanXRayTransactionSearchConfig(ctx context.Context, client xrayAPI, acct *
 		}
 		return 0, 0, fmt.Errorf("xray:GetTraceSegmentDestination: %w", err)
 	}
-	arn := fmt.Sprintf("arn:aws:xray:%s:%s:transaction-search-config", region, acct.ID)
+	arn := arnFor(acct.partition(), "xray", region, acct.ID, "transaction-search-config")
 	label := "transaction-search-config"
 	status := string(out.Status)
 	return upsertBatch(st, []*store.Resource{{
@@ -214,8 +214,8 @@ func flattenXRayIndexingRule(r xraytypes.IndexingRule) xrayIndexingRuleAttrs {
 	return out
 }
 
-func xrayIndexingRuleNativeID(region, accountID, name string) string {
-	return fmt.Sprintf("arn:aws:xray:%s:%s:indexing-rule/%s", region, accountID, name)
+func xrayIndexingRuleNativeID(partition, region, accountID, name string) string {
+	return arnFor(partition, "xray", region, accountID, "indexing-rule/"+name)
 }
 
 // scanXRayIndexingRules stores the region's Transaction Search indexing rules.
@@ -259,7 +259,7 @@ func scanXRayIndexingRules(ctx context.Context, client xrayAPI, acct *account, r
 			}
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeXRayIndexingRule, NativeID: xrayIndexingRuleNativeID(region, acct.ID, name),
+				Type: TypeXRayIndexingRule, NativeID: xrayIndexingRuleNativeID(acct.partition(), region, acct.ID, name),
 				Name: &name, Region: &region,
 				AttributesJSON: mustJSON(flattenXRayIndexingRule(r)), DiscoveredBy: scanID,
 			})

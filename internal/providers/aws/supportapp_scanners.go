@@ -62,7 +62,7 @@ func scanSAAccountAlias(ctx context.Context, client supportAppAPI, acct *account
 	if sv(out.AccountAlias) == "" {
 		return 0, 0, nil
 	}
-	arn := fmt.Sprintf("arn:aws:supportapp::%s:account-alias", acct.ID)
+	arn := arnFor(acct.partition(), "supportapp", "", acct.ID, "account-alias")
 	label := sv(out.AccountAlias)
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -90,7 +90,7 @@ func scanSASlackChannelConfigs(ctx context.Context, client supportAppAPI, acct *
 			if ch == "" || team == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:supportapp::%s:slack-channel/%s/%s", acct.ID, team, ch)
+			arn := arnFor(acct.partition(), "supportapp", "", acct.ID, "slack-channel/"+team+"/"+ch)
 			label := sv(c.ChannelName)
 			if label == "" {
 				label = ch
@@ -122,7 +122,7 @@ func scanSASlackWorkspaceConfigs(ctx context.Context, client supportAppAPI, acct
 			if team == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:supportapp::%s:slack-workspace/%s", acct.ID, team)
+			arn := arnFor(acct.partition(), "supportapp", "", acct.ID, "slack-workspace/"+team)
 			label := sv(w.TeamName)
 			if label == "" {
 				label = team

@@ -288,7 +288,7 @@ func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error
 	if len(stubByAcct) > 0 {
 		placeholders := make([]*store.Resource, 0, len(stubByAcct))
 		for other := range stubByAcct {
-			placeholders = append(placeholders, iamAccountPlaceholder(other, orgs[0].DiscoveredBy))
+			placeholders = append(placeholders, iamAccountPlaceholder(acct.partition(), other, orgs[0].DiscoveredBy))
 		}
 		if _, err := st.InsertResourcesIfAbsent(placeholders); err != nil {
 			return fmt.Errorf("insert master-account placeholders: %w", err)
@@ -300,7 +300,7 @@ func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error
 		if p.realAccount {
 			toID = store.ResourceID("aws", acct.ID, arnByID[p.masterAcctID])
 		} else {
-			toID = store.ResourceID("aws", p.masterAcctID, iamAccountNativeID(p.masterAcctID))
+			toID = store.ResourceID("aws", p.masterAcctID, iamAccountNativeID(acct.partition(), p.masterAcctID))
 		}
 		if err := st.UpsertRelationship(p.fromID, toID, store.RelAttachedTo, "directed", &edgeAttrs); err != nil {
 			return fmt.Errorf("upsert org→management-account relationship: %w", err)
@@ -310,7 +310,7 @@ func resolveOrganizationsManagementAccount(acct *account, st *store.Store) error
 }
 
 // extractPolicyID pulls the p-xxxx identifier out of an SCP ARN of the form
-// arn:aws:organizations::ACCOUNT:policy/ORGID/service_control_policy/p-xxxx.
+// arn:{p}:organizations::ACCOUNT:policy/ORGID/service_control_policy/p-xxxx.
 func extractPolicyID(arn string) *string {
 	idx := strings.LastIndex(arn, "/")
 	if idx < 0 || idx == len(arn)-1 {

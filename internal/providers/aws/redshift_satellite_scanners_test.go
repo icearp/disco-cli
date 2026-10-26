@@ -26,7 +26,7 @@ func rsClient(handlers map[string]func(in any) (any, error)) *redshift.Client {
 	return redshift.NewFromConfig(opStubConfig(handlers, rsDenied))
 }
 
-func rsClusterARN(id string) string { return redshiftClusterARN(testRegion, testAccountID, id) }
+func rsClusterARN(id string) string { return redshiftClusterARN("aws", testRegion, testAccountID, id) }
 
 func rsClusters(ids ...string) []childParent {
 	var out []childParent

@@ -236,7 +236,7 @@ func resolveECSTaskDefinitionSecrets(acct *account, st *store.Store) error {
 				if vf == "" {
 					continue
 				}
-				_, nativeID := ecsSecretTarget(vf, region, acct.ID)
+				_, nativeID := ecsSecretTarget(acct.partition(), region, acct.ID, vf)
 				if nativeID == "" {
 					continue
 				}
@@ -258,7 +258,7 @@ func resolveECSTaskDefinitionSecrets(acct *account, st *store.Store) error {
 // NativeID) pair. Secrets Manager refs may carry :key::version-stage:version-id
 // suffixes, stripped to match the secret's stored ARN; bare SSM parameter names
 // expand to the scanner-side NativeID shape.
-func ecsSecretTarget(vf, region, acctID string) (string, string) {
+func ecsSecretTarget(partition, region, acctID, vf string) (string, string) {
 	switch {
 	case strings.HasPrefix(vf, "arn:aws:secretsmanager:"):
 		// Keep the first 7 colon-separated segments:
@@ -271,11 +271,7 @@ func ecsSecretTarget(vf, region, acctID string) (string, string) {
 	case strings.HasPrefix(vf, "arn:aws:ssm:"):
 		return TypeSSMParameter, vf
 	default:
-		// Bare SSM parameter name; scanner stores `arn:aws:ssm:{r}:{a}:parameter{/name}`.
-		name := vf
-		if !strings.HasPrefix(name, "/") {
-			name = "/" + name
-		}
-		return TypeSSMParameter, fmt.Sprintf("arn:aws:ssm:%s:%s:parameter%s", region, acctID, name)
+		// Bare SSM parameter name; scanner stores `arn:{p}:ssm:{r}:{a}:parameter{/name}`.
+		return TypeSSMParameter, ssmParameterARN(partition, region, acctID, vf)
 	}
 }

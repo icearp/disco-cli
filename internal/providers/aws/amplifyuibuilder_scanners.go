@@ -142,7 +142,7 @@ func scanAUIBComponents(ctx context.Context, client amplifyUIBuilderAPI, envs []
 				if id == "" {
 					continue
 				}
-				arn := fmt.Sprintf("arn:aws:amplifyuibuilder:%s:%s:app/%s/environment/%s/components/%s", region, acct.ID, appID, env, id)
+				arn := arnFor(acct.partition(), "amplifyuibuilder", region, acct.ID, "app/"+appID+"/environment/"+env+"/components/"+id)
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeAmplifyUIBuilderComponent, NativeID: arn,
@@ -182,7 +182,7 @@ func scanAUIBForms(ctx context.Context, client amplifyUIBuilderAPI, envs []ampli
 				if id == "" {
 					continue
 				}
-				arn := fmt.Sprintf("arn:aws:amplifyuibuilder:%s:%s:app/%s/environment/%s/forms/%s", region, acct.ID, appID, env, id)
+				arn := arnFor(acct.partition(), "amplifyuibuilder", region, acct.ID, "app/"+appID+"/environment/"+env+"/forms/"+id)
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeAmplifyUIBuilderForm, NativeID: arn,
@@ -222,7 +222,7 @@ func scanAUIBThemes(ctx context.Context, client amplifyUIBuilderAPI, envs []ampl
 				if id == "" {
 					continue
 				}
-				arn := fmt.Sprintf("arn:aws:amplifyuibuilder:%s:%s:app/%s/environment/%s/themes/%s", region, acct.ID, appID, env, id)
+				arn := arnFor(acct.partition(), "amplifyuibuilder", region, acct.ID, "app/"+appID+"/environment/"+env+"/themes/"+id)
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeAmplifyUIBuilderTheme, NativeID: arn,

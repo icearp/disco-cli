@@ -113,11 +113,11 @@ func TestResolveAutoScalingRelationships_DecodeErrorsKeepOtherRows(t *testing.T)
 			mustJSON(astypes.LaunchConfiguration{LaunchConfigurationName: ptrStr(name), IamInstanceProfile: ptrStr(profileARN)}), name)
 		wants = append(wants, want{lcID, profileID, store.RelUses})
 
-		hookID := upsertTestResourceNamed(t, st, TypeAutoScalingLifecycleHook, autoScalingLifecycleHookARN(testRegion, testAccountID, name, "drain"), testRegion,
+		hookID := upsertTestResourceNamed(t, st, TypeAutoScalingLifecycleHook, autoScalingLifecycleHookARN("aws", testRegion, testAccountID, name, "drain"), testRegion,
 			mustJSON(astypes.LifecycleHook{AutoScalingGroupName: ptrStr(name), LifecycleHookName: ptrStr("drain")}), name)
 		wants = append(wants, want{hookID, asgIDs[name], store.RelAttachedTo})
 
-		notifyID := upsertTestResourceNamed(t, st, TypeAutoScalingNotificationConfiguration, autoScalingNotificationConfigurationARN(testRegion, testAccountID, name, asTestTopicA), testRegion,
+		notifyID := upsertTestResourceNamed(t, st, TypeAutoScalingNotificationConfiguration, autoScalingNotificationConfigurationARN("aws", testRegion, testAccountID, name, asTestTopicA), testRegion,
 			mustJSON(autoScalingNotificationConfiguration{AutoScalingGroupName: name, TopicARN: asTestTopicA}), name)
 		wants = append(wants, want{notifyID, topicID, store.RelUses})
 	}
@@ -152,7 +152,7 @@ func TestResolveAutoScalingChildEdges_WarmPoolToGroup(t *testing.T) {
 			groupID := upsertTestResourceNamed(t, st, TypeAutoScalingGroup, asTestGroupARN, testRegion, `{}`, "web")
 			pool := upsertTestResourceNamed(t, st, TypeAutoScalingWarmPool, asTestWarmPoolWeb, testRegion, c.attrs, "web")
 			orphan := upsertTestResourceNamed(t, st, TypeAutoScalingWarmPool,
-				autoScalingWarmPoolARN(testRegion, testAccountID, "gone"), testRegion, c.attrs, "gone")
+				autoScalingWarmPoolARN("aws", testRegion, testAccountID, "gone"), testRegion, c.attrs, "gone")
 
 			if err := resolveAutoScalingRelationships(newTestAccount(testAccountID), st); err != nil {
 				t.Fatalf("resolveAutoScalingRelationships: %v", err)
@@ -184,9 +184,9 @@ func TestResolveAutoScalingChildEdges_SameGroupNameInTwoRegions(t *testing.T) {
 	type child struct{ id, region string }
 	var children []child
 	for _, region := range []string{"us-east-1", "us-west-2"} {
-		hook := upsertTestResourceNamed(t, st, TypeAutoScalingLifecycleHook, autoScalingLifecycleHookARN(region, testAccountID, "web", "drain"), region,
+		hook := upsertTestResourceNamed(t, st, TypeAutoScalingLifecycleHook, autoScalingLifecycleHookARN("aws", region, testAccountID, "web", "drain"), region,
 			mustJSON(astypes.LifecycleHook{AutoScalingGroupName: ptrStr("web"), LifecycleHookName: ptrStr("drain")}), "drain")
-		pool := upsertTestResourceNamed(t, st, TypeAutoScalingWarmPool, autoScalingWarmPoolARN(region, testAccountID, "web"), region,
+		pool := upsertTestResourceNamed(t, st, TypeAutoScalingWarmPool, autoScalingWarmPoolARN("aws", region, testAccountID, "web"), region,
 			mustJSON(astypes.WarmPoolConfiguration{MinSize: ptrInt32(1)}), "web")
 		children = append(children, child{hook, region}, child{pool, region})
 	}

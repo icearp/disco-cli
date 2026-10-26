@@ -45,8 +45,8 @@ type athenaAPI interface {
 	ListNotebookMetadata(context.Context, *athena.ListNotebookMetadataInput, ...func(*athena.Options)) (*athena.ListNotebookMetadataOutput, error)
 }
 
-func athenaCapacityReservationARN(region, accountID, name string) string {
-	return fmt.Sprintf("arn:aws:athena:%s:%s:capacity-reservation/%s", region, accountID, name)
+func athenaCapacityReservationARN(partition, region, accountID, name string) string {
+	return arnFor(partition, "athena", region, accountID, "capacity-reservation/"+name)
 }
 
 // scanAthena discovers Athena workgroups, data catalogs, capacity reservations,
@@ -142,7 +142,7 @@ func scanAthenaCapacityReservations(ctx context.Context, client athenaAPI, acct 
 			if cname == "" {
 				continue
 			}
-			arn := athenaCapacityReservationARN(region, acct.ID, cname)
+			arn := athenaCapacityReservationARN(acct.partition(), region, acct.ID, cname)
 			status := string(c.Status)
 			batch = append(batch, &store.Resource{
 				Provider:       "aws",
@@ -170,12 +170,12 @@ func scanAthenaCapacityReservations(ctx context.Context, client athenaAPI, acct 
 	return total, inserted, nil
 }
 
-func athenaWorkGroupARN(region, accountID, name string) string {
-	return fmt.Sprintf("arn:aws:athena:%s:%s:workgroup/%s", region, accountID, name)
+func athenaWorkGroupARN(partition, region, accountID, name string) string {
+	return arnFor(partition, "athena", region, accountID, "workgroup/"+name)
 }
 
-func athenaDataCatalogARN(region, accountID, name string) string {
-	return fmt.Sprintf("arn:aws:athena:%s:%s:datacatalog/%s", region, accountID, name)
+func athenaDataCatalogARN(partition, region, accountID, name string) string {
+	return arnFor(partition, "athena", region, accountID, "datacatalog/"+name)
 }
 
 // isAthenaSparkWorkGroup reports whether wg runs Apache Spark rather than
@@ -235,7 +235,7 @@ func scanAthenaWorkGroups(ctx context.Context, client athenaAPI, acct *account, 
 			if out.WorkGroup == nil {
 				return nil
 			}
-			arn := athenaWorkGroupARN(region, acct.ID, name)
+			arn := athenaWorkGroupARN(acct.partition(), region, acct.ID, name)
 			status := string(out.WorkGroup.State)
 			r := &store.Resource{
 				Provider:       "aws",
@@ -411,7 +411,7 @@ func scanAthenaNamedQueries(ctx context.Context, client athenaAPI, acct *account
 				if id == "" {
 					continue
 				}
-				arn := athenaWorkGroupARN(region, acct.ID, wg) + "/named-query/" + id
+				arn := athenaWorkGroupARN(acct.partition(), region, acct.ID, wg) + "/named-query/" + id
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeAthenaNamedQuery, NativeID: arn,
@@ -464,7 +464,7 @@ func scanAthenaPreparedStatements(ctx context.Context, client athenaAPI, acct *a
 				if name == "" {
 					continue
 				}
-				arn := athenaWorkGroupARN(region, acct.ID, wg) + "/prepared-statement/" + name
+				arn := athenaWorkGroupARN(acct.partition(), region, acct.ID, wg) + "/prepared-statement/" + name
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeAthenaPreparedStatement, NativeID: arn,
@@ -526,7 +526,7 @@ func scanAthenaDataCatalogs(ctx context.Context, client athenaAPI, acct *account
 			if out.DataCatalog == nil {
 				return nil
 			}
-			arn := athenaDataCatalogARN(region, acct.ID, name)
+			arn := athenaDataCatalogARN(acct.partition(), region, acct.ID, name)
 			r := &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,

@@ -69,7 +69,7 @@ func resolveLakeFormationOptInTargets(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &o); err != nil {
 			return fmt.Errorf("decode lakeformation opt-in %s: %w", r.NativeID, err)
 		}
-		for _, nativeID := range lfOptInTargetNativeIDs(sv(r.Region), acct.ID, o) {
+		for _, nativeID := range lfOptInTargetNativeIDs(acct.partition(), sv(r.Region), acct.ID, o) {
 			tID := store.ResourceID("aws", acct.ID, nativeID)
 			if !targetIDs[tID] {
 				continue
@@ -85,7 +85,7 @@ func resolveLakeFormationOptInTargets(acct *account, st *store.Store) error {
 // lfOptInTargetNativeIDs returns the NativeIDs, in the shapes their scanners
 // store, of the principal and the catalog resource an opt-in names. A resource
 // in another account's catalog yields an id no scanned row of this account has.
-func lfOptInTargetNativeIDs(region, accountID string, o lftypes.LakeFormationOptInsInfo) []string {
+func lfOptInTargetNativeIDs(partition, region, accountID string, o lftypes.LakeFormationOptInsInfo) []string {
 	var ids []string
 	if o.Principal != nil && sv(o.Principal.DataLakePrincipalIdentifier) != "" {
 		ids = append(ids, sv(o.Principal.DataLakePrincipalIdentifier))
@@ -96,12 +96,12 @@ func lfOptInTargetNativeIDs(region, accountID string, o lftypes.LakeFormationOpt
 	}
 	switch {
 	case r.Database != nil:
-		ids = append(ids, glueDatabaseARN(region, cmp.Or(sv(r.Database.CatalogId), accountID), sv(r.Database.Name)))
+		ids = append(ids, glueDatabaseARN(partition, region, cmp.Or(sv(r.Database.CatalogId), accountID), sv(r.Database.Name)))
 	case r.Table != nil:
-		ids = append(ids, glueTableARN(region, cmp.Or(sv(r.Table.CatalogId), accountID), sv(r.Table.DatabaseName), sv(r.Table.Name)))
+		ids = append(ids, glueTableARN(partition, region, cmp.Or(sv(r.Table.CatalogId), accountID), sv(r.Table.DatabaseName), sv(r.Table.Name)))
 	case r.TableWithColumns != nil:
 		t := r.TableWithColumns
-		ids = append(ids, glueTableARN(region, cmp.Or(sv(t.CatalogId), accountID), sv(t.DatabaseName), sv(t.Name)))
+		ids = append(ids, glueTableARN(partition, region, cmp.Or(sv(t.CatalogId), accountID), sv(t.DatabaseName), sv(t.Name)))
 	case r.DataLocation != nil:
 		// A registered location's NativeID is its S3 ARN, which carries no
 		// account, so another catalog's registration must be excluded here.
@@ -110,9 +110,9 @@ func lfOptInTargetNativeIDs(region, accountID string, o lftypes.LakeFormationOpt
 		}
 	case r.DataCellsFilter != nil:
 		f := r.DataCellsFilter
-		ids = append(ids, lfDataCellsFilterARN(region, cmp.Or(sv(f.TableCatalogId), accountID), sv(f.DatabaseName), sv(f.TableName), sv(f.Name)))
+		ids = append(ids, lfDataCellsFilterARN(partition, region, cmp.Or(sv(f.TableCatalogId), accountID), sv(f.DatabaseName), sv(f.TableName), sv(f.Name)))
 	case r.LFTag != nil:
-		ids = append(ids, lfTagARN(region, cmp.Or(sv(r.LFTag.CatalogId), accountID), sv(r.LFTag.TagKey)))
+		ids = append(ids, lfTagARN(partition, region, cmp.Or(sv(r.LFTag.CatalogId), accountID), sv(r.LFTag.TagKey)))
 	}
 	return ids
 }

@@ -14,9 +14,9 @@ const nmRegion = "us-west-2"
 func TestResolveNMSiteRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	gnNID := nmGlobalNetworkID(acct.ID, "global-network-1")
+	gnNID := nmGlobalNetworkID("aws", acct.ID, "global-network-1")
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork, gnNID, nmRegion, `{"GlobalNetworkId":"global-network-1"}`)
-	siteNID := nmSiteID(acct.ID, "global-network-1", "site-1")
+	siteNID := nmSiteID("aws", acct.ID, "global-network-1", "site-1")
 	siteID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerSite, siteNID, nmRegion, `{"GlobalNetworkId":"global-network-1","SiteId":"site-1"}`)
 
 	if err := resolveNMSiteRefs(acct, st); err != nil {
@@ -36,7 +36,7 @@ func TestResolveNMSiteRefs_EmptyAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	siteID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerSite,
-		nmSiteID(acct.ID, "global-network-1", "site-bare"), nmRegion, "{}")
+		nmSiteID("aws", acct.ID, "global-network-1", "site-bare"), nmRegion, "{}")
 	if err := resolveNMSiteRefs(acct, st); err != nil {
 		t.Fatalf("resolveNMSiteRefs: %v", err)
 	}
@@ -50,7 +50,7 @@ func TestResolveNMSiteRefs_UnscannedGlobalNetworkSkipped(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	siteID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerSite,
-		nmSiteID(acct.ID, "missing-gn", "site-1"), nmRegion, `{"GlobalNetworkId":"missing-gn","SiteId":"site-1"}`)
+		nmSiteID("aws", acct.ID, "missing-gn", "site-1"), nmRegion, `{"GlobalNetworkId":"missing-gn","SiteId":"site-1"}`)
 	if err := resolveNMSiteRefs(acct, st); err != nil {
 		t.Fatalf("resolveNMSiteRefs: %v", err)
 	}
@@ -64,11 +64,11 @@ func TestResolveNMDeviceRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
-		nmGlobalNetworkID(acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
+		nmGlobalNetworkID("aws", acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
 	siteID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerSite,
-		nmSiteID(acct.ID, "gn-1", "site-1"), nmRegion, `{"GlobalNetworkId":"gn-1","SiteId":"site-1"}`)
+		nmSiteID("aws", acct.ID, "gn-1", "site-1"), nmRegion, `{"GlobalNetworkId":"gn-1","SiteId":"site-1"}`)
 	devID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerDevice,
-		nmDeviceID(acct.ID, "gn-1", "device-1"), nmRegion,
+		nmDeviceID("aws", acct.ID, "gn-1", "device-1"), nmRegion,
 		`{"GlobalNetworkId":"gn-1","SiteId":"site-1","DeviceId":"device-1"}`)
 
 	if err := resolveNMDeviceRefs(acct, st); err != nil {
@@ -86,7 +86,7 @@ func TestResolveNMDeviceRefs_EmptyAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	devID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerDevice,
-		nmDeviceID(acct.ID, "gn-1", "device-bare"), nmRegion, "{}")
+		nmDeviceID("aws", acct.ID, "gn-1", "device-bare"), nmRegion, "{}")
 	if err := resolveNMDeviceRefs(acct, st); err != nil {
 		t.Fatalf("resolveNMDeviceRefs: %v", err)
 	}
@@ -100,11 +100,11 @@ func TestResolveNMLinkRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
-		nmGlobalNetworkID(acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
+		nmGlobalNetworkID("aws", acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
 	siteID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerSite,
-		nmSiteID(acct.ID, "gn-1", "site-1"), nmRegion, `{"GlobalNetworkId":"gn-1","SiteId":"site-1"}`)
+		nmSiteID("aws", acct.ID, "gn-1", "site-1"), nmRegion, `{"GlobalNetworkId":"gn-1","SiteId":"site-1"}`)
 	linkID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerLink,
-		nmLinkID(acct.ID, "gn-1", "link-1"), nmRegion,
+		nmLinkID("aws", acct.ID, "gn-1", "link-1"), nmRegion,
 		`{"GlobalNetworkId":"gn-1","SiteId":"site-1","LinkId":"link-1"}`)
 
 	if err := resolveNMLinkRefs(acct, st); err != nil {
@@ -122,9 +122,9 @@ func TestResolveNMLinkRefs_UnscannedSiteSkipped(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
-		nmGlobalNetworkID(acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
+		nmGlobalNetworkID("aws", acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
 	linkID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerLink,
-		nmLinkID(acct.ID, "gn-1", "link-1"), nmRegion,
+		nmLinkID("aws", acct.ID, "gn-1", "link-1"), nmRegion,
 		`{"GlobalNetworkId":"gn-1","SiteId":"missing","LinkId":"link-1"}`)
 
 	if err := resolveNMLinkRefs(acct, st); err != nil {
@@ -141,9 +141,9 @@ func TestResolveNMLinkAssociationRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	devID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerDevice,
-		nmDeviceID(acct.ID, "gn-1", "device-1"), nmRegion, `{}`)
+		nmDeviceID("aws", acct.ID, "gn-1", "device-1"), nmRegion, `{}`)
 	linkID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerLink,
-		nmLinkID(acct.ID, "gn-1", "link-1"), nmRegion, `{}`)
+		nmLinkID("aws", acct.ID, "gn-1", "link-1"), nmRegion, `{}`)
 	assocNID := fmt.Sprintf("arn:aws:networkmanager::%s:global-network/gn-1/link-association/device-1/link-1", acct.ID)
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerLinkAssociation, assocNID, nmRegion,
 		`{"GlobalNetworkId":"gn-1","DeviceId":"device-1","LinkId":"link-1"}`)
@@ -178,9 +178,9 @@ func TestResolveNMCoreNetworkRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
-		nmGlobalNetworkID(acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
+		nmGlobalNetworkID("aws", acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
 	cnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetwork,
-		nmCoreNetworkID(acct.ID, "cn-1"), nmRegion, `{"GlobalNetworkId":"gn-1","CoreNetworkId":"cn-1"}`)
+		nmCoreNetworkID("aws", acct.ID, "cn-1"), nmRegion, `{"GlobalNetworkId":"gn-1","CoreNetworkId":"cn-1"}`)
 
 	if err := resolveNMCoreNetworkRefs(acct, st); err != nil {
 		t.Fatalf("resolveNMCoreNetworkRefs: %v", err)
@@ -196,7 +196,7 @@ func TestResolveNMCoreNetworkRefs_EmptyAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetwork,
-		nmCoreNetworkID(acct.ID, "cn-bare"), nmRegion, "{}")
+		nmCoreNetworkID("aws", acct.ID, "cn-bare"), nmRegion, "{}")
 	if err := resolveNMCoreNetworkRefs(acct, st); err != nil {
 		t.Fatalf("resolveNMCoreNetworkRefs: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestResolveNMTGWRegistrationRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
-		nmGlobalNetworkID(acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
+		nmGlobalNetworkID("aws", acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
 	tgwARN := ec2ARN("us-east-1", acct.ID, "transit-gateway", "tgw-aaa")
 	tgwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2TransitGateway, tgwARN, "us-east-1", "{}")
 	regNID := fmt.Sprintf("arn:aws:networkmanager::%s:global-network/gn-1/tgw-registration/%s", acct.ID, tgwARN)
@@ -232,7 +232,7 @@ func TestResolveNMTGWRegistrationRefs_UnscannedTGWSkipped(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
-		nmGlobalNetworkID(acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
+		nmGlobalNetworkID("aws", acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
 	regID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerTransitGatewayRegistration,
 		fmt.Sprintf("arn:aws:networkmanager::%s:global-network/gn-1/tgw-registration/missing", acct.ID), nmRegion,
 		fmt.Sprintf(`{"GlobalNetworkId":"gn-1","TransitGatewayArn":"%s"}`,
@@ -252,7 +252,7 @@ func TestResolveNMCGWAssociationRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
-		nmGlobalNetworkID(acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
+		nmGlobalNetworkID("aws", acct.ID, "gn-1"), nmRegion, `{"GlobalNetworkId":"gn-1"}`)
 	cgwARN := ec2ARN("us-east-1", acct.ID, "customer-gateway", "cgw-aaa")
 	cgwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2CustomerGateway, cgwARN, "us-east-1", "{}")
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCustomerGatewayAssociation,
@@ -288,7 +288,7 @@ func TestResolveNMVpcAttachmentRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetwork,
-		nmCoreNetworkID(acct.ID, "cn-1"), nmRegion, `{"GlobalNetworkId":"gn-1","CoreNetworkId":"cn-1"}`)
+		nmCoreNetworkID("aws", acct.ID, "cn-1"), nmRegion, `{"GlobalNetworkId":"gn-1","CoreNetworkId":"cn-1"}`)
 	vpcARN := ec2ARN("us-east-1", acct.ID, "vpc", "vpc-1")
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, vpcARN, "us-east-1", "{}")
 	subARN := ec2ARN("us-east-1", acct.ID, "subnet", "subnet-1")
@@ -343,7 +343,7 @@ func TestResolveNMSimpleAttachments(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetwork,
-		nmCoreNetworkID(acct.ID, "cn-1"), nmRegion, `{"CoreNetworkId":"cn-1"}`)
+		nmCoreNetworkID("aws", acct.ID, "cn-1"), nmRegion, `{"CoreNetworkId":"cn-1"}`)
 
 	cases := []struct {
 		rtype   string
@@ -390,7 +390,7 @@ func TestResolveNMTransitGatewayPeeringRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetwork,
-		nmCoreNetworkID(acct.ID, "cn-1"), nmRegion, `{"CoreNetworkId":"cn-1"}`)
+		nmCoreNetworkID("aws", acct.ID, "cn-1"), nmRegion, `{"CoreNetworkId":"cn-1"}`)
 	tgwARN := ec2ARN("us-east-1", acct.ID, "transit-gateway", "tgw-peer")
 	tgwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2TransitGateway, tgwARN, "us-east-1", "{}")
 	peerID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerTransitGatewayPeering,
@@ -426,7 +426,7 @@ func TestResolveNMConnectPeerRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetwork,
-		nmCoreNetworkID(acct.ID, "cn-1"), nmRegion, `{"CoreNetworkId":"cn-1"}`)
+		nmCoreNetworkID("aws", acct.ID, "cn-1"), nmRegion, `{"CoreNetworkId":"cn-1"}`)
 	cpID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerConnectPeer,
 		fmt.Sprintf("arn:aws:networkmanager::%s:connect-peer/cp-1", acct.ID), nmRegion,
 		`{"ConnectPeerId":"cp-1","CoreNetworkId":"cn-1"}`)

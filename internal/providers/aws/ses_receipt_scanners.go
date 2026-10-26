@@ -17,6 +17,13 @@ type sesV1API interface {
 	DescribeReceiptRuleSet(context.Context, *sesv1.DescribeReceiptRuleSetInput, ...func(*sesv1.Options)) (*sesv1.DescribeReceiptRuleSetOutput, error)
 }
 
+// sesReceiptRuleSetARN builds a receipt rule set's NativeID; the API returns no
+// ARN. Its rules extend it, and the rule resolver rebuilds it from a rule's
+// NativeID.
+func sesReceiptRuleSetARN(partition, region, acct, name string) string {
+	return sesARN(partition, region, acct, "receipt-rule-set", name)
+}
+
 func scanSESReceipt(ctx context.Context, client sesV1API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	for _, phase := range []func() (int, int, error){
 		func() (int, int, error) { return scanSESReceiptFilters(ctx, client, acct, region, st, scanID) },
@@ -47,7 +54,7 @@ func scanSESReceiptFilters(ctx context.Context, client sesV1API, acct *account, 
 			continue
 		}
 		n := name
-		arn := fmt.Sprintf("arn:aws:ses:%s:%s:receipt-filter/%s", region, acct.ID, name)
+		arn := sesARN(acct.partition(), region, acct.ID, "receipt-filter", name)
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 			Type: TypeSESReceiptFilter, NativeID: arn,
@@ -88,7 +95,7 @@ func scanSESReceiptRuleSets(ctx context.Context, client sesV1API, acct *account,
 			n := name
 			rsBatch = append(rsBatch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESReceiptRuleSet, NativeID: fmt.Sprintf("arn:aws:ses:%s:%s:receipt-rule-set/%s", region, acct.ID, name),
+				Type: TypeSESReceiptRuleSet, NativeID: sesReceiptRuleSetARN(acct.partition(), region, acct.ID, name),
 				Name: &n, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 			})
 		}
@@ -126,7 +133,7 @@ func scanSESReceiptRuleSets(ctx context.Context, client sesV1API, acct *account,
 				continue
 			}
 			rn := rname
-			arn := fmt.Sprintf("arn:aws:ses:%s:%s:receipt-rule-set/%s/receipt-rule/%s", region, acct.ID, sname, rname)
+			arn := sesReceiptRuleSetARN(acct.partition(), region, acct.ID, sname) + "/receipt-rule/" + rname
 			rules = append(rules, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSESReceiptRule, NativeID: arn,

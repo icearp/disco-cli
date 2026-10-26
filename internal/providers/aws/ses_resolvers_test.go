@@ -21,10 +21,10 @@ func TestResolveSESEmailIdentityConfigSet_HappyPath(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	cfgARN := sesConfigurationSetARN(testRegion, testAccountID, testSESConfigSet)
+	cfgARN := sesConfigurationSetARN("aws", testRegion, testAccountID, testSESConfigSet)
 	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeSESConfigurationSet, cfgARN, testRegion, "{}")
 
-	identARN := sesEmailIdentityARN(testRegion, testAccountID, testSESDomain)
+	identARN := sesEmailIdentityARN("aws", testRegion, testAccountID, testSESDomain)
 	identAttrs := fmt.Sprintf(`{"ConfigurationSetName":%q,"VerificationStatus":"SUCCESS"}`, testSESConfigSet)
 	identID := upsertTestResource(t, st, "aws", acct.ID, TypeSESEmailIdentity, identARN, testRegion, identAttrs)
 
@@ -44,7 +44,7 @@ func TestResolveSESEmailIdentityConfigSet_FKSafe(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	identARN := sesEmailIdentityARN(testRegion, testAccountID, testSESDomain)
+	identARN := sesEmailIdentityARN("aws", testRegion, testAccountID, testSESDomain)
 	identAttrs := fmt.Sprintf(`{"ConfigurationSetName":%q}`, testSESConfigSet)
 	identID := upsertTestResource(t, st, "aws", acct.ID, TypeSESEmailIdentity, identARN, testRegion, identAttrs)
 
@@ -67,7 +67,7 @@ func TestResolveSESEmailIdentityConfigSet_MalformedAttrs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 
 	upsertTestResource(t, st, "aws", acct.ID, TypeSESEmailIdentity,
-		sesEmailIdentityARN(testRegion, testAccountID, testSESDomain),
+		sesEmailIdentityARN("aws", testRegion, testAccountID, testSESDomain),
 		testRegion, `not json`)
 
 	if err := resolveSESEmailIdentityConfigSet(acct, st); err != nil {
@@ -81,10 +81,10 @@ func TestResolveSESEmailIdentityConfigSet_NoIdentityCfg(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	cfgARN := sesConfigurationSetARN(testRegion, testAccountID, testSESConfigSet)
+	cfgARN := sesConfigurationSetARN("aws", testRegion, testAccountID, testSESConfigSet)
 	upsertTestResource(t, st, "aws", acct.ID, TypeSESConfigurationSet, cfgARN, testRegion, "{}")
 
-	identARN := sesEmailIdentityARN(testRegion, testAccountID, testSESDomain)
+	identARN := sesEmailIdentityARN("aws", testRegion, testAccountID, testSESDomain)
 	identID := upsertTestResource(t, st, "aws", acct.ID, TypeSESEmailIdentity, identARN, testRegion, `{"VerificationStatus":"SUCCESS"}`)
 
 	if err := resolveSESEmailIdentityConfigSet(acct, st); err != nil {

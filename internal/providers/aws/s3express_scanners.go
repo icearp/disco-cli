@@ -80,7 +80,7 @@ func scanS3EDirectoryBuckets(ctx context.Context, client s3ExpressS3API, acct *a
 				continue
 			}
 			if arn == "" {
-				arn = fmt.Sprintf("arn:aws:s3express:%s:%s:bucket/%s", region, acct.ID, name)
+				arn = arnFor(acct.partition(), "s3express", region, acct.ID, "bucket/"+name)
 			}
 			names = append(names, name)
 			batch = append(batch, &store.Resource{
@@ -111,7 +111,7 @@ func scanS3EBucketPolicy(ctx context.Context, client s3ExpressS3API, acct *accou
 	if sv(out.Policy) == "" {
 		return 0, 0, nil
 	}
-	arn := fmt.Sprintf("arn:aws:s3express:%s:%s:bucket/%s/policy", region, acct.ID, bn)
+	arn := arnFor(acct.partition(), "s3express", region, acct.ID, "bucket/"+bn+"/policy")
 	label := "policy"
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

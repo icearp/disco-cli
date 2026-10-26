@@ -211,11 +211,7 @@ func resolveKMSAliases(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(a.AttributesJSON), &attrs); err != nil || attrs.TargetKeyID == nil {
 			continue
 		}
-		target := *attrs.TargetKeyID
-		if !strings.HasPrefix(target, "arn:") {
-			target = fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", sv(a.Region), acct.ID, target)
-		}
-		keyID := store.ResourceID("aws", acct.ID, target)
+		keyID := store.ResourceID("aws", acct.ID, kmsKeyRefARN(acct.partition(), sv(a.Region), acct.ID, *attrs.TargetKeyID))
 		if !knownKey[keyID] {
 			continue
 		}

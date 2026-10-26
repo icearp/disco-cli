@@ -10,7 +10,7 @@ import (
 func TestResolveSageMakerExperimentTrial(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	expARN := sagemakerARN(testRegion, acct.ID, "experiment", "exp-1")
+	expARN := sagemakerARN("aws", testRegion, acct.ID, "experiment", "exp-1")
 	expID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerExperiment, expARN, testRegion, "{}")
 	trialARN := fmt.Sprintf("arn:aws:sagemaker:%s:%s:experiment-trial/trial-1", testRegion, acct.ID)
 	trialID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerExperimentTrial, trialARN, testRegion,
@@ -46,7 +46,7 @@ func TestResolveSageMakerExperimentTrial_NoAttrs(t *testing.T) {
 func TestResolveSageMakerHubContent(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	hubARN := sagemakerARN(testRegion, acct.ID, "hub", "hub-1")
+	hubARN := sagemakerARN("aws", testRegion, acct.ID, "hub", "hub-1")
 	hubID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerHub, hubARN, testRegion, "{}")
 	hcARN := fmt.Sprintf("arn:aws:sagemaker:%s:%s:hub-content/hub-1/Model/content-1", testRegion, acct.ID)
 	hcID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerHubContent, hcARN, testRegion,
@@ -82,7 +82,7 @@ func TestResolveSageMakerHubContent_NoAttrs(t *testing.T) {
 func TestResolveSageMakerComputeQuota(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	clusterARN := sagemakerARN(testRegion, acct.ID, "cluster", "cluster-1")
+	clusterARN := sagemakerARN("aws", testRegion, acct.ID, "cluster", "cluster-1")
 	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerCluster, clusterARN, testRegion, "{}")
 	cqARN := fmt.Sprintf("arn:aws:sagemaker:%s:%s:compute-quota/cq-1", testRegion, acct.ID)
 	cqID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerComputeQuota, cqARN, testRegion,
@@ -118,7 +118,7 @@ func TestResolveSageMakerComputeQuota_NoAttrs(t *testing.T) {
 func TestResolveSageMakerClusterSchedulerConfig(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	clusterARN := sagemakerARN(testRegion, acct.ID, "cluster", "cluster-1")
+	clusterARN := sagemakerARN("aws", testRegion, acct.ID, "cluster", "cluster-1")
 	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerCluster, clusterARN, testRegion, "{}")
 	cscARN := fmt.Sprintf("arn:aws:sagemaker:%s:%s:cluster-scheduler-config/csc-1", testRegion, acct.ID)
 	cscID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerClusterSchedulerConfig, cscARN, testRegion,
@@ -154,7 +154,7 @@ func TestResolveSageMakerClusterSchedulerConfig_NoAttrs(t *testing.T) {
 func TestResolveSageMakerEdgeDeploymentPlan(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	fleetARN := sagemakerARN(testRegion, acct.ID, "device-fleet", "fleet-1")
+	fleetARN := sagemakerARN("aws", testRegion, acct.ID, "device-fleet", "fleet-1")
 	fleetID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerDeviceFleet, fleetARN, testRegion, "{}")
 	planARN := fmt.Sprintf("arn:aws:sagemaker:%s:%s:edge-deployment/plan-1", testRegion, acct.ID)
 	planID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerEdgeDeploymentPlan, planARN, testRegion,

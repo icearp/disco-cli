@@ -44,15 +44,15 @@ var errFMSPolicyMissing = errors.New("GetPolicy answered without a policy body; 
 // none. The resolver rebuilds it from a policy's ResourceSetIds with the
 // policy row's region: resource sets are regional, and whether a policy
 // can name a set of another region is unverified (such a set gets no edge).
-func fmsResourceSetARN(region, accountID, id string) string {
-	return fmt.Sprintf("arn:aws:fms:%s:%s:resource-set/%s", region, accountID, id)
+func fmsResourceSetARN(partition, region, accountID, id string) string {
+	return arnFor(partition, "fms", region, accountID, "resource-set/"+id)
 }
 
 // fmsNotificationChannelNativeID names the notification channel row. The API
 // returns no ARN, so the id is synthesized in the fms ARN shape. It carries
 // the region so two regions' channels never share one row.
-func fmsNotificationChannelNativeID(region, accountID string) string {
-	return fmt.Sprintf("arn:aws:fms:%s:%s:notification-channel", region, accountID)
+func fmsNotificationChannelNativeID(partition, region, accountID string) string {
+	return arnFor(partition, "fms", region, accountID, "notification-channel")
 }
 
 func init() {
@@ -310,7 +310,7 @@ func scanFMSResourceSets(ctx context.Context, client fmsAPI, acct *account, regi
 			r := summaries[id]
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFMSResourceSet, NativeID: fmsResourceSetARN(region, acct.ID, id),
+				Type: TypeFMSResourceSet, NativeID: fmsResourceSetARN(acct.partition(), region, acct.ID, id),
 				Name: r.Name, Region: &region, Status: nonEmptyPtr(string(r.ResourceSetStatus)),
 				AttributesJSON: mustJSON(fmsResourceSetAttrs{ResourceSet: r, Resources: members}), DiscoveredBy: scanID,
 			}, nil
@@ -376,7 +376,7 @@ func scanFMSNotificationChannel(ctx context.Context, client fmsAPI, acct *accoun
 	}
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-		Type: TypeFMSNotificationChannel, NativeID: fmsNotificationChannelNativeID(region, acct.ID),
+		Type: TypeFMSNotificationChannel, NativeID: fmsNotificationChannelNativeID(acct.partition(), region, acct.ID),
 		Name: &topic, Region: &region,
 		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
 	}

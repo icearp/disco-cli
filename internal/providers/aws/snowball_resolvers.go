@@ -71,7 +71,7 @@ func resolveSnowballClusterRelationships(acct *account, st *store.Store) error {
 		nativeTargets := []string{sv(refs.RoleARN)}
 		for _, addr := range []string{sv(refs.AddressID), sv(refs.ForwardingAddressID)} {
 			if addr != "" {
-				nativeTargets = append(nativeTargets, snowballAddressNativeID(acct.ID, addr))
+				nativeTargets = append(nativeTargets, snowballAddressNativeID(acct.partition(), acct.ID, addr))
 			}
 		}
 		if n := refs.Notification; n != nil {

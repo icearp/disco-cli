@@ -122,7 +122,7 @@ func scanOSISPipelineBlueprints(ctx context.Context, client *osis.Client, acct *
 		if name == "" {
 			continue
 		}
-		arn := fmt.Sprintf("arn:aws:osis:%s:%s:blueprint/%s", region, acct.ID, name)
+		arn := arnFor(acct.partition(), "osis", region, acct.ID, "blueprint/"+name)
 		label := name
 		batch = append(batch, &store.Resource{
 			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -152,7 +152,7 @@ func scanOSISPipelineEndpoints(ctx context.Context, client *osis.Client, acct *a
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:osis:%s:%s:pipeline-endpoint/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "osis", region, acct.ID, "pipeline-endpoint/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

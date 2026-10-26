@@ -154,7 +154,7 @@ func scanMHOWorkflows(ctx context.Context, client migrationHubOrchestratorAPI, a
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:migrationhub-orchestrator:%s:%s:workflow/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "migrationhub-orchestrator", region, acct.ID, "workflow/"+id)
 			parents = append(parents, childParent{id: id, arn: arn})
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -238,7 +238,7 @@ func scanMHOPlugins(ctx context.Context, client migrationHubOrchestratorAPI, acc
 			r := &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeMigrationHubOrchestratorPlugin,
-				NativeID: fmt.Sprintf("arn:aws:migrationhub-orchestrator:%s:%s:plugin/%s", region, acct.ID, id),
+				NativeID: arnFor(acct.partition(), "migrationhub-orchestrator", region, acct.ID, "plugin/"+id),
 				Name:     pl.Hostname, Region: &region,
 				AttributesJSON: mustJSON(pl), DiscoveredBy: scanID,
 			}

@@ -10,7 +10,7 @@ import (
 )
 
 // eksExtAPI lists ops for the seven per-cluster EKS resource types. ARNs
-// synthesized as arn:aws:eks:{r}:{a}:{kind}/{cluster}/{key} since List*
+// synthesized as arn:{p}:eks:{r}:{a}:{kind}/{cluster}/{key} since List*
 // responses return only names/IDs.
 type eksExtAPI interface {
 	ListClusters(context.Context, *eks.ListClustersInput, ...func(*eks.Options)) (*eks.ListClustersOutput, error)
@@ -23,12 +23,12 @@ type eksExtAPI interface {
 	ListPodIdentityAssociations(context.Context, *eks.ListPodIdentityAssociationsInput, ...func(*eks.Options)) (*eks.ListPodIdentityAssociationsOutput, error)
 }
 
-func eksChildARN(region, acct, kind, cluster, key string) string {
-	return fmt.Sprintf("arn:aws:eks:%s:%s:%s/%s/%s", region, acct, kind, cluster, key)
+func eksChildARN(partition, region, acct, kind, cluster, key string) string {
+	return arnFor(partition, "eks", region, acct, kind+"/"+cluster+"/"+key)
 }
 
-func eksClusterARN(region, acct, name string) string {
-	return fmt.Sprintf("arn:aws:eks:%s:%s:cluster/%s", region, acct, name)
+func eksClusterARN(partition, region, acct, name string) string {
+	return arnFor(partition, "eks", region, acct, "cluster/"+name)
 }
 
 // scanEKSExtended also returns the access entries it stored, for the child
@@ -96,7 +96,7 @@ func scanEKSAccessEntries(ctx context.Context, client eksExtAPI, acct *account, 
 			if principalARN == "" {
 				continue
 			}
-			arn := eksChildARN(region, acct.ID, "access-entry", cluster, principalARN)
+			arn := eksChildARN(acct.partition(), region, acct.ID, "access-entry", cluster, principalARN)
 			refs = append(refs, eksAccessEntryRef{cluster: cluster, principalARN: principalARN, nativeID: arn})
 			label := principalARN
 			batch = append(batch, &store.Resource{
@@ -130,7 +130,7 @@ func scanEKSAddons(ctx context.Context, client eksExtAPI, acct *account, region 
 			if name == "" {
 				continue
 			}
-			arn := eksChildARN(region, acct.ID, "addon", cluster, name)
+			arn := eksChildARN(acct.partition(), region, acct.ID, "addon", cluster, name)
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -191,7 +191,7 @@ func scanEKSFargateProfiles(ctx context.Context, client eksExtAPI, acct *account
 			if name == "" {
 				continue
 			}
-			arn := eksChildARN(region, acct.ID, "fargateprofile", cluster, name)
+			arn := eksChildARN(acct.partition(), region, acct.ID, "fargateprofile", cluster, name)
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -222,7 +222,7 @@ func scanEKSIdentityProviderConfigs(ctx context.Context, client eksExtAPI, acct 
 				continue
 			}
 			ipcType := sv(c.Type)
-			arn := eksChildARN(region, acct.ID, "identityproviderconfig", cluster, ipcType+"/"+name)
+			arn := eksChildARN(acct.partition(), region, acct.ID, "identityproviderconfig", cluster, ipcType+"/"+name)
 			label := name
 			rec := types.IdentityProviderConfig{Name: &name, Type: c.Type}
 			batch = append(batch, &store.Resource{
@@ -252,7 +252,7 @@ func scanEKSNodegroups(ctx context.Context, client eksExtAPI, acct *account, reg
 			if name == "" {
 				continue
 			}
-			arn := eksChildARN(region, acct.ID, "nodegroup", cluster, name)
+			arn := eksChildARN(acct.partition(), region, acct.ID, "nodegroup", cluster, name)
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

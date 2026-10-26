@@ -33,7 +33,7 @@ func init() {
 
 // resolveGlueTableDatabase emits an `attached-to` edge from each Glue
 // table to its database. Database NativeID shape:
-// `arn:aws:glue:{r}:{a}:database/{name}`.
+// `arn:{p}:glue:{r}:{a}:database/{name}`.
 func resolveGlueTableDatabase(acct *account, st *store.Store) error {
 	tables, err := st.ListResources(store.ResourceFilter{
 		Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeGlueTable},
@@ -56,7 +56,7 @@ func resolveGlueTableDatabase(acct *account, st *store.Store) error {
 		if attrs.DatabaseName == nil || *attrs.DatabaseName == "" {
 			continue
 		}
-		dbARN := fmt.Sprintf("arn:aws:glue:%s:%s:database/%s", sv(r.Region), acct.ID, *attrs.DatabaseName)
+		dbARN := glueDatabaseARN(acct.partition(), sv(r.Region), acct.ID, *attrs.DatabaseName)
 		dbID := store.ResourceID("aws", acct.ID, dbARN)
 		if !dbSet[dbID] {
 			continue
@@ -70,16 +70,16 @@ func resolveGlueTableDatabase(acct *account, st *store.Store) error {
 
 // glueRoleARN normalises a Role field — the Glue API accepts a full IAM
 // role ARN or a bare role name. Bare names get rebuilt into the canonical
-// `arn:aws:iam::{acct}:role/{name}` for FK lookup. IAM roles have no region
+// `arn:{p}:iam::{acct}:role/{name}` for FK lookup. IAM roles have no region
 // segment, so the source resource's region is irrelevant here.
-func glueRoleARN(acctID, roleField string) string {
+func glueRoleARN(partition, acctID, roleField string) string {
 	if roleField == "" {
 		return ""
 	}
 	if strings.HasPrefix(roleField, "arn:") {
 		return roleField
 	}
-	return fmt.Sprintf("arn:aws:iam::%s:role/%s", acctID, roleField)
+	return iamRoleARN(partition, acctID, roleField)
 }
 
 // resolveGlueJobRefs walks each Job's Role + Command.ScriptLocation and
@@ -110,7 +110,7 @@ func resolveGlueJobRefs(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if roleARN := glueRoleARN(acct.ID, sv(attrs.Role)); roleARN != "" {
+		if roleARN := glueRoleARN(acct.partition(), acct.ID, sv(attrs.Role)); roleARN != "" {
 			roleID := store.ResourceID("aws", acct.ID, roleARN)
 			if roleSet[roleID] {
 				if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
@@ -167,7 +167,7 @@ func resolveGlueCrawlerRefs(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		if roleARN := glueRoleARN(acct.ID, sv(attrs.Role)); roleARN != "" {
+		if roleARN := glueRoleARN(acct.partition(), acct.ID, sv(attrs.Role)); roleARN != "" {
 			roleID := store.ResourceID("aws", acct.ID, roleARN)
 			if roleSet[roleID] {
 				if err := st.UpsertRelationship(r.ID, roleID, store.RelAssumes, "directed", nil); err != nil {
@@ -176,7 +176,7 @@ func resolveGlueCrawlerRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if attrs.DatabaseName != nil && *attrs.DatabaseName != "" {
-			dbARN := fmt.Sprintf("arn:aws:glue:%s:%s:database/%s", sv(r.Region), acct.ID, *attrs.DatabaseName)
+			dbARN := glueDatabaseARN(acct.partition(), sv(r.Region), acct.ID, *attrs.DatabaseName)
 			dbID := store.ResourceID("aws", acct.ID, dbARN)
 			if dbSet[dbID] {
 				if err := st.UpsertRelationship(r.ID, dbID, store.RelAttachedTo, "directed", nil); err != nil {

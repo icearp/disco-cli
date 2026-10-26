@@ -23,7 +23,7 @@ func TestResolveS3FilesAll(t *testing.T) {
 	eniID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2NetworkInterface, eniARN, testRegion, "{}")
 
 	fsID := "fs-1"
-	fsARN := s3filesFSARN(testRegion, acct.ID, fsID)
+	fsARN := s3filesFSARN("aws", testRegion, acct.ID, fsID)
 	fsAttrs := fmt.Sprintf(`{"FileSystemId":%q,"Bucket":"data-bucket","RoleArn":%q}`, fsID, roleARN)
 	fsRowID := upsertTestResource(t, st, "aws", acct.ID, TypeS3FilesFileSystem, fsARN, testRegion, fsAttrs)
 

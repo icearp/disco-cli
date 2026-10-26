@@ -429,7 +429,7 @@ func scanGLVpcPeeringConnections(ctx context.Context, client gameLiftAPI, acct *
 	for _, c := range out.VpcPeeringConnections {
 		fleetARN, id := sv(c.FleetArn), sv(c.VpcPeeringConnectionId)
 		if fleetARN == "" && sv(c.FleetId) != "" {
-			fleetARN = gameliftFleetARN(region, acct.ID, sv(c.FleetId))
+			fleetARN = gameliftFleetARN(acct.partition(), region, acct.ID, sv(c.FleetId))
 		}
 		if fleetARN == "" || id == "" {
 			continue

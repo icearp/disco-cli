@@ -61,7 +61,7 @@ func resolveGlueTableToDatabase(acct *account, st *store.Store) error {
 			continue
 		}
 		db := tail[:end]
-		dbARN := fmt.Sprintf("arn:aws:glue:%s:%s:database/%s", sv(r.Region), acct.ID, db)
+		dbARN := glueDatabaseARN(acct.partition(), sv(r.Region), acct.ID, db)
 		tgtID := store.ResourceID("aws", acct.ID, dbARN)
 		if !dbSet[tgtID] {
 			continue
@@ -110,7 +110,7 @@ func resolveGlueTableSubchild(acct *account, st *store.Store, sourceType, kind s
 			continue
 		}
 		db, tbl := parts[0], parts[1]
-		tblARN := fmt.Sprintf("arn:aws:glue:%s:%s:table/%s/%s", sv(r.Region), acct.ID, db, tbl)
+		tblARN := glueTableARN(acct.partition(), sv(r.Region), acct.ID, db, tbl)
 		tgtID := store.ResourceID("aws", acct.ID, tblARN)
 		if !tblSet[tgtID] {
 			continue
@@ -192,7 +192,7 @@ func resolveGlueDataQualityRulesetTargets(acct *account, st *store.Store) error 
 		region := sv(r.Region)
 		db := sv(attrs.TargetTable.DatabaseName)
 		if db != "" {
-			dbARN := fmt.Sprintf("arn:aws:glue:%s:%s:database/%s", region, acct.ID, db)
+			dbARN := glueDatabaseARN(acct.partition(), region, acct.ID, db)
 			if dbID := store.ResourceID("aws", acct.ID, dbARN); dbSet[dbID] {
 				if err := st.UpsertRelationship(r.ID, dbID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert glue dq→db: %w", err)
@@ -200,7 +200,7 @@ func resolveGlueDataQualityRulesetTargets(acct *account, st *store.Store) error 
 			}
 		}
 		if tbl := sv(attrs.TargetTable.TableName); tbl != "" && db != "" {
-			tblARN := fmt.Sprintf("arn:aws:glue:%s:%s:table/%s/%s", region, acct.ID, db, tbl)
+			tblARN := glueTableARN(acct.partition(), region, acct.ID, db, tbl)
 			if tblID := store.ResourceID("aws", acct.ID, tblARN); tblSet[tblID] {
 				if err := st.UpsertRelationship(r.ID, tblID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("upsert glue dq→table: %w", err)

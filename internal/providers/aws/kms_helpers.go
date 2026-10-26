@@ -17,10 +17,12 @@ type kmsResolveIndex struct {
 	// account. Membership is the FK-safety gate.
 	keyIDs map[string]struct{}
 	// aliasToKeyARN maps both "alias/foo" and the alias ARN form
-	// ("arn:aws:kms:{region}:{acct}:alias/foo") to the target key's ARN.
+	// ("arn:{p}:kms:{region}:{acct}:alias/foo") to the target key's ARN.
 	aliasToKeyARN map[string]string
 	// keyARNByID resolves a bare key UUID ref to its canonical key ARN.
 	keyARNByID map[string]string
+	// partition is the account's, for the key ARN a bare key id expands to.
+	partition string
 }
 
 // loadKMSResolveIndex builds the alias + key indexes for one account.
@@ -30,6 +32,7 @@ func loadKMSResolveIndex(acct *account, st *store.Store) (*kmsResolveIndex, erro
 		keyIDs:        map[string]struct{}{},
 		aliasToKeyARN: map[string]string{},
 		keyARNByID:    map[string]string{},
+		partition:     acct.partition(),
 	}
 
 	keys, err := st.ListResources(store.ResourceFilter{
@@ -68,7 +71,7 @@ func loadKMSResolveIndex(acct *account, st *store.Store) (*kmsResolveIndex, erro
 			region = *a.Region
 		}
 		// TargetKeyID is the bare key UUID; build the canonical key ARN.
-		keyARN := arnFor(acct.partition(), "kms", region, acct.ID, "key/"+*attrs.TargetKeyID)
+		keyARN := kmsKeyARN(acct.partition(), region, acct.ID, *attrs.TargetKeyID)
 		idx.aliasToKeyARN[*attrs.AliasName] = keyARN
 		if attrs.AliasArn != nil {
 			idx.aliasToKeyARN[*attrs.AliasArn] = keyARN
@@ -91,11 +94,9 @@ func (idx *kmsResolveIndex) resolveKMSKeyID(ref, region, acctID string) (string,
 			_, present := idx.keyIDs[id]
 			return id, present
 		}
-		// Fallback: synthesize the alias ARN and try the key ARN form so
-		// kmsKeyTargetARN's old behavior still works for tests.
 		return "", false
 	}
-	// Alias ARN shape: arn:aws:kms:{r}:{a}:alias/foo
+	// Alias ARN shape: arn:{p}:kms:{r}:{a}:alias/foo
 	if strings.HasPrefix(ref, "arn:") && strings.Contains(ref, ":alias/") {
 		if keyARN, ok := idx.aliasToKeyARN[ref]; ok {
 			id := store.ResourceID("aws", acctID, keyARN)
@@ -104,8 +105,7 @@ func (idx *kmsResolveIndex) resolveKMSKeyID(ref, region, acctID string) (string,
 		}
 		return "", false
 	}
-	// Already a key ARN, or bare key UUID — normalize via kmsKeyTargetARN.
-	target := kmsKeyTargetARN(ref, region, acctID)
+	target := kmsKeyRefARN(idx.partition, region, acctID, ref)
 	id := store.ResourceID("aws", acctID, target)
 	_, present := idx.keyIDs[id]
 	return id, present

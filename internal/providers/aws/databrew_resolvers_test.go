@@ -21,20 +21,20 @@ func dbRels(t *testing.T, st *store.Store, id string) []store.Relationship {
 func TestResolveDataBrewRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	dsARN := dbrARN(testRegion, acct.ID, "dataset", "ds1")
+	dsARN := dbrARN("aws", testRegion, acct.ID, "dataset", "ds1")
 	dsID := upsertTestResource(t, st, "aws", acct.ID, TypeDataBrewDataset, dsARN, testRegion, "{}")
-	rcpARN := dbrARN(testRegion, acct.ID, "recipe", "r1")
+	rcpARN := dbrARN("aws", testRegion, acct.ID, "recipe", "r1")
 	rcpID := upsertTestResource(t, st, "aws", acct.ID, TypeDataBrewRecipe, rcpARN, testRegion,
 		mustJSON(databrewtypes.Recipe{ProjectName: ptrStr("p1")}))
-	prjARN := dbrARN(testRegion, acct.ID, "project", "p1")
+	prjARN := dbrARN("aws", testRegion, acct.ID, "project", "p1")
 	prjID := upsertTestResource(t, st, "aws", acct.ID, TypeDataBrewProject, prjARN, testRegion,
 		mustJSON(databrewtypes.Project{DatasetName: ptrStr("ds1"), RecipeName: ptrStr("r1")}))
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/dbr", acct.ID)
 	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
-	jobARN := dbrARN(testRegion, acct.ID, "job", "j1")
+	jobARN := dbrARN("aws", testRegion, acct.ID, "job", "j1")
 	jobID := upsertTestResource(t, st, "aws", acct.ID, TypeDataBrewJob, jobARN, testRegion,
 		mustJSON(databrewtypes.Job{DatasetName: ptrStr("ds1"), ProjectName: ptrStr("p1"), RoleArn: ptrStr(roleARN)}))
-	schARN := dbrARN(testRegion, acct.ID, "schedule", "s1")
+	schARN := dbrARN("aws", testRegion, acct.ID, "schedule", "s1")
 	schID := upsertTestResource(t, st, "aws", acct.ID, TypeDataBrewSchedule, schARN, testRegion,
 		mustJSON(databrewtypes.Schedule{JobNames: []string{"j1"}}))
 
@@ -103,10 +103,10 @@ var dbResolverCases = []struct {
 func seedDataBrewTargets(t *testing.T, st *store.Store) {
 	t.Helper()
 	for _, s := range []struct{ typ, arn string }{
-		{TypeDataBrewDataset, dbrARN(testRegion, testAccountID, "dataset", "ds1")},
-		{TypeDataBrewProject, dbrARN(testRegion, testAccountID, "project", "p1")},
-		{TypeDataBrewRecipe, dbrARN(testRegion, testAccountID, "recipe", "r1")},
-		{TypeDataBrewJob, dbrARN(testRegion, testAccountID, "job", "j1")},
+		{TypeDataBrewDataset, dbrARN("aws", testRegion, testAccountID, "dataset", "ds1")},
+		{TypeDataBrewProject, dbrARN("aws", testRegion, testAccountID, "project", "p1")},
+		{TypeDataBrewRecipe, dbrARN("aws", testRegion, testAccountID, "recipe", "r1")},
+		{TypeDataBrewJob, dbrARN("aws", testRegion, testAccountID, "job", "j1")},
 		{TypeIAMRole, "arn:aws:iam::" + testAccountID + ":role/dbr"},
 		{TypeS3Bucket, "arn:aws:s3:::brew-input"},
 	} {
@@ -122,7 +122,7 @@ func TestResolveDataBrew_NoAttrsNoEdge(t *testing.T) {
 			st := newTestStore(t)
 			acct := newTestAccount(testAccountID)
 			seedDataBrewTargets(t, st)
-			srcID := upsertTestResource(t, st, "aws", acct.ID, c.srcType, dbrARN(testRegion, acct.ID, "src", c.name), testRegion, "{}")
+			srcID := upsertTestResource(t, st, "aws", acct.ID, c.srcType, dbrARN("aws", testRegion, acct.ID, "src", c.name), testRegion, "{}")
 			if err := c.resolve(acct, st); err != nil {
 				t.Fatalf("resolve: %v", err)
 			}
@@ -142,12 +142,12 @@ func TestResolveDataBrew_DecodeErrorReturned(t *testing.T) {
 			st := newTestStore(t)
 			acct := newTestAccount(testAccountID)
 			seedDataBrewTargets(t, st)
-			upsertTestResource(t, st, "aws", acct.ID, c.srcType, dbrARN(testRegion, acct.ID, "bad", c.name), testRegion, "[]")
+			upsertTestResource(t, st, "aws", acct.ID, c.srcType, dbrARN("aws", testRegion, acct.ID, "bad", c.name), testRegion, "[]")
 			var siblingID, siblingTarget string
 			if c.srcType != TypeDataBrewSchedule && c.srcType != TypeDataBrewDataset && c.srcType != TypeDataBrewRuleset {
-				siblingID = upsertTestResource(t, st, "aws", acct.ID, TypeDataBrewSchedule, dbrARN(testRegion, acct.ID, "schedule", "s1"), testRegion,
+				siblingID = upsertTestResource(t, st, "aws", acct.ID, TypeDataBrewSchedule, dbrARN("aws", testRegion, acct.ID, "schedule", "s1"), testRegion,
 					mustJSON(databrewtypes.Schedule{JobNames: []string{"j1"}}))
-				siblingTarget = store.ResourceID("aws", acct.ID, dbrARN(testRegion, acct.ID, "job", "j1"))
+				siblingTarget = store.ResourceID("aws", acct.ID, dbrARN("aws", testRegion, acct.ID, "job", "j1"))
 			}
 			if err := c.resolve(acct, st); err == nil {
 				t.Fatalf("resolve with an undecodable %s row: err = nil, want an error", c.srcType)

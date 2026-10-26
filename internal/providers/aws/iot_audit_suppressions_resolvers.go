@@ -67,13 +67,13 @@ func resolveIoTAuditSuppressionTargets(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		var targets []string
 		if id := sv(ri.CaCertificateID); id != "" {
-			targets = append(targets, iotARN(region, acct.ID, "cacert", id))
+			targets = append(targets, iotARN(acct.partition(), region, acct.ID, "cacert", id))
 		}
 		if id := sv(ri.DeviceCertificateID); id != "" {
-			targets = append(targets, iotARN(region, acct.ID, "cert", id))
+			targets = append(targets, iotARN(acct.partition(), region, acct.ID, "cert", id))
 		}
 		if p := ri.PolicyVersionIdentifier; p != nil && sv(p.PolicyName) != "" {
-			targets = append(targets, iotARN(region, acct.ID, "policy", sv(p.PolicyName)))
+			targets = append(targets, iotARN(acct.partition(), region, acct.ID, "policy", sv(p.PolicyName)))
 		}
 		targets = append(targets, sv(ri.DeviceCertificateArn), sv(ri.IamRoleArn), sv(ri.RoleAliasArn))
 		for _, arn := range targets {

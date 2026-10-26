@@ -86,7 +86,7 @@ func resolveSSMDocumentRequires(acct *account, st *store.Store) error {
 				continue
 			}
 			// Field accepts ARN or bare name; strip a leading
-			// `arn:aws:ssm:...:document/` prefix to recover the bare name.
+			// `arn:{p}:ssm:...:document/` prefix to recover the bare name.
 			if i := strings.Index(name, ":document/"); i >= 0 {
 				name = name[i+len(":document/"):]
 			}
@@ -221,7 +221,7 @@ func resolveSSMMaintenanceWindowTargetParent(acct *account, st *store.Store) err
 			continue
 		}
 		region := sv(r.Region)
-		mwARN := fmt.Sprintf("arn:aws:ssm:%s:%s:maintenancewindow/%s", region, acct.ID, wid)
+		mwARN := ssmMaintenanceWindowARN(acct.partition(), region, acct.ID, wid)
 		tgtID := store.ResourceID("aws", acct.ID, mwARN)
 		if !mwSet[tgtID] {
 			continue
@@ -275,7 +275,7 @@ func resolveSSMMaintenanceWindowTaskRefs(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if wid := sv(attrs.WindowID); wid != "" {
-			mwARN := fmt.Sprintf("arn:aws:ssm:%s:%s:maintenancewindow/%s", region, acct.ID, wid)
+			mwARN := ssmMaintenanceWindowARN(acct.partition(), region, acct.ID, wid)
 			tgtID := store.ResourceID("aws", acct.ID, mwARN)
 			if mwSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelAttachedTo, "directed", nil); err != nil {

@@ -117,7 +117,7 @@ func scanSAIntegrations(ctx context.Context, client securityAgentAPI, acct *acco
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:securityagent:%s:%s:integration/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "securityagent", region, acct.ID, "integration/"+id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSecurityAgentIntegration, NativeID: arn,
@@ -145,7 +145,7 @@ func scanSAPrivateConnections(ctx context.Context, client securityAgentAPI, acct
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:securityagent:%s:%s:private-connection/%s", region, acct.ID, name)
+			arn := arnFor(acct.partition(), "securityagent", region, acct.ID, "private-connection/"+name)
 			nm := name
 			status := string(c.Status)
 			batch = append(batch, &store.Resource{
@@ -180,7 +180,7 @@ func scanSASecurityRequirementPacks(ctx context.Context, client securityAgentAPI
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:securityagent:%s:%s:security-requirement-pack/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "securityagent", region, acct.ID, "security-requirement-pack/"+id)
 			if p.ManagementType == satypes.ManagementTypeCustomerManaged {
 				customer = append(customer, childParent{id: id, arn: arn})
 			}
@@ -201,8 +201,8 @@ func scanSASecurityRequirementPacks(ctx context.Context, client securityAgentAPI
 	return customer, t, i, nil
 }
 
-func saAgentSpaceARN(region, accountID, id string) string {
-	return fmt.Sprintf("arn:aws:securityagent:%s:%s:agent-space/%s", region, accountID, id)
+func saAgentSpaceARN(partition, region, accountID, id string) string {
+	return arnFor(partition, "securityagent", region, accountID, "agent-space/"+id)
 }
 
 func scanSAAgentSpaces(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
@@ -222,7 +222,7 @@ func scanSAAgentSpaces(ctx context.Context, client securityAgentAPI, acct *accou
 			if id == "" {
 				continue
 			}
-			arn := saAgentSpaceARN(region, acct.ID, id)
+			arn := saAgentSpaceARN(acct.partition(), region, acct.ID, id)
 			spaces = append(spaces, childParent{id: id, arn: arn})
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -257,7 +257,7 @@ func scanSAApplications(ctx context.Context, client securityAgentAPI, acct *acco
 				continue
 			}
 			ids = append(ids, id)
-			arn := fmt.Sprintf("arn:aws:securityagent:%s:%s:application/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "securityagent", region, acct.ID, "application/"+id)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeSecurityAgentApplication, NativeID: arn,
@@ -733,7 +733,7 @@ func scanSATargetDomains(ctx context.Context, client securityAgentAPI, acct *acc
 			if id == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:securityagent:%s:%s:target-domain/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "securityagent", region, acct.ID, "target-domain/"+id)
 			status := string(d.VerificationStatus)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

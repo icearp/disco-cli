@@ -24,7 +24,7 @@ func qbTestClient(handlers map[string]func(in any) (any, error)) *qbusiness.Clie
 }
 
 func qbTestAppARN(id string) string {
-	return qbARN(testRegion, testAccountID, "application", id)
+	return qbARN("aws", testRegion, testAccountID, "application", id)
 }
 
 func qbTestApps(ids ...string) []qbAppRef {

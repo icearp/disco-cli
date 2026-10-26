@@ -138,7 +138,7 @@ func resolveCodePipelineWebhookToPipeline(acct *account, st *store.Store) error 
 		if n == "" {
 			continue
 		}
-		pARN := fmt.Sprintf("arn:aws:codepipeline:%s:%s:%s", sv(r.Region), acct.ID, n)
+		pARN := codePipelineARN(acct.partition(), sv(r.Region), acct.ID, n)
 		tgtID := store.ResourceID("aws", acct.ID, pARN)
 		if !pSet[tgtID] {
 			continue

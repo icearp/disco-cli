@@ -10,11 +10,11 @@ import (
 func TestResolveGlueTriggerWorkflow(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	wfARN := glueResourceARN(testRegion, acct.ID, "workflow", "etl-flow")
+	wfARN := glueResourceARN("aws", testRegion, acct.ID, "workflow", "etl-flow")
 	wfID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueWorkflow, wfARN, testRegion, "{}")
-	jobARN := glueResourceARN(testRegion, acct.ID, "job", "etl-job")
+	jobARN := glueResourceARN("aws", testRegion, acct.ID, "job", "etl-job")
 	jobID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueJob, jobARN, testRegion, "{}")
-	trgARN := glueResourceARN(testRegion, acct.ID, "trigger", "trg-1")
+	trgARN := glueResourceARN("aws", testRegion, acct.ID, "trigger", "trg-1")
 	attrs := `{"WorkflowName":"etl-flow","Actions":[{"JobName":"etl-job"}]}`
 	trgID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueTrigger, trgARN, testRegion, attrs)
 	if err := resolveGlueTriggerWorkflow(acct, st); err != nil {
@@ -34,7 +34,7 @@ func TestResolveGlueDevEndpointRefs(t *testing.T) {
 	subID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subARN, testRegion, "{}")
 	sgARN := ec2ARN(testRegion, acct.ID, "security-group", "sg-y")
 	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup, sgARN, testRegion, "{}")
-	deARN := glueResourceARN(testRegion, acct.ID, "devEndpoint", "de-1")
+	deARN := glueResourceARN("aws", testRegion, acct.ID, "devEndpoint", "de-1")
 	attrs := fmt.Sprintf(`{"RoleArn":%q,"SubnetId":"subnet-x","SecurityGroupIds":["sg-y"]}`, roleARN)
 	deID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueDevEndpoint, deARN, testRegion, attrs)
 	if err := resolveGlueDevEndpointRefs(acct, st); err != nil {
@@ -51,11 +51,11 @@ func TestResolveGlueMLTransformRefs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/mlt", acct.ID)
 	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, roleARN, "", "{}")
-	dbARN := glueResourceARN(testRegion, acct.ID, "database", "sales")
+	dbARN := glueResourceARN("aws", testRegion, acct.ID, "database", "sales")
 	dbID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueDatabase, dbARN, testRegion, "{}")
-	tblARN := glueResourceARN(testRegion, acct.ID, "table", "sales/orders")
+	tblARN := glueResourceARN("aws", testRegion, acct.ID, "table", "sales/orders")
 	tblID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueTable, tblARN, testRegion, "{}")
-	mltARN := glueResourceARN(testRegion, acct.ID, "mlTransform", "mlt-1")
+	mltARN := glueResourceARN("aws", testRegion, acct.ID, "mlTransform", "mlt-1")
 	attrs := fmt.Sprintf(`{"Role":%q,"InputRecordTables":[{"DatabaseName":"sales","TableName":"orders"}]}`, roleARN)
 	mltID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueMLTransform, mltARN, testRegion, attrs)
 	if err := resolveGlueMLTransformRefs(acct, st); err != nil {
@@ -72,7 +72,7 @@ func TestResolveGlueConnectionRefs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	subARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-c")
 	subID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subARN, testRegion, "{}")
-	connARN := glueResourceARN(testRegion, acct.ID, "connection", "conn-1")
+	connARN := glueResourceARN("aws", testRegion, acct.ID, "connection", "conn-1")
 	attrs := `{"PhysicalConnectionRequirements":{"SubnetId":"subnet-c","SecurityGroupIdList":[]}}`
 	connID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueConnection, connARN, testRegion, attrs)
 	if err := resolveGlueConnectionRefs(acct, st); err != nil {
@@ -85,9 +85,9 @@ func TestResolveGlueConnectionRefs(t *testing.T) {
 func TestResolveGlueSchemaRegistry(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	regARN := glueResourceARN(testRegion, acct.ID, "registry", "default")
+	regARN := glueResourceARN("aws", testRegion, acct.ID, "registry", "default")
 	regID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueRegistry, regARN, testRegion, "{}")
-	schARN := glueResourceARN(testRegion, acct.ID, "schema", "default/avro1")
+	schARN := glueResourceARN("aws", testRegion, acct.ID, "schema", "default/avro1")
 	attrs := fmt.Sprintf(`{"RegistryId":{"RegistryArn":%q}}`, regARN)
 	schID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueSchema, schARN, testRegion, attrs)
 	if err := resolveGlueSchemaRegistry(acct, st); err != nil {
@@ -102,7 +102,7 @@ func TestResolveGlueSecurityConfigKMS(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/glue-sc-key", testRegion, acct.ID)
 	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion, "{}")
-	scARN := glueResourceARN(testRegion, acct.ID, "securityConfiguration", "sc-1")
+	scARN := glueResourceARN("aws", testRegion, acct.ID, "securityConfiguration", "sc-1")
 	attrs := fmt.Sprintf(`{"EncryptionConfiguration":{"S3Encryption":[{"KmsKeyArn":%q}],"CloudWatchEncryption":{"KmsKeyArn":%q}}}`, keyARN, keyARN)
 	scID := upsertTestResource(t, st, "aws", acct.ID, TypeGlueSecurityConfiguration, scARN, testRegion, attrs)
 	if err := resolveGlueSecurityConfigKMS(acct, st); err != nil {

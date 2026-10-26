@@ -105,7 +105,7 @@ func scanGlueAssetTypes(ctx context.Context, client glueAPI, acct *account, regi
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeGlueAssetType,
-				NativeID: glueResourceARN(region, acct.ID, "assetType", id),
+				NativeID: glueResourceARN(acct.partition(), region, acct.ID, "assetType", id),
 				Name:     a.Name, Region: &region,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
@@ -135,7 +135,7 @@ func scanGlueGlossaries(ctx context.Context, client glueAPI, acct *account, regi
 			if id == "" {
 				continue
 			}
-			arn := glueResourceARN(region, acct.ID, "glossary", id)
+			arn := glueResourceARN(acct.partition(), region, acct.ID, "glossary", id)
 			parents = append(parents, childParent{id: id, arn: arn})
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

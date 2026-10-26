@@ -10,6 +10,13 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
+// codePipelineARN builds arn:{p}:codepipeline:{region}:{acct}:{resource}. A
+// pipeline's resource is its bare name, so the resolver rebuilds a target
+// pipeline from the name another pipeline's trigger names.
+func codePipelineARN(partition, region, acct, resource string) string {
+	return arnFor(partition, "codepipeline", region, acct, resource)
+}
+
 func init() {
 	registerType(restype.Descriptor{Type: TypeCodePipelinePipeline, Service: "codepipeline"})
 	registerType(restype.Descriptor{Type: TypeCodePipelineCustomActionType, Service: "codepipeline"})
@@ -63,7 +70,7 @@ func scanCPPipelines(ctx context.Context, client codePipelineAPI, acct *account,
 			if name == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:codepipeline:%s:%s:%s", region, acct.ID, name)
+			arn := codePipelineARN(acct.partition(), region, acct.ID, name)
 			attrsJSON := mustJSON(p)
 			if gout, gerr := client.GetPipeline(ctx, &codepipeline.GetPipelineInput{Name: p.Name}); gerr == nil {
 				attrsJSON = mustJSON(gout)
@@ -108,7 +115,7 @@ func scanCPCustomActionTypes(ctx context.Context, client codePipelineAPI, acct *
 			if category == "" || provider == "" || version == "" {
 				continue
 			}
-			arn := fmt.Sprintf("arn:aws:codepipeline:%s:%s:actiontype/Custom/%s/%s/%s", region, acct.ID, category, provider, version)
+			arn := codePipelineARN(acct.partition(), region, acct.ID, "actiontype/Custom/"+category+"/"+provider+"/"+version)
 			label := fmt.Sprintf("%s/%s/%s", category, provider, version)
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

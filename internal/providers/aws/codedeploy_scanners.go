@@ -153,7 +153,7 @@ func scanCDDeploymentGroups(ctx context.Context, client codeDeployAPI, appNames 
 				if groupName == "" {
 					continue
 				}
-				arn := fmt.Sprintf("arn:aws:codedeploy:%s:%s:deploymentgroup:%s/%s", region, acct.ID, appName, groupName)
+				arn := arnFor(acct.partition(), "codedeploy", region, acct.ID, "deploymentgroup:"+appName+"/"+groupName)
 				batch = append(batch, &store.Resource{
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeCodeDeployDeploymentGroup, NativeID: arn,

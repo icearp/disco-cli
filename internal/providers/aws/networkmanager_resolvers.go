@@ -135,29 +135,29 @@ func resolveNMCorePLAssocRefs(acct *account, st *store.Store) error {
 // nmGlobalNetworkID rebuilds the canonical NetworkManager GlobalNetwork ARN
 // from a raw GlobalNetworkId. NetworkManager is a global service — ARN region
 // segment is empty.
-func nmGlobalNetworkID(acctID, gnID string) string {
-	return fmt.Sprintf("arn:aws:networkmanager::%s:global-network/%s", acctID, gnID)
+func nmGlobalNetworkID(partition, acctID, gnID string) string {
+	return arnFor(partition, "networkmanager", "", acctID, "global-network/"+gnID)
 }
 
 // nmSiteID rebuilds the canonical NetworkManager Site ARN from a raw SiteId.
 // Sites nest under their global network in the ARN path.
-func nmSiteID(acctID, gnID, siteID string) string {
-	return fmt.Sprintf("arn:aws:networkmanager::%s:site/%s/%s", acctID, gnID, siteID)
+func nmSiteID(partition, acctID, gnID, siteID string) string {
+	return arnFor(partition, "networkmanager", "", acctID, "site/"+gnID+"/"+siteID)
 }
 
 // nmDeviceID rebuilds the canonical NetworkManager Device ARN.
-func nmDeviceID(acctID, gnID, devID string) string {
-	return fmt.Sprintf("arn:aws:networkmanager::%s:device/%s/%s", acctID, gnID, devID)
+func nmDeviceID(partition, acctID, gnID, devID string) string {
+	return arnFor(partition, "networkmanager", "", acctID, "device/"+gnID+"/"+devID)
 }
 
 // nmLinkID rebuilds the canonical NetworkManager Link ARN.
-func nmLinkID(acctID, gnID, linkID string) string {
-	return fmt.Sprintf("arn:aws:networkmanager::%s:link/%s/%s", acctID, gnID, linkID)
+func nmLinkID(partition, acctID, gnID, linkID string) string {
+	return arnFor(partition, "networkmanager", "", acctID, "link/"+gnID+"/"+linkID)
 }
 
 // nmCoreNetworkID rebuilds the canonical NetworkManager CoreNetwork ARN.
-func nmCoreNetworkID(acctID, coreID string) string {
-	return fmt.Sprintf("arn:aws:networkmanager::%s:core-network/%s", acctID, coreID)
+func nmCoreNetworkID(partition, acctID, coreID string) string {
+	return arnFor(partition, "networkmanager", "", acctID, "core-network/"+coreID)
 }
 
 // resolveNMSiteRefs links each Site to its parent GlobalNetwork.
@@ -181,7 +181,7 @@ func resolveNMSiteRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		gnID := store.ResourceID("aws", acct.ID,
-			nmGlobalNetworkID(acct.ID, *attrs.GlobalNetworkID))
+			nmGlobalNetworkID(acct.partition(), acct.ID, *attrs.GlobalNetworkID))
 
 		if !gnSet[gnID] {
 			continue
@@ -221,7 +221,7 @@ func resolveNMDeviceRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		gnID := store.ResourceID("aws", acct.ID,
-			nmGlobalNetworkID(acct.ID, gn))
+			nmGlobalNetworkID(acct.partition(), acct.ID, gn))
 
 		if gnSet[gnID] {
 			if err := st.UpsertRelationship(r.ID, gnID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -230,7 +230,7 @@ func resolveNMDeviceRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.SiteID != nil && *attrs.SiteID != "" {
 			siteID := store.ResourceID("aws", acct.ID,
-				nmSiteID(acct.ID, gn, *attrs.SiteID))
+				nmSiteID(acct.partition(), acct.ID, gn, *attrs.SiteID))
 
 			if siteSet[siteID] {
 				if err := st.UpsertRelationship(r.ID, siteID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -269,7 +269,7 @@ func resolveNMLinkRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		gnID := store.ResourceID("aws", acct.ID,
-			nmGlobalNetworkID(acct.ID, gn))
+			nmGlobalNetworkID(acct.partition(), acct.ID, gn))
 
 		if gnSet[gnID] {
 			if err := st.UpsertRelationship(r.ID, gnID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -278,7 +278,7 @@ func resolveNMLinkRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.SiteID != nil && *attrs.SiteID != "" {
 			siteID := store.ResourceID("aws", acct.ID,
-				nmSiteID(acct.ID, gn, *attrs.SiteID))
+				nmSiteID(acct.partition(), acct.ID, gn, *attrs.SiteID))
 
 			if siteSet[siteID] {
 				if err := st.UpsertRelationship(r.ID, siteID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -321,7 +321,7 @@ func resolveNMLinkAssociationRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.DeviceID != nil && *attrs.DeviceID != "" {
 			devID := store.ResourceID("aws", acct.ID,
-				nmDeviceID(acct.ID, gn, *attrs.DeviceID))
+				nmDeviceID(acct.partition(), acct.ID, gn, *attrs.DeviceID))
 
 			if devSet[devID] {
 				if err := st.UpsertRelationship(r.ID, devID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -331,7 +331,7 @@ func resolveNMLinkAssociationRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.LinkID != nil && *attrs.LinkID != "" {
 			linkID := store.ResourceID("aws", acct.ID,
-				nmLinkID(acct.ID, gn, *attrs.LinkID))
+				nmLinkID(acct.partition(), acct.ID, gn, *attrs.LinkID))
 
 			if linkSet[linkID] {
 				if err := st.UpsertRelationship(r.ID, linkID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -364,7 +364,7 @@ func resolveNMCoreNetworkRefs(acct *account, st *store.Store) error {
 			continue
 		}
 		gnID := store.ResourceID("aws", acct.ID,
-			nmGlobalNetworkID(acct.ID, *attrs.GlobalNetworkID))
+			nmGlobalNetworkID(acct.partition(), acct.ID, *attrs.GlobalNetworkID))
 
 		if !gnSet[gnID] {
 			continue
@@ -403,7 +403,7 @@ func resolveNMTGWRegistrationRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.GlobalNetworkID != nil && *attrs.GlobalNetworkID != "" {
 			gnID := store.ResourceID("aws", acct.ID,
-				nmGlobalNetworkID(acct.ID, *attrs.GlobalNetworkID))
+				nmGlobalNetworkID(acct.partition(), acct.ID, *attrs.GlobalNetworkID))
 
 			if gnSet[gnID] {
 				if err := st.UpsertRelationship(r.ID, gnID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -449,7 +449,7 @@ func resolveNMCGWAssociationRefs(acct *account, st *store.Store) error {
 		}
 		if attrs.GlobalNetworkID != nil && *attrs.GlobalNetworkID != "" {
 			gnID := store.ResourceID("aws", acct.ID,
-				nmGlobalNetworkID(acct.ID, *attrs.GlobalNetworkID))
+				nmGlobalNetworkID(acct.partition(), acct.ID, *attrs.GlobalNetworkID))
 
 			if gnSet[gnID] {
 				if err := st.UpsertRelationship(r.ID, gnID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -487,7 +487,7 @@ func nmAttachmentCoreNetworkEdge(acct *account, st *store.Store, r store.Resourc
 		return nil
 	}
 	cnID := store.ResourceID("aws", acct.ID,
-		nmCoreNetworkID(acct.ID, cn))
+		nmCoreNetworkID(acct.partition(), acct.ID, cn))
 
 	if !coreSet[cnID] {
 		return nil

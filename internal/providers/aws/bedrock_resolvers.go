@@ -337,7 +337,7 @@ func resolveBedrockAgentRefs(acct *account, st *store.Store) error {
 }
 
 // resolveBedrockAgentAlias links each agent-alias row to its parent agent.
-// Alias NativeID shape: arn:aws:bedrock:{r}:{a}:agent-alias/{agentID}/{aliasID}.
+// Alias NativeID shape: arn:{p}:bedrock:{r}:{a}:agent-alias/{agentID}/{aliasID}.
 // Strip trailing /{aliasID} and swap segment to recover the agent ARN.
 func resolveBedrockAgentAlias(acct *account, st *store.Store) error {
 	aliases, err := st.ListResources(store.ResourceFilter{
@@ -397,7 +397,7 @@ func resolveBedrockDataSourceKB(acct *account, st *store.Store) error {
 			continue
 		}
 		kbID := store.ResourceID("aws", acct.ID,
-			bedrockKBARN(sv(r.Region), acct.ID, kb))
+			bedrockKBARN(acct.partition(), sv(r.Region), acct.ID, kb))
 
 		if !kbSet[kbID] {
 			continue
@@ -440,7 +440,7 @@ func resolveBedrockVersionParent(acct *account, st *store.Store, childType, pare
 	}
 	for _, r := range rows {
 		// Trim the final ":<version>" suffix — ARNs have 5 colons before the
-		// resource segment (arn:aws:svc:region:acct:resource), so the
+		// resource segment (arn:{p}:svc:region:acct:resource), so the
 		// version delimiter is the 6th (last) colon.
 		idx := strings.LastIndex(r.NativeID, ":")
 		if idx < 0 {

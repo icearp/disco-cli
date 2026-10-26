@@ -109,16 +109,16 @@ func TestResolveLakeFormationOptInTargets_EdgePerTargetKind(t *testing.T) {
 	}{
 		{"iam role principal", roleARN, dbResource, TypeIAMRole, roleARN},
 		{"iam user principal", userARN, dbResource, TypeIAMUser, userARN},
-		{"glue database", "IAM_ALLOWED_PRINCIPALS", dbResource, TypeGlueDatabase, glueDatabaseARN(testRegion, testAccountID, "sales")},
+		{"glue database", "IAM_ALLOWED_PRINCIPALS", dbResource, TypeGlueDatabase, glueDatabaseARN("aws", testRegion, testAccountID, "sales")},
 		{
 			"glue table", "IAM_ALLOWED_PRINCIPALS",
 			&lftypes.Resource{Table: &lftypes.TableResource{DatabaseName: sdkaws.String("sales"), Name: sdkaws.String("orders")}},
-			TypeGlueTable, glueTableARN(testRegion, testAccountID, "sales", "orders"),
+			TypeGlueTable, glueTableARN("aws", testRegion, testAccountID, "sales", "orders"),
 		},
 		{
 			"glue table with columns", "IAM_ALLOWED_PRINCIPALS",
 			&lftypes.Resource{TableWithColumns: &lftypes.TableWithColumnsResource{DatabaseName: sdkaws.String("sales"), Name: sdkaws.String("orders"), ColumnNames: []string{"id"}}},
-			TypeGlueTable, glueTableARN(testRegion, testAccountID, "sales", "orders"),
+			TypeGlueTable, glueTableARN("aws", testRegion, testAccountID, "sales", "orders"),
 		},
 		{
 			"data location", "IAM_ALLOWED_PRINCIPALS",
@@ -128,12 +128,12 @@ func TestResolveLakeFormationOptInTargets_EdgePerTargetKind(t *testing.T) {
 		{
 			"data cells filter", "IAM_ALLOWED_PRINCIPALS",
 			&lftypes.Resource{DataCellsFilter: &lftypes.DataCellsFilterResource{DatabaseName: sdkaws.String("sales"), TableName: sdkaws.String("orders"), Name: sdkaws.String("eu-only")}},
-			TypeLakeFormationDataCellsFilter, lfDataCellsFilterARN(testRegion, testAccountID, "sales", "orders", "eu-only"),
+			TypeLakeFormationDataCellsFilter, lfDataCellsFilterARN("aws", testRegion, testAccountID, "sales", "orders", "eu-only"),
 		},
 		{
 			"lf tag", "IAM_ALLOWED_PRINCIPALS",
 			&lftypes.Resource{LFTag: &lftypes.LFTagKeyResource{TagKey: sdkaws.String("tier"), TagValues: []string{"gold"}}},
-			TypeLakeFormationTag, lfTagARN(testRegion, testAccountID, "tier"),
+			TypeLakeFormationTag, lfTagARN("aws", testRegion, testAccountID, "tier"),
 		},
 	}
 	for _, c := range cases {
@@ -166,12 +166,12 @@ func TestResolveLakeFormationOptInTargets_ForeignCatalogNoEdge(t *testing.T) {
 		targetType string
 		targetID   string
 	}{
-		{"database", &lftypes.Resource{Database: &lftypes.DatabaseResource{CatalogId: foreign, Name: sdkaws.String("sales")}}, TypeGlueDatabase, glueDatabaseARN(testRegion, testAccountID, "sales")},
-		{"table", &lftypes.Resource{Table: &lftypes.TableResource{CatalogId: foreign, DatabaseName: sdkaws.String("sales"), Name: sdkaws.String("orders")}}, TypeGlueTable, glueTableARN(testRegion, testAccountID, "sales", "orders")},
-		{"table with columns", &lftypes.Resource{TableWithColumns: &lftypes.TableWithColumnsResource{CatalogId: foreign, DatabaseName: sdkaws.String("sales"), Name: sdkaws.String("orders")}}, TypeGlueTable, glueTableARN(testRegion, testAccountID, "sales", "orders")},
+		{"database", &lftypes.Resource{Database: &lftypes.DatabaseResource{CatalogId: foreign, Name: sdkaws.String("sales")}}, TypeGlueDatabase, glueDatabaseARN("aws", testRegion, testAccountID, "sales")},
+		{"table", &lftypes.Resource{Table: &lftypes.TableResource{CatalogId: foreign, DatabaseName: sdkaws.String("sales"), Name: sdkaws.String("orders")}}, TypeGlueTable, glueTableARN("aws", testRegion, testAccountID, "sales", "orders")},
+		{"table with columns", &lftypes.Resource{TableWithColumns: &lftypes.TableWithColumnsResource{CatalogId: foreign, DatabaseName: sdkaws.String("sales"), Name: sdkaws.String("orders")}}, TypeGlueTable, glueTableARN("aws", testRegion, testAccountID, "sales", "orders")},
 		{"data location", &lftypes.Resource{DataLocation: &lftypes.DataLocationResource{CatalogId: foreign, ResourceArn: sdkaws.String("arn:aws:s3:::lake")}}, TypeLakeFormationResource, "arn:aws:s3:::lake"},
-		{"data cells filter", &lftypes.Resource{DataCellsFilter: &lftypes.DataCellsFilterResource{TableCatalogId: foreign, DatabaseName: sdkaws.String("d"), TableName: sdkaws.String("t"), Name: sdkaws.String("f")}}, TypeLakeFormationDataCellsFilter, lfDataCellsFilterARN(testRegion, testAccountID, "d", "t", "f")},
-		{"lf tag", &lftypes.Resource{LFTag: &lftypes.LFTagKeyResource{CatalogId: foreign, TagKey: sdkaws.String("tier")}}, TypeLakeFormationTag, lfTagARN(testRegion, testAccountID, "tier")},
+		{"data cells filter", &lftypes.Resource{DataCellsFilter: &lftypes.DataCellsFilterResource{TableCatalogId: foreign, DatabaseName: sdkaws.String("d"), TableName: sdkaws.String("t"), Name: sdkaws.String("f")}}, TypeLakeFormationDataCellsFilter, lfDataCellsFilterARN("aws", testRegion, testAccountID, "d", "t", "f")},
+		{"lf tag", &lftypes.Resource{LFTag: &lftypes.LFTagKeyResource{CatalogId: foreign, TagKey: sdkaws.String("tier")}}, TypeLakeFormationTag, lfTagARN("aws", testRegion, testAccountID, "tier")},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

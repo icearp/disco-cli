@@ -126,7 +126,7 @@ func TestScanIAMAccount_NoPasswordPolicy(t *testing.T) {
 // iamAccountAttrs returns the stored account row's attribute keys.
 func iamAccountAttrs(t *testing.T, st *store.Store) map[string]json.RawMessage {
 	t.Helper()
-	r, err := st.GetResource(store.ResourceID("aws", testAccountID, iamAccountNativeID(testAccountID)))
+	r, err := st.GetResource(store.ResourceID("aws", testAccountID, iamAccountNativeID("aws", testAccountID)))
 	if err != nil {
 		t.Fatalf("GetResource: %v", err)
 	}

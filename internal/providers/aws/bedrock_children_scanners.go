@@ -36,10 +36,10 @@ func isBedrockChildSkip(_ string, err error) bool {
 // since it was listed.
 var bedrockChildNotFound = []string{"ResourceNotFoundException"}
 
-func bedrockAgentParents(region, acctID string, agentIDs []string) []childParent {
+func bedrockAgentParents(partition, region, acctID string, agentIDs []string) []childParent {
 	parents := make([]childParent, len(agentIDs))
 	for i, id := range agentIDs {
-		parents[i] = childParent{id: id, arn: bedrockAgentARN(region, acctID, id)}
+		parents[i] = childParent{id: id, arn: bedrockAgentARN(partition, region, acctID, id)}
 	}
 	return parents
 }
@@ -62,7 +62,7 @@ func bedrockChildRow(acct *account, region, scanID, typ string, p childParent, k
 // the agent row itself already represents (same convention as the guardrail,
 // prompt and automated-reasoning-policy version scanners).
 func scanBedrockAgentVersions(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string, agentIDs []string) (int, int, error) {
-	return storeChildrenEachParent(ctx, st, acct, region, "bedrockagent:ListAgentVersions", bedrockChildNotFound, bedrockAgentParents(region, acct.ID, agentIDs), isBedrockChildSkip, nil,
+	return storeChildrenEachParent(ctx, st, acct, region, "bedrockagent:ListAgentVersions", bedrockChildNotFound, bedrockAgentParents(acct.partition(), region, acct.ID, agentIDs), isBedrockChildSkip, nil,
 		func(ctx context.Context, p childParent, token *string) ([]agenttypes.AgentVersionSummary, *string, error) {
 			out, err := client.ListAgentVersions(ctx, &bedrockagent.ListAgentVersionsInput{AgentId: &p.id, NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
 			if err != nil {
@@ -77,7 +77,7 @@ func scanBedrockAgentVersions(ctx context.Context, client bedrockAgentAPI, acct 
 }
 
 func scanBedrockAgentActionGroups(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string, agentIDs []string) (int, int, error) {
-	return storeChildrenEachParent(ctx, st, acct, region, "bedrockagent:ListAgentActionGroups", bedrockChildNotFound, bedrockAgentParents(region, acct.ID, agentIDs), isBedrockChildSkip, nil,
+	return storeChildrenEachParent(ctx, st, acct, region, "bedrockagent:ListAgentActionGroups", bedrockChildNotFound, bedrockAgentParents(acct.partition(), region, acct.ID, agentIDs), isBedrockChildSkip, nil,
 		func(ctx context.Context, p childParent, token *string) ([]agenttypes.ActionGroupSummary, *string, error) {
 			out, err := client.ListAgentActionGroups(ctx, &bedrockagent.ListAgentActionGroupsInput{
 				AgentId: &p.id, AgentVersion: sdkaws.String(bedrockDraftVersion), NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap),
@@ -94,7 +94,7 @@ func scanBedrockAgentActionGroups(ctx context.Context, client bedrockAgentAPI, a
 }
 
 func scanBedrockAgentKnowledgeBases(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string, agentIDs []string) (int, int, error) {
-	return storeChildrenEachParent(ctx, st, acct, region, "bedrockagent:ListAgentKnowledgeBases", bedrockChildNotFound, bedrockAgentParents(region, acct.ID, agentIDs), isBedrockChildSkip, nil,
+	return storeChildrenEachParent(ctx, st, acct, region, "bedrockagent:ListAgentKnowledgeBases", bedrockChildNotFound, bedrockAgentParents(acct.partition(), region, acct.ID, agentIDs), isBedrockChildSkip, nil,
 		func(ctx context.Context, p childParent, token *string) ([]agenttypes.AgentKnowledgeBaseSummary, *string, error) {
 			out, err := client.ListAgentKnowledgeBases(ctx, &bedrockagent.ListAgentKnowledgeBasesInput{
 				AgentId: &p.id, AgentVersion: sdkaws.String(bedrockDraftVersion), NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap),
@@ -112,7 +112,7 @@ func scanBedrockAgentKnowledgeBases(ctx context.Context, client bedrockAgentAPI,
 }
 
 func scanBedrockAgentCollaborators(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string, agentIDs []string) (int, int, error) {
-	return storeChildrenEachParent(ctx, st, acct, region, "bedrockagent:ListAgentCollaborators", bedrockChildNotFound, bedrockAgentParents(region, acct.ID, agentIDs), isBedrockChildSkip, nil,
+	return storeChildrenEachParent(ctx, st, acct, region, "bedrockagent:ListAgentCollaborators", bedrockChildNotFound, bedrockAgentParents(acct.partition(), region, acct.ID, agentIDs), isBedrockChildSkip, nil,
 		func(ctx context.Context, p childParent, token *string) ([]agenttypes.AgentCollaboratorSummary, *string, error) {
 			out, err := client.ListAgentCollaborators(ctx, &bedrockagent.ListAgentCollaboratorsInput{
 				AgentId: &p.id, AgentVersion: sdkaws.String(bedrockDraftVersion), NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap),

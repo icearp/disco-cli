@@ -176,15 +176,9 @@ func init() {
 // sagemakerARN rebuilds the canonical ARN for an arbitrary SageMaker entity
 // kind (`notebook-instance-lifecycle-config`, `code-repository`, `image`,
 // `domain`, `endpoint`, …) given its name. SageMaker's ARN shape is uniform:
-// `arn:aws:sagemaker:{r}:{a}:{kind}/{name}`.
-func sagemakerARN(region, acctID, kind, name string) string {
-	return fmt.Sprintf("arn:aws:sagemaker:%s:%s:%s/%s", region, acctID, kind, name)
-}
-
-// efsFileSystemARN rebuilds the canonical EFS file-system ARN from a bare
-// fs-XXXXXXXX id. Mirrors the shape used by efs_scanners.go.
-func efsFileSystemARN(region, acctID, fsID string) string {
-	return fmt.Sprintf("arn:aws:elasticfilesystem:%s:%s:file-system/%s", region, acctID, fsID)
+// `arn:{p}:sagemaker:{r}:{a}:{kind}/{name}`.
+func sagemakerARN(partition, region, acctID, kind, name string) string {
+	return arnFor(partition, "sagemaker", region, acctID, kind+"/"+name)
 }
 
 // sagemakerEdgeSets bundles the FK-safe target id-sets and KMS resolve-index
@@ -338,11 +332,11 @@ func emitSGEdges(st *store.Store, srcID, partition, region, acctID string, ids [
 
 // emitEndpointByName emits an endpoint `attached-to` edge by synthesising the
 // endpoint ARN from its bare name.
-func emitEndpointByName(st *store.Store, srcID, region, acctID, name string, sets *sagemakerEdgeSets) error {
+func emitEndpointByName(st *store.Store, srcID, partition, region, acctID, name string, sets *sagemakerEdgeSets) error {
 	if name == "" {
 		return nil
 	}
-	epID := store.ResourceID("aws", acctID, sagemakerARN(region, acctID, "endpoint", name))
+	epID := store.ResourceID("aws", acctID, sagemakerARN(partition, region, acctID, "endpoint", name))
 	if !sets.endpts[epID] {
 		return nil
 	}
@@ -388,11 +382,11 @@ func resolveSageMakerNotebookInstance(acct *account, st *store.Store) error {
 		if err := emitKMS(st, r.ID, sv(a.KmsKeyID), region, acct.ID, sets); err != nil {
 			return fmt.Errorf("notebook→kms: %w", err)
 		}
-		if err := emitNotebookLCConfig(st, r.ID, region, acct.ID, sv(a.NotebookInstanceLifecycleConfigName), sets); err != nil {
+		if err := emitNotebookLCConfig(st, r.ID, acct.partition(), region, acct.ID, sv(a.NotebookInstanceLifecycleConfigName), sets); err != nil {
 			return err
 		}
 		repos := append([]string{sv(a.DefaultCodeRepository)}, a.AdditionalCodeRepositories...)
-		if err := emitNotebookCodeRepos(st, r.ID, region, acct.ID, repos, sets); err != nil {
+		if err := emitNotebookCodeRepos(st, r.ID, acct.partition(), region, acct.ID, repos, sets); err != nil {
 			return err
 		}
 	}
@@ -400,12 +394,12 @@ func resolveSageMakerNotebookInstance(acct *account, st *store.Store) error {
 }
 
 // emitNotebookLCConfig links a notebook instance to its lifecycle config row.
-func emitNotebookLCConfig(st *store.Store, srcID, region, acctID, name string, sets *sagemakerEdgeSets) error {
+func emitNotebookLCConfig(st *store.Store, srcID, partition, region, acctID, name string, sets *sagemakerEdgeSets) error {
 	if name == "" {
 		return nil
 	}
 	cfgID := store.ResourceID("aws", acctID,
-		sagemakerARN(region, acctID, "notebook-instance-lifecycle-config", name))
+		sagemakerARN(partition, region, acctID, "notebook-instance-lifecycle-config", name))
 
 	if !sets.lcconfs[cfgID] {
 		return nil
@@ -416,13 +410,13 @@ func emitNotebookLCConfig(st *store.Store, srcID, region, acctID, name string, s
 // emitNotebookCodeRepos links to every scanned code-repository named on the
 // notebook (default + additional). Bare names are synthesised; full URLs to
 // remote git providers (which never resolve to a code-repository row) skip.
-func emitNotebookCodeRepos(st *store.Store, srcID, region, acctID string, names []string, sets *sagemakerEdgeSets) error {
+func emitNotebookCodeRepos(st *store.Store, srcID, partition, region, acctID string, names []string, sets *sagemakerEdgeSets) error {
 	for _, n := range names {
 		if n == "" {
 			continue
 		}
 		repoID := store.ResourceID("aws", acctID,
-			sagemakerARN(region, acctID, "code-repository", n))
+			sagemakerARN(partition, region, acctID, "code-repository", n))
 
 		if !sets.coderepo[repoID] {
 			continue
@@ -470,7 +464,7 @@ func resolveSageMakerDomain(acct *account, st *store.Store) error {
 			return fmt.Errorf("domain→kms: %w", err)
 		}
 		if fs := sv(a.HomeEfsFileSystemID); fs != "" {
-			fsID := store.ResourceID("aws", acct.ID, efsFileSystemARN(region, acct.ID, fs))
+			fsID := store.ResourceID("aws", acct.ID, efsFileSystemARN(acct.partition(), region, acct.ID, fs))
 			if sets.efs[fsID] {
 				if err := st.UpsertRelationship(r.ID, fsID, store.RelUses, "directed", nil); err != nil {
 					return fmt.Errorf("domain→efs: %w", err)
@@ -516,7 +510,7 @@ func resolveSagemakerDomainParent(acct *account, st *store.Store, srcType string
 		}
 		region := sv(r.Region)
 		domID := store.ResourceID("aws", acct.ID,
-			sagemakerARN(region, acct.ID, "domain", id))
+			sagemakerARN(acct.partition(), region, acct.ID, "domain", id))
 
 		if !sets.domains[domID] {
 			continue
@@ -555,7 +549,7 @@ func resolveSageMakerApp(acct *account, st *store.Store) error {
 		dom := sv(a.DomainID)
 		if dom != "" {
 			domID := store.ResourceID("aws", acct.ID,
-				sagemakerARN(region, acct.ID, "domain", dom))
+				sagemakerARN(acct.partition(), region, acct.ID, "domain", dom))
 
 			if sets.domains[domID] {
 				if err := st.UpsertRelationship(r.ID, domID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -564,7 +558,7 @@ func resolveSageMakerApp(acct *account, st *store.Store) error {
 			}
 		}
 		if up := sv(a.UserProfileName); dom != "" && up != "" {
-			upARN := sagemakerARN(region, acct.ID, "user-profile", dom+"/"+up)
+			upARN := sagemakerARN(acct.partition(), region, acct.ID, "user-profile", dom+"/"+up)
 			upID := store.ResourceID("aws", acct.ID, upARN)
 			if sets.users[upID] {
 				if err := st.UpsertRelationship(r.ID, upID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -573,7 +567,7 @@ func resolveSageMakerApp(acct *account, st *store.Store) error {
 			}
 		}
 		if sp := sv(a.SpaceName); dom != "" && sp != "" {
-			spARN := sagemakerARN(region, acct.ID, "space", dom+"/"+sp)
+			spARN := sagemakerARN(acct.partition(), region, acct.ID, "space", dom+"/"+sp)
 			spID := store.ResourceID("aws", acct.ID, spARN)
 			if sets.spaces[spID] {
 				if err := st.UpsertRelationship(r.ID, spID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -742,7 +736,7 @@ func resolveSageMakerModelPackage(acct *account, st *store.Store) error {
 		region := sv(r.Region)
 		if g := sv(a.ModelPackageGroupName); g != "" {
 			gID := store.ResourceID("aws", acct.ID,
-				sagemakerARN(region, acct.ID, "model-package-group", g))
+				sagemakerARN(acct.partition(), region, acct.ID, "model-package-group", g))
 
 			if sets.mpgroups[gID] {
 				if err := st.UpsertRelationship(r.ID, gID, store.RelAttachedTo, "directed", nil); err != nil {
@@ -792,7 +786,7 @@ func resolveSageMakerMonitoringSchedule(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
 			continue
 		}
-		if err := emitEndpointByName(st, r.ID, sv(r.Region), acct.ID, sv(a.EndpointName), sets); err != nil {
+		if err := emitEndpointByName(st, r.ID, acct.partition(), sv(r.Region), acct.ID, sv(a.EndpointName), sets); err != nil {
 			return fmt.Errorf("monitoring-schedule→endpoint: %w", err)
 		}
 	}
@@ -872,7 +866,7 @@ func resolveSagemakerJobDef(acct *account, st *store.Store, srcType, inputKey, o
 		if err := emitJobDefNetwork(st, r.ID, acct.partition(), region, acct.ID, raw, sets); err != nil {
 			return err
 		}
-		if err := emitJobDefInput(st, r.ID, region, acct.ID, raw[inputKey], sets); err != nil {
+		if err := emitJobDefInput(st, r.ID, acct.partition(), region, acct.ID, raw[inputKey], sets); err != nil {
 			return err
 		}
 		if err := emitJobDefOutput(st, r.ID, acct.partition(), region, acct.ID, raw[outputKey], sets); err != nil {
@@ -904,7 +898,7 @@ func emitJobDefNetwork(st *store.Store, srcID, partition, region, acctID string,
 }
 
 // emitJobDefInput emits the endpoint edge from a `*JobInput.EndpointInput`.
-func emitJobDefInput(st *store.Store, srcID, region, acctID string, raw json.RawMessage, sets *sagemakerEdgeSets) error {
+func emitJobDefInput(st *store.Store, srcID, partition, region, acctID string, raw json.RawMessage, sets *sagemakerEdgeSets) error {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -912,7 +906,7 @@ func emitJobDefInput(st *store.Store, srcID, region, acctID string, raw json.Raw
 	if err := json.Unmarshal(raw, &ji); err != nil || ji.EndpointInput == nil {
 		return nil
 	}
-	return emitEndpointByName(st, srcID, region, acctID, sv(ji.EndpointInput.EndpointName), sets)
+	return emitEndpointByName(st, srcID, partition, region, acctID, sv(ji.EndpointInput.EndpointName), sets)
 }
 
 // emitJobDefOutput emits S3 + KMS edges from a `*JobOutputConfig` block.
@@ -1191,7 +1185,7 @@ func resolveSageMakerDevice(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		fID := store.ResourceID("aws", acct.ID,
-			sagemakerARN(region, acct.ID, "device-fleet", name))
+			sagemakerARN(acct.partition(), region, acct.ID, "device-fleet", name))
 
 		if !sets.fleets[fID] {
 			continue
@@ -1262,7 +1256,7 @@ func resolveSageMakerInferenceExperiment(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if a.EndpointMetadata != nil {
-			if err := emitEndpointByName(st, r.ID, region, acct.ID, sv(a.EndpointMetadata.EndpointName), sets); err != nil {
+			if err := emitEndpointByName(st, r.ID, acct.partition(), region, acct.ID, sv(a.EndpointMetadata.EndpointName), sets); err != nil {
 				return err
 			}
 		}
@@ -1272,7 +1266,7 @@ func resolveSageMakerInferenceExperiment(acct *account, st *store.Store) error {
 				continue
 			}
 			mID := store.ResourceID("aws", acct.ID,
-				sagemakerModelARN(region, acct.ID, name))
+				sagemakerModelARN(acct.partition(), region, acct.ID, name))
 
 			if !sets.models[mID] {
 				continue

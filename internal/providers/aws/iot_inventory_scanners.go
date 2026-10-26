@@ -61,7 +61,7 @@ func scanIoTIndices(ctx context.Context, client iotInventoryAPI, acct *account, 
 				return nil, derr
 			}
 			iname := sv(out.IndexName)
-			arn := iotARN(region, acct.ID, "index", iname)
+			arn := iotARN(acct.partition(), region, acct.ID, "index", iname)
 			return &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,

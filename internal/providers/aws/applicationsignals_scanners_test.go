@@ -68,7 +68,7 @@ func (s *stubApplicationSignals) ListInstrumentationConfigurations(_ context.Con
 }
 
 func TestApplicationSignalsGroupingConfigurationNativeID(t *testing.T) {
-	got := applicationSignalsGroupingConfigurationNativeID("us-east-1", "111111111111")
+	got := applicationSignalsGroupingConfigurationNativeID("aws", "us-east-1", "111111111111")
 	want := "arn:aws:application-signals:us-east-1:111111111111:grouping-configuration"
 	if got != want {
 		t.Errorf("native id = %q, want %q", got, want)
@@ -98,7 +98,7 @@ func TestScanApplicationSignalsGroupingConfiguration_Populated(t *testing.T) {
 	if total != 1 || inserted != 1 {
 		t.Errorf("total=%d inserted=%d, want 1/1", total, inserted)
 	}
-	want := applicationSignalsGroupingConfigurationNativeID(region, acct.ID)
+	want := applicationSignalsGroupingConfigurationNativeID("aws", region, acct.ID)
 	rows, err := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{TypeApplicationSignalsGroupingConfiguration}, Limit: 100})
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
@@ -109,8 +109,8 @@ func TestScanApplicationSignalsGroupingConfiguration_Populated(t *testing.T) {
 }
 
 func TestApplicationSignalsServiceNativeID_StableAcrossMapOrder(t *testing.T) {
-	a := applicationSignalsServiceNativeID("us-east-1", "111111111111", map[string]string{"Type": "Service", "Name": "checkout", "Environment": "prod"})
-	b := applicationSignalsServiceNativeID("us-east-1", "111111111111", map[string]string{"Name": "checkout", "Environment": "prod", "Type": "Service"})
+	a := applicationSignalsServiceNativeID("aws", "us-east-1", "111111111111", map[string]string{"Type": "Service", "Name": "checkout", "Environment": "prod"})
+	b := applicationSignalsServiceNativeID("aws", "us-east-1", "111111111111", map[string]string{"Name": "checkout", "Environment": "prod", "Type": "Service"})
 	if a != b {
 		t.Errorf("native id not stable across map order:\n a=%q\n b=%q", a, b)
 	}
@@ -144,7 +144,7 @@ func TestScanApplicationSignalsServices_Populated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
-	want := applicationSignalsServiceNativeID(region, acct.ID, map[string]string{"Type": "Service", "Name": "checkout", "Environment": "prod"})
+	want := applicationSignalsServiceNativeID("aws", region, acct.ID, map[string]string{"Type": "Service", "Name": "checkout", "Environment": "prod"})
 	if len(rows) != 1 || rows[0].NativeID != want {
 		t.Errorf("rows=%+v, want one row with NativeID %s", rows, want)
 	}
@@ -197,7 +197,7 @@ func appSignalsServiceKeyAttrs(name string) map[string]string {
 func appSignalsTestService(name string) applicationSignalsService {
 	return applicationSignalsService{
 		name: name, environment: "eks:prod/default",
-		nativeID: applicationSignalsServiceNativeID(testRegion, testAccountID, appSignalsServiceKeyAttrs(name)),
+		nativeID: applicationSignalsServiceNativeID("aws", testRegion, testAccountID, appSignalsServiceKeyAttrs(name)),
 	}
 }
 
@@ -364,7 +364,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_SharedNameEnvironme
 	attrs := appSignalsServiceKeyAttrs("checkout")
 	attrs["AwsAccountId"] = "210987654321"
 	second := first
-	second.nativeID = applicationSignalsServiceNativeID(testRegion, testAccountID, attrs)
+	second.nativeID = applicationSignalsServiceNativeID("aws", testRegion, testAccountID, attrs)
 	services := []applicationSignalsService{first, second}
 	seedAppSignalsServices(t, st, services)
 	var calls parentCalls

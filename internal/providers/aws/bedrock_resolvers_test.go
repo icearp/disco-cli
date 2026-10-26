@@ -14,7 +14,7 @@ func TestResolveBedrockAgentRefs(t *testing.T) {
 	acct := newTestAccount(testAccountID)
 	gARN := bedrockGuardrailARN("aws", testRegion, acct.ID, "g-1")
 	gID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockGuardrail, gARN, testRegion, "{}")
-	agentARN := bedrockAgentARN(testRegion, acct.ID, "agent-1")
+	agentARN := bedrockAgentARN("aws", testRegion, acct.ID, "agent-1")
 	agentID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockAgent, agentARN, testRegion,
 		`{"AgentId":"agent-1","GuardrailConfiguration":{"GuardrailIdentifier":"g-1"}}`)
 
@@ -34,7 +34,7 @@ func TestResolveBedrockAgentRefs(t *testing.T) {
 func TestResolveBedrockAgentRefs_UnscannedSkipped(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	agentARN := bedrockAgentARN(testRegion, acct.ID, "agent-1")
+	agentARN := bedrockAgentARN("aws", testRegion, acct.ID, "agent-1")
 	agentID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockAgent, agentARN, testRegion,
 		`{"GuardrailConfiguration":{"GuardrailIdentifier":"missing"}}`)
 	if err := resolveBedrockAgentRefs(acct, st); err != nil {
@@ -49,9 +49,9 @@ func TestResolveBedrockAgentRefs_UnscannedSkipped(t *testing.T) {
 func TestResolveBedrockAgentAlias(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	agentARN := bedrockAgentARN(testRegion, acct.ID, "agent-1")
+	agentARN := bedrockAgentARN("aws", testRegion, acct.ID, "agent-1")
 	agentRowID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockAgent, agentARN, testRegion, "{}")
-	aliasARN := bedrockAgentAliasARN(testRegion, acct.ID, "agent-1", "alias-1")
+	aliasARN := bedrockAgentAliasARN("aws", testRegion, acct.ID, "agent-1", "alias-1")
 	aliasID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockAgentAlias, aliasARN, testRegion,
 		`{"AgentAliasId":"alias-1"}`)
 
@@ -71,7 +71,7 @@ func TestResolveBedrockAgentAlias(t *testing.T) {
 func TestResolveBedrockAgentAlias_UnscannedSkipped(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	aliasARN := bedrockAgentAliasARN(testRegion, acct.ID, "agent-x", "alias-1")
+	aliasARN := bedrockAgentAliasARN("aws", testRegion, acct.ID, "agent-x", "alias-1")
 	aliasID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockAgentAlias, aliasARN, testRegion, "{}")
 	if err := resolveBedrockAgentAlias(acct, st); err != nil {
 		t.Fatalf("resolveBedrockAgentAlias: %v", err)
@@ -85,9 +85,9 @@ func TestResolveBedrockAgentAlias_UnscannedSkipped(t *testing.T) {
 func TestResolveBedrockDataSourceKB(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	kbARN := bedrockKBARN(testRegion, acct.ID, "kb-1")
+	kbARN := bedrockKBARN("aws", testRegion, acct.ID, "kb-1")
 	kbID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockKnowledgeBase, kbARN, testRegion, "{}")
-	dsARN := bedrockDataSourceARN(testRegion, acct.ID, "kb-1", "ds-1")
+	dsARN := bedrockDataSourceARN("aws", testRegion, acct.ID, "kb-1", "ds-1")
 	dsID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockDataSource, dsARN, testRegion,
 		`{"DataSourceId":"ds-1","KnowledgeBaseId":"kb-1"}`)
 
@@ -107,7 +107,7 @@ func TestResolveBedrockDataSourceKB(t *testing.T) {
 func TestResolveBedrockDataSourceKB_UnscannedSkipped(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
-	dsARN := bedrockDataSourceARN(testRegion, acct.ID, "kb-missing", "ds-1")
+	dsARN := bedrockDataSourceARN("aws", testRegion, acct.ID, "kb-missing", "ds-1")
 	dsID := upsertTestResource(t, st, "aws", acct.ID, TypeBedrockDataSource, dsARN, testRegion,
 		`{"KnowledgeBaseId":"kb-missing"}`)
 	if err := resolveBedrockDataSourceKB(acct, st); err != nil {

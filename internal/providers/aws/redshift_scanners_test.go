@@ -98,7 +98,7 @@ func rsListedCases() []rsListedCase {
 				}
 				return o
 			},
-			nativeID: func(key string) string { return redshiftSubnetGroupARN(testRegion, testAccountID, key) },
+			nativeID: func(key string) string { return redshiftSubnetGroupARN("aws", testRegion, testAccountID, key) },
 			run:      rsRun(scanRedshiftClusterSubnetGroups),
 		},
 		{

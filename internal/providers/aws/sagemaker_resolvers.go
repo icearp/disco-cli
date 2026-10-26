@@ -46,14 +46,14 @@ func noopSageMakerHierarchy(_ *account, _ *store.Store) error {
 
 // sagemakerEndpointConfigARN rebuilds the canonical ARN from an
 // EndpointConfigName. SageMaker's ARN shape is the same for endpoints,
-// endpoint-configs, and models — `arn:aws:sagemaker:{r}:{a}:{kind}/{name}`.
-func sagemakerEndpointConfigARN(region, acctID, name string) string {
-	return fmt.Sprintf("arn:aws:sagemaker:%s:%s:endpoint-config/%s", region, acctID, name)
+// endpoint-configs, and models — `arn:{p}:sagemaker:{r}:{a}:{kind}/{name}`.
+func sagemakerEndpointConfigARN(partition, region, acctID, name string) string {
+	return arnFor(partition, "sagemaker", region, acctID, "endpoint-config/"+name)
 }
 
 // sagemakerModelARN — same shape as endpoint-config but `:model/` segment.
-func sagemakerModelARN(region, acctID, name string) string {
-	return fmt.Sprintf("arn:aws:sagemaker:%s:%s:model/%s", region, acctID, name)
+func sagemakerModelARN(partition, region, acctID, name string) string {
+	return arnFor(partition, "sagemaker", region, acctID, "model/"+name)
 }
 
 // resolveSageMakerEndpointConfig links each endpoint to the endpoint-config
@@ -82,7 +82,7 @@ func resolveSageMakerEndpointConfig(acct *account, st *store.Store) error {
 			continue
 		}
 		cfgID := store.ResourceID("aws", acct.ID,
-			sagemakerEndpointConfigARN(sv(r.Region), acct.ID, *attrs.EndpointConfigName))
+			sagemakerEndpointConfigARN(acct.partition(), sv(r.Region), acct.ID, *attrs.EndpointConfigName))
 
 		if !configSet[cfgID] {
 			continue
@@ -124,7 +124,7 @@ func resolveSageMakerEndpointConfigModels(acct *account, st *store.Store) error 
 				continue
 			}
 			modelID := store.ResourceID("aws", acct.ID,
-				sagemakerModelARN(region, acct.ID, *v.ModelName))
+				sagemakerModelARN(acct.partition(), region, acct.ID, *v.ModelName))
 
 			if !modelSet[modelID] {
 				continue

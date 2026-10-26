@@ -51,7 +51,7 @@ func scanLFDataCellsFilter(ctx context.Context, client lakeformationAPI, acct *a
 			if name == "" {
 				continue
 			}
-			arn := lfDataCellsFilterARN(region, acct.ID, db, table, name)
+			arn := lfDataCellsFilterARN(acct.partition(), region, acct.ID, db, table, name)
 			label := name
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -64,12 +64,12 @@ func scanLFDataCellsFilter(ctx context.Context, client lakeformationAPI, acct *a
 	return upsertBatch(st, batch, "lakeformation data-cells-filters")
 }
 
-func lfDataCellsFilterARN(region, accountID, db, table, name string) string {
-	return fmt.Sprintf("arn:aws:lakeformation:%s:%s:data-cells-filter/%s/%s/%s", region, accountID, db, table, name)
+func lfDataCellsFilterARN(partition, region, accountID, db, table, name string) string {
+	return arnFor(partition, "lakeformation", region, accountID, "data-cells-filter/"+db+"/"+table+"/"+name)
 }
 
-func lfTagARN(region, catalogID, key string) string {
-	return fmt.Sprintf("arn:aws:lakeformation:%s:%s:lf-tag/%s", region, catalogID, key)
+func lfTagARN(partition, region, catalogID, key string) string {
+	return arnFor(partition, "lakeformation", region, catalogID, "lf-tag/"+key)
 }
 
 func scanLFDataLakeSettings(ctx context.Context, client lakeformationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -83,7 +83,7 @@ func scanLFDataLakeSettings(ctx context.Context, client lakeformationAPI, acct *
 	if out.DataLakeSettings == nil {
 		return 0, 0, nil
 	}
-	arn := fmt.Sprintf("arn:aws:lakeformation:%s:%s:data-lake-settings", region, acct.ID)
+	arn := arnFor(acct.partition(), "lakeformation", region, acct.ID, "data-lake-settings")
 	label := "data-lake-settings"
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -112,7 +112,7 @@ func scanLFPrincipalPermissions(ctx context.Context, client lakeformationAPI, ac
 			body := mustJSON(p)
 			h := sha1.Sum([]byte(body))
 			id := hex.EncodeToString(h[:])[:16]
-			arn := fmt.Sprintf("arn:aws:lakeformation:%s:%s:principal-permissions/%s", region, acct.ID, id)
+			arn := arnFor(acct.partition(), "lakeformation", region, acct.ID, "principal-permissions/"+id)
 			label := id
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -145,7 +145,7 @@ func scanLFTags(ctx context.Context, client lakeformationAPI, acct *account, reg
 			if catalogID == "" {
 				catalogID = acct.ID
 			}
-			arn := lfTagARN(region, catalogID, key)
+			arn := lfTagARN(acct.partition(), region, catalogID, key)
 			label := key
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,

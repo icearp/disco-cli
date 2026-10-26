@@ -249,7 +249,7 @@ func scanConfigRemediationConfigs(ctx context.Context, client configserviceAPI, 
 			if arn == "" {
 				// Synth: parent rule ARN + /remediation — ConfigRuleArn isn't
 				// in the remediation struct.
-				arn = fmt.Sprintf("arn:aws:config:%s:%s:config-rule/%s/remediation", region, acct.ID, ruleName)
+				arn = arnFor(acct.partition(), "config", region, acct.ID, "config-rule/"+ruleName+"/remediation")
 			}
 			label := ruleName
 			batch = append(batch, &store.Resource{
@@ -311,7 +311,7 @@ func scanConfigRetentionConfigurations(ctx context.Context, client configservice
 			batch = append(batch, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeConfigRetentionConfiguration,
-				NativeID: fmt.Sprintf("arn:aws:config:%s:%s:retention-configuration/%s", region, acct.ID, name),
+				NativeID: arnFor(acct.partition(), "config", region, acct.ID, "retention-configuration/"+name),
 				Name:     rc.Name, Region: &region,
 				AttributesJSON: mustJSON(rc), DiscoveredBy: scanID,
 			})

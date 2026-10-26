@@ -64,9 +64,9 @@ func brTaggedTypes() []brTagged {
 		two(TypeBedrockImportedModel, bedrockListTagsOp, kind("imported-model")),
 		two(TypeBedrockProvisionedModel, bedrockListTagsOp, kind("provisioned-model")),
 		two(TypeBedrockCustomModelDeployment, bedrockListTagsOp, kind("custom-model-deployment")),
-		two(TypeBedrockAgent, bedrockAgentListTagsOp, func(n string) string { return bedrockAgentARN(testRegion, testAccountID, n) }),
-		two(TypeBedrockAgentAlias, bedrockAgentListTagsOp, func(n string) string { return bedrockAgentAliasARN(testRegion, testAccountID, n, n) }),
-		two(TypeBedrockKnowledgeBase, bedrockAgentListTagsOp, func(n string) string { return bedrockKBARN(testRegion, testAccountID, n) }),
+		two(TypeBedrockAgent, bedrockAgentListTagsOp, func(n string) string { return bedrockAgentARN("aws", testRegion, testAccountID, n) }),
+		two(TypeBedrockAgentAlias, bedrockAgentListTagsOp, func(n string) string { return bedrockAgentAliasARN("aws", testRegion, testAccountID, n, n) }),
+		two(TypeBedrockKnowledgeBase, bedrockAgentListTagsOp, func(n string) string { return bedrockKBARN("aws", testRegion, testAccountID, n) }),
 		two(TypeBedrockFlow, bedrockAgentListTagsOp, kind("flow")),
 		two(TypeBedrockFlowAlias, bedrockAgentListTagsOp, func(n string) string { return brARN("flow", n+"/alias/"+n) }),
 		two(TypeBedrockPrompt, bedrockAgentListTagsOp, kind("prompt")),
@@ -239,7 +239,7 @@ func brHandlers(c *bacCalls) map[string]func(any) (any, error) {
 				return nil, err
 			}
 			return &bedrockagent.GetKnowledgeBaseOutput{KnowledgeBase: &agenttypes.KnowledgeBase{
-				KnowledgeBaseArn: sdkaws.String(bedrockKBARN(testRegion, testAccountID, id)), KnowledgeBaseId: sdkaws.String(id),
+				KnowledgeBaseArn: sdkaws.String(bedrockKBARN("aws", testRegion, testAccountID, id)), KnowledgeBaseId: sdkaws.String(id),
 				Name: sdkaws.String(id), RoleArn: sdkaws.String("arn:aws:iam::" + testAccountID + ":role/kb-" + id),
 			}}, nil
 		},
@@ -481,7 +481,7 @@ func TestScanBedrock_KnowledgeBaseRowIsTheGetBody(t *testing.T) {
 	if _, _, err := brScan(t, st, brHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
 	}
-	r := rowsByNativeID(t, st, TypeBedrockKnowledgeBase)[bedrockKBARN(testRegion, testAccountID, "tagged")]
+	r := rowsByNativeID(t, st, TypeBedrockKnowledgeBase)[bedrockKBARN("aws", testRegion, testAccountID, "tagged")]
 	want := `"RoleArn":"arn:aws:iam::` + testAccountID + `:role/kb-tagged"`
 	if !strings.Contains(r.AttributesJSON, want) || !strings.Contains(r.AttributesJSON, `"KnowledgeBaseArn":"`+r.NativeID+`"`) {
 		t.Errorf("attributes = %s; want the GetKnowledgeBase body, with %s and KnowledgeBaseArn = NativeID", r.AttributesJSON, want)
@@ -515,7 +515,7 @@ func TestScanBedrock_TagReadFailures(t *testing.T) {
 		typ, tagOp, arn, childOp, childField string
 	}{
 		{TypeBedrockAutomatedReasoningPolicy, bedrockListTagsOp, brARN("automated-reasoning-policy", "tagged"), "ListAutomatedReasoningPolicies", "PolicyArn"},
-		{TypeBedrockAgent, bedrockAgentListTagsOp, bedrockAgentARN(testRegion, testAccountID, "tagged"), "ListAgentAliases", "AgentId"},
+		{TypeBedrockAgent, bedrockAgentListTagsOp, bedrockAgentARN("aws", testRegion, testAccountID, "tagged"), "ListAgentAliases", "AgentId"},
 		{TypeBedrockDataAutomationProject, bedrockDAListTagsOp, brARN("data-automation-project", "tagged"), "", ""},
 	} {
 		t.Run(target.typ, func(t *testing.T) {
@@ -630,7 +630,7 @@ func TestScanBedrock_TagThrottleDemotedBesideHardError(t *testing.T) {
 // knowledge base the Get no longer finds is dropped, and its tags are not
 // read.
 func TestScanBedrock_KnowledgeBaseGetFailures(t *testing.T) {
-	arn := bedrockKBARN(testRegion, testAccountID, "tagged")
+	arn := bedrockKBARN("aws", testRegion, testAccountID, "tagged")
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -673,7 +673,7 @@ func TestScanBedrock_KnowledgeBaseGetFailures(t *testing.T) {
 			if sent := slices.Contains(calls.tagARNs, bedrockAgentListTagsOp+" "+arn); sent != c.kept {
 				t.Errorf("tag read sent = %v; want %v", sent, c.kept)
 			}
-			if _, ok := rowsByNativeID(t, st, TypeBedrockKnowledgeBase)[bedrockKBARN(testRegion, testAccountID, "bare")]; !ok {
+			if _, ok := rowsByNativeID(t, st, TypeBedrockKnowledgeBase)[bedrockKBARN("aws", testRegion, testAccountID, "bare")]; !ok {
 				t.Error("the other knowledge base is missing")
 			}
 			if len(*warnings) != c.wantWarns {
@@ -711,8 +711,8 @@ func TestScanBedrock_FailedWriteStopsWithoutWarning(t *testing.T) {
 		calls                     map[string]int
 	}{
 		{TypeBedrockGuardrail, brARN("guardrail", "tagged"), "", map[string]int{"ListAutomatedReasoningPolicies": 0}},
-		{TypeBedrockAgentAlias, bedrockAgentAliasARN(testRegion, testAccountID, "tagged", "tagged"), "", map[string]int{"ListKnowledgeBases": 0}},
-		{TypeBedrockKnowledgeBase, bedrockKBARN(testRegion, testAccountID, "tagged"), "tagged", map[string]int{"ListFlows": 0}},
+		{TypeBedrockAgentAlias, bedrockAgentAliasARN("aws", testRegion, testAccountID, "tagged", "tagged"), "", map[string]int{"ListKnowledgeBases": 0}},
+		{TypeBedrockKnowledgeBase, bedrockKBARN("aws", testRegion, testAccountID, "tagged"), "tagged", map[string]int{"ListFlows": 0}},
 		// The ACCOUNT blueprints' two pages, and the SERVICE listing never called.
 		{TypeBedrockBlueprint, brARN("blueprint", "tagged"), "", map[string]int{"ListBlueprints": 2, "ListDataAutomationProjects": 0}},
 	} {
@@ -764,13 +764,13 @@ func TestScanBedrock_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 			t.Errorf("err = %v; want it to carry %s", err, code)
 		}
 	}
-	r, ok := rowsByNativeID(t, st, TypeBedrockAgent)[bedrockAgentARN(testRegion, testAccountID, "tagged")]
+	r, ok := rowsByNativeID(t, st, TypeBedrockAgent)[bedrockAgentARN("aws", testRegion, testAccountID, "tagged")]
 	if !ok {
 		t.Fatal("agent from the page before the failure missing")
 	}
 	assertTagsMap(t, r.TagsJSON, map[string]string{"type": TypeBedrockAgent})
 	for _, c := range []struct{ typ, arn string }{
-		{TypeBedrockAgentAlias, bedrockAgentAliasARN(testRegion, testAccountID, "tagged", "tagged")},
+		{TypeBedrockAgentAlias, bedrockAgentAliasARN("aws", testRegion, testAccountID, "tagged", "tagged")},
 		{TypeBedrockAutomatedReasoningPolicy, brARN("automated-reasoning-policy", "bare")},
 		{TypeBedrockPrompt, brARN("prompt", "bare")},
 		{TypeBedrockCustomModelDeployment, brARN("custom-model-deployment", "bare")},
@@ -1145,7 +1145,7 @@ func TestScanBedrock_NXDOMAIN(t *testing.T) {
 		}
 		for _, c := range []struct{ typ, arn string }{
 			{TypeBedrockAutomatedReasoningPolicy, brARN("automated-reasoning-policy", "tagged")},
-			{TypeBedrockKnowledgeBase, bedrockKBARN(testRegion, testAccountID, "tagged")},
+			{TypeBedrockKnowledgeBase, bedrockKBARN("aws", testRegion, testAccountID, "tagged")},
 			{TypeBedrockDataAutomationProject, brARN("data-automation-project", "tagged")},
 		} {
 			if _, ok := rowsByNativeID(t, st, c.typ)[c.arn]; !ok {
@@ -1293,12 +1293,12 @@ func brChildHandlers(c *bacCalls, handlers map[string]func(any) (any, error)) {
 // brChildNativeIDs is, per child type, the NativeID of the child
 // brChildHandlers gives the parent named parent.
 func brChildNativeIDs(parent string) map[string]string {
-	agent := bedrockAgentARN(testRegion, testAccountID, parent)
+	agent := bedrockAgentARN("aws", testRegion, testAccountID, parent)
 	return map[string]string{
 		TypeBedrockGuardrailVersion:                 brARN("guardrail", parent) + ":1",
 		TypeBedrockAutomatedReasoningPolicyVersion:  brARN("automated-reasoning-policy", parent) + ":1",
 		TypeBedrockPromptVersion:                    brPromptVersionARN(parent),
-		TypeBedrockDataSource:                       bedrockDataSourceARN(testRegion, testAccountID, parent, "ds"),
+		TypeBedrockDataSource:                       bedrockDataSourceARN("aws", testRegion, testAccountID, parent, "ds"),
 		TypeBedrockFlowVersion:                      brARN("flow", parent) + ":1",
 		TypeBedrockAgentVersion:                     agent + "/version/1",
 		TypeBedrockAgentActionGroup:                 agent + "/action-group/ag",
@@ -1341,7 +1341,7 @@ func TestScanBedrock_ChildRowsCountInScanTotals(t *testing.T) {
 	if bare := versions[brPromptVersionARN("bare")]; bare.TagsJSON != nil {
 		t.Errorf("bare prompt version TagsJSON = %q; want nil", *bare.TagsJSON)
 	}
-	ds := rowsByNativeID(t, st, TypeBedrockDataSource)[bedrockDataSourceARN(testRegion, testAccountID, "tagged", "ds")]
+	ds := rowsByNativeID(t, st, TypeBedrockDataSource)[bedrockDataSourceARN("aws", testRegion, testAccountID, "tagged", "ds")]
 	if !strings.Contains(ds.AttributesJSON, `"Description":"the Get body"`) {
 		t.Errorf("data source attributes = %s; want the GetDataSource body", ds.AttributesJSON)
 	}
@@ -1525,14 +1525,14 @@ func TestScanBedrock_KnowledgeBaseTagReadUsesTheBodyARN(t *testing.T) {
 		sent bool
 	}{
 		{govARN, true},
-		{bedrockKBARN(testRegion, testAccountID, "bare"), true},
-		{bedrockKBARN(testRegion, testAccountID, "tagged"), false},
+		{bedrockKBARN("aws", testRegion, testAccountID, "bare"), true},
+		{bedrockKBARN("aws", testRegion, testAccountID, "tagged"), false},
 	} {
 		if sent := slices.Contains(calls.tagARNs, bedrockAgentListTagsOp+" "+c.arn); sent != c.sent {
 			t.Errorf("tag read sent %s = %v; want %v", c.arn, sent, c.sent)
 		}
 	}
-	r := rowsByNativeID(t, st, TypeBedrockKnowledgeBase)[bedrockKBARN(testRegion, testAccountID, "tagged")]
+	r := rowsByNativeID(t, st, TypeBedrockKnowledgeBase)[bedrockKBARN("aws", testRegion, testAccountID, "tagged")]
 	assertTagsMap(t, r.TagsJSON, map[string]string{"partition": "aws-us-gov"})
 }
 
@@ -1562,7 +1562,7 @@ func TestScanBedrock_KnowledgeBaseGetCutShortByContext(t *testing.T) {
 	}
 	rows := rowsByNativeID(t, st, TypeBedrockKnowledgeBase)
 	for _, kb := range []string{"tagged", "bare"} {
-		r, ok := rows[bedrockKBARN(testRegion, testAccountID, kb)]
+		r, ok := rows[bedrockKBARN("aws", testRegion, testAccountID, kb)]
 		if !ok {
 			t.Errorf("knowledge base %s missing", kb)
 			continue

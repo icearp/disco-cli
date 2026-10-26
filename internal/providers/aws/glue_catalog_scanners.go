@@ -108,7 +108,7 @@ func scanGlueClassifiers(ctx context.Context, client glueAPI, acct *account, reg
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeGlueClassifier,
-				NativeID:       glueResourceARN(region, acct.ID, "classifier", name),
+				NativeID:       glueResourceARN(acct.partition(), region, acct.ID, "classifier", name),
 				Name:           &n,
 				Region:         &region,
 				AttributesJSON: mustJSON(c),

@@ -25,7 +25,7 @@ func TestResolveRedshiftClusterTargets_HappyPath(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	sgrpARN := redshiftSubnetGroupARN(testRegion, testAccountID, testRedshiftSubnetGroup)
+	sgrpARN := redshiftSubnetGroupARN("aws", testRegion, testAccountID, testRedshiftSubnetGroup)
 	sgrpID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSubnetGroup, sgrpARN, testRegion, "{}")
 
 	vpcARN := ec2ARN(testRegion, testAccountID, "vpc", testRedshiftVPC)
@@ -41,7 +41,7 @@ func TestResolveRedshiftClusterTargets_HappyPath(t *testing.T) {
 	kID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, keyARN, testRegion,
 		fmt.Sprintf(`{"KeyId":%q,"Arn":%q}`, testRedshiftKMSKeyID, keyARN))
 
-	clusterARN := redshiftClusterARN(testRegion, testAccountID, testRedshiftClusterName)
+	clusterARN := redshiftClusterARN("aws", testRegion, testAccountID, testRedshiftClusterName)
 	clusterAttrs := fmt.Sprintf(`{"ClusterIdentifier":%q,"ClusterStatus":"available","ClusterSubnetGroupName":%q,"VpcId":%q,"VpcSecurityGroups":[{"VpcSecurityGroupId":%q,"Status":"active"}],"IamRoles":[{"IamRoleArn":%q,"ApplyStatus":"in-sync"}],"KmsKeyId":%q}`,
 		testRedshiftClusterName, testRedshiftSubnetGroup, testRedshiftVPC,
 		testRedshiftSG, roleARN, keyARN)
@@ -67,7 +67,7 @@ func TestResolveRedshiftClusterTargets_FKSafe(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	clusterARN := redshiftClusterARN(testRegion, testAccountID, testRedshiftClusterName)
+	clusterARN := redshiftClusterARN("aws", testRegion, testAccountID, testRedshiftClusterName)
 	clusterAttrs := `{"ClusterSubnetGroupName":"ghost","VpcId":"vpc-ghost","VpcSecurityGroups":[{"VpcSecurityGroupId":"sg-ghost"}],"IamRoles":[{"IamRoleArn":"arn:aws:iam::999:role/ghost"}],"KmsKeyId":"alias/ghost"}`
 	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftCluster, clusterARN, testRegion, clusterAttrs)
 
@@ -97,7 +97,7 @@ func TestResolveRedshiftSubnetGroupTargets_HappyPath(t *testing.T) {
 	subAID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subAARN, testRegion, "{}")
 	subBID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, subBARN, testRegion, "{}")
 
-	sgrpARN := redshiftSubnetGroupARN(testRegion, testAccountID, testRedshiftSubnetGroup)
+	sgrpARN := redshiftSubnetGroupARN("aws", testRegion, testAccountID, testRedshiftSubnetGroup)
 	sgrpAttrs := fmt.Sprintf(`{"ClusterSubnetGroupName":%q,"VpcId":%q,"Subnets":[{"SubnetIdentifier":%q},{"SubnetIdentifier":%q}]}`,
 		testRedshiftSubnetGroup, testRedshiftVPC, testRedshiftSubnetA, testRedshiftSubnetB)
 	sgrpID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSubnetGroup, sgrpARN, testRegion, sgrpAttrs)
@@ -144,7 +144,7 @@ func TestResolveRedshiftSnapshotRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftCluster,
-		redshiftClusterARN(testRegion, acct.ID, "my-cluster"), testRegion, "{}")
+		redshiftClusterARN("aws", testRegion, acct.ID, "my-cluster"), testRegion, "{}")
 	snID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSnapshot,
 		redshiftARN("aws", testRegion, acct.ID, "snapshot", "my-cluster/snap-1"), testRegion,
 		mustJSON(redshifttypes.Snapshot{ClusterIdentifier: ptrStr("my-cluster")}))
@@ -172,7 +172,7 @@ func TestResolveRedshiftUsageLimitRefs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftCluster,
-		redshiftClusterARN(testRegion, acct.ID, "my-cluster"), testRegion, "{}")
+		redshiftClusterARN("aws", testRegion, acct.ID, "my-cluster"), testRegion, "{}")
 	ulID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftUsageLimit,
 		redshiftARN("aws", testRegion, acct.ID, "usagelimit", "ul-1"), testRegion,
 		mustJSON(redshifttypes.UsageLimit{ClusterIdentifier: ptrStr("my-cluster"), UsageLimitId: ptrStr("ul-1")}))

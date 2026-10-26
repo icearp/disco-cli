@@ -29,10 +29,10 @@ func ccClient(handlers map[string]func(in any) (any, error)) *codecommit.Client 
 	return codecommit.NewFromConfig(opStubConfig(handlers, ccDenied))
 }
 
-func ccRepoARN(name string) string { return codeCommitRepoARN(testRegion, testAccountID, name) }
+func ccRepoARN(name string) string { return codeCommitRepoARN("aws", testRegion, testAccountID, name) }
 
 func ccTemplateARN(id string) string {
-	return codeCommitTemplateNativeID(testRegion, testAccountID, id)
+	return codeCommitTemplateNativeID("aws", testRegion, testAccountID, id)
 }
 
 func ccTemplate(name, id string) *codecommittypes.ApprovalRuleTemplate {
