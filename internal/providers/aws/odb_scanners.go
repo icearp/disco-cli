@@ -1,9 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/odb"
 	odbtypes "github.com/aws/aws-sdk-go-v2/service/odb/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -49,160 +52,233 @@ type odbAPI interface {
 	ListAutonomousVirtualMachines(context.Context, *odb.ListAutonomousVirtualMachinesInput, ...func(*odb.Options)) (*odb.ListAutonomousVirtualMachinesOutput, error)
 	ListExascaleDbStorageVaults(context.Context, *odb.ListExascaleDbStorageVaultsInput, ...func(*odb.Options)) (*odb.ListExascaleDbStorageVaultsOutput, error)
 	ListExadbVmClusters(context.Context, *odb.ListExadbVmClustersInput, ...func(*odb.Options)) (*odb.ListExadbVmClustersOutput, error)
+	ListTagsForResource(context.Context, *odb.ListTagsForResourceInput, ...func(*odb.Options)) (*odb.ListTagsForResourceOutput, error)
 }
+
+// odbPageCap is the maxResults maximum the model's range trait sets on every
+// ODB list op.
+const odbPageCap int32 = 1000
+
+// odbPeeringPageCap is what ListOdbPeeringConnections is sent: its doc says
+// 1 to 100 while its range trait says 1000, and 100 satisfies both.
+const odbPeeringPageCap int32 = 100
+
+// odbNotFound is the code a per-parent listing or ListTagsForResource answers
+// for a resource deleted since it was listed; the model lists it for both.
+var odbNotFound = []string{"ResourceNotFoundException"}
+
+// odbGate records an "isn't onboarded" answer. Met in any listing before any
+// row was stored, it makes the scan report the service disabled (disabled),
+// and no later listing runs. Met after rows were stored, onboarding changed
+// mid-scan, so the listing ends there, keeping its rows, without an error:
+// the sentinel would discard the stored phases' counts, and a warning would
+// read as an IAM gap.
+type odbGate struct {
+	err      error
+	disabled bool
+}
+
+// odbListPage reads one page with read and ends the listing, without an
+// error, on an "isn't onboarded" answer, recorded in gate. With firstPageGap
+// set, an op the region's endpoint does not route (isOpNotDeployed) is a
+// silent gap on the first page, for the Exascale (ExaDB-XS) ops, which
+// shipped after the rest of Oracle Database@AWS.
+func odbListPage[Item any](gate *odbGate, firstPageGap bool, read func(ctx context.Context, token *string) ([]Item, *string, error)) func(ctx context.Context, token *string) ([]Item, *string, error) {
+	return func(ctx context.Context, token *string) ([]Item, *string, error) {
+		items, next, err := read(ctx, token)
+		switch {
+		case err == nil:
+			return items, next, nil
+		case isOdbNotOnboarded(err):
+			if gate.err == nil {
+				gate.err = err
+			}
+			return nil, nil, nil
+		case firstPageGap && token == nil && isOpNotDeployed(err):
+			return nil, nil, nil
+		}
+		return nil, nil, err
+	}
+}
+
+// odbTags reads a row's tags with ListTagsForResource, sent the ARN arnOf
+// returns for the row; a row it returns "" for is not read. The op returns
+// every tag in one response. A denied read of a resource another account
+// owns (its ARN's account is not acct's) is expected and keeps the row
+// without tags and without a warning. The Service Reference gives
+// cloud-exadata-infrastructure, exascale-db-storage-vault and odb-network
+// resource-policy and grant-share actions (Get/PutResourcePolicy,
+// Create/Update/DeleteGrantShare), the shape of resources AWS RAM shares, so
+// those three can be listed from an account that does not own them.
+func odbTags(client odbAPI, acct *account, arnOf func(*store.Resource) string) rowTagReader {
+	return rowTagReader{
+		op:       "odb:ListTagsForResource",
+		notFound: odbNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := arnOf(r)
+			if arn == "" {
+				return nil, nil
+			}
+			out, err := client.ListTagsForResource(ctx, &odb.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				if a, ok := parseARN(arn); ok && a.AccountID != acct.ID && isAccessDenied(err) {
+					return nil, nil
+				}
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
+		},
+	}
+}
+
+// odbNativeARN is the arnOf of the types whose NativeID is their ARN.
+func odbNativeARN(r *store.Resource) string { return r.NativeID }
 
 // scanODB discovers Oracle Database@AWS resources.
-func scanODB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanODB(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := odb.NewFromConfig(acct.cfg, func(o *odb.Options) { o.Region = region })
-
-	// Autonomous VM clusters and Exadata infrastructures seed the per-parent
-	// fan-outs that run after every other phase.
-	var avmClusters, exaInfras []childParent
-	for _, phase := range []func() (int, int, error){
-		func() (t, i int, err error) {
-			avmClusters, t, i, err = scanODBAutonomousVMClusters(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (t, i int, err error) {
-			exaInfras, t, i, err = scanODBExadataInfras(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (int, int, error) { return scanODBNetworks(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanODBPeeringConnections(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-
-	// Cloud VM clusters first — their ARNs seed the per-cluster ListDbNodes fan-out.
-	vmClusters, t, i, ferr := scanODBVmClusters(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	t, i, ferr = scanODBDbNodes(ctx, client, acct, region, st, scanID, vmClusters)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	// Autonomous databases first — their IDs seed the per-database backup fan-out.
-	adbIDs, t, i, ferr := scanODBAutonomousDatabases(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	t, i, ferr = scanODBAutonomousDatabaseBackups(ctx, client, acct, region, st, scanID, adbIDs)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanODBDbServers(ctx, client, acct, region, st, scanID, exaInfras) },
-		func() (int, int, error) {
-			return scanODBAutonomousVirtualMachines(ctx, client, acct, region, st, scanID, avmClusters)
-		},
-		func() (int, int, error) { return scanODBExascaleDbStorageVaults(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanODBExadbVMClusters(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+	return scanODBAll(ctx, client, acct, region, st, scanID)
 }
 
-func scanODBAutonomousVMClusters(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	pager := odb.NewListCloudAutonomousVmClustersPaginator(client, &odb.ListCloudAutonomousVmClustersInput{})
-	var batch []*store.Resource
-	var parents []childParent
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isOdbNotOnboarded(err) {
-				return nil, 0, 0, markServiceDisabled(err)
-			}
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "odb:ListCloudAutonomousVmClusters", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("odb:ListCloudAutonomousVmClusters: %w", err)
+// scanODBAll runs every ODB listing in turn, each per-parent listing after
+// the listing of its parents, which hands it the parents it stored. A
+// phase's error does not stop the later ones; a failed write and ctx's end
+// do (runHostPhases). The phases run one at a time, so readEachKey's own
+// bound is the bound on the reads in flight. An account not onboarded is
+// reported disabled when a listing says so before any row was stored.
+func scanODBAll(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var (
+		gate                               odbGate
+		tags                               = odbTags(client, acct, odbNativeARN)
+		avmClusters, exaInfras, vmClusters []childParent
+		autonomousDBs                      []childParent
+		storeWriteFailed                   bool
+		phase                              = func(op string, run func(p *phaseTotals) bool) hostPhase {
+			return hostPhase{op: op, run: func(p *phaseTotals) bool {
+				if gate.disabled {
+					return false
+				}
+				storeWriteFailed := run(p)
+				gate.disabled = gate.err != nil && p.total == 0
+				return storeWriteFailed
+			}}
 		}
-		for _, c := range out.CloudAutonomousVmClusters {
+	)
+	phases := []hostPhase{
+		phase("odb:ListCloudAutonomousVmClusters", func(p *phaseTotals) bool {
+			avmClusters, storeWriteFailed = scanODBAutonomousVMClusters(ctx, client, acct, region, st, scanID, &gate, tags, p)
+			return storeWriteFailed
+		}),
+		phase("odb:ListCloudExadataInfrastructures", func(p *phaseTotals) bool {
+			exaInfras, storeWriteFailed = scanODBExadataInfras(ctx, client, acct, region, st, scanID, &gate, tags, p)
+			return storeWriteFailed
+		}),
+		phase("odb:ListOdbNetworks", func(p *phaseTotals) bool {
+			return scanODBNetworks(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("odb:ListOdbPeeringConnections", func(p *phaseTotals) bool {
+			return scanODBPeeringConnections(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("odb:ListCloudVmClusters", func(p *phaseTotals) bool {
+			vmClusters, storeWriteFailed = scanODBVmClusters(ctx, client, acct, region, st, scanID, &gate, tags, p)
+			return storeWriteFailed
+		}),
+		phase("odb:ListDbNodes", func(p *phaseTotals) bool {
+			return scanODBDbNodes(ctx, client, acct, region, st, scanID, vmClusters, p)
+		}),
+		phase("odb:ListAutonomousDatabases", func(p *phaseTotals) bool {
+			autonomousDBs, storeWriteFailed = scanODBAutonomousDatabases(ctx, client, acct, region, st, scanID, &gate, tags, p)
+			return storeWriteFailed
+		}),
+		phase("odb:ListAutonomousDatabaseBackups", func(p *phaseTotals) bool {
+			return scanODBAutonomousDatabaseBackups(ctx, client, acct, region, st, scanID, autonomousDBs, tags, p)
+		}),
+		phase("odb:ListDbServers", func(p *phaseTotals) bool {
+			t, i, err := scanODBDbServers(ctx, client, acct, region, st, scanID, exaInfras)
+			return p.addPhase("odb:ListDbServers", t, i, err)
+		}),
+		phase("odb:ListAutonomousVirtualMachines", func(p *phaseTotals) bool {
+			t, i, err := scanODBAutonomousVirtualMachines(ctx, client, acct, region, st, scanID, avmClusters)
+			return p.addPhase("odb:ListAutonomousVirtualMachines", t, i, err)
+		}),
+		phase("odb:ListExascaleDbStorageVaults", func(p *phaseTotals) bool {
+			return scanODBExascaleDbStorageVaults(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("odb:ListExadbVmClusters", func(p *phaseTotals) bool {
+			return scanODBExadbVMClusters(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+	}
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "odb", 0, phases)
+	if gate.disabled {
+		return total, inserted, markServiceDisabled(gate.err)
+	}
+	return total, inserted, err
+}
+
+func odbRow(acct *account, region, scanID, typ, nativeID string, name *string, item any) *store.Resource {
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: nativeID,
+		Name: name, Region: &region, AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}
+}
+
+// odbNoARN is the reason and key of a listed element not stored because it
+// lacks the ARN its NativeID is; the model marks every summary's ARN optional.
+func odbNoARN(what, id string) (*store.Resource, string, string) {
+	return nil, what + " have no ARN", cmp.Or(id, "(an element with no id)")
+}
+
+func scanODBAutonomousVMClusters(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, gate *odbGate, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentListTags(ctx, st, acct, region, "odb:ListCloudAutonomousVmClusters", "cloud autonomous VM clusters", "CloudAutonomousVmClusterId",
+		odbListPage(gate, false, func(ctx context.Context, token *string) ([]odbtypes.CloudAutonomousVmClusterSummary, *string, error) {
+			out, err := client.ListCloudAutonomousVmClusters(ctx, &odb.ListCloudAutonomousVmClustersInput{NextToken: token, MaxResults: sdkaws.Int32(odbPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.CloudAutonomousVmClusters, out.NextToken, nil
+		}),
+		func(c odbtypes.CloudAutonomousVmClusterSummary) (*store.Resource, string, string) {
 			arn := sv(c.CloudAutonomousVmClusterArn)
 			if arn == "" {
-				continue
+				return odbNoARN("cloud autonomous VM clusters", sv(c.CloudAutonomousVmClusterId))
 			}
-			if id := sv(c.CloudAutonomousVmClusterId); id != "" {
-				parents = append(parents, childParent{id: id, arn: arn})
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeODBCloudAutonomousVMCluster, NativeID: arn,
-				Name: c.DisplayName, Region: &region,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "odb cloud-autonomous-vm-clusters")
-	return parents, t, i, err
+			return odbRow(acct, region, scanID, TypeODBCloudAutonomousVMCluster, arn, c.DisplayName, c), "", ""
+		},
+		func(c odbtypes.CloudAutonomousVmClusterSummary) string { return sv(c.CloudAutonomousVmClusterId) },
+		tags, p)
 }
 
-func scanODBExadataInfras(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	pager := odb.NewListCloudExadataInfrastructuresPaginator(client, &odb.ListCloudExadataInfrastructuresInput{})
-	var batch []*store.Resource
-	var parents []childParent
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isOdbNotOnboarded(err) {
-				return nil, 0, 0, markServiceDisabled(err)
+func scanODBExadataInfras(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, gate *odbGate, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentListTags(ctx, st, acct, region, "odb:ListCloudExadataInfrastructures", "cloud Exadata infrastructures", "CloudExadataInfrastructureId",
+		odbListPage(gate, false, func(ctx context.Context, token *string) ([]odbtypes.CloudExadataInfrastructureSummary, *string, error) {
+			out, err := client.ListCloudExadataInfrastructures(ctx, &odb.ListCloudExadataInfrastructuresInput{NextToken: token, MaxResults: sdkaws.Int32(odbPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "odb:ListCloudExadataInfrastructures", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("odb:ListCloudExadataInfrastructures: %w", err)
-		}
-		for _, c := range out.CloudExadataInfrastructures {
+			return out.CloudExadataInfrastructures, out.NextToken, nil
+		}),
+		func(c odbtypes.CloudExadataInfrastructureSummary) (*store.Resource, string, string) {
 			arn := sv(c.CloudExadataInfrastructureArn)
 			if arn == "" {
-				continue
+				return odbNoARN("cloud Exadata infrastructures", sv(c.CloudExadataInfrastructureId))
 			}
-			if id := sv(c.CloudExadataInfrastructureId); id != "" {
-				parents = append(parents, childParent{id: id, arn: arn})
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeODBCloudExadataInfrastructure, NativeID: arn,
-				Name: c.DisplayName, Region: &region,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "odb cloud-exadata-infrastructures")
-	return parents, t, i, err
+			return odbRow(acct, region, scanID, TypeODBCloudExadataInfrastructure, arn, c.DisplayName, c), "", ""
+		},
+		func(c odbtypes.CloudExadataInfrastructureSummary) string { return sv(c.CloudExadataInfrastructureId) },
+		tags, p)
 }
 
 // isODBParentGone reports a parent deleted between its list call and the
 // per-parent child list.
 func isODBParentGone(err error) bool {
-	return isAPIErrorCode(err, "ResourceNotFoundException")
+	return isAPIErrorCode(err, odbNotFound...)
 }
 
 // scanODBDbServers lists the DB servers of each Exadata infrastructure. DB
 // servers have no ARN (the Service Reference defines none), so NativeID is
-// {infrastructureARN}/db-server/{dbServerId}.
+// {infrastructureARN}/db-server/{dbServerId}, and ListTagsForResource, whose
+// ARN pattern needs one, cannot read their tags.
 func scanODBDbServers(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, infras []childParent) (int, int, error) {
 	return childFanOut(ctx, st, acct, region, "odb:ListDbServers", infras, isODBParentGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
@@ -232,7 +308,8 @@ func scanODBDbServers(ctx context.Context, client odbAPI, acct *account, region 
 
 // scanODBAutonomousVirtualMachines lists the virtual machines of each
 // Autonomous VM cluster. They have no ARN (the Service Reference defines none),
-// so NativeID is {clusterARN}/autonomous-virtual-machine/{autonomousVirtualMachineId}.
+// so NativeID is {clusterARN}/autonomous-virtual-machine/{autonomousVirtualMachineId},
+// and ListTagsForResource, whose ARN pattern needs one, cannot read their tags.
 func scanODBAutonomousVirtualMachines(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, clusters []childParent) (int, int, error) {
 	return childFanOut(ctx, st, acct, region, "odb:ListAutonomousVirtualMachines", clusters, isODBParentGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
@@ -260,347 +337,202 @@ func scanODBAutonomousVirtualMachines(ctx context.Context, client odbAPI, acct *
 		})
 }
 
-// odbVMCluster carries the (id, arn) pair the ListDbNodes fan-out needs: id
-// satisfies the required CloudVmClusterId input; arn seeds the synthetic
-// db-node NativeID so the resolver can recover the parent cluster.
-type odbVMCluster struct {
-	id  string
-	arn string
-}
-
-func scanODBVmClusters(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) ([]odbVMCluster, int, int, error) {
-	pager := odb.NewListCloudVmClustersPaginator(client, &odb.ListCloudVmClustersInput{})
-	var batch []*store.Resource
-	var clusters []odbVMCluster
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isOdbNotOnboarded(err) {
-				return nil, 0, 0, markServiceDisabled(err)
+// scanODBVmClusters lists the cloud VM clusters and returns those stored,
+// whose ids key the ListDbNodes fan-out.
+func scanODBVmClusters(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, gate *odbGate, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentListTags(ctx, st, acct, region, "odb:ListCloudVmClusters", "cloud VM clusters", "CloudVmClusterId",
+		odbListPage(gate, false, func(ctx context.Context, token *string) ([]odbtypes.CloudVmClusterSummary, *string, error) {
+			out, err := client.ListCloudVmClusters(ctx, &odb.ListCloudVmClustersInput{NextToken: token, MaxResults: sdkaws.Int32(odbPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "odb:ListCloudVmClusters", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("odb:ListCloudVmClusters: %w", err)
-		}
-		for _, c := range out.CloudVmClusters {
+			return out.CloudVmClusters, out.NextToken, nil
+		}),
+		func(c odbtypes.CloudVmClusterSummary) (*store.Resource, string, string) {
 			arn := sv(c.CloudVmClusterArn)
 			if arn == "" {
-				continue
+				return odbNoARN("cloud VM clusters", sv(c.CloudVmClusterId))
 			}
-			if id := sv(c.CloudVmClusterId); id != "" {
-				clusters = append(clusters, odbVMCluster{id: id, arn: arn})
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeODBCloudVMCluster, NativeID: arn,
-				Name: c.ClusterName, Region: &region,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "odb cloud-vm-clusters")
-	return clusters, t, i, err
+			return odbRow(acct, region, scanID, TypeODBCloudVMCluster, arn, c.ClusterName, c), "", ""
+		},
+		func(c odbtypes.CloudVmClusterSummary) string { return sv(c.CloudVmClusterId) },
+		tags, p)
 }
 
-// scanODBDbNodes fans out ListDbNodes per VM cluster (op requires a
-// CloudVmClusterId). DB nodes carry a real ARN but no parent-cluster field, so
-// NativeID is synthesised as {clusterARN}/db-node/{dbNodeId} for the resolver
-// to recover the parent.
-func scanODBDbNodes(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, clusters []odbVMCluster) (int, int, error) {
-	var batch []*store.Resource
-	for _, cl := range clusters {
-		cid := cl.id
-		pager := odb.NewListDbNodesPaginator(client, &odb.ListDbNodesInput{CloudVmClusterId: &cid})
-		for pager.HasMorePages() {
-			out, err := pager.NextPage(ctx)
-			if err != nil {
-				if isAccessDenied(err) {
-					_ = skipIfAccessDenied(st, "odb:ListDbNodes", acct.ID, region, err)
-					break
-				}
-				return 0, 0, fmt.Errorf("odb:ListDbNodes %s: %w", cid, err)
-			}
-			for _, n := range out.DbNodes {
-				id := sv(n.DbNodeId)
-				if id == "" {
-					continue
-				}
-				name := sv(n.Hostname)
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeODBDbNode, NativeID: cl.arn + "/db-node/" + id,
-					Name: &name, Region: &region,
-					AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
-				})
-			}
-		}
+// scanODBDbNodes lists the DB nodes of each cloud VM cluster stored this scan
+// (the op requires a CloudVmClusterId). DB nodes carry no parent-cluster
+// field, so NativeID is {clusterARN}/db-node/{dbNodeId} for the resolver to
+// recover the parent, and the tag read is sent the node's own DbNodeArn. A
+// node listed without one is stored without tags, with one warning.
+func scanODBDbNodes(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, clusters []childParent, p *phaseTotals) (storeWriteFailed bool) {
+	const op = "odb:ListDbNodes"
+	clusterARN := make(map[string]string, len(clusters))
+	for _, c := range clusters {
+		clusterARN[c.id] = c.arn
 	}
-	return upsertBatch(st, batch, "odb db-nodes")
+	// Filled while the rows are built, before the tag reads start, and only
+	// read by them.
+	nodeARN := map[*store.Resource]string{}
+	var noARN skipTally
+	_, storeWriteFailed = storeEachParentTags(ctx, st, acct, region, op, odbNotFound, clusters,
+		func(ctx context.Context, clusterID string, token *string) ([]odbtypes.DbNodeSummary, *string, error) {
+			out, err := client.ListDbNodes(ctx, &odb.ListDbNodesInput{CloudVmClusterId: &clusterID, NextToken: token, MaxResults: sdkaws.Int32(odbPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.DbNodes, out.NextToken, nil
+		},
+		func(clusterID string, n odbtypes.DbNodeSummary) (*store.Resource, string, string) {
+			id := sv(n.DbNodeId)
+			if id == "" {
+				return nil, "DB nodes have no DbNodeId", cmp.Or(sv(n.DbNodeArn), sv(n.Hostname), "(a node with no ARN or hostname) of "+clusterID)
+			}
+			r := odbRow(acct, region, scanID, TypeODBDbNode, clusterARN[clusterID]+"/db-node/"+id, sdkaws.String(sv(n.Hostname)), n)
+			if nodeARN[r] = sv(n.DbNodeArn); nodeARN[r] == "" {
+				noARN.skipped(r.NativeID, nil)
+			}
+			return r, "", ""
+		},
+		odbTags(client, acct, func(r *store.Resource) string { return nodeARN[r] }), p)
+	if !storeWriteFailed && noARN.count > 0 {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: "odb:ListTagsForResource", Scope: acct.ID + "/" + region,
+			Message: fmt.Sprintf("%d DB node(s) stored without tags: listed without the DbNodeArn the tag read is sent; first %s", noARN.count, noARN.first),
+		})
+	}
+	return storeWriteFailed
 }
 
 // scanODBAutonomousDatabases lists Autonomous Databases account-wide and returns
-// their ids for the per-database backup fan-out.
-func scanODBAutonomousDatabases(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := odb.NewListAutonomousDatabasesPaginator(client, &odb.ListAutonomousDatabasesInput{})
-	var batch []*store.Resource
-	var ids []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isOdbNotOnboarded(err) {
-				return nil, 0, 0, markServiceDisabled(err)
+// those stored, whose ids key the backup fan-out.
+func scanODBAutonomousDatabases(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, gate *odbGate, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentListTags(ctx, st, acct, region, "odb:ListAutonomousDatabases", "autonomous databases", "AutonomousDatabaseId",
+		odbListPage(gate, false, func(ctx context.Context, token *string) ([]odbtypes.AutonomousDatabaseSummary, *string, error) {
+			out, err := client.ListAutonomousDatabases(ctx, &odb.ListAutonomousDatabasesInput{NextToken: token, MaxResults: sdkaws.Int32(odbPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "odb:ListAutonomousDatabases", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("odb:ListAutonomousDatabases: %w", err)
-		}
-		for _, d := range out.AutonomousDatabases {
+			return out.AutonomousDatabases, out.NextToken, nil
+		}),
+		func(d odbtypes.AutonomousDatabaseSummary) (*store.Resource, string, string) {
 			arn := sv(d.AutonomousDatabaseArn)
 			if arn == "" {
-				continue
+				return odbNoARN("autonomous databases", sv(d.AutonomousDatabaseId))
 			}
-			if id := sv(d.AutonomousDatabaseId); id != "" {
-				ids = append(ids, id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeODBAutonomousDatabase, NativeID: arn,
-				Name: d.DisplayName, Region: &region,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "odb autonomous-databases")
-	return ids, t, i, err
+			return odbRow(acct, region, scanID, TypeODBAutonomousDatabase, arn, d.DisplayName, d), "", ""
+		},
+		func(d odbtypes.AutonomousDatabaseSummary) string { return sv(d.AutonomousDatabaseId) },
+		tags, p)
 }
 
-// scanODBAutonomousDatabaseBackups fans out ListAutonomousDatabaseBackups per
-// Autonomous Database (the op requires an AutonomousDatabaseId). Backups carry a
-// real ARN; the resolver wires them to the parent via the AutonomousDatabaseId
-// attribute.
-func scanODBAutonomousDatabaseBackups(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, adbIDs []string) (int, int, error) {
-	var batch []*store.Resource
-	for _, id := range adbIDs {
-		aid := id
-		pager := odb.NewListAutonomousDatabaseBackupsPaginator(client, &odb.ListAutonomousDatabaseBackupsInput{AutonomousDatabaseId: &aid})
-		for pager.HasMorePages() {
-			out, err := pager.NextPage(ctx)
+// scanODBAutonomousDatabaseBackups lists the backups of each Autonomous
+// Database stored this scan (the op requires an AutonomousDatabaseId), one
+// tag read per backup. Backups carry a real ARN; the resolver wires them to
+// the parent via the AutonomousDatabaseId attribute.
+func scanODBAutonomousDatabaseBackups(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, databases []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	_, storeWriteFailed = storeEachParentTags(ctx, st, acct, region, "odb:ListAutonomousDatabaseBackups", odbNotFound, databases,
+		func(ctx context.Context, databaseID string, token *string) ([]odbtypes.AutonomousDatabaseBackupSummary, *string, error) {
+			out, err := client.ListAutonomousDatabaseBackups(ctx, &odb.ListAutonomousDatabaseBackupsInput{AutonomousDatabaseId: &databaseID, NextToken: token, MaxResults: sdkaws.Int32(odbPageCap)})
 			if err != nil {
-				if isAccessDenied(err) {
-					_ = skipIfAccessDenied(st, "odb:ListAutonomousDatabaseBackups", acct.ID, region, err)
-					break
-				}
-				return 0, 0, fmt.Errorf("odb:ListAutonomousDatabaseBackups %s: %w", aid, err)
+				return nil, nil, err
 			}
-			for _, b := range out.AutonomousDatabaseBackups {
-				arn := sv(b.AutonomousDatabaseBackupArn)
-				if arn == "" {
-					continue
-				}
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeODBAutonomousDatabaseBackup, NativeID: arn,
-					Name: b.DisplayName, Region: &region,
-					AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
-				})
+			return out.AutonomousDatabaseBackups, out.NextToken, nil
+		},
+		func(_ string, b odbtypes.AutonomousDatabaseBackupSummary) (*store.Resource, string, string) {
+			arn := sv(b.AutonomousDatabaseBackupArn)
+			if arn == "" {
+				return odbNoARN("autonomous database backups", sv(b.AutonomousDatabaseBackupId))
 			}
-		}
-	}
-	return upsertBatch(st, batch, "odb autonomous-database-backups")
+			return odbRow(acct, region, scanID, TypeODBAutonomousDatabaseBackup, arn, b.DisplayName, b), "", ""
+		},
+		tags, p)
+	return storeWriteFailed
 }
 
-func scanODBNetworks(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := odb.NewListOdbNetworksPaginator(client, &odb.ListOdbNetworksInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isOdbNotOnboarded(err) {
-				return 0, 0, markServiceDisabled(err)
+func scanODBNetworks(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, gate *odbGate, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "odb:ListOdbNetworks",
+		odbListPage(gate, false, func(ctx context.Context, token *string) ([]odbtypes.OdbNetworkSummary, *string, error) {
+			out, err := client.ListOdbNetworks(ctx, &odb.ListOdbNetworksInput{NextToken: token, MaxResults: sdkaws.Int32(odbPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "odb:ListOdbNetworks", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("odb:ListOdbNetworks: %w", err)
-		}
-		for _, n := range out.OdbNetworks {
+			return out.OdbNetworks, out.NextToken, nil
+		}),
+		func(n odbtypes.OdbNetworkSummary) (*store.Resource, string, string) {
 			arn := sv(n.OdbNetworkArn)
 			if arn == "" {
-				continue
+				return odbNoARN("ODB networks", sv(n.OdbNetworkId))
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeODBOdbNetwork, NativeID: arn,
-				Name: n.DisplayName, Region: &region,
-				AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "odb odb-networks")
+			return odbRow(acct, region, scanID, TypeODBOdbNetwork, arn, n.DisplayName, n), "", ""
+		},
+		tags, p)
 }
 
-func scanODBPeeringConnections(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := odb.NewListOdbPeeringConnectionsPaginator(client, &odb.ListOdbPeeringConnectionsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isOdbNotOnboarded(err) {
-				return 0, 0, markServiceDisabled(err)
+func scanODBPeeringConnections(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, gate *odbGate, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "odb:ListOdbPeeringConnections",
+		odbListPage(gate, false, func(ctx context.Context, token *string) ([]odbtypes.OdbPeeringConnectionSummary, *string, error) {
+			out, err := client.ListOdbPeeringConnections(ctx, &odb.ListOdbPeeringConnectionsInput{NextToken: token, MaxResults: sdkaws.Int32(odbPeeringPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "odb:ListOdbPeeringConnections", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("odb:ListOdbPeeringConnections: %w", err)
-		}
-		for _, p := range out.OdbPeeringConnections {
-			arn := sv(p.OdbPeeringConnectionArn)
+			return out.OdbPeeringConnections, out.NextToken, nil
+		}),
+		func(c odbtypes.OdbPeeringConnectionSummary) (*store.Resource, string, string) {
+			arn := sv(c.OdbPeeringConnectionArn)
 			if arn == "" {
-				continue
+				return odbNoARN("ODB peering connections", sv(c.OdbPeeringConnectionId))
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeODBOdbPeeringConnection, NativeID: arn,
-				Name: p.DisplayName, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "odb odb-peering-connections")
+			return odbRow(acct, region, scanID, TypeODBOdbPeeringConnection, arn, c.DisplayName, c), "", ""
+		},
+		tags, p)
 }
 
-// odbExascaleListCap is the maxResults range maximum the model sets on both
-// Exascale list ops.
-const odbExascaleListCap = 1000
+// odbTerminated reports an Exascale element whose TERMINATED status marks it
+// deleted; TERMINATING is kept.
+func odbTerminated(s odbtypes.ResourceStatus) bool { return s == odbtypes.ResourceStatusTerminated }
 
-// odbMissingARN counts listed elements skipped because they lack the ARN their
-// NativeID is; the model marks the ARN optional on both Exascale summaries.
-type odbMissingARN struct {
-	count   int
-	firstID string
-}
-
-func (m *odbMissingARN) add(id string) {
-	if m.count == 0 {
-		m.firstID = id
-	}
-	m.count++
-}
-
-func (m *odbMissingARN) warn(st *store.Store, op, kind string, acct *account, region string) {
-	if m.count == 0 {
-		return
-	}
-	st.ReportWarning(store.ScanWarning{
-		Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
-		Message: fmt.Sprintf("%d %s skipped: listed without the ARN disco keys them by, first id %q", m.count, kind, m.firstID),
-	})
-}
-
-// odbExascaleListErr classifies a failed page of a region-wide Exascale list
-// op. The earlier ODB phases turn the not-onboarded state into the disabled
-// sentinel before any row is written; reaching it here means onboarding changed
-// mid-scan, after earlier phases stored rows, so it is skipped silently with the
-// rows listed so far kept (a sentinel would discard those phases' counts, and a
-// warning would read as an IAM gap). Exascale (ExaDB-XS) shipped after the rest of
-// Oracle Database@AWS, so a region's endpoint may not route the op: on the
-// first page that is a silent gap. A denial warns, and the rows already listed
-// are kept (keep). Every other error is returned and the listing's rows are
-// dropped.
-func odbExascaleListErr(st *store.Store, op string, acct *account, region string, firstPage bool, err error) (keep bool, _ error) {
-	if isOdbNotOnboarded(err) {
-		return true, nil
-	}
-	if firstPage && isOpNotDeployed(err) {
-		return false, nil
-	}
-	if isAccessDenied(err) {
-		return true, skipIfAccessDenied(st, op, acct.ID, region, err)
-	}
-	return false, fmt.Errorf("%s: %w", op, err)
-}
-
-// scanODBExascaleDbStorageVaults lists Exascale storage vaults region-wide.
-// TERMINATED marks a deleted vault and is dropped; TERMINATING is kept.
-func scanODBExascaleDbStorageVaults(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	const op = "odb:ListExascaleDbStorageVaults"
-	pager := odb.NewListExascaleDbStorageVaultsPaginator(client, &odb.ListExascaleDbStorageVaultsInput{},
-		func(o *odb.ListExascaleDbStorageVaultsPaginatorOptions) {
-			o.Limit = odbExascaleListCap
-			o.StopOnDuplicateToken = true
-		})
-	var batch []*store.Resource
-	var missing odbMissingARN
-	for firstPage := true; pager.HasMorePages(); firstPage = false {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			keep, lerr := odbExascaleListErr(st, op, acct, region, firstPage, err)
-			if lerr != nil || !keep {
-				return 0, 0, lerr
+// scanODBExascaleDbStorageVaults lists Exascale storage vaults region-wide,
+// dropping the terminated ones.
+func scanODBExascaleDbStorageVaults(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, gate *odbGate, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "odb:ListExascaleDbStorageVaults",
+		odbListPage(gate, true, func(ctx context.Context, token *string) ([]odbtypes.ExascaleDbStorageVaultSummary, *string, error) {
+			out, err := client.ListExascaleDbStorageVaults(ctx, &odb.ListExascaleDbStorageVaultsInput{NextToken: token, MaxResults: sdkaws.Int32(odbPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			break
-		}
-		for _, v := range out.ExascaleDbStorageVaults {
-			if v.Status == odbtypes.ResourceStatusTerminated {
-				continue
-			}
+			return slices.DeleteFunc(out.ExascaleDbStorageVaults, func(v odbtypes.ExascaleDbStorageVaultSummary) bool { return odbTerminated(v.Status) }), out.NextToken, nil
+		}),
+		func(v odbtypes.ExascaleDbStorageVaultSummary) (*store.Resource, string, string) {
 			arn := sv(v.ExascaleDbStorageVaultArn)
 			if arn == "" {
-				missing.add(sv(v.ExascaleDbStorageVaultId))
-				continue
+				return odbNoARN("Exascale DB storage vaults", sv(v.ExascaleDbStorageVaultId))
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeODBExascaleDbStorageVault, NativeID: arn,
-				Name: v.DisplayName, Status: nonEmptyPtr(string(v.Status)), CreatedAt: tp(v.CreatedAt),
-				Region: &region, AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
-			})
-		}
-	}
-	missing.warn(st, op, "exascale db storage vaults", acct, region)
-	return upsertBatch(st, batch, "odb exascale-db-storage-vaults")
+			r := odbRow(acct, region, scanID, TypeODBExascaleDbStorageVault, arn, v.DisplayName, v)
+			r.Status, r.CreatedAt = nonEmptyPtr(string(v.Status)), tp(v.CreatedAt)
+			return r, "", ""
+		},
+		tags, p)
 }
 
 // scanODBExadbVMClusters lists Exascale VM clusters region-wide (the optional
-// storage-vault filter is left unset). TERMINATED marks a deleted cluster and
-// is dropped; TERMINATING is kept.
-func scanODBExadbVMClusters(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	const op = "odb:ListExadbVmClusters"
-	pager := odb.NewListExadbVmClustersPaginator(client, &odb.ListExadbVmClustersInput{},
-		func(o *odb.ListExadbVmClustersPaginatorOptions) {
-			o.Limit = odbExascaleListCap
-			o.StopOnDuplicateToken = true
-		})
-	var batch []*store.Resource
-	var missing odbMissingARN
-	for firstPage := true; pager.HasMorePages(); firstPage = false {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			keep, lerr := odbExascaleListErr(st, op, acct, region, firstPage, err)
-			if lerr != nil || !keep {
-				return 0, 0, lerr
+// storage-vault filter is left unset), dropping the terminated ones.
+func scanODBExadbVMClusters(ctx context.Context, client odbAPI, acct *account, region string, st *store.Store, scanID string, gate *odbGate, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "odb:ListExadbVmClusters",
+		odbListPage(gate, true, func(ctx context.Context, token *string) ([]odbtypes.ExadbVmClusterSummary, *string, error) {
+			out, err := client.ListExadbVmClusters(ctx, &odb.ListExadbVmClustersInput{NextToken: token, MaxResults: sdkaws.Int32(odbPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			break
-		}
-		for _, c := range out.ExadbVmClusters {
-			if c.Status == odbtypes.ResourceStatusTerminated {
-				continue
-			}
+			return slices.DeleteFunc(out.ExadbVmClusters, func(c odbtypes.ExadbVmClusterSummary) bool { return odbTerminated(c.Status) }), out.NextToken, nil
+		}),
+		func(c odbtypes.ExadbVmClusterSummary) (*store.Resource, string, string) {
 			arn := sv(c.ExadbVmClusterArn)
 			if arn == "" {
-				missing.add(sv(c.ExadbVmClusterId))
-				continue
+				return odbNoARN("Exascale VM clusters", sv(c.ExadbVmClusterId))
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeODBExadbVMCluster, NativeID: arn,
-				Name: c.DisplayName, Status: nonEmptyPtr(string(c.Status)), CreatedAt: tp(c.CreatedAt),
-				Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	missing.warn(st, op, "exadb vm clusters", acct, region)
-	return upsertBatch(st, batch, "odb exadb-vm-clusters")
+			r := odbRow(acct, region, scanID, TypeODBExadbVMCluster, arn, c.DisplayName, c)
+			r.Status, r.CreatedAt = nonEmptyPtr(string(c.Status)), tp(c.CreatedAt)
+			return r, "", ""
+		},
+		tags, p)
 }

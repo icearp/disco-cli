@@ -1,9 +1,13 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
+	"net"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -66,13 +70,15 @@ func (f fakeODB) ListAutonomousVirtualMachines(_ context.Context, in *odb.ListAu
 
 var odbCreated = time.Date(2026, 4, 5, 6, 7, 8, 0, time.UTC)
 
-func odbInfraARN(id string) string {
-	return fmt.Sprintf("arn:aws:odb:%s:%s:cloud-exadata-infrastructure/%s", testRegion, testAccountID, id)
+// odbARN is the ARN of the ODB resource kind/id in the test account.
+func odbARN(kind, id string) string {
+	return "arn:aws:odb:" + testRegion + ":" + testAccountID + ":" + kind + "/" + id
 }
 
-func odbAVMClusterARN(id string) string {
-	return fmt.Sprintf("arn:aws:odb:%s:%s:cloud-autonomous-vm-cluster/%s", testRegion, testAccountID, id)
-}
+func odbInfraARN(id string) string        { return odbARN("cloud-exadata-infrastructure", id) }
+func odbAVMClusterARN(id string) string   { return odbARN("cloud-autonomous-vm-cluster", id) }
+func odbVaultARN(id string) string        { return odbARN("exascale-db-storage-vault", id) }
+func odbExadbClusterARN(id string) string { return odbARN("exadb-vm-cluster", id) }
 
 func odbDbServer(id string) odbtypes.DbServerSummary {
 	return odbtypes.DbServerSummary{
@@ -238,372 +244,880 @@ func TestScanODBChildren_NoParentsMakesNoCalls(t *testing.T) {
 	}
 }
 
-// odbServiceStub serves every op scanODB calls: one Exadata infrastructure and
-// one Autonomous VM cluster (the new fan-outs' parents), one Autonomous
-// Database with one backup, one child of each fan-out kind, one Exascale
-// storage vault and one Exascale VM cluster, and override replacing an op's
-// queue.
-func odbServiceStub(t *testing.T, override map[string][]stubCall) sdkaws.Config {
-	t.Helper()
-	one := func(out any) []stubCall { return []stubCall{{Output: out}} }
-	calls := map[string][]stubCall{
-		"ListCloudAutonomousVmClusters": one(&odb.ListCloudAutonomousVmClustersOutput{CloudAutonomousVmClusters: []odbtypes.CloudAutonomousVmClusterSummary{
-			{CloudAutonomousVmClusterArn: sdkaws.String(odbAVMClusterARN("avmc")), CloudAutonomousVmClusterId: sdkaws.String("avmc")},
-		}}),
-		"ListCloudExadataInfrastructures": one(&odb.ListCloudExadataInfrastructuresOutput{CloudExadataInfrastructures: []odbtypes.CloudExadataInfrastructureSummary{
-			{CloudExadataInfrastructureArn: sdkaws.String(odbInfraARN("exa")), CloudExadataInfrastructureId: sdkaws.String("exa")},
-		}}),
-		"ListOdbNetworks":           one(&odb.ListOdbNetworksOutput{}),
-		"ListOdbPeeringConnections": one(&odb.ListOdbPeeringConnectionsOutput{}),
-		"ListCloudVmClusters":       one(&odb.ListCloudVmClustersOutput{}),
-		"ListAutonomousDatabases": one(&odb.ListAutonomousDatabasesOutput{AutonomousDatabases: []odbtypes.AutonomousDatabaseSummary{
-			{AutonomousDatabaseArn: sdkaws.String(odbADBARN), AutonomousDatabaseId: sdkaws.String("adb")},
-		}}),
-		"ListAutonomousDatabaseBackups": one(&odb.ListAutonomousDatabaseBackupsOutput{AutonomousDatabaseBackups: []odbtypes.AutonomousDatabaseBackupSummary{
-			{AutonomousDatabaseBackupArn: sdkaws.String(odbBackupARN)},
-		}}),
-		"ListDbServers":                 one(&odb.ListDbServersOutput{DbServers: []odbtypes.DbServerSummary{odbDbServer("dbs")}}),
-		"ListAutonomousVirtualMachines": one(&odb.ListAutonomousVirtualMachinesOutput{AutonomousVirtualMachines: []odbtypes.AutonomousVirtualMachineSummary{odbAVM("vm")}}),
-		"ListExascaleDbStorageVaults":   one(odbVaultPage(nil, odbExaItem{id: "vault", status: odbtypes.ResourceStatusAvailable})),
-		"ListExadbVmClusters":           one(odbExadbClusterPage(nil, odbExaItem{id: "exadb", status: odbtypes.ResourceStatusAvailable})),
-	}
-	for op, c := range override {
-		calls[op] = c
-	}
-	return cfgWithStub(stubResponses(t, calls), testRegion)
-}
-
 var (
-	odbADBARN    = fmt.Sprintf("arn:aws:odb:%s:%s:autonomous-database/adb", testRegion, testAccountID)
-	odbBackupARN = fmt.Sprintf("arn:aws:odb:%s:%s:autonomous-database-backup/bk", testRegion, testAccountID)
+	odbDenied       = apiErr("AccessDeniedException", "User: arn:aws:iam::123456789012:role/r is not authorized to perform: odb:List")
+	odbNotOnboarded = apiErr("AccessDeniedException", "The account isn't onboarded to the service")
+	odbBadInput     = apiErr("ValidationException", "bad")
+	odbThrottle     = apiErr("ThrottlingException", "slow down")
+	odbGone         = apiErr("ResourceNotFoundException", "gone")
 )
 
-// TestScanODB_ChildFanOutsAfterExistingPhases runs the whole service against
-// the real SDK client (its input validators included): the parent phases hand
-// their ids to the fan-outs, whose children are contained by their parents.
-func TestScanODB_ChildFanOutsAfterExistingPhases(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	acct.cfg = odbServiceStub(t, nil)
-	total, _, err := scanODB(context.Background(), acct, testRegion, st, testScanID)
+const odbTagsOp = "odb:ListTagsForResource"
+
+// odbCalls records the stubbed ODB calls (bacCalls) and answers
+// ListTagsForResource from tags or errs, keyed by ResourceArn.
+type odbCalls struct{ *bacCalls }
+
+// newODBCalls tags every fixture resource whose ARN ends in "tagged" with its
+// type (odbTagged).
+func newODBCalls() *odbCalls {
+	c := &odbCalls{newBACCalls()}
+	for _, r := range odbTagged() {
+		if strings.HasSuffix(r.tagARN, "tagged") {
+			c.tags[r.tagARN] = map[string]string{"type": r.typ}
+		}
+	}
+	return c
+}
+
+func (c *odbCalls) listTags(in any) (any, error) {
+	c.called("ListTagsForResource", in)
+	arn := sv(in.(*odb.ListTagsForResourceInput).ResourceArn)
+	c.mu.Lock()
+	c.tagARNs = append(c.tagARNs, arn)
+	err, tags := c.errs[arn], c.tags[arn]
+	c.mu.Unlock()
 	if err != nil {
-		t.Fatalf("scanODB: %v", err)
+		return nil, err
 	}
-	if total != 8 {
-		t.Errorf("total = %d; want 8 (avm cluster, infrastructure, adb, backup, db server, vm, vault, exadb cluster)", total)
-	}
-	if _, ok := qsRows(t, st, TypeODBExascaleDbStorageVault)[odbVaultARN("vault")]; !ok {
-		t.Errorf("no Exascale storage vault row %s", odbVaultARN("vault"))
-	}
-	if _, ok := qsRows(t, st, TypeODBExadbVMCluster)[odbExadbClusterARN("exadb")]; !ok {
-		t.Errorf("no Exascale VM cluster row %s", odbExadbClusterARN("exadb"))
-	}
-	assertQSContains(t, st, odbInfraARN("exa"), odbInfraARN("exa")+"/db-server/dbs")
-	assertQSContains(t, st, odbAVMClusterARN("avmc"), odbAVMClusterARN("avmc")+"/autonomous-virtual-machine/vm")
+	return &odb.ListTagsForResourceOutput{Tags: tags}, nil
 }
 
-// TestScanODB_ChildFanOutErrorPropagates pins that each new fan-out's hard
-// error reaches the service result and that every pre-existing phase,
-// including the last (autonomous-database backups), ran before it.
-func TestScanODB_ChildFanOutErrorPropagates(t *testing.T) {
-	for _, op := range []string{"ListDbServers", "ListAutonomousVirtualMachines"} {
-		t.Run(op, func(t *testing.T) {
-			st := newTestStore(t)
-			acct := newTestAccount(testAccountID)
-			acct.cfg = odbServiceStub(t, map[string][]stubCall{op: {{Err: apiErr("InternalServerException", "boom")}}})
-			_, _, err := scanODB(context.Background(), acct, testRegion, st, testScanID)
-			if !isAPIErrorCode(err, "InternalServerException") {
-				t.Fatalf("err = %v; want the %s InternalServerException", err, op)
-			}
-			if _, ok := qsRows(t, st, TypeODBAutonomousDatabaseBackup)[odbBackupARN]; !ok {
-				t.Errorf("backup phase did not run before the failing %s", op)
-			}
-		})
+// paged records op's call and answers it with page(in, NextToken).
+func (c *odbCalls) paged(op string, page func(in any, token string) any) func(any) (any, error) {
+	return func(in any) (any, error) {
+		c.called(op, in)
+		return page(in, sv(bacField[*string](in, "NextToken"))), nil
 	}
 }
 
-// TestScanODB_ExascaleErrorPropagatesAfterEveryExistingPhase pins that each
-// Exascale phase's hard error reaches the service result and that the last
-// pre-existing phases (the db-server and virtual-machine fan-outs) stored their
-// rows before it ran.
-func TestScanODB_ExascaleErrorPropagatesAfterEveryExistingPhase(t *testing.T) {
-	for _, op := range []string{"ListExascaleDbStorageVaults", "ListExadbVmClusters"} {
-		t.Run(op, func(t *testing.T) {
-			st := newTestStore(t)
-			acct := newTestAccount(testAccountID)
-			acct.cfg = odbServiceStub(t, map[string][]stubCall{op: {{Err: apiErr("InternalServerException", "boom")}}})
-			_, _, err := scanODB(context.Background(), acct, testRegion, st, testScanID)
-			if !isAPIErrorCode(err, "InternalServerException") {
-				t.Fatalf("err = %v; want the %s InternalServerException", err, op)
-			}
-			if _, ok := qsRows(t, st, TypeODBDbServer)[odbInfraARN("exa")+"/db-server/dbs"]; !ok {
-				t.Errorf("db-server phase did not run before the failing %s", op)
-			}
-			if _, ok := qsRows(t, st, TypeODBAutonomousVirtualMachine)[odbAVMClusterARN("avmc")+"/autonomous-virtual-machine/vm"]; !ok {
-				t.Errorf("autonomous-virtual-machine phase did not run before the failing %s", op)
-			}
-		})
+// odbTwoPages serves item("tagged") on the first page and item("bare") on
+// the second.
+func odbTwoPages[T any](token string, item func(id string) T, wrap func(items []T, next *string) any) any {
+	if token == "" {
+		return wrap([]T{item("tagged")}, sdkaws.String("p2"))
 	}
+	return wrap([]T{item("bare")}, nil)
 }
 
-func odbVaultARN(id string) string {
-	return fmt.Sprintf("arn:aws:odb:%s:%s:exascale-db-storage-vault/%s", testRegion, testAccountID, id)
+// odbRowWant is one fixture row the tag read covers: its type, NativeID,
+// the ARN its tag read is sent, and the Name it is stored with.
+type odbRowWant struct{ typ, nativeID, tagARN, name string }
+
+// odbTopLevel is every region-wide listing of the fixture: its type and ARN
+// kind. Each lists "tagged" and "bare", one per page.
+var odbTopLevel = []struct{ typ, kind string }{
+	{TypeODBCloudAutonomousVMCluster, "cloud-autonomous-vm-cluster"},
+	{TypeODBCloudExadataInfrastructure, "cloud-exadata-infrastructure"},
+	{TypeODBOdbNetwork, "odb-network"},
+	{TypeODBOdbPeeringConnection, "odb-peering-connection"},
+	{TypeODBCloudVMCluster, "cloud-vm-cluster"},
+	{TypeODBAutonomousDatabase, "autonomous-database"},
+	{TypeODBExascaleDbStorageVault, "exascale-db-storage-vault"},
+	{TypeODBExadbVMCluster, "exadb-vm-cluster"},
 }
 
-func odbExadbClusterARN(id string) string {
-	return fmt.Sprintf("arn:aws:odb:%s:%s:exadb-vm-cluster/%s", testRegion, testAccountID, id)
-}
+func odbName(kind, id string) string { return kind + " " + id }
 
-// odbExaItem is one listed Exascale element; noARN leaves its ARN unset.
-type odbExaItem struct {
-	id     string
-	status odbtypes.ResourceStatus
-	noARN  bool
-}
-
-func odbVaultPage(next *string, items ...odbExaItem) *odb.ListExascaleDbStorageVaultsOutput {
-	out := &odb.ListExascaleDbStorageVaultsOutput{NextToken: next}
-	for _, it := range items {
-		v := odbtypes.ExascaleDbStorageVaultSummary{
-			ExascaleDbStorageVaultId: sdkaws.String(it.id), DisplayName: sdkaws.String("vault-" + it.id),
-			Status: it.status, CreatedAt: &odbCreated, AvailabilityZone: sdkaws.String("us-east-1a"),
+// odbTagged is every fixture row whose tags are read: the region-wide rows,
+// and the DB nodes and backups of each "tagged" and "bare" parent.
+func odbTagged() []odbRowWant {
+	var rows []odbRowWant
+	for _, id := range []string{"tagged", "bare"} {
+		for _, k := range odbTopLevel {
+			rows = append(rows, odbRowWant{k.typ, odbARN(k.kind, id), odbARN(k.kind, id), odbName(k.kind, id)})
 		}
-		if !it.noARN {
-			v.ExascaleDbStorageVaultArn = sdkaws.String(odbVaultARN(it.id))
+		for _, child := range []string{"tagged", "bare"} {
+			node := id + "-" + child
+			rows = append(rows,
+				odbRowWant{TypeODBDbNode, odbARN("cloud-vm-cluster", id) + "/db-node/" + node, odbARN("db-node", node), "host-" + node},
+				odbRowWant{TypeODBAutonomousDatabaseBackup, odbARN("autonomous-database-backup", node), odbARN("autonomous-database-backup", node), odbName("autonomous-database-backup", node)})
 		}
-		out.ExascaleDbStorageVaults = append(out.ExascaleDbStorageVaults, v)
 	}
-	return out
+	return rows
 }
 
-func odbExadbClusterPage(next *string, items ...odbExaItem) *odb.ListExadbVmClustersOutput {
-	out := &odb.ListExadbVmClustersOutput{NextToken: next}
-	for _, it := range items {
-		c := odbtypes.ExadbVmClusterSummary{
-			ExadbVmClusterId: sdkaws.String(it.id), DisplayName: sdkaws.String("exadb-" + it.id),
-			Status: it.status, CreatedAt: &odbCreated, Hostname: sdkaws.String("host-" + it.id),
-		}
-		if !it.noARN {
-			c.ExadbVmClusterArn = sdkaws.String(odbExadbClusterARN(it.id))
-		}
-		out.ExadbVmClusters = append(out.ExadbVmClusters, c)
+// odbHandlers answers every op scanODB calls: each region-wide listing two
+// pages, each DB-node and backup listing two pages per parent, and one DB
+// server and one virtual machine per parent.
+func odbHandlers(c *odbCalls) map[string]func(any) (any, error) {
+	name := func(kind, id string) *string { return sdkaws.String(odbName(kind, id)) }
+	return map[string]func(any) (any, error){
+		"ListCloudAutonomousVmClusters": c.paged("ListCloudAutonomousVmClusters", func(_ any, token string) any {
+			return odbTwoPages(token, func(id string) odbtypes.CloudAutonomousVmClusterSummary {
+				k := "cloud-autonomous-vm-cluster"
+				return odbtypes.CloudAutonomousVmClusterSummary{CloudAutonomousVmClusterArn: sdkaws.String(odbARN(k, id)), CloudAutonomousVmClusterId: sdkaws.String(id), DisplayName: name(k, id)}
+			}, func(items []odbtypes.CloudAutonomousVmClusterSummary, next *string) any {
+				return &odb.ListCloudAutonomousVmClustersOutput{CloudAutonomousVmClusters: items, NextToken: next}
+			})
+		}),
+		"ListCloudExadataInfrastructures": c.paged("ListCloudExadataInfrastructures", func(_ any, token string) any {
+			return odbTwoPages(token, func(id string) odbtypes.CloudExadataInfrastructureSummary {
+				k := "cloud-exadata-infrastructure"
+				return odbtypes.CloudExadataInfrastructureSummary{CloudExadataInfrastructureArn: sdkaws.String(odbARN(k, id)), CloudExadataInfrastructureId: sdkaws.String(id), DisplayName: name(k, id)}
+			}, func(items []odbtypes.CloudExadataInfrastructureSummary, next *string) any {
+				return &odb.ListCloudExadataInfrastructuresOutput{CloudExadataInfrastructures: items, NextToken: next}
+			})
+		}),
+		"ListOdbNetworks": c.paged("ListOdbNetworks", func(_ any, token string) any {
+			return odbTwoPages(token, func(id string) odbtypes.OdbNetworkSummary {
+				k := "odb-network"
+				return odbtypes.OdbNetworkSummary{OdbNetworkArn: sdkaws.String(odbARN(k, id)), OdbNetworkId: sdkaws.String(id), DisplayName: name(k, id)}
+			}, func(items []odbtypes.OdbNetworkSummary, next *string) any {
+				return &odb.ListOdbNetworksOutput{OdbNetworks: items, NextToken: next}
+			})
+		}),
+		"ListOdbPeeringConnections": c.paged("ListOdbPeeringConnections", func(_ any, token string) any {
+			return odbTwoPages(token, func(id string) odbtypes.OdbPeeringConnectionSummary {
+				k := "odb-peering-connection"
+				return odbtypes.OdbPeeringConnectionSummary{OdbPeeringConnectionArn: sdkaws.String(odbARN(k, id)), OdbPeeringConnectionId: sdkaws.String(id), DisplayName: name(k, id)}
+			}, func(items []odbtypes.OdbPeeringConnectionSummary, next *string) any {
+				return &odb.ListOdbPeeringConnectionsOutput{OdbPeeringConnections: items, NextToken: next}
+			})
+		}),
+		"ListCloudVmClusters": c.paged("ListCloudVmClusters", func(_ any, token string) any {
+			return odbTwoPages(token, func(id string) odbtypes.CloudVmClusterSummary {
+				k := "cloud-vm-cluster"
+				return odbtypes.CloudVmClusterSummary{CloudVmClusterArn: sdkaws.String(odbARN(k, id)), CloudVmClusterId: sdkaws.String(id), ClusterName: name(k, id)}
+			}, func(items []odbtypes.CloudVmClusterSummary, next *string) any {
+				return &odb.ListCloudVmClustersOutput{CloudVmClusters: items, NextToken: next}
+			})
+		}),
+		"ListDbNodes": c.paged("ListDbNodes", func(in any, token string) any {
+			cluster := sv(in.(*odb.ListDbNodesInput).CloudVmClusterId)
+			return odbTwoPages(token, func(id string) odbtypes.DbNodeSummary {
+				node := cluster + "-" + id
+				return odbtypes.DbNodeSummary{DbNodeArn: sdkaws.String(odbARN("db-node", node)), DbNodeId: sdkaws.String(node), Hostname: sdkaws.String("host-" + node)}
+			}, func(items []odbtypes.DbNodeSummary, next *string) any {
+				return &odb.ListDbNodesOutput{DbNodes: items, NextToken: next}
+			})
+		}),
+		"ListAutonomousDatabases": c.paged("ListAutonomousDatabases", func(_ any, token string) any {
+			return odbTwoPages(token, func(id string) odbtypes.AutonomousDatabaseSummary {
+				k := "autonomous-database"
+				return odbtypes.AutonomousDatabaseSummary{AutonomousDatabaseArn: sdkaws.String(odbARN(k, id)), AutonomousDatabaseId: sdkaws.String(id), DisplayName: name(k, id)}
+			}, func(items []odbtypes.AutonomousDatabaseSummary, next *string) any {
+				return &odb.ListAutonomousDatabasesOutput{AutonomousDatabases: items, NextToken: next}
+			})
+		}),
+		"ListAutonomousDatabaseBackups": c.paged("ListAutonomousDatabaseBackups", func(in any, token string) any {
+			database := sv(in.(*odb.ListAutonomousDatabaseBackupsInput).AutonomousDatabaseId)
+			return odbTwoPages(token, func(id string) odbtypes.AutonomousDatabaseBackupSummary {
+				k, backup := "autonomous-database-backup", database+"-"+id
+				return odbtypes.AutonomousDatabaseBackupSummary{AutonomousDatabaseBackupArn: sdkaws.String(odbARN(k, backup)), AutonomousDatabaseId: sdkaws.String(database), DisplayName: name(k, backup)}
+			}, func(items []odbtypes.AutonomousDatabaseBackupSummary, next *string) any {
+				return &odb.ListAutonomousDatabaseBackupsOutput{AutonomousDatabaseBackups: items, NextToken: next}
+			})
+		}),
+		"ListDbServers": c.paged("ListDbServers", func(any, string) any {
+			return &odb.ListDbServersOutput{DbServers: []odbtypes.DbServerSummary{odbDbServer("dbs")}}
+		}),
+		"ListAutonomousVirtualMachines": c.paged("ListAutonomousVirtualMachines", func(any, string) any {
+			return &odb.ListAutonomousVirtualMachinesOutput{AutonomousVirtualMachines: []odbtypes.AutonomousVirtualMachineSummary{odbAVM("vm")}}
+		}),
+		"ListExascaleDbStorageVaults": c.paged("ListExascaleDbStorageVaults", func(_ any, token string) any {
+			return odbTwoPages(token, func(id string) odbtypes.ExascaleDbStorageVaultSummary {
+				k := "exascale-db-storage-vault"
+				return odbtypes.ExascaleDbStorageVaultSummary{ExascaleDbStorageVaultArn: sdkaws.String(odbARN(k, id)), ExascaleDbStorageVaultId: sdkaws.String(id), DisplayName: name(k, id), Status: odbtypes.ResourceStatusAvailable, CreatedAt: &odbCreated}
+			}, func(items []odbtypes.ExascaleDbStorageVaultSummary, next *string) any {
+				return &odb.ListExascaleDbStorageVaultsOutput{ExascaleDbStorageVaults: items, NextToken: next}
+			})
+		}),
+		"ListExadbVmClusters": c.paged("ListExadbVmClusters", func(_ any, token string) any {
+			return odbTwoPages(token, func(id string) odbtypes.ExadbVmClusterSummary {
+				k := "exadb-vm-cluster"
+				return odbtypes.ExadbVmClusterSummary{ExadbVmClusterArn: sdkaws.String(odbARN(k, id)), ExadbVmClusterId: sdkaws.String(id), DisplayName: name(k, id), Status: odbtypes.ResourceStatusAvailable, CreatedAt: &odbCreated}
+			}, func(items []odbtypes.ExadbVmClusterSummary, next *string) any {
+				return &odb.ListExadbVmClustersOutput{ExadbVmClusters: items, NextToken: next}
+			})
+		}),
+		"ListTagsForResource": c.listTags,
 	}
-	return out
 }
 
-// odbExaRequest reads the paging fields of either Exascale list input.
-func odbExaRequest(in any) (token string, maxResults int32) {
-	switch in := in.(type) {
-	case *odb.ListExascaleDbStorageVaultsInput:
-		return sv(in.NextToken), sdkaws.ToInt32(in.MaxResults)
-	case *odb.ListExadbVmClustersInput:
-		return sv(in.NextToken), sdkaws.ToInt32(in.MaxResults)
-	}
-	return "", 0
+// odbScan runs scanODB, the real entry point, against handlers; an op without
+// one is denied.
+func odbScan(ctx context.Context, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, odbDenied)
+	return scanODB(ctx, acct, testRegion, st, testScanID)
 }
 
-// odbExascaleOps drives each Exascale sub-scanner through one shape.
-var odbExascaleOps = []struct {
-	name, sdkOp, op, typ, namePrefix, attrKey string
-	arn                                       func(string) string
-	page                                      func(next *string, items ...odbExaItem) any
-	scan                                      func(context.Context, odbAPI, *account, string, *store.Store, string) (int, int, error)
-}{
-	{
-		name: "storage-vaults", sdkOp: "ListExascaleDbStorageVaults", op: "odb:ListExascaleDbStorageVaults",
-		typ: TypeODBExascaleDbStorageVault, namePrefix: "vault-", attrKey: "AvailabilityZone", arn: odbVaultARN,
-		page: func(next *string, items ...odbExaItem) any { return odbVaultPage(next, items...) },
-		scan: scanODBExascaleDbStorageVaults,
-	},
-	{
-		name: "exadb-vm-clusters", sdkOp: "ListExadbVmClusters", op: "odb:ListExadbVmClusters",
-		typ: TypeODBExadbVMCluster, namePrefix: "exadb-", attrKey: "Hostname", arn: odbExadbClusterARN,
-		page: func(next *string, items ...odbExaItem) any { return odbExadbClusterPage(next, items...) },
-		scan: scanODBExadbVMClusters,
-	},
-}
+// odbFixtureTotal is the rows of the fixture: 8 region-wide types x 2, 4 DB
+// nodes, 4 backups, 2 DB servers and 2 virtual machines.
+const odbFixtureTotal = 28
 
-// odbExaMaxCalls bounds the calls one listing may make, so a pagination loop
-// fails the test instead of hanging it.
-const odbExaMaxCalls = 5
-
-// runODBExascale runs one Exascale sub-scanner against the real SDK client,
-// serving pages keyed by the request's NextToken ("" is the first page; a
-// missing key is an empty page) and failing a call with errs[token]. It returns
-// the tokens requested, in order.
-func runODBExascale(t *testing.T, st *store.Store, op int, pages map[string]any, errs map[string]error) (total int, tokens []string, err error) {
+func odbRowOf(t *testing.T, st *store.Store, typ, nativeID string) (store.Resource, bool) {
 	t.Helper()
-	tc := odbExascaleOps[op]
-	cfg := opStubConfig(map[string]func(in any) (any, error){
-		tc.sdkOp: func(in any) (any, error) {
-			token, maxResults := odbExaRequest(in)
-			tokens = append(tokens, token)
-			if len(tokens) > odbExaMaxCalls {
-				return nil, fmt.Errorf("%s called %d times; want at most %d", tc.sdkOp, len(tokens), odbExaMaxCalls)
-			}
-			if maxResults != 1000 {
-				t.Errorf("%s MaxResults = %d; want the model cap 1000", tc.sdkOp, maxResults)
-			}
-			if e := errs[token]; e != nil {
-				return nil, e
-			}
-			if p, ok := pages[token]; ok {
-				return p, nil
-			}
-			return tc.page(nil), nil
-		},
-	}, apiErr("AccessDeniedException", "unexpected op"))
-	total, _, err = tc.scan(context.Background(), odb.NewFromConfig(cfg), newTestAccount(testAccountID), testRegion, st, testScanID)
-	return total, tokens, err
+	r, ok := rowsByNativeID(t, st, typ)[nativeID]
+	return r, ok
 }
 
-func TestScanODBExascale_PaginatesAndStores(t *testing.T) {
-	for i, tc := range odbExascaleOps {
-		t.Run(tc.name, func(t *testing.T) {
-			st := newTestStore(t)
-			warns := countOpWarnings(st, tc.op)
-			pages := map[string]any{
-				"": tc.page(sdkaws.String("p2"),
-					odbExaItem{id: "a1", status: odbtypes.ResourceStatusAvailable},
-					odbExaItem{id: "no-arn", status: odbtypes.ResourceStatusAvailable, noARN: true},
-					odbExaItem{id: "gone", status: odbtypes.ResourceStatusTerminated},
-					odbExaItem{id: "going", status: odbtypes.ResourceStatusTerminating}),
-				"p2": tc.page(nil, odbExaItem{id: "a2", status: odbtypes.ResourceStatusAvailable}),
+// Every type ListTagsForResource accepts stores its tags, nil for a resource
+// without tags, and exactly those rows' ARNs are sent to it, a DB node's own
+// DbNodeArn rather than its NativeID. Every page of every listing is stored,
+// each listing asks for its page cap, every row keeps its Name, and the scan
+// reports no error or warning.
+func TestScanODB_StoresTagsOfEveryType(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	calls := newODBCalls()
+
+	total, inserted, err := odbScan(context.Background(), st, odbHandlers(calls))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != odbFixtureTotal || inserted != odbFixtureTotal {
+		t.Errorf("total, inserted = %d, %d; want %d, %d", total, inserted, odbFixtureTotal, odbFixtureTotal)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0", *warns)
+	}
+	var wantARNs []string
+	for _, w := range odbTagged() {
+		r, ok := odbRowOf(t, st, w.typ, w.nativeID)
+		if !ok {
+			t.Errorf("%s %s missing", w.typ, w.nativeID)
+			continue
+		}
+		if sv(r.Name) != w.name {
+			t.Errorf("%s %s Name = %q; want %q", w.typ, w.nativeID, sv(r.Name), w.name)
+		}
+		switch {
+		case strings.HasSuffix(w.nativeID, "tagged"):
+			assertTagsMap(t, r.TagsJSON, map[string]string{"type": w.typ})
+		case r.TagsJSON != nil:
+			t.Errorf("%s %s TagsJSON = %q; want nil", w.typ, w.nativeID, *r.TagsJSON)
+		}
+		wantARNs = append(wantARNs, w.tagARN)
+	}
+	slices.Sort(wantARNs)
+	slices.Sort(calls.tagARNs)
+	if !slices.Equal(calls.tagARNs, wantARNs) {
+		t.Errorf("ListTagsForResource ARNs = %v\nwant %v", calls.tagARNs, wantARNs)
+	}
+	caps := map[string]int32{
+		"ListCloudAutonomousVmClusters": 1000, "ListCloudExadataInfrastructures": 1000, "ListOdbNetworks": 1000,
+		"ListOdbPeeringConnections": 100, "ListCloudVmClusters": 1000, "ListDbNodes": 1000, "ListAutonomousDatabases": 1000,
+		"ListAutonomousDatabaseBackups": 1000, "ListExascaleDbStorageVaults": 1000, "ListExadbVmClusters": 1000,
+	}
+	for op, want := range caps {
+		got := calls.maxResults[op]
+		if len(got) == 0 {
+			t.Errorf("%s never sent MaxResults", op)
+		}
+		for _, n := range got {
+			if n != want {
+				t.Errorf("%s MaxResults = %d; want %d", op, n, want)
 			}
-			total, tokens, err := runODBExascale(t, st, i, pages, nil)
-			if err != nil {
+		}
+	}
+	vault, _ := odbRowOf(t, st, TypeODBExascaleDbStorageVault, odbARN("exascale-db-storage-vault", "tagged"))
+	if created, err := time.Parse(time.RFC3339, sv(vault.CreatedAt)); sv(vault.Status) != "AVAILABLE" || err != nil || !created.Equal(odbCreated) {
+		t.Errorf("vault Status, CreatedAt = %q, %q; want AVAILABLE, %s", sv(vault.Status), sv(vault.CreatedAt), odbCreated)
+	}
+	assertQSContains(t, st, odbInfraARN("tagged"), odbInfraARN("tagged")+"/db-server/dbs")
+	assertQSContains(t, st, odbAVMClusterARN("bare"), odbAVMClusterARN("bare")+"/autonomous-virtual-machine/vm")
+}
+
+// A rescan stores the same rows without inserting any.
+func TestScanODB_RescanInsertsNone(t *testing.T) {
+	st := newTestStore(t)
+	calls := newODBCalls()
+	if _, _, err := odbScan(context.Background(), st, odbHandlers(calls)); err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+	total, inserted, err := odbScan(context.Background(), st, odbHandlers(calls))
+	if err != nil {
+		t.Fatalf("rescan: %v", err)
+	}
+	if total != odbFixtureTotal || inserted != 0 {
+		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, odbFixtureTotal)
+	}
+}
+
+// A failed tag read keeps the row without tags, except a modeled not-found,
+// which drops it: a denial warns once under odb:ListTagsForResource, a
+// throttle after retries is a transient error, any other code a hard one.
+func TestScanODB_TagReadFailures(t *testing.T) {
+	targets := []odbRowWant{
+		{typ: TypeODBOdbNetwork, nativeID: odbARN("odb-network", "tagged"), tagARN: odbARN("odb-network", "tagged")},
+		{typ: TypeODBDbNode, nativeID: odbARN("cloud-vm-cluster", "bare") + "/db-node/bare-tagged", tagARN: odbARN("db-node", "bare-tagged")},
+		{typ: TypeODBAutonomousDatabaseBackup, nativeID: odbARN("autonomous-database-backup", "tagged-tagged"), tagARN: odbARN("autonomous-database-backup", "tagged-tagged")},
+	}
+	for _, target := range targets {
+		t.Run(target.typ, func(t *testing.T) {
+			for _, c := range []struct {
+				name      string
+				err       error
+				outcome   serviceOutcome
+				wantRows  int
+				wantWarns int
+			}{
+				{"denied", odbDenied, 0, odbFixtureTotal, 1},
+				{"not found", odbGone, 0, odbFixtureTotal - 1, 0},
+				{"other error", odbBadInput, outcomeError, odbFixtureTotal, 0},
+				{"transient", odbThrottle, outcomeTransient, odbFixtureTotal, 0},
+			} {
+				t.Run(c.name, func(t *testing.T) {
+					st := newTestStore(t)
+					warnings := bacWarnings(st, odbTagsOp)
+					calls := newODBCalls()
+					calls.errs[target.tagARN] = c.err
+
+					total, _, err := odbScan(context.Background(), st, odbHandlers(calls))
+					if c.outcome == 0 && err != nil {
+						t.Fatalf("err = %v; want nil", err)
+					}
+					if c.outcome != 0 {
+						assertGlueOutcome(t, err, c.outcome)
+					}
+					if c.outcome == outcomeError {
+						assertAPICode(t, err, "ValidationException")
+					}
+					if total != c.wantRows {
+						t.Errorf("total = %d; want %d", total, c.wantRows)
+					}
+					r, ok := odbRowOf(t, st, target.typ, target.nativeID)
+					dropped := c.wantRows < odbFixtureTotal
+					switch {
+					case dropped && ok:
+						t.Error("row stored; want it dropped as deleted")
+					case !dropped && !ok:
+						t.Fatal("row not stored; want it kept")
+					case !dropped && r.TagsJSON != nil:
+						t.Errorf("TagsJSON = %q; want nil", *r.TagsJSON)
+					}
+					if len(*warnings) != c.wantWarns {
+						t.Fatalf("%s warnings = %v; want %d", odbTagsOp, *warnings, c.wantWarns)
+					}
+					for _, w := range *warnings {
+						if w.Scope != testAccountID+"/"+testRegion {
+							t.Errorf("warning Scope = %q; want %s/%s", w.Scope, testAccountID, testRegion)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+// A throttled tag read beside a hard failure of the same op is demoted to
+// one warning, so the hard error decides the outcome.
+func TestScanODB_TagThrottleDemotedBesideHardError(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, odbTagsOp)
+	calls := newODBCalls()
+	calls.errs[odbARN("cloud-vm-cluster", "tagged")] = odbThrottle
+	calls.errs[odbARN("exadb-vm-cluster", "tagged")] = odbBadInput
+
+	_, _, err := odbScan(context.Background(), st, odbHandlers(calls))
+	assertGlueOutcome(t, err, outcomeError)
+	assertAPICode(t, err, "ValidationException")
+	if *warns != 1 {
+		t.Errorf("%s warnings = %d; want 1", odbTagsOp, *warns)
+	}
+}
+
+// odbSingleNetwork answers ListOdbNetworks with one network of arn and every
+// other listing with nothing.
+func odbSingleNetwork(c *odbCalls, arn string) map[string]func(any) (any, error) {
+	empty := func(out any) func(any) (any, error) { return func(any) (any, error) { return out, nil } }
+	return map[string]func(any) (any, error){
+		"ListCloudAutonomousVmClusters":   empty(&odb.ListCloudAutonomousVmClustersOutput{}),
+		"ListCloudExadataInfrastructures": empty(&odb.ListCloudExadataInfrastructuresOutput{}),
+		"ListOdbNetworks": empty(&odb.ListOdbNetworksOutput{OdbNetworks: []odbtypes.OdbNetworkSummary{
+			{OdbNetworkArn: sdkaws.String(arn), OdbNetworkId: sdkaws.String("net"), DisplayName: sdkaws.String("net")},
+		}}),
+		"ListOdbPeeringConnections":   empty(&odb.ListOdbPeeringConnectionsOutput{}),
+		"ListCloudVmClusters":         empty(&odb.ListCloudVmClustersOutput{}),
+		"ListAutonomousDatabases":     empty(&odb.ListAutonomousDatabasesOutput{}),
+		"ListExascaleDbStorageVaults": empty(&odb.ListExascaleDbStorageVaultsOutput{}),
+		"ListExadbVmClusters":         empty(&odb.ListExadbVmClustersOutput{}),
+		"ListTagsForResource":         c.listTags,
+	}
+}
+
+// A resource another account owns has its tags read; a denied read of it is
+// expected, so the row is kept without tags and without a warning. A denied
+// read of an own-account row in another partition still warns, and the read
+// is sent the listed ARN.
+func TestScanODB_TagReadOwnership(t *testing.T) {
+	foreign := "arn:aws:odb:" + testRegion + ":210987654321:odb-network/net"
+	for _, c := range []struct {
+		name      string
+		acct      *account
+		arn       string
+		err       error
+		tags      map[string]string
+		wantWarns int
+	}{
+		{"foreign tags read", newTestAccount(testAccountID), foreign, nil, map[string]string{"k": "v"}, 0},
+		{"foreign denied is silent", newTestAccount(testAccountID), foreign, odbDenied, nil, 0},
+		{"own gov-partition denied warns", partitionAccount("aws-us-gov"), "", odbDenied, nil, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			region := c.acct.Regions[0]
+			arn := cmp.Or(c.arn, "arn:"+c.acct.partition()+":odb:"+region+":"+testAccountID+":odb-network/net")
+			st := newTestStore(t)
+			warns := countOpWarnings(st, odbTagsOp)
+			calls := newODBCalls()
+			calls.tags[arn], calls.errs[arn] = c.tags, c.err
+			c.acct.cfg = opStubConfig(odbSingleNetwork(calls, arn), odbDenied)
+
+			if _, _, err := scanODB(context.Background(), c.acct, region, st, testScanID); err != nil {
 				t.Fatalf("scan: %v", err)
 			}
-			if total != 3 || len(tokens) != 2 {
-				t.Errorf("total = %d over calls %q; want 3 rows over 2 pages", total, tokens)
+			r, ok := odbRowOf(t, st, TypeODBOdbNetwork, arn)
+			if !ok {
+				t.Fatal("row not stored; want it kept")
 			}
-			rows := rowsByNativeID(t, st, tc.typ)
-			for _, id := range []string{"a1", "a2", "going"} {
-				if _, ok := rows[tc.arn(id)]; !ok {
-					t.Errorf("no row %s; got %d rows", tc.arn(id), len(rows))
-				}
+			if c.tags != nil {
+				assertTagsMap(t, r.TagsJSON, c.tags)
+			} else if r.TagsJSON != nil {
+				t.Errorf("TagsJSON = %q; want nil", *r.TagsJSON)
 			}
-			if _, ok := rows[tc.arn("gone")]; ok {
-				t.Errorf("TERMINATED row %s stored; want it dropped", tc.arn("gone"))
+			if !slices.Equal(calls.tagARNs, []string{arn}) {
+				t.Errorf("tag reads = %v; want [%s]", calls.tagARNs, arn)
 			}
-			if len(rows) != 3 {
-				t.Errorf("stored %d rows; want 3", len(rows))
-			}
-			r := rows[tc.arn("a1")]
-			if r.Type != tc.typ || sv(r.Region) != testRegion || sv(r.Name) != tc.namePrefix+"a1" || sv(r.Status) != "AVAILABLE" {
-				t.Errorf("row a1: type=%q region=%q name=%q status=%q", r.Type, sv(r.Region), sv(r.Name), sv(r.Status))
-			}
-			if got, err := time.Parse(time.RFC3339, sv(r.CreatedAt)); err != nil || !got.Equal(odbCreated) {
-				t.Errorf("row a1: CreatedAt = %q; want %s", sv(r.CreatedAt), odbCreated)
-			}
-			var attrs map[string]any
-			if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs[tc.attrKey] == nil {
-				t.Errorf("row a1: attributes %s lack %q (err %v)", r.AttributesJSON, tc.attrKey, err)
-			}
-			if *warns != 1 {
-				t.Errorf("recorded %d warnings; want 1 for the ARN-less element", *warns)
+			if *warns != c.wantWarns {
+				t.Errorf("%s warnings = %d; want %d", odbTagsOp, *warns, c.wantWarns)
 			}
 		})
 	}
 }
 
-func TestScanODBExascale_EmptyStoresNothing(t *testing.T) {
-	for i, tc := range odbExascaleOps {
-		t.Run(tc.name, func(t *testing.T) {
-			st := newTestStore(t)
-			warns := countOpWarnings(st, tc.op)
-			total, _, err := runODBExascale(t, st, i, nil, nil)
-			if err != nil || total != 0 || *warns != 0 {
-				t.Errorf("scan = (%d, %v) with %d warnings; want (0, nil) and none", total, err, *warns)
-			}
-		})
-	}
+// An account not onboarded is reported disabled when the first listing says
+// so, and no other op is called. Met after rows were stored, the answer ends
+// that listing silently, keeping its rows, and every later phase runs.
+func TestScanODB_NotOnboarded(t *testing.T) {
+	t.Run("first listing", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countWarnings(st)
+		calls := newODBCalls()
+		handlers := odbHandlers(calls)
+		handlers["ListCloudAutonomousVmClusters"] = func(any) (any, error) { return nil, odbNotOnboarded }
+
+		total, _, err := odbScan(context.Background(), st, handlers)
+		if !errors.Is(err, errServiceDisabled) {
+			t.Fatalf("err = %v; want errServiceDisabled", err)
+		}
+		assertGlueOutcome(t, err, outcomeDisabled)
+		if total != 0 || *warns != 0 {
+			t.Errorf("total, warnings = %d, %d; want 0, 0", total, *warns)
+		}
+		for op, n := range calls.ops {
+			t.Errorf("%s called %d times; want no call after the first listing", op, n)
+		}
+	})
+	t.Run("later listing before any row", func(t *testing.T) {
+		st := newTestStore(t)
+		calls := newODBCalls()
+		handlers := odbHandlers(calls)
+		handlers["ListCloudAutonomousVmClusters"] = func(any) (any, error) { return nil, odbDenied }
+		handlers["ListCloudExadataInfrastructures"] = func(any) (any, error) { return nil, odbNotOnboarded }
+
+		total, _, err := odbScan(context.Background(), st, handlers)
+		if !errors.Is(err, errServiceDisabled) {
+			t.Fatalf("err = %v; want errServiceDisabled", err)
+		}
+		if total != 0 || calls.count("ListOdbNetworks") != 0 {
+			t.Errorf("total = %d, ListOdbNetworks calls = %d; want 0, 0", total, calls.count("ListOdbNetworks"))
+		}
+	})
+	t.Run("second page of the first listing", func(t *testing.T) {
+		st := newTestStore(t)
+		handlers := odbHandlers(newODBCalls())
+		handlers["ListCloudAutonomousVmClusters"] = failOnCall(2, odbNotOnboarded, handlers["ListCloudAutonomousVmClusters"])
+
+		total, _, err := odbScan(context.Background(), st, handlers)
+		if err != nil {
+			t.Fatalf("err = %v; want nil", err)
+		}
+		if total != odbFixtureTotal-2 {
+			t.Errorf("total = %d; want %d (one cluster and its virtual machine lost)", total, odbFixtureTotal-2)
+		}
+		if _, ok := odbRowOf(t, st, TypeODBCloudAutonomousVMCluster, odbAVMClusterARN("tagged")); !ok {
+			t.Error("cluster from the first page missing")
+		}
+	})
+	t.Run("after rows were stored", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countWarnings(st)
+		handlers := odbHandlers(newODBCalls())
+		handlers["ListOdbNetworks"] = failOnCall(2, odbNotOnboarded, handlers["ListOdbNetworks"])
+
+		total, _, err := odbScan(context.Background(), st, handlers)
+		if err != nil {
+			t.Fatalf("err = %v; want nil", err)
+		}
+		if total != odbFixtureTotal-1 || *warns != 0 {
+			t.Errorf("total, warnings = %d, %d; want %d, 0", total, *warns, odbFixtureTotal-1)
+		}
+		if _, ok := odbRowOf(t, st, TypeODBOdbNetwork, odbARN("odb-network", "tagged")); !ok {
+			t.Error("network from the page before the answer missing")
+		}
+	})
+	t.Run("first page of a later listing", func(t *testing.T) {
+		st := newTestStore(t)
+		handlers := odbHandlers(newODBCalls())
+		handlers["ListCloudExadataInfrastructures"] = func(any) (any, error) { return nil, odbNotOnboarded }
+
+		total, _, err := odbScan(context.Background(), st, handlers)
+		if err != nil {
+			t.Fatalf("err = %v; want nil", err)
+		}
+		if total != odbFixtureTotal-4 {
+			t.Errorf("total = %d; want %d (no infrastructures, no DB servers)", total, odbFixtureTotal-4)
+		}
+	})
 }
 
-// TestScanODBExascale_RepeatedTokenStops pins StopOnDuplicateToken: the service
-// handing back the token it was sent ends the listing instead of looping.
-func TestScanODBExascale_RepeatedTokenStops(t *testing.T) {
-	for i, tc := range odbExascaleOps {
-		t.Run(tc.name, func(t *testing.T) {
+// A denied listing warns under its op label and costs no other listing its
+// rows.
+func TestScanODB_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	for sdkOp, lost := range map[string]int{
+		"ListCloudAutonomousVmClusters": 4, "ListCloudExadataInfrastructures": 4, "ListOdbNetworks": 2,
+		"ListOdbPeeringConnections": 2, "ListCloudVmClusters": 6, "ListDbNodes": 4, "ListAutonomousDatabases": 6,
+		"ListAutonomousDatabaseBackups": 4, "ListExascaleDbStorageVaults": 2, "ListExadbVmClusters": 2,
+	} {
+		t.Run(sdkOp, func(t *testing.T) {
 			st := newTestStore(t)
-			pages := map[string]any{
-				"":     tc.page(sdkaws.String("same"), odbExaItem{id: "a1", status: odbtypes.ResourceStatusAvailable}),
-				"same": tc.page(sdkaws.String("same"), odbExaItem{id: "a2", status: odbtypes.ResourceStatusAvailable}),
-			}
-			total, tokens, err := runODBExascale(t, st, i, pages, nil)
-			if err != nil {
-				t.Fatalf("scan: %v", err)
-			}
-			if total != 2 || len(tokens) != 2 {
-				t.Errorf("total = %d over calls %q; want 2 rows over 2 calls", total, tokens)
-			}
-		})
-	}
-}
+			warns := countWarnings(st)
+			opWarns := countOpWarnings(st, "odb:"+sdkOp)
+			handlers := odbHandlers(newODBCalls())
+			handlers[sdkOp] = func(any) (any, error) { return nil, odbDenied }
 
-// TestScanODBExascale_NotOnboardedIsDisabled pins the not-onboarded branch: it
-// maps to the disabled sentinel like every other ODB phase, not to an IAM
-// warning.
-// The earlier ODB phases own the disabled sentinel; here, after they stored
-// rows, a not-onboarded page is skipped silently and keeps the listed rows.
-func TestScanODBExascale_NotOnboardedSkipsSilently(t *testing.T) {
-	for i, tc := range odbExascaleOps {
-		t.Run(tc.name, func(t *testing.T) {
-			st := newTestStore(t)
-			warns := countOpWarnings(st, tc.op)
-			notOnboarded := apiErr("AccessDeniedException", "The account isn't onboarded to the service")
-			pages := map[string]any{"": tc.page(sdkaws.String("p2"), odbExaItem{id: "a1", status: odbtypes.ResourceStatusAvailable})}
-			total, _, err := runODBExascale(t, st, i, pages, map[string]error{"p2": notOnboarded})
+			total, _, err := odbScan(context.Background(), st, handlers)
 			if err != nil {
 				t.Fatalf("err = %v; want nil", err)
 			}
-			if total != 1 {
-				t.Errorf("total = %d; want 1 (the row listed before the not-onboarded page)", total)
+			if total != odbFixtureTotal-lost {
+				t.Errorf("total = %d; want %d", total, odbFixtureTotal-lost)
 			}
-			if *warns != 0 {
-				t.Errorf("recorded %d warnings; want none", *warns)
+			if *opWarns != 1 || *warns != 1 {
+				t.Errorf("odb:%s warnings, all warnings = %d, %d; want 1, 1", sdkOp, *opWarns, *warns)
 			}
 		})
 	}
 }
 
-func TestScanODBExascale_ErrorLadder(t *testing.T) {
-	notDeployed := apiErr("UnknownOperationException", "")
-	cases := []struct {
-		name      string
-		errs      map[string]error
-		wantErr   string
-		wantRows  int
-		wantWarns int
+// A per-parent listing classifies each parent on its own: a parent deleted
+// since it was listed is skipped silently, a hard error is returned, and the
+// sibling's rows are stored either way.
+func TestScanODB_PerParentListingFailures(t *testing.T) {
+	for _, c := range []struct {
+		sdkOp, typ, field string
+		sibling           odbRowWant
 	}{
-		{"denied on the first page warns", map[string]error{"": apiErr("AccessDeniedException", "User: x is not authorized to perform: odb:List")}, "", 0, 1},
-		{"denied on a later page keeps listed rows", map[string]error{"p2": apiErr("AccessDeniedException", "User: x is not authorized to perform: odb:List")}, "", 1, 1},
-		{"op not deployed on the first page is a silent gap", map[string]error{"": notDeployed}, "", 0, 0},
-		{"gateway service-not-available denial is a silent gap", map[string]error{"": apiErr("AccessDeniedException", "Unable to determine service/operation name to be authorized")}, "", 0, 0},
-		{"op not deployed after a page propagates", map[string]error{"p2": notDeployed}, "UnknownOperationException", 0, 0},
-		{"other error propagates", map[string]error{"": apiErr("InternalServerException", "boom")}, "InternalServerException", 0, 0},
-	}
-	for i, tc := range odbExascaleOps {
-		for _, c := range cases {
-			t.Run(tc.name+"/"+c.name, func(t *testing.T) {
+		{"ListDbNodes", TypeODBDbNode, "CloudVmClusterId", odbRowWant{nativeID: odbARN("cloud-vm-cluster", "bare") + "/db-node/bare-tagged"}},
+		{"ListAutonomousDatabaseBackups", TypeODBAutonomousDatabaseBackup, "AutonomousDatabaseId", odbRowWant{nativeID: odbARN("autonomous-database-backup", "bare-tagged")}},
+	} {
+		for _, f := range []struct {
+			name    string
+			err     error
+			wantErr bool
+		}{
+			{"parent gone", odbGone, false},
+			{"other error", odbBadInput, true},
+		} {
+			t.Run(c.sdkOp+"/"+f.name, func(t *testing.T) {
 				st := newTestStore(t)
-				warns := countOpWarnings(st, tc.op)
-				pages := map[string]any{"": tc.page(sdkaws.String("p2"), odbExaItem{id: "a1", status: odbtypes.ResourceStatusAvailable})}
-				_, _, err := runODBExascale(t, st, i, pages, c.errs)
-				if c.wantErr != "" {
-					if !isAPIErrorCode(err, c.wantErr) {
-						t.Fatalf("err = %v; want %s propagated", err, c.wantErr)
+				warns := countWarnings(st)
+				handlers := odbHandlers(newODBCalls())
+				next := handlers[c.sdkOp]
+				handlers[c.sdkOp] = func(in any) (any, error) {
+					if sv(bacField[*string](in, c.field)) == "tagged" {
+						return nil, f.err
 					}
+					return next(in)
+				}
+
+				total, _, err := odbScan(context.Background(), st, handlers)
+				if f.wantErr {
+					assertGlueOutcome(t, err, outcomeError)
+					assertAPICode(t, err, "ValidationException")
 				} else if err != nil {
 					t.Fatalf("err = %v; want nil", err)
 				}
-				if got := len(rowsByNativeID(t, st, tc.typ)); got != c.wantRows {
-					t.Errorf("stored %d rows; want %d", got, c.wantRows)
+				if total != odbFixtureTotal-2 || *warns != 0 {
+					t.Errorf("total, warnings = %d, %d; want %d, 0", total, *warns, odbFixtureTotal-2)
 				}
-				if *warns != c.wantWarns {
-					t.Errorf("recorded %d warnings; want %d", *warns, c.wantWarns)
+				if _, ok := odbRowOf(t, st, c.typ, c.sibling.nativeID); !ok {
+					t.Errorf("sibling row %s missing", c.sibling.nativeID)
 				}
 			})
 		}
 	}
+}
+
+// A listing's failed page keeps the pages read before it, hands its stored
+// parents to their child listing, and stops no later phase.
+func TestScanODB_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	st := newTestStore(t)
+	calls := newODBCalls()
+	handlers := odbHandlers(calls)
+	handlers["ListCloudExadataInfrastructures"] = failOnCall(2, odbBadInput, handlers["ListCloudExadataInfrastructures"])
+
+	total, _, err := odbScan(context.Background(), st, handlers)
+	assertGlueOutcome(t, err, outcomeError)
+	assertAPICode(t, err, "ValidationException")
+	if total != odbFixtureTotal-2 {
+		t.Errorf("total = %d; want %d (one infrastructure and its DB server lost)", total, odbFixtureTotal-2)
+	}
+	if _, ok := odbRowOf(t, st, TypeODBCloudExadataInfrastructure, odbInfraARN("tagged")); !ok {
+		t.Error("infrastructure from the page before the failure missing")
+	}
+	assertQSContains(t, st, odbInfraARN("tagged"), odbInfraARN("tagged")+"/db-server/dbs")
+	if _, ok := odbRowOf(t, st, TypeODBExadbVMCluster, odbARN("exadb-vm-cluster", "bare")); !ok {
+		t.Error("last phase's row missing")
+	}
+}
+
+// A repeated token ends the listing as an error, keeping its pages.
+func TestScanODB_RepeatedTokenKeepsPages(t *testing.T) {
+	st := newTestStore(t)
+	handlers := odbHandlers(newODBCalls())
+	handlers["ListOdbNetworks"] = func(any) (any, error) {
+		return &odb.ListOdbNetworksOutput{OdbNetworks: []odbtypes.OdbNetworkSummary{{OdbNetworkArn: sdkaws.String(odbARN("odb-network", "tagged")), OdbNetworkId: sdkaws.String("tagged")}}, NextToken: sdkaws.String("same")}, nil
+	}
+
+	_, _, err := odbScan(context.Background(), st, handlers)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v; want errRepeatedNextToken", err)
+	}
+	if _, ok := odbRowOf(t, st, TypeODBOdbNetwork, odbARN("odb-network", "tagged")); !ok {
+		t.Error("network from the pages read missing")
+	}
+}
+
+// An element without the ARN its NativeID is, and a DB node without its id,
+// are warned about under their listing, not stored. A DB node without the
+// DbNodeArn its tag read is sent is stored without tags, with one warning
+// and no tag read.
+func TestScanODB_UnstorableItemsWarn(t *testing.T) {
+	st := newTestStore(t)
+	netWarns := bacWarnings(st, "odb:ListOdbNetworks")
+	nodeWarns := bacWarnings(st, "odb:ListDbNodes")
+	tagWarns := bacWarnings(st, odbTagsOp)
+	calls := newODBCalls()
+	handlers := odbHandlers(calls)
+	handlers["ListOdbNetworks"] = func(any) (any, error) {
+		return &odb.ListOdbNetworksOutput{OdbNetworks: []odbtypes.OdbNetworkSummary{{OdbNetworkId: sdkaws.String("net-1")}}}, nil
+	}
+	handlers["ListDbNodes"] = func(in any) (any, error) {
+		cluster := sv(in.(*odb.ListDbNodesInput).CloudVmClusterId)
+		return &odb.ListDbNodesOutput{DbNodes: []odbtypes.DbNodeSummary{
+			{DbNodeId: sdkaws.String(cluster + "-no-arn"), Hostname: sdkaws.String("h")},
+			{DbNodeArn: sdkaws.String(odbARN("db-node", cluster+"-no-id"))},
+		}}, nil
+	}
+
+	if _, _, err := odbScan(context.Background(), st, handlers); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if got := len(rowsByNativeID(t, st, TypeODBOdbNetwork)); got != 0 {
+		t.Errorf("networks stored = %d; want 0", got)
+	}
+	if len(*netWarns) != 1 || !strings.HasSuffix((*netWarns)[0].Message, "first net-1") {
+		t.Errorf("ListOdbNetworks warnings = %v; want one naming net-1", *netWarns)
+	}
+	if len(*nodeWarns) != 1 || !strings.HasSuffix((*nodeWarns)[0].Message, "first "+odbARN("db-node", "tagged-no-id")) {
+		t.Errorf("ListDbNodes warnings = %v; want one naming the id-less node", *nodeWarns)
+	}
+	nodes := rowsByNativeID(t, st, TypeODBDbNode)
+	noARN := odbARN("cloud-vm-cluster", "tagged") + "/db-node/tagged-no-arn"
+	if r, ok := nodes[noARN]; len(nodes) != 2 || !ok || r.TagsJSON != nil {
+		t.Errorf("DB nodes = %v; want the 2 ARN-less nodes stored without tags", nodes)
+	}
+	if len(*tagWarns) != 1 || !strings.HasSuffix((*tagWarns)[0].Message, "first "+noARN) {
+		t.Errorf("%s warnings = %v; want one naming %s", odbTagsOp, *tagWarns, noARN)
+	}
+	for _, arn := range calls.tagARNs {
+		if strings.Contains(arn, "db-node") {
+			t.Errorf("tag read sent %s; want none for an ARN-less node", arn)
+		}
+	}
+}
+
+// Exascale listings drop TERMINATED elements and keep TERMINATING ones. An
+// op the region's endpoint does not route is a silent gap on the first page;
+// after a page it is an error that keeps the rows read.
+func TestScanODB_Exascale(t *testing.T) {
+	vault := func(id string, s odbtypes.ResourceStatus) odbtypes.ExascaleDbStorageVaultSummary {
+		return odbtypes.ExascaleDbStorageVaultSummary{ExascaleDbStorageVaultArn: sdkaws.String(odbARN("exascale-db-storage-vault", id)), ExascaleDbStorageVaultId: sdkaws.String(id), Status: s}
+	}
+	cluster := func(id string, s odbtypes.ResourceStatus) odbtypes.ExadbVmClusterSummary {
+		return odbtypes.ExadbVmClusterSummary{ExadbVmClusterArn: sdkaws.String(odbARN("exadb-vm-cluster", id)), ExadbVmClusterId: sdkaws.String(id), Status: s}
+	}
+	t.Run("terminated dropped", func(t *testing.T) {
+		st := newTestStore(t)
+		calls := newODBCalls()
+		handlers := odbHandlers(calls)
+		handlers["ListExascaleDbStorageVaults"] = func(any) (any, error) {
+			return &odb.ListExascaleDbStorageVaultsOutput{ExascaleDbStorageVaults: []odbtypes.ExascaleDbStorageVaultSummary{
+				vault("gone", odbtypes.ResourceStatusTerminated), vault("going", odbtypes.ResourceStatusTerminating),
+			}}, nil
+		}
+		handlers["ListExadbVmClusters"] = func(any) (any, error) {
+			return &odb.ListExadbVmClustersOutput{ExadbVmClusters: []odbtypes.ExadbVmClusterSummary{
+				cluster("gone", odbtypes.ResourceStatusTerminated), cluster("going", odbtypes.ResourceStatusTerminating),
+			}}, nil
+		}
+		if _, _, err := odbScan(context.Background(), st, handlers); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		for typ, kind := range map[string]string{TypeODBExascaleDbStorageVault: "exascale-db-storage-vault", TypeODBExadbVMCluster: "exadb-vm-cluster"} {
+			rows := rowsByNativeID(t, st, typ)
+			if _, ok := rows[odbARN(kind, "going")]; !ok || len(rows) != 1 {
+				t.Errorf("%s rows = %v; want only the TERMINATING one", typ, rows)
+			}
+			if slices.Contains(calls.tagARNs, odbARN(kind, "gone")) {
+				t.Errorf("tags read for the TERMINATED %s", kind)
+			}
+		}
+	})
+	for _, sdkOp := range []string{"ListExascaleDbStorageVaults", "ListExadbVmClusters"} {
+		t.Run(sdkOp+"/not deployed on the first page", func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countWarnings(st)
+			handlers := odbHandlers(newODBCalls())
+			handlers[sdkOp] = func(any) (any, error) { return nil, apiErr("UnknownOperationException", "") }
+			total, _, err := odbScan(context.Background(), st, handlers)
+			if err != nil || total != odbFixtureTotal-2 || *warns != 0 {
+				t.Errorf("scan = (%d, %v) with %d warnings; want (%d, nil) and none", total, err, *warns, odbFixtureTotal-2)
+			}
+		})
+		t.Run(sdkOp+"/not deployed after a page", func(t *testing.T) {
+			st := newTestStore(t)
+			handlers := odbHandlers(newODBCalls())
+			handlers[sdkOp] = failOnCall(2, apiErr("UnknownOperationException", ""), handlers[sdkOp])
+			total, _, err := odbScan(context.Background(), st, handlers)
+			assertAPICode(t, err, "UnknownOperationException")
+			if total != odbFixtureTotal-1 {
+				t.Errorf("total = %d; want %d (the first page kept)", total, odbFixtureTotal-1)
+			}
+		})
+	}
+	t.Run("not deployed is not a gap for the other listings", func(t *testing.T) {
+		st := newTestStore(t)
+		handlers := odbHandlers(newODBCalls())
+		handlers["ListOdbNetworks"] = func(any) (any, error) { return nil, apiErr("UnknownOperationException", "") }
+		_, _, err := odbScan(context.Background(), st, handlers)
+		assertAPICode(t, err, "UnknownOperationException")
+	})
+}
+
+// A failed write stops the scan before any later listing and sends no
+// warning about the rows it lost.
+func TestScanODB_FailedWriteStopsWithoutWarning(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	refuseStoreWrites(t, st, TypeODBOdbNetwork)
+	calls := newODBCalls()
+	calls.errs[odbARN("odb-network", "tagged")] = odbDenied
+	calls.errs[odbARN("odb-network", "bare")] = odbThrottle
+
+	_, _, err := odbScan(context.Background(), st, odbHandlers(calls))
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
+	}
+	assertAPICode(t, err, "ThrottlingException")
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0", *warns)
+	}
+	if n := calls.count("ListOdbPeeringConnections"); n != 0 {
+		t.Errorf("ListOdbPeeringConnections called %d times after the failed write", n)
+	}
+}
+
+// A failed DB-node write sends no warning for the ARN-less node either.
+func TestScanODB_FailedNodeWriteSendsNoNodeWarning(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	refuseStoreWrites(t, st, TypeODBDbNode)
+	handlers := odbHandlers(newODBCalls())
+	handlers["ListDbNodes"] = func(in any) (any, error) {
+		return &odb.ListDbNodesOutput{DbNodes: []odbtypes.DbNodeSummary{{DbNodeId: sdkaws.String("n")}}}, nil
+	}
+
+	_, _, err := odbScan(context.Background(), st, handlers)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0", *warns)
+	}
+}
+
+// Once ctx ends no further phase starts, and the stop is reported once,
+// naming the phases not run, although the phase in flight saw it.
+func TestScanODB_ContextEndStopsOnce(t *testing.T) {
+	st := newTestStore(t)
+	calls := newODBCalls()
+	handlers := odbHandlers(calls)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	infras := handlers["ListCloudExadataInfrastructures"]
+	handlers["ListCloudExadataInfrastructures"] = func(in any) (any, error) {
+		if in.(*odb.ListCloudExadataInfrastructuresInput).NextToken != nil {
+			cancel()
+			return nil, context.Canceled
+		}
+		return infras(in)
+	}
+
+	_, _, err := odbScan(ctx, st, handlers)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v; want context.Canceled", err)
+	}
+	stops := 0
+	for _, m := range bacTopMembers(err) {
+		if errors.Is(m, context.Canceled) {
+			stops++
+		}
+	}
+	if stops != 1 {
+		t.Errorf("members carrying the stop = %d; want 1 (err %v)", stops, err)
+	}
+	if n := calls.count("ListOdbNetworks") + calls.count("ListExadbVmClusters"); n != 0 {
+		t.Errorf("later listings called %d times after ctx ended", n)
+	}
+	if !strings.Contains(err.Error(), "odb: 10 phases not run") {
+		t.Errorf("err = %v; want it to say 10 phases not run", err)
+	}
+}
+
+// An NXDOMAIN after rows were stored is a failure of this scan, not a region
+// gap: the counts are kept. With nothing stored it stays region-unavailable.
+func TestScanODB_NXDOMAIN(t *testing.T) {
+	nx := &net.DNSError{Err: "no such host", Name: "odb.us-east-1.api.aws", IsNotFound: true}
+	t.Run("later phase after rows were stored", func(t *testing.T) {
+		st := newTestStore(t)
+		handlers := odbHandlers(newODBCalls())
+		handlers["ListOdbNetworks"] = func(any) (any, error) { return nil, nx }
+		total, _, err := odbScan(context.Background(), st, handlers)
+		assertGlueOutcome(t, err, outcomeError)
+		if total != odbFixtureTotal-2 {
+			t.Errorf("total = %d; want %d", total, odbFixtureTotal-2)
+		}
+	})
+	t.Run("tag read after the listing", func(t *testing.T) {
+		st := newTestStore(t)
+		calls := newODBCalls()
+		calls.errs[odbAVMClusterARN("bare")] = nx
+		_, _, err := odbScan(context.Background(), st, odbHandlers(calls))
+		assertGlueOutcome(t, err, outcomeError)
+	})
+	t.Run("nothing stored", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countWarnings(st)
+		acct := newTestAccount(testAccountID)
+		acct.cfg = opStubConfig(nil, nx)
+		_, _, err := scanODB(context.Background(), acct, testRegion, st, testScanID)
+		assertGlueOutcome(t, err, outcomeUnavailable)
+		if *warns != 0 {
+			t.Errorf("warnings = %d; want 0", *warns)
+		}
+	})
 }
