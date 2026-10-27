@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/providers/gcp/gcpregions"
 	"github.com/icearp/disco-cli/internal/sdkinv"
 	"golang.org/x/sync/semaphore"
 )
@@ -275,19 +277,24 @@ func fetchMethods(methods map[string]json.RawMessage) (fetch, list bool) {
 }
 
 // FetchRegions calls compute.Regions.List for the first accessible project
-// and returns the region-name list. Reuses gcpRegions(ctx, *project) so
+// and returns the region-name list, with gcpregions.Regions as the static
+// list. Reuses gcpRegions(ctx, *project) so
 // scanner-side and coverage-side fetch paths share the same shape, including
 // silent-skip on permission denied / API not enabled (yields empty slice —
 // DiffRegions then marks every static entry "stale", a clear signal the
 // caller needs broader creds).
-func (coverageProvider) FetchRegions(ctx context.Context, _ coverage.FetchOptions) ([]string, error) {
+func (coverageProvider) FetchRegions(ctx context.Context, _ coverage.FetchOptions) (static, live []string, err error) {
 	// Coverage tooling uses ambient/config credentials; no per-scan override.
 	projects, err := loadProjects(ctx, "")
 	if err != nil {
-		return nil, fmt.Errorf("load projects: %w", err)
+		return nil, nil, fmt.Errorf("load projects: %w", err)
 	}
 	if len(projects) == 0 {
-		return nil, fmt.Errorf("no accessible GCP projects; coverage --regions needs at least one")
+		return nil, nil, fmt.Errorf("no accessible GCP projects; coverage --regions needs at least one")
 	}
-	return gcpRegions(ctx, &projects[0])
+	live, err = gcpRegions(ctx, &projects[0])
+	if err != nil {
+		return nil, nil, err
+	}
+	return slices.Clone(gcpregions.Regions), live, nil
 }

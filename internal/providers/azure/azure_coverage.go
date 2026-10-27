@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/subscription/armsubscription"
 	"github.com/icearp/disco-cli/internal/coverage"
 	"github.com/icearp/disco-cli/internal/providers/azure/azureinventory"
+	"github.com/icearp/disco-cli/internal/providers/azure/azureregions"
 	"github.com/icearp/disco-cli/internal/sdkinv"
 )
 
@@ -163,37 +164,36 @@ func armEndpointReason(typ string) string {
 
 // FetchRegions calls armsubscription.SubscriptionsClient.NewListLocationsPager
 // and returns the authoritative ARM location-name list for the supplied (or
-// auto-detected) subscription.
-func (coverageProvider) FetchRegions(ctx context.Context, opts coverage.FetchOptions) ([]string, error) {
+// auto-detected) subscription, with azureregions.Regions as the static list.
+func (coverageProvider) FetchRegions(ctx context.Context, opts coverage.FetchOptions) (static, live []string, err error) {
 	cred, err := azidentity.NewDefaultAzureCredential(nil)
 	if err != nil {
-		return nil, fmt.Errorf("azure credential: %w", err)
+		return nil, nil, fmt.Errorf("azure credential: %w", err)
 	}
 	subID := opts.Subscription
 	if subID == "" {
 		subID, err = detectFirstSubscriptionForCoverage(ctx, cred)
 		if err != nil {
-			return nil, fmt.Errorf("detect subscription: %w", err)
+			return nil, nil, fmt.Errorf("detect subscription: %w", err)
 		}
 	}
 	client, err := armsubscription.NewSubscriptionsClient(cred, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	pager := client.NewListLocationsPager(subID, nil)
-	var out []string
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {
-			return nil, fmt.Errorf("armsubscription:ListLocations: %w", err)
+			return nil, nil, fmt.Errorf("armsubscription:ListLocations: %w", err)
 		}
 		for _, loc := range page.Value {
 			if loc.Name != nil {
-				out = append(out, *loc.Name)
+				live = append(live, *loc.Name)
 			}
 		}
 	}
-	return out, nil
+	return slices.Clone(azureregions.Regions), live, nil
 }
 
 // detectFirstSubscriptionForCoverage returns the ID of the first accessible

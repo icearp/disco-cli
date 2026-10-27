@@ -3,14 +3,17 @@ package aws
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/icearp/disco-cli/internal/coverage"
+	"github.com/icearp/disco-cli/internal/providers/aws/awsregions"
 	"github.com/icearp/disco-cli/internal/sdkinv"
 	"github.com/icearp/disco-cli/store"
 )
@@ -141,20 +144,20 @@ func (coverageProvider) RegistryKey(c sdkinv.Candidate) string {
 // resources; Service Reference supplies the SDK-real resources CFN omits.
 // Third-party CFN types (community / Hooks / Modules) are filtered out.
 func (coverageProvider) CrossCheck(ctx context.Context, opts coverage.FetchOptions) ([]coverage.UpstreamType, error) {
+	// One profile's credentials work in one partition only.
+	if _, err := regionsPartition("coverage --regions", opts.Regions); err != nil {
+		return nil, err
+	}
 	regions := opts.Regions
 	if len(regions) == 0 {
-		regions = []string{"us-east-1"}
+		regions = []string{""}
 	}
 	seen := map[string]struct{}{}
 	var out []coverage.UpstreamType
 	for _, region := range regions {
-		cfgOpts := []func(*awsconfig.LoadOptions) error{awsconfig.WithRegion(region)}
-		if opts.Profile != "" {
-			cfgOpts = append(cfgOpts, awsconfig.WithSharedConfigProfile(opts.Profile))
-		}
-		cfg, err := awsconfig.LoadDefaultConfig(ctx, cfgOpts...)
+		cfg, err := loadCoverageConfig(ctx, opts.Profile, region)
 		if err != nil {
-			return nil, fmt.Errorf("load aws config (%s): %w", region, err)
+			return nil, err
 		}
 		client := cloudformation.NewFromConfig(cfg)
 
@@ -166,7 +169,7 @@ func (coverageProvider) CrossCheck(ctx context.Context, opts coverage.FetchOptio
 		for paginator.HasMorePages() {
 			page, err := paginator.NextPage(ctx)
 			if err != nil {
-				return nil, fmt.Errorf("cfn ListTypes (%s): %w", region, err)
+				return nil, fmt.Errorf("cfn ListTypes (%s): %w", cfg.Region, err)
 			}
 			for _, s := range page.TypeSummaries {
 				if s.TypeName == nil {
@@ -232,23 +235,49 @@ func markCFNOnly(cfn, sr []coverage.UpstreamType) []coverage.UpstreamType {
 	return cfn
 }
 
-// FetchRegions calls ec2:DescribeRegions(AllRegions=true) in us-east-1, or in
-// the first region --regions names, and returns the region names it lists,
-// which are those of that endpoint's partition. Excludes regions the account
-// hasn't opted into (Status != "opt-in-not-required" && != "opted-in") so they
-// don't masquerade as missing in `disco coverage --regions`.
-func (coverageProvider) FetchRegions(ctx context.Context, opts coverage.FetchOptions) ([]string, error) {
-	region := "us-east-1"
-	if len(opts.Regions) > 0 {
-		region = opts.Regions[0]
+// loadCoverageConfig loads the AWS config a coverage fetch calls with:
+// region when set, else the region the profile or environment sets, else the
+// home region of noEvidencePartition, since nothing else here names a
+// partition. Credentials work only in their own partition, so a China or
+// GovCloud profile needs a region of its own.
+func loadCoverageConfig(ctx context.Context, profile, region string) (sdkaws.Config, error) {
+	var cfgOpts []func(*awsconfig.LoadOptions) error
+	if region != "" {
+		cfgOpts = append(cfgOpts, awsconfig.WithRegion(region))
 	}
-	cfgOpts := []func(*awsconfig.LoadOptions) error{awsconfig.WithRegion(region)}
-	if opts.Profile != "" {
-		cfgOpts = append(cfgOpts, awsconfig.WithSharedConfigProfile(opts.Profile))
+	if profile != "" {
+		cfgOpts = append(cfgOpts, awsconfig.WithSharedConfigProfile(profile))
 	}
 	cfg, err := awsconfig.LoadDefaultConfig(ctx, cfgOpts...)
 	if err != nil {
-		return nil, fmt.Errorf("load aws config: %w", err)
+		return sdkaws.Config{}, fmt.Errorf("load aws config (profile %q): %w", profile, err)
+	}
+	return baseConfig{cfg: cfg}.forPartition(noEvidencePartition)
+}
+
+// unknownRegionError reports a coverage-fetch region that no partition the
+// pinned SDK knows lists or matches, so there is no static list to diff the
+// live regions against.
+type unknownRegionError struct{ Region string }
+
+func (e *unknownRegionError) Error() string {
+	return fmt.Sprintf("region %q is in no AWS partition the pinned SDK knows; set a known region in AWS_REGION or AWS_DEFAULT_REGION, which override the profile, or on the profile", e.Region)
+}
+
+// FetchRegions calls ec2:DescribeRegions(AllRegions=true) in the region
+// loadCoverageConfig picks. The call lists only that region's
+// partition, so the static list is that partition's regions, not
+// RegionNames. Excludes regions the account hasn't opted into (Status !=
+// "opt-in-not-required" && != "opted-in") so they don't masquerade as missing
+// in `disco coverage regions`.
+func (coverageProvider) FetchRegions(ctx context.Context, opts coverage.FetchOptions) (static, live []string, err error) {
+	cfg, err := loadCoverageConfig(ctx, opts.Profile, "")
+	if err != nil {
+		return nil, nil, err
+	}
+	partition, ok := awsregions.PartitionForRegion(cfg.Region)
+	if !ok {
+		return nil, nil, &unknownRegionError{Region: cfg.Region}
 	}
 	client := ec2.NewFromConfig(cfg)
 	allRegions := true
@@ -260,13 +289,13 @@ func (coverageProvider) FetchRegions(ctx context.Context, opts coverage.FetchOpt
 		}},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("ec2:DescribeRegions: %w", err)
+		return nil, nil, fmt.Errorf("ec2:DescribeRegions (%s): %w", cfg.Region, err)
 	}
-	regions := make([]string, 0, len(out.Regions))
+	live = make([]string, 0, len(out.Regions))
 	for _, r := range out.Regions {
 		if r.RegionName != nil {
-			regions = append(regions, *r.RegionName)
+			live = append(live, *r.RegionName)
 		}
 	}
-	return regions, nil
+	return slices.Clone(awsregions.RegionsByPartition[partition]), live, nil
 }

@@ -18,16 +18,33 @@ const boilerplateConfig = `# disco configuration file
 # Credentials are never stored here; use each cloud's standard auth chain.
 
 aws:
-  # Regions scanned for every account that does not override this list.
+  # Regions scanned for every account that does not override this list. "all"
+  # means every region of each account's own partition. A named region must
+  # be in the account's partition, so an AWS China or GovCloud account needs
+  # its own regions: entry while this list names commercial regions.
   default_regions:
     - us-east-1
-  # Explicit account list. If omitted, the ambient AWS identity is used.
-  accounts: []
+  # Explicit account list. If empty, the ambient AWS identity is used. To add
+  # accounts, uncomment entries like the examples below under this key.
+  accounts:
   # Example multi-account entry:
   # - id: "123456789012"
   #   name: production
   #   regions: [us-east-1, us-west-2]
   #   role_arn: "arn:aws:iam::123456789012:role/disco-scanner"
+  # Example GovCloud entry. Credentials are valid only in their own
+  # partition, so an account in another partition than the rest needs its
+  # own profile (a named profile in ~/.aws/config), and AWS_REGION and
+  # AWS_DEFAULT_REGION must be unset: they override every profile's region.
+  # The partition is read from the role ARN, the regions and the profile's
+  # region; set partition: only to state it explicitly (required when
+  # AWS_ENDPOINT_URL points at an emulator and the partition is not aws).
+  # - id: "210987654321"
+  #   name: govcloud
+  #   profile: govcloud
+  #   regions: [us-gov-west-1, us-gov-east-1]
+  #   role_arn: "arn:aws-us-gov:iam::210987654321:role/disco-scanner"
+  #   partition: aws-us-gov
 
 gcp:
   # Explicit project list. If omitted, all accessible projects are enumerated.

@@ -331,8 +331,9 @@ The gate function `emulatorAccountIDOverride()` is the single read site; both th
 4. listed regions;
 5. the base-config region (AWS_REGION, then AWS_DEFAULT_REGION, then the profile's `region`), read BEFORE the us-east-1 fallback.
 
-The fallback is never evidence. With no evidence the partition is "aws".
+The fallback is never evidence. With no evidence the partition is `noEvidencePartition` ("aws"); code with no account to resolve (coverage fetches, `loadCoverageConfig`) passes that const, never a literal.
 
+- **No live cn/gov/eusc/iso account exists.** Prove partition behaviour with the SDK tables plus an `httptest` server behind `AWS_ENDPOINT_URL`, asserting the SigV4 scope (`/<region>/<svc>/aws4_request`) in `Authorization`. Clear `AWS_ENDPOINT_URL_*`, `AWS_IGNORE_CONFIGURED_ENDPOINT_URLS` and the key env vars, which outrank profile files (`isolateCoverageProfiles`).
 - **Every rung must agree**, or loading fails with `partitionConflictError`. Precedence shows only in its `First`/`Second`.
 - **Accounts in different partitions sharing one base profile** fail with `sharedCredentialsError`. The fix is a per-account `profile:`; there is no cross-partition AssumeRole.
 - **Emulator mode** (`AWS_ENDPOINT_URL`) ignores the caller ARN and the base region. Any non-aws role or regions evidence needs an explicit `partition:` (`emulatorPartitionError`).

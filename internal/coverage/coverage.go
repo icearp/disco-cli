@@ -77,8 +77,12 @@ type CrossChecker interface {
 
 // RegionLister is implemented by Provider impls that can fetch the cloud's
 // authoritative region/location list via SDK. Drives `disco coverage regions`.
+// FetchRegions returns the live list and the compiled-in list to diff it
+// with. They come back together because the live list can cover only part of
+// the cloud (an AWS call lists only its own partition's regions), and only
+// the provider knows which part of its static list that is.
 type RegionLister interface {
-	FetchRegions(ctx context.Context, opts FetchOptions) ([]string, error)
+	FetchRegions(ctx context.Context, opts FetchOptions) (static, live []string, err error)
 }
 
 // ResolverInfo summarises one registered relationship resolver for the
@@ -122,12 +126,12 @@ type MembershipEdge struct {
 
 // RegionRow categorises a single region across the static-vs-live diff.
 // Status values:
-//   - "covered" — region appears in both disco's static RegionNames list
+//   - "covered" — region appears in both disco's static region list
 //     and the cloud's live API response.
 //   - "stale"   — disco lists it but the live API doesn't return it
 //     (region retired or typo in the static list).
 //   - "missing" — live API returns it but disco's static list lacks it
-//     (refresh internal/providers/<p>/regions.go).
+//     (see the `disco coverage regions` help for where each list lives).
 type RegionRow struct {
 	Provider string `json:"provider"`
 	Region   string `json:"region"`

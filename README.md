@@ -224,6 +224,42 @@ disco graph complete --orphans-only -o json | jq -r '.nodes[].resource | [.type,
 
 Config lives at `$XDG_CONFIG_HOME/disco/config.yaml` (Viper format). On Linux that's `~/.config/disco/config.yaml`; macOS and Windows use the platform app-data dir. Any key can be overridden with a `DISCO_`-prefixed env var. The DB defaults to `$XDG_DATA_HOME/disco/disco.db` (`~/.local/share/disco/disco.db` on Linux); override with `--db` or `$DISCO_DB`.
 
+### AWS partitions
+
+disco scans accounts in every partition the pinned AWS SDK lists: `aws` (commercial),
+`aws-cn` (China), `aws-us-gov` (GovCloud), `aws-eusc` (European Sovereign Cloud) and the
+`aws-iso*` partitions. Region lists and DNS suffixes come from the SDK's own tables, and so,
+outside the commercial partition, do the home regions of global services. Each account's
+partition is read from its role ARN (or the STS caller ARN), its regions, and the region its
+profile or `AWS_REGION` / `AWS_DEFAULT_REGION` sets. Every setting that names a partition
+must agree, or the scan stops before it scans anything.
+
+- `--regions all` and `default_regions: [all]` expand to every region of each account's own
+  partition. A named region counts as evidence like the role ARN, so a region in a different
+  partition from the account's other settings stops the scan.
+- A named `--regions` list replaces every account's regions. With accounts in more than one
+  partition, only `--regions all` works; otherwise give each account in a second partition
+  its own `regions:` (needed too when `default_regions` names commercial regions).
+- Credentials work only in their own partition. One config can mix partitions only when
+  each account in a second partition sets its own `profile:`, and `AWS_REGION` /
+  `AWS_DEFAULT_REGION` are unset: the SDK lets them override every profile's region.
+- Outside the commercial partition, a global service with no home region the SDK confirms
+  is skipped and reported as `(region: unavailable)`.
+- `partition:` on an account is optional; it is required only when `AWS_ENDPOINT_URL` points
+  at an emulator and the partition is not `aws`.
+
+```yaml
+aws:
+  accounts:
+    - id: "210987654321"
+      profile: govcloud
+      regions: [us-gov-west-1, us-gov-east-1]
+      role_arn: "arn:aws-us-gov:iam::210987654321:role/disco-scanner"
+```
+
+The `aws-iso*` partitions use private DNS and service sets that cannot be reached from
+outside them.
+
 ## How it works
 
 ```

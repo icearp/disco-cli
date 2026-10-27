@@ -11,13 +11,9 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// RegionNames implements providers.RegionNamer with the commercial partition's
-// regions, cloned so callers can't mutate the package-level list. `disco
-// coverage regions` diffs it against ec2:DescribeRegions, which lists only the
-// caller's own partition; run with another partition's credentials, that
-// command reports mismatches, as it would with the unified list against
-// commercial credentials.
-func (s *Scanner) RegionNames() []string { return slices.Clone(awsregions.RegionsByPartition["aws"]) }
+// RegionNames implements providers.RegionNamer with every partition's regions,
+// cloned so callers can't mutate the package-level list.
+func (s *Scanner) RegionNames() []string { return slices.Clone(awsregions.Regions) }
 
 // expandAllRegions replaces the "all" sentinel (any case) with every region of
 // partition; enabledScanRegions later trims it to the account's opted-in set.

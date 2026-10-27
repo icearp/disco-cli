@@ -10,6 +10,10 @@ import (
 	"github.com/icearp/disco-cli/internal/providers/aws/awsregions"
 )
 
+// noEvidencePartition is the partition when nothing names one: aws, the
+// partition every account had before partitions were resolved.
+const noEvidencePartition = "aws"
+
 // partitionSource names where an account's partition came from. Errors carry
 // it so a caller can tell which setting to change.
 type partitionSource string
@@ -197,9 +201,7 @@ func resolvePartition(account string, in partitionInputs) (string, error) {
 	evidence = append(evidence, derived...)
 
 	if len(evidence) == 0 {
-		// Nothing names a partition: keep aws, the partition every account
-		// had before partitions were resolved.
-		return "aws", nil
+		return noEvidencePartition, nil
 	}
 	for _, e := range evidence[1:] {
 		if e.Partition != evidence[0].Partition {

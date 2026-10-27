@@ -85,15 +85,15 @@ func TestExpandAllRegions_AccountPartitionOnly(t *testing.T) {
 	}
 }
 
-// RegionNames stays commercial: `disco coverage regions` diffs it against
-// DescribeRegions, which lists only the caller's partition.
-func TestRegionNames_CommercialOnly(t *testing.T) {
+// RegionNames lists every partition, so the scan's scope column fits the
+// widest region of any partition.
+func TestRegionNames_EveryPartition(t *testing.T) {
 	got := (&Scanner{}).RegionNames()
-	if !slices.Equal(got, awsregions.RegionsByPartition["aws"]) {
-		t.Errorf("RegionNames() = %v; want RegionsByPartition[aws] %v", got, awsregions.RegionsByPartition["aws"])
+	if !slices.Equal(got, awsregions.Regions) {
+		t.Errorf("RegionNames() = %v; want awsregions.Regions %v", got, awsregions.Regions)
 	}
-	if slices.Contains(got, "us-gov-west-1") || slices.Contains(got, "cn-north-1") {
-		t.Errorf("RegionNames() = %v; includes a non-commercial region", got)
+	if !slices.Contains(got, "us-gov-west-1") || !slices.Contains(got, "cn-north-1") {
+		t.Errorf("RegionNames() = %v; lacks a GovCloud or China region", got)
 	}
 }
 

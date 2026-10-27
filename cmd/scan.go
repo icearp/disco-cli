@@ -670,7 +670,7 @@ func registerScannerFlags(subcmd *cobra.Command, s providers.Scanner) {
 	}
 	if _, ok := s.(providers.RegionOverrider); ok {
 		subcmd.Flags().StringSlice("regions", nil,
-			"Regions to scan, comma-separated, or 'all' for every region (overrides config; e.g. us-west-2,eu-west-1)")
+			"Regions to scan, comma-separated, or 'all' for every region (overrides config; e.g. us-west-2,eu-west-1). AWS: 'all' means every region of each account's own partition; a named list applies to every account, so each account must be in those regions' partition")
 	}
 	if _, ok := s.(providers.ProfileOverrider); ok {
 		subcmd.Flags().String("profile", "",

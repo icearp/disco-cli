@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/icearp/disco-cli/internal/coverage"
-	"github.com/icearp/disco-cli/internal/providers"
 	"github.com/icearp/disco-cli/internal/sdkinv"
 	"github.com/spf13/cobra"
 )
@@ -29,7 +28,7 @@ var coverageCmd = &cobra.Command{
 	Short: "Detect drift in services / regions / resolvers (pick a subcommand)",
 	Long: `Drift detection across disco's static capabilities and the cloud's live API.
 
-Compares what disco knows how to scan — scanner emits, RegionNames lists,
+Compares what disco knows how to scan — scanner emits, compiled-in region lists,
 resolver EdgeDecls — against each cloud's authoritative source so newly-
 launched resource types, regions, or unannotated resolvers surface before
 they show up as silent gaps in scan output.
@@ -88,19 +87,25 @@ numbers compare only across identical pins.`,
 var coverageRegionsCmd = &cobra.Command{
 	Use:   "regions",
 	Short: "Diff each provider's static region list against the cloud's live SDK regions",
-	Long: `Compares each provider's compiled-in RegionNames slice (the disco-side
+	Long: `Compares each provider's compiled-in region list (the disco-side
 opinion of "what could be scanned") against the cloud's authoritative
 SDK region/location list:
 
-  - AWS:    ec2:DescribeRegions (filtered to opt-in-not-required + opted-in)
+  - AWS:    ec2:DescribeRegions (filtered to opt-in-not-required + opted-in),
+            called in the region the profile or AWS_REGION sets, or
+            us-east-1 when neither does; the call lists only that region's
+            partition, so it is compared with that partition's compiled-in
+            regions. Regions the account has not opted into are left out of
+            the live list, so they show as stale
   - Azure:  armsubscription.Subscriptions.ListLocations(subscriptionId)
   - GCP:    compute.Regions.List(projectId)
 
 Status values:
   covered  region appears in both static list and live API
   stale    static list has it but live API doesn't (region retired or typo)
-  missing  live API has it but static list doesn't — refresh
-           internal/providers/<p>/regions.go`,
+  missing  live API has it but static list doesn't — for AWS, bump the
+           SDK pin and run go generate ./internal/providers/aws/awsregions;
+           for Azure and GCP, edit internal/providers/<p>/<p>regions/regions.go`,
 	Example: `  disco coverage regions
   disco coverage regions --providers aws --check-strict
   disco coverage regions --providers azure --regions eu-central-2`,
@@ -155,7 +160,7 @@ func init() {
 	coverageServicesCmd.Flags().String("sdk-cache", sdkinv.DefaultCacheRoot(), "SDK source cache directory (see 'disco coverage sdk fetch')")
 	coverageServicesCmd.Flags().String("source-root", defaultSourceRoot(), "disco source checkout for scanner pairing; empty = name matching only")
 	coverageServicesCmd.Flags().Bool("cross-check", false, "Also diff the SDK universe against the live upstream registry (needs credentials)")
-	coverageServicesCmd.Flags().StringSlice("regions", nil, "--cross-check only: regions for the CloudFormation registry call (union); empty = us-east-1")
+	coverageServicesCmd.Flags().StringSlice("regions", nil, "--cross-check only: regions for the CloudFormation registry call (union), all in one partition; empty = the region the profile or AWS_REGION sets, else us-east-1. The Service Reference catalog is always the commercial one")
 	coverageServicesCmd.Flags().String("profile", "", "--cross-check only: AWS profile name")
 	coverageServicesCmd.Flags().StringSlice("subscriptions", nil, "--cross-check only: Azure subscription ID(s); first is used, empty = autodetect")
 	coverageServicesCmd.Flags().String("filter", "all", "Filter rows: "+strings.Join(coverage.Filters, ", ")+" (gaps = uncovered + unexplained disco-only)")
@@ -585,28 +590,18 @@ func runCoverageRegions(cmd *cobra.Command, _ []string) (rerr error) {
 			fmt.Fprintf(os.Stderr, "  %s: no RegionLister support; skipping\n", p.Name())
 			continue
 		}
-		scanner, ok := providers.Get(p.Name())
-		if !ok {
-			fmt.Fprintf(os.Stderr, "  %s: scanner not registered; skipping\n", p.Name())
-			continue
-		}
-		rn, ok := scanner.(providers.RegionNamer)
-		if !ok {
-			fmt.Fprintf(os.Stderr, "  %s: scanner is not RegionNamer; skipping\n", p.Name())
-			continue
-		}
 		if verbose {
 			fmt.Fprintf(os.Stderr, "Fetching %s region list...\n", p.Name())
 		}
 		fetchCtx, cancel := context.WithTimeout(cmd.Context(), timeout)
-		live, err := rl.FetchRegions(fetchCtx, opts)
+		static, live, err := rl.FetchRegions(fetchCtx, opts)
 		cancel()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "  %s: fetch failed: %v\n", p.Name(), err)
 			fetchFailures = append(fetchFailures, p.Name())
 			continue
 		}
-		diff := coverage.DiffRegions(rn.RegionNames(), live)
+		diff := coverage.DiffRegions(static, live)
 		for i := range diff {
 			diff[i].Provider = p.Name()
 		}
