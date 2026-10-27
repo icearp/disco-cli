@@ -17,19 +17,7 @@ func init() {
 const (
 	vlListSNVpcEndpointAssocsOp = "vpclattice:ListServiceNetworkVpcEndpointAssociations"
 	vlListTargetsOp             = "vpclattice:ListTargets"
-
-	// vlChildPageLimit is the model's maxResults cap for both child list ops.
-	vlChildPageLimit = 100
 )
-
-// vlNetworkParents keys each service network by ARN for the child op.
-func vlNetworkParents(netARNs []string) []childParent {
-	parents := make([]childParent, len(netARNs))
-	for i, a := range netARNs {
-		parents[i] = childParent{id: a, arn: a}
-	}
-	return parents
-}
 
 // vlSNVpcEndpointAssocNativeID keys an association under its service network:
 // the association has an id but no ARN.
@@ -52,8 +40,9 @@ func vlTargetNativeID(tgARN, targetID string, port *int32) string {
 // of each listed service network, one row per association, each under its
 // service network. Networks shared with the account are listed too: an
 // association there can name this account's endpoint, which the resolver can
-// link. How the op answers for a network another account owns has not been
-// observed. Per network: a denial warns once for the op, a
+// link. Per network: a denial of another account's network (vlSharedDenial)
+// keeps the pages read and is not warned about; any other denial warns once
+// for the op, a
 // transient error after the SDK's retries is skipped with one warning for all
 // such networks, and anything else fails the phase, storing none of its rows.
 // The op models no not-found error, so none is skipped.
@@ -63,11 +52,14 @@ func scanVLServiceNetworkVpcEndpointAssocs(ctx context.Context, client vpcLattic
 			pager := vpclattice.NewListServiceNetworkVpcEndpointAssociationsPaginator(client,
 				&vpclattice.ListServiceNetworkVpcEndpointAssociationsInput{ServiceNetworkIdentifier: &p.id},
 				func(o *vpclattice.ListServiceNetworkVpcEndpointAssociationsPaginatorOptions) {
-					o.Limit = vlChildPageLimit
+					o.Limit = vlPageCap
 				})
 			var rows []*store.Resource
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(ctx)
+				if vlSharedDenial(p.arn, acct.ID, err) {
+					return rows, nil
+				}
 				if err != nil {
 					return nil, err
 				}
@@ -104,7 +96,7 @@ func scanVLTargets(ctx context.Context, client vpcLatticeAPI, acct *account, reg
 		"target group(s)", "a target group may still be creating, have failed to create, or be deleting",
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			pager := vpclattice.NewListTargetsPaginator(client, &vpclattice.ListTargetsInput{TargetGroupIdentifier: &p.id},
-				func(o *vpclattice.ListTargetsPaginatorOptions) { o.Limit = vlChildPageLimit })
+				func(o *vpclattice.ListTargetsPaginatorOptions) { o.Limit = vlPageCap })
 			var rows []*store.Resource
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(ctx)

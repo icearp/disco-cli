@@ -1,10 +1,13 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/vpclattice"
+	"github.com/aws/aws-sdk-go-v2/service/vpclattice/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -50,331 +53,316 @@ type vpcLatticeAPI interface {
 	ListResourceEndpointAssociations(context.Context, *vpclattice.ListResourceEndpointAssociationsInput, ...func(*vpclattice.Options)) (*vpclattice.ListResourceEndpointAssociationsOutput, error)
 	ListServiceNetworkVpcEndpointAssociations(context.Context, *vpclattice.ListServiceNetworkVpcEndpointAssociationsInput, ...func(*vpclattice.Options)) (*vpclattice.ListServiceNetworkVpcEndpointAssociationsOutput, error)
 	ListTargets(context.Context, *vpclattice.ListTargetsInput, ...func(*vpclattice.Options)) (*vpclattice.ListTargetsOutput, error)
+	ListTagsForResource(context.Context, *vpclattice.ListTagsForResourceInput, ...func(*vpclattice.Options)) (*vpclattice.ListTagsForResourceOutput, error)
 }
 
-// scanVpcLattice runs the child phases (VPC endpoint associations, targets)
-// after every older phase, over the service networks and target groups the
-// older phases stored before any failure, so a child phase's failure costs the
-// older phases no rows. The older side's transient error is demoted to a
-// warning only beside a hard error: joined, it would be buried in the hard
-// error instead of reported under its op. The child phases skip a parent still
-// transient after the SDK's retries, so no transient error leaves them. The
-// errors are joined and the counts summed.
+const (
+	// vlPageCap is the model's maxResults cap (1 to 100) of every VPC Lattice
+	// listing scanned.
+	vlPageCap = 100
+
+	vlListTagsOp = "vpclattice:ListTagsForResource"
+)
+
+// vlNotFound is the only not-found code modeled by ListTagsForResource,
+// GetService, ListListeners and ListRules. The other child listings model
+// none, so a parent deleted after it was listed fails its listing.
+var vlNotFound = []string{"ResourceNotFoundException"}
+
+// vlRow is the row of a listed VPC Lattice item stored under its ARN, item
+// verbatim as the attributes.
+func vlRow(acct *account, region, scanID, typ, arn, name string, item any) *store.Resource {
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: arn,
+		Name: &name, Region: &region, AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}
+}
+
+// vlSharedDenial reports whether err denies a call about arn, a resource
+// whose ARN names an account other than acctID: one shared in through RAM
+// (a service network, service or resource configuration) or a child of one.
+// Such a denial is expected and not warned about: the resource is its
+// owner's, and no IAM change in this account can grant the call.
+func vlSharedDenial(arn, acctID string, err error) bool {
+	if err == nil || !isAccessDenied(err) {
+		return false
+	}
+	a, ok := parseARN(arn)
+	return ok && a.AccountID != acctID
+}
+
+// vlParentPages is page with a denial for another account's parent
+// (vlSharedDenial) ending its listing silently, keeping the pages read.
+func vlParentPages[Item any](acctID string, page func(ctx context.Context, parent string, token *string) ([]Item, *string, error)) func(ctx context.Context, parent string, token *string) ([]Item, *string, error) {
+	return func(ctx context.Context, parent string, token *string) ([]Item, *string, error) {
+		items, next, err := page(ctx, parent, token)
+		if vlSharedDenial(parent, acctID, err) {
+			return nil, nil, nil
+		}
+		return items, next, err
+	}
+}
+
+// vlTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, the ARN its list element carries. The Service Reference lists
+// TagResource for every type read through it. The op answers with every tag
+// at once (no page token). A denied read of a resource another account owns
+// (vlSharedDenial) keeps the row without tags and is not warned about.
+func vlTags(client vpcLatticeAPI, acctID string) rowTagReader {
+	return rowTagReader{
+		op:       vlListTagsOp,
+		notFound: vlNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &vpclattice.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
+			if vlSharedDenial(r.NativeID, acctID, err) {
+				return nil, nil
+			}
+			if err != nil {
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
+		},
+	}
+}
+
 func scanVpcLattice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := vpclattice.NewFromConfig(acct.cfg, func(o *vpclattice.Options) { o.Region = region })
-
-	parents, total, inserted, err := scanVpcLatticeOlderPhases(ctx, client, acct, region, st, scanID)
-	var errs phaseErrs
-	errs.add("vpclattice", err)
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) {
-			return scanVLServiceNetworkVpcEndpointAssocs(ctx, client, acct, region, st, scanID, parents.networks)
-		},
-		func() (int, int, error) {
-			return scanVLTargets(ctx, client, acct, region, st, scanID, parents.targetGroups)
-		},
-	} {
-		t, i, perr := phase()
-		total += t
-		inserted += i
-		errs.add("vpclattice", perr)
-	}
-	return total, inserted, errs.join(st, acct, region)
+	return runHostPhases(ctx, st, acct, region, "vpclattice", 0, vlPhases(ctx, client, acct, region, st, scanID))
 }
 
-// vlChildParents are the parents of the child phases that the older phases
-// stored: every listed service network, shared-in ones included as in the
-// older per-network phases, and every target group.
-type vlChildParents struct {
-	networks     []childParent
-	targetGroups []childParent
+// vlPhases is the vpclattice scan's phases in the order they run
+// (runHostPhases): every phase runs whatever an earlier one returned, and a
+// child phase gets the parents its parent phase stored. Listeners, access
+// log subscriptions and the auth and resource policies read the stored
+// services; access log subscriptions, the policies and the service and VPC
+// associations the stored service networks; rules the stored listeners;
+// resource endpoint associations the stored resource configurations. The
+// VPC endpoint association and target phases run last. The phases run one
+// at a time, so readRowTags's own bound is the bound on the tag reads in
+// flight. Every op is on one host.
+func vlPhases(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) []hostPhase {
+	var (
+		tags                     = vlTags(client, acct.ID)
+		services, networks       []childParent
+		listeners, configs, tgs  []childParent
+		serviceOfListener        = map[string]string{}
+		servicesAndNetworks      = func() []childParent { return append(append([]childParent{}, services...), networks...) }
+		serviceARNs, networkARNs = func() []string { return childParentIDs(services) }, func() []string { return childParentIDs(networks) }
+	)
+	return []hostPhase{
+		{"vpclattice:ListServices", 0, func(p *phaseTotals) (stop bool) {
+			services, stop = scanVLServices(ctx, client, acct, region, st, scanID, tags, p)
+			return stop
+		}},
+		{"vpclattice:ListServiceNetworks", 0, func(p *phaseTotals) (stop bool) {
+			networks, stop = scanVLServiceNetworks(ctx, client, acct, region, st, scanID, tags, p)
+			return stop
+		}},
+		{"vpclattice:ListListeners", 0, func(p *phaseTotals) (stop bool) {
+			listeners, stop = scanVLListeners(ctx, client, acct, region, st, scanID, services, serviceOfListener, tags, p)
+			return stop
+		}},
+		{"vpclattice:ListResourceConfigurations", 0, func(p *phaseTotals) (stop bool) {
+			configs, stop = scanVLResourceConfigs(ctx, client, acct, region, st, scanID, tags, p)
+			return stop
+		}},
+		{"vpclattice:ListRules", 0, func(p *phaseTotals) bool {
+			return scanVLRules(ctx, client, acct, region, st, scanID, listeners, serviceOfListener, tags, p)
+		}},
+		{"vpclattice:ListTargetGroups", 0, func(p *phaseTotals) (stop bool) {
+			tgs, stop = scanVLTargetGroups(ctx, client, acct, region, st, scanID, tags, p)
+			return stop
+		}},
+		{"vpclattice:ListAccessLogSubscriptions", 0, func(p *phaseTotals) bool {
+			return scanVLAccessLogSubs(ctx, client, acct, region, st, scanID, servicesAndNetworks(), tags, p)
+		}},
+		countedPhase(0, "vpclattice:GetAuthPolicy", func() (int, int, error) {
+			return scanVLAuthPolicies(ctx, client, acct, region, st, scanID, serviceARNs(), networkARNs())
+		}),
+		countedPhase(0, "vpclattice:GetResourcePolicy", func() (int, int, error) {
+			return scanVLResourcePolicies(ctx, client, acct, region, st, scanID, serviceARNs(), networkARNs())
+		}),
+		{"vpclattice:ListDomainVerifications", 0, func(p *phaseTotals) bool {
+			return scanVLDomainVerifications(ctx, client, acct, region, st, scanID, p)
+		}},
+		{"vpclattice:ListResourceGateways", 0, func(p *phaseTotals) bool {
+			return scanVLResourceGateways(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{"vpclattice:ListResourceEndpointAssociations", 0, func(p *phaseTotals) bool {
+			return scanVLResourceEndpointAssocs(ctx, client, acct, region, st, scanID, configs, tags, p)
+		}},
+		{"vpclattice:ListServiceNetworkResourceAssociations", 0, func(p *phaseTotals) bool {
+			return scanVLSNRA(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{"vpclattice:ListServiceNetworkServiceAssociations", 0, func(p *phaseTotals) bool {
+			return scanVLSNSA(ctx, client, acct, region, st, scanID, networks, tags, p)
+		}},
+		{"vpclattice:ListServiceNetworkVpcAssociations", 0, func(p *phaseTotals) bool {
+			return scanVLSNVA(ctx, client, acct, region, st, scanID, networks, tags, p)
+		}},
+		countedPhase(0, vlListSNVpcEndpointAssocsOp, func() (int, int, error) {
+			return scanVLServiceNetworkVpcEndpointAssocs(ctx, client, acct, region, st, scanID, networks)
+		}),
+		countedPhase(0, vlListTargetsOp, func() (int, int, error) {
+			return scanVLTargets(ctx, client, acct, region, st, scanID, tgs)
+		}),
+	}
 }
 
-// scanVpcLatticeOlderPhases runs the phases that predate the child phases,
-// stopping at the first error any of them returns, transient ones included.
-func scanVpcLatticeOlderPhases(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) (parents vlChildParents, total, inserted int, err error) {
-	svcARNs, t, i, ferr := scanVLServices(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return parents, 0, 0, ferr
-	}
-	total += t
-	inserted += i
-
-	netARNs, t, i, ferr := scanVLServiceNetworks(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return parents, total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	parents.networks = vlNetworkParents(netARNs)
-
-	listenerKeys, t, i, ferr := scanVLListeners(ctx, client, acct, region, st, scanID, svcARNs)
-	if ferr != nil {
-		return parents, total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	rcARNs, t, i, ferr := scanVLResourceConfigs(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return parents, total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanVLRules(ctx, client, acct, region, st, scanID, listenerKeys) },
-		func() (int, int, error) {
-			tgs, t, i, err := scanVLTargetGroups(ctx, client, acct, region, st, scanID)
-			parents.targetGroups = tgs
-			return t, i, err
+// scanVLServices stores the region's services, each as its GetService body
+// (which adds the DNS entry, custom domain and certificate the list element
+// lacks) with its tags, and returns the stored ones, the parents of the
+// listener, access log subscription and policy phases.
+func scanVLServices(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (services []childParent, storeWriteFailed bool) {
+	const op = "vpclattice:ListServices"
+	d := &detailedRows{getOp: "vpclattice:GetService", what: "service(s)", notFound: vlNotFound, tags: tags}
+	total, inserted, services, err := storeParentListWith(ctx, st, acct, region, op, "services", "Arn",
+		func(ctx context.Context, token *string) ([]types.ServiceSummary, *string, error) {
+			out, err := client.ListServices(ctx, &vpclattice.ListServicesInput{NextToken: token, MaxResults: sdkaws.Int32(vlPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
 		},
-		func() (int, int, error) {
-			return scanVLAccessLogSubs(ctx, client, acct, region, st, scanID, svcARNs, netARNs)
+		func(s types.ServiceSummary) (*store.Resource, string, string) {
+			if sv(s.Arn) == "" {
+				return nil, "services have an empty Arn", cmp.Or(sv(s.Name), sv(s.Id), "(a service with no name)")
+			}
+			return vlRow(acct, region, scanID, TypeVpcLatticeService, sv(s.Arn), cmp.Or(sv(s.Name), sv(s.Id)), s), "", ""
 		},
-		func() (int, int, error) {
-			return scanVLAuthPolicies(ctx, client, acct, region, st, scanID, svcARNs, netARNs)
-		},
-		func() (int, int, error) {
-			return scanVLResourcePolicies(ctx, client, acct, region, st, scanID, svcARNs, netARNs)
-		},
-		func() (int, int, error) { return scanVLDomainVerifications(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanVLResourceGateways(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanVLResourceEndpointAssocs(ctx, client, acct, region, st, scanID, rcARNs)
-		},
-		func() (int, int, error) { return scanVLSNRA(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanVLSNSA(ctx, client, acct, region, st, scanID, netARNs) },
-		func() (int, int, error) { return scanVLSNVA(ctx, client, acct, region, st, scanID, netARNs) },
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return parents, total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return parents, total, inserted, nil
+		func(s types.ServiceSummary) string { return sv(s.Arn) },
+		d.before(ctx, st, acct, region, func(ctx context.Context, r *store.Resource) (any, error) {
+			out, err := client.GetService(ctx, &vpclattice.GetServiceInput{ServiceIdentifier: sdkaws.String(r.NativeID)})
+			if vlSharedDenial(r.NativeID, acct.ID, err) {
+				// A nil body keeps the row as its list element (readRowDetails).
+				return nil, nil
+			}
+			if err != nil {
+				return nil, err
+			}
+			return out, nil
+		}))
+	return services, d.addPhase(p, op, total, inserted, err)
 }
 
-// vlListenerKey carries (serviceArn, listenerArn) — ListRules requires
-// both ServiceIdentifier and ListenerIdentifier.
-type vlListenerKey struct {
-	svcARN string
-	lstARN string
+// scanVLServiceNetworks stores the region's service networks with their tags
+// and returns the stored ones, shared-in networks included: ListServiceNetworks
+// lists those too, and their associations can name this account's resources.
+func scanVLServiceNetworks(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (networks []childParent, storeWriteFailed bool) {
+	return storeParentListTags(ctx, st, acct, region, "vpclattice:ListServiceNetworks", "service networks", "Arn",
+		func(ctx context.Context, token *string) ([]types.ServiceNetworkSummary, *string, error) {
+			out, err := client.ListServiceNetworks(ctx, &vpclattice.ListServiceNetworksInput{NextToken: token, MaxResults: sdkaws.Int32(vlPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
+		},
+		func(n types.ServiceNetworkSummary) (*store.Resource, string, string) {
+			if sv(n.Arn) == "" {
+				return nil, "service networks have an empty Arn", cmp.Or(sv(n.Name), sv(n.Id), "(a service network with no name)")
+			}
+			return vlRow(acct, region, scanID, TypeVpcLatticeServiceNetwork, sv(n.Arn), cmp.Or(sv(n.Name), sv(n.Id)), n), "", ""
+		},
+		func(n types.ServiceNetworkSummary) string { return sv(n.Arn) },
+		tags, p)
 }
 
-func scanVLServices(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := vpclattice.NewListServicesPaginator(client, &vpclattice.ListServicesInput{})
-	var arns []string
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "vpclattice:ListServices", acct.ID, region, perr)
-				return nil, 0, 0, nil
+// vlStoredParents is the stored rows as the parents of a child phase, keyed
+// by their ARN.
+func vlStoredParents(rows []*store.Resource) []childParent {
+	parents := make([]childParent, len(rows))
+	for i, r := range rows {
+		parents[i] = childParent{id: r.NativeID, arn: r.NativeID}
+	}
+	return parents
+}
+
+// scanVLListeners stores the listeners of each stored service with their
+// tags, records in serviceOfListener the service each listener was listed
+// under (ListRules takes both), and returns the stored listeners. A service
+// ListListeners no longer finds is skipped.
+func scanVLListeners(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, services []childParent, serviceOfListener map[string]string, tags rowTagReader, p *phaseTotals) (listeners []childParent, storeWriteFailed bool) {
+	stored, stop := storeEachParentTags(ctx, st, acct, region, "vpclattice:ListListeners", vlNotFound, services,
+		vlParentPages(acct.ID, func(ctx context.Context, svc string, token *string) ([]types.ListenerSummary, *string, error) {
+			out, err := client.ListListeners(ctx, &vpclattice.ListListenersInput{ServiceIdentifier: &svc, NextToken: token, MaxResults: sdkaws.Int32(vlPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("vpclattice:ListServices: %w", perr)
-		}
-		for _, s := range out.Items {
-			arn := sv(s.Arn)
-			if arn == "" {
-				continue
+			return out.Items, out.NextToken, nil
+		}),
+		func(svc string, l types.ListenerSummary) (*store.Resource, string, string) {
+			if sv(l.Arn) == "" {
+				return nil, "listeners have an empty Arn", cmp.Or(sv(l.Name), sv(l.Id), "(a listener with no name)") + " of service " + svc
 			}
-			arns = append(arns, arn)
-			label := sv(s.Name)
-			if label == "" {
-				label = sv(s.Id)
-			}
-			attrsJSON := mustJSON(s)
-			if gout, gerr := client.GetService(ctx, &vpclattice.GetServiceInput{ServiceIdentifier: s.Id}); gerr == nil {
-				attrsJSON = mustJSON(gout)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeVpcLatticeService, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
+			serviceOfListener[sv(l.Arn)] = svc
+			return vlRow(acct, region, scanID, TypeVpcLatticeListener, sv(l.Arn), cmp.Or(sv(l.Name), sv(l.Id)), l), "", ""
+		}, tags, p)
+	return vlStoredParents(stored), stop
+}
+
+// scanVLRules stores the rules of each stored listener with their tags. A
+// listener ListRules no longer finds is skipped.
+func scanVLRules(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, listeners []childParent, serviceOfListener map[string]string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	_, stop := storeEachParentTags(ctx, st, acct, region, "vpclattice:ListRules", vlNotFound, listeners,
+		vlParentPages(acct.ID, func(ctx context.Context, listener string, token *string) ([]types.RuleSummary, *string, error) {
+			out, err := client.ListRules(ctx, &vpclattice.ListRulesInput{
+				ServiceIdentifier: sdkaws.String(serviceOfListener[listener]), ListenerIdentifier: &listener,
+				NextToken: token, MaxResults: sdkaws.Int32(vlPageCap),
 			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "vpclattice services")
-	return arns, t, i, err
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
+		}),
+		func(listener string, r types.RuleSummary) (*store.Resource, string, string) {
+			if sv(r.Arn) == "" {
+				return nil, "rules have an empty Arn", cmp.Or(sv(r.Name), sv(r.Id), "(a rule with no name)") + " of listener " + listener
+			}
+			return vlRow(acct, region, scanID, TypeVpcLatticeRule, sv(r.Arn), cmp.Or(sv(r.Name), sv(r.Id)), r), "", ""
+		}, tags, p)
+	return stop
 }
 
-func scanVLServiceNetworks(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := vpclattice.NewListServiceNetworksPaginator(client, &vpclattice.ListServiceNetworksInput{})
-	var arns []string
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "vpclattice:ListServiceNetworks", acct.ID, region, perr)
-				return nil, 0, 0, nil
+// scanVLTargetGroups stores the region's target groups with their tags and
+// returns the stored ones, the parents of the target phase.
+func scanVLTargetGroups(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (tgs []childParent, storeWriteFailed bool) {
+	return storeParentListTags(ctx, st, acct, region, "vpclattice:ListTargetGroups", "target groups", "Arn",
+		func(ctx context.Context, token *string) ([]types.TargetGroupSummary, *string, error) {
+			out, err := client.ListTargetGroups(ctx, &vpclattice.ListTargetGroupsInput{NextToken: token, MaxResults: sdkaws.Int32(vlPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("vpclattice:ListServiceNetworks: %w", perr)
-		}
-		for _, s := range out.Items {
-			arn := sv(s.Arn)
-			if arn == "" {
-				continue
+			return out.Items, out.NextToken, nil
+		},
+		func(tg types.TargetGroupSummary) (*store.Resource, string, string) {
+			if sv(tg.Arn) == "" {
+				return nil, "target groups have an empty Arn", cmp.Or(sv(tg.Name), sv(tg.Id), "(a target group with no name)")
 			}
-			arns = append(arns, arn)
-			label := sv(s.Name)
-			if label == "" {
-				label = sv(s.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeVpcLatticeServiceNetwork, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "vpclattice service-networks")
-	return arns, t, i, err
+			return vlRow(acct, region, scanID, TypeVpcLatticeTargetGroup, sv(tg.Arn), cmp.Or(sv(tg.Name), sv(tg.Id)), tg), "", ""
+		},
+		func(tg types.TargetGroupSummary) string { return sv(tg.Arn) },
+		tags, p)
 }
 
-func scanVLListeners(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, svcARNs []string) ([]vlListenerKey, int, int, error) {
-	var keys []vlListenerKey
-	var batch []*store.Resource
-	for _, svcARN := range svcARNs {
-		sa := svcARN
-		pager := vpclattice.NewListListenersPaginator(client, &vpclattice.ListListenersInput{ServiceIdentifier: &sa})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return nil, 0, 0, fmt.Errorf("vpclattice:ListListeners %s: %w", svcARN, perr)
+// scanVLAccessLogSubs stores the access log subscriptions of each stored
+// service and service network with their tags.
+func scanVLAccessLogSubs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, parents []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	_, stop := storeEachParentTags(ctx, st, acct, region, "vpclattice:ListAccessLogSubscriptions", nil, parents,
+		vlParentPages(acct.ID, func(ctx context.Context, parent string, token *string) ([]types.AccessLogSubscriptionSummary, *string, error) {
+			out, err := client.ListAccessLogSubscriptions(ctx, &vpclattice.ListAccessLogSubscriptionsInput{ResourceIdentifier: &parent, NextToken: token, MaxResults: sdkaws.Int32(vlPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, l := range out.Items {
-				arn := sv(l.Arn)
-				if arn == "" {
-					continue
-				}
-				keys = append(keys, vlListenerKey{svcARN: svcARN, lstARN: arn})
-				label := sv(l.Name)
-				if label == "" {
-					label = sv(l.Id)
-				}
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeVpcLatticeListener, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
-				})
+			return out.Items, out.NextToken, nil
+		}),
+		func(parent string, a types.AccessLogSubscriptionSummary) (*store.Resource, string, string) {
+			if sv(a.Arn) == "" {
+				return nil, "access log subscriptions have an empty Arn", cmp.Or(sv(a.Id), "(an access log subscription with no id)") + " of " + parent
 			}
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "vpclattice listeners")
-	return keys, t, i, err
-}
-
-func scanVLRules(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, keys []vlListenerKey) (int, int, error) {
-	var batch []*store.Resource
-	for _, k := range keys {
-		sa := k.svcARN
-		la := k.lstARN
-		pager := vpclattice.NewListRulesPaginator(client, &vpclattice.ListRulesInput{ServiceIdentifier: &sa, ListenerIdentifier: &la})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("vpclattice:ListRules %s/%s: %w", k.svcARN, k.lstARN, perr)
-			}
-			for _, r := range out.Items {
-				arn := sv(r.Arn)
-				if arn == "" {
-					continue
-				}
-				label := sv(r.Name)
-				if label == "" {
-					label = sv(r.Id)
-				}
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeVpcLatticeRule, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-				})
-			}
-		}
-	}
-	return upsertBatch(st, batch, "vpclattice rules")
-}
-
-// scanVLTargetGroups returns the target groups it stored, none when it
-// returns an error.
-func scanVLTargetGroups(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	pager := vpclattice.NewListTargetGroupsPaginator(client, &vpclattice.ListTargetGroupsInput{})
-	var batch []*store.Resource
-	var tgs []childParent
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "vpclattice:ListTargetGroups", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("vpclattice:ListTargetGroups: %w", perr)
-		}
-		for _, tg := range out.Items {
-			arn := sv(tg.Arn)
-			if arn == "" {
-				continue
-			}
-			tgs = append(tgs, childParent{id: arn, arn: arn})
-			label := sv(tg.Name)
-			if label == "" {
-				label = sv(tg.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeVpcLatticeTargetGroup, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(tg), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "vpclattice target-groups")
-	if err != nil {
-		return nil, t, i, err
-	}
-	return tgs, t, i, nil
-}
-
-// scanVLAccessLogSubs runs per (service or service-network) — each can
-// have its own access log subscription.
-func scanVLAccessLogSubs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, svcARNs, netARNs []string) (int, int, error) {
-	var batch []*store.Resource
-	for _, ra := range append(append([]string{}, svcARNs...), netARNs...) {
-		id := ra
-		pager := vpclattice.NewListAccessLogSubscriptionsPaginator(client, &vpclattice.ListAccessLogSubscriptionsInput{ResourceIdentifier: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("vpclattice:ListAccessLogSubscriptions %s: %w", ra, perr)
-			}
-			for _, a := range out.Items {
-				arn := sv(a.Arn)
-				if arn == "" {
-					continue
-				}
-				label := sv(a.Id)
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeVpcLatticeAccessLogSubscription, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-				})
-			}
-		}
-	}
-	return upsertBatch(st, batch, "vpclattice access-log-subscriptions")
+			return vlRow(acct, region, scanID, TypeVpcLatticeAccessLogSubscription, sv(a.Arn), sv(a.Id), a), "", ""
+		}, tags, p)
+	return stop
 }
 
 // scanVLAuthPolicies runs GetAuthPolicy per (service, service-network) —
@@ -429,238 +417,155 @@ func scanVLResourcePolicies(ctx context.Context, client vpcLatticeAPI, acct *acc
 	return upsertBatch(st, batch, "vpclattice resource-policies")
 }
 
-func scanVLDomainVerifications(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := vpclattice.NewListDomainVerificationsPaginator(client, &vpclattice.ListDomainVerificationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "vpclattice:ListDomainVerifications", acct.ID, region, perr)
-				return 0, 0, nil
+// scanVLDomainVerifications stores the region's domain verifications with
+// the tags their list element carries.
+func scanVLDomainVerifications(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (storeWriteFailed bool) {
+	const op = "vpclattice:ListDomainVerifications"
+	total, inserted, err := storeTokenList(ctx, st, acct, region, op,
+		func(ctx context.Context, token *string) ([]types.DomainVerificationSummary, *string, error) {
+			out, err := client.ListDomainVerifications(ctx, &vpclattice.ListDomainVerificationsInput{NextToken: token, MaxResults: sdkaws.Int32(vlPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("vpclattice:ListDomainVerifications: %w", perr)
-		}
-		for _, d := range out.Items {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
+			return out.Items, out.NextToken, nil
+		},
+		func(d types.DomainVerificationSummary) (*store.Resource, string, string) {
+			if sv(d.Arn) == "" {
+				return nil, "domain verifications have an empty Arn", cmp.Or(sv(d.DomainName), sv(d.Id), "(a domain verification with no name)")
 			}
-			label := sv(d.DomainName)
-			if label == "" {
-				label = sv(d.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeVpcLatticeDomainVerification, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "vpclattice domain-verifications")
-}
-
-func scanVLResourceConfigs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := vpclattice.NewListResourceConfigurationsPaginator(client, &vpclattice.ListResourceConfigurationsInput{})
-	var arns []string
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "vpclattice:ListResourceConfigurations", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("vpclattice:ListResourceConfigurations: %w", perr)
-		}
-		for _, c := range out.Items {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
-			}
-			arns = append(arns, arn)
-			label := sv(c.Name)
-			if label == "" {
-				label = sv(c.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeVpcLatticeResourceConfiguration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "vpclattice resource-configurations")
-	return arns, t, i, err
-}
-
-// scanVLResourceEndpointAssocs fans out ListResourceEndpointAssociations per
-// resource-configuration (op requires ResourceConfigurationIdentifier).
-// NativeID = the VPC endpoint association ARN.
-func scanVLResourceEndpointAssocs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, rcARNs []string) (int, int, error) {
-	if len(rcARNs) == 0 {
-		return 0, 0, nil
-	}
-	var batch []*store.Resource
-	for _, rcARN := range rcARNs {
-		id := rcARN
-		pager := vpclattice.NewListResourceEndpointAssociationsPaginator(client, &vpclattice.ListResourceEndpointAssociationsInput{ResourceConfigurationIdentifier: &id})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					break
-				}
-				return 0, 0, fmt.Errorf("vpclattice:ListResourceEndpointAssociations %s: %w", rcARN, perr)
-			}
-			for _, a := range out.Items {
-				arn := sv(a.Arn)
-				if arn == "" {
-					continue
-				}
-				label := sv(a.Id)
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeVpcLatticeResourceEndpointAssociation, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-				})
-			}
-		}
-	}
-	return upsertBatch(st, batch, "vpclattice resource-endpoint-associations")
-}
-
-func scanVLResourceGateways(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := vpclattice.NewListResourceGatewaysPaginator(client, &vpclattice.ListResourceGatewaysInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "vpclattice:ListResourceGateways", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("vpclattice:ListResourceGateways: %w", perr)
-		}
-		for _, g := range out.Items {
-			arn := sv(g.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(g.Name)
-			if label == "" {
-				label = sv(g.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeVpcLatticeResourceGateway, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "vpclattice resource-gateways")
-}
-
-func scanVLSNRA(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := vpclattice.NewListServiceNetworkResourceAssociationsPaginator(client, &vpclattice.ListServiceNetworkResourceAssociationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "vpclattice:ListServiceNetworkResourceAssociations", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("vpclattice:ListServiceNetworkResourceAssociations: %w", perr)
-		}
-		for _, a := range out.Items {
-			arn := sv(a.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(a.Id)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeVpcLatticeServiceNetworkResourceAssociation, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "vpclattice service-network-resource-associations")
-}
-
-// scanVLSNSA requires ServiceNetworkIdentifier or ServiceIdentifier per call.
-// Fans out across service-network ARNs from scanVLServiceNetworks.
-func scanVLSNSA(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, netARNs []string) (int, int, error) {
-	if len(netARNs) == 0 {
-		return 0, 0, nil
-	}
-	var batch []*store.Resource
-	for _, na := range netARNs {
-		netARN := na
-		pager := vpclattice.NewListServiceNetworkServiceAssociationsPaginator(client, &vpclattice.ListServiceNetworkServiceAssociationsInput{
-			ServiceNetworkIdentifier: &netARN,
+			r := vlRow(acct, region, scanID, TypeVpcLatticeDomainVerification, sv(d.Arn), cmp.Or(sv(d.DomainName), sv(d.Id)), d)
+			r.TagsJSON = mapTagsJSON(d.Tags)
+			return r, "", ""
 		})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "vpclattice:ListServiceNetworkServiceAssociations", acct.ID, region, perr)
-					return 0, 0, nil
-				}
-				return 0, 0, fmt.Errorf("vpclattice:ListServiceNetworkServiceAssociations %s: %w", netARN, perr)
-			}
-			for _, a := range out.Items {
-				arn := sv(a.Arn)
-				if arn == "" {
-					continue
-				}
-				label := sv(a.Id)
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeVpcLatticeServiceNetworkServiceAssociation, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-				})
-			}
-		}
-	}
-	return upsertBatch(st, batch, "vpclattice service-network-service-associations")
+	return p.addPhase(op, total, inserted, err)
 }
 
-// scanVLSNVA requires ServiceNetworkIdentifier or VpcIdentifier per call.
-// Fans out across service-network ARNs from scanVLServiceNetworks.
-func scanVLSNVA(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, netARNs []string) (int, int, error) {
-	if len(netARNs) == 0 {
-		return 0, 0, nil
-	}
-	var batch []*store.Resource
-	for _, na := range netARNs {
-		netARN := na
-		pager := vpclattice.NewListServiceNetworkVpcAssociationsPaginator(client, &vpclattice.ListServiceNetworkVpcAssociationsInput{
-			ServiceNetworkIdentifier: &netARN,
-		})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "vpclattice:ListServiceNetworkVpcAssociations", acct.ID, region, perr)
-					return 0, 0, nil
-				}
-				return 0, 0, fmt.Errorf("vpclattice:ListServiceNetworkVpcAssociations %s: %w", netARN, perr)
+// scanVLResourceConfigs stores the region's resource configurations with
+// their tags and returns the stored ones, the parents of the resource
+// endpoint association phase.
+func scanVLResourceConfigs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (configs []childParent, storeWriteFailed bool) {
+	return storeParentListTags(ctx, st, acct, region, "vpclattice:ListResourceConfigurations", "resource configurations", "Arn",
+		func(ctx context.Context, token *string) ([]types.ResourceConfigurationSummary, *string, error) {
+			out, err := client.ListResourceConfigurations(ctx, &vpclattice.ListResourceConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(vlPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			for _, a := range out.Items {
-				arn := sv(a.Arn)
-				if arn == "" {
-					continue
-				}
-				label := sv(a.Id)
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeVpcLatticeServiceNetworkVpcAssociation, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-				})
+			return out.Items, out.NextToken, nil
+		},
+		func(c types.ResourceConfigurationSummary) (*store.Resource, string, string) {
+			if sv(c.Arn) == "" {
+				return nil, "resource configurations have an empty Arn", cmp.Or(sv(c.Name), sv(c.Id), "(a resource configuration with no name)")
 			}
-		}
-	}
-	return upsertBatch(st, batch, "vpclattice service-network-vpc-associations")
+			return vlRow(acct, region, scanID, TypeVpcLatticeResourceConfiguration, sv(c.Arn), cmp.Or(sv(c.Name), sv(c.Id)), c), "", ""
+		},
+		func(c types.ResourceConfigurationSummary) string { return sv(c.Arn) },
+		tags, p)
+}
+
+// scanVLResourceEndpointAssocs stores the VPC endpoint associations of each
+// stored resource configuration with their tags.
+func scanVLResourceEndpointAssocs(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, configs []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	_, stop := storeEachParentTags(ctx, st, acct, region, "vpclattice:ListResourceEndpointAssociations", nil, configs,
+		vlParentPages(acct.ID, func(ctx context.Context, config string, token *string) ([]types.ResourceEndpointAssociationSummary, *string, error) {
+			out, err := client.ListResourceEndpointAssociations(ctx, &vpclattice.ListResourceEndpointAssociationsInput{
+				ResourceConfigurationIdentifier: &config, NextToken: token, MaxResults: sdkaws.Int32(vlPageCap),
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
+		}),
+		func(config string, a types.ResourceEndpointAssociationSummary) (*store.Resource, string, string) {
+			if sv(a.Arn) == "" {
+				return nil, "resource endpoint associations have an empty Arn", cmp.Or(sv(a.Id), "(an association with no id)") + " of resource configuration " + config
+			}
+			return vlRow(acct, region, scanID, TypeVpcLatticeResourceEndpointAssociation, sv(a.Arn), sv(a.Id), a), "", ""
+		}, tags, p)
+	return stop
+}
+
+// scanVLResourceGateways stores the region's resource gateways with their
+// tags.
+func scanVLResourceGateways(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "vpclattice:ListResourceGateways",
+		func(ctx context.Context, token *string) ([]types.ResourceGatewaySummary, *string, error) {
+			out, err := client.ListResourceGateways(ctx, &vpclattice.ListResourceGatewaysInput{NextToken: token, MaxResults: sdkaws.Int32(vlPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
+		},
+		func(g types.ResourceGatewaySummary) (*store.Resource, string, string) {
+			if sv(g.Arn) == "" {
+				return nil, "resource gateways have an empty Arn", cmp.Or(sv(g.Name), sv(g.Id), "(a resource gateway with no name)")
+			}
+			return vlRow(acct, region, scanID, TypeVpcLatticeResourceGateway, sv(g.Arn), cmp.Or(sv(g.Name), sv(g.Id)), g), "", ""
+		},
+		tags, p)
+}
+
+// scanVLSNRA stores the region's service network resource associations
+// with their tags.
+func scanVLSNRA(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "vpclattice:ListServiceNetworkResourceAssociations",
+		func(ctx context.Context, token *string) ([]types.ServiceNetworkResourceAssociationSummary, *string, error) {
+			out, err := client.ListServiceNetworkResourceAssociations(ctx, &vpclattice.ListServiceNetworkResourceAssociationsInput{NextToken: token, MaxResults: sdkaws.Int32(vlPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
+		},
+		func(a types.ServiceNetworkResourceAssociationSummary) (*store.Resource, string, string) {
+			if sv(a.Arn) == "" {
+				return nil, "service network resource associations have an empty Arn", cmp.Or(sv(a.Id), "(an association with no id)")
+			}
+			return vlRow(acct, region, scanID, TypeVpcLatticeServiceNetworkResourceAssociation, sv(a.Arn), sv(a.Id), a), "", ""
+		},
+		tags, p)
+}
+
+// scanVLSNSA stores the service associations of each stored service network
+// with their tags. The op lists by service network or by service; each
+// network is asked.
+func scanVLSNSA(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	_, stop := storeEachParentTags(ctx, st, acct, region, "vpclattice:ListServiceNetworkServiceAssociations", nil, networks,
+		vlParentPages(acct.ID, func(ctx context.Context, network string, token *string) ([]types.ServiceNetworkServiceAssociationSummary, *string, error) {
+			out, err := client.ListServiceNetworkServiceAssociations(ctx, &vpclattice.ListServiceNetworkServiceAssociationsInput{
+				ServiceNetworkIdentifier: &network, NextToken: token, MaxResults: sdkaws.Int32(vlPageCap),
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
+		}),
+		func(network string, a types.ServiceNetworkServiceAssociationSummary) (*store.Resource, string, string) {
+			if sv(a.Arn) == "" {
+				return nil, "service network service associations have an empty Arn", cmp.Or(sv(a.Id), "(an association with no id)") + " of service network " + network
+			}
+			return vlRow(acct, region, scanID, TypeVpcLatticeServiceNetworkServiceAssociation, sv(a.Arn), sv(a.Id), a), "", ""
+		}, tags, p)
+	return stop
+}
+
+// scanVLSNVA stores the VPC associations of each stored service network
+// with their tags. The op lists by service network or by VPC; each network
+// is asked.
+func scanVLSNVA(ctx context.Context, client vpcLatticeAPI, acct *account, region string, st *store.Store, scanID string, networks []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	_, stop := storeEachParentTags(ctx, st, acct, region, "vpclattice:ListServiceNetworkVpcAssociations", nil, networks,
+		vlParentPages(acct.ID, func(ctx context.Context, network string, token *string) ([]types.ServiceNetworkVpcAssociationSummary, *string, error) {
+			out, err := client.ListServiceNetworkVpcAssociations(ctx, &vpclattice.ListServiceNetworkVpcAssociationsInput{
+				ServiceNetworkIdentifier: &network, NextToken: token, MaxResults: sdkaws.Int32(vlPageCap),
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
+		}),
+		func(network string, a types.ServiceNetworkVpcAssociationSummary) (*store.Resource, string, string) {
+			if sv(a.Arn) == "" {
+				return nil, "service network VPC associations have an empty Arn", cmp.Or(sv(a.Id), "(an association with no id)") + " of service network " + network
+			}
+			return vlRow(acct, region, scanID, TypeVpcLatticeServiceNetworkVpcAssociation, sv(a.Arn), sv(a.Id), a), "", ""
+		}, tags, p)
+	return stop
 }

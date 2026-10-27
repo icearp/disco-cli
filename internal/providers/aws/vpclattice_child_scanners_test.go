@@ -72,13 +72,14 @@ func vlChildPages[M any](parent string, next *string, first, second, other []M) 
 // page of each two-page parent also carries an element without an id, to skip.
 func vlHandlers(calls *vlChildCalls) map[string]func(in any) (any, error) {
 	checkLimit := func(maxResults *int32) error {
-		if sdkaws.ToInt32(maxResults) != vlChildPageLimit {
+		if sdkaws.ToInt32(maxResults) != vlPageCap {
 			return apiErr("ValidationException", "maxResults must be between 1 and 100")
 		}
 		return nil
 	}
 	return map[string]func(in any) (any, error){
-		"ListServices": func(any) (any, error) { return &vpclattice.ListServicesOutput{}, nil },
+		"ListServices":        func(any) (any, error) { return &vpclattice.ListServicesOutput{}, nil },
+		"ListTagsForResource": func(any) (any, error) { return &vpclattice.ListTagsForResourceOutput{}, nil },
 		"ListServiceNetworks": func(any) (any, error) {
 			return &vpclattice.ListServiceNetworksOutput{Items: []vltypes.ServiceNetworkSummary{
 				{Arn: sdkaws.String(vlTestNetA), Name: sdkaws.String("a")},
@@ -378,7 +379,7 @@ func TestScanVpcLattice_OlderPhaseErrorStillRunsChildren(t *testing.T) {
 // child phase's hard error still reaches the dispatcher as a hard error.
 func TestScanVpcLattice_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 	st := newTestStore(t)
-	warns := countOpWarnings(st, "vpclattice")
+	warns := countOpWarnings(st, "vpclattice:ListServiceNetworkVpcAssociations")
 	var calls vlChildCalls
 	h := vlHandlers(&calls)
 	h["ListServiceNetworkVpcAssociations"] = func(any) (any, error) { return nil, vlThrottle }
@@ -393,13 +394,14 @@ func TestScanVpcLattice_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 	}
 }
 
-// A parent listing that fails on its second page stores none of its rows, so
-// none of them are listed for children; the failure is returned.
-func TestScanVpcLattice_NoChildrenOfUnstoredParents(t *testing.T) {
+// A parent listing that fails on its second page keeps the rows of its first,
+// and only those are listed for children; the failure is returned.
+func TestScanVpcLattice_ChildrenOfFirstPageParents(t *testing.T) {
 	for _, tc := range []struct {
 		listOp string
 		page2  func(next map[string]func(in any) (any, error)) func(in any) (any, error)
 		calls  func(*vlChildCalls) *parentCalls
+		want   []string
 	}{
 		{
 			"ListServiceNetworks",
@@ -415,6 +417,7 @@ func TestScanVpcLattice_NoChildrenOfUnstoredParents(t *testing.T) {
 				}
 			},
 			func(c *vlChildCalls) *parentCalls { return &c.assocs },
+			[]string{vlTestNetA, vlTestNetB, vlTestNetShared},
 		},
 		{
 			"ListTargetGroups",
@@ -430,6 +433,7 @@ func TestScanVpcLattice_NoChildrenOfUnstoredParents(t *testing.T) {
 				}
 			},
 			func(c *vlChildCalls) *parentCalls { return &c.targets },
+			[]string{vlTestTGA, vlTestTGB},
 		},
 	} {
 		t.Run(tc.listOp, func(t *testing.T) {
@@ -439,8 +443,8 @@ func TestScanVpcLattice_NoChildrenOfUnstoredParents(t *testing.T) {
 			h[tc.listOp] = tc.page2(vlHandlers(&vlChildCalls{}))
 			_, _, err := scanVpcLatticeTopLevel(t, st, h)
 			assertAPICode(t, err, "ValidationException")
-			if got := tc.calls(&calls).distinct(); len(got) != 0 {
-				t.Errorf("children listed for unstored parents %v", got)
+			if got := tc.calls(&calls).distinct(); !slices.Equal(got, tc.want) {
+				t.Errorf("children listed for parents %v; want the first page's %v", got, tc.want)
 			}
 		})
 	}
