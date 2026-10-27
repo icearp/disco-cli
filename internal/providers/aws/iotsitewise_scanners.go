@@ -1,9 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iotsitewise"
 	"github.com/aws/aws-sdk-go-v2/service/iotsitewise/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -56,656 +59,670 @@ type iotSWAPI interface {
 	ListPipelines(context.Context, *iotsitewise.ListPipelinesInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListPipelinesOutput, error)
 	ListTasks(context.Context, *iotsitewise.ListTasksInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListTasksOutput, error)
 	ListApplications(context.Context, *iotsitewise.ListApplicationsInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListApplicationsOutput, error)
+	ListTagsForResource(context.Context, *iotsitewise.ListTagsForResourceInput, ...func(*iotsitewise.Options)) (*iotsitewise.ListTagsForResourceOutput, error)
 }
+
+const (
+	// iotSWPageCap is the model's maxResults cap (1 to 250) of every
+	// SiteWise listing scanned.
+	iotSWPageCap = 250
+
+	iotSWListTagsOp = "iotsitewise:ListTagsForResource"
+)
+
+// iotSWNotFound is the only not-found code modeled by ListTagsForResource,
+// the Describes, and the ListAssets, ListPipelines and ListTasks child
+// listings.
+var iotSWNotFound = []string{"ResourceNotFoundException"}
 
 func iotSWARN(partition, region, acct, kind, id string) string {
 	return arnFor(partition, "iotsitewise", region, acct, kind+"/"+id)
 }
 
-func scanIoTSiteWise(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// iotSWRow is the row of a listed SiteWise item stored under nativeID, item
+// verbatim as the attributes.
+func iotSWRow(acct *account, region, scanID, typ, nativeID, name string, item any) *store.Resource {
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: nativeID,
+		Name: &name, Region: &region, AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}
+}
+
+// iotSWTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: the ARN its list element carries, or, for gateways, portals,
+// projects, dashboards and access policies, whose elements carry none, the
+// ARN built in the format the Service Reference documents for the type. The
+// Service Reference lists the action for every SiteWise type stored here.
+// The op answers with every tag at once (no page token). It also models
+// UnauthorizedException ("you are not authorized"), a denial isAccessDenied
+// does not match, so it is listed as one.
+func iotSWTags(client iotSWAPI) rowTagReader {
+	return rowTagReader{
+		op:       iotSWListTagsOp,
+		notFound: iotSWNotFound,
+		denied:   []string{"UnauthorizedException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &iotsitewise.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
+			if err != nil {
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
+		},
+	}
+}
+
+type (
+	iotSWPage[Item any]       func(ctx context.Context, token *string) ([]Item, *string, error)
+	iotSWParentPage[Item any] func(ctx context.Context, parentID string, token *string) ([]Item, *string, error)
+)
+
+// iotSWPages is page with SiteWise's per-region rollout handled: a first page
+// refused as a feature not supported yet (isIoTSiteWiseFeatureUnsupported)
+// ends the listing as empty, since the op is not deployed in this region.
+// After a page was read the same answer is returned as an error: the later
+// pages were not read.
+func iotSWPages[Item any](page iotSWPage[Item]) iotSWPage[Item] {
+	return func(ctx context.Context, token *string) ([]Item, *string, error) {
+		items, next, err := page(ctx, token)
+		if token == nil && isIoTSiteWiseFeatureUnsupported(err) {
+			return nil, nil, nil
+		}
+		return items, next, err
+	}
+}
+
+// iotSWParentPages is iotSWPages for each parent's child listing.
+func iotSWParentPages[Item any](page iotSWParentPage[Item]) iotSWParentPage[Item] {
+	return func(ctx context.Context, parentID string, token *string) ([]Item, *string, error) {
+		return iotSWPages(func(ctx context.Context, token *string) ([]Item, *string, error) {
+			return page(ctx, parentID, token)
+		})(ctx, token)
+	}
+}
+
+func scanIoTSiteWise(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := iotsitewise.NewFromConfig(acct.cfg, func(o *iotsitewise.Options) { o.Region = region })
-
-	// Phase 1: Asset Models (collect IDs).
-	modelIDs, t, i, ferr := scanIoTSWAssetModels(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	// Phase 2: Assets per model (Filter=ALL).
-	for _, mid := range modelIDs {
-		t, i, perr := scanIoTSWAssets(ctx, client, acct, region, st, scanID, mid)
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-
-	// Phase 3: Top-level computation models, gateways, datasets.
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanIoTSWComputationModels(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTSWGateways(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIoTSWDatasets(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-
-	// Phase 4: Portals (collect IDs for projects + access-policies).
-	portalIDs, t, i, ferr := scanIoTSWPortals(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	// Phase 5: per-Portal: Projects (collect IDs), AccessPolicies(PORTAL).
-	var projectIDs []string
-	for _, pid := range portalIDs {
-		pjs, t, i, perr := scanIoTSWProjects(ctx, client, acct, region, st, scanID, pid)
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-		projectIDs = append(projectIDs, pjs...)
-
-		t, i, perr = scanIoTSWAccessPolicies(ctx, client, acct, region, st, scanID, types.ResourceTypePortal, pid)
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-
-	// Phase 6: per-Project: Dashboards, AccessPolicies(PROJECT).
-	for _, pjid := range projectIDs {
-		t, i, perr := scanIoTSWDashboards(ctx, client, acct, region, st, scanID, pjid)
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-
-		t, i, perr = scanIoTSWAccessPolicies(ctx, client, acct, region, st, scanID, types.ResourceTypeProject, pjid)
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-
-	// Phase 7: Workspaces, then applications, pipelines and tasks.
-	t, i, err = scanIoTSWWorkspaceFamily(ctx, client, acct, region, st, scanID)
-	return total + t, inserted + i, err
+	return scanIoTSiteWiseAll(ctx, client, acct, region, st, scanID)
 }
 
-func scanIoTSWAssetModels(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := iotsitewise.NewListAssetModelsPaginator(client, &iotsitewise.ListAssetModelsInput{})
-	var batch []*store.Resource
-	var ids []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotsitewise:ListAssetModels", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("iotsitewise:ListAssetModels: %w", perr)
+// scanIoTSiteWiseAll discovers IoT SiteWise resources in one region, running
+// its phases one after another. A phase's error does not stop the later
+// ones; a failed write does, since every later write would fail too, and so
+// does ctx's end, reported as one error. A child phase gets the parents its
+// parent phase stored: the assets the asset models, the pipelines and tasks
+// the workspaces (the applications link to them), the projects and the
+// portal access policies the portals, and the dashboards and the project
+// access policies the projects. The phases run one at a time, so
+// readRowTags's own bound is the bound on the tag reads in flight.
+//
+// The portal family (portals, projects, dashboards, access policies) is
+// served by the SDK's "monitor." host, every other op by its "api." host.
+// Whether any region serves one without the other is not verified (no live
+// check was possible), so neither host's NXDOMAIN after rows were stored is
+// read as a region gap: it is returned as an error and the stored rows keep
+// their counts (resultLateNXDOMAIN; a portal-family one as
+// iotSWMonitorUnresolvedError, since the monitor host may never have
+// resolved). With nothing stored and every phase failing with an NXDOMAIN,
+// the region reads as unavailable.
+func scanIoTSiteWiseAll(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var (
+		p                  phaseTotals
+		tags               = iotSWTags(client)
+		models, workspaces []childParent
+		portals, projects  []childParent
+		// monitorFrom is the index in p.errs of the portal family's first
+		// error; -1 until that family starts.
+		monitorFrom = -1
+	)
+	phases := []func() bool{
+		func() (stop bool) {
+			models, stop = scanIoTSWAssetModels(ctx, client, acct, region, st, scanID, tags, &p)
+			return stop
+		},
+		func() bool { return scanIoTSWAssets(ctx, client, acct, region, st, scanID, models, tags, &p) },
+		func() bool { return scanIoTSWComputationModels(ctx, client, acct, region, st, scanID, tags, &p) },
+		func() bool { return scanIoTSWGateways(ctx, client, acct, region, st, scanID, tags, &p) },
+		func() bool { return scanIoTSWDatasets(ctx, client, acct, region, st, scanID, tags, &p) },
+		func() (stop bool) {
+			workspaces, stop = scanIoTSWWorkspaces(ctx, client, acct, region, st, scanID, tags, &p)
+			return stop
+		},
+		func() bool { return scanIoTSWApplications(ctx, client, acct, region, st, scanID, workspaces, tags, &p) },
+		func() bool { return scanIoTSWPipelines(ctx, client, acct, region, st, scanID, workspaces, tags, &p) },
+		func() bool { return scanIoTSWTasks(ctx, client, acct, region, st, scanID, workspaces, tags, &p) },
+		func() (stop bool) {
+			monitorFrom = len(p.errs)
+			portals, stop = scanIoTSWPortals(ctx, client, acct, region, st, scanID, tags, &p)
+			return stop
+		},
+		func() (stop bool) {
+			projects, stop = scanIoTSWProjects(ctx, client, acct, region, st, scanID, portals, tags, &p)
+			return stop
+		},
+		func() bool {
+			return scanIoTSWAccessPolicies(ctx, client, acct, region, st, scanID, types.ResourceTypePortal, portals, tags, &p)
+		},
+		func() bool { return scanIoTSWDashboards(ctx, client, acct, region, st, scanID, projects, tags, &p) },
+		func() bool {
+			return scanIoTSWAccessPolicies(ctx, client, acct, region, st, scanID, types.ResourceTypeProject, projects, tags, &p)
+		},
+	}
+	notRun := 0
+	for i, run := range phases {
+		if ctx.Err() != nil {
+			notRun = len(phases) - i
+			break
 		}
-		for _, m := range out.AssetModelSummaries {
-			arn := sv(m.Arn)
+		if run() {
+			break
+		}
+	}
+	if monitorFrom >= 0 && p.total > 0 {
+		for i := monitorFrom; i < len(p.errs); i++ {
+			p.errs[i].err = iotSWMonitorUnresolved(p.errs[i].err)
+		}
+	}
+	p.foldStop(ctx, "iotsitewise", notRun)
+	return p.resultLateNXDOMAIN(st, acct, region)
+}
+
+// iotSWMonitorUnresolvedError is an NXDOMAIN from a portal-family op, on the
+// "monitor." host, after rows were stored. It keeps only the cause's text,
+// not the cause: unwrapped to the DNS error, resultLateNXDOMAIN would
+// describe it as an endpoint that stopped resolving after earlier calls to it
+// succeeded, which the monitor host may never have done.
+type iotSWMonitorUnresolvedError struct{ cause string }
+
+func (e *iotSWMonitorUnresolvedError) Error() string {
+	return "the monitor.iotsitewise host did not resolve: " + e.cause
+}
+
+// iotSWMonitorUnresolved replaces each NXDOMAIN member of err, a join
+// looked into member by member, with an iotSWMonitorUnresolvedError; the
+// other members are kept as they are.
+func iotSWMonitorUnresolved(err error) error {
+	if members, ok := err.(interface{ Unwrap() []error }); ok {
+		out := make([]error, 0, len(members.Unwrap()))
+		for _, m := range members.Unwrap() {
+			out = append(out, iotSWMonitorUnresolved(m))
+		}
+		return errors.Join(out...)
+	}
+	if isDNSNotFound(err) {
+		return &iotSWMonitorUnresolvedError{cause: err.Error()}
+	}
+	return err
+}
+
+// iotSWDetails is the read of a listing whose rows are replaced by their
+// Describe body (readRowDetails) before their tags are read, and the errors
+// of both reads, kept until the write is done. describe is sent the id the
+// row was built with (ids, filled by the listing's row builder).
+type iotSWDetails struct {
+	op, what        string
+	ids             map[*store.Resource]string
+	describe        func(ctx context.Context, id string) (any, error)
+	tags            rowTagReader
+	hard, transient error
+	tagErrs         rowTagErrs
+}
+
+// hook returns the reads as a beforeWrite. A row built from an element
+// without an Id cannot be described: it is stored as its list element, tags
+// still read, and one warning, sent once the rows are stored, names the
+// first by its NativeID.
+func (d *iotSWDetails) hook(ctx context.Context, st *store.Store, acct *account, region string) beforeWrite {
+	return func(rows []*store.Resource) ([]*store.Resource, func()) {
+		rows, getWarn, hard, transient := readRowDetails(ctx, st, acct, region, d.op, d.what, iotSWNotFound, rows,
+			func(ctx context.Context, r *store.Resource) (any, error) {
+				if d.ids[r] == "" {
+					return nil, nil
+				}
+				return d.describe(ctx, d.ids[r])
+			})
+		d.hard, d.transient = hard, transient
+		kept, tagWarn := d.tags.hook(ctx, st, acct, region, &d.tagErrs)(rows)
+		var noID skipTally
+		for _, r := range kept {
+			if d.ids[r] == "" {
+				noID.skipped(r.NativeID, nil)
+			}
+		}
+		return kept, func() {
+			if noID.count > 0 {
+				st.ReportWarning(store.ScanWarning{
+					Provider: "aws", Service: d.op, Scope: acct.ID + "/" + region,
+					Message: fmt.Sprintf("%d %s listed with an empty Id were stored as their list element, not described; first %s", noID.count, d.what, noID.first),
+				})
+			}
+			getWarn()
+			tagWarn()
+		}
+	}
+}
+
+// addPhase adds the listing's counts and err to p under op, and both reads'
+// errors under their ops, as rowTagErrs.addPhase does. It reports whether the
+// write failed, after which the scanner must stop.
+func (d *iotSWDetails) addPhase(p *phaseTotals, op string, total, inserted int, err error) (storeWriteFailed bool) {
+	if errors.Is(err, store.ErrStoreWrite) {
+		err = errors.Join(err, d.hard, d.transient)
+	} else {
+		p.errs.add(d.op, d.hard)
+		p.errs.add(d.op, d.transient)
+	}
+	return d.tagErrs.addPhase(p, d.tags.op, op, total, inserted, err)
+}
+
+// scanIoTSWAssetModels stores the region's asset models, each as its
+// DescribeAssetModel body (which adds the hierarchy definitions the list
+// element lacks) with its tags, and returns the stored ones that carry an
+// Id, the parents of the asset phase.
+func scanIoTSWAssetModels(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (models []childParent, storeWriteFailed bool) {
+	const op = "iotsitewise:ListAssetModels"
+	d := &iotSWDetails{
+		op: "iotsitewise:DescribeAssetModel", what: "asset model(s)", tags: tags, ids: map[*store.Resource]string{},
+		describe: func(ctx context.Context, id string) (any, error) {
+			return client.DescribeAssetModel(ctx, &iotsitewise.DescribeAssetModelInput{AssetModelId: &id})
+		},
+	}
+	total, inserted, models, err := storeParentListWith(ctx, st, acct, region, op, "asset models", "Id",
+		func(ctx context.Context, token *string) ([]types.AssetModelSummary, *string, error) {
+			out, err := client.ListAssetModels(ctx, &iotsitewise.ListAssetModelsInput{NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.AssetModelSummaries, out.NextToken, nil
+		},
+		func(m types.AssetModelSummary) (*store.Resource, string, string) {
 			id := sv(m.Id)
-			if arn == "" {
-				continue
+			if sv(m.Arn) == "" {
+				return nil, "asset models have an empty Arn", cmp.Or(sv(m.Name), id, "(an asset model with no name)")
 			}
-			label := sv(m.Name)
-			if label == "" {
-				label = id
-			}
-			if id != "" {
-				ids = append(ids, id)
-			}
-			// Enrich via DescribeAssetModel — AssetModelHierarchies[].ChildAssetModelId
-			// isn't in the list-summary shape; fall back to summary on per-row failure.
-			attrs := mustJSON(m)
-			if id != "" {
-				mid := id
-				dout, derr := client.DescribeAssetModel(ctx, &iotsitewise.DescribeAssetModelInput{AssetModelId: &mid})
-				if derr != nil {
-					if isAccessDenied(derr) {
-						_ = skipIfAccessDenied(st, "iotsitewise:DescribeAssetModel", acct.ID, region, derr)
-					}
-				} else if dout != nil {
-					attrs = mustJSON(dout)
-				}
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTSWAssetModel, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "iotsitewise asset-models")
-	return ids, t, i, err
+			r := iotSWRow(acct, region, scanID, TypeIoTSWAssetModel, sv(m.Arn), cmp.Or(sv(m.Name), id), m)
+			d.ids[r] = id
+			return r, "", ""
+		},
+		func(m types.AssetModelSummary) string { return sv(m.Id) },
+		d.hook(ctx, st, acct, region))
+	return models, d.addPhase(p, op, total, inserted, err)
 }
 
-func scanIoTSWAssets(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID, modelID string) (int, int, error) {
-	mid := modelID
-	pager := iotsitewise.NewListAssetsPaginator(client, &iotsitewise.ListAssetsInput{
-		AssetModelId: &mid,
-		Filter:       types.ListAssetsFilterAll,
-	})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotsitewise:ListAssets", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iotsitewise:ListAssets: %w", perr)
-		}
-		for _, a := range out.AssetSummaries {
-			arn := sv(a.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(a.Name)
-			if label == "" {
-				label = sv(a.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTSWAsset, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+// scanIoTSWAssets stores the assets of each asset model the model phase
+// stored, with their tags. A model ListAssets no longer finds is skipped.
+func scanIoTSWAssets(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, models []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	_, stop := storeEachParentTags(ctx, st, acct, region, "iotsitewise:ListAssets", iotSWNotFound, models,
+		func(ctx context.Context, modelID string, token *string) ([]types.AssetSummary, *string, error) {
+			out, err := client.ListAssets(ctx, &iotsitewise.ListAssetsInput{
+				AssetModelId: &modelID, Filter: types.ListAssetsFilterAll, NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap),
 			})
-		}
-	}
-	return upsertBatch(st, batch, "iotsitewise assets")
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.AssetSummaries, out.NextToken, nil
+		},
+		func(modelID string, a types.AssetSummary) (*store.Resource, string, string) {
+			if sv(a.Arn) == "" {
+				return nil, "assets have an empty Arn", cmp.Or(sv(a.Name), sv(a.Id), "(an asset with no name)") + " of asset model " + modelID
+			}
+			return iotSWRow(acct, region, scanID, TypeIoTSWAsset, sv(a.Arn), cmp.Or(sv(a.Name), sv(a.Id)), a), "", ""
+		}, tags, p)
+	return stop
 }
 
-func scanIoTSWComputationModels(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iotsitewise.NewListComputationModelsPaginator(client, &iotsitewise.ListComputationModelsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isIoTSiteWiseFeatureUnsupported(perr) {
-				return 0, 0, nil
-			}
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotsitewise:ListComputationModels", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iotsitewise:ListComputationModels: %w", perr)
-		}
-		for _, c := range out.ComputationModelSummaries {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(c.Name)
-			if label == "" {
-				label = sv(c.Id)
-			}
-			// Enrich via DescribeComputationModel — DataBinding refs to asset-models/
-			// assets aren't in the list-summary shape; fall back to summary on per-row failure.
-			attrs := mustJSON(c)
-			if cid := c.Id; cid != nil {
-				dout, derr := client.DescribeComputationModel(ctx, &iotsitewise.DescribeComputationModelInput{ComputationModelId: cid})
-				if derr != nil {
-					if isAccessDenied(derr) {
-						_ = skipIfAccessDenied(st, "iotsitewise:DescribeComputationModel", acct.ID, region, derr)
-					}
-				} else if dout != nil {
-					attrs = mustJSON(dout)
-				}
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTSWComputationModel, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
-			})
-		}
+// scanIoTSWComputationModels stores the region's computation models, each
+// as its DescribeComputationModel body (which adds the data bindings to
+// asset models and assets) with its tags.
+func scanIoTSWComputationModels(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	const op = "iotsitewise:ListComputationModels"
+	d := &iotSWDetails{
+		op: "iotsitewise:DescribeComputationModel", what: "computation model(s)", tags: tags, ids: map[*store.Resource]string{},
+		describe: func(ctx context.Context, id string) (any, error) {
+			return client.DescribeComputationModel(ctx, &iotsitewise.DescribeComputationModelInput{ComputationModelId: &id})
+		},
 	}
-	return upsertBatch(st, batch, "iotsitewise computation-models")
+	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op,
+		iotSWPages(func(ctx context.Context, token *string) ([]types.ComputationModelSummary, *string, error) {
+			out, err := client.ListComputationModels(ctx, &iotsitewise.ListComputationModelsInput{NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ComputationModelSummaries, out.NextToken, nil
+		}),
+		func(c types.ComputationModelSummary) (*store.Resource, string, string) {
+			id := sv(c.Id)
+			if sv(c.Arn) == "" {
+				return nil, "computation models have an empty Arn", cmp.Or(sv(c.Name), id, "(a computation model with no name)")
+			}
+			r := iotSWRow(acct, region, scanID, TypeIoTSWComputationModel, sv(c.Arn), cmp.Or(sv(c.Name), id), c)
+			d.ids[r] = id
+			return r, "", ""
+		},
+		d.hook(ctx, st, acct, region))
+	return d.addPhase(p, op, total, inserted, err)
 }
 
-func scanIoTSWGateways(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iotsitewise.NewListGatewaysPaginator(client, &iotsitewise.ListGatewaysInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotsitewise:ListGateways", acct.ID, region, perr)
-				return 0, 0, nil
+// scanIoTSWGateways stores the region's gateways with their tags, each under
+// the gateway ARN built from its GatewayId (the element carries no ARN).
+func scanIoTSWGateways(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "iotsitewise:ListGateways",
+		func(ctx context.Context, token *string) ([]types.GatewaySummary, *string, error) {
+			out, err := client.ListGateways(ctx, &iotsitewise.ListGatewaysInput{NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iotsitewise:ListGateways: %w", perr)
-		}
-		for _, g := range out.GatewaySummaries {
+			return out.GatewaySummaries, out.NextToken, nil
+		},
+		func(g types.GatewaySummary) (*store.Resource, string, string) {
 			id := sv(g.GatewayId)
 			if id == "" {
-				continue
+				return nil, "gateways have an empty GatewayId", cmp.Or(sv(g.GatewayName), "(a gateway with no name)")
 			}
-			arn := iotSWARN(acct.partition(), region, acct.ID, "gateway", id)
-			label := sv(g.GatewayName)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTSWGateway, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "iotsitewise gateways")
-}
-
-func scanIoTSWDatasets(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	// SourceType is required; only one defined value (KENDRA).
-	pager := iotsitewise.NewListDatasetsPaginator(client, &iotsitewise.ListDatasetsInput{
-		SourceType: types.DatasetSourceTypeKendra,
-	})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isIoTSiteWiseFeatureUnsupported(perr) {
-				return 0, 0, nil
-			}
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotsitewise:ListDatasets", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iotsitewise:ListDatasets: %w", perr)
-		}
-		for _, d := range out.DatasetSummaries {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(d.Name)
-			if label == "" {
-				label = sv(d.Id)
-			}
-			// Enrich via DescribeDataset — Source.SourceDetail.Kendra.{KnowledgeBaseArn,RoleArn}
-			// isn't in the list-summary shape; fall back to summary on per-row failure.
-			attrs := mustJSON(d)
-			did := d.Id
-			if did != nil {
-				dout, derr := client.DescribeDataset(ctx, &iotsitewise.DescribeDatasetInput{DatasetId: did})
-				if derr != nil {
-					if isAccessDenied(derr) {
-						_ = skipIfAccessDenied(st, "iotsitewise:DescribeDataset", acct.ID, region, derr)
-					}
-				} else if dout != nil {
-					attrs = mustJSON(dout)
-				}
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTSWDataset, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: attrs, DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "iotsitewise datasets")
-}
-
-func scanIoTSWPortals(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := iotsitewise.NewListPortalsPaginator(client, &iotsitewise.ListPortalsInput{})
-	var batch []*store.Resource
-	var ids []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotsitewise:ListPortals", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("iotsitewise:ListPortals: %w", perr)
-		}
-		for _, p := range out.PortalSummaries {
-			id := sv(p.Id)
-			if id == "" {
-				continue
-			}
-			arn := iotSWARN(acct.partition(), region, acct.ID, "portal", id)
-			label := sv(p.Name)
-			if label == "" {
-				label = id
-			}
-			ids = append(ids, id)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTSWPortal, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "iotsitewise portals")
-	return ids, t, i, err
-}
-
-func scanIoTSWProjects(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID, portalID string) ([]string, int, int, error) {
-	pid := portalID
-	pager := iotsitewise.NewListProjectsPaginator(client, &iotsitewise.ListProjectsInput{PortalId: &pid})
-	var batch []*store.Resource
-	var ids []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotsitewise:ListProjects", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("iotsitewise:ListProjects: %w", perr)
-		}
-		for _, p := range out.ProjectSummaries {
-			id := sv(p.Id)
-			if id == "" {
-				continue
-			}
-			arn := iotSWARN(acct.partition(), region, acct.ID, "project", id)
-			label := sv(p.Name)
-			if label == "" {
-				label = id
-			}
-			ids = append(ids, id)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTSWProject, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "iotsitewise projects")
-	if err == nil && len(ids) > 0 {
-		portalRowID := store.ResourceID("aws", acct.ID, iotSWARN(acct.partition(), region, acct.ID, "portal", pid))
-		pairs := make([][2]string, 0, len(ids))
-		for _, projID := range ids {
-			childID := store.ResourceID("aws", acct.ID, iotSWARN(acct.partition(), region, acct.ID, "project", projID))
-			pairs = append(pairs, [2]string{childID, portalRowID})
-		}
-		if herr := st.RecordHierarchyBatch(pairs); herr != nil {
-			return ids, t, i, fmt.Errorf("record portal→project hierarchy: %w", herr)
-		}
-	}
-	return ids, t, i, err
-}
-
-func scanIoTSWDashboards(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID, projectID string) (int, int, error) {
-	pid := projectID
-	pager := iotsitewise.NewListDashboardsPaginator(client, &iotsitewise.ListDashboardsInput{ProjectId: &pid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotsitewise:ListDashboards", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iotsitewise:ListDashboards: %w", perr)
-		}
-		for _, d := range out.DashboardSummaries {
-			id := sv(d.Id)
-			if id == "" {
-				continue
-			}
-			arn := iotSWARN(acct.partition(), region, acct.ID, "dashboard", id)
-			label := sv(d.Name)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTSWDashboard, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "iotsitewise dashboards")
-	if err == nil && len(batch) > 0 {
-		projectRowID := store.ResourceID("aws", acct.ID, iotSWARN(acct.partition(), region, acct.ID, "project", pid))
-		pairs := make([][2]string, 0, len(batch))
-		for _, b := range batch {
-			pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, b.NativeID), projectRowID})
-		}
-		if herr := st.RecordHierarchyBatch(pairs); herr != nil {
-			return t, i, fmt.Errorf("record project→dashboard hierarchy: %w", herr)
-		}
-	}
-	return t, i, err
-}
-
-func scanIoTSWAccessPolicies(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, rType types.ResourceType, resourceID string) (int, int, error) {
-	rid := resourceID
-	pager := iotsitewise.NewListAccessPoliciesPaginator(client, &iotsitewise.ListAccessPoliciesInput{
-		ResourceType: rType,
-		ResourceId:   &rid,
-	})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotsitewise:ListAccessPolicies", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iotsitewise:ListAccessPolicies: %w", perr)
-		}
-		for _, p := range out.AccessPolicySummaries {
-			id := sv(p.Id)
-			if id == "" {
-				continue
-			}
-			arn := iotSWARN(acct.partition(), region, acct.ID, "access-policy", id)
-			label := id
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTSWAccessPolicy, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "iotsitewise access-policies")
-}
-
-// isIoTSWWorkspaceChildSkip drops a workspace deleted between ListWorkspaces and
-// its child list, and a child sub-API not yet rolled out in-region: SiteWise
-// rolls sub-APIs out per region independently (see isIoTSiteWiseFeatureUnsupported).
-func isIoTSWWorkspaceChildSkip(err error) bool {
-	return isAPIErrorCode(err, "ResourceNotFoundException") || isIoTSiteWiseFeatureUnsupported(err)
-}
-
-// scanIoTSWWorkspaceFamily runs the account-level applications listing before
-// the per-workspace fan-outs so a failing workspace child op cannot cost it.
-func scanIoTSWWorkspaceFamily(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	workspaces, total, inserted, err := scanIoTSWWorkspaces(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return total, inserted, err
-	}
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) {
-			return scanIoTSWApplications(ctx, client, acct, region, st, scanID, workspaces)
+			return iotSWRow(acct, region, scanID, TypeIoTSWGateway, iotSWARN(acct.partition(), region, acct.ID, "gateway", id), cmp.Or(sv(g.GatewayName), id), g), "", ""
 		},
-		func() (int, int, error) { return scanIoTSWPipelines(ctx, client, acct, region, st, scanID, workspaces) },
-		func() (int, int, error) { return scanIoTSWTasks(ctx, client, acct, region, st, scanID, workspaces) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+		tags, p)
 }
 
-// scanIoTSWWorkspaces returns each stored workspace as a childParent keyed by
-// name, which is what the workspace child list ops take.
-func scanIoTSWWorkspaces(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	pager := iotsitewise.NewListWorkspacesPaginator(client, &iotsitewise.ListWorkspacesInput{})
-	var batch []*store.Resource
-	var parents []childParent
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isIoTSiteWiseFeatureUnsupported(perr) {
-				break
-			}
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotsitewise:ListWorkspaces", acct.ID, region, perr)
-				break
-			}
-			return nil, 0, 0, fmt.Errorf("iotsitewise:ListWorkspaces: %w", perr)
-		}
-		for _, w := range out.WorkspaceSummaries {
-			arn, name := sv(w.Arn), sv(w.Name)
-			if arn == "" {
-				continue
-			}
-			var state string
-			if w.Status != nil {
-				state = string(w.Status.State)
-			}
-			parents = append(parents, childParent{id: name, arn: arn})
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTSWWorkspace, NativeID: arn,
-				Name: &name, Status: nonEmptyPtr(state), CreatedAt: tp(w.CreatedAt),
-				Region: &region, AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
+// scanIoTSWDatasets stores the region's datasets, each as its DescribeDataset
+// body (which adds the Kendra knowledge base and role the source reads) with
+// its tags. ListDatasets requires SourceType, whose only value is KENDRA.
+func scanIoTSWDatasets(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	const op = "iotsitewise:ListDatasets"
+	d := &iotSWDetails{
+		op: "iotsitewise:DescribeDataset", what: "dataset(s)", tags: tags, ids: map[*store.Resource]string{},
+		describe: func(ctx context.Context, id string) (any, error) {
+			return client.DescribeDataset(ctx, &iotsitewise.DescribeDatasetInput{DatasetId: &id})
+		},
+	}
+	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op,
+		iotSWPages(func(ctx context.Context, token *string) ([]types.DatasetSummary, *string, error) {
+			out, err := client.ListDatasets(ctx, &iotsitewise.ListDatasetsInput{
+				SourceType: types.DatasetSourceTypeKendra, NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap),
 			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.DatasetSummaries, out.NextToken, nil
+		}),
+		func(ds types.DatasetSummary) (*store.Resource, string, string) {
+			id := sv(ds.Id)
+			if sv(ds.Arn) == "" {
+				return nil, "datasets have an empty Arn", cmp.Or(sv(ds.Name), id, "(a dataset with no name)")
+			}
+			r := iotSWRow(acct, region, scanID, TypeIoTSWDataset, sv(ds.Arn), cmp.Or(sv(ds.Name), id), ds)
+			d.ids[r] = id
+			return r, "", ""
+		},
+		d.hook(ctx, st, acct, region))
+	return d.addPhase(p, op, total, inserted, err)
+}
+
+// scanIoTSWWorkspaces stores the region's workspaces with their tags and
+// returns the stored ones that carry a name, keyed by it: the workspace child
+// listings take the name.
+func scanIoTSWWorkspaces(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (workspaces []childParent, storeWriteFailed bool) {
+	return storeParentListTags(ctx, st, acct, region, "iotsitewise:ListWorkspaces", "workspaces", "Name",
+		iotSWPages(func(ctx context.Context, token *string) ([]types.WorkspaceSummary, *string, error) {
+			out, err := client.ListWorkspaces(ctx, &iotsitewise.ListWorkspacesInput{NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.WorkspaceSummaries, out.NextToken, nil
+		}),
+		func(w types.WorkspaceSummary) (*store.Resource, string, string) {
+			if sv(w.Arn) == "" {
+				return nil, "workspaces have an empty Arn", cmp.Or(sv(w.Name), "(a workspace with no name)")
+			}
+			r := iotSWRow(acct, region, scanID, TypeIoTSWWorkspace, sv(w.Arn), sv(w.Name), w)
+			if w.Status != nil {
+				r.Status = nonEmptyPtr(string(w.Status.State))
+			}
+			r.CreatedAt = tp(w.CreatedAt)
+			return r, "", ""
+		},
+		func(w types.WorkspaceSummary) string { return sv(w.Name) },
+		tags, p)
+}
+
+// iotSWContain records each stored child under the parent parentOf names by
+// NativeID; a child without one is stored unlinked.
+func iotSWContain(st *store.Store, acct *account, op string, children []*store.Resource, parentOf map[*store.Resource]string) error {
+	pairs := make([][2]string, 0, len(children))
+	for _, c := range children {
+		if parent := parentOf[c]; parent != "" {
+			pairs = append(pairs, [2]string{c.ID, store.ResourceID("aws", acct.ID, parent)})
 		}
 	}
-	t, i, err := upsertBatch(st, batch, "iotsitewise workspaces")
-	if err != nil {
-		return nil, 0, 0, err
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
+		return fmt.Errorf("closure %s: %w", op, err)
 	}
-	return parents, t, i, nil
+	return nil
 }
 
-func scanIoTSWPipelines(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent) (int, int, error) {
-	return childFanOut(ctx, st, acct, region, "iotsitewise:ListPipelines", workspaces, isIoTSWWorkspaceChildSkip,
-		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
-			pager := iotsitewise.NewListPipelinesPaginator(client, &iotsitewise.ListPipelinesInput{WorkspaceName: &p.id})
-			var rows []*store.Resource
-			for pager.HasMorePages() {
-				out, err := pager.NextPage(ctx)
-				if err != nil {
-					return nil, err
-				}
-				for _, pl := range out.PipelineSummaries {
-					arn := sv(pl.PipelineArn)
-					if arn == "" {
-						continue
-					}
-					var state string
-					if pl.Status != nil {
-						state = string(pl.Status.State)
-					}
-					rows = append(rows, &store.Resource{
-						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeIoTSWPipeline, NativeID: arn,
-						Name: pl.PipelineName, Status: nonEmptyPtr(state), CreatedAt: tp(pl.CreatedAt),
-						Region: &region, AttributesJSON: mustJSON(pl), DiscoveredBy: scanID,
-					})
-				}
-			}
-			return rows, nil
-		})
-}
-
-func scanIoTSWTasks(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent) (int, int, error) {
-	return childFanOut(ctx, st, acct, region, "iotsitewise:ListTasks", workspaces, isIoTSWWorkspaceChildSkip,
-		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
-			pager := iotsitewise.NewListTasksPaginator(client, &iotsitewise.ListTasksInput{WorkspaceName: &p.id})
-			var rows []*store.Resource
-			for pager.HasMorePages() {
-				out, err := pager.NextPage(ctx)
-				if err != nil {
-					return nil, err
-				}
-				for _, tk := range out.TaskSummaries {
-					arn := sv(tk.TaskArn)
-					if arn == "" {
-						continue
-					}
-					var state string
-					if tk.Status != nil {
-						state = string(tk.Status.State)
-					}
-					rows = append(rows, &store.Resource{
-						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeIoTSWTask, NativeID: arn,
-						Name: tk.TaskName, Status: nonEmptyPtr(state), CreatedAt: tp(tk.CreatedAt),
-						Region: &region, AttributesJSON: mustJSON(tk), DiscoveredBy: scanID,
-					})
-				}
-			}
-			return rows, nil
-		})
-}
-
-// scanIoTSWApplications lists account-wide (ListApplications takes no workspace)
-// and links each application under its workspace when that workspace was listed
-// this scan.
-func scanIoTSWApplications(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent) (int, int, error) {
+// scanIoTSWApplications stores the region's applications with their tags.
+// ListApplications lists account-wide (it takes no workspace), so each
+// application is recorded under its workspace only when that workspace was
+// stored this scan.
+func scanIoTSWApplications(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	const op = "iotsitewise:ListApplications"
 	workspaceARN := make(map[string]string, len(workspaces))
 	for _, w := range workspaces {
 		workspaceARN[w.id] = w.arn
 	}
-	pager := iotsitewise.NewListApplicationsPaginator(client, &iotsitewise.ListApplicationsInput{})
-	var batch []*store.Resource
-	var pairs [][2]string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isIoTSiteWiseFeatureUnsupported(perr) {
-				break
+	var (
+		parentOf = map[*store.Resource]string{}
+		stored   []*store.Resource
+		tagErrs  rowTagErrs
+	)
+	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op,
+		iotSWPages(func(ctx context.Context, token *string) ([]types.ApplicationSummary, *string, error) {
+			out, err := client.ListApplications(ctx, &iotsitewise.ListApplicationsInput{NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotsitewise:ListApplications", acct.ID, region, perr)
-				break
+			return out.Applications, out.NextToken, nil
+		}),
+		func(a types.ApplicationSummary) (*store.Resource, string, string) {
+			if sv(a.Arn) == "" {
+				return nil, "applications have an empty Arn", cmp.Or(sv(a.Name), sv(a.Id), "(an application with no name)")
 			}
-			return 0, 0, fmt.Errorf("iotsitewise:ListApplications: %w", perr)
-		}
-		for _, a := range out.Applications {
-			arn := sv(a.Arn)
-			if arn == "" {
-				continue
+			r := iotSWRow(acct, region, scanID, TypeIoTSWApplication, sv(a.Arn), cmp.Or(sv(a.Name), sv(a.Id)), a)
+			r.Status = nonEmptyPtr(string(a.Status))
+			r.CreatedAt = tp(a.CreatedAt)
+			parentOf[r] = workspaceARN[sv(a.WorkspaceName)]
+			return r, "", ""
+		},
+		func(rows []*store.Resource) ([]*store.Resource, func()) {
+			kept, warn := tags.hook(ctx, st, acct, region, &tagErrs)(rows)
+			stored = kept
+			return kept, warn
+		})
+	if !errors.Is(err, store.ErrStoreWrite) {
+		err = errors.Join(err, iotSWContain(st, acct, op, stored, parentOf))
+	}
+	return tagErrs.addPhase(p, tags.op, op, total, inserted, err)
+}
+
+// iotSWStoreChildren stores each parent's children with their tags
+// (storeEachParentTags) and records every stored child under its parent. It
+// returns the children stored, none after a failed write, and whether a
+// write failed.
+func iotSWStoreChildren[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound []string, parents []childParent,
+	page iotSWParentPage[Item],
+	row func(parentID string, it Item) (*store.Resource, string, string),
+	tags rowTagReader, p *phaseTotals,
+) (stored []*store.Resource, storeWriteFailed bool) {
+	arnOf := make(map[string]string, len(parents))
+	for _, pr := range parents {
+		arnOf[pr.id] = pr.arn
+	}
+	parentOf := map[*store.Resource]string{}
+	stored, stop := storeEachParentTags(ctx, st, acct, region, op, notFound, parents, page,
+		func(parentID string, it Item) (*store.Resource, string, string) {
+			r, why, key := row(parentID, it)
+			if r != nil {
+				parentOf[r] = arnOf[parentID]
 			}
-			label := sv(a.Name)
-			if label == "" {
-				label = sv(a.Id)
+			return r, why, key
+		}, tags, p)
+	if stop {
+		return nil, true
+	}
+	return stored, p.addPhase(op, 0, 0, iotSWContain(st, acct, op, stored, parentOf))
+}
+
+// scanIoTSWPipelines stores the pipelines of each workspace the workspace
+// phase stored, with their tags, under their workspace. A workspace
+// ListPipelines no longer finds is skipped.
+func scanIoTSWPipelines(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	_, stop := iotSWStoreChildren(ctx, st, acct, region, "iotsitewise:ListPipelines", iotSWNotFound, workspaces,
+		iotSWParentPages(func(ctx context.Context, workspace string, token *string) ([]types.PipelineSummary, *string, error) {
+			out, err := client.ListPipelines(ctx, &iotsitewise.ListPipelinesInput{WorkspaceName: &workspace, NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTSWApplication, NativeID: arn,
-				Name: &label, Status: nonEmptyPtr(string(a.Status)), CreatedAt: tp(a.CreatedAt),
-				Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			return out.PipelineSummaries, out.NextToken, nil
+		}),
+		func(workspace string, pl types.PipelineSummary) (*store.Resource, string, string) {
+			if sv(pl.PipelineArn) == "" {
+				return nil, "pipelines have an empty PipelineArn", cmp.Or(sv(pl.PipelineName), "(a pipeline with no name)") + " of workspace " + workspace
+			}
+			r := iotSWRow(acct, region, scanID, TypeIoTSWPipeline, sv(pl.PipelineArn), sv(pl.PipelineName), pl)
+			if pl.Status != nil {
+				r.Status = nonEmptyPtr(string(pl.Status.State))
+			}
+			r.CreatedAt = tp(pl.CreatedAt)
+			return r, "", ""
+		}, tags, p)
+	return stop
+}
+
+// scanIoTSWTasks stores the tasks of each workspace the workspace phase
+// stored, with their tags, under their workspace. A workspace ListTasks no
+// longer finds is skipped.
+func scanIoTSWTasks(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, workspaces []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	_, stop := iotSWStoreChildren(ctx, st, acct, region, "iotsitewise:ListTasks", iotSWNotFound, workspaces,
+		iotSWParentPages(func(ctx context.Context, workspace string, token *string) ([]types.TaskSummary, *string, error) {
+			out, err := client.ListTasks(ctx, &iotsitewise.ListTasksInput{WorkspaceName: &workspace, NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.TaskSummaries, out.NextToken, nil
+		}),
+		func(workspace string, tk types.TaskSummary) (*store.Resource, string, string) {
+			if sv(tk.TaskArn) == "" {
+				return nil, "tasks have an empty TaskArn", cmp.Or(sv(tk.TaskName), "(a task with no name)") + " of workspace " + workspace
+			}
+			r := iotSWRow(acct, region, scanID, TypeIoTSWTask, sv(tk.TaskArn), sv(tk.TaskName), tk)
+			if tk.Status != nil {
+				r.Status = nonEmptyPtr(string(tk.Status.State))
+			}
+			r.CreatedAt = tp(tk.CreatedAt)
+			return r, "", ""
+		}, tags, p)
+	return stop
+}
+
+// scanIoTSWPortals stores the region's portals with their tags, each under
+// the portal ARN built from its Id, and returns the stored ones, the parents
+// of the project and portal access-policy phases.
+func scanIoTSWPortals(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (portals []childParent, storeWriteFailed bool) {
+	return storeParentListTags(ctx, st, acct, region, "iotsitewise:ListPortals", "portals", "Id",
+		func(ctx context.Context, token *string) ([]types.PortalSummary, *string, error) {
+			out, err := client.ListPortals(ctx, &iotsitewise.ListPortalsInput{NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.PortalSummaries, out.NextToken, nil
+		},
+		func(pt types.PortalSummary) (*store.Resource, string, string) {
+			id := sv(pt.Id)
+			if id == "" {
+				return nil, "portals have an empty Id", cmp.Or(sv(pt.Name), "(a portal with no name)")
+			}
+			return iotSWRow(acct, region, scanID, TypeIoTSWPortal, iotSWARN(acct.partition(), region, acct.ID, "portal", id), cmp.Or(sv(pt.Name), id), pt), "", ""
+		},
+		func(pt types.PortalSummary) string { return sv(pt.Id) },
+		tags, p)
+}
+
+// scanIoTSWProjects stores the projects of each portal the portal phase
+// stored, with their tags, under their portal, and returns the stored ones,
+// the parents of the dashboard and project access-policy phases. ListProjects
+// models no not-found code, so a portal deleted since it was listed fails the
+// phase (decision #14).
+func scanIoTSWProjects(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, portals []childParent, tags rowTagReader, p *phaseTotals) (projects []childParent, storeWriteFailed bool) {
+	ids := map[*store.Resource]string{}
+	stored, stop := iotSWStoreChildren(ctx, st, acct, region, "iotsitewise:ListProjects", nil, portals,
+		func(ctx context.Context, portalID string, token *string) ([]types.ProjectSummary, *string, error) {
+			out, err := client.ListProjects(ctx, &iotsitewise.ListProjectsInput{PortalId: &portalID, NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ProjectSummaries, out.NextToken, nil
+		},
+		func(portalID string, pj types.ProjectSummary) (*store.Resource, string, string) {
+			id := sv(pj.Id)
+			if id == "" {
+				return nil, "projects have an empty Id", cmp.Or(sv(pj.Name), "(a project with no name)") + " of portal " + portalID
+			}
+			r := iotSWRow(acct, region, scanID, TypeIoTSWProject, iotSWARN(acct.partition(), region, acct.ID, "project", id), cmp.Or(sv(pj.Name), id), pj)
+			ids[r] = id
+			return r, "", ""
+		}, tags, p)
+	for _, r := range stored {
+		projects = append(projects, childParent{id: ids[r], arn: r.NativeID})
+	}
+	return projects, stop
+}
+
+// scanIoTSWDashboards stores the dashboards of each project the project
+// phase stored, with their tags, under their project. ListDashboards models
+// no not-found code, so a project deleted since it was listed fails the
+// phase (decision #14).
+func scanIoTSWDashboards(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, projects []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	_, stop := iotSWStoreChildren(ctx, st, acct, region, "iotsitewise:ListDashboards", nil, projects,
+		func(ctx context.Context, projectID string, token *string) ([]types.DashboardSummary, *string, error) {
+			out, err := client.ListDashboards(ctx, &iotsitewise.ListDashboardsInput{ProjectId: &projectID, NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.DashboardSummaries, out.NextToken, nil
+		},
+		func(projectID string, db types.DashboardSummary) (*store.Resource, string, string) {
+			id := sv(db.Id)
+			if id == "" {
+				return nil, "dashboards have an empty Id", cmp.Or(sv(db.Name), "(a dashboard with no name)") + " of project " + projectID
+			}
+			return iotSWRow(acct, region, scanID, TypeIoTSWDashboard, iotSWARN(acct.partition(), region, acct.ID, "dashboard", id), cmp.Or(sv(db.Name), id), db), "", ""
+		}, tags, p)
+	return stop
+}
+
+// scanIoTSWAccessPolicies stores the access policies of each portal or
+// project (rType) an earlier phase stored, with their tags, each under the
+// access-policy ARN built from its Id. ListAccessPolicies models no not-found
+// code, so a parent deleted since it was listed fails the phase (decision
+// #14).
+func scanIoTSWAccessPolicies(ctx context.Context, client iotSWAPI, acct *account, region string, st *store.Store, scanID string, rType types.ResourceType, parents []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	_, stop := storeEachParentTags(ctx, st, acct, region, "iotsitewise:ListAccessPolicies", nil, parents,
+		func(ctx context.Context, parentID string, token *string) ([]types.AccessPolicySummary, *string, error) {
+			out, err := client.ListAccessPolicies(ctx, &iotsitewise.ListAccessPoliciesInput{
+				ResourceType: rType, ResourceId: &parentID, NextToken: token, MaxResults: sdkaws.Int32(iotSWPageCap),
 			})
-			if parentARN, ok := workspaceARN[sv(a.WorkspaceName)]; ok {
-				pairs = append(pairs, [2]string{store.ResourceID("aws", acct.ID, arn), store.ResourceID("aws", acct.ID, parentARN)})
+			if err != nil {
+				return nil, nil, err
 			}
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "iotsitewise applications")
-	if err != nil {
-		return 0, 0, err
-	}
-	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("record workspace→application hierarchy: %w", err)
-	}
-	return t, i, nil
+			return out.AccessPolicySummaries, out.NextToken, nil
+		},
+		func(parentID string, ap types.AccessPolicySummary) (*store.Resource, string, string) {
+			id := sv(ap.Id)
+			if id == "" {
+				return nil, "access policies have an empty Id", "(an access policy) of " + string(rType) + " " + parentID
+			}
+			return iotSWRow(acct, region, scanID, TypeIoTSWAccessPolicy, iotSWARN(acct.partition(), region, acct.ID, "access-policy", id), id, ap), "", ""
+		}, tags, p)
+	return stop
 }

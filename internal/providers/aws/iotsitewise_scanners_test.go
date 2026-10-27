@@ -2,11 +2,11 @@ package aws
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"sync"
+	"errors"
+	"net"
+	"slices"
+	"strings"
 	"testing"
-	"time"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iotsitewise"
@@ -14,463 +14,826 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// fakeIoTSW serves the workspace-family list ops from pages keyed by NextToken
-// ("" is the first page). Account-level ops fail with pageErrs[token]; the
-// per-workspace ops fail with errs[workspaceName].
-// iswCallLog records the workspaces queried; childFanOut calls the fake from
-// concurrent goroutines.
-type iswCallLog struct {
-	mu    sync.Mutex
-	names []string
-}
+var (
+	iswDenied   = apiErr("AccessDeniedException", "User: arn:aws:iam::123456789012:role/r is not authorized to perform: iotsitewise:List")
+	iswBadInput = apiErr("InvalidRequestException", "bad")
+	iswThrottle = apiErr("ThrottlingException", "slow down")
+	iswGone     = apiErr("ResourceNotFoundException", "gone")
+	iswGap      = apiErr("InvalidRequestException", "Feature not supported yet")
+)
 
-func (l *iswCallLog) add(name string) {
-	if l == nil {
-		return
-	}
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.names = append(l.names, name)
-}
+// iswNames is the two resources each listing of the fixture serves, "tagged"
+// on its first page and "bare" on its second; ListTagsForResource answers
+// with tags for every resource whose ARN ends in "tagged".
+var iswNames = []string{"tagged", "bare"}
 
-type fakeIoTSW struct {
-	iotSWAPI
-	workspaces   map[string]*iotsitewise.ListWorkspacesOutput
-	applications map[string]*iotsitewise.ListApplicationsOutput
-	pipelines    map[string]map[string]*iotsitewise.ListPipelinesOutput
-	tasks        map[string]map[string]*iotsitewise.ListTasksOutput
-	pageErrs     map[string]error
-	errs         map[string]error
-	queried      *iswCallLog
-}
+func iswARN(kind, id string) string { return iotSWARN("aws", testRegion, testAccountID, kind, id) }
 
-func (f fakeIoTSW) ListWorkspaces(_ context.Context, in *iotsitewise.ListWorkspacesInput, _ ...func(*iotsitewise.Options)) (*iotsitewise.ListWorkspacesOutput, error) {
-	if err := f.pageErrs[sv(in.NextToken)]; err != nil {
-		return nil, err
-	}
-	if out := f.workspaces[sv(in.NextToken)]; out != nil {
-		return out, nil
-	}
-	return &iotsitewise.ListWorkspacesOutput{}, nil
-}
+func iswIsTagged(arn string) bool { return strings.HasSuffix(arn, "tagged") }
 
-func (f fakeIoTSW) ListApplications(_ context.Context, in *iotsitewise.ListApplicationsInput, _ ...func(*iotsitewise.Options)) (*iotsitewise.ListApplicationsOutput, error) {
-	if err := f.pageErrs[sv(in.NextToken)]; err != nil {
-		return nil, err
-	}
-	if out := f.applications[sv(in.NextToken)]; out != nil {
-		return out, nil
-	}
-	return &iotsitewise.ListApplicationsOutput{}, nil
-}
+// iswRow is one fixture row: its type and NativeID.
+type iswRow struct{ typ, arn string }
 
-func (f fakeIoTSW) ListPipelines(_ context.Context, in *iotsitewise.ListPipelinesInput, _ ...func(*iotsitewise.Options)) (*iotsitewise.ListPipelinesOutput, error) {
-	f.queried.add(*in.WorkspaceName)
-	if err := f.errs[*in.WorkspaceName]; err != nil {
-		return nil, err
-	}
-	if out := f.pipelines[*in.WorkspaceName][sv(in.NextToken)]; out != nil {
-		return out, nil
-	}
-	return &iotsitewise.ListPipelinesOutput{}, nil
-}
-
-func (f fakeIoTSW) ListTasks(_ context.Context, in *iotsitewise.ListTasksInput, _ ...func(*iotsitewise.Options)) (*iotsitewise.ListTasksOutput, error) {
-	f.queried.add(*in.WorkspaceName)
-	if err := f.errs[*in.WorkspaceName]; err != nil {
-		return nil, err
-	}
-	if out := f.tasks[*in.WorkspaceName][sv(in.NextToken)]; out != nil {
-		return out, nil
-	}
-	return &iotsitewise.ListTasksOutput{}, nil
-}
-
-var iswCreated = time.Date(2026, 3, 4, 5, 6, 7, 0, time.UTC)
-
-func iswWorkspaceARN(name string) string {
-	return fmt.Sprintf("arn:aws:iotsitewise:%s:%s:workspace/%s", testRegion, testAccountID, name)
-}
-
-func iswWorkspace(name string) iswtypes.WorkspaceSummary {
-	return iswtypes.WorkspaceSummary{
-		Arn: sdkaws.String(iswWorkspaceARN(name)), Name: sdkaws.String(name), CreatedAt: &iswCreated,
-		Status: &iswtypes.WorkspaceStatus{State: iswtypes.WorkspaceStateActive},
-	}
-}
-
-func iswApplication(workspace, id string) iswtypes.ApplicationSummary {
-	return iswtypes.ApplicationSummary{
-		Arn: sdkaws.String(iswWorkspaceARN(workspace) + "/application/" + id),
-		Id:  sdkaws.String(id), Name: sdkaws.String("app-" + id), WorkspaceName: sdkaws.String(workspace),
-		Status: iswtypes.ApplicationStatus("ACTIVE"), CreatedAt: &iswCreated,
-	}
-}
-
-func iswPipeline(workspace, name string) iswtypes.PipelineSummary {
-	return iswtypes.PipelineSummary{
-		PipelineArn: sdkaws.String(iswWorkspaceARN(workspace) + "/pipeline/" + name), PipelineName: sdkaws.String(name),
-		Status: &iswtypes.ResourceStatus{State: iswtypes.ResourceStateActive}, CreatedAt: &iswCreated, Version: sdkaws.String("3"),
-	}
-}
-
-func iswTask(workspace, name string) iswtypes.TaskSummary {
-	return iswtypes.TaskSummary{
-		TaskArn: sdkaws.String(iswWorkspaceARN(workspace) + "/task/" + name), TaskName: sdkaws.String(name),
-		Status: &iswtypes.ResourceStatus{State: iswtypes.ResourceStateActive}, CreatedAt: &iswCreated, Version: sdkaws.String("2"),
-	}
-}
-
-// assertISWRow checks the fields every workspace-family row carries.
-func assertISWRow(t *testing.T, r store.Resource, wantType, wantName, wantStatus, attrKey string) {
-	t.Helper()
-	if r.Type != wantType || sv(r.Region) != testRegion || sv(r.Name) != wantName || sv(r.Status) != wantStatus {
-		t.Errorf("row %s: type=%q region=%q name=%q status=%q; want %q %q %q %q",
-			r.NativeID, r.Type, sv(r.Region), sv(r.Name), sv(r.Status), wantType, testRegion, wantName, wantStatus)
-	}
-	if got, err := time.Parse(time.RFC3339, sv(r.CreatedAt)); err != nil || !got.Equal(iswCreated) {
-		t.Errorf("row %s: CreatedAt = %q; want %s", r.NativeID, sv(r.CreatedAt), iswCreated)
-	}
-	var attrs map[string]any
-	if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs[attrKey] == nil {
-		t.Errorf("row %s: attributes %s lack %q (err %v)", r.NativeID, r.AttributesJSON, attrKey, err)
-	}
-}
-
-func TestScanIoTSWWorkspaces_PaginatesAndReturnsParents(t *testing.T) {
-	st := newTestStore(t)
-	noStatus := iswWorkspace("ws3")
-	noStatus.Status = nil
-	fake := fakeIoTSW{workspaces: map[string]*iotsitewise.ListWorkspacesOutput{
-		"":   {WorkspaceSummaries: []iswtypes.WorkspaceSummary{iswWorkspace("ws1"), {Name: sdkaws.String("no-arn")}}, NextToken: sdkaws.String("p2")},
-		"p2": {WorkspaceSummaries: []iswtypes.WorkspaceSummary{iswWorkspace("ws2"), noStatus}},
-	}}
-
-	parents, total, _, err := scanIoTSWWorkspaces(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scanIoTSWWorkspaces: %v", err)
-	}
-	if total != 3 {
-		t.Errorf("total = %d; want 3 (the ARN-less workspace is skipped)", total)
-	}
-	want := []childParent{{"ws1", iswWorkspaceARN("ws1")}, {"ws2", iswWorkspaceARN("ws2")}, {"ws3", iswWorkspaceARN("ws3")}}
-	if fmt.Sprint(parents) != fmt.Sprint(want) {
-		t.Errorf("parents = %v; want %v", parents, want)
-	}
-	rows := qsRows(t, st, TypeIoTSWWorkspace)
-	if len(rows) != 3 {
-		t.Fatalf("stored %d workspace rows; want 3", len(rows))
-	}
-	assertISWRow(t, rows[iswWorkspaceARN("ws1")], TypeIoTSWWorkspace, "ws1", "ACTIVE", "Status")
-	assertISWRow(t, rows[iswWorkspaceARN("ws2")], TypeIoTSWWorkspace, "ws2", "ACTIVE", "Arn")
-	if s := rows[iswWorkspaceARN("ws3")].Status; s != nil {
-		t.Errorf("status-less workspace stored Status %q; want unset", *s)
-	}
-}
-
-func TestScanIoTSWApplications_PaginatesAndLinksListedWorkspaces(t *testing.T) {
-	st := newTestStore(t)
-	upsertTestResource(t, st, "aws", testAccountID, TypeIoTSWWorkspace, iswWorkspaceARN("ws1"), testRegion, "{}")
-	fake := fakeIoTSW{applications: map[string]*iotsitewise.ListApplicationsOutput{
-		"":   {Applications: []iswtypes.ApplicationSummary{iswApplication("ws1", "a1"), {Id: sdkaws.String("no-arn")}}, NextToken: sdkaws.String("p2")},
-		"p2": {Applications: []iswtypes.ApplicationSummary{iswApplication("ws1", "a2"), iswApplication("unlisted", "a3")}},
-	}}
-	parents := []childParent{{"ws1", iswWorkspaceARN("ws1")}}
-
-	total, _, err := scanIoTSWApplications(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
-	if err != nil {
-		t.Fatalf("scanIoTSWApplications: %v", err)
-	}
-	if total != 3 {
-		t.Errorf("total = %d; want 3", total)
-	}
-	rows := qsRows(t, st, TypeIoTSWApplication)
-	if len(rows) != 3 {
-		t.Fatalf("stored %d application rows; want 3", len(rows))
-	}
-	a1 := iswWorkspaceARN("ws1") + "/application/a1"
-	assertISWRow(t, rows[a1], TypeIoTSWApplication, "app-a1", "ACTIVE", "WorkspaceName")
-	assertQSContains(t, st, iswWorkspaceARN("ws1"), a1, iswWorkspaceARN("ws1")+"/application/a2")
-	a3 := store.ResourceID("aws", testAccountID, iswWorkspaceARN("unlisted")+"/application/a3")
-	if rels, err := st.RelationshipsTo(a3, store.RelContains); err != nil || len(rels) != 0 {
-		t.Errorf("application in an unlisted workspace has contains parents %v (err %v); want none", rels, err)
-	}
-}
-
-// TestScanIoTSWAccountOps_ErrorShapes runs the account-level list ops through
-// their error ladder: a gap or deny on page 2 keeps page 1's rows.
-func TestScanIoTSWAccountOps_ErrorShapes(t *testing.T) {
-	ops := []struct {
-		name, rowType, op string
-		run               func(st *store.Store, page2Err error) error
-	}{
-		{"workspaces", TypeIoTSWWorkspace, "iotsitewise:ListWorkspaces", func(st *store.Store, page2Err error) error {
-			fake := fakeIoTSW{
-				workspaces: map[string]*iotsitewise.ListWorkspacesOutput{"": {WorkspaceSummaries: []iswtypes.WorkspaceSummary{iswWorkspace("ws1")}, NextToken: sdkaws.String("p2")}},
-				pageErrs:   map[string]error{"p2": page2Err},
+// iswRows is every row the fixture stores. A child's id names its parent, so
+// that ids stay unique across parents.
+func iswRows() []iswRow {
+	var rows []iswRow
+	for _, n := range iswNames {
+		rows = append(rows,
+			iswRow{TypeIoTSWAssetModel, iswARN("asset-model", n)},
+			iswRow{TypeIoTSWComputationModel, iswARN("computation-model", n)},
+			iswRow{TypeIoTSWGateway, iswARN("gateway", n)},
+			iswRow{TypeIoTSWDataset, iswARN("dataset", n)},
+			iswRow{TypeIoTSWWorkspace, iswARN("workspace", n)},
+			iswRow{TypeIoTSWApplication, iswARN("workspace", "tagged/application/"+n)},
+			iswRow{TypeIoTSWPortal, iswARN("portal", n)})
+		for _, c := range iswNames {
+			proj := n + "-" + c
+			rows = append(rows,
+				iswRow{TypeIoTSWAsset, iswARN("asset", proj)},
+				iswRow{TypeIoTSWPipeline, iswARN("workspace", n+"/pipeline/"+c)},
+				iswRow{TypeIoTSWTask, iswARN("workspace", n+"/task/"+c)},
+				iswRow{TypeIoTSWProject, iswARN("project", proj)},
+				iswRow{TypeIoTSWAccessPolicy, iswARN("access-policy", "PORTAL-"+proj)})
+			for _, d := range iswNames {
+				rows = append(rows,
+					iswRow{TypeIoTSWDashboard, iswARN("dashboard", proj+"-"+d)},
+					iswRow{TypeIoTSWAccessPolicy, iswARN("access-policy", "PROJECT-"+proj+"-"+d)})
 			}
-			_, _, _, err := scanIoTSWWorkspaces(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID)
-			return err
-		}},
-		{"applications", TypeIoTSWApplication, "iotsitewise:ListApplications", func(st *store.Store, page2Err error) error {
-			fake := fakeIoTSW{
-				applications: map[string]*iotsitewise.ListApplicationsOutput{"": {Applications: []iswtypes.ApplicationSummary{iswApplication("ws1", "a1")}, NextToken: sdkaws.String("p2")}},
-				pageErrs:     map[string]error{"p2": page2Err},
-			}
-			_, _, err := scanIoTSWApplications(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
-			return err
-		}},
-	}
-	cases := []struct {
-		name      string
-		err       error
-		wantErr   bool
-		wantRows  int
-		wantWarns int
-	}{
-		{"no error stores page 1", nil, false, 1, 0},
-		{"feature gap is skipped silently", apiErr("InvalidRequestException", "Feature not supported yet"), false, 1, 0},
-		{"access denied warns", apiErr("AccessDeniedException", "User: x is not authorized to perform: iotsitewise:List"), false, 1, 1},
-		{"other invalid request propagates", apiErr("InvalidRequestException", "bad token"), true, 0, 0},
-	}
-	for _, op := range ops {
-		for _, tc := range cases {
-			t.Run(op.name+"/"+tc.name, func(t *testing.T) {
-				st := newTestStore(t)
-				var warned []string
-				st.OnWarn = func(w store.ScanWarning) { warned = append(warned, w.Service) }
-				err := op.run(st, tc.err)
-				if tc.wantErr {
-					if !isAPIErrorCode(err, "InvalidRequestException") {
-						t.Fatalf("err = %v; want the InvalidRequestException propagated", err)
-					}
-				} else if err != nil {
-					t.Fatalf("err = %v; want nil", err)
-				}
-				if got := len(qsRows(t, st, op.rowType)); got != tc.wantRows {
-					t.Errorf("stored %d rows; want %d", got, tc.wantRows)
-				}
-				if len(warned) != tc.wantWarns {
-					t.Errorf("recorded %d warnings; want %d", len(warned), tc.wantWarns)
-				}
-				for _, svc := range warned {
-					if svc != op.op {
-						t.Errorf("warning names %q; want %q", svc, op.op)
-					}
-				}
-			})
 		}
 	}
+	return rows
 }
 
-func TestScanIoTSWAccountOps_Empty(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	parents, total, _, err := scanIoTSWWorkspaces(context.Background(), fakeIoTSW{}, acct, testRegion, st, testScanID)
-	if err != nil || total != 0 || len(parents) != 0 {
-		t.Errorf("workspaces: parents=%v total=%d err=%v; want none, 0, nil", parents, total, err)
-	}
-	total, _, err = scanIoTSWApplications(context.Background(), fakeIoTSW{}, acct, testRegion, st, testScanID, nil)
-	if err != nil || total != 0 {
-		t.Errorf("applications: total=%d err=%v; want 0, nil", total, err)
-	}
+// iswCalls records the stubbed SiteWise calls (bacCalls), the parents each
+// child listing is sent, and answers the Describes from describeErrs, keyed
+// by the id described.
+type iswCalls struct {
+	*bacCalls
+	assetsOf, projectsOf, dashboardsOf, pipelinesOf, accessOf parentCalls
+	describeErrs                                              map[string]error
 }
 
-// iswChildOps drives each per-workspace phase; every workspace not in errs
-// lists one child on page 1 and one on page 2.
-var iswChildOps = []struct {
-	name, childType, kind, op, attrKey string
-	run                                func(st *store.Store, parents []childParent, errs map[string]error, queried *iswCallLog) error
-}{
-	{
-		"pipelines", TypeIoTSWPipeline, "pipeline", "iotsitewise:ListPipelines", "PipelineArn",
-		func(st *store.Store, parents []childParent, errs map[string]error, queried *iswCallLog) error {
-			fake := fakeIoTSW{pipelines: map[string]map[string]*iotsitewise.ListPipelinesOutput{}, errs: errs, queried: queried}
-			for _, p := range parents {
-				fake.pipelines[p.id] = map[string]*iotsitewise.ListPipelinesOutput{
-					"":   {PipelineSummaries: []iswtypes.PipelineSummary{iswPipeline(p.id, "c1"), {PipelineName: sdkaws.String("no-arn")}}, NextToken: sdkaws.String("p2")},
-					"p2": {PipelineSummaries: []iswtypes.PipelineSummary{iswPipeline(p.id, "c2")}},
-				}
-			}
-			_, _, err := scanIoTSWPipelines(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
-			return err
-		},
-	},
-	{
-		"tasks", TypeIoTSWTask, "task", "iotsitewise:ListTasks", "TaskArn",
-		func(st *store.Store, parents []childParent, errs map[string]error, queried *iswCallLog) error {
-			fake := fakeIoTSW{tasks: map[string]map[string]*iotsitewise.ListTasksOutput{}, errs: errs, queried: queried}
-			for _, p := range parents {
-				fake.tasks[p.id] = map[string]*iotsitewise.ListTasksOutput{
-					"":   {TaskSummaries: []iswtypes.TaskSummary{iswTask(p.id, "c1"), {TaskName: sdkaws.String("no-arn")}}, NextToken: sdkaws.String("p2")},
-					"p2": {TaskSummaries: []iswtypes.TaskSummary{iswTask(p.id, "c2")}},
-				}
-			}
-			_, _, err := scanIoTSWTasks(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, parents)
-			return err
-		},
-	},
-}
-
-func seedISWWorkspaces(t *testing.T, st *store.Store, names ...string) []childParent {
-	t.Helper()
-	parents := make([]childParent, len(names))
-	for i, n := range names {
-		upsertTestResource(t, st, "aws", testAccountID, TypeIoTSWWorkspace, iswWorkspaceARN(n), testRegion, "{}")
-		parents[i] = childParent{id: n, arn: iswWorkspaceARN(n)}
-	}
-	return parents
-}
-
-func TestScanIoTSWWorkspaceChildren_PaginatesEveryWorkspaceAndWiresHierarchy(t *testing.T) {
-	for _, op := range iswChildOps {
-		t.Run(op.name, func(t *testing.T) {
-			st := newTestStore(t)
-			parents := seedISWWorkspaces(t, st, "ws1", "ws2")
-			var queried iswCallLog
-			if err := op.run(st, parents, nil, &queried); err != nil {
-				t.Fatalf("run: %v", err)
-			}
-			rows := qsRows(t, st, op.childType)
-			if len(rows) != 4 {
-				t.Fatalf("stored %d rows; want 4 (2 pages x 2 workspaces, ARN-less skipped)", len(rows))
-			}
-			for _, ws := range []string{"ws1", "ws2"} {
-				c1 := iswWorkspaceARN(ws) + "/" + op.kind + "/c1"
-				assertISWRow(t, rows[c1], op.childType, "c1", "ACTIVE", op.attrKey)
-				assertQSContains(t, st, iswWorkspaceARN(ws), c1, iswWorkspaceARN(ws)+"/"+op.kind+"/c2")
-			}
-			if len(queried.names) != 4 {
-				t.Errorf("queried %v; want 2 pages for each of 2 workspaces", queried.names)
-			}
-		})
-	}
-}
-
-func TestScanIoTSWWorkspaceChildren_ErrorHandling(t *testing.T) {
-	cases := []struct {
-		name      string
-		err       error
-		wantErr   bool
-		wantRows  int
-		wantWarns int
-	}{
-		{"workspace deleted since listing is skipped", apiErr("ResourceNotFoundException", "gone"), false, 4, 0},
-		{"feature gap is skipped silently", apiErr("InvalidRequestException", "Feature not supported yet"), false, 4, 0},
-		{"access denied warns once and keeps siblings", apiErr("AccessDeniedException", "User: x is not authorized to perform: iotsitewise:List"), false, 4, 1},
-		{"other error propagates", apiErr("InternalFailureException", "boom"), true, 0, 0},
-	}
-	for _, op := range iswChildOps {
-		for _, tc := range cases {
-			t.Run(op.name+"/"+tc.name, func(t *testing.T) {
-				st := newTestStore(t)
-				var warned []string
-				st.OnWarn = func(w store.ScanWarning) { warned = append(warned, w.Service) }
-				parents := seedISWWorkspaces(t, st, "bad1", "bad2", "ok1", "ok2")
-				err := op.run(st, parents, map[string]error{"bad1": tc.err, "bad2": tc.err}, nil)
-				if tc.wantErr {
-					if !isAPIErrorCode(err, "InternalFailureException") {
-						t.Fatalf("err = %v; want the InternalFailureException propagated", err)
-					}
-				} else if err != nil {
-					t.Fatalf("err = %v; want nil", err)
-				}
-				if got := len(qsRows(t, st, op.childType)); got != tc.wantRows {
-					t.Errorf("stored %d rows; want %d", got, tc.wantRows)
-				}
-				if len(warned) != tc.wantWarns {
-					t.Errorf("recorded %d warnings; want %d", len(warned), tc.wantWarns)
-				}
-				for _, svc := range warned {
-					if svc != op.op {
-						t.Errorf("warning names %q; want %q", svc, op.op)
-					}
-				}
-			})
+func newISWCalls() *iswCalls {
+	c := &iswCalls{bacCalls: newBACCalls(), describeErrs: map[string]error{}}
+	for _, r := range iswRows() {
+		if iswIsTagged(r.arn) {
+			c.tags[r.arn] = map[string]string{"type": r.typ}
 		}
 	}
+	return c
 }
 
-func TestScanIoTSWWorkspaceChildren_NoWorkspacesMakesNoCalls(t *testing.T) {
-	for _, op := range iswChildOps {
-		t.Run(op.name, func(t *testing.T) {
-			st := newTestStore(t)
-			var queried iswCallLog
-			if err := op.run(st, nil, nil, &queried); err != nil {
-				t.Fatalf("run: %v", err)
-			}
-			if len(queried.names) != 0 || len(qsRows(t, st, op.childType)) != 0 {
-				t.Errorf("queried %v and stored rows with no workspaces; want neither", queried.names)
-			}
-		})
-	}
-}
-
-// iswServiceStub serves every op scanIoTSiteWise calls: one gateway from the
-// pre-existing phases, one workspace with one child of each kind, and
-// override replacing an op's queue.
-func iswServiceStub(t *testing.T, override map[string][]stubCall) sdkaws.Config {
-	t.Helper()
-	one := func(out any) []stubCall { return []stubCall{{Output: out}} }
-	calls := map[string][]stubCall{
-		"ListAssetModels":       one(&iotsitewise.ListAssetModelsOutput{}),
-		"ListComputationModels": one(&iotsitewise.ListComputationModelsOutput{}),
-		"ListGateways": one(&iotsitewise.ListGatewaysOutput{GatewaySummaries: []iswtypes.GatewaySummary{
-			{GatewayId: sdkaws.String("gw"), GatewayName: sdkaws.String("gateway")},
-		}}),
-		"ListDatasets":     one(&iotsitewise.ListDatasetsOutput{}),
-		"ListPortals":      one(&iotsitewise.ListPortalsOutput{}),
-		"ListWorkspaces":   one(&iotsitewise.ListWorkspacesOutput{WorkspaceSummaries: []iswtypes.WorkspaceSummary{iswWorkspace("ws")}}),
-		"ListPipelines":    one(&iotsitewise.ListPipelinesOutput{PipelineSummaries: []iswtypes.PipelineSummary{iswPipeline("ws", "pl")}}),
-		"ListTasks":        one(&iotsitewise.ListTasksOutput{TaskSummaries: []iswtypes.TaskSummary{iswTask("ws", "tk")}}),
-		"ListApplications": one(&iotsitewise.ListApplicationsOutput{Applications: []iswtypes.ApplicationSummary{iswApplication("ws", "ap")}}),
-	}
-	for op, c := range override {
-		calls[op] = c
-	}
-	return cfgWithStub(stubResponses(t, calls), testRegion)
-}
-
-// TestScanIoTSiteWise_WorkspaceFamilyAfterExistingPhases runs the whole service
-// against the real SDK client (its input validators included): the pre-existing
-// phases still store their rows, and the workspace family's children are
-// contained by the workspace.
-func TestScanIoTSiteWise_WorkspaceFamilyAfterExistingPhases(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	acct.cfg = iswServiceStub(t, nil)
-	total, _, err := scanIoTSiteWise(context.Background(), acct, testRegion, st, testScanID)
+func (c *iswCalls) listTags(in any) (any, error) {
+	arn := sv(in.(*iotsitewise.ListTagsForResourceInput).ResourceArn)
+	c.mu.Lock()
+	c.tagARNs = append(c.tagARNs, arn)
+	err, tags := c.errs[arn], c.tags[arn]
+	c.mu.Unlock()
 	if err != nil {
-		t.Fatalf("scanIoTSiteWise: %v", err)
+		return nil, err
 	}
-	if total != 5 {
-		t.Errorf("total = %d; want 5 (gateway, workspace, application, pipeline, task)", total)
-	}
-	gw := iotSWARN("aws", testRegion, testAccountID, "gateway", "gw")
-	if _, ok := qsRows(t, st, TypeIoTSWGateway)[gw]; !ok {
-		t.Errorf("pre-existing gateway phase did not store %s", gw)
-	}
-	ws := iswWorkspaceARN("ws")
-	assertQSContains(t, st, ws, ws+"/pipeline/pl", ws+"/task/tk", ws+"/application/ap")
+	return &iotsitewise.ListTagsForResourceOutput{Tags: tags}, nil
 }
 
-// TestScanIoTSiteWise_WorkspaceChildErrorPropagates pins that a per-workspace
-// op's hard error reaches the service result, stops the later task phase, and
-// cannot cost the account-level applications listed before it.
-func TestScanIoTSiteWise_WorkspaceChildErrorPropagates(t *testing.T) {
-	st := newTestStore(t)
-	acct := newTestAccount(testAccountID)
-	acct.cfg = iswServiceStub(t, map[string][]stubCall{
-		"ListPipelines": {{Err: apiErr("InternalFailureException", "boom")}},
+// describe answers a Describe of id with out, or with id's describeErrs.
+func (c *iswCalls) describe(op string, id func(in any) string, out func(id string) any) func(any) (any, error) {
+	return func(in any) (any, error) {
+		c.called(op, in)
+		c.mu.Lock()
+		err := c.describeErrs[id(in)]
+		c.mu.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		return out(id(in)), nil
+	}
+}
+
+// twoPages answers op with "tagged" on the first page and "bare" on the
+// second.
+func (c *iswCalls) twoPages(op string, out func(in any, name string, next *string) any) func(any) (any, error) {
+	return c.answer(op, func(in any) any {
+		if bacField[*string](in, "NextToken") == nil {
+			return out(in, "tagged", sdkaws.String("p2"))
+		}
+		return out(in, "bare", nil)
 	})
-	_, _, err := scanIoTSiteWise(context.Background(), acct, testRegion, st, testScanID)
-	if !isAPIErrorCode(err, "InternalFailureException") {
-		t.Fatalf("err = %v; want the ListPipelines InternalFailureException", err)
+}
+
+// iswHandlers answers every op the scan calls with the fixture (iswRows).
+func iswHandlers(c *iswCalls) map[string]func(any) (any, error) {
+	s := sdkaws.String
+	return map[string]func(any) (any, error){
+		"ListTagsForResource": c.listTags,
+		"ListAssetModels": c.twoPages("ListAssetModels", func(_ any, n string, next *string) any {
+			return &iotsitewise.ListAssetModelsOutput{AssetModelSummaries: []iswtypes.AssetModelSummary{{Id: s(n), Arn: s(iswARN("asset-model", n)), Name: s("model " + n)}}, NextToken: next}
+		}),
+		"DescribeAssetModel": c.describe("DescribeAssetModel", func(in any) string { return sv(in.(*iotsitewise.DescribeAssetModelInput).AssetModelId) },
+			func(id string) any {
+				return &iotsitewise.DescribeAssetModelOutput{AssetModelId: s(id), AssetModelArn: s(iswARN("asset-model", id)), AssetModelDescription: s("described " + id)}
+			}),
+		"ListAssets": c.twoPages("ListAssets", func(in any, n string, next *string) any {
+			p := in.(*iotsitewise.ListAssetsInput)
+			c.assetsOf.add(sv(p.AssetModelId) + "/" + string(p.Filter))
+			id := sv(p.AssetModelId) + "-" + n
+			return &iotsitewise.ListAssetsOutput{AssetSummaries: []iswtypes.AssetSummary{{Id: s(id), Arn: s(iswARN("asset", id))}}, NextToken: next}
+		}),
+		"ListComputationModels": c.twoPages("ListComputationModels", func(_ any, n string, next *string) any {
+			return &iotsitewise.ListComputationModelsOutput{ComputationModelSummaries: []iswtypes.ComputationModelSummary{{Id: s(n), Arn: s(iswARN("computation-model", n))}}, NextToken: next}
+		}),
+		"DescribeComputationModel": c.describe("DescribeComputationModel", func(in any) string {
+			return sv(in.(*iotsitewise.DescribeComputationModelInput).ComputationModelId)
+		}, func(id string) any {
+			return &iotsitewise.DescribeComputationModelOutput{ComputationModelId: s(id), ComputationModelDescription: s("described " + id)}
+		}),
+		"ListGateways": c.twoPages("ListGateways", func(_ any, n string, next *string) any {
+			return &iotsitewise.ListGatewaysOutput{GatewaySummaries: []iswtypes.GatewaySummary{{GatewayId: s(n), GatewayName: s("gateway " + n)}}, NextToken: next}
+		}),
+		"ListDatasets": c.twoPages("ListDatasets", func(_ any, n string, next *string) any {
+			return &iotsitewise.ListDatasetsOutput{DatasetSummaries: []iswtypes.DatasetSummary{{Id: s(n), Arn: s(iswARN("dataset", n))}}, NextToken: next}
+		}),
+		"DescribeDataset": c.describe("DescribeDataset", func(in any) string { return sv(in.(*iotsitewise.DescribeDatasetInput).DatasetId) },
+			func(id string) any {
+				return &iotsitewise.DescribeDatasetOutput{DatasetId: s(id), DatasetDescription: s("described " + id)}
+			}),
+		"ListWorkspaces": c.twoPages("ListWorkspaces", func(_ any, n string, next *string) any {
+			return &iotsitewise.ListWorkspacesOutput{WorkspaceSummaries: []iswtypes.WorkspaceSummary{{
+				Name: s(n), Arn: s(iswARN("workspace", n)), Status: &iswtypes.WorkspaceStatus{State: iswtypes.WorkspaceStateActive},
+			}}, NextToken: next}
+		}),
+		"ListApplications": c.twoPages("ListApplications", func(_ any, n string, next *string) any {
+			return &iotsitewise.ListApplicationsOutput{Applications: []iswtypes.ApplicationSummary{{
+				Id: s(n), Name: s("app " + n), WorkspaceName: s("tagged"), Arn: s(iswARN("workspace", "tagged/application/"+n)), Status: iswtypes.ApplicationStatusActive,
+			}}, NextToken: next}
+		}),
+		"ListPipelines": c.twoPages("ListPipelines", func(in any, n string, next *string) any {
+			ws := sv(in.(*iotsitewise.ListPipelinesInput).WorkspaceName)
+			c.pipelinesOf.add(ws)
+			return &iotsitewise.ListPipelinesOutput{PipelineSummaries: []iswtypes.PipelineSummary{{
+				PipelineName: s(n), PipelineArn: s(iswARN("workspace", ws+"/pipeline/"+n)), Status: &iswtypes.ResourceStatus{State: iswtypes.ResourceStateUpdating},
+			}}, NextToken: next}
+		}),
+		"ListTasks": c.twoPages("ListTasks", func(in any, n string, next *string) any {
+			ws := sv(in.(*iotsitewise.ListTasksInput).WorkspaceName)
+			return &iotsitewise.ListTasksOutput{TaskSummaries: []iswtypes.TaskSummary{{
+				TaskName: s(n), TaskArn: s(iswARN("workspace", ws+"/task/"+n)), Status: &iswtypes.ResourceStatus{State: iswtypes.ResourceStateActive},
+			}}, NextToken: next}
+		}),
+		"ListPortals": c.twoPages("ListPortals", func(_ any, n string, next *string) any {
+			return &iotsitewise.ListPortalsOutput{PortalSummaries: []iswtypes.PortalSummary{{Id: s(n), Name: s("portal " + n)}}, NextToken: next}
+		}),
+		"ListProjects": c.twoPages("ListProjects", func(in any, n string, next *string) any {
+			portal := sv(in.(*iotsitewise.ListProjectsInput).PortalId)
+			c.projectsOf.add(portal)
+			return &iotsitewise.ListProjectsOutput{ProjectSummaries: []iswtypes.ProjectSummary{{Id: s(portal + "-" + n)}}, NextToken: next}
+		}),
+		"ListDashboards": c.twoPages("ListDashboards", func(in any, n string, next *string) any {
+			proj := sv(in.(*iotsitewise.ListDashboardsInput).ProjectId)
+			c.dashboardsOf.add(proj)
+			return &iotsitewise.ListDashboardsOutput{DashboardSummaries: []iswtypes.DashboardSummary{{Id: s(proj + "-" + n)}}, NextToken: next}
+		}),
+		"ListAccessPolicies": c.twoPages("ListAccessPolicies", func(in any, n string, next *string) any {
+			p := in.(*iotsitewise.ListAccessPoliciesInput)
+			c.accessOf.add(string(p.ResourceType) + "-" + sv(p.ResourceId))
+			return &iotsitewise.ListAccessPoliciesOutput{AccessPolicySummaries: []iswtypes.AccessPolicySummary{{Id: s(string(p.ResourceType) + "-" + sv(p.ResourceId) + "-" + n)}}, NextToken: next}
+		}),
 	}
-	if got := len(qsRows(t, st, TypeIoTSWApplication)); got != 1 {
-		t.Errorf("stored %d applications; want 1 (listed before the failing pipelines phase)", got)
+}
+
+// iswScan runs the scan's real entry point against handlers; every op they
+// do not answer is denied.
+func iswScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[string]func(any) (any, error)) (int, int, error) {
+	t.Helper()
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, iswDenied)
+	return scanIoTSiteWise(ctx, acct, testRegion, st, testScanID)
+}
+
+func iswRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, bool) {
+	t.Helper()
+	r, ok := rowsByNativeID(t, st, typ)[arn]
+	return r, ok
+}
+
+// Every type stores the tags ListTagsForResource returns for its ARN, and
+// nil for a resource without tags; exactly the stored rows are sent to it.
+// Both pages of every listing are stored, every listing asks for the model's
+// page cap, the described types store their Describe body, every child is
+// contained by its parent, and the scan reports no error or warning.
+func TestScanIoTSiteWise_StoresTagsOfEveryType(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	calls := newISWCalls()
+
+	total, inserted, err := iswScan(context.Background(), t, st, iswHandlers(calls))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
 	}
-	if got := len(qsRows(t, st, TypeIoTSWTask)); got != 0 {
-		t.Errorf("stored %d tasks; want 0 (the task phase follows the failing one)", got)
+	if total != 50 || inserted != 50 {
+		t.Errorf("total, inserted = %d, %d; want 50, 50", total, inserted)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0", *warns)
+	}
+	var wantARNs []string
+	for _, w := range iswRows() {
+		wantARNs = append(wantARNs, w.arn)
+		r, ok := iswRowOf(t, st, w.typ, w.arn)
+		switch {
+		case !ok:
+			t.Errorf("%s %s missing", w.typ, w.arn)
+		case iswIsTagged(w.arn):
+			assertTagsMap(t, r.TagsJSON, map[string]string{"type": w.typ})
+		case r.TagsJSON != nil:
+			t.Errorf("%s %s TagsJSON = %q; want nil", w.typ, w.arn, *r.TagsJSON)
+		}
+	}
+	slices.Sort(wantARNs)
+	slices.Sort(calls.tagARNs)
+	if !slices.Equal(calls.tagARNs, wantARNs) {
+		t.Errorf("ListTagsForResource ARNs = %v\nwant %v", calls.tagARNs, wantARNs)
+	}
+	for _, op := range []string{
+		"ListAssetModels", "ListAssets", "ListComputationModels", "ListGateways", "ListDatasets", "ListWorkspaces",
+		"ListApplications", "ListPipelines", "ListTasks", "ListPortals", "ListProjects", "ListDashboards", "ListAccessPolicies",
+	} {
+		got := calls.maxResults[op]
+		if len(got) == 0 {
+			t.Errorf("%s never sent MaxResults", op)
+		}
+		for _, n := range got {
+			if n != 250 {
+				t.Errorf("%s MaxResults = %d; want 250", op, n)
+			}
+		}
+	}
+	for _, d := range []iswRow{
+		{TypeIoTSWAssetModel, iswARN("asset-model", "tagged")},
+		{TypeIoTSWComputationModel, iswARN("computation-model", "bare")},
+		{TypeIoTSWDataset, iswARN("dataset", "tagged")},
+	} {
+		if r, _ := iswRowOf(t, st, d.typ, d.arn); !strings.Contains(r.AttributesJSON, "Description\":\"described ") {
+			t.Errorf("%s attributes = %s; want its Describe body", d.typ, r.AttributesJSON)
+		}
+	}
+	if got, want := calls.assetsOf.distinct(), []string{"bare/ALL", "tagged/ALL"}; !slices.Equal(got, want) {
+		t.Errorf("ListAssets model/filter = %v; want %v", got, want)
+	}
+	if got, want := calls.accessOf.distinct(), []string{
+		"PORTAL-bare", "PORTAL-tagged", "PROJECT-bare-bare", "PROJECT-bare-tagged", "PROJECT-tagged-bare", "PROJECT-tagged-tagged",
+	}; !slices.Equal(got, want) {
+		t.Errorf("ListAccessPolicies parents = %v; want %v", got, want)
+	}
+	assertContainsNative(t, st, iswARN("portal", "bare"), iswARN("project", "bare-tagged"))
+	assertContainsNative(t, st, iswARN("project", "tagged-bare"), iswARN("dashboard", "tagged-bare-tagged"))
+	for _, c := range []string{"pipeline/bare", "task/tagged", "application/bare"} {
+		assertContainsNative(t, st, iswARN("workspace", "tagged"), iswARN("workspace", "tagged/"+c))
+	}
+	ws, _ := iswRowOf(t, st, TypeIoTSWWorkspace, iswARN("workspace", "tagged"))
+	app, _ := iswRowOf(t, st, TypeIoTSWApplication, iswARN("workspace", "tagged/application/tagged"))
+	pl, _ := iswRowOf(t, st, TypeIoTSWPipeline, iswARN("workspace", "bare/pipeline/tagged"))
+	tk, _ := iswRowOf(t, st, TypeIoTSWTask, iswARN("workspace", "tagged/task/bare"))
+	if sv(pl.Status) != "UPDATING" || sv(tk.Status) != "ACTIVE" {
+		t.Errorf("pipeline, task Status = %q, %q; want UPDATING, ACTIVE", sv(pl.Status), sv(tk.Status))
+	}
+	if sv(ws.Status) != "ACTIVE" || sv(app.Status) != "ACTIVE" || sv(app.Name) != "app tagged" {
+		t.Errorf("workspace Status = %q, application Status, Name = %q, %q; want both ACTIVE and Name app tagged", sv(ws.Status), sv(app.Status), sv(app.Name))
+	}
+}
+
+// A rescan stores the same rows without inserting any.
+func TestScanIoTSiteWise_RescanInsertsNone(t *testing.T) {
+	st := newTestStore(t)
+	calls := newISWCalls()
+	if _, _, err := iswScan(context.Background(), t, st, iswHandlers(calls)); err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+	total, inserted, err := iswScan(context.Background(), t, st, iswHandlers(calls))
+	if err != nil {
+		t.Fatalf("rescan: %v", err)
+	}
+	if total != 50 || inserted != 0 {
+		t.Errorf("rescan total, inserted = %d, %d; want 50, 0", total, inserted)
+	}
+}
+
+// A failed tag read keeps the row without tags unless the resource is gone:
+// a denial warns once under iotsitewise:ListTagsForResource, a throttle after
+// retries is a transient error, any other code a hard one. A portal the tag
+// read no longer finds is dropped, and its projects are never listed; a
+// gateway, from an account-wide listing, likewise.
+func TestScanIoTSiteWise_TagReadFailures(t *testing.T) {
+	for _, target := range []iswRow{
+		{TypeIoTSWPortal, iswARN("portal", "tagged")},
+		{TypeIoTSWGateway, iswARN("gateway", "tagged")},
+	} {
+		t.Run(target.typ, func(t *testing.T) {
+			for _, c := range []struct {
+				name      string
+				err       error
+				kept      bool
+				outcome   serviceOutcome
+				wantWarns int
+			}{
+				{"denied", iswDenied, true, 0, 1},
+				{"unauthorized", apiErr("UnauthorizedException", "You are not authorized."), true, 0, 1},
+				{"not found", iswGone, false, 0, 0},
+				{"other error", iswBadInput, true, outcomeError, 0},
+				{"transient", iswThrottle, true, outcomeTransient, 0},
+			} {
+				t.Run(c.name, func(t *testing.T) {
+					st := newTestStore(t)
+					warnings := bacWarnings(st, iotSWListTagsOp)
+					calls := newISWCalls()
+					calls.errs[target.arn] = c.err
+
+					_, _, err := iswScan(context.Background(), t, st, iswHandlers(calls))
+					if c.outcome == 0 && err != nil {
+						t.Fatalf("err = %v; want nil", err)
+					}
+					if c.outcome != 0 {
+						assertGlueOutcome(t, err, c.outcome)
+					}
+					if c.outcome == outcomeError {
+						assertAPICode(t, err, "InvalidRequestException")
+					}
+					r, ok := iswRowOf(t, st, target.typ, target.arn)
+					if ok != c.kept {
+						t.Fatalf("%s row stored = %v; want %v", target.typ, ok, c.kept)
+					}
+					if ok && r.TagsJSON != nil {
+						t.Errorf("TagsJSON = %q; want nil", *r.TagsJSON)
+					}
+					if target.typ == TypeIoTSWPortal {
+						if listed := calls.projectsOf.distinct(); slices.Contains(listed, "tagged") != c.kept || !slices.Contains(listed, "bare") {
+							t.Errorf("projects listed of portals %v; want the portal only when it is kept, its sibling always", listed)
+						}
+					}
+					if len(*warnings) != c.wantWarns {
+						t.Fatalf("%s warnings = %v; want %d", iotSWListTagsOp, *warnings, c.wantWarns)
+					}
+					for _, w := range *warnings {
+						if w.Scope != testAccountID+"/"+testRegion {
+							t.Errorf("warning Scope = %q; want %s/%s", w.Scope, testAccountID, testRegion)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+// A throttled tag read beside a hard failure of the same op is demoted to
+// one warning, so the hard error decides the outcome.
+func TestScanIoTSiteWise_TagThrottleDemotedBesideHardError(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, iotSWListTagsOp)
+	calls := newISWCalls()
+	calls.errs[iswARN("dashboard", "tagged-tagged-tagged")] = iswThrottle
+	calls.errs[iswARN("dashboard", "bare-bare-bare")] = iswBadInput
+
+	_, _, err := iswScan(context.Background(), t, st, iswHandlers(calls))
+	assertGlueOutcome(t, err, outcomeError)
+	assertAPICode(t, err, "InvalidRequestException")
+	if *warns != 1 {
+		t.Errorf("%s warnings = %d; want 1", iotSWListTagsOp, *warns)
+	}
+}
+
+// A failed Describe keeps the row as its list element, tags still read,
+// unless the resource is gone: a denial warns once under the Describe op, a
+// throttle is a transient error, any other code a hard one. An asset model
+// DescribeAssetModel no longer finds is dropped and its assets are never
+// listed.
+func TestScanIoTSiteWise_DescribeFailures(t *testing.T) {
+	for _, target := range []struct {
+		typ, arn, op, id string
+	}{
+		{TypeIoTSWAssetModel, iswARN("asset-model", "tagged"), "iotsitewise:DescribeAssetModel", "tagged"},
+		{TypeIoTSWDataset, iswARN("dataset", "tagged"), "iotsitewise:DescribeDataset", "tagged"},
+		{TypeIoTSWComputationModel, iswARN("computation-model", "tagged"), "iotsitewise:DescribeComputationModel", "tagged"},
+	} {
+		t.Run(target.typ, func(t *testing.T) {
+			for _, c := range []struct {
+				name      string
+				err       error
+				kept      bool
+				outcome   serviceOutcome
+				wantWarns int
+			}{
+				{"denied", iswDenied, true, 0, 1},
+				{"not found", iswGone, false, 0, 0},
+				{"other error", iswBadInput, true, outcomeError, 0},
+				{"transient", iswThrottle, true, outcomeTransient, 0},
+			} {
+				t.Run(c.name, func(t *testing.T) {
+					st := newTestStore(t)
+					warnings := bacWarnings(st, target.op)
+					calls := newISWCalls()
+					calls.describeErrs[target.id] = c.err
+
+					_, _, err := iswScan(context.Background(), t, st, iswHandlers(calls))
+					if c.outcome == 0 && err != nil {
+						t.Fatalf("err = %v; want nil", err)
+					}
+					if c.outcome != 0 {
+						assertGlueOutcome(t, err, c.outcome)
+					}
+					r, ok := iswRowOf(t, st, target.typ, target.arn)
+					if ok != c.kept {
+						t.Fatalf("row stored = %v; want %v", ok, c.kept)
+					}
+					if ok {
+						if strings.Contains(r.AttributesJSON, "described") || !strings.Contains(r.AttributesJSON, `"Id":"tagged"`) {
+							t.Errorf("attributes = %s; want the list element", r.AttributesJSON)
+						}
+						assertTagsMap(t, r.TagsJSON, map[string]string{"type": target.typ})
+					}
+					if target.typ == TypeIoTSWAssetModel {
+						if listed := calls.assetsOf.distinct(); slices.Contains(listed, "tagged/ALL") != c.kept {
+							t.Errorf("assets listed of models %v; want the model only when it is kept", listed)
+						}
+					}
+					if len(*warnings) != c.wantWarns {
+						t.Fatalf("%s warnings = %v; want %d", target.op, *warnings, c.wantWarns)
+					}
+				})
+			}
+		})
+	}
+}
+
+// A failed write stops the scan before any later listing and sends no
+// warning about the rows it lost.
+func TestScanIoTSiteWise_FailedWriteStopsWithoutWarning(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	refuseStoreWrites(t, st, TypeIoTSWAsset)
+	calls := newISWCalls()
+	calls.errs[iswARN("asset", "tagged-tagged")] = iswDenied
+	handlers := iswHandlers(calls)
+	handlers["ListAssets"] = failOnCall(2, iswDenied, handlers["ListAssets"])
+
+	_, _, err := iswScan(context.Background(), t, st, handlers)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0", *warns)
+	}
+	if n := calls.count("ListComputationModels"); n != 0 {
+		t.Errorf("ListComputationModels called %d times after the failed write", n)
+	}
+}
+
+// A listing's failed page keeps the pages read before it, and no listing's
+// failure stops the phases after it. A model ListAssets no longer finds is
+// skipped silently.
+func TestScanIoTSiteWise_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	calls := newISWCalls()
+	handlers := iswHandlers(calls)
+	handlers["ListWorkspaces"] = failOnCall(2, apiErr("ConflictingOperationException", "page 2"), handlers["ListWorkspaces"])
+	handlers["ListGateways"] = func(any) (any, error) { return nil, iswBadInput }
+	listAssets := handlers["ListAssets"]
+	handlers["ListAssets"] = func(in any) (any, error) {
+		if sv(in.(*iotsitewise.ListAssetsInput).AssetModelId) == "tagged" {
+			return nil, iswGone
+		}
+		return listAssets(in)
+	}
+
+	_, _, err := iswScan(context.Background(), t, st, handlers)
+	for _, code := range []string{"ConflictingOperationException", "InvalidRequestException"} {
+		if !joinCarriesAPIErrorCode(err, code) {
+			t.Errorf("err = %v; want it to carry %s", err, code)
+		}
+	}
+	if joinCarriesAPIErrorCode(err, "ResourceNotFoundException") {
+		t.Errorf("err = %v; want the model ListAssets no longer finds skipped", err)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0", *warns)
+	}
+	if _, ok := iswRowOf(t, st, TypeIoTSWWorkspace, iswARN("workspace", "tagged")); !ok {
+		t.Error("workspace from the page before the failure missing")
+	}
+	if _, ok := iswRowOf(t, st, TypeIoTSWWorkspace, iswARN("workspace", "bare")); ok {
+		t.Error("workspace from the failed page stored")
+	}
+	if got := calls.pipelinesOf.distinct(); !slices.Equal(got, []string{"tagged"}) {
+		t.Errorf("pipelines listed of workspaces %v; want [tagged]", got)
+	}
+	for _, later := range []iswRow{
+		{TypeIoTSWAsset, iswARN("asset", "bare-bare")},
+		{TypeIoTSWDataset, iswARN("dataset", "bare")},
+		{TypeIoTSWDashboard, iswARN("dashboard", "bare-bare-bare")},
+	} {
+		if _, ok := iswRowOf(t, st, later.typ, later.arn); !ok {
+			t.Errorf("%s %s missing after the earlier failures", later.typ, later.arn)
+		}
+	}
+}
+
+// A first page refused as a feature not deployed in the region ends the
+// listing silently; on a later page the same answer is an error, and the
+// pages before it are kept. Per workspace too.
+func TestScanIoTSiteWise_FeatureGap(t *testing.T) {
+	for _, tc := range []struct {
+		name, op string
+		failCall int
+		wantErr  bool
+		typ, arn string
+		stored   bool
+	}{
+		{"computation models first page", "ListComputationModels", 1, false, TypeIoTSWComputationModel, iswARN("computation-model", "tagged"), false},
+		{"computation models later page", "ListComputationModels", 2, true, TypeIoTSWComputationModel, iswARN("computation-model", "tagged"), true},
+		{"workspace pipelines first page", "ListPipelines", 1, false, TypeIoTSWPipeline, iswARN("workspace", "tagged/pipeline/tagged"), false},
+		{"workspace pipelines later page", "ListPipelines", 2, true, TypeIoTSWPipeline, iswARN("workspace", "tagged/pipeline/tagged"), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countWarnings(st)
+			handlers := iswHandlers(newISWCalls())
+			if tc.op == "ListPipelines" {
+				// One workspace, so the call count is its pages.
+				handlers["ListWorkspaces"] = func(any) (any, error) {
+					return &iotsitewise.ListWorkspacesOutput{WorkspaceSummaries: []iswtypes.WorkspaceSummary{{Name: sdkaws.String("tagged"), Arn: sdkaws.String(iswARN("workspace", "tagged"))}}}, nil
+				}
+			}
+			handlers[tc.op] = failOnCall(tc.failCall, iswGap, handlers[tc.op])
+
+			_, _, err := iswScan(context.Background(), t, st, handlers)
+			if tc.wantErr {
+				assertGlueOutcome(t, err, outcomeError)
+				assertAPICode(t, err, "InvalidRequestException")
+			} else if err != nil {
+				t.Fatalf("err = %v; want nil", err)
+			}
+			if _, ok := iswRowOf(t, st, tc.typ, tc.arn); ok != tc.stored {
+				t.Errorf("%s stored = %v; want %v", tc.arn, ok, tc.stored)
+			}
+			if *warns != 0 {
+				t.Errorf("warnings = %d; want 0", *warns)
+			}
+		})
+	}
+}
+
+// An item that cannot be stored is warned about in one warning per op that
+// names it; its siblings are stored.
+func TestScanIoTSiteWise_UnstorableItemsWarn(t *testing.T) {
+	st := newTestStore(t)
+	warnings := bacWarnings(st, "iotsitewise:ListGateways")
+	handlers := iswHandlers(newISWCalls())
+	handlers["ListGateways"] = func(any) (any, error) {
+		return &iotsitewise.ListGatewaysOutput{GatewaySummaries: []iswtypes.GatewaySummary{{GatewayId: sdkaws.String("tagged")}, {GatewayName: sdkaws.String("unnamed")}}}, nil
+	}
+
+	if _, _, err := iswScan(context.Background(), t, st, handlers); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if got := len(rowsByNativeID(t, st, TypeIoTSWGateway)); got != 1 {
+		t.Errorf("gateways stored = %d; want 1", got)
+	}
+	if len(*warnings) != 1 || !strings.HasSuffix((*warnings)[0].Message, "first unnamed") {
+		t.Errorf("warnings = %v; want one naming unnamed first", *warnings)
+	}
+}
+
+// An application whose workspace was not stored this scan is stored
+// unlinked.
+func TestScanIoTSiteWise_ApplicationOfUnlistedWorkspaceUnlinked(t *testing.T) {
+	st := newTestStore(t)
+	handlers := iswHandlers(newISWCalls())
+	handlers["ListApplications"] = func(any) (any, error) {
+		return &iotsitewise.ListApplicationsOutput{Applications: []iswtypes.ApplicationSummary{{
+			Id: sdkaws.String("orphan"), WorkspaceName: sdkaws.String("gone"), Arn: sdkaws.String(iswARN("workspace", "gone/application/orphan")),
+		}}}, nil
+	}
+
+	if _, _, err := iswScan(context.Background(), t, st, handlers); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	app, ok := iswRowOf(t, st, TypeIoTSWApplication, iswARN("workspace", "gone/application/orphan"))
+	if !ok {
+		t.Fatal("application missing")
+	}
+	rels, err := st.RelationshipsTo(app.ID, store.RelContains)
+	if err != nil {
+		t.Fatalf("RelationshipsTo: %v", err)
+	}
+	if len(rels) != 0 {
+		t.Errorf("contains edges into the application = %v; want none", rels)
+	}
+}
+
+// A repeated token ends the listing as an error, keeping its pages.
+func TestScanIoTSiteWise_RepeatedTokenKeepsPages(t *testing.T) {
+	st := newTestStore(t)
+	handlers := iswHandlers(newISWCalls())
+	handlers["ListGateways"] = func(any) (any, error) {
+		return &iotsitewise.ListGatewaysOutput{GatewaySummaries: []iswtypes.GatewaySummary{{GatewayId: sdkaws.String("tagged")}}, NextToken: sdkaws.String("same")}, nil
+	}
+
+	_, _, err := iswScan(context.Background(), t, st, handlers)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v; want errRepeatedNextToken", err)
+	}
+	if _, ok := iswRowOf(t, st, TypeIoTSWGateway, iswARN("gateway", "tagged")); !ok {
+		t.Error("gateway from the pages read missing")
+	}
+}
+
+// Once ctx ends no further phase starts, and the stop is reported once,
+// naming the phases not run, although the phase in flight saw it in its
+// listing and its tag reads.
+func TestScanIoTSiteWise_ContextEndStopsOnce(t *testing.T) {
+	st := newTestStore(t)
+	calls := newISWCalls()
+	handlers := iswHandlers(calls)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	gateways := handlers["ListGateways"]
+	handlers["ListGateways"] = func(in any) (any, error) {
+		if in.(*iotsitewise.ListGatewaysInput).NextToken != nil {
+			cancel()
+			return nil, context.Canceled
+		}
+		return gateways(in)
+	}
+
+	_, _, err := iswScan(ctx, t, st, handlers)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v; want context.Canceled", err)
+	}
+	stops := 0
+	for _, m := range bacTopMembers(err) {
+		if errors.Is(m, context.Canceled) {
+			stops++
+		}
+	}
+	if stops != 1 {
+		t.Errorf("members carrying the stop = %d; want 1 (err %v)", stops, err)
+	}
+	if n := calls.count("ListDatasets"); n != 0 {
+		t.Errorf("ListDatasets called %d times after ctx ended", n)
+	}
+	// Gateways are phase 4 of 14, so 10 never started.
+	if !strings.Contains(err.Error(), "iotsitewise: 10 phases not run") {
+		t.Errorf("err = %v; want it to say 10 phases not run", err)
+	}
+}
+
+// An NXDOMAIN after rows were stored is a failure of this scan, not a region
+// gap: the counts are kept. With nothing stored it stays region-unavailable.
+// The monitor host failing to resolve after the api host stored rows is an
+// error too, on its first page or a later one.
+func TestScanIoTSiteWise_NXDOMAIN(t *testing.T) {
+	nx := &net.DNSError{Err: "no such host", Name: "api.iotsitewise.us-east-1.amazonaws.com", IsNotFound: true}
+	t.Run("later api phase after rows were stored", func(t *testing.T) {
+		st := newTestStore(t)
+		handlers := iswHandlers(newISWCalls())
+		handlers["ListDatasets"] = func(any) (any, error) { return nil, nx }
+		total, _, err := iswScan(context.Background(), t, st, handlers)
+		assertGlueOutcome(t, err, outcomeError)
+		var unresolved *iotSWMonitorUnresolvedError
+		if errors.As(err, &unresolved) {
+			t.Errorf("err = %v; want an api-host NXDOMAIN not named as the monitor host", err)
+		}
+		if total == 0 {
+			t.Error("total = 0; want the stored rows counted")
+		}
+	})
+	t.Run("monitor host after api rows were stored", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countWarnings(st)
+		calls := newISWCalls()
+		handlers := iswHandlers(calls)
+		handlers["ListPortals"] = func(any) (any, error) { return nil, nx }
+		total, _, err := iswScan(context.Background(), t, st, handlers)
+		assertGlueOutcome(t, err, outcomeError)
+		var unresolved *iotSWMonitorUnresolvedError
+		if !errors.As(err, &unresolved) {
+			t.Errorf("err = %v; want an iotSWMonitorUnresolvedError", err)
+		}
+		if total != 24 {
+			t.Errorf("total = %d; want the 24 api-host rows counted", total)
+		}
+		if *warns != 0 {
+			t.Errorf("warnings = %d; want 0", *warns)
+		}
+		if n := calls.count("ListProjects") + calls.count("ListAccessPolicies"); n != 0 {
+			t.Errorf("portal children listed %d times; want none", n)
+		}
+	})
+	t.Run("monitor host on a later page", func(t *testing.T) {
+		st := newTestStore(t)
+		handlers := iswHandlers(newISWCalls())
+		handlers["ListPortals"] = failOnCall(2, nx, handlers["ListPortals"])
+		_, _, err := iswScan(context.Background(), t, st, handlers)
+		assertGlueOutcome(t, err, outcomeError)
+		if _, ok := iswRowOf(t, st, TypeIoTSWPortal, iswARN("portal", "tagged")); !ok {
+			t.Error("portal from the page before the NXDOMAIN missing")
+		}
+	})
+	t.Run("nothing stored", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := countWarnings(st)
+		acct := newTestAccount(testAccountID)
+		acct.cfg = opStubConfig(nil, nx)
+		_, _, err := scanIoTSiteWise(context.Background(), acct, testRegion, st, testScanID)
+		assertGlueOutcome(t, err, outcomeUnavailable)
+		if *warns != 0 {
+			t.Errorf("warnings = %d; want 0", *warns)
+		}
+	})
+}
+
+// A workspace ListPipelines or ListTasks no longer finds is skipped
+// silently; its sibling's children are stored.
+func TestScanIoTSiteWise_DeletedWorkspaceSkipped(t *testing.T) {
+	for _, tc := range []struct{ op, typ, kind string }{
+		{"ListPipelines", TypeIoTSWPipeline, "pipeline"},
+		{"ListTasks", TypeIoTSWTask, "task"},
+	} {
+		t.Run(tc.op, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countWarnings(st)
+			handlers := iswHandlers(newISWCalls())
+			list := handlers[tc.op]
+			handlers[tc.op] = func(in any) (any, error) {
+				if bacField[*string](in, "WorkspaceName") != nil && *bacField[*string](in, "WorkspaceName") == "tagged" {
+					return nil, iswGone
+				}
+				return list(in)
+			}
+			if _, _, err := iswScan(context.Background(), t, st, handlers); err != nil {
+				t.Fatalf("err = %v; want nil", err)
+			}
+			if *warns != 0 {
+				t.Errorf("warnings = %d; want 0", *warns)
+			}
+			if _, ok := iswRowOf(t, st, tc.typ, iswARN("workspace", "bare/"+tc.kind+"/tagged")); !ok {
+				t.Errorf("%s of the remaining workspace missing", tc.kind)
+			}
+		})
+	}
+}
+
+// An asset model listed without an Id cannot be described: it is stored as
+// its list element with its tags, and one warning names it by its ARN.
+func TestScanIoTSiteWise_ElementWithoutIDStoredUndescribed(t *testing.T) {
+	st := newTestStore(t)
+	warnings := bacWarnings(st, "iotsitewise:DescribeAssetModel")
+	calls := newISWCalls()
+	handlers := iswHandlers(calls)
+	arn := iswARN("asset-model", "tagged")
+	handlers["ListAssetModels"] = func(any) (any, error) {
+		return &iotsitewise.ListAssetModelsOutput{AssetModelSummaries: []iswtypes.AssetModelSummary{{Arn: sdkaws.String(arn), Name: sdkaws.String("no id")}}}, nil
+	}
+
+	if _, _, err := iswScan(context.Background(), t, st, handlers); err != nil {
+		t.Fatalf("err = %v; want nil", err)
+	}
+	r, ok := iswRowOf(t, st, TypeIoTSWAssetModel, arn)
+	if !ok {
+		t.Fatal("asset model missing")
+	}
+	if strings.Contains(r.AttributesJSON, "described") {
+		t.Errorf("attributes = %s; want the list element", r.AttributesJSON)
+	}
+	assertTagsMap(t, r.TagsJSON, map[string]string{"type": TypeIoTSWAssetModel})
+	if n := calls.count("DescribeAssetModel"); n != 0 {
+		t.Errorf("DescribeAssetModel called %d times; want 0", n)
+	}
+	if len(*warnings) != 1 || !strings.HasSuffix((*warnings)[0].Message, "first "+arn) {
+		t.Errorf("warnings = %v; want one naming %s first", *warnings, arn)
+	}
+}
+
+// An asset model listed without an Id whose tag read finds it deleted is
+// dropped, and no warning claims it was stored.
+func TestScanIoTSiteWise_ElementWithoutIDDroppedByTagRead(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	calls := newISWCalls()
+	handlers := iswHandlers(calls)
+	arn := iswARN("asset-model", "tagged")
+	calls.errs[arn] = iswGone
+	handlers["ListAssetModels"] = func(any) (any, error) {
+		return &iotsitewise.ListAssetModelsOutput{AssetModelSummaries: []iswtypes.AssetModelSummary{{Arn: sdkaws.String(arn)}}}, nil
+	}
+
+	if _, _, err := iswScan(context.Background(), t, st, handlers); err != nil {
+		t.Fatalf("err = %v; want nil", err)
+	}
+	if _, ok := iswRowOf(t, st, TypeIoTSWAssetModel, arn); ok {
+		t.Error("asset model the tag read no longer finds stored")
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0", *warns)
 	}
 }

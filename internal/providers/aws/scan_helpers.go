@@ -947,10 +947,13 @@ func storeTokenListWith[Item any](
 // TagsJSON (awsTagsJSON, kvTagsJSON or mapTagsJSON: nil for no tags) and picks
 // the identifier op is sent; it runs concurrently, so it must not modify the
 // row. notFound holds the codes op's Smithy model lists for a resource that
-// does not exist; nil when it lists none.
+// does not exist; nil when it lists none. denied holds the denial codes op
+// models that isAccessDenied does not match (e.g. UnauthorizedException), so
+// that they are warned about as denials rather than returned; nil for none.
 type rowTagReader struct {
 	op       string
 	notFound []string
+	denied   []string
 	read     func(context.Context, *store.Resource) (*string, error)
 }
 
@@ -968,7 +971,8 @@ type rowTagRead struct {
 //   - tags read: TagsJSON is set, nil when the resource has no tags;
 //   - a notFound code: the resource was deleted after it was listed, and the
 //     row is dropped without a warning;
-//   - a denial: the row is kept; warn reports every such row in one warning;
+//   - a denial (isAccessDenied, or a code in denied): the row is kept; warn
+//     reports every such row in one warning;
 //   - still transient after the SDK's retries: the row is kept, and every
 //     such row is reported in transient, one error;
 //   - not read, or its read cut short, because ctx ended: the row is kept,
@@ -1000,7 +1004,7 @@ func readRowTags(ctx context.Context, st *store.Store, acct *account, region str
 			interrupted = true
 		case isAPIErrorCode(err, tags.notFound...):
 			continue
-		case isAccessDenied(err):
+		case isAccessDenied(err) || isAPIErrorCode(err, tags.denied...):
 			denied.skipped(r.NativeID, err)
 		case transients.drop(r.NativeID, err):
 		default:

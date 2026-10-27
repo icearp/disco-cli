@@ -1575,7 +1575,7 @@ func TestScanBedrock_KnowledgeBaseGetCutShortByContext(t *testing.T) {
 
 // readRowDetails keeps every row whose read ctx's end cut short or kept
 // from starting, as the list element, and returns that stop as one error.
-func TestReadBedrockDetails_ContextEndIsOneError(t *testing.T) {
+func TestReadRowDetails_ContextEndIsOneError(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1602,7 +1602,7 @@ func TestReadBedrockDetails_ContextEndIsOneError(t *testing.T) {
 
 // A ctx already ended starts no Get: every row is kept as its list element,
 // and the stop is one error.
-func TestReadBedrockDetails_ContextEndedBeforeAnyRead(t *testing.T) {
+func TestReadRowDetails_ContextEndedBeforeAnyRead(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ctx, cancel := context.WithCancel(context.Background())
