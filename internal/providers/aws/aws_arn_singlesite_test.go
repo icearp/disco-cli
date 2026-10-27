@@ -352,8 +352,11 @@ func TestDMSSubnetGroup_ScannerAndResolverAgreeOnPartition(t *testing.T) {
 				"DescribeReplicationSubnetGroups": {{Output: &databasemigrationservice.DescribeReplicationSubnetGroupsOutput{
 					ReplicationSubnetGroups: []dmstypes.ReplicationSubnetGroup{{ReplicationSubnetGroupIdentifier: ptrStr("rsg")}},
 				}}},
+				"ListTagsForResource": {{Output: &databasemigrationservice.ListTagsForResourceOutput{}}},
 			}), pf.region))
-			if _, _, err := scanDMSReplicationSubnetGroups(context.Background(), client, acct, pf.region, st, testScanID); err != nil {
+			var p phaseTotals
+			scanDMSReplicationSubnetGroups(context.Background(), client, acct, pf.region, st, testScanID, dmsTags(client), &p)
+			if _, _, err := p.result(st, acct, pf.region); err != nil {
 				t.Fatalf("scanDMSReplicationSubnetGroups: %v", err)
 			}
 			rsg := storedRowID(t, st, TypeDMSReplicationSubnetGroup, partitionARN(pf.partition, "dms", pf.region, "subgrp:rsg"))

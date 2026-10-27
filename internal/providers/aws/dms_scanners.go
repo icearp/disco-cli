@@ -1,10 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/databasemigrationservice"
+	dmstypes "github.com/aws/aws-sdk-go-v2/service/databasemigrationservice/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -39,369 +41,279 @@ type dmsAPI interface {
 	DescribeReplicationInstances(context.Context, *databasemigrationservice.DescribeReplicationInstancesInput, ...func(*databasemigrationservice.Options)) (*databasemigrationservice.DescribeReplicationInstancesOutput, error)
 	DescribeReplicationSubnetGroups(context.Context, *databasemigrationservice.DescribeReplicationSubnetGroupsInput, ...func(*databasemigrationservice.Options)) (*databasemigrationservice.DescribeReplicationSubnetGroupsOutput, error)
 	DescribeReplicationTasks(context.Context, *databasemigrationservice.DescribeReplicationTasksInput, ...func(*databasemigrationservice.Options)) (*databasemigrationservice.DescribeReplicationTasksOutput, error)
+	ListTagsForResource(context.Context, *databasemigrationservice.ListTagsForResourceInput, ...func(*databasemigrationservice.Options)) (*databasemigrationservice.ListTagsForResourceOutput, error)
 }
 
-func scanDMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// dmsPageCap is the MaxRecords maximum ("Constraints: Minimum 20, maximum
+// 100") the docs of DescribeEndpoints, DescribeEventSubscriptions,
+// DescribeReplicationInstances, DescribeReplicationSubnetGroups and
+// DescribeReplicationTasks state; the model has no range trait. The other
+// Describe ops document no maximum, so they are sent none and page at the
+// service default.
+const dmsPageCap int32 = 100
+
+// dmsTags reads a row's tags with ListTagsForResource, sent the row's ARN
+// (its NativeID) as ResourceArn. The op also takes a ResourceArnList; each
+// row is read alone instead, so that every error stays attributed to its row:
+// how the list form answers when one of its ARNs is missing is not documented,
+// and the list has no modeled bound. The op does not page. The Service Reference gives no DMS resource a resource-policy or
+// share action, so no listed row is expected to belong to another account.
+//
+// The op also models InvalidResourceStateFault; it is not known which states
+// answer it, so it is returned like any other error and the row kept untagged.
+func dmsTags(client dmsAPI) rowTagReader {
+	return rowTagReader{
+		op:       "dms:ListTagsForResource",
+		notFound: []string{"ResourceNotFoundFault"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &databasemigrationservice.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
+			}
+			return kvTagsJSON(out.TagList, func(t dmstypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
+	}
+}
+
+// scanDMS discovers Database Migration Service resources. Every listing runs
+// as its own phase: a phase's error does not stop the later ones; a failed
+// write and ctx's end do (runHostPhases). The phases run one at a time, so
+// readEachKey's own bound is the bound on the tag reads in flight.
+func scanDMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := databasemigrationservice.NewFromConfig(acct.cfg, func(o *databasemigrationservice.Options) { o.Region = region })
-
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanDMSCertificates(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDMSDataMigrations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDMSDataProviders(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDMSEndpoints(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDMSEventSubscriptions(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDMSInstanceProfiles(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDMSMigrationProjects(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDMSReplicationConfigs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDMSReplicationInstances(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDMSReplicationSubnetGroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDMSReplicationTasks(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+	tags := dmsTags(client)
+	// Event subscriptions and replication subnet groups carry no ARN, so
+	// their tag reads send one built from the Service Reference format, not
+	// verified against a live account. The listing just returned the resource,
+	// so a not-found answer more likely means that ARN is wrong than that the
+	// resource is gone: it keeps the row and is returned as an error rather
+	// than dropping every such row silently.
+	synthTags := tags
+	synthTags.notFound = nil
+	return runHostPhases(ctx, st, acct, region, "dms", 0, []hostPhase{
+		{op: "dms:DescribeCertificates", run: func(p *phaseTotals) bool {
+			return scanDMSCertificates(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "dms:DescribeDataMigrations", run: func(p *phaseTotals) bool {
+			return scanDMSDataMigrations(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "dms:DescribeDataProviders", run: func(p *phaseTotals) bool {
+			return scanDMSDataProviders(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "dms:DescribeEndpoints", run: func(p *phaseTotals) bool {
+			return scanDMSEndpoints(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "dms:DescribeEventSubscriptions", run: func(p *phaseTotals) bool {
+			return scanDMSEventSubscriptions(ctx, client, acct, region, st, scanID, synthTags, p)
+		}},
+		{op: "dms:DescribeInstanceProfiles", run: func(p *phaseTotals) bool {
+			return scanDMSInstanceProfiles(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "dms:DescribeMigrationProjects", run: func(p *phaseTotals) bool {
+			return scanDMSMigrationProjects(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "dms:DescribeReplicationConfigs", run: func(p *phaseTotals) bool {
+			return scanDMSReplicationConfigs(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "dms:DescribeReplicationInstances", run: func(p *phaseTotals) bool {
+			return scanDMSReplicationInstances(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "dms:DescribeReplicationSubnetGroups", run: func(p *phaseTotals) bool {
+			return scanDMSReplicationSubnetGroups(ctx, client, acct, region, st, scanID, synthTags, p)
+		}},
+		{op: "dms:DescribeReplicationTasks", run: func(p *phaseTotals) bool {
+			return scanDMSReplicationTasks(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+	})
 }
 
-func scanDMSCertificates(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databasemigrationservice.NewDescribeCertificatesPaginator(client, &databasemigrationservice.DescribeCertificatesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "dms:DescribeCertificates", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("dms:DescribeCertificates: %w", perr)
-		}
-		for _, c := range out.Certificates {
-			arn := sv(c.CertificateArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(c.CertificateIdentifier)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDMSCertificate, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
+// dmsARNRow is the row of a listed element whose NativeID is its ARN, named
+// by name, or by its ARN when it has none. An element without an ARN (the
+// model marks every one optional) is not stored; what names the elements in
+// the warning.
+func dmsARNRow(acct *account, region, scanID, typ, what, arn, name string, item any) (*store.Resource, string, string) {
+	if arn == "" {
+		return nil, what + " have no ARN", cmp.Or(name, "(an element with no identifier)")
 	}
-	return upsertBatch(st, batch, "dms certificates")
+	label := cmp.Or(name, arn)
+	return dmsRow(acct, region, scanID, typ, arn, label, item), "", ""
 }
 
-func scanDMSDataMigrations(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databasemigrationservice.NewDescribeDataMigrationsPaginator(client, &databasemigrationservice.DescribeDataMigrationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "dms:DescribeDataMigrations", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("dms:DescribeDataMigrations: %w", perr)
-		}
-		for _, d := range out.DataMigrations {
-			arn := sv(d.DataMigrationArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(d.DataMigrationName)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDMSDataMigration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
+func dmsRow(acct *account, region, scanID, typ, nativeID, name string, item any) *store.Resource {
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: nativeID,
+		Name: &name, Region: &region, AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
 	}
-	return upsertBatch(st, batch, "dms data-migrations")
 }
 
-func scanDMSDataProviders(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databasemigrationservice.NewDescribeDataProvidersPaginator(client, &databasemigrationservice.DescribeDataProvidersInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "dms:DescribeDataProviders", acct.ID, region, perr)
-				return 0, 0, nil
+func scanDMSCertificates(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "dms:DescribeCertificates",
+		func(ctx context.Context, marker *string) ([]dmstypes.Certificate, *string, error) {
+			out, err := client.DescribeCertificates(ctx, &databasemigrationservice.DescribeCertificatesInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("dms:DescribeDataProviders: %w", perr)
-		}
-		for _, d := range out.DataProviders {
-			arn := sv(d.DataProviderArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(d.DataProviderName)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDMSDataProvider, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "dms data-providers")
+			return out.Certificates, out.Marker, nil
+		},
+		func(c dmstypes.Certificate) (*store.Resource, string, string) {
+			return dmsARNRow(acct, region, scanID, TypeDMSCertificate, "certificates", sv(c.CertificateArn), sv(c.CertificateIdentifier), c)
+		}, tags, p)
 }
 
-func scanDMSEndpoints(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databasemigrationservice.NewDescribeEndpointsPaginator(client, &databasemigrationservice.DescribeEndpointsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "dms:DescribeEndpoints", acct.ID, region, perr)
-				return 0, 0, nil
+func scanDMSDataMigrations(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "dms:DescribeDataMigrations",
+		func(ctx context.Context, marker *string) ([]dmstypes.DataMigration, *string, error) {
+			out, err := client.DescribeDataMigrations(ctx, &databasemigrationservice.DescribeDataMigrationsInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("dms:DescribeEndpoints: %w", perr)
-		}
-		for _, e := range out.Endpoints {
-			arn := sv(e.EndpointArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(e.EndpointIdentifier)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDMSEndpoint, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "dms endpoints")
+			return out.DataMigrations, out.Marker, nil
+		},
+		func(d dmstypes.DataMigration) (*store.Resource, string, string) {
+			return dmsARNRow(acct, region, scanID, TypeDMSDataMigration, "data migrations", sv(d.DataMigrationArn), sv(d.DataMigrationName), d)
+		}, tags, p)
 }
 
-func scanDMSEventSubscriptions(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	// EventSubscription has no AWS-issued ARN field; synthesize per DMS ARN format: arn:{p}:dms:{r}:{a}:es:{CustSubscriptionId}.
-	pager := databasemigrationservice.NewDescribeEventSubscriptionsPaginator(client, &databasemigrationservice.DescribeEventSubscriptionsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "dms:DescribeEventSubscriptions", acct.ID, region, perr)
-				return 0, 0, nil
+func scanDMSDataProviders(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "dms:DescribeDataProviders",
+		func(ctx context.Context, marker *string) ([]dmstypes.DataProvider, *string, error) {
+			out, err := client.DescribeDataProviders(ctx, &databasemigrationservice.DescribeDataProvidersInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("dms:DescribeEventSubscriptions: %w", perr)
-		}
-		for _, e := range out.EventSubscriptionsList {
+			return out.DataProviders, out.Marker, nil
+		},
+		func(d dmstypes.DataProvider) (*store.Resource, string, string) {
+			return dmsARNRow(acct, region, scanID, TypeDMSDataProvider, "data providers", sv(d.DataProviderArn), sv(d.DataProviderName), d)
+		}, tags, p)
+}
+
+func scanDMSEndpoints(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "dms:DescribeEndpoints",
+		func(ctx context.Context, marker *string) ([]dmstypes.Endpoint, *string, error) {
+			out, err := client.DescribeEndpoints(ctx, &databasemigrationservice.DescribeEndpointsInput{Marker: marker, MaxRecords: sdkaws.Int32(dmsPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Endpoints, out.Marker, nil
+		},
+		func(e dmstypes.Endpoint) (*store.Resource, string, string) {
+			return dmsARNRow(acct, region, scanID, TypeDMSEndpoint, "endpoints", sv(e.EndpointArn), sv(e.EndpointIdentifier), e)
+		}, tags, p)
+}
+
+// scanDMSEventSubscriptions stores event subscriptions, whose element carries
+// no ARN; NativeID is the DMS ARN format the Service Reference gives them,
+// arn:{p}:dms:{r}:{a}:es:{CustSubscriptionId}, and that ARN is what the tag
+// read sends.
+func scanDMSEventSubscriptions(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "dms:DescribeEventSubscriptions",
+		func(ctx context.Context, marker *string) ([]dmstypes.EventSubscription, *string, error) {
+			out, err := client.DescribeEventSubscriptions(ctx, &databasemigrationservice.DescribeEventSubscriptionsInput{Marker: marker, MaxRecords: sdkaws.Int32(dmsPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.EventSubscriptionsList, out.Marker, nil
+		},
+		func(e dmstypes.EventSubscription) (*store.Resource, string, string) {
 			id := sv(e.CustSubscriptionId)
 			if id == "" {
-				continue
+				return nil, "event subscriptions have no CustSubscriptionId", cmp.Or(sv(e.SnsTopicArn), "(an element with no SNS topic)")
 			}
-			arn := arnFor(acct.partition(), "dms", region, acct.ID, "es:"+id)
-			label := id
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDMSEventSubscription, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "dms event-subscriptions")
+			return dmsRow(acct, region, scanID, TypeDMSEventSubscription, arnFor(acct.partition(), "dms", region, acct.ID, "es:"+id), id, e), "", ""
+		}, tags, p)
 }
 
-func scanDMSInstanceProfiles(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databasemigrationservice.NewDescribeInstanceProfilesPaginator(client, &databasemigrationservice.DescribeInstanceProfilesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "dms:DescribeInstanceProfiles", acct.ID, region, perr)
-				return 0, 0, nil
+func scanDMSInstanceProfiles(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "dms:DescribeInstanceProfiles",
+		func(ctx context.Context, marker *string) ([]dmstypes.InstanceProfile, *string, error) {
+			out, err := client.DescribeInstanceProfiles(ctx, &databasemigrationservice.DescribeInstanceProfilesInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("dms:DescribeInstanceProfiles: %w", perr)
-		}
-		for _, p := range out.InstanceProfiles {
-			arn := sv(p.InstanceProfileArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(p.InstanceProfileName)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDMSInstanceProfile, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "dms instance-profiles")
+			return out.InstanceProfiles, out.Marker, nil
+		},
+		func(ip dmstypes.InstanceProfile) (*store.Resource, string, string) {
+			return dmsARNRow(acct, region, scanID, TypeDMSInstanceProfile, "instance profiles", sv(ip.InstanceProfileArn), sv(ip.InstanceProfileName), ip)
+		}, tags, p)
 }
 
-func scanDMSMigrationProjects(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databasemigrationservice.NewDescribeMigrationProjectsPaginator(client, &databasemigrationservice.DescribeMigrationProjectsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "dms:DescribeMigrationProjects", acct.ID, region, perr)
-				return 0, 0, nil
+func scanDMSMigrationProjects(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "dms:DescribeMigrationProjects",
+		func(ctx context.Context, marker *string) ([]dmstypes.MigrationProject, *string, error) {
+			out, err := client.DescribeMigrationProjects(ctx, &databasemigrationservice.DescribeMigrationProjectsInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("dms:DescribeMigrationProjects: %w", perr)
-		}
-		for _, m := range out.MigrationProjects {
-			arn := sv(m.MigrationProjectArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(m.MigrationProjectName)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDMSMigrationProject, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "dms migration-projects")
+			return out.MigrationProjects, out.Marker, nil
+		},
+		func(m dmstypes.MigrationProject) (*store.Resource, string, string) {
+			return dmsARNRow(acct, region, scanID, TypeDMSMigrationProject, "migration projects", sv(m.MigrationProjectArn), sv(m.MigrationProjectName), m)
+		}, tags, p)
 }
 
-func scanDMSReplicationConfigs(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databasemigrationservice.NewDescribeReplicationConfigsPaginator(client, &databasemigrationservice.DescribeReplicationConfigsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "dms:DescribeReplicationConfigs", acct.ID, region, perr)
-				return 0, 0, nil
+func scanDMSReplicationConfigs(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "dms:DescribeReplicationConfigs",
+		func(ctx context.Context, marker *string) ([]dmstypes.ReplicationConfig, *string, error) {
+			out, err := client.DescribeReplicationConfigs(ctx, &databasemigrationservice.DescribeReplicationConfigsInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("dms:DescribeReplicationConfigs: %w", perr)
-		}
-		for _, c := range out.ReplicationConfigs {
-			arn := sv(c.ReplicationConfigArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(c.ReplicationConfigIdentifier)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDMSReplicationConfig, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "dms replication-configs")
+			return out.ReplicationConfigs, out.Marker, nil
+		},
+		func(c dmstypes.ReplicationConfig) (*store.Resource, string, string) {
+			return dmsARNRow(acct, region, scanID, TypeDMSReplicationConfig, "replication configs", sv(c.ReplicationConfigArn), sv(c.ReplicationConfigIdentifier), c)
+		}, tags, p)
 }
 
-func scanDMSReplicationInstances(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databasemigrationservice.NewDescribeReplicationInstancesPaginator(client, &databasemigrationservice.DescribeReplicationInstancesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "dms:DescribeReplicationInstances", acct.ID, region, perr)
-				return 0, 0, nil
+func scanDMSReplicationInstances(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "dms:DescribeReplicationInstances",
+		func(ctx context.Context, marker *string) ([]dmstypes.ReplicationInstance, *string, error) {
+			out, err := client.DescribeReplicationInstances(ctx, &databasemigrationservice.DescribeReplicationInstancesInput{Marker: marker, MaxRecords: sdkaws.Int32(dmsPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("dms:DescribeReplicationInstances: %w", perr)
-		}
-		for _, r := range out.ReplicationInstances {
-			arn := sv(r.ReplicationInstanceArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(r.ReplicationInstanceIdentifier)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDMSReplicationInstance, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "dms replication-instances")
+			return out.ReplicationInstances, out.Marker, nil
+		},
+		func(r dmstypes.ReplicationInstance) (*store.Resource, string, string) {
+			return dmsARNRow(acct, region, scanID, TypeDMSReplicationInstance, "replication instances", sv(r.ReplicationInstanceArn), sv(r.ReplicationInstanceIdentifier), r)
+		}, tags, p)
 }
 
-func scanDMSReplicationSubnetGroups(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	// ReplicationSubnetGroup has no ARN field; synthesize per DMS ARN format: arn:{p}:dms:{r}:{a}:subgrp:{Identifier}.
-	pager := databasemigrationservice.NewDescribeReplicationSubnetGroupsPaginator(client, &databasemigrationservice.DescribeReplicationSubnetGroupsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "dms:DescribeReplicationSubnetGroups", acct.ID, region, perr)
-				return 0, 0, nil
+// scanDMSReplicationSubnetGroups stores replication subnet groups, whose
+// element carries no ARN; NativeID is the DMS ARN format the Service Reference
+// gives them, arn:{p}:dms:{r}:{a}:subgrp:{Identifier}, and that ARN is what the
+// tag read sends.
+func scanDMSReplicationSubnetGroups(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "dms:DescribeReplicationSubnetGroups",
+		func(ctx context.Context, marker *string) ([]dmstypes.ReplicationSubnetGroup, *string, error) {
+			out, err := client.DescribeReplicationSubnetGroups(ctx, &databasemigrationservice.DescribeReplicationSubnetGroupsInput{Marker: marker, MaxRecords: sdkaws.Int32(dmsPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("dms:DescribeReplicationSubnetGroups: %w", perr)
-		}
-		for _, g := range out.ReplicationSubnetGroups {
+			return out.ReplicationSubnetGroups, out.Marker, nil
+		},
+		func(g dmstypes.ReplicationSubnetGroup) (*store.Resource, string, string) {
 			id := sv(g.ReplicationSubnetGroupIdentifier)
 			if id == "" {
-				continue
+				return nil, "replication subnet groups have no ReplicationSubnetGroupIdentifier", cmp.Or(sv(g.VpcId), "(an element with no VPC)")
 			}
-			arn := dmsReplicationSubnetGroupARNFromName(acct.partition(), region, acct.ID, id)
-			label := id
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDMSReplicationSubnetGroup, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "dms replication-subnet-groups")
+			return dmsRow(acct, region, scanID, TypeDMSReplicationSubnetGroup, dmsReplicationSubnetGroupARNFromName(acct.partition(), region, acct.ID, id), id, g), "", ""
+		}, tags, p)
 }
 
-func scanDMSReplicationTasks(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := databasemigrationservice.NewDescribeReplicationTasksPaginator(client, &databasemigrationservice.DescribeReplicationTasksInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "dms:DescribeReplicationTasks", acct.ID, region, perr)
-				return 0, 0, nil
+func scanDMSReplicationTasks(ctx context.Context, client dmsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "dms:DescribeReplicationTasks",
+		func(ctx context.Context, marker *string) ([]dmstypes.ReplicationTask, *string, error) {
+			out, err := client.DescribeReplicationTasks(ctx, &databasemigrationservice.DescribeReplicationTasksInput{Marker: marker, MaxRecords: sdkaws.Int32(dmsPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("dms:DescribeReplicationTasks: %w", perr)
-		}
-		for _, t := range out.ReplicationTasks {
-			arn := sv(t.ReplicationTaskArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(t.ReplicationTaskIdentifier)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDMSReplicationTask, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "dms replication-tasks")
+			return out.ReplicationTasks, out.Marker, nil
+		},
+		func(t dmstypes.ReplicationTask) (*store.Resource, string, string) {
+			return dmsARNRow(acct, region, scanID, TypeDMSReplicationTask, "replication tasks", sv(t.ReplicationTaskArn), sv(t.ReplicationTaskIdentifier), t)
+		}, tags, p)
 }
