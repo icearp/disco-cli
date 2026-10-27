@@ -141,6 +141,7 @@ func TestScanCRIntermediateTables_StoresEachMembershipsTables(t *testing.T) {
 		maxSizes []int32
 	)
 	handlers := map[string]func(any) (any, error){
+		"ListTagsForResource": func(any) (any, error) { return &cleanrooms.ListTagsForResourceOutput{}, nil },
 		"ListIntermediateTables": func(in any) (any, error) {
 			req := in.(*cleanrooms.ListIntermediateTablesInput)
 			calls.add(*req.MembershipIdentifier)
@@ -161,7 +162,7 @@ func TestScanCRIntermediateTables_StoresEachMembershipsTables(t *testing.T) {
 			}
 		},
 	}
-	total, _, err := scanCRIntermediateTables(context.Background(), crClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, memberships)
+	total, _, err := crRunIntermediateTables(context.Background(), crClient(handlers), st, memberships)
 	if err != nil {
 		t.Fatalf("err = %v", err)
 	}
@@ -209,8 +210,17 @@ var crNewPhases = []struct {
 		return scanCRMembers(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, crParents(crCollabPrefix, "c-a", "c-b"))
 	}},
 	{"ListIntermediateTables", func(ctx context.Context, c *cleanrooms.Client, st *store.Store) (int, int, error) {
-		return scanCRIntermediateTables(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, crParents(crMembershipPrefix, "m-a", "m-b"))
+		return crRunIntermediateTables(ctx, c, st, crParents(crMembershipPrefix, "m-a", "m-b"))
 	}},
+}
+
+// crRunIntermediateTables runs the intermediate table phase alone and
+// returns its counts and errors as the scan would.
+func crRunIntermediateTables(ctx context.Context, c *cleanrooms.Client, st *store.Store, memberships []childParent) (int, int, error) {
+	acct := newTestAccount(testAccountID)
+	var p phaseTotals
+	scanCRIntermediateTables(ctx, c, acct, testRegion, st, testScanID, memberships, crTags(c, acct.ID), &p)
+	return p.result(st, acct, testRegion)
 }
 
 func crEmptyOutput(op string) any {
@@ -279,6 +289,7 @@ func crTopLevelHandlers(override map[string]func(any) (any, error)) map[string]f
 		"ListIntermediateTables": func(any) (any, error) {
 			return &cleanrooms.ListIntermediateTablesOutput{IntermediateTableSummaries: []crtypes.IntermediateTableSummary{crIntermediateTable("m-a", "t1")}}, nil
 		},
+		"ListTagsForResource": func(any) (any, error) { return &cleanrooms.ListTagsForResourceOutput{}, nil },
 	}
 	maps.Copy(handlers, override)
 	return handlers
