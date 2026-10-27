@@ -139,7 +139,7 @@ func resolveSageMakerEndpointConfigModels(acct *account, st *store.Store) error 
 
 // resolveSageMakerModelRefs walks every Model row's outbound refs:
 // ExecutionRoleArn → IAM role; Containers[].Image → ECR repository (via
-// the apprunnerImageToRepoARN helper, shared across services that store
+// the ecrImageRepoARN helper, shared across services that store
 // container image URLs); VpcConfig.{VpcId, Subnets[], SecurityGroupIDs[]}
 // → EC2 networking targets.
 func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
@@ -204,7 +204,7 @@ func resolveSageMakerModelRefs(acct *account, st *store.Store) error {
 			images = append(images, *attrs.PrimaryContainer.Image)
 		}
 		for _, img := range images {
-			repoARN := apprunnerImageToRepoARN(img)
+			repoARN := ecrImageRepoARN(acct.partition(), img)
 			if repoARN == "" {
 				continue
 			}

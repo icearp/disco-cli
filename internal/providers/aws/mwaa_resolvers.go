@@ -88,7 +88,7 @@ func resolveMWAAEnvironmentRefs(acct *account, st *store.Store) error {
 				}
 			}
 		}
-		if barn := sv(attrs.SourceBucketArn); strings.HasPrefix(barn, "arn:aws:s3:::") {
+		if barn := s3BucketARNFromLocation(sv(attrs.SourceBucketArn)); barn != "" {
 			tgt := store.ResourceID("aws", acct.ID, barn)
 			if bucketSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelUses, "directed", nil); err != nil {

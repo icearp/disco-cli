@@ -274,7 +274,7 @@ var cfnTypeMap = map[string]cfnTypeBinding{
 			if name == "" {
 				return ""
 			}
-			return arnFor(partition, "ecr", region, acct, "repository/"+name)
+			return ecrRepositoryARN(partition, region, acct, name)
 		},
 	},
 	"AWS::Kinesis::Stream": {

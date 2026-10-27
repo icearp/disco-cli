@@ -90,31 +90,40 @@ func resolveCognitoIdentityPoolRelationships(acct *account, st *store.Store) err
 		}
 		// IdentityPool → UserPool + AppClient
 		for _, p := range a.Pool.CognitoIdentityProviders {
-			provider := sv(p.ProviderName)
-			// ProviderName = "cognito-idp.<region>.amazonaws.com/<poolId>"
-			slashIdx := strings.Index(provider, "/")
-			if slashIdx > 0 && strings.HasPrefix(provider, "cognito-idp.") {
-				// Extract region from the provider host.
-				host := provider[:slashIdx]
-				poolNative := provider[slashIdx+1:]
-				parts := strings.SplitN(host, ".", 3)
-				if len(parts) >= 3 && poolNative != "" {
-					upRegion := parts[1]
-					upARN := cognitoUserPoolARN(acct.partition(), upRegion, acct.ID, poolNative)
-					upID := store.ResourceID("aws", acct.ID, upARN)
-					if err := st.UpsertRelationship(r.ID, upID, store.RelUses, "directed", nil); err != nil {
-						return fmt.Errorf("upsert cognito-identity-pool→user-pool: %w", err)
-					}
-					if clientID := sv(p.ClientID); clientID != "" {
-						acARN := cogUPARN(acct.partition(), upRegion, acct.ID, poolNative, "client", clientID)
-						acID := store.ResourceID("aws", acct.ID, acARN)
-						if err := st.UpsertRelationship(r.ID, acID, store.RelUses, "directed", nil); err != nil {
-							return fmt.Errorf("upsert cognito-identity-pool→app-client: %w", err)
-						}
-					}
+			upRegion, poolNative, ok := cognitoUserPoolFromProvider(acct.partition(), sv(p.ProviderName))
+			if !ok {
+				continue
+			}
+			upARN := cognitoUserPoolARN(acct.partition(), upRegion, acct.ID, poolNative)
+			upID := store.ResourceID("aws", acct.ID, upARN)
+			if err := st.UpsertRelationship(r.ID, upID, store.RelUses, "directed", nil); err != nil {
+				return fmt.Errorf("upsert cognito-identity-pool→user-pool: %w", err)
+			}
+			if clientID := sv(p.ClientID); clientID != "" {
+				acARN := cogUPARN(acct.partition(), upRegion, acct.ID, poolNative, "client", clientID)
+				acID := store.ResourceID("aws", acct.ID, acARN)
+				if err := st.UpsertRelationship(r.ID, acID, store.RelUses, "directed", nil); err != nil {
+					return fmt.Errorf("upsert cognito-identity-pool→app-client: %w", err)
 				}
 			}
 		}
 	}
 	return nil
+}
+
+// cognitoUserPoolFromProvider returns the region and pool id of a user pool's
+// provider name, cognito-idp.{region}.{dnsSuffix}/{poolId}: an identity pool's
+// ProviderName, and a JWT issuer URL once its https:// scheme is cut. ok is
+// false for any other shape, including a host of another partition
+// (hostRegion).
+func cognitoUserPoolFromProvider(partition, provider string) (region, poolID string, ok bool) {
+	host, poolID, ok := strings.Cut(provider, "/")
+	if !ok || poolID == "" {
+		return "", "", false
+	}
+	region, ok = hostRegion(partition, host, "cognito-idp.")
+	if !ok {
+		return "", "", false
+	}
+	return region, poolID, true
 }

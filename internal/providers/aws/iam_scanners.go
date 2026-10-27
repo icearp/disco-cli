@@ -374,12 +374,16 @@ func scanIAMAuthDetails(ctx context.Context, client iamAPI, acct *account, st *s
 		// Managed policies. PolicyVersionList carries every version; pick the
 		// IsDefaultVersion=true entry to populate the wrapped `PolicyVersion`
 		// field that resolveIAMPolicyResources reads. AWS-managed catalogue
-		// detected via the `arn:aws:iam::aws:` prefix (canonical AWS-curated
-		// scope marker); GAAD does not expose scope per-policy.
+		// detected by the account segment "aws" of an IAM ARN
+		// (arn:{p}:iam::aws:policy/…, the canonical AWS-curated scope marker
+		// in every partition); GAAD does not expose scope per-policy.
 		for _, p := range page.Policies {
 			arn := sv(p.Arn)
 			name := sv(p.PolicyName)
-			managed := strings.HasPrefix(arn, "arn:aws:iam::aws:")
+			// GAAD lists IAM policies only, so the account segment alone
+			// marks an AWS-managed one.
+			parsed, ok := parseARN(arn)
+			managed := ok && parsed.AccountID == "aws"
 			if managed {
 				attachedManagedARNs[arn] = true
 			}

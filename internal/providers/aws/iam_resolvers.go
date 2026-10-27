@@ -709,21 +709,21 @@ type policyResourceClassifier struct {
 
 // policyResourceClassifiers is the ordered dispatch table consulted by
 // classifyPolicyResource. Order matters where prefixes overlap (e.g.
-// `:event-bus/` vs `:rule/` under `arn:aws:events:`).
+// `:event-bus/` vs `:rule/` under the events service).
 var policyResourceClassifiers = []policyResourceClassifier{
 	{
-		match:    func(ref string) bool { return strings.Contains(ref, ":kms:") },
+		match:    func(ref string) bool { return isARNOf(ref, "kms") },
 		classify: classifyKMSPolicyResource,
 	},
 	{
-		match: func(ref string) bool { return strings.HasPrefix(ref, "arn:aws:s3:::") },
+		match: func(ref string) bool { return s3BucketARNFromLocation(ref) != "" },
 		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
 			return classifyS3Resource(ref, acctID, sets)
 		},
 	},
 	{
 		match: func(ref string) bool {
-			return strings.HasPrefix(ref, "arn:aws:secretsmanager:") && strings.Contains(ref, ":secret:")
+			return isARNOf(ref, "secretsmanager") && strings.Contains(ref, ":secret:")
 		},
 		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
 			return classifySecretResource(ref, acctID, sets)
@@ -731,7 +731,7 @@ var policyResourceClassifiers = []policyResourceClassifier{
 	},
 	{
 		match: func(ref string) bool {
-			return strings.HasPrefix(ref, "arn:aws:dynamodb:") && strings.Contains(ref, ":table/")
+			return isARNOf(ref, "dynamodb") && strings.Contains(ref, ":table/")
 		},
 		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
 			return classifyDynamoDBResource(ref, acctID, sets)
@@ -739,7 +739,7 @@ var policyResourceClassifiers = []policyResourceClassifier{
 	},
 	{
 		match: func(ref string) bool {
-			return strings.HasPrefix(ref, "arn:aws:lambda:") && strings.Contains(ref, ":function:")
+			return isARNOf(ref, "lambda") && strings.Contains(ref, ":function:")
 		},
 		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
 			return classifyLambdaResource(ref, acctID, sets)
@@ -747,23 +747,23 @@ var policyResourceClassifiers = []policyResourceClassifier{
 	},
 	{
 		match: func(ref string) bool {
-			return strings.HasPrefix(ref, "arn:aws:logs:") && strings.Contains(ref, ":log-group:")
+			return isARNOf(ref, "logs") && strings.Contains(ref, ":log-group:")
 		},
 		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
 			return classifyLogGroupResource(ref, acctID, sets)
 		},
 	},
 	{
-		match:    func(ref string) bool { return strings.HasPrefix(ref, "arn:aws:sns:") },
+		match:    func(ref string) bool { return isARNOf(ref, "sns") },
 		classify: classifySNSPolicyResource,
 	},
 	{
-		match:    func(ref string) bool { return strings.HasPrefix(ref, "arn:aws:sqs:") },
+		match:    func(ref string) bool { return isARNOf(ref, "sqs") },
 		classify: classifySQSPolicyResource,
 	},
 	{
 		match: func(ref string) bool {
-			return strings.HasPrefix(ref, "arn:aws:ssm:") && strings.Contains(ref, ":parameter")
+			return isARNOf(ref, "ssm") && strings.Contains(ref, ":parameter")
 		},
 		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
 			return lookupTargetID(ref, TypeSSMParameter, acctID, sets.parameters)
@@ -771,13 +771,13 @@ var policyResourceClassifiers = []policyResourceClassifier{
 	},
 	{
 		match: func(ref string) bool {
-			return strings.HasPrefix(ref, "arn:aws:kinesis:") && strings.Contains(ref, ":stream/")
+			return isARNOf(ref, "kinesis") && strings.Contains(ref, ":stream/")
 		},
 		classify: classifyKinesisPolicyResource,
 	},
 	{
 		match: func(ref string) bool {
-			return strings.HasPrefix(ref, "arn:aws:ecr:") && strings.Contains(ref, ":repository/")
+			return isARNOf(ref, "ecr") && strings.Contains(ref, ":repository/")
 		},
 		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
 			return lookupTargetID(ref, TypeECRRepository, acctID, sets.repositories)
@@ -785,27 +785,27 @@ var policyResourceClassifiers = []policyResourceClassifier{
 	},
 	{
 		match: func(ref string) bool {
-			return strings.HasPrefix(ref, "arn:aws:iam:") && strings.Contains(ref, ":role/")
+			return isARNOf(ref, "iam") && strings.Contains(ref, ":role/")
 		},
 		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
 			return classifyIAMRoleResource(ref, acctID, sets)
 		},
 	},
 	{
-		match: func(ref string) bool { return strings.HasPrefix(ref, "arn:aws:rds:") },
+		match: func(ref string) bool { return isARNOf(ref, "rds") },
 		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
 			return classifyRDSResource(ref, acctID, sets)
 		},
 	},
 	{
 		match: func(ref string) bool {
-			return strings.HasPrefix(ref, "arn:aws:states:") && strings.Contains(ref, ":stateMachine:")
+			return isARNOf(ref, "states") && strings.Contains(ref, ":stateMachine:")
 		},
 		classify: classifyStatesPolicyResource,
 	},
 	{
 		match: func(ref string) bool {
-			return strings.HasPrefix(ref, "arn:aws:events:") && strings.Contains(ref, ":event-bus/")
+			return isARNOf(ref, "events") && strings.Contains(ref, ":event-bus/")
 		},
 		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
 			return lookupTargetID(ref, TypeEventsEventBus, acctID, sets.eventBuses)
@@ -813,7 +813,7 @@ var policyResourceClassifiers = []policyResourceClassifier{
 	},
 	{
 		match: func(ref string) bool {
-			return strings.HasPrefix(ref, "arn:aws:events:") && strings.Contains(ref, ":rule/")
+			return isARNOf(ref, "events") && strings.Contains(ref, ":rule/")
 		},
 		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
 			return lookupTargetID(ref, TypeEventsRule, acctID, sets.eventRules)
@@ -821,7 +821,7 @@ var policyResourceClassifiers = []policyResourceClassifier{
 	},
 	{
 		match: func(ref string) bool {
-			return strings.HasPrefix(ref, "arn:aws:elasticfilesystem:") && strings.Contains(ref, ":file-system/")
+			return isARNOf(ref, "elasticfilesystem") && strings.Contains(ref, ":file-system/")
 		},
 		classify: func(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
 			return lookupTargetID(ref, TypeEFSFileSystem, acctID, sets.efsFS)
@@ -841,7 +841,7 @@ func classifyPolicyResource(ref, region, acctID string, sets *policyResourceSets
 	return "", false
 }
 
-// classifyKMSPolicyResource handles `arn:aws:kms:` refs. KMS grants don't
+// classifyKMSPolicyResource handles `arn:{p}:kms:` refs. KMS grants don't
 // use object-suffix patterns; any wildcard here means the policy targets
 // a class of keys rather than one identifier.
 func classifyKMSPolicyResource(ref, region, acctID string, sets *policyResourceSets) (string, bool) {
@@ -877,7 +877,7 @@ func classifyKinesisPolicyResource(ref, _, acctID string, sets *policyResourceSe
 }
 
 // classifyStatesPolicyResource rejects Step Functions service-integration
-// ARNs (`arn:aws:states:::lambda:invoke` etc.) which carry empty region+
+// ARNs (`arn:{p}:states:::lambda:invoke` etc.) which carry empty region+
 // account so they don't hash to phantom state machines (aws/CLAUDE.md
 // "AWS service-integration ARNs use :::").
 func classifyStatesPolicyResource(ref, _, acctID string, sets *policyResourceSets) (string, bool) {
@@ -890,11 +890,7 @@ func classifyStatesPolicyResource(ref, _, acctID string, sets *policyResourceSet
 // classifyS3Resource trims object-key suffix to the bucket ARN before lookup.
 // "bucket/*" means "all objects in this bucket" — still concrete bucket grant.
 func classifyS3Resource(ref, acctID string, sets *policyResourceSets) (string, bool) {
-	bucketARN := ref
-	if i := strings.Index(ref[len("arn:aws:s3:::"):], "/"); i >= 0 {
-		bucketARN = ref[:len("arn:aws:s3:::")+i]
-	}
-	return lookupTargetID(bucketARN, TypeS3Bucket, acctID, sets.buckets)
+	return lookupTargetID(s3BucketARNFromLocation(ref), TypeS3Bucket, acctID, sets.buckets)
 }
 
 // classifySecretResource trims version-stage / version-id tail (keep first 7

@@ -306,23 +306,28 @@ func TestResolveDistributionBehaviorsLambdaEdge(t *testing.T) {
 	assertRelationship(t, rels, distID, fnID, store.RelUses)
 }
 
-// TestCloudfrontS3BucketFromDomain verifies domain parsing for various S3 domain formats.
-func TestCloudfrontS3BucketFromDomain(t *testing.T) {
-	tests := []struct {
-		domain string
-		want   string
-	}{
-		{"my-bucket.s3.amazonaws.com", "my-bucket"},
-		{"my-bucket.s3.us-east-1.amazonaws.com", "my-bucket"},
-		{"my-bucket.s3-website-us-east-1.amazonaws.com", "my-bucket"},
-		{"my-bucket.s3-website.us-east-1.amazonaws.com", "my-bucket"},
-		{"api.example.com", ""},
-		{"", ""},
-	}
-	for _, tc := range tests {
-		got := cloudfrontS3BucketFromDomain(tc.domain)
-		if got != tc.want {
-			t.Errorf("cloudfrontS3BucketFromDomain(%q) = %q; want %q", tc.domain, got, tc.want)
+// TestCloudfrontS3BucketFromDomain_EveryPartition parses each S3 origin form in
+// the account's partition, and rejects it on a host with the partition's
+// suffix but a region of another partition (foreignRegion).
+func TestCloudfrontS3BucketFromDomain_EveryPartition(t *testing.T) {
+	for _, pf := range matcherPartitions {
+		p, r := pf.partition, pf.region
+		suffix, _ := dnsSuffix(p)
+		foreign := foreignRegion(p)
+		tests := []struct{ domain, want string }{
+			{"my-bucket.s3." + r + "." + suffix, "my-bucket"},
+			{"my-bucket.s3-website-" + r + "." + suffix, "my-bucket"},
+			{"my-bucket.s3-website." + r + "." + suffix, "my-bucket"},
+			{"My-Bucket.S3." + r + "." + suffix + ".", "my-bucket"},
+			{"my-bucket.s3." + foreign + "." + suffix, ""},
+			{"s3." + r + "." + suffix, ""},
+			{"api.example.com", ""},
+			{"", ""},
+		}
+		for _, tc := range tests {
+			if got := cloudfrontS3BucketFromDomain(p, tc.domain); got != tc.want {
+				t.Errorf("cloudfrontS3BucketFromDomain(%q, %q) = %q; want %q", p, tc.domain, got, tc.want)
+			}
 		}
 	}
 }

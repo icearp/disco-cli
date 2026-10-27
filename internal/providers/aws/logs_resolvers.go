@@ -161,13 +161,13 @@ func resolveLogsDeliveryDestTarget(acct *account, st *store.Store) error {
 		}
 		var tgtType, tgtARN string
 		switch {
-		case strings.HasPrefix(raw, "arn:aws:logs:"):
+		case isARNOf(raw, "logs"):
 			tgtType = TypeLogsLogGroup
 			tgtARN = strings.TrimSuffix(raw, ":*")
-		case strings.HasPrefix(raw, "arn:aws:s3:"):
+		case isARNOf(raw, "s3"):
 			tgtType = TypeS3Bucket
 			tgtARN = raw
-		case strings.HasPrefix(raw, "arn:aws:firehose:"):
+		case isARNOf(raw, "firehose"):
 			tgtType = TypeFirehoseDeliveryStream
 			tgtARN = raw
 		default:

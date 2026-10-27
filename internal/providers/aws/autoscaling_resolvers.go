@@ -338,14 +338,14 @@ func resolveAutoScalingChildEdges(acct *account, st *store.Store, asgIDByName ma
 			}
 			if tgt := sv(a.NotificationTargetARN); tgt != "" {
 				switch {
-				case strings.HasPrefix(tgt, "arn:aws:sns:"):
+				case isARNOf(tgt, "sns"):
 					tID := store.ResourceID("aws", acct.ID, tgt)
 					if topicIDs[tID] {
 						if err := st.UpsertRelationship(r.ID, tID, store.RelUses, "directed", nil); err != nil {
 							return fmt.Errorf("upsert lifecycle-hook→sns: %w", err)
 						}
 					}
-				case strings.HasPrefix(tgt, "arn:aws:sqs:"):
+				case isARNOf(tgt, "sqs"):
 					qID := store.ResourceID("aws", acct.ID, tgt)
 					if queueIDs[qID] {
 						if err := st.UpsertRelationship(r.ID, qID, store.RelUses, "directed", nil); err != nil {

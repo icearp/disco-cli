@@ -134,7 +134,7 @@ func extractSFNStateResources(definition string) []string {
 func collectARNs(v any, out *[]string) {
 	switch x := v.(type) {
 	case string:
-		if strings.HasPrefix(x, "arn:aws:") {
+		if _, ok := parseARN(x); ok {
 			*out = append(*out, x)
 		}
 	case map[string]any:

@@ -126,13 +126,13 @@ func resolveVpcLatticeALSRefs(acct *account, st *store.Store) error {
 			var tgtARN string
 			var present bool
 			switch {
-			case strings.HasPrefix(dest, "arn:aws:logs:"):
+			case isARNOf(dest, "logs"):
 				tgtARN = strings.TrimSuffix(dest, ":*")
 				present = lgSet[store.ResourceID("aws", acct.ID, tgtARN)]
-			case strings.HasPrefix(dest, "arn:aws:s3:"):
+			case isARNOf(dest, "s3"):
 				tgtARN = dest
 				present = bktSet[store.ResourceID("aws", acct.ID, tgtARN)]
-			case strings.HasPrefix(dest, "arn:aws:firehose:"):
+			case isARNOf(dest, "firehose"):
 				tgtARN = dest
 				present = fhSet[store.ResourceID("aws", acct.ID, tgtARN)]
 			default:

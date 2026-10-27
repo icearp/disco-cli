@@ -16,7 +16,7 @@ func TestGeneratedHomesFileIsCurrent(t *testing.T) {
 	src := loadSource(t)
 
 	homes := src.Homes()
-	want, err := RenderHomes(homes, src.OnceRegions())
+	want, err := RenderHomes(homes, src.OnceRegions(), src.S3RegionlessHosts())
 	if err != nil {
 		t.Fatalf("RenderHomes: %v", err)
 	}
@@ -160,6 +160,7 @@ var defaultPartitions = endpoints.Partitions{
 		PartitionEndpoint: "aws-cn-global",
 		Endpoints: endpoints.Endpoints{
 			endpoints.EndpointKey{Region: "aws-cn-global"}: endpoints.Endpoint{
+				Hostname:        "svc.amazonaws.com.cn",
 				CredentialScope: endpoints.CredentialScope{Region: "cn-northwest-1"},
 			},
 		},
@@ -176,7 +177,11 @@ var defaultPartitions = endpoints.Partitions{
 	}
 	want := []endpointTable{
 		{id: "aws", regionalized: true, scope: map[string]string{"us-east-1": ""}},
-		{id: "aws-cn", partitionEndpoint: "aws-cn-global", scope: map[string]string{"aws-cn-global": "cn-northwest-1"}},
+		{
+			id: "aws-cn", partitionEndpoint: "aws-cn-global",
+			scope:     map[string]string{"aws-cn-global": "cn-northwest-1"},
+			hostnames: map[string]string{"aws-cn-global": "svc.amazonaws.com.cn"},
+		},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("endpointTables = %+v; want %+v", got, want)
@@ -189,5 +194,31 @@ func TestEndpointTables_MissingFile(t *testing.T) {
 	got, err := endpointTables(filepath.Join(t.TempDir(), "endpoints.go"))
 	if err != nil || got != nil {
 		t.Errorf("endpointTables(missing) = %v, %v; want nil, nil", got, err)
+	}
+}
+
+// S3RegionlessHosts keeps only the S3 hostnames that name no real region of
+// any partition, per partition, lists each once, and ignores other packages.
+func TestS3RegionlessHosts_KeepsHostsNamingNoRegion(t *testing.T) {
+	src := testSource()
+	src.real["aws-cn"] = []string{"cn-north-1"}
+	src.tables["s3"] = []endpointTable{
+		{id: "aws", hostnames: map[string]string{
+			"aws-global":     "s3.amazonaws.com",
+			"s3-external-1":  "s3-external-1.amazonaws.com",
+			"us-east-1":      "s3.us-east-1.amazonaws.com",
+			"fips-us-east-2": "s3-fips.us-east-2.amazonaws.com",
+			// Names a region of another partition: not region-less.
+			"cn-north-1": "s3.cn-north-1.amazonaws.com.cn",
+			// A second key with an already-kept hostname is listed once.
+			"aws-global-alias": "s3.amazonaws.com",
+		}},
+		{id: "aws-cn", hostnames: map[string]string{"cn-north-1": "s3.cn-north-1.amazonaws.com.cn"}},
+	}
+	src.tables["svc"] = []endpointTable{{id: "aws", hostnames: map[string]string{"aws-global": "svc.amazonaws.com"}}}
+	got := src.S3RegionlessHosts()
+	want := map[string][]string{"aws": {"s3-external-1.amazonaws.com", "s3.amazonaws.com"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("S3RegionlessHosts() = %v; want %v", got, want)
 	}
 }

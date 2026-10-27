@@ -746,7 +746,7 @@ func resolveSageMakerModelPackage(acct *account, st *store.Store) error {
 		}
 		if a.InferenceSpecification != nil {
 			for _, c := range a.InferenceSpecification.Containers {
-				repoARN := apprunnerImageToRepoARN(sv(c.Image))
+				repoARN := ecrImageRepoARN(acct.partition(), sv(c.Image))
 				if repoARN == "" {
 					continue
 				}

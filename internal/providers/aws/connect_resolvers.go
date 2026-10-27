@@ -280,11 +280,11 @@ func resolveConnectIntegrationAssociationTarget(acct *account, st *store.Store) 
 		var tgtType string
 		var set map[string]bool
 		switch {
-		case strings.HasPrefix(ref, "arn:aws:lambda:"):
+		case isARNOf(ref, "lambda"):
 			tgtType, set = TypeLambdaFunction, lambdaSet
-		case strings.HasPrefix(ref, "arn:aws:lex:"):
+		case isARNOf(ref, "lex"):
 			tgtType, set = TypeLexBot, lexSet
-		case strings.HasPrefix(ref, "arn:aws:wisdom:"):
+		case isARNOf(ref, "wisdom"):
 			tgtType, set = TypeWisdomAssistant, wisdomSet
 		default:
 			continue

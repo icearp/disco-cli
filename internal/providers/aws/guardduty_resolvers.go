@@ -3,6 +3,7 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/icearp/disco-cli/internal/util"
@@ -114,7 +115,7 @@ func resolveGuardDutyIPSetLocation(acct *account, st *store.Store) error {
 		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
 			continue
 		}
-		bucket := parseS3Bucket(sv(attrs.Location))
+		bucket := parseS3Bucket(acct.partition(), sv(attrs.Location))
 		if bucket == "" {
 			continue
 		}
@@ -126,9 +127,11 @@ func resolveGuardDutyIPSetLocation(acct *account, st *store.Store) error {
 	return nil
 }
 
-// parseS3Bucket extracts the bucket name from common S3 URL forms. Returns
-// empty string if the input is not recognisable.
-func parseS3Bucket(loc string) string {
+// parseS3Bucket extracts the bucket name from an s3:// URL or an https URL
+// whose host is an S3 endpoint of partition (s3HostBucket), virtual-hosted or
+// path-style. Returns "" for any other input, including an https URL of
+// another partition's endpoint.
+func parseS3Bucket(partition, loc string) string {
 	if loc == "" {
 		return ""
 	}
@@ -142,25 +145,19 @@ func parseS3Bucket(loc string) string {
 	case strings.HasPrefix(loc, "https://"):
 		// virtual-hosted: https://bucket.s3.amazonaws.com/key
 		// path-style:     https://s3.amazonaws.com/bucket/key
-		rest := strings.TrimPrefix(loc, "https://")
-		host := rest
-		if i := strings.Index(rest, "/"); i >= 0 {
-			host = rest[:i]
-		}
-		if strings.HasPrefix(host, "s3.") || strings.HasPrefix(host, "s3-") {
-			// path-style
-			if i := strings.Index(rest, "/"); i >= 0 {
-				path := rest[i+1:]
-				if j := strings.Index(path, "/"); j > 0 {
-					return path[:j]
-				}
-				return path
-			}
+		u, err := url.Parse(loc)
+		if err != nil {
 			return ""
 		}
-		if i := strings.Index(host, ".s3"); i > 0 {
-			return host[:i]
+		bucket, ok := s3HostBucket(partition, u.Hostname())
+		if !ok {
+			return ""
 		}
+		if bucket != "" {
+			return bucket
+		}
+		bucket, _, _ = strings.Cut(strings.TrimPrefix(u.Path, "/"), "/")
+		return bucket
 	}
 	return ""
 }

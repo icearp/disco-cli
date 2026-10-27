@@ -329,9 +329,9 @@ func resolveDistributionOrigins(acct *account, st *store.Store) error {
 					return err
 				}
 			}
-			// S3 origin bucket: DomainName ends in .s3.amazonaws.com or .s3-*.amazonaws.com
+			// S3 origin bucket: DomainName is <bucket>.s3[-website][.<region>].{dnsSuffix}
 			if domain := sv(o.DomainName); domain != "" {
-				if bucket := cloudfrontS3BucketFromDomain(domain); bucket != "" {
+				if bucket := cloudfrontS3BucketFromDomain(acct.partition(), domain); bucket != "" {
 					bucketARN := s3BucketARN(acct.partition(), bucket)
 					if err := upsert(TypeS3Bucket, bucketARN); err != nil {
 						return err
@@ -510,7 +510,7 @@ func resolveCloudFrontStreamingDistributionOrigins(acct *account, st *store.Stor
 		if attrs.S3Origin == nil {
 			continue
 		}
-		bucket := cloudfrontS3BucketFromDomain(sv(attrs.S3Origin.DomainName))
+		bucket := cloudfrontS3BucketFromDomain(acct.partition(), sv(attrs.S3Origin.DomainName))
 		if bucket == "" {
 			continue
 		}
@@ -609,24 +609,13 @@ func resolveCloudFrontConnectionGroupAnycast(acct *account, st *store.Store) err
 }
 
 // cloudfrontS3BucketFromDomain extracts the S3 bucket name from a CloudFront
-// origin DomainName if it is an S3 origin. Returns "" for non-S3 domains.
-// Handles the forms:
-//
-//	<bucket>.s3.amazonaws.com
-//	<bucket>.s3.<region>.amazonaws.com
-//	<bucket>.s3-website-<region>.amazonaws.com
-//	<bucket>.s3-website.<region>.amazonaws.com
-func cloudfrontS3BucketFromDomain(domain string) string {
-	// All S3 domain variants have ".s3" as a segment after the bucket name.
-	idx := strings.Index(domain, ".s3")
-	if idx <= 0 {
+// origin DomainName if it is a virtual-hosted S3 bucket host of partition
+// (s3HostBucket). Returns "" for any other domain, including an S3 endpoint of
+// another partition, which names a bucket the account cannot own.
+func cloudfrontS3BucketFromDomain(partition, domain string) string {
+	bucket, ok := s3HostBucket(partition, domain)
+	if !ok {
 		return ""
 	}
-	rest := domain[idx:]
-	if strings.HasPrefix(rest, ".s3.amazonaws.com") ||
-		strings.HasPrefix(rest, ".s3-website") ||
-		strings.HasPrefix(rest, ".s3.") {
-		return domain[:idx]
-	}
-	return ""
+	return bucket
 }

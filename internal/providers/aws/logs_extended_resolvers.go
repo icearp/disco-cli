@@ -224,11 +224,11 @@ func resolveLogsSubscriptionFilterRefs(acct *account, st *store.Store) error {
 			var tgtType string
 			var set map[string]bool
 			switch {
-			case strings.HasPrefix(dest, "arn:aws:lambda:"):
+			case isARNOf(dest, "lambda"):
 				tgtType, set = TypeLambdaFunction, lambdaSet
-			case strings.HasPrefix(dest, "arn:aws:kinesis:"):
+			case isARNOf(dest, "kinesis"):
 				tgtType, set = TypeKinesisStream, streamSet
-			case strings.HasPrefix(dest, "arn:aws:firehose:"):
+			case isARNOf(dest, "firehose"):
 				tgtType, set = TypeFirehoseDeliveryStream, firehoseSet
 			}
 			if tgtType != "" {
@@ -289,9 +289,9 @@ func resolveLogsDestinationTargets(acct *account, st *store.Store) error {
 			var tgtType string
 			var set map[string]bool
 			switch {
-			case strings.HasPrefix(arn, "arn:aws:kinesis:"):
+			case isARNOf(arn, "kinesis"):
 				tgtType, set = TypeKinesisStream, streamSet
-			case strings.HasPrefix(arn, "arn:aws:firehose:"):
+			case isARNOf(arn, "firehose"):
 				tgtType, set = TypeFirehoseDeliveryStream, firehoseSet
 			}
 			if tgtType != "" {

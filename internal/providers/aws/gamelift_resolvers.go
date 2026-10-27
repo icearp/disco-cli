@@ -371,7 +371,7 @@ func resolveGameLiftGameSessionQueueRefs(acct *account, st *store.Store) error {
 				return fmt.Errorf("upsert gamelift queue→%s: %w", tgtType, err)
 			}
 		}
-		if nt := sv(attrs.NotificationTarget); strings.HasPrefix(nt, "arn:aws") && strings.Contains(nt, ":sns:") {
+		if nt := sv(attrs.NotificationTarget); isARNOf(nt, "sns") {
 			tgtID := store.ResourceID("aws", acct.ID, nt)
 			if snsSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {
@@ -433,7 +433,7 @@ func resolveGameLiftMatchmakingConfigRefs(acct *account, st *store.Store) error 
 				}
 			}
 		}
-		if nt := sv(attrs.NotificationTarget); strings.HasPrefix(nt, "arn:aws") && strings.Contains(nt, ":sns:") {
+		if nt := sv(attrs.NotificationTarget); isARNOf(nt, "sns") {
 			tgtID := store.ResourceID("aws", acct.ID, nt)
 			if snsSet[tgtID] {
 				if err := st.UpsertRelationship(r.ID, tgtID, store.RelRoutesTo, "directed", nil); err != nil {

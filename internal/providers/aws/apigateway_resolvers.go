@@ -173,7 +173,7 @@ func resolveAPIGatewayAuthorizerCognito(acct *account, st *store.Store) error {
 // resolveAPIGatewayV2AuthorizerCognito emits an authorizer → Cognito user-pool
 // edge for each v2 (HTTP API) authorizer whose AuthorizerType is JWT and whose
 // JwtConfiguration.Issuer is a Cognito pool URL of the form
-// https://cognito-idp.{region}.amazonaws.com/{userPoolId}. Non-Cognito JWT
+// https://cognito-idp.{region}.{dnsSuffix}/{userPoolId}. Non-Cognito JWT
 // issuers (Auth0, Okta, ...) are skipped — no phantom edges.
 func resolveAPIGatewayV2AuthorizerCognito(acct *account, st *store.Store) error {
 	auths, err := st.ListResources(store.ResourceFilter{
@@ -183,8 +183,6 @@ func resolveAPIGatewayV2AuthorizerCognito(acct *account, st *store.Store) error 
 	if err != nil {
 		return err
 	}
-	const issuerPrefix = "https://cognito-idp."
-	const hostSuffix = ".amazonaws.com"
 	for _, r := range auths {
 		var attrs struct {
 			AuthorizerType   string `json:"AuthorizerType"`
@@ -198,21 +196,12 @@ func resolveAPIGatewayV2AuthorizerCognito(acct *account, st *store.Store) error 
 		if attrs.AuthorizerType != "JWT" || attrs.JwtConfiguration == nil {
 			continue
 		}
-		issuer := sv(attrs.JwtConfiguration.Issuer)
-		if !strings.HasPrefix(issuer, issuerPrefix) {
-			continue
-		}
-		// Trim scheme/prefix, split host/path on first "/".
-		rest := strings.TrimPrefix(issuer, issuerPrefix)
-		host, poolID, ok := strings.Cut(rest, "/")
+		issuer, ok := strings.CutPrefix(sv(attrs.JwtConfiguration.Issuer), "https://")
 		if !ok {
 			continue
 		}
-		if !strings.HasSuffix(host, hostSuffix) || poolID == "" {
-			continue
-		}
-		region := strings.TrimSuffix(host, hostSuffix)
-		if region == "" {
+		region, poolID, ok := cognitoUserPoolFromProvider(acct.partition(), issuer)
+		if !ok {
 			continue
 		}
 		poolARN := cognitoUserPoolARN(acct.partition(), region, acct.ID, poolID)
@@ -247,7 +236,7 @@ func resolveAPIGatewayDomainCertRelationships(acct *account, st *store.Store) er
 			continue
 		}
 		for _, arn := range []string{sv(attrs.CertificateArn), sv(attrs.RegionalCertificateArn)} {
-			if !strings.HasPrefix(arn, "arn:aws:acm:") {
+			if !isARNOf(arn, "acm") {
 				continue
 			}
 			certID := store.ResourceID("aws", acct.ID, arn)
@@ -275,7 +264,7 @@ func resolveAPIGatewayDomainCertRelationships(acct *account, st *store.Store) er
 		}
 		for _, dc := range attrs.DomainNameConfigurations {
 			arn := sv(dc.CertificateArn)
-			if !strings.HasPrefix(arn, "arn:aws:acm:") {
+			if !isARNOf(arn, "acm") {
 				continue
 			}
 			certID := store.ResourceID("aws", acct.ID, arn)

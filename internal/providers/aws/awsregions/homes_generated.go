@@ -2160,3 +2160,11 @@ var OnceRegions = map[string]map[string]string{
 		"aws-us-gov": "us-gov-west-1",
 	},
 }
+
+// S3RegionlessHosts maps each partition to the S3 endpoint hostnames that name
+// no region, as the S3 package's endpoint table gives them
+// (regionsgen.Source.S3RegionlessHosts). A partition absent here has none.
+// Treat as read-only.
+var S3RegionlessHosts = map[string][]string{
+	"aws": {"s3-external-1.amazonaws.com", "s3.amazonaws.com"},
+}

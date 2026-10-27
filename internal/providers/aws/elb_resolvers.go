@@ -3,7 +3,6 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
@@ -99,7 +98,7 @@ func resolveELBv2ListenerRelationships(acct *account, st *store.Store) error {
 		// are skipped; only ACM ARNs produce edges.
 		for _, c := range attrs.Certificates {
 			arn := sv(c.CertificateArn)
-			if !strings.HasPrefix(arn, "arn:aws:acm:") {
+			if !isARNOf(arn, "acm") {
 				continue
 			}
 			certID := store.ResourceID("aws", acct.ID, arn)

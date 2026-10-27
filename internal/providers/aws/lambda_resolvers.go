@@ -222,7 +222,7 @@ func resolveLambdaRelationships(acct *account, st *store.Store) error {
 		}
 		// Function → ECR repository for image-package functions.
 		if attrs.Code != nil && sv(attrs.Code.ImageURI) != "" {
-			if repoARN := apprunnerImageToRepoARN(*attrs.Code.ImageURI); repoARN != "" {
+			if repoARN := ecrImageRepoARN(acct.partition(), *attrs.Code.ImageURI); repoARN != "" {
 				repoID := store.ResourceID("aws", acct.ID, repoARN)
 				if ecrSet[repoID] {
 					if err := st.UpsertRelationship(r.ID, repoID, store.RelUses, "directed", nil); err != nil {

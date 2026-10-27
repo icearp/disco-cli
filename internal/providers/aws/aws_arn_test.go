@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	apigatewaytypes "github.com/aws/aws-sdk-go-v2/service/apigateway/types"
 	cfntypes "github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
 	"github.com/aws/aws-sdk-go-v2/service/cloudhsmv2"
@@ -146,6 +147,217 @@ func TestDNSSuffix(t *testing.T) {
 		got, ok := dnsSuffix(c.in)
 		if got != c.want || ok != c.wantOK {
 			t.Errorf("dnsSuffix(%q) = (%q, %v); want (%q, %v)", c.in, got, ok, c.want, c.wantOK)
+		}
+	}
+}
+
+func TestIsARNOf(t *testing.T) {
+	cases := []struct {
+		in, service string
+		want        bool
+	}{
+		{"arn:aws:sns:us-east-1:123456789012:t", "sns", true},
+		{"arn:aws-cn:sns:cn-north-1:123456789012:t", "sns", true},
+		{"arn:aws-us-gov:sns:us-gov-west-1:123456789012:t", "sns", true},
+		{"arn:aws-eusc:sns:eusc-de-east-1:123456789012:t", "sns", true},
+		{"arn:aws-iso-b:sns:us-isob-east-1:123456789012:t", "sns", true},
+		{"arn:aws-cn:sqs:cn-north-1:123456789012:t", "sns", false},
+		// Parses, but names a partition the SDK does not know.
+		{"arn:aws-mars:sns:mars-1:123456789012:t", "sns", false},
+		{"arn:aws:sns", "sns", false},
+		{"sns", "sns", false},
+		{"", "", false},
+	}
+	for _, c := range cases {
+		if got := isARNOf(c.in, c.service); got != c.want {
+			t.Errorf("isARNOf(%q, %q) = %v; want %v", c.in, c.service, got, c.want)
+		}
+	}
+}
+
+func TestParseARN(t *testing.T) {
+	cases := []struct {
+		in     string
+		want   arn.ARN
+		wantOK bool
+	}{
+		{"arn:aws-cn:iam::aws:policy/ReadOnlyAccess", arn.ARN{Partition: "aws-cn", Service: "iam", AccountID: "aws", Resource: "policy/ReadOnlyAccess"}, true},
+		{"arn:aws-us-gov:sqs:us-gov-west-1:123456789012:q", arn.ARN{Partition: "aws-us-gov", Service: "sqs", Region: "us-gov-west-1", AccountID: "123456789012", Resource: "q"}, true},
+		{"arn:aws-mars:iam::aws:policy/P", arn.ARN{}, false},
+		{"arn:aws:iam", arn.ARN{}, false},
+		{"", arn.ARN{}, false},
+	}
+	for _, c := range cases {
+		got, ok := parseARN(c.in)
+		if got != c.want || ok != c.wantOK {
+			t.Errorf("parseARN(%q) = (%+v, %v); want (%+v, %v)", c.in, got, ok, c.want, c.wantOK)
+		}
+	}
+}
+
+func TestS3BucketARNFromLocation(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"arn:aws:s3:::bucket", "arn:aws:s3:::bucket"},
+		{"arn:aws:s3:::bucket/prefix/", "arn:aws:s3:::bucket"},
+		{"arn:aws:s3:::bucket/a/b/c", "arn:aws:s3:::bucket"},
+		{"arn:aws:lambda:::function/foo", ""},
+		{"", ""},
+		{"arn:aws:s3:::", ""},
+		{"arn:aws-cn:s3:::bucket/prefix/", "arn:aws-cn:s3:::bucket"},
+		{"arn:aws-us-gov:s3:::bucket", "arn:aws-us-gov:s3:::bucket"},
+		// An access point carries a region and an account: not a bucket.
+		{"arn:aws-cn:s3:cn-north-1:123456789012:accesspoint/ap", ""},
+		{"arn:aws-mars:s3:::bucket", ""},
+		{"s3://bucket/key", ""},
+	}
+	for _, c := range cases {
+		if got := s3BucketARNFromLocation(c.in); got != c.want {
+			t.Errorf("s3BucketARNFromLocation(%q) = %q; want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestHostRegion(t *testing.T) {
+	cases := []struct {
+		partition, host, prefix string
+		want                    string
+		wantOK                  bool
+	}{
+		{"aws", "sqs.us-east-1.amazonaws.com", "sqs.", "us-east-1", true},
+		{"aws-cn", "sqs.cn-north-1.amazonaws.com.cn", "sqs.", "cn-north-1", true},
+		{"aws-us-gov", "sqs.us-gov-west-1.amazonaws.com", "sqs.", "us-gov-west-1", true},
+		// Suffix of another partition.
+		{"aws-cn", "sqs.us-east-1.amazonaws.com", "sqs.", "", false},
+		{"aws", "sqs.cn-north-1.amazonaws.com.cn", "sqs.", "", false},
+		// Same suffix, region of another partition.
+		{"aws-us-gov", "sqs.us-east-1.amazonaws.com", "sqs.", "", false},
+		{"aws", "sqs.us-gov-west-1.amazonaws.com", "sqs.", "", false},
+		{"aws", "sns.us-east-1.amazonaws.com", "sqs.", "", false},
+		{"aws", "sqs.amazonaws.com", "sqs.", "", false},
+		{"aws", "sqs.fips.us-east-1.amazonaws.com", "sqs.", "", false},
+		// FIPS form of the prefix.
+		{"aws-us-gov", "sqs-fips.us-gov-west-1.amazonaws.com", "sqs.", "us-gov-west-1", true},
+		{"aws-us-gov", "dkr.ecr-fips.us-gov-east-1.amazonaws.com", "dkr.ecr.", "us-gov-east-1", true},
+		{"aws-us-gov", "sqs-fips.us-east-1.amazonaws.com", "sqs.", "", false},
+		{"aws", "sns-fips.us-east-1.amazonaws.com", "sqs.", "", false},
+		{"aws-mars", "sqs.us-east-1.amazonaws.com", "sqs.", "", false},
+	}
+	for _, c := range cases {
+		got, ok := hostRegion(c.partition, c.host, c.prefix)
+		if got != c.want || ok != c.wantOK {
+			t.Errorf("hostRegion(%q, %q, %q) = (%q, %v); want (%q, %v)", c.partition, c.host, c.prefix, got, ok, c.want, c.wantOK)
+		}
+	}
+}
+
+// TestS3HostBucket walks each rule of the S3 host grammar: normalisation, the
+// endpoint label, the per-label region check, the SDK's region-less hosts and
+// the aws-only accelerate fact.
+func TestS3HostBucket(t *testing.T) {
+	cases := []struct {
+		name, partition, host, bucket string
+		ok                            bool
+	}{
+		{"regional", "aws", "b.s3.us-east-1.amazonaws.com", "b", true},
+		{"path-style", "aws", "s3.us-east-1.amazonaws.com", "", true},
+		{"legacy dash region", "aws", "b.s3-us-west-2.amazonaws.com", "b", true},
+		{"website dash", "aws", "b.s3-website-us-east-1.amazonaws.com", "b", true},
+		{"website dot", "aws", "b.s3-website.us-east-1.amazonaws.com", "b", true},
+		{"dualstack", "aws", "b.s3.dualstack.us-east-1.amazonaws.com", "b", true},
+		{"fips dualstack", "aws-us-gov", "b.s3-fips.dualstack.us-gov-west-1.amazonaws.com", "b", true},
+		{"vpce", "aws", "b.vpce-1a2b.s3.us-east-1.vpce.amazonaws.com", "b", true},
+		{"vpce dotted bucket", "aws", "x.y.vpce-1a2b.s3.us-east-1.vpce.amazonaws.com", "x.y", true},
+		{"vpce path-style", "aws", "vpce-1a2b.s3.us-east-1.vpce.amazonaws.com", "", true},
+		{"vpce access point", "aws", "accesspoint.vpce-1a2b.s3.us-east-1.vpce.amazonaws.com", "", false},
+		{"vpce control", "aws", "control.vpce-1a2b.s3.us-east-1.vpce.amazonaws.com", "", false},
+		{"vpce without endpoint id", "aws", "b.s3.us-east-1.vpce.amazonaws.com", "", false},
+		{"vpce without region", "aws", "b.vpce-1a2b.s3.vpce.amazonaws.com", "", false},
+		{"vpce dualstack", "aws", "b.vpce-1a2b.s3.dualstack.us-east-1.vpce.amazonaws.com", "", false},
+		{"cn regional", "aws-cn", "b.s3.cn-north-1.amazonaws.com.cn", "b", true},
+		{"gov regional", "aws-us-gov", "b.s3.us-gov-west-1.amazonaws.com", "b", true},
+		{"dotted bucket with s3 label", "aws", "x.s3data.s3.amazonaws.com", "x.s3data", true},
+		{"dotted bucket with s3- label", "aws", "a.s3-logs.s3.us-east-1.amazonaws.com", "a.s3-logs", true},
+
+		{"uppercase", "aws", "B.S3.AMAZONAWS.COM", "b", true},
+		{"trailing dot", "aws", "b.s3.amazonaws.com.", "b", true},
+		{"port", "aws", "b.s3.us-east-1.amazonaws.com:443", "b", true},
+		{"trailing dot and port", "aws", "s3.amazonaws.com.:443", "", true},
+
+		{"sdk region-less global", "aws", "b.s3.amazonaws.com", "b", true},
+		{"sdk region-less external-1", "aws", "b.s3-external-1.amazonaws.com", "b", true},
+		{"gov has no region-less global", "aws-us-gov", "b.s3.amazonaws.com", "", false},
+		{"gov has no external-1", "aws-us-gov", "b.s3-external-1.amazonaws.com", "", false},
+		{"cn has no region-less global", "aws-cn", "b.s3.amazonaws.com.cn", "", false},
+		{"website without region", "aws", "b.s3-website.amazonaws.com", "", false},
+
+		{"accelerate aws", "aws", "b.s3-accelerate.amazonaws.com", "b", true},
+		{"accelerate dualstack aws", "aws", "b.s3-accelerate.dualstack.amazonaws.com", "b", true},
+		{"accelerate gov", "aws-us-gov", "b.s3-accelerate.amazonaws.com", "", false},
+		{"accelerate cn", "aws-cn", "b.s3-accelerate.amazonaws.com.cn", "", false},
+		{"accelerate dualstack region aws", "aws", "b.s3-accelerate.dualstack.us-east-1.amazonaws.com", "b", true},
+		{"accelerate region without dualstack", "aws", "b.s3-accelerate.us-east-1.amazonaws.com", "", false},
+		{"accelerate dualstack region gov", "aws-us-gov", "b.s3-accelerate.dualstack.us-gov-west-1.amazonaws.com", "", false},
+		{"accelerate foreign region aws", "aws", "b.s3-accelerate.dualstack.us-gov-west-1.amazonaws.com", "", false},
+		{"accelerate vpce", "aws", "b.vpce-1a2b.s3-accelerate.us-east-1.vpce.amazonaws.com", "", false},
+
+		{"region of another partition", "aws", "s3.us-gov-west-1.amazonaws.com", "", false},
+		{"commercial region under gov", "aws-us-gov", "b.s3.us-east-1.amazonaws.com", "", false},
+		{"commercial dash region under gov", "aws-us-gov", "b.s3-website-us-east-1.amazonaws.com", "", false},
+		{"commercial vpce under gov", "aws-us-gov", "b.vpce-1a2b.s3.us-east-1.vpce.amazonaws.com", "", false},
+		{"region before vpce under aws", "aws", "b.vpce-1a2b.s3.us-gov-west-1.vpce.amazonaws.com", "", false},
+		{"cn suffix, commercial region", "aws-cn", "b.s3.us-east-1.amazonaws.com.cn", "", false},
+
+		{"two regions", "aws", "b.s3.us-east-1.us-west-2.amazonaws.com", "", false},
+		{"repeated vpce", "aws", "b.vpce-1a2b.s3.us-east-1.vpce.vpce.amazonaws.com", "", false},
+		{"repeated dualstack", "aws", "b.s3.dualstack.dualstack.us-east-1.amazonaws.com", "", false},
+		{"dualstack after region", "aws", "b.s3.us-east-1.dualstack.amazonaws.com", "", false},
+		{"dash region then dualstack", "aws", "b.s3-us-east-1.dualstack.amazonaws.com", "", false},
+		{"dash region then region", "aws", "b.s3-us-east-1.us-east-1.amazonaws.com", "", false},
+		{"website dualstack", "aws", "b.s3-website.dualstack.us-east-1.amazonaws.com", "", false},
+		{"fips vpce", "aws", "b.vpce-1a2b.s3-fips.us-east-1.vpce.amazonaws.com", "b", true},
+		{"gov fips vpce", "aws-us-gov", "b.vpce-1a2b.s3-fips.us-gov-west-1.vpce.amazonaws.com", "b", true},
+		{"fips vpce dualstack", "aws", "b.vpce-1a2b.s3-fips.dualstack.us-east-1.vpce.amazonaws.com", "", false},
+		{"website vpce", "aws", "b.vpce-1a2b.s3-website.us-east-1.vpce.amazonaws.com", "", false},
+		{"dash region vpce", "aws", "b.vpce-1a2b.s3-us-east-1.vpce.amazonaws.com", "", false},
+		{"empty leading label", "aws", ".s3.amazonaws.com", "", false},
+		{"empty inner label", "aws", "a..s3.amazonaws.com", "", false},
+		{"empty endpoint label", "aws", "b.s3..us-east-1.amazonaws.com", "", false},
+		{"fips-region label", "aws", "b.s3.fips-us-gov-west-1.amazonaws.com", "", false},
+		{"fips-region label beside a region", "aws", "b.s3-us-east-1.fips-us-gov-west-1.amazonaws.com", "", false},
+		{"unknown label beside a region", "aws", "b.s3.foo.us-east-1.amazonaws.com", "", false},
+		{"suffix of another partition", "aws-cn", "b.s3.us-east-1.amazonaws.com", "", false},
+		{"access point", "aws", "ap-123.s3-accesspoint.us-east-1.amazonaws.com", "", false},
+		{"not s3", "aws", "example.com", "", false},
+		{"no endpoint label", "aws", "b.amazonaws.com", "", false},
+		{"unknown partition", "aws-mars", "s3.amazonaws.com", "", false},
+	}
+	for _, c := range cases {
+		bucket, ok := s3HostBucket(c.partition, c.host)
+		if bucket != c.bucket || ok != c.ok {
+			t.Errorf("%s: s3HostBucket(%q, %q) = %q, %v; want %q, %v", c.name, c.partition, c.host, bucket, ok, c.bucket, c.ok)
+		}
+	}
+}
+
+func TestECRImageRepoARN(t *testing.T) {
+	cases := []struct{ partition, in, want string }{
+		{"aws", "123456789012.dkr.ecr.us-east-1.amazonaws.com/myapp:latest", "arn:aws:ecr:us-east-1:123456789012:repository/myapp"},
+		{"aws", "123456789012.dkr.ecr.us-east-1.amazonaws.com/team/myapp:v1", "arn:aws:ecr:us-east-1:123456789012:repository/team/myapp"},
+		{"aws", "123456789012.dkr.ecr.us-east-1.amazonaws.com/team/myapp@sha256:abc", "arn:aws:ecr:us-east-1:123456789012:repository/team/myapp"},
+		{"aws", "123456789012.dkr.ecr.us-east-1.amazonaws.com/myapp", "arn:aws:ecr:us-east-1:123456789012:repository/myapp"},
+		{"aws-cn", "123456789012.dkr.ecr.cn-north-1.amazonaws.com.cn/myapp:latest", "arn:aws-cn:ecr:cn-north-1:123456789012:repository/myapp"},
+		{"aws-us-gov", "123456789012.dkr.ecr.us-gov-west-1.amazonaws.com/myapp:latest", "arn:aws-us-gov:ecr:us-gov-west-1:123456789012:repository/myapp"},
+		{"aws-us-gov", "123456789012.dkr.ecr-fips.us-gov-west-1.amazonaws.com/myapp:latest", "arn:aws-us-gov:ecr:us-gov-west-1:123456789012:repository/myapp"},
+		{"aws-cn", "123456789012.dkr.ecr.us-east-1.amazonaws.com/myapp:latest", ""},
+		{"aws-us-gov", "123456789012.dkr.ecr.us-east-1.amazonaws.com/myapp:latest", ""},
+		{"aws", "public.ecr.aws/lambda/python:latest", ""},
+		{"aws", "docker.io/library/nginx:latest", ""},
+		{"aws", "123456789012.dkr.ecr.us-east-1.amazonaws.com/", ""},
+		{"aws", "", ""},
+	}
+	for _, c := range cases {
+		if got := ecrImageRepoARN(c.partition, c.in); got != c.want {
+			t.Errorf("ecrImageRepoARN(%q, %q) = %q; want %q", c.partition, c.in, got, c.want)
 		}
 	}
 }

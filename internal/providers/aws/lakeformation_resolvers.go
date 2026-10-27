@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	lftypes "github.com/aws/aws-sdk-go-v2/service/lakeformation/types"
 	"github.com/icearp/disco-cli/internal/util"
@@ -129,8 +128,8 @@ type lakeFormationResourceAttrs struct {
 //
 //   - resource → S3 bucket (uses) — the registered S3 location's bucket.
 //     ResourceArn is `arn:{partition}:s3:::bucket[/prefix]`; strip path
-//     suffix to recover the bucket ARN (s3BucketARNFromLocation recognizes
-//     only the aws partition). FK-safe via scanned-bucket id set.
+//     suffix to recover the bucket ARN (s3BucketARNFromLocation). FK-safe
+//     via scanned-bucket id set.
 //   - resource → IAM role (assumes) — the service role registered to access
 //     the location. FK-safe via scanned IAM role id set.
 //
@@ -181,25 +180,4 @@ func resolveLakeFormationResourceTargets(acct *account, st *store.Store) error {
 		}
 	}
 	return nil
-}
-
-// s3BucketARNFromLocation collapses an S3 location ARN to its bucket ARN.
-// Lake Formation registers `arn:{partition}:s3:::bucket` or
-// `arn:{partition}:s3:::bucket/prefix/`; the S3 scanner stores the bucket as
-// `arn:{partition}:s3:::bucket` in the account's partition. This matcher
-// recognizes only the aws partition: it returns empty string for an S3 ARN in
-// any other partition, as for a non-S3 ARN, so no edge is emitted.
-func s3BucketARNFromLocation(arn string) string {
-	const prefix = "arn:aws:s3:::"
-	if !strings.HasPrefix(arn, prefix) {
-		return ""
-	}
-	rest := arn[len(prefix):]
-	if i := strings.IndexByte(rest, '/'); i >= 0 {
-		rest = rest[:i]
-	}
-	if rest == "" {
-		return ""
-	}
-	return prefix + rest
 }

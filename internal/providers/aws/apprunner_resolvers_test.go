@@ -133,20 +133,3 @@ func TestResolveAppRunnerVPCConnectorTargets(t *testing.T) {
 	assertRelationship(t, rels, connID, snID, store.RelUses)
 	assertRelationship(t, rels, connID, sgID, store.RelUses)
 }
-
-func TestApprunnerImageToRepoARN(t *testing.T) {
-	cases := []struct {
-		in, want string
-	}{
-		{"123456789012.dkr.ecr.us-east-1.amazonaws.com/myapp:latest", "arn:aws:ecr:us-east-1:123456789012:repository/myapp"},
-		{"123456789012.dkr.ecr.us-east-1.amazonaws.com/team/myapp:v1", "arn:aws:ecr:us-east-1:123456789012:repository/team/myapp"},
-		{"public.ecr.aws/lambda/python:latest", ""},
-		{"docker.io/library/nginx:latest", ""},
-		{"", ""},
-	}
-	for _, c := range cases {
-		if got := apprunnerImageToRepoARN(c.in); got != c.want {
-			t.Errorf("apprunnerImageToRepoARN(%q) = %q, want %q", c.in, got, c.want)
-		}
-	}
-}

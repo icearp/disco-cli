@@ -264,8 +264,7 @@ func resolveGlueTableS3Location(acct *account, st *store.Store) error {
 // s3BucketARNFromS3URL collapses an `s3://bucket[/prefix...]` URL to the
 // canonical bucket ARN `arn:{p}:s3:::bucket` in the given partition; returns "" for non-s3://
 // schemes (HDFS, JDBC, etc.) or malformed input. Sibling of
-// `s3BucketARNFromLocation`, which handles `arn:aws:s3:::` prefixes from
-// Lake Formation registered locations.
+// `s3BucketARNFromLocation`, which handles S3 bucket and object ARNs.
 func s3BucketARNFromS3URL(partition, url string) string {
 	const scheme = "s3://"
 	if !strings.HasPrefix(url, scheme) {

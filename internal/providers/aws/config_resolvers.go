@@ -3,7 +3,6 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
@@ -132,7 +131,7 @@ func resolveConfigRules(acct *account, st *store.Store) error {
 			continue
 		}
 		arn := sv(attrs.Source.SourceIdentifier)
-		if !strings.HasPrefix(arn, "arn:aws:lambda:") {
+		if !isARNOf(arn, "lambda") {
 			continue
 		}
 		lid := store.ResourceID("aws", acct.ID, arn)

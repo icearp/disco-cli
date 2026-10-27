@@ -3,17 +3,11 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 )
-
-// ecrImageRe matches ECR image URIs:
-//
-//	<accountID>.dkr.ecr.<region>.amazonaws.com/<repo>[:<tag>|@<digest>]
-var ecrImageRe = regexp.MustCompile(`^(\d+)\.dkr\.ecr\.([a-z0-9-]+)\.amazonaws\.com/([^:@]+)`)
 
 func init() {
 	registerResolver(
@@ -179,14 +173,8 @@ func resolveECSContainerRelationships(acct *account, st *store.Store) error {
 		for _, c := range attrs.ContainerDefinitions {
 			// ECR image → repository edge
 			if img := sv(c.Image); img != "" {
-				if m := ecrImageRe.FindStringSubmatch(img); m != nil {
-					imgAcct, imgRegion, repo := m[1], m[2], m[3]
-					// repo may have a path; use as-is (ECR repo names can contain /)
-					repo = strings.SplitN(repo, ":", 2)[0] // strip tag if somehow present
-					ecrARN := fmt.Sprintf("arn:aws:ecr:%s:%s:repository/%s", imgRegion, imgAcct, repo)
-					if err := upsert(TypeECRRepository, ecrARN); err != nil {
-						return err
-					}
+				if err := upsert(TypeECRRepository, ecrImageRepoARN(acct.partition(), img)); err != nil {
+					return err
 				}
 			}
 			// awslogs log group edge
@@ -260,7 +248,7 @@ func resolveECSTaskDefinitionSecrets(acct *account, st *store.Store) error {
 // expand to the scanner-side NativeID shape.
 func ecsSecretTarget(partition, region, acctID, vf string) (string, string) {
 	switch {
-	case strings.HasPrefix(vf, "arn:aws:secretsmanager:"):
+	case isARNOf(vf, "secretsmanager"):
 		// Keep the first 7 colon-separated segments:
 		// arn:aws:secretsmanager:{region}:{acct}:secret:{name-suffix}
 		parts := strings.SplitN(vf, ":", 8)
@@ -268,7 +256,7 @@ func ecsSecretTarget(partition, region, acctID, vf string) (string, string) {
 			return "", ""
 		}
 		return TypeSecretsManagerSecret, strings.Join(parts[:7], ":")
-	case strings.HasPrefix(vf, "arn:aws:ssm:"):
+	case isARNOf(vf, "ssm"):
 		return TypeSSMParameter, vf
 	default:
 		// Bare SSM parameter name; scanner stores `arn:{p}:ssm:{r}:{a}:parameter{/name}`.

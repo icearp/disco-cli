@@ -223,21 +223,3 @@ func TestResolveLakeFormationOptInTargets_DecodeErrorReturned(t *testing.T) {
 		t.Errorf("err = %v, want the JSON decode error", err)
 	}
 }
-
-func TestS3BucketARNFromLocation(t *testing.T) {
-	cases := []struct {
-		in, want string
-	}{
-		{"arn:aws:s3:::bucket", "arn:aws:s3:::bucket"},
-		{"arn:aws:s3:::bucket/prefix/", "arn:aws:s3:::bucket"},
-		{"arn:aws:s3:::bucket/a/b/c", "arn:aws:s3:::bucket"},
-		{"arn:aws:lambda:::function/foo", ""},
-		{"", ""},
-		{"arn:aws:s3:::", ""},
-	}
-	for _, c := range cases {
-		if got := s3BucketARNFromLocation(c.in); got != c.want {
-			t.Errorf("s3BucketARNFromLocation(%q) = %q, want %q", c.in, got, c.want)
-		}
-	}
-}

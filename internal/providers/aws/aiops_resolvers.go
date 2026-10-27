@@ -3,7 +3,6 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
@@ -76,7 +75,7 @@ func resolveAIOpsRelationships(acct *account, st *store.Store) error {
 			}
 		}
 		for topicARN := range a.ChatbotNotificationChannel {
-			if !strings.HasPrefix(topicARN, "arn:aws:sns:") {
+			if !isARNOf(topicARN, "sns") {
 				continue
 			}
 			topicID := store.ResourceID("aws", acct.ID, topicARN)

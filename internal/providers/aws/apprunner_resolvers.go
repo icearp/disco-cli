@@ -3,7 +3,6 @@ package aws
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
@@ -258,7 +257,7 @@ func emitAppRunnerECRRepoEdge(st *store.Store, acct *account, s store.Resource, 
 	if attrs.SourceConfiguration == nil || attrs.SourceConfiguration.ImageRepository == nil {
 		return nil
 	}
-	repoARN := apprunnerImageToRepoARN(sv(attrs.SourceConfiguration.ImageRepository.ImageIdentifier))
+	repoARN := ecrImageRepoARN(acct.partition(), sv(attrs.SourceConfiguration.ImageRepository.ImageIdentifier))
 	if repoARN == "" {
 		return nil
 	}
@@ -288,45 +287,6 @@ func emitAppRunnerKMSEdge(st *store.Store, acct *account, s store.Resource, regi
 		return fmt.Errorf("upsert apprunner service→kms: %w", err)
 	}
 	return nil
-}
-
-// apprunnerImageToRepoARN strips the image-tag suffix from an ECR image
-// identifier to recover the repository ARN. App Runner's
-// ImageIdentifier shape:
-//
-//	{acct}.dkr.ecr.{region}.amazonaws.com/{repo}:{tag}     (URL form)
-//	public.ecr.aws/{namespace}/{repo}:{tag}                (public ECR — no edge)
-//
-// ECR repository NativeID (per ecr scanner) is the canonical ARN
-// `arn:aws:ecr:{region}:{acct}:repository/{name}`; reconstruct from the
-// URL form. Returns empty string for public-ECR images and other non-ECR
-// registries.
-func apprunnerImageToRepoARN(imageID string) string {
-	if imageID == "" || strings.HasPrefix(imageID, "public.ecr.aws/") {
-		return ""
-	}
-	// Trim tag.
-	if i := strings.LastIndexByte(imageID, ':'); i >= 0 {
-		imageID = imageID[:i]
-	}
-	// Split host / repo path.
-	host, repo, ok := strings.Cut(imageID, "/")
-	if !ok || repo == "" {
-		return ""
-	}
-	// Host: <acct>.dkr.ecr.<region>.amazonaws.com
-	if !strings.Contains(host, ".dkr.ecr.") {
-		return ""
-	}
-	acct, rest, ok := strings.Cut(host, ".dkr.ecr.")
-	if !ok {
-		return ""
-	}
-	region, _, ok := strings.Cut(rest, ".amazonaws.com")
-	if !ok || region == "" || acct == "" {
-		return ""
-	}
-	return fmt.Sprintf("arn:aws:ecr:%s:%s:repository/%s", region, acct, repo)
 }
 
 // apprunnerVPCConnectorAttrs mirrors the verbatim VpcConnector fields.

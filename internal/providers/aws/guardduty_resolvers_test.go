@@ -109,20 +109,41 @@ func TestResolveGuardDutyMemberOrgAccount_NoOrgTree(t *testing.T) {
 	}
 }
 
-func TestParseS3Bucket(t *testing.T) {
-	cases := map[string]string{
-		"s3://my-bucket/key":                            "my-bucket",
-		"s3://my-bucket":                                "my-bucket",
-		"https://bucket.s3.amazonaws.com/x":             "bucket",
-		"https://bucket.s3.us-east-1.amazonaws.com/x":   "bucket",
-		"https://s3.amazonaws.com/path-bucket/x":        "path-bucket",
-		"https://s3-us-east-1.amazonaws.com/path-bkt/x": "path-bkt",
-		"":                     "",
-		"http://example.com/x": "",
-	}
-	for in, want := range cases {
-		if got := parseS3Bucket(in); got != want {
-			t.Errorf("parseS3Bucket(%q) = %q; want %q", in, got, want)
+// TestParseS3Bucket_EveryPartition parses each S3 URL form in the account's
+// partition, and rejects the same forms on a host with the partition's suffix
+// but a region of another partition (foreignRegion).
+func TestParseS3Bucket_EveryPartition(t *testing.T) {
+	for _, pf := range matcherPartitions {
+		p, r := pf.partition, pf.region
+		suffix, _ := dnsSuffix(p)
+		foreign := foreignRegion(p)
+		// Only aws has a region-less S3 endpoint (awsregions.S3RegionlessHosts).
+		regionless := ""
+		if p == "aws" {
+			regionless = "regionless"
+		}
+		cases := map[string]string{
+			"s3://my-bucket/key": "my-bucket",
+			"s3://my-bucket":     "my-bucket",
+			"https://bucket.s3." + r + "." + suffix + "/x":                  "bucket",
+			"https://s3." + r + "." + suffix + "/path-bucket/x":             "path-bucket",
+			"https://s3-" + r + "." + suffix + "/path-bkt/x":                "path-bkt",
+			"https://s3." + r + "." + suffix + "./path-bucket/x":            "path-bucket",
+			"https://bucket.s3." + r + "." + suffix + ":443/x":              "bucket",
+			"https://bucket.s3." + r + "." + suffix + "/x?versionId=1":      "bucket",
+			"https://user@bucket.s3." + r + "." + suffix + "/x":             "bucket",
+			"https://s3." + r + "." + suffix + "/path-bucket/x?versionId=1": "path-bucket",
+			"https://s3." + r + "." + suffix + "/path-bucket?versionId=1":   "path-bucket",
+			"https://bucket.s3." + foreign + "." + suffix + "/x":            "",
+			"https://s3." + foreign + "." + suffix + "/path-bkt/x":          "",
+			"https://s3." + suffix + "/regionless/x":                        regionless,
+			"":                                                              "",
+			"http://example.com/x":                                          "",
+		}
+		for in, want := range cases {
+			if got := parseS3Bucket(p, in); got != want {
+				t.Errorf("parseS3Bucket(%q, %q) = %q; want %q", p, in, got, want)
+			}
 		}
 	}
 }

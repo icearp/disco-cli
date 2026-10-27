@@ -62,7 +62,7 @@ func run(out, partitionsOut, homesOut string) error {
 	fmt.Fprintf(os.Stderr, "genregions: wrote %s (%d partitions)\n", partitionsOut, len(src.Partitions))
 
 	homes := src.Homes()
-	homesSrc, err := regionsgen.RenderHomes(homes, src.OnceRegions())
+	homesSrc, err := regionsgen.RenderHomes(homes, src.OnceRegions(), src.S3RegionlessHosts())
 	if err != nil {
 		return err
 	}

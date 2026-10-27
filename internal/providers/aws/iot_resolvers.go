@@ -82,25 +82,6 @@ func stateMachineARNFromName(partition, region, acctID, name string) string {
 	return arnFor(partition, "states", region, acctID, "stateMachine:"+name)
 }
 
-// sqsQueueARNFromURL parses an SQS queue URL — `https://sqs.{region}.amazonaws.com/{acct}/{name}`
-// — into the canonical queue ARN. Returns "" if not a parseable URL.
-func sqsQueueARNFromURL(u string) string {
-	const prefix = "https://sqs."
-	if !strings.HasPrefix(u, prefix) {
-		return ""
-	}
-	rest := u[len(prefix):]
-	region, after, ok := strings.Cut(rest, ".amazonaws.com/")
-	if !ok || region == "" {
-		return ""
-	}
-	acctID, name, ok := strings.Cut(after, "/")
-	if !ok || acctID == "" || name == "" {
-		return ""
-	}
-	return fmt.Sprintf("arn:aws:sqs:%s:%s:%s", region, acctID, name)
-}
-
 // iotARN builds a standard IoT-resource ARN: arn:{p}:iot:{r}:{a}:{kind}/{id}.
 func iotARN(partition, region, acctID, kind, id string) string {
 	return arnFor(partition, "iot", region, acctID, kind+"/"+id)
@@ -670,7 +651,7 @@ func emitIoTTopicRuleActionEdges(st *store.Store, r *store.Resource, a iotTopicR
 		emits = append(emits, emit{true, TypeSNSTopic, sets.sns, sv(a.Sns.TargetArn), "sns"})
 	}
 	if a.Sqs != nil {
-		emits = append(emits, emit{true, TypeSQSQueue, sets.sqs, sqsQueueARNFromURL(sv(a.Sqs.QueueURL)), "sqs"})
+		emits = append(emits, emit{true, TypeSQSQueue, sets.sqs, sqsQueueARNFromURL(partition, sv(a.Sqs.QueueURL)), "sqs"})
 	}
 	if a.Kinesis != nil && sv(a.Kinesis.StreamName) != "" {
 		emits = append(emits, emit{
@@ -976,7 +957,7 @@ func resolveIoTAccountAuditConfigurationRefs(acct *account, st *store.Store) err
 			if err := emitRole(sv(t.RoleArn)); err != nil {
 				return err
 			}
-			if topicARN := sv(t.TargetArn); topicARN != "" && strings.HasPrefix(topicARN, "arn:aws:sns:") {
+			if topicARN := sv(t.TargetArn); topicARN != "" && isARNOf(topicARN, "sns") {
 				tid := store.ResourceID("aws", acct.ID, topicARN)
 				if !snsSet[tid] {
 					continue

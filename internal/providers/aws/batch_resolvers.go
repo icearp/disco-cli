@@ -223,7 +223,7 @@ type batchJobDefAttrs struct {
 //   - job-definition → IAM job role (assumes) via ContainerProperties.JobRoleArn
 //   - job-definition → IAM execution role (assumes) via ContainerProperties.ExecutionRoleArn
 //   - job-definition → ECR repository (uses) via ContainerProperties.Image
-//     (parsed via existing apprunnerImageToRepoARN helper — same URL shape)
+//     (parsed via ecrImageRepoARN)
 //
 // FK-safe via per-type id sets. Multi-node parallel jobs (NodeProperties),
 // ECS task-properties, and EKS pod-properties variants deferred.
@@ -276,7 +276,7 @@ func resolveBatchJobDefinitionTargets(acct *account, st *store.Store) error {
 			}
 		}
 
-		if repoARN := apprunnerImageToRepoARN(sv(cp.Image)); repoARN != "" {
+		if repoARN := ecrImageRepoARN(acct.partition(), sv(cp.Image)); repoARN != "" {
 			rID := store.ResourceID("aws", acct.ID, repoARN)
 			if _, ok := repoIDs[rID]; ok {
 				if err := st.UpsertRelationship(d.ID, rID, store.RelUses, "directed", nil); err != nil {

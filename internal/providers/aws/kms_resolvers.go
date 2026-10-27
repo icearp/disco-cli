@@ -73,7 +73,7 @@ func resolveKMSGrants(acct *account, st *store.Store) error {
 		}
 		for _, p := range []*string{a.GranteePrincipal, a.RetiringPrincipal} {
 			arn := sv(p)
-			if arn == "" || !strings.HasPrefix(arn, "arn:aws:iam::") {
+			if arn == "" || !isARNOf(arn, "iam") {
 				continue
 			}
 			if !strings.Contains(arn, ":role/") && !strings.Contains(arn, ":user/") {

@@ -153,7 +153,7 @@ func resolveFMSResourceSetMembers(acct *account, st *store.Store) error {
 // classifyShieldProtectedResource); whether Firewall Manager answers that
 // form is unverified, and the rewrite is a no-op on any other URI.
 func fmsMemberNativeID(uri string) string {
-	if strings.HasPrefix(uri, "arn:aws:ec2:") {
+	if isARNOf(uri, "ec2") {
 		return strings.Replace(uri, ":eip-allocation/", ":elastic-ip/", 1)
 	}
 	return uri
@@ -166,9 +166,8 @@ func fmsMemberOwner(accountID, arn string) string {
 	if accountID != "" {
 		return accountID
 	}
-	parts := strings.SplitN(arn, ":", 6)
-	if len(parts) < 6 || parts[0] != "arn" {
-		return ""
+	if a, ok := parseARN(arn); ok {
+		return a.AccountID
 	}
-	return parts[4]
+	return ""
 }

@@ -69,7 +69,7 @@ func resolveCPDomainRefs(acct *account, st *store.Store) error {
 			}
 		}
 		if dlq := sv(attrs.DeadLetterQueueURL); dlq != "" {
-			if qarn := sqsQueueARNFromURL(dlq); qarn != "" {
+			if qarn := sqsQueueARNFromURL(acct.partition(), dlq); qarn != "" {
 				tgt := store.ResourceID("aws", acct.ID, qarn)
 				if sqsSet[tgt] {
 					if err := st.UpsertRelationship(r.ID, tgt, store.RelRoutesTo, "directed", nil); err != nil {
