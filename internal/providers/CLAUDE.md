@@ -8,7 +8,7 @@ When a resolver/scanner trips gocyclo (>30, `.golangci.yaml`) and the shape is "
 
 ## Resolver-side reference-discovered placeholders
 
-Resolvers that must insert a target (cross-tenant references) take scanID from `<row>.DiscoveredBy` of any listed resource. Pass 1 collects pending edges and referenced tenant keys; pass 2 `InsertResourcesIfAbsent(placeholders)` (never `UpsertResources`, so a later direct scan version-populates the row) so `to_id` names an existing row (nothing in the DB enforces it since 006); pass 3 emits `UpsertRelationship`. The placeholder is the **real self-node type** at its scanner's natural key with `{}` attributes — not a synthetic stub. See store/CLAUDE.md "Reference-discovered placeholders". Precedents: `grep -rn InsertResourcesIfAbsent internal/providers` (the cross-tenant resolvers plus GCP edge resolvers whose target may be unscanned).
+Resolvers that must insert a target (cross-tenant references) take scanID from `<row>.DiscoveredBy` of any listed resource. Pass 1 collects pending edges and referenced tenant keys; pass 2 `InsertResourcesIfAbsent(placeholders)` (never `UpsertResources`, so a later direct scan version-populates the row) so `to_id` names an existing row (nothing in the DB enforces it since 006); pass 3 emits `UpsertRelationship`. Placeholder shape, contract and callers: store/CLAUDE.md "Reference-discovered placeholders".
 
 ## Persist API contract
 
@@ -48,7 +48,7 @@ Provider scanners must NOT propagate per-service / per-region / per-resolver err
 - On failure: `st.ReportError(store.ScanError{Provider, Service, Scope, Message})` then continue.
 - `ReportService(name, scope, total, new, changed, errCount, status store.ServiceStatus)` — `errCount>0` surfaces a `(with errors)` suffix on the per-service progress line; `new` (first-discoveries) and `changed` (version splits) are sourced from `Store.WithUpsertCounters` counters the dispatcher binds around `svc.fn`, not from the scanner-returned `inserted`.
 - `Scan()` returns `nil` even when individual services failed; load-credentials / load-accounts failures also report-and-return-nil.
-- `cmd/scan.go` collects errors via `OnError` and renders one grouped block at end.
+- `internal/scanrun` collects errors via `OnError`; `cmd/scan.go` renders one grouped block at end.
 
 Replace `errgroup.WithContext` with plain `sync.WaitGroup` for per-service fan-out — errgroup cancels siblings on first error, which we explicitly do not want. Precedent: `aws/aws_scanner.go` `scanRegion` + `scanAccount`. `TestScanProject_OneServiceFailureDoesNotCancelSiblings` (gcp) guards it — an errgroup there once cancelled phase 2 and lost every edge.
 
@@ -91,7 +91,7 @@ Scanners in `<service>_scanners.go`, resolvers in `<service>_resolvers.go`. AWS 
 
 ## Shared utilities (`internal/util`)
 
-`util.MustJSON(v any) string`, `util.Sv(p *string) string`, `util.AllResources` (= `math.MaxUint32`, used as `Limit` in `ListResources` to fetch all rows). Each provider keeps unexported one-liner wrappers (`mustJSON`, `sv`) delegating to `util` — call sites clean, logic centralized.
+`util.MustJSON(v any) string`, `util.Sv(p *string) string`, `util.AllResources` (= `math.MaxUint32`, used as `Limit` in `ListResources` to fetch all rows). Each provider keeps unexported wrappers (`mustJSON`, `sv`) delegating to `util`. AWS `mustJSON` also strips the SDK's `ResultMetadata` member, so AWS code calls it, never `util.MustJSON`.
 
 ## `registerType` is the coverage truth source
 
@@ -125,6 +125,8 @@ Retired, do not recreate: `KnownTypes`, `Aliases()`/alias maps, `Descriptor.Upst
 ## Resolver EdgeDecl contract
 
 `registerResolver(fn, emits ...EdgeDecl)` is variadic: every resolver lists each `{Source, Target, Kind}` triple it upserts, or it is invisible to `disco coverage resolvers` and the gap analysis. Dynamic-dispatch resolvers (e.g. an EventBridge target classifier) declare one EdgeDecl per type the dispatch table can yield. A cross-tenant self-node (`aws:iam:account` for an out-of-scope account) is a valid Target; the resolver inserts its placeholder first (see above). `RecordHierarchyBatch` pairs produce `parent → child contains` rows — declare them as `EdgeDecl{Parent, Child, store.RelContains}`. Read-only / sidecar-populator resolvers register with no edges and show in `--only-unannotated` as intentional no-ops.
+
+`fn` must be a named function: every provider's `registerResolver` panics at init on an anonymous closure (it reflects as `pkg.init.funcN`, useless in audit output).
 
 ## Add a new service scanner
 
@@ -199,7 +201,7 @@ Before deleting a `Type*` constant, grep for downstream consumers: (1) resolvers
 Every new `<service>_resolvers.go` must have matching `<service>_resolvers_test.go`. Pattern:
 
 1. Call `newTestStore(t)` — opens temp-file SQLite DB, inserts required test scan record.
-2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources — a phantom edge, or a `contains` row gated out with a ScanWarning, with no obvious diagnosis. Helper does **not** set `Name`; for resolvers building name-keyed index (e.g. KeyPair by `(region, Name)`), bypass + call `st.UpsertResource(&Resource{..., Name: &name})` direct.
+2. Call `upsertTestResource(t, st, provider, accountID, rtype, nativeID, region, attrsJSON)` to insert resources. **Pass region** if resolver uses `sv(r.Region)` to build ARNs — omit makes computed relationship IDs point to phantom resources — a phantom edge, or a `contains` row gated out with a ScanWarning, with no obvious diagnosis. Helper does **not** set `Name`; for resolvers building name-keyed index (e.g. KeyPair by `(region, Name)`), use `upsertTestResourceNamed` (AWS) or call `st.UpsertResource(&Resource{..., Name: &name})` direct.
 3. Call resolver function direct (tests same package, e.g. `package aws`).
 4. Assert via `st.RelationshipsFrom(id)`.
 

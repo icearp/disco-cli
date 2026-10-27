@@ -101,7 +101,7 @@ marks them; `x-ms-arm-id` was measured and deferred (last section).
 
 ### Accepted residuals (pin `f3847e89`)
 
-3395 candidates (2478 resource). Drops: 0. Not candidates: singleton reads
+Counts: `TestExtract_Live` log. Drops: none. Not candidates: singleton reads
 that were never listers (`instanceview`, `config/web`, `…/status`) and the location-only regional
 catalogs above. Now resources: addressed singletons (`web/sites/config`,
 `…/basicpublishingcredentialspolicies`, `apimanagement/service/portalsettings`, mysql/postgresql
@@ -148,16 +148,7 @@ catalogs above. Now resources: addressed singletons (`web/sites/config`,
 
 ## Spec-annotated refs (`x-ms-arm-id`): measured 2026-10-01, deferred
 
-Reading `format: arm-id` / `x-ms-arm-id-details` from azure-rest-api-specs (SDK `f3847e89`, specs
-`e7902d1f`, each list path joined at the SDK client's own `api-version`) adds 127 refs within
-`refDepth` on 64 of 2,478 resource candidates (2.6%); 218 more lie deeper. Cost: a 214 MB tarball,
-64 MB of the version directories the SDK uses, plus a fetch source and a pin. It cannot replace
-`refs.go`: 88% of shape refs (4,713 of 5,380) carry no annotation. Version skew is real — every
-sampled module is TypeSpec, 2 weeks to 8 months behind specs HEAD, and joining to the latest
-version changed the ref set on 22 candidates — so a build must pick the version per module.
-
-A build must also resolve `common-types`, skip the element's own `id` (as `walkRefs` does), walk
-discriminator subtypes, and exclude the spec repo's test fixtures; a first measurement that missed
-these reported 83 new refs instead of 127. Revisit if annotation coverage grows. Cheaper first step,
-no new source: walk `XClassification` subtypes in `refs.go` (62 of the 127 come from subtypes).
-Full numbers: commit `3b16282f`.
+Reading `format: arm-id` from azure-rest-api-specs would add refs to ~3% of resource candidates
+at the cost of a 214 MB source, a pin and per-module version selection (specs run ahead of the
+TypeSpec SDK), and cannot replace `refs.go` (most shape refs carry no annotation). Cheaper first
+step: walk `XClassification` subtypes in `refs.go`. Full numbers: commit `3b16282f`.

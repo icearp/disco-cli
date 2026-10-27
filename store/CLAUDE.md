@@ -166,7 +166,7 @@ Canonical "read every resource" idiom: `store.GraphAll` (`graph.go`) page-loops 
 
 ## Wire shape ≠ storage shape
 
-`Resource` stores `AttributesJSON` / `TagsJSON` as JSON strings (raw SDK marshal output) but `MarshalJSON` / `UnmarshalJSON` (`resources.go`) surface them on the wire as nested `attributes` / `tags` objects under camelCase keys (`nativeId`, `accountId`, ...) — camelCase since the v0.18.0 wire migration. Round-trips byte-stable via the matching UnmarshalJSON. Tests asserting JSON output must compare against the parsed shape, not Go field names. New JSON encoders should emit `[]Resource` directly — no per-call shape massaging.
+`Resource` stores `AttributesJSON` / `TagsJSON` as JSON strings (raw SDK marshal output) but `MarshalJSON` / `UnmarshalJSON` (`resources.go`) surface them on the wire as nested `attributes` / `tags` objects under camelCase keys (`nativeId`, `accountId`, ...) — camelCase since the v0.18.0 wire migration. Round-trips byte-stable via the matching UnmarshalJSON. Tests asserting JSON output must compare against the parsed shape, not Go field names. Encoder rule: `cmd/CLAUDE.md` "JSON dialect".
 
 **Schema contract — every documented key always present.** `Resource.MarshalJSON` (and the matching `resources_json_test.go::TestResource_MarshalJSON_AlwaysPresent`) emits every key listed under `disco check --help`: optional pointer fields render as `null` (not omitted), `tags` and `attributes` always render as objects (`{}` for empty / missing / malformed legacy blobs). Rego authors and downstream consumers can traverse `input.attributes.X` / `input.tags.Y` without per-row presence guards. Don't reintroduce `,omitempty` on the contract fields.
 
@@ -305,7 +305,7 @@ COMMIT
 `OpenPostgres` always calls `boundPool`; there is no unbounded path. Size precedence:
 `WithMaxConns(n)` → `DISCO_PG_MAX_CONNS` → `pgDefaultMaxConns` (10). Malformed or non-positive values
 at either layer fall through to the next rather than erroring. The default exists because
-`database/sql`'s zero value is unlimited and one AWS scan fans out ~50 batch-upserting goroutines —
+`database/sql`'s zero value is unlimited and one AWS scan fans out dozens of batch-upserting goroutines —
 enough cold dials (TLS + IAM token each) to exhaust RDS `max_connections` and time out store writes.
 `MaxIdleConns = MaxOpenConns` so a bursty writer does not re-dial every batch; `pgConnMaxIdleTime`
 (90s) is the release valve so a finished task drains fast. Neither lifetime bound may be 0 (0 means

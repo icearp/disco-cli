@@ -41,16 +41,17 @@ Open-section bullets and per-session COMPLETED notes describe state at time of w
 Primary branch: `main`. Feature branches fork from `main`, merge back to `main`.
 
 ```bash
-# Build (CGO_ENABLED=0 is required — all builds must be CGO-free)
-CGO_ENABLED=0 go build -o disco .
+# Build (CGO_ENABLED=0 is required — all builds must be CGO-free; without -tags grpcnotrace
+# the binary loses DCE, see "text/template defeats linker DCE"). `make build` adds version ldflags.
+CGO_ENABLED=0 go build -tags grpcnotrace -o disco .
 
-# Cross-compile for all targets from Linux
-CGO_ENABLED=0 GOOS=linux   GOARCH=amd64  go build -o dist/disco-linux-amd64 .
-CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64  go build -o dist/disco-darwin-arm64 .
-CGO_ENABLED=0 GOOS=windows GOARCH=amd64  go build -o dist/disco-windows-amd64.exe .
+# Cross-compile for all targets from Linux (`make dist` also strips and upx-packs)
+CGO_ENABLED=0 GOOS=linux   GOARCH=amd64  go build -tags grpcnotrace -o dist/disco-linux-amd64 .
+CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64  go build -tags grpcnotrace -o dist/disco-darwin-arm64 .
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64  go build -tags grpcnotrace -o dist/disco-windows-amd64.exe .
 
 # Live scan flags differ by provider:
-#   AWS: --regions us-east-1,us-west-2  (or --regions all for every opted-in region)
+#   AWS: --regions us-east-1,us-west-2  (or --regions all = every opted-in region of the account's partition)
 #   Azure / GCP: no --regions flag (Azure scopes per subscription/RG; GCP per project)
 
 # Run tests
@@ -68,6 +69,9 @@ make check-migrations
 
 # Populate the SDK source cache the coverage denominator derives from (no-op when present)
 make sdk-fetch            # = disco coverage sdk fetch; see internal/sdkinv/CLAUDE.md
+
+# Regenerate internal/providers/aws/awsregions from the pinned SDK after a pin bump; commit the diff
+make gen-regions
 
 # Before/after equivalence check: capture `disco coverage services -o json` from the repo root
 # (--source-root defaults to cwd; elsewhere pairing is off and output differs spuriously)
@@ -113,7 +117,7 @@ must be `0`. `go tool nm | grep evalField` is not a health check (OPA's methodle
 ### Data flow
 
 ```
-cmd/scan.go  →  internal/providers/<provider>/  →  store/
+cmd/scan.go  →  internal/scanrun/ (fan-out, Finalize)  →  internal/providers/<provider>/  →  store/
 ```
 
 ### Per-service API mandate
@@ -150,7 +154,7 @@ Path-scoped `CLAUDE.md` files auto-load when working in subtrees:
 - `internal/providers/CLAUDE.md` — registry, Scanner iface, add-provider steps, file naming, sidecar pattern, embed-child-data, registration tests, resolver test pattern
 - `internal/providers/aws/CLAUDE.md` — AWS-specific resolver/scanner conventions (ARN helpers, KMS, IAM, ELBv2, Route53, paginators, Smithy, transient errors, etc.)
 - `internal/providers/azure/CLAUDE.md` — Azure-specific helpers (azPageScan, rgHierarchyPair, vault-URI parsers), case-insensitive ARM-ID rule, MSI consumer resolver, sub-scoped vs tenant-scoped pattern
-- `internal/providers/gcp/CLAUDE.md` — GCP-specific (per-project fan-out, scopes-above-project gap, IAM policy synth-resource shape, permission-denied handling, NativeID conventions)
+- `internal/providers/gcp/CLAUDE.md` — GCP-specific (per-project fan-out, org-service scope dispatch, IAM policy synth-resource shape, permission-denied handling, NativeID conventions)
 - `internal/sdkinv/CLAUDE.md` — provider-neutral core: SDK source cache, accounting invariant, extractor contract, AST pairing walk
 - `internal/providers/<p>/<p>inventory/CLAUDE.md` — per-provider SDK facts: cache layout, pins, extractor rules, refs, pairing resolver
 - `internal/coverage/CLAUDE.md` — coverage buckets and reasons, identity rule, baseline ratchet, live numbers
@@ -161,7 +165,7 @@ Path-scoped `CLAUDE.md` files auto-load when working in subtrees:
 
 Single build, no feature gating — everything ships in this one binary.
 
-- Bundled OPA Rego packs follow `<provider>-<framework>` naming under `internal/policy/<name>/`, surfaced via `disco check --packs <name>`. Ships `aws-waf` (5-rule AWS Well-Architected sample pack, one or two rules per pillar). Curated full packs — Well-Architected (complete), CIS-AWS-Foundations, NIST 800-53, PCI-DSS, ISO 27001 — and future `azure-waf` / `gcp-waf` are not yet bundled.
+- Bundled OPA Rego packs follow `<provider>-<framework>` naming under `internal/policy/<name>/`, surfaced via `disco check --packs <name>`. Ships `aws-waf` (5-rule AWS Well-Architected sample pack, one or two rules per pillar). `policy.AvailablePacks()` is the current list; framework packs (CIS, NIST, PCI, ISO) are curated separately, not grown from the sample.
 - Findings persistence: `disco check --persist` writes a check run + findings to the DB; `disco findings list/runs` query them (migration `002_findings.sql`). The tables stay empty until `--persist` is used.
 - Evidence snapshots: `disco snapshot` / `disco verify` produce and verify single-file archives (`disco-snapshot/v1` manifest, optional ed25519 signature); details in `cmd/CLAUDE.md`.
 - Release pipeline (SBOMs + `govulncheck` gate; how and why: `docs/release.md`). Rules that must not break:

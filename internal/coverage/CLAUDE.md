@@ -22,14 +22,14 @@ headline number. Never recompute percentages from filtered rows.
 ## Provider contract
 
 - `Provider` = `Name()` + `Emits()` only. Optional: `CrossChecker` (`CrossCheck`, `RegistryKey`,
-  `CanonicalKey` — drives `--cross-check`), `RegionLister`, `ResolverAuditor`, `ServiceMapper`
+  `CanonicalKey` — drives `--cross-check`), `RegionLister` (returns static + live lists; an AWS call lists only its own partition), `ResolverAuditor`, `MembershipModeler`, `ServiceMapper`
   (`TypeServices()`: disco type → scanner service names registered from the same file, via
   `restype.Origin`; `coverage verify` joins `scans.errors` through it), `ScaffoldStubber`
   (`ScannerStub()`: the stub scanner's imports, signature and body for `cmd/disco-scaffold`;
   `TestGenScaffold_EveryProviderStubsAScanner` fails if a registered provider loses it).
 - `Inputs.Paired` is set explicitly by `InputsFromCache`; a walk that parsed but anchored nothing
   is a paired run with no pairings, not "no source".
-- `InputsFromCache(ctx, cache, provider, emits, scannerDir)` is the one derivation path shared by
+- `InputsFromCache(ctx, cache, provider, scannerDir)` is the one derivation path shared by
   `cmd/coverage.go`, `cmd/disco-scaffold` and the reconcile tests; an empty `scannerDir` means
   "name matching only" (`Matrix.Pairing=false`, disco-only rows carry `pairing-unavailable`).
 
@@ -45,7 +45,8 @@ headline number. Never recompute percentages from filtered rows.
   A membership op (lists the members of a set, e.g. FMS `ListResourceSetResources`) is covered with reason
   `membership-edge` when a resolver declares its edges via `registerMembershipResolver`; it names no disco type.
 - `uncovered` — resource candidate no scanner lists. The only actionable gap. There is no skip list:
-  ephemeral, retired or catalog rows the SDK still lists stay honest `uncovered` rows.
+  ephemeral or catalog rows the SDK still lists stay honest `uncovered` rows. An unlisted candidate
+  from a deprecated SDK model (`sdkinv.SignalRetired`) is `excluded` with reason `retired`.
 - `attribute` — `ClassAttribute` (Get + id, no collection). Not in `%`.
 - `excluded` — catalog / non-resource / `preview-only`; reason carries the rule. Not in `%`.
   An excluded row a scanner provably lists keeps its `discoType` and gains the `scanner-lists`
@@ -60,7 +61,7 @@ headline number. Never recompute percentages from filtered rows.
   (covered/uncovered candidate the registry lacks). Explained by construction, kept visible:
   `unlistable` (GCP get-only node), `cfn-only` (CFN type with no SR twin), `arm-operation` /
   `location-scoped` (Azure ARM RPC endpoints: `operations`, `checknameavailability`, async-operation tracking,
-  anything under `locations/`; the registry marks them no other way — capabilities `None` covers ~670 real proxy
+  anything under `locations/`; the registry marks them no other way — capabilities `None` covers hundreds of real proxy
   types too, so do not key on it), `near-name` (unique
   same-service prefix/suffix stem pair; twin in a `near-name:<key>` signal),
   `child-of-registered` (parent's registry id seen), `service-unregistered` (registry has nothing
@@ -98,7 +99,7 @@ reports `pins-changed` + `new-since-baseline` / `gone-since-baseline` keys, neve
 because a larger universe with the same scanners can only lower it. Rows are sorted in
 `BuildInventory`, so `docs/coverage.md` is byte-stable.
 `ProviderBaseline.Pairing` records whether the scanner source was paired; a mode-mixed compare
-is fatal (`pairing-mode`) because name matching alone reports ~7 points less on AWS. A provider
+is fatal (`pairing-mode`) because name matching alone reports a lower percentage. A provider
 absent from the file is fatal (`no-baseline`) — nothing would guard it. An uncovered key leaving
 the universe is reported (`denominator-shrunk`): it raises the percent, so no other check fires.
 `--write-baseline` **merges** into the existing file (`coverage.Merge`), so a `--providers`-narrowed
@@ -116,7 +117,7 @@ GCP's `RegistryKey`/`CanonicalKey` also compare through `Ident`.
 Do not copy percentages here; CI regenerates the report. Invariants: zero unexplained disco-only
 rows; Azure/GCP explained disco-only rows are Entra `non-sdk`, `sdk-skew` and GCP `other-op`
 listers no sibling confirms; the Azure/GCP extractors emit no `attribute` class (their detail
-reads are item paths, not ops). Pairing off (an installed binary) reads ~7 points lower on AWS.
+reads are item paths, not ops). Pairing off (an installed binary) reads lower.
 
 ## Cross-check drift reads buckets, not classes
 

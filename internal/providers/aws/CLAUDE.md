@@ -87,11 +87,11 @@ Embedding (not nesting) flattens the SDK fields back to top level so existing re
 
 ### ARN slot indexing after `strings.Split(arn, ":")`
 
-For colon-separated ARNs `arn:aws:<svc>:<region>:<acct>:<rtype>:<id>` Split returns 7 parts: `[0]=arn [1]=aws [2]=svc [3]=region [4]=acct [5]=rtype [6]=id`. Slash-separated ARNs (`...:rtype/id`) keep `[5]="rtype/id"`. When dispatching by resource-type segment, compare `parts[5] == "cluster"` (exact) — `strings.HasPrefix(parts[5], "cluster:")` always fails because Split already consumed the colon. Precedent: `lambdaESMSourceType` DocDB branch (lambda_resolvers.go).
+For colon-separated ARNs `arn:<partition>:<svc>:<region>:<acct>:<rtype>:<id>` Split returns 7 parts: `[0]=arn [1]=partition [2]=svc [3]=region [4]=acct [5]=rtype [6]=id`. Slash-separated ARNs (`...:rtype/id`) keep `[5]="rtype/id"`. When dispatching by resource-type segment, compare `parts[5] == "cluster"` (exact) — `strings.HasPrefix(parts[5], "cluster:")` always fails because Split already consumed the colon. Precedent: `lambdaESMSourceType` DocDB branch (lambda_resolvers.go).
 
 ### AWS service-integration ARNs use `:::`
 
-Step Functions Definitions + similar carry built-in integration ARNs like `arn:aws:states:::sns:publish` where region+account segments empty. Substring-based ARN dispatchers (`sfnTargetType`, `eventBridgeTargetType`) must filter `strings.Contains(arn, ":::")` before classifying, or emit phantom edges to non-existent resources.
+Step Functions Definitions + similar carry built-in integration ARNs like `arn:aws:states:::sns:publish` where region+account segments empty. Substring-based ARN dispatchers matching on service alone (`sfnTargetType`) must filter `strings.Contains(arn, ":::")` before classifying, or emit phantom edges to non-existent resources.
 
 ### NativeID parent-extraction = dominant child→parent shape
 
@@ -131,7 +131,7 @@ When target NativeID not deterministic per (acct, region) (e.g. multiple `aws:gu
 
 ### KMS key edge — use `loadKMSResolveIndex` + `resolveKMSKeyID`
 
-Resolver sees KMS ref in four shapes: full key ARN, alias ARN, `alias/foo`, bare key UUID. Build index once per resolver via `loadKMSResolveIndex(acct, st)` (`kms_helpers.go`), then call `idx.resolveKMSKeyID(ref, region, acctID)` per edge — returns `(keyID, ok)` where `ok=false` means target unscanned (skip emit). Index also resolves alias name → underlying key ARN, so `alias/aws/foo` refs link to AWS-managed key (which IS scanned — see kms scanner). Don't manually call `kmsKeyTargetARN` + build key ID set + check `alias/aws/` — helper does all three. Precedent: backup, rds, sns, sqs, kinesis, firehose, ssm, config, s3-encryption, kafka, cloudtrail-eds resolvers.
+Resolver sees KMS ref in four shapes: full key ARN, alias ARN, `alias/foo`, bare key UUID. Build index once per resolver via `loadKMSResolveIndex(acct, st)` (`kms_helpers.go`), then call `idx.resolveKMSKeyID(ref, region, acctID)` per edge — returns `(keyID, ok)` where `ok=false` means target unscanned (skip emit). Index also resolves alias name → underlying key ARN, so `alias/aws/foo` refs link to AWS-managed key (which IS scanned — see kms scanner). Don't hand-build a key ID set or special-case `alias/aws/` — the helper does both. Precedent: backup, rds, sns, sqs, kinesis, firehose, ssm, config, s3-encryption, kafka, cloudtrail-eds resolvers.
 
 ### IAM policy-document parsing
 
@@ -156,7 +156,7 @@ Simple alarms: top-level `Namespace` + `Dimensions[]`. Metric-math alarms: neste
 
 ### EventBridge resolver — `EventBusArn` is dead path
 
-`eventbridge_resolvers.go` reads `attrs.Rule.EventBusArn` first then falls back to `EventBusName`. SDK `eventstypes.Rule` has no `EventBusArn` field and `eventbridge_scanners.go` never synthesizes one — real scans always take the EventBusName fallback. Tests using hand-rolled JSON with `EventBusArn` work in isolation but exercise no production code path. Use `EventBusName` in fixtures and mirror the synthesis the resolver does (`arn:aws:events:{r}:{a}:event-bus/{name}`).
+`eventbridge_resolvers.go` reads `attrs.Rule.EventBusArn` first then falls back to `EventBusName`. SDK `eventstypes.Rule` has no `EventBusArn` field and `eventbridge_scanners.go` never synthesizes one — real scans always take the EventBusName fallback. Tests using hand-rolled JSON with `EventBusArn` work in isolation but exercise no production code path. Use `EventBusName` in fixtures and mirror the synthesis the resolver does (`arn:{p}:events:{r}:{a}:event-bus/{name}`).
 
 ### VPC subtree wired via `attached-to`, not `contains`
 
@@ -164,7 +164,7 @@ Simple alarms: top-level `Namespace` + `Dimensions[]`. Metric-math alarms: neste
 
 ### Cross-account member-row → org account edges
 
-Services that model multi-account membership (Inspector v2, Detective, GuardDuty, future SecurityHub member, Macie member) get a per-member resource type (`aws:<svc>:member`) and a resolver that emits `attached-to` → `aws:organizations:account` via `loadOrgTargetIndex`. Members are scanned even when the org tree is not — the resolver short-circuits when the index is empty (no edges, no error). Precedent: `inspector_resolvers.go::resolveInspector2MemberOrgAccount`, `guardduty_resolvers.go::resolveGuardDutyMemberOrgAccount`. Member NativeID shape: `arn:aws:<svc>:{r}:{a}:detector/{id}/member/{memberAcctId}` (or analogous synthetic when no AWS-issued ARN exists).
+Services that model multi-account membership (Inspector v2, Detective, GuardDuty, future SecurityHub member, Macie member) get a per-member resource type (`aws:<svc>:member`) and a resolver that emits `attached-to` → `aws:organizations:account` via `loadOrgTargetIndex`. Members are scanned even when the org tree is not — the resolver short-circuits when the index is empty (no edges, no error). Precedent: `inspector_resolvers.go::resolveInspector2MemberOrgAccount`, `guardduty_resolvers.go::resolveGuardDutyMemberOrgAccount`. Member NativeID shape: `arn:{p}:<svc>:{r}:{a}:detector/{id}/member/{memberAcctId}` (or analogous synthetic when no AWS-issued ARN exists).
 
 ### Parent-row "leaf" ≠ no edges
 
@@ -215,9 +215,7 @@ Some AWS services surface implicit/managed entries in `List*` responses but reje
 
 ### Multi-phase scanner totals
 
-Each phase returns `(total, inserted, err)`. `total = len(batch)` (rows scanned), `inserted = n` from `UpsertResources` (rows newly inserted, excludes upserts of existing). Never return `len(batch)` for both — the scan-progress line's `total` column reports nonsense on rescans otherwise.
-
-Scanners still return `(total, inserted, err)`; `inserted` is vestigial for reporting (new/changed come from `WithUpsertCounters`, see `../CLAUDE.md`).
+Phases return `(total, inserted, err)` with `total = len(batch)`; `inserted` is vestigial for reporting (new/changed come from `WithUpsertCounters`, see `../CLAUDE.md`).
 
 ### Multi-phase parent + children closure-wiring helper
 
@@ -235,7 +233,7 @@ When a parent resource references N children that have no independent lifecycle 
 
 ### Two-pass scanner: keep total == inserted via skip-set dedup
 
-Multi-pass scanners that pre-stub catalogue rows then re-upsert with rich detail (e.g. IAM AWS-managed policy catalogue + GAAD pass) inflate the per-service progress line on a fresh DB: `total = len(batch)` counts both upserts, but `inserted` only counts the first because the second upsert is a verify or split, not an insert. Surfaces as `(1520 total, 1508 new)` → confuses users into thinking the scan was partial. Fix: reverse pass order so the *rich* pass runs first and captures the dedup ARN set, then the *stub* pass filters its batch via `if skipARNs[arn] { continue }`. Each row upserted exactly once; total == inserted on fresh DB. Precedent: `scanIAMAuthDetails` + `scanIAMAWSManagedCatalogue`.
+Multi-pass scanners that pre-stub catalogue rows then re-upsert with rich detail (e.g. IAM AWS-managed policy catalogue + GAAD pass) inflate the per-service progress line on a fresh DB: `total = len(batch)` counts both upserts, but `inserted` only counts the first because the second upsert is a verify or split, not an insert. Surfaces as `total` > `new` on a fresh DB → confuses users into thinking the scan was partial. Fix: reverse pass order so the *rich* pass runs first and captures the dedup ARN set, then the *stub* pass filters its batch via `if skipARNs[arn] { continue }`. Each row upserted exactly once; total == inserted on fresh DB. Precedent: `scanIAMAuthDetails` + `scanIAMAWSManagedCatalogue`.
 
 ### CloudWatch Logs phase-2 fan-out
 
@@ -245,7 +243,7 @@ Per-group fan-out inside each sub-scanner uses `fanoutMed` (10), not `fanoutLow`
 
 Errors from phase-2 sub-scanners are gathered and `errors.Join`-ed before propagating; one failed sibling does not cancel the others (matches `aws_scanner.go::scanRegion` "Errors never abort scan"). For users who don't need log-stream inventory, two existing escape hatches stand: `disco scan aws --services aws:ec2,aws:s3,...` (omit `aws:logs`) skips the service entirely; `disco resources --exclude-types aws:logs:log-stream` mutes streams from queries while keeping them in the DB (`cmd/CLAUDE.md`).
 
-**`UploadSequenceToken` is dropped as volatile.** `DescribeLogStreams` returns a fresh, deprecated `UploadSequenceToken` on every call regardless of log activity — left in `AttributesJSON` it version-splits every log stream on every scan (a 907-stream account reports `907 changed` each scan). `TypeLogsLogStream`'s descriptor carries `Volatile: []string{"UploadSequenceToken"}` (registered via `registerType` in `logs_scanners.go`) so the store drops the key before the version comparison; see `internal/providers/CLAUDE.md` "Declaring redaction and volatile-field rules". `LastEventTimestamp` / `LastIngestionTime` (real ingestion) and the log-group `StoredBytes` are kept — they reflect genuine change.
+**`UploadSequenceToken` is dropped as volatile.** `DescribeLogStreams` returns a fresh, deprecated `UploadSequenceToken` on every call regardless of log activity — left in `AttributesJSON` it version-splits every log stream on every scan (every stream reports `changed` each scan). `TypeLogsLogStream`'s descriptor carries `Volatile: []string{"UploadSequenceToken"}` (registered via `registerType` in `logs_scanners.go`) so the store drops the key before the version comparison; see `internal/providers/CLAUDE.md` "Declaring redaction and volatile-field rules". `LastEventTimestamp` / `LastIngestionTime` (real ingestion) and the log-group `StoredBytes` are kept — they reflect genuine change.
 
 ### Probe-first for low-TPS multi-phase services
 
@@ -283,11 +281,11 @@ AWS IAM throttles around 10–20 sustained TPS per account. `fanoutMed` (10) is 
 
 ### Service Quotas is opt-in; rate-limiter holds 10 req/s, `sqWorkers`=30, `MaxResults=100`
 
-**Quotas are NOT resources and register no type.** `scanServiceQuotas` writes `store.Quota` rows into the `quotas` table (disco migration 017) via `UpsertQuotas`, and there is no `registerType` for them — `TestServiceQuotasDeclaresNoResourceType` (`descriptor_guard_test.go`) fails if one comes back. Why quotas live in their own table: see `store/CLAUDE.md` (`quotas`). The service registration must survive alongside the absent type — dropping that stops quotas being scanned at all, which is the larger regression. Same shape on the Azure side (`azure:microsoft.quota`), which is **not** opt-in.
+**Quotas are NOT resources and register no type.** `scanServiceQuotas` writes `store.Quota` rows into the `quotas` table (disco migration 017) via `UpsertQuotas`, and there is no `registerType` for them — `TestServiceQuotasQuotaLimitsDeclareNoResourceType` (`descriptor_guard_test.go`) fails if one comes back. Why quotas live in their own table: see `store/CLAUDE.md` (`quotas`). The service registration must survive alongside the absent type — dropping that stops quotas being scanned at all, which is the larger regression. Same shape on the Azure side (`azure:microsoft.quota`), which is **not** opt-in.
 
-**Both adjustable and non-adjustable limits are recorded**, and non-adjustable is the more interesting class: a hard ceiling moves only when AWS moves it, with no customer request and no notification, so its version chain is the only record that it happened. `quotaRow` used to open with `if !q.Adjustable { return nil, false }`, silently discarding all of them. Identity is `(provider, account, region, service code, quota code)` — **not** the ARN, which now lives in the attributes remainder alongside everything else AWS reported. `listQuotaDefaultsForCode` pairs each limit with `ListAWSDefaultServiceQuotas`, which is what makes applied-versus-default answerable; it **doubles the API calls** and degrades to a NULL `default_value` on failure rather than costing us the applied limit.
+**Both adjustable and non-adjustable limits are recorded**, and non-adjustable is the more interesting class: a hard ceiling moves only when AWS moves it, with no customer request and no notification, so its version chain is the only record that it happened. Identity is `(provider, account, region, service code, quota code)` — **not** the ARN, which now lives in the attributes remainder alongside everything else AWS reported. `listQuotaDefaultsForCode` pairs each limit with `ListAWSDefaultServiceQuotas`, which is what makes applied-versus-default answerable; it **doubles the API calls** and degrades to a NULL `default_value` on failure rather than costing us the applied limit.
 
-**Opt-in.** `aws:servicequotas` registers with `serviceEntry.optIn=true`, so a default `disco scan aws` skips it — it reads account *quota limits* (metadata, not resources) and is ~4× the slowest resource scan. `filteredServices(filter, includeOptIn)` excludes opt-in services from the default set; they run only when (a) selected by name (`--services aws:servicequotas`) or (b) `--include-service-quotas` is passed (config `aws.include_service_quotas`, plumbed via the `ServiceQuotasIncluder` capability → `Scanner.includeServiceQuotas` → stamped onto `account.includeServiceQuotas`, mirroring `--scope-regions`). `optIn` is the generic registry knob for "default-off service"; reuse it for any future slow/peripheral scanner. `--include-service-quotas` adds only entries also tagged `serviceEntry.quotas` (`aws:servicequotas`, `aws:servicequotas-template`); any other `optIn` service runs only when named in `--services`.
+**Opt-in.** `aws:servicequotas` registers with `serviceEntry.optIn=true`, so a default `disco scan aws` skips it — it reads account *quota limits* (metadata, not resources) and is ~4× the slowest resource scan. `filteredServices(filter, includeServiceQuotas)` excludes opt-in services from the default set; they run only when (a) selected by name (`--services aws:servicequotas`) or (b) `--include-service-quotas` is passed (config `aws.include_service_quotas`, plumbed via the `ServiceQuotasIncluder` capability → `Scanner.includeServiceQuotas` → stamped onto `account.includeServiceQuotas`, mirroring `--scope-regions`). `optIn` is the generic registry knob for "default-off service"; reuse it for any future slow/peripheral scanner. `--include-service-quotas` adds only entries also tagged `serviceEntry.quotas` (`aws:servicequotas`, `aws:servicequotas-template`); any other `optIn` service runs only when named in `--services`.
 
 **Rate.** `ListServices`, `ListServiceQuotas` and `ListAWSDefaultServiceQuotas` are each **10 req/s steady + 10 burst, per region per account**, under a 50 req/s account-wide cap (https://docs.aws.amazon.com/servicequotas/latest/userguide/reference_limits.html). Each is paced by its own per-region `pacer` (`sqReqPerSec`=10, `sqBurst`=10; see "Rate-paced fan-out" below). **The limiter, not the worker count, holds the ceiling:** `sqWorkers`=30 sits comfortably above `rate × worst-case-latency` (~1.5–2.5s control-plane latency), so concurrency keeps the limiter fed; don't lower it toward 10, which re-couples throughput to latency. Always pass `MaxResults: sdkaws.Int32(100)` (the API max). `maxConcurrentRegions`=5 × 10 req/s = exactly the 50 req/s account cap, with no headroom; a sustained `--regions all --include-service-quotas` run leans on adaptive retry. `DISCO_SCAN_RATE_DEBUG=1` prints an `N calls in Ts = R req/s` saturation line per region.
 
@@ -427,19 +425,13 @@ and set it in the client option-fn. Never use a literal region.
 
 Substituting the home in a local variable (rather than relying on the dispatcher arg) keeps `Resource.Region`, error scopes, and `skipIfAccessDenied` reports accurate. Precedents: `route53_scanners.go`, `globalaccelerator_scanners.go`.
 
-**Anti-pattern (deprecated):** registering a single-region global as **regional** with an inline `if region != "<home>" { return 0, 0, nil }` early-return. The pattern was historically used to dodge per-region NXDOMAIN warnings, but `isDNSNotFound` at the dispatcher (`aws_errors.go`) already silent-skips those. The inline-gate pattern silently produces zero rows when `--regions` excludes the home (`disco scan aws --regions us-east-1` would skip globalaccelerator entirely). Convert to `global: true` instead.
-
-Inline `if region != "X"` gates remain correct only for **sub-op** cases — a regional service with one specific op pinned to a single region (Lightsail Distributions/Domains in us-east-1, ECR registry-scanning in us-east-1, Direct Connect Gateway in us-east-1). See "Per-op region gates" below.
+Never gate a global with an inline `if region != "<home>"` early-return: it silently stores zero rows when `--regions` omits the home (`isDNSNotFound` at the dispatcher already silences per-region NXDOMAIN). Register it `global: true`; a regional service with one single-region op uses `acct.homeGate` ("Per-op region gates" below).
 
 CLI: `--skip-globals` (defined in `cmd/scan.go`, plumbed via `providers.GlobalsSkipper`) suppresses every global service regardless of registration shape — for data-residency / per-region audits.
 
 ### Per-op region gates (sub-API only available in one region)
 
 Some scanners are regional, but a subset of their ops only work in a specific region — Lightsail's `GetDistributions` and `GetDomains` are us-east-1-only while the rest of the Lightsail surface is regional. AWS rejects from other regions with `InvalidInputException: ${kind}-related APIs are only available in the ${region} Region`. Gate per-phase (`if !acct.homeGate(st, "lightsail", lsGetDistributionsOp, region) { return 0, 0, nil }` at the top of `scanLSDistributions`; it warns once per scan when the package is Listed without a home), not via `global: true` on registerService — that would skip the regional ops too. Precedent: `lightsail_extended_scanners.go` `scanLSDistributions` / `scanLSDomains`.
-
-### DNS probe to confirm global-service region
-
-Before relying on AWS docs (or existing scanner code) for which region a global service lives in, probe with `getent hosts <svc>.<region>.amazonaws.com` across candidate regions — only the correct endpoint resolves; others return NXDOMAIN. Session live-scan revealed three scanner errors this way: `route53-recovery-readiness` + `route53-recovery-control` are us-west-2 only (not us-east-1), and `route53globalresolver` is us-east-2 only on the `.api.aws` TLD.
 
 ### WAFv2 scope pattern
 
@@ -481,7 +473,7 @@ Detection shapes:
 
 ### Transient errors already wrapped at dispatch
 
-`scanRegion` / `scanAccount` (`aws_scanner.go`) route each `svc.fn` error through `classifyServiceError` (`aws_errors.go`); its transient rung (`isTransientNetworkError`) → `skipIfTransient` (warn + nil). Scanners do NOT need inline handling for dial/read/write (`net.OpError`), `net.Error` timeouts, throttling codes, or Smithy `RequestTimeout`/`ServiceUnavailable`/`InternalFailure` variants — those warn-skip automatically. NXDOMAIN is a silent `(region: unavailable)`; the per-service `context.DeadlineExceeded` is a hard error (`outcomeDeadline`). Only `AccessDenied` still needs per-scanner `return 0, 0, skipIfAccessDenied(...)` (not wrapped at dispatch because SDK surfaces it mid-paginator, not as top-level svc.fn error).
+`scanRegion` / `scanAccount` (`aws_scanner.go`) route each `svc.fn` error through `classifyServiceError` (`aws_errors.go`); its transient rung (`isTransientNetworkError`) → `outcomeTransient` → `ReportError` (scan partial; the message says rescan). Scanners do NOT need inline handling for dial/read/write (`net.OpError`), `net.Error` timeouts, throttling codes, or Smithy `RequestTimeout`/`ServiceUnavailable`/`InternalFailure` variants — dispatch reports them; a phase that should only warn demotes with `demoteTransient`. NXDOMAIN is a silent `(region: unavailable)`; the per-service `context.DeadlineExceeded` is a hard error (`outcomeDeadline`). Only `AccessDenied` still needs per-scanner `return 0, 0, skipIfAccessDenied(...)` (not wrapped at dispatch because SDK surfaces it mid-paginator, not as top-level svc.fn error).
 
 `isTransientNetworkError` also matches transport send failures — `*smithyhttp.RequestSendError` and bare `io.EOF` / `io.ErrUnexpectedEOF` (observed post-retry on `transcribe:ListCallAnalyticsCategories`: "request send failed, Post ...: EOF"). **Consequence for store-write errors:** pgconn reports a dropped Postgres connection as `unexpected EOF`, so any wrapper around a store-write failure MUST break the `errors.Is` chain (format the cause with `%s`, not `%w`). Otherwise a dead DB is reclassified as a transient AWS warning and the scan reports success while silently dropping rows.
 
@@ -495,7 +487,7 @@ Predicates needing **code + message-substring** match use `isAPIErrorWithMessage
 
 `isAPIErrorCode` (`aws_errors.go`) routes `ae.ErrorCode()` through `errorShapeName`, which strips anything up to the last `#`. Pass the bare name (`"AccessDenied"`), never `"com.amazonaws.x#AccessDenied"` — the latter would never match after stripping.
 
-It exists because rpc-v2-cbor deserializers do not sanitize. Their switch matches modeled errors by shape name, but the `default:` fallthrough for an error the operation does NOT model returns `smithy.GenericAPIError{Code: typ}` carrying the raw `__type` — so an unmodeled error arrives as `com.amazon.coral.service#InvalidParameterValueException` while every awsjson/restjson service arrives bare. Six services disco scans are on that protocol today: `appstream`, `applicationinsights`, `backupgateway`, `kendraranking`, `mailmanager`, `workspacesinstances`. More will follow, and the failure is silent — `isAccessDenied`, `isServiceBlocked` and the `withNonRetryableCodes` retry guard all read codes through this path, so a missed match turns a warn-skip into a hard error or burns a retry budget.
+It exists because rpc-v2-cbor deserializers do not sanitize. Their switch matches modeled errors by shape name, but the `default:` fallthrough for an error the operation does NOT model returns `smithy.GenericAPIError{Code: typ}` carrying the raw `__type` — so an unmodeled error arrives as `com.amazon.coral.service#InvalidParameterValueException` while every awsjson/restjson service arrives bare. Several scanned services use that protocol (e.g. `appstream`, `applicationinsights`), and the failure is silent — `isAccessDenied`, `isServiceBlocked` and the `withNonRetryableCodes` retry guard all read codes through this path, so a missed match turns a warn-skip into a hard error or burns a retry budget.
 
 ### Not-enabled predicates sharing an access-denied code must be checked FIRST
 
@@ -507,7 +499,7 @@ A not-found or validation skip is allowed only for a code the operation models (
 
 ### Joining phase errors: demote each side first
 
-The dispatcher classifies an `errors.Join` as transient (or disabled) if ANY member is, which hides a sibling's hard error and discards every phase's counts. Pass each phase's error through `demoteTransient` (`scan_helpers.go`) before the join. Never join a sentinel (`errServiceDisabled`, …) with another error: return the sentinel only when nothing was stored and nothing failed. Tests for "a later page fails" need a non-transient code; `InternalServerException` and throttles are demoted to warnings and pass vacuously.
+The dispatcher classifies an `errors.Join` as transient (or disabled) only when EVERY member is (`everyMember`), so an undemoted transient beside a hard error turns the whole join into one error and discards every phase's counts. Pass each phase's error through `demoteTransient` (`scan_helpers.go`) before the join. Never join a sentinel (`errServiceDisabled`, …) with another error: return the sentinel only when nothing was stored and nothing failed. Tests for "a later page fails" need a non-transient code; `InternalServerException` and throttles are demoted to warnings and pass vacuously.
 
 ### Repeated NextToken
 
@@ -523,7 +515,7 @@ Single-phase scanners `return 0, 0, skipIfAccessDenied(...)`. Multi-phase scanne
 
 ### Region-entitlement denials silent-skip globally
 
-`skipIfAccessDenied` silent-skips `isNotAuthorizedForRegion` — AWS's `Account: <id> is not authorized for region: <region>` (CloudDirectory in every region the account was never enabled for). The account cannot self-enable it and no IAM change helps, so warning on every scan is noise. This sits inside `skipIfAccessDenied`, so it applies to **all ~1430 call sites**, not one service — deliberate, since any service using that phrasing states the same fact. Real per-action denials say "is not authorized **to perform**: `<action>`" and still warn; `TestSkipIfAccessDenied_RealDenialStillWarns` pins the distinction.
+`skipIfAccessDenied` silent-skips `isNotAuthorizedForRegion` — AWS's `Account: <id> is not authorized for region: <region>` (CloudDirectory in every region the account was never enabled for). The account cannot self-enable it and no IAM change helps, so warning on every scan is noise. This sits inside `skipIfAccessDenied`, so it applies to **every call site**, not one service — deliberate, since any service using that phrasing states the same fact. Real per-action denials say "is not authorized **to perform**: `<action>`" and still warn; `TestSkipIfAccessDenied_RealDenialStillWarns` pins the distinction.
 
 ### Expected-state singletons → silent no-op, not warn
 
@@ -581,7 +573,7 @@ Split each scanner into `scanX(ctx, acct, region, st, scanID)` (concrete client 
 
 **Footgun — duplicate client line**: when introducing a `scanXBody(ctx, client xAPI, ...)` wrapper, move the `client := <svc>.NewFromConfig(...)` construction up into `scanX` and DELETE it from the body (and from every sub-fn that built its own client, cloudwatch-style). Leaving it causes "no new variables on left side of :=".
 
-**Shared package-level iface (ec2 pattern)**: services with 10+ scanner files and 50+ ops (only EC2 today) get ONE shared `<svc>API` in `<svc>_iface.go` rather than per-file ifaces. Add a new ec2 op to `ec2_iface.go` after confirming the SDK has it (`go doc github.com/aws/aws-sdk-go-v2/service/ec2.Client.<Op>`).
+**Shared package-level iface (ec2 pattern)**: services with 10+ scanner files and 50+ ops (EC2) get ONE shared `<svc>API` in `<svc>_iface.go` rather than per-file ifaces. Add a new ec2 op to `ec2_iface.go` after confirming the SDK has it (`go doc github.com/aws/aws-sdk-go-v2/service/ec2.Client.<Op>`).
 
 **Multi-SDK service (cognito + sso pattern)**: a scanner spanning two SDK packages (Cognito = `cognitoidentityprovider` + `cognitoidentity`; SSO = `ssoadmin` + `identitystore`) declares two narrow ifaces; the wrapper constructs both clients and forwards to a `scanXAll(ctx, client1, client2, ...)` body.
 
@@ -599,13 +591,12 @@ Scanner-side wrapper containers (`{"lb": <LB>, "type": ...}` in `elb_scanners.go
 
 ### Coverage: SDK universe first, registries only under `--cross-check`
 
-`disco coverage services --providers aws` derives every listable resource from the pinned aws-sdk-go-v2 Smithy models + Service Reference in the SDK cache and pairs them with the scanner source (`internal/sdkinv/CLAUDE.md`, `internal/coverage/CLAUDE.md`). Nothing here is hand-listed (retired list: `../CLAUDE.md`). A skipped-for-a-reason resource (ephemeral job records, retired services the SDK still ships) is an honest `uncovered` row the committed baseline accepts.
+`disco coverage services --providers aws` derives every listable resource from the pinned aws-sdk-go-v2 Smithy models + Service Reference in the SDK cache and pairs them with the scanner source (`internal/sdkinv/CLAUDE.md`, `internal/coverage/CLAUDE.md`). Nothing here is hand-listed (retired list: `../CLAUDE.md`). A skipped-for-a-reason resource (ephemeral job records) is an honest `uncovered` row the committed baseline accepts; an unlisted candidate from a deprecated SDK model is `excluded` (`retired`).
 
 `coverageProvider.CrossCheck` (`aws_coverage.go`, `--cross-check` only) returns the **union** of two live catalogs, because neither is complete:
 
 - **CloudFormation ListTypes** (`Visibility=Public, Type=Resource`) — needs AWS creds; lists only resources with a CFN provider. Misses SDK-real resources like DynamoDB streams, AuditManager controls, IdentityStore users, Macie classification jobs, service quotas.
-- **AWS Service Reference** (`aws_servicereference.go`) — the credential-free public JSON form of the IAM Service Authorization Reference (`https://servicereference.us-east-1.amazonaws.com/`, ~451 services, ~2250 resource types). Supplies the CFN-absent reals above, but itself omits real CFN-modeled resources (e.g. SecurityHub `insight`, `delegated-admin`).
+- **AWS Service Reference** (`aws_servicereference.go`) — the credential-free public JSON form of the IAM Service Authorization Reference (`https://servicereference.us-east-1.amazonaws.com/`). Supplies the CFN-absent reals above, but itself omits real CFN-modeled resources (e.g. SecurityHub `insight`, `delegated-admin`).
 
 Service Reference entries are synthesized into the same `AWS::<service>::<resource>` shape as CFN, and `CanonicalKey` (`sdkinv.Canon` service + `sdkinv.Ident` resource, "Resource" suffix dropped) collapses the twins onto the candidate's `RegistryKey`. Both fetches are **fatal on failure** (the `errCoverageRegistryUnreachable` → exit-2 contract) — the union requires both, so a partial fetch can't silently report drift. No hand rename map: the extractor derives `Universe.ServiceAliases` from each model's `sdkId`/`arnNamespace`/`endpointPrefix` and the SR document joined by operation names (`MWAA`→`airflow`, `ApiGatewayV2`→`apigateway`, `CloudWatch`→`monitoring`); an alias that is itself a candidate service or claimed by two services is dropped. Services still unmatched are printed on stderr, not reported. `markCFNOnly` tags CFN types with no SR twin `cfn-only` (mostly template constructs like `SecurityGroupIngress`) and respells the CFN service the SR way; keep CFN in the union — its nouns match keys the SR renames (`elasticache/cachecluster`).
 
-Latency: the SR fan-out is ~451 small credless GETs at concurrency 32, ~1.3s wall. Caching via the index `modified` stamps is a possible follow-up if it regresses.

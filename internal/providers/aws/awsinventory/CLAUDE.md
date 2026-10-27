@@ -16,7 +16,7 @@ Tests: `go test ./internal/providers/aws/awsinventory/` (fixtures; live cases sk
 - `absentModels` (`extract.go`, fed `sdkinv.LinkedModules()`) warns for each linked
   `aws-sdk-go-v2/service/<pkg>` module whose package no model at `SDKRef` names. Existence only:
   a per-module version compare would warn whenever go.mod lags the pin. `service/internal/*`
-  (5 of 317 modules) and any `service/<pkg>/vN` (none exist) are skipped. Live: 0 of 312 absent.
+  and any `service/<pkg>/vN` are skipped.
   Tested as a pure function (`TestAbsentModels`); why: `internal/sdkinv/CLAUDE.md` `LinkedModules`.
 - The Service Reference catalog is unversioned and served live, so its pin is content:
   `ServiceReferenceDigest` = first 12 hex of `sha256(index.json)`, printed as
@@ -72,7 +72,8 @@ word lists** — do not add one. Surviving name rules are listed under "Structur
   containment (`sr:document=<name>`, e.g. cloudwatch→monitoring). Diagnostics name the fallback.
 - **Action binding** (`bindAction`): `aws.iam#iamAction` first (`sr:iam-action`), else the union of
   own-service authorising actions — a listing if **any** lists, a write if **any** writes,
-  tagging-only only if all are. Else an SR action named as the op (`sr:action-name`). Nothing
+  tagging-only only if every writing action is (a non-writing auth-gate action no op is named
+  after, e.g. bedrock's `CallWithBearerToken`, cannot veto it). Else an SR action named as the op (`sr:action-name`). Nothing
   bound → `sr:unbound`.
 - **Lister ladder** (`lister`, signal `list:<rung>`): resource `list` binding; SR `IsList` without
   `IsWrite` (workspaces' `CreateStandbyWorkspaces` is both); paginated `items` on a read; paginated
@@ -92,7 +93,7 @@ word lists** — do not add one. Surviving name rules are listed under "Structur
   the parent) → SR ARN levels (`arnLevels`, positional `SplitN(":", 6)`) → required id-like stems
   (weak; a weak parent naming neither an entry nor a catalog resource is a handle, dropped). A
   required id whose stem ends the noun is the subject's own, not a parent (`FarmId` on a farm).
-- **Class** (`classify`), in order: not a lister → attribute `detail-read`; bound → `smithy-resource`;
+- **Class** (`classify`), in order: not a lister → attribute `detail-read`; bound with a collection → `smithy-resource` (bound without one falls through);
   SR resource in an owned ARN namespace → `sr-resource`; ≥3 foreign targets → `cross-cutting`;
   unpaged structural listing of its own subject → `single-subject-read`; tag element →
   `tagging`; depth > 0 → `child-uncatalogued` if the element carries an id, else
@@ -110,8 +111,11 @@ word lists** — do not add one. Surviving name rules are listed under "Structur
   tagging-only write takes (`Tag{Key,Value}`) reads tags. From the catalog's `IsTaggingOnly`, not
   the word "tag". Tag shapes are excluded everywhere an element decides identity (`owns`,
   `keyByShape`, the index element pick) or `iam/role` absorbs `ListRoleTags`.
-- **Admission** (`entry.admit`): a later op replaces an entry's class only with a stronger rule
-  (`ruleRank`: smithy > sr > element-written > element-arn > element-created > child).
+- **Admission** (`entry.admit`): a later op moves an entry's class only to a `sdkinv.StrongerClass`;
+  within one class the rule moves only to a higher `ruleRank` (smithy > sr > element-written >
+  element-arn > element-created > child).
+- **Retired**: candidates of a module whose service shape is `smithy.api#deprecated` carry
+  `sdkinv.SignalRetired`; coverage buckets them `excluded` (`retired`) unless a scanner lists them.
 - **Detail fold** (`mergeDetailReads`): attribute `svc/P/N` folds into non-attribute `svc/N`.
 - An attribute whose parent `resolveTree` dropped renders as `svc/N`, never `svc//N`.
 
@@ -133,7 +137,7 @@ word lists** — do not add one. Surviving name rules are listed under "Structur
 
 ### Accepted residuals (pin `release-2026-09-15`)
 
-5399 candidates (3336 resources). Drops: 2 (`unreachable-from-service`). ~20 scanned types read as
+Counts: `TestExtract_Live` log. Drops: `unreachable-from-service` only. ~20 scanned types read as
 catalog/attribute (e.g. `cloudfront/cloudfrontoriginaccessidentity`, `ses/emailidentity`,
 `workspaces/ipgroup`, `lightsail/bucket`, `securityhub/securitycontrol`) because no structural fact marks them; do not restore a word
 list to recover them.

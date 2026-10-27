@@ -118,7 +118,7 @@ provider never edits the core. Put a provider need behind an Extractor/Resolver 
   only core site that compares that prefix, and without the map it silently never matched.
 - `idx.other` stays single-valued on purpose. Its anchor keys (`module\x00name`) feed emitted
   "other" pairings, which carry only `Service`/`Op`/`Label`: every live anchor-key collision
-  (GCP API versions v1/v1beta1, 4,819) projects identically except 7 that differ in label case.
+  (GCP API versions v1/v1beta1) projects identically except a few that differ in label case.
   Its label-alias keys do collide across different ops (GCP folders/orgs/projects variants), but
   they only answer `known()`, a bool.
 - `byKey` holds every candidate an op lists (GCP aggregated twins); a call anchors them all and a

@@ -105,7 +105,7 @@ the provider's `Scopes()` declaration. Each rule below has a fixture case in
 
 ### Accepted residuals (pin `v0.292.0`)
 
-1660 candidates (1186 resource, 260 catalog, 214 non-resource) across 193 APIs. Drops: 6,173 (`non-cloud-api` 6,126, `alias-document` 47); every other method is a candidate op or Other. Not candidates:
+Counts: `TestExtract_Live` log. Drops: `non-cloud-api` and `alias-document` only; every other method is a candidate op or Other. Not candidates:
 non-cloud APIs, filtered views (`:search`), listers returning strings (managedkafka,
 logging), `monitoring/timeseries`, apigee `organizations.list` (its element is
 `OrganizationProjectMapping`).

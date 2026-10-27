@@ -13,7 +13,7 @@ Coverage commands, buckets and `--cross-check` behaviour: `internal/coverage/CLA
 
 ## Resolver-edge metadata: `EdgeDecl`
 
-Contract: `../CLAUDE.md` "Resolver EdgeDecl contract". GCP deltas: `fn` must be a named function, not an anonymous closure — `registerResolver` panics at init time on an anonymous fn (reflects as `pkg.init.funcN`, useless in audit output). Many orphans are genuinely terminal (KeyRing, Organization, Project self-node, config singletons) rather than real gaps. There is no `Leaf` flag to triage with; run `disco coverage resolvers --missing --with-refs --providers gcp` and read the refs column, which lists the reference fields the SDK element actually carries. Refs are a hint, not proof: a refless row may still need a resolver, so the command reports how many carry none instead of hiding them.
+Contract: `../CLAUDE.md` "Resolver EdgeDecl contract". GCP delta: many orphans are genuinely terminal (KeyRing, Organization, Project self-node, config singletons) rather than real gaps. There is no `Leaf` flag to triage with; run `disco coverage resolvers --missing --with-refs --providers gcp` and read the refs column, which lists the reference fields the SDK element actually carries. Refs are a hint, not proof: a refless row may still need a resolver, so the command reports how many carry none instead of hiding them.
 
 ## Scoping cheat-sheet
 
@@ -50,7 +50,7 @@ Service `fn` runs once per project — fan-out across projects + concurrency cap
 
 `gcp:iam:policy` synthesized — IAM policies not first-class GCP resources, JSON blobs returned by `GetIamPolicy` on protected scope. NativeID `projects/{id}/iamPolicy` (and `folders/{id}/iamPolicy` / `organizations/{id}/iamPolicy`) (suffix rationale: Synthetic NativeIDs). Bindings stored verbatim under resource's `attributes` JSON; resolvers parse `bindings[].members[]`, emit edges typed `RelUses` with `{role: roles/...}` in edge attrs.
 
-Member matching: only `serviceAccount:{email}` members FK-safe today. Email parsed from existing `gcp:iam:service-account` NativeIDs (`projects/{id}/serviceAccounts/{email}`); cross-project SA emails won't match in-store index, edge skipped. Non-SA member kinds (user, group, domain, allUsers, allAuthenticatedUsers) need Entra-equivalent identity scanner — defer until lands rather than synthesizing principal resources.
+Member matching (header of `iampolicy_resolvers.go` is canonical): same-project SA → `uses`; cross-project SA → `cross-project-iam` (to an insert-if-absent project placeholder when unscanned); `user:` / `group:` and `principal(Set)://` members resolve to their identity resources; `domain:`, `allUsers`, `allAuthenticatedUsers` skip.
 
 ## API-not-enabled → service-disabled sentinel
 
@@ -77,7 +77,7 @@ Inner pagination + mutex still belong to the caller — `forEachItem` only owns 
 `runPaginated[P any](ctx, st, p, action, req, pageHandler)` in `gcp_scan_helpers.go` wraps `req.Pages(ctx, fn)` with the boilerplate every scanner phase repeats: invoke `Pages`, accumulate `(total, inserted)` per page, classify final err via `isPermissionDenied` → `skipIfDenied` (which dispatches sentinel vs warning). Generic over the page type — works on every `google.golang.org/api/*` `*.List()` request struct (all expose `Pages(ctx, func(*P) error) error`).
 
 Use it for every paginated phase. Page handler returns `(int, int, error)` — usually after building a `[]*store.Resource` and calling `upsertWithProjClosure`.
-Single-page `.Do()` calls (BigTable, Firestore, Spanner per-instance Databases.List) and inner `Pages` calls running inside `errgroup.WithContext` (BigQuery phase 2, DNS record-sets, KMS keyrings, IAM-key fan-out) keep manual classification — `runPaginated` doesn't fit those because the gctx/mu interactions are tied to the surrounding errgroup.
+Single-page `.Do()` calls (BigTable, Firestore, Spanner per-instance Databases.List) and inner `Pages` calls running inside a `forEachItem` fan-out (BigQuery phase 2, DNS record-sets, KMS keyrings, IAM-key fan-out) keep manual classification — `runPaginated` doesn't fit those because the gctx/mu interactions are tied to the surrounding fan-out.
 
 ## Synthetic NativeIDs
 
