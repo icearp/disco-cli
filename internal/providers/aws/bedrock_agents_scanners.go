@@ -71,7 +71,7 @@ const (
 // tags and returns the stored ones, the parents of the data-source phase.
 // Each row is the knowledge base's GetKnowledgeBase body, which adds the
 // role, embeddings and storage configuration to the list element
-// (readBedrockDetails); its NativeID is built from KnowledgeBaseId in the
+// (readRowDetails); its NativeID is built from KnowledgeBaseId in the
 // Service Reference's knowledge-base ARN format, the form of the body's
 // KnowledgeBaseArn. The tag read is sent the body's KnowledgeBaseArn, which
 // names the partition the NativeID cannot (bedrockAgentARN), or the NativeID
@@ -80,12 +80,13 @@ const (
 func scanBedrockKnowledgeBases(ctx context.Context, client bedrockAgentAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (kbs []childParent, storeWriteFailed bool) {
 	const op = "bedrockagent:ListKnowledgeBases"
 	var (
-		ids                   = map[*store.Resource]string{}
-		bodyARNs              = map[*store.Resource]*string{}
-		getHard, getTransient error
-		tagErrs               rowTagErrs
+		ids      = map[*store.Resource]string{}
+		bodyARNs = map[*store.Resource]*string{}
 	)
-	tags := bedrockAgentTagsAt(client, func(r *store.Resource) string { return cmp.Or(*bodyARNs[r], r.NativeID) })
+	d := &detailedRows{
+		getOp: bedrockGetKBOp, what: "knowledge base(s)", notFound: bedrockGetNotFound,
+		tags: bedrockAgentTagsAt(client, func(r *store.Resource) string { return cmp.Or(*bodyARNs[r], r.NativeID) }),
+	}
 	total, inserted, kbs, err := storeParentListWith(ctx, st, acct, region, op, "knowledge bases", "KnowledgeBaseId",
 		bacPages(isSCPExplicitDeny, func(ctx context.Context, token *string) ([]agenttypes.KnowledgeBaseSummary, *string, error) {
 			out, err := client.ListKnowledgeBases(ctx, &bedrockagent.ListKnowledgeBasesInput{NextToken: token, MaxResults: sdkaws.Int32(bedrockPageCap)})
@@ -107,94 +108,20 @@ func scanBedrockKnowledgeBases(ctx context.Context, client bedrockAgentAPI, acct
 			return r, "", ""
 		},
 		func(k agenttypes.KnowledgeBaseSummary) string { return sv(k.KnowledgeBaseId) },
-		func(rows []*store.Resource) ([]*store.Resource, func()) {
-			var getWarn func()
-			rows, getWarn, getHard, getTransient = readBedrockDetails(ctx, st, acct, region, bedrockGetKBOp, "knowledge base(s)", rows,
-				func(ctx context.Context, r *store.Resource) (any, error) {
-					out, err := client.GetKnowledgeBase(ctx, &bedrockagent.GetKnowledgeBaseInput{KnowledgeBaseId: sdkaws.String(ids[r])})
-					if err != nil || out.KnowledgeBase == nil {
-						return nil, err
-					}
-					*bodyARNs[r] = sv(out.KnowledgeBase.KnowledgeBaseArn)
-					return out.KnowledgeBase, nil
-				})
-			kept, tagWarn := tags.hook(ctx, st, acct, region, &tagErrs)(rows)
-			return kept, func() {
-				getWarn()
-				tagWarn()
+		d.before(ctx, st, acct, region, func(ctx context.Context, r *store.Resource) (any, error) {
+			out, err := client.GetKnowledgeBase(ctx, &bedrockagent.GetKnowledgeBaseInput{KnowledgeBaseId: sdkaws.String(ids[r])})
+			if err != nil || out.KnowledgeBase == nil {
+				return nil, err
 			}
-		})
-	if errors.Is(err, store.ErrStoreWrite) {
-		err = errors.Join(err, getHard, getTransient)
-	} else {
-		p.errs.add(bedrockGetKBOp, getHard)
-		p.errs.add(bedrockGetKBOp, getTransient)
-	}
-	return kbs, tagErrs.addPhase(p, tags.op, op, total, inserted, err)
+			*bodyARNs[r] = sv(out.KnowledgeBase.KnowledgeBaseArn)
+			return out.KnowledgeBase, nil
+		}))
+	return kbs, d.addPhase(p, op, total, inserted, err)
 }
 
-// readBedrockDetails reads each row's detail body with get, concurrently
-// (readEachKey), and stores a body get returns as the row's attributes. A
-// resource the Get reports not found (ResourceNotFoundException, the only
-// not-found code GetKnowledgeBase and GetDataSource model) was deleted since
-// the listing, and its row is dropped. Any other failure keeps the list
-// element as the row, which carries the same ids and NativeID: a denial is
-// warned about through warn, once the rows are stored; a transient failure
-// after the SDK's retries is returned in transient; ctx's end is returned in
-// hard as one error, counting the reads it cut short and those it kept from
-// starting; any other error is returned in hard. what names the rows in
-// those messages.
-func readBedrockDetails(ctx context.Context, st *store.Store, acct *account, region, op, what string, rows []*store.Resource, get func(context.Context, *store.Resource) (any, error)) (kept []*store.Resource, warn func(), hard, transient error) {
-	type detail struct {
-		body any
-		err  error
-	}
-	reads, _ := readEachKey(ctx, rows, func(ctx context.Context, r *store.Resource) detail {
-		body, err := get(ctx, r)
-		return detail{body, err}
-	})
-	var (
-		denied     skipTally
-		transients transientTally
-		errs       []error
-	)
-	cut := len(rows) - len(reads)
-	kept = make([]*store.Resource, 0, len(rows))
-	for i, d := range reads {
-		r := rows[i]
-		// The listing reached this host, so an NXDOMAIN now is a failure of
-		// this scan, not a region gap (lateNXDOMAIN).
-		switch err := lateNXDOMAIN(op, d.err); {
-		case err == nil:
-			if d.body != nil {
-				r.AttributesJSON = mustJSON(d.body)
-			}
-		case isAPIErrorCode(err, "ResourceNotFoundException"):
-			continue
-		case ctx.Err() != nil && errors.Is(err, ctx.Err()):
-			cut++
-		case isAccessDenied(err):
-			denied.skipped(r.NativeID, err)
-		case transients.drop(r.NativeID, err):
-		default:
-			errs = append(errs, fmt.Errorf("%s %s: %w", op, r.NativeID, err))
-		}
-		kept = append(kept, r)
-	}
-	kept = append(kept, rows[len(reads):]...)
-	if cut > 0 {
-		errs = append(errs, fmt.Errorf("%s: %d %s stored as their list element: %w", op, cut, what, ctx.Err()))
-	}
-	if t := &transients.skipTally; t.count > 0 {
-		transient = fmt.Errorf("%s: %d %s stored as their list element, first %s: %w", op, t.count, what, t.first, t.err)
-	}
-	warn = func() {
-		if denied.count > 0 {
-			_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf("%d %s stored as their list element, first %s: %w", denied.count, what, denied.first, denied.err))
-		}
-	}
-	return kept, warn, errors.Join(errs...), transient
-}
+// bedrockGetNotFound is the only not-found code GetKnowledgeBase and
+// GetDataSource model.
+var bedrockGetNotFound = []string{"ResourceNotFoundException"}
 
 // bedrockNotDeployed wraps a ListFlows or ListPrompts page. A first page that
 // fails with a persistent server error can mean the feature is not deployed
@@ -387,7 +314,7 @@ func bedrockDataSourceARN(partition, region, acct, kbID, dsID string) string {
 // scanBedrockDataSources lists the data sources of each knowledge base the
 // knowledge-base phase stored, concurrently (readEachKey), and stores each
 // as its GetDataSource body, which adds the connector configuration and the
-// encryption key to the list element (readBedrockDetails). A data source's
+// encryption key to the list element (readRowDetails). A data source's
 // element carries no ARN; its NativeID is built from the two ids in the
 // Service Reference's data-source ARN format. A knowledge base
 // ResourceNotFoundException says was deleted since it was listed is skipped;
@@ -421,7 +348,7 @@ func scanBedrockDataSources(ctx context.Context, client bedrockAgentAPI, acct *a
 		warn            func()
 		hard, transient error
 	)
-	out.rows, warn, hard, transient = readBedrockDetails(ctx, st, acct, region, bedrockGetDSOp, "data source(s)", out.rows,
+	out.rows, warn, hard, transient = readRowDetails(ctx, st, acct, region, bedrockGetDSOp, "data source(s)", bedrockGetNotFound, out.rows,
 		func(ctx context.Context, r *store.Resource) (any, error) {
 			k := keys[r]
 			got, err := client.GetDataSource(ctx, &bedrockagent.GetDataSourceInput{KnowledgeBaseId: &k[0], DataSourceId: &k[1]})

@@ -1535,3 +1535,176 @@ func withoutStop(stop, err error) (kept, dropped error) {
 	}
 	return errors.Join(rest...), dropped
 }
+
+// hostPhase is one listing of a scan whose SDK packages call different
+// hosts: the op it is reported under, the host it calls (an index the scan
+// defines), and run, which adds its counts and errors to p and reports
+// whether a store write failed.
+type hostPhase struct {
+	op   string
+	host int
+	run  func(p *phaseTotals) (storeWriteFailed bool)
+}
+
+// countedPhase is the hostPhase of a scanner that returns its counts and
+// error rather than adding them to p.
+func countedPhase(host int, op string, run func() (int, int, error)) hostPhase {
+	return hostPhase{op, host, func(p *phaseTotals) bool {
+		t, i, err := run()
+		return p.addPhase(op, t, i, err)
+	}}
+}
+
+// runHostPhases runs phases in order, one at a time: a child phase gets the
+// parents its parent phase stored. A phase's error does not stop the later
+// ones; a failed write does, since every later write would fail too, and so
+// does ctx's end, reported as one error of service.
+//
+// A host whose first phase stores nothing and fails only with NXDOMAIN (a
+// phase making one listing per owner fails alike for each) is not served in
+// this region, and its later phases are not run. For any host but primary
+// that NXDOMAIN is dropped: the region serves the service without that part
+// of it. The primary host's NXDOMAIN is kept, so a region without the
+// service is reported unavailable; once any host stored rows, every NXDOMAIN
+// left is a failure of this scan instead (resultLateNXDOMAIN), so those rows
+// keep their counts.
+func runHostPhases(ctx context.Context, st *store.Store, acct *account, region, service string, primary int, phases []hostPhase) (int, int, error) {
+	var p phaseTotals
+	ran, gone := map[int]bool{}, map[int]bool{}
+	notRun := 0
+	for i, ph := range phases {
+		if gone[ph.host] {
+			continue
+		}
+		if ctx.Err() != nil {
+			for _, rest := range phases[i:] {
+				if !gone[rest.host] {
+					notRun++
+				}
+			}
+			break
+		}
+		total, errs := p.total, len(p.errs)
+		if ph.run(&p) {
+			break
+		}
+		if !ran[ph.host] && p.total == total && onlyDNSNotFound(p.errs[errs:]) {
+			gone[ph.host] = true
+			if ph.host != primary {
+				p.errs = p.errs[:errs]
+			}
+		}
+		ran[ph.host] = true
+	}
+	p.foldStop(ctx, service, notRun)
+	return p.resultLateNXDOMAIN(st, acct, region)
+}
+
+// onlyDNSNotFound reports whether errs is not empty and every one is an
+// NXDOMAIN.
+func onlyDNSNotFound(errs phaseErrs) bool {
+	for _, f := range errs {
+		if !isDNSNotFound(f.err) {
+			return false
+		}
+	}
+	return len(errs) > 0
+}
+
+// readRowDetails reads each row's detail body with get, concurrently
+// (readEachKey), and stores a body get returns as the row's attributes. A
+// resource the Get reports not found (an error code in notFound, the codes
+// op's model lists) was deleted since the listing, and its row is dropped.
+// Any other failure keeps the list element as the row, which carries the
+// same ids and NativeID: a denial is warned about through warn, once the
+// rows are stored; a transient failure after the SDK's retries is returned
+// in transient; ctx's end is returned in hard as one error, counting the
+// reads it cut short and those it kept from starting; any other error is
+// returned in hard. what names the rows in those messages.
+func readRowDetails(ctx context.Context, st *store.Store, acct *account, region, op, what string, notFound []string, rows []*store.Resource, get func(context.Context, *store.Resource) (any, error)) (kept []*store.Resource, warn func(), hard, transient error) {
+	type detail struct {
+		body any
+		err  error
+	}
+	reads, _ := readEachKey(ctx, rows, func(ctx context.Context, r *store.Resource) detail {
+		body, err := get(ctx, r)
+		return detail{body, err}
+	})
+	var (
+		denied     skipTally
+		transients transientTally
+		errs       []error
+	)
+	cut := len(rows) - len(reads)
+	kept = make([]*store.Resource, 0, len(rows))
+	for i, d := range reads {
+		r := rows[i]
+		// The listing reached this host, so an NXDOMAIN now is a failure of
+		// this scan, not a region gap (lateNXDOMAIN).
+		switch err := lateNXDOMAIN(op, d.err); {
+		case err == nil:
+			if d.body != nil {
+				r.AttributesJSON = mustJSON(d.body)
+			}
+		case isAPIErrorCode(err, notFound...):
+			continue
+		case ctx.Err() != nil && errors.Is(err, ctx.Err()):
+			cut++
+		case isAccessDenied(err):
+			denied.skipped(r.NativeID, err)
+		case transients.drop(r.NativeID, err):
+		default:
+			errs = append(errs, fmt.Errorf("%s %s: %w", op, r.NativeID, err))
+		}
+		kept = append(kept, r)
+	}
+	kept = append(kept, rows[len(reads):]...)
+	if cut > 0 {
+		errs = append(errs, fmt.Errorf("%s: %d %s stored as their list element: %w", op, cut, what, ctx.Err()))
+	}
+	if t := &transients.skipTally; t.count > 0 {
+		transient = fmt.Errorf("%s: %d %s stored as their list element, first %s: %w", op, t.count, what, t.first, t.err)
+	}
+	warn = func() {
+		if denied.count > 0 {
+			_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf("%d %s stored as their list element, first %s: %w", denied.count, what, denied.first, denied.err))
+		}
+	}
+	return kept, warn, errors.Join(errs...), transient
+}
+
+// detailedRows replaces each row a listing built with its Get body
+// (readRowDetails), then reads its tags (readRowTags), and holds both reads'
+// errors until the write is done.
+type detailedRows struct {
+	getOp, what      string
+	notFound         []string
+	tags             rowTagReader
+	getErrs, tagErrs rowTagErrs
+}
+
+// before is the listing's beforeWrite: get reads one row's body.
+func (d *detailedRows) before(ctx context.Context, st *store.Store, acct *account, region string, get func(context.Context, *store.Resource) (any, error)) beforeWrite {
+	return func(rows []*store.Resource) ([]*store.Resource, func()) {
+		rows, getWarn, hard, transient := readRowDetails(ctx, st, acct, region, d.getOp, d.what, d.notFound, rows, get)
+		d.getErrs = rowTagErrs{hard, transient}
+		kept, tagWarn := d.tags.hook(ctx, st, acct, region, &d.tagErrs)(rows)
+		return kept, func() {
+			getWarn()
+			tagWarn()
+		}
+	}
+}
+
+// addPhase adds the listing's counts and err to p under op, and both reads'
+// errors under their ops, as rowTagErrs.addPhase does. It reports whether
+// the write failed, after which the scanner must stop.
+func (d *detailedRows) addPhase(p *phaseTotals, op string, total, inserted int, err error) (storeWriteFailed bool) {
+	if errors.Is(err, store.ErrStoreWrite) {
+		err = errors.Join(err, d.getErrs.hard, d.getErrs.transient)
+	} else {
+		p.errs.add(d.getOp, d.getErrs.hard)
+		p.errs.add(d.getOp, d.getErrs.transient)
+	}
+	return d.tagErrs.addPhase(p, d.tags.op, op, total, inserted, err)
+}

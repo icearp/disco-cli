@@ -131,7 +131,7 @@ func TestPerServiceARNHelpers_Partition(t *testing.T) {
 		{"security hub", func(p string) string { return securityHubHubNativeID(p, r, a) }, "arn:aws:securityhub:us-east-1:123456789012:hub/default"},
 		{"service catalog", func(p string) string { return scARN(p, r, a, "tag-option", "t") }, "arn:aws:servicecatalog:us-east-1:123456789012:tag-option/t"},
 		{"service quotas template", func(p string) string { return sqTemplateEntryNativeID(p, r, a, "ec2", "L-1") }, "arn:aws:servicequotas:us-east-1:123456789012:ec2/L-1/request-template"},
-		{"ses mail manager", func(p string) string { return mmARN(p, r, a, "relay", "rl") }, "arn:aws:ses:us-east-1:123456789012:mailmanager-relay/rl"},
+		{"ses mail manager", func(p string) string { return mmARN(p, r, a, "smtp-relay", "rl") }, "arn:aws:ses:us-east-1:123456789012:mailmanager-smtp-relay/rl"},
 		{"sns origination number", func(p string) string { return snsOriginationNumberNativeID(p, r, a, "+15550100") }, "arn:aws:sns:us-east-1:123456789012:origination-number/+15550100"},
 		{"textract adapter", func(p string) string { return textractAdapterNativeID(p, r, a, "ad") }, "arn:aws:textract:us-east-1:123456789012:adapter/ad"},
 		{"transcribe", func(p string) string { return transcribeNativeID(p, r, a, "vocabulary", "v") }, "arn:aws:transcribe:us-east-1:123456789012:vocabulary/v"},

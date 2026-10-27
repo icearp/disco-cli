@@ -68,7 +68,10 @@ func TestScanSESConfigurationSets_StoresKeyedSigningScheme(t *testing.T) {
 			}, nil
 		},
 	}, sesDenied))
-	total, _, err := scanSESConfigurationSets(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	acct := newTestAccount(testAccountID)
+	var p phaseTotals
+	scanSESConfigurationSets(context.Background(), client, acct, testRegion, st, testScanID, &p)
+	total, _, err := p.result(st, acct, testRegion)
 	if err != nil || total != 1 {
 		t.Fatalf("total, err = %d, %v; want 1, nil", total, err)
 	}

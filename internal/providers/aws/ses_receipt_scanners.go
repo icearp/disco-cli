@@ -24,21 +24,6 @@ func sesReceiptRuleSetARN(partition, region, acct, name string) string {
 	return sesARN(partition, region, acct, "receipt-rule-set", name)
 }
 
-func scanSESReceipt(ctx context.Context, client sesV1API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanSESReceiptFilters(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSESReceiptRuleSets(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
-}
-
 func scanSESReceiptFilters(ctx context.Context, client sesV1API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	out, err := client.ListReceiptFilters(ctx, &sesv1.ListReceiptFiltersInput{})
 	if err != nil {

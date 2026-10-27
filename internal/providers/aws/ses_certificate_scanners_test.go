@@ -65,7 +65,8 @@ func sesCertHandlers(calls *parentCalls, errFor func(identity string) error) map
 	return map[string]func(in any) (any, error){
 		"ListEmailIdentities": func(any) (any, error) {
 			return &sesv2.ListEmailIdentitiesOutput{EmailIdentities: []sesv2types.IdentityInfo{
-				{IdentityName: ptrStr(sesTestDomain)}, {IdentityName: ptrStr(sesTestAddress)},
+				{IdentityName: ptrStr(sesTestDomain), IdentityType: sesv2types.IdentityTypeDomain},
+				{IdentityName: ptrStr(sesTestAddress), IdentityType: sesv2types.IdentityTypeEmailAddress},
 			}}, nil
 		},
 		"GetEmailIdentity": func(in any) (any, error) {

@@ -1,260 +1,140 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sesv2"
+	sesv2types "github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanSESExtended covers ContactList, CustomVerificationEmailTemplate,
-// DedicatedIpPool, MultiRegionEndpoint, Template, Tenant, VdmAttributes,
-// and ConfigurationSetEventDestination (per-config-set fan-out).
-func scanSESExtended(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanSESContactLists(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanSESCustomVerificationTemplates(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) { return scanSESDedicatedIPPools(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanSESMultiRegionEndpoints(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) { return scanSESTemplates(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSESTenants(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSESVdmAttributes(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSESEventDestinations(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
-}
+// Page caps the sesv2 model documents in each listing's PageSize text. The
+// contact-list, dedicated-IP-pool and tenant listings document none, so
+// they send none.
+const (
+	sesCustomVerificationPageCap int32 = 50
+	sesTemplatePageCap           int32 = 100
+	sesMultiRegionPageCap        int32 = 1000
+)
+
+const sesEventDestinationsOp = "sesv2:GetConfigurationSetEventDestinations"
 
 func sesARN(partition, region, acct, kind, id string) string {
 	return arnFor(partition, "ses", region, acct, kind+"/"+id)
 }
 
-func scanSESContactLists(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sesv2.NewListContactListsPaginator(client, &sesv2.ListContactListsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sesv2:ListContactLists", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("sesv2:ListContactLists: %w", perr)
-		}
-		for _, c := range out.ContactLists {
-			name := sv(c.ContactListName)
-			if name == "" {
-				continue
-			}
-			n := name
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESContactList, NativeID: sesARN(acct.partition(), region, acct.ID, "contact-list", name),
-				Name: &n, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
+// sesNamedRow is the row of a listed sesv2 item stored under its name's
+// ARN of kind; a nameless item is not stored, and what names it in the
+// warning.
+func sesNamedRow(acct *account, region, scanID, typ, kind, what, name string, item any) (*store.Resource, string, string) {
+	if name == "" {
+		return nil, what + " have an empty name", "(an item with no name)"
 	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ses contact-lists: %w", uerr)
-	}
-	return len(batch), n, nil
+	return bacRowAt(acct, region, scanID, typ, sesARN(acct.partition(), region, acct.ID, kind, name), name, item), "", ""
 }
 
-func scanSESCustomVerificationTemplates(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sesv2.NewListCustomVerificationEmailTemplatesPaginator(client, &sesv2.ListCustomVerificationEmailTemplatesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sesv2:ListCustomVerificationEmailTemplates", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSESContactLists(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "sesv2:ListContactLists",
+		func(ctx context.Context, token *string) ([]sesv2types.ContactList, *string, error) {
+			out, err := client.ListContactLists(ctx, &sesv2.ListContactListsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sesv2:ListCustomVerificationEmailTemplates: %w", perr)
-		}
-		for _, t := range out.CustomVerificationEmailTemplates {
-			name := sv(t.TemplateName)
-			if name == "" {
-				continue
-			}
-			n := name
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESCustomVerificationEmailTemplate, NativeID: sesARN(acct.partition(), region, acct.ID, "custom-verification-email-template", name),
-				Name: &n, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ses custom-verification-email-templates: %w", uerr)
-	}
-	return len(batch), n, nil
+			return out.ContactLists, out.NextToken, nil
+		},
+		func(c sesv2types.ContactList) (*store.Resource, string, string) {
+			return sesNamedRow(acct, region, scanID, TypeSESContactList, "contact-list", "contact lists", sv(c.ContactListName), c)
+		}, tags, p)
 }
 
-// scanSESDedicatedIPPools — ListDedicatedIpPools returns []string; no per-pool
-// fan-out since GetDedicatedIpPool adds nothing useful.
-func scanSESDedicatedIPPools(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sesv2.NewListDedicatedIpPoolsPaginator(client, &sesv2.ListDedicatedIpPoolsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sesv2:ListDedicatedIpPools", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSESCustomVerificationTemplates(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "sesv2:ListCustomVerificationEmailTemplates",
+		func(ctx context.Context, token *string) ([]sesv2types.CustomVerificationEmailTemplateMetadata, *string, error) {
+			out, err := client.ListCustomVerificationEmailTemplates(ctx, &sesv2.ListCustomVerificationEmailTemplatesInput{NextToken: token, PageSize: sdkaws.Int32(sesCustomVerificationPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sesv2:ListDedicatedIpPools: %w", perr)
-		}
-		for _, name := range out.DedicatedIpPools {
-			if name == "" {
-				continue
-			}
-			n := name
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESDedicatedIPPool, NativeID: sesARN(acct.partition(), region, acct.ID, "dedicated-ip-pool", name),
-				Name: &n, Region: &region, AttributesJSON: mustJSON(map[string]string{"PoolName": name}), DiscoveredBy: scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ses dedicated-ip-pools: %w", uerr)
-	}
-	return len(batch), n, nil
+			return out.CustomVerificationEmailTemplates, out.NextToken, nil
+		},
+		func(t sesv2types.CustomVerificationEmailTemplateMetadata) (*store.Resource, string, string) {
+			return sesNamedRow(acct, region, scanID, TypeSESCustomVerificationEmailTemplate, "custom-verification-email-template",
+				"custom verification email templates", sv(t.TemplateName), t)
+		}, tags, p)
 }
 
+// scanSESDedicatedIPPools stores each listed pool; ListDedicatedIpPools
+// returns names only, and GetDedicatedIpPool adds nothing useful, so the row
+// holds the name under the pool's own PoolName key.
+func scanSESDedicatedIPPools(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "sesv2:ListDedicatedIpPools",
+		func(ctx context.Context, token *string) ([]string, *string, error) {
+			out, err := client.ListDedicatedIpPools(ctx, &sesv2.ListDedicatedIpPoolsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.DedicatedIpPools, out.NextToken, nil
+		},
+		func(name string) (*store.Resource, string, string) {
+			return sesNamedRow(acct, region, scanID, TypeSESDedicatedIPPool, "dedicated-ip-pool", "dedicated IP pools", name, map[string]string{"PoolName": name})
+		}, tags, p)
+}
+
+// scanSESMultiRegionEndpoints stores the region's multi-region endpoints.
+// Their tags are not read. A tag read is wired only where the tag op's model
+// accepts the resource's ARN and the Service Reference lists the resource
+// under TagResource. ListTagsForResource's ResourceArn accepts any string, but
+// the Service Reference lists multi-region-endpoint under no tag op, and the
+// element carries no ARN: the Service Reference's ARN format names the
+// endpoint by EndpointName, while the NativeID here is built from
+// EndpointId, so the ARN the op would need is unsettled.
 func scanSESMultiRegionEndpoints(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sesv2.NewListMultiRegionEndpointsPaginator(client, &sesv2.ListMultiRegionEndpointsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sesv2:ListMultiRegionEndpoints", acct.ID, region, perr)
-				return 0, 0, nil
+	return storeTokenList(ctx, st, acct, region, "sesv2:ListMultiRegionEndpoints",
+		func(ctx context.Context, token *string) ([]sesv2types.MultiRegionEndpoint, *string, error) {
+			out, err := client.ListMultiRegionEndpoints(ctx, &sesv2.ListMultiRegionEndpointsInput{NextToken: token, PageSize: sdkaws.Int32(sesMultiRegionPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sesv2:ListMultiRegionEndpoints: %w", perr)
-		}
-		for _, e := range out.MultiRegionEndpoints {
+			return out.MultiRegionEndpoints, out.NextToken, nil
+		},
+		func(e sesv2types.MultiRegionEndpoint) (*store.Resource, string, string) {
 			id := sv(e.EndpointId)
 			if id == "" {
-				continue
+				return nil, "multi-region endpoints have an empty EndpointId", cmp.Or(sv(e.EndpointName), "(an endpoint with no name)")
 			}
-			label := sv(e.EndpointName)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESMultiRegionEndpoint, NativeID: sesARN(acct.partition(), region, acct.ID, "multi-region-endpoint", id),
-				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ses multi-region-endpoints: %w", uerr)
-	}
-	return len(batch), n, nil
+			return bacRowAt(acct, region, scanID, TypeSESMultiRegionEndpoint, sesARN(acct.partition(), region, acct.ID, "multi-region-endpoint", id), cmp.Or(sv(e.EndpointName), id), e), "", ""
+		})
 }
 
-func scanSESTemplates(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sesv2.NewListEmailTemplatesPaginator(client, &sesv2.ListEmailTemplatesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sesv2:ListEmailTemplates", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSESTemplates(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "sesv2:ListEmailTemplates",
+		func(ctx context.Context, token *string) ([]sesv2types.EmailTemplateMetadata, *string, error) {
+			out, err := client.ListEmailTemplates(ctx, &sesv2.ListEmailTemplatesInput{NextToken: token, PageSize: sdkaws.Int32(sesTemplatePageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sesv2:ListEmailTemplates: %w", perr)
-		}
-		for _, t := range out.TemplatesMetadata {
-			name := sv(t.TemplateName)
-			if name == "" {
-				continue
-			}
-			n := name
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESTemplate, NativeID: sesARN(acct.partition(), region, acct.ID, "template", name),
-				Name: &n, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ses templates: %w", uerr)
-	}
-	return len(batch), n, nil
+			return out.TemplatesMetadata, out.NextToken, nil
+		},
+		func(t sesv2types.EmailTemplateMetadata) (*store.Resource, string, string) {
+			return sesNamedRow(acct, region, scanID, TypeSESTemplate, "template", "email templates", sv(t.TemplateName), t)
+		}, tags, p)
 }
 
-func scanSESTenants(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sesv2.NewListTenantsPaginator(client, &sesv2.ListTenantsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sesv2:ListTenants", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSESTenants(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenListTags(ctx, st, acct, region, "sesv2:ListTenants",
+		func(ctx context.Context, token *string) ([]sesv2types.TenantInfo, *string, error) {
+			out, err := client.ListTenants(ctx, &sesv2.ListTenantsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sesv2:ListTenants: %w", perr)
-		}
-		for _, t := range out.Tenants {
-			arn := sv(t.TenantArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(t.TenantName)
-			if label == "" {
-				label = sv(t.TenantId)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESTenant, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ses tenants: %w", uerr)
-	}
-	return len(batch), n, nil
+			return out.Tenants, out.NextToken, nil
+		},
+		func(t sesv2types.TenantInfo) (*store.Resource, string, string) {
+			name := cmp.Or(sv(t.TenantName), sv(t.TenantId))
+			return bacRow(acct, region, scanID, TypeSESTenant, "tenants", t.TenantArn, name, cmp.Or(name, "(a tenant with no name or id)"), t)
+		}, tags, p)
 }
 
 // scanSESVdmAttributes — singleton per region. GetAccount returns the
@@ -284,55 +164,26 @@ func scanSESVdmAttributes(ctx context.Context, client sesv2API, acct *account, r
 	return 1, n, nil
 }
 
-// scanSESEventDestinations re-lists configuration sets and fans out
-// GetConfigurationSetEventDestinations per-set. One row per (set, dest).
-func scanSESEventDestinations(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := sesv2.NewListConfigurationSetsPaginator(client, &sesv2.ListConfigurationSetsInput{})
-	var setNames []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sesv2:ListConfigurationSets", acct.ID, region, perr)
-				return 0, 0, nil
+// scanSESEventDestinations stores the event destinations of every
+// configuration set the configuration-set phase stored, one row per (set,
+// destination), the sets read concurrently. A set deleted since it was
+// listed is skipped; the op answers with every destination at once (no page
+// token).
+func scanSESEventDestinations(ctx context.Context, client sesv2API, acct *account, region string, st *store.Store, scanID string, sets []string) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, sesEventDestinationsOp, sesNotFound, sets,
+		func(ctx context.Context, set string, _ *string) ([]sesv2types.EventDestination, *string, error) {
+			out, err := client.GetConfigurationSetEventDestinations(ctx, &sesv2.GetConfigurationSetEventDestinationsInput{ConfigurationSetName: &set})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sesv2:ListConfigurationSets: %w", perr)
-		}
-		setNames = append(setNames, out.ConfigurationSets...)
-	}
-	if len(setNames) == 0 {
-		return 0, 0, nil
-	}
-	var batch []*store.Resource
-	for _, sname := range setNames {
-		s := sname
-		out, derr := client.GetConfigurationSetEventDestinations(ctx, &sesv2.GetConfigurationSetEventDestinationsInput{ConfigurationSetName: &s})
-		if derr != nil {
-			if isAccessDenied(derr) {
-				continue
+			return out.EventDestinations, nil, nil
+		},
+		func(set string, ed sesv2types.EventDestination) (*store.Resource, string, string) {
+			name := sv(ed.Name)
+			if name == "" {
+				return nil, "event destinations have an empty Name", "(a destination of configuration set " + set + ")"
 			}
-			return 0, 0, fmt.Errorf("sesv2:GetConfigurationSetEventDestinations %s: %w", sname, derr)
-		}
-		for _, ed := range out.EventDestinations {
-			edName := sv(ed.Name)
-			if edName == "" {
-				continue
-			}
-			arn := sesConfigurationSetARN(acct.partition(), region, acct.ID, sname) + "/event-destination/" + edName
-			label := edName
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSESConfigurationSetEventDestination, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(ed), DiscoveredBy: scanID,
-			})
-		}
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert ses event-destinations: %w", uerr)
-	}
-	return len(batch), n, nil
+			arn := sesConfigurationSetARN(acct.partition(), region, acct.ID, set) + "/event-destination/" + name
+			return bacRowAt(acct, region, scanID, TypeSESConfigurationSetEventDestination, arn, name, ed), "", ""
+		})
 }

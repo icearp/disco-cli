@@ -1054,7 +1054,7 @@ func TestScanBedrock_ContextEndStopsOnce(t *testing.T) {
 		t.Errorf("err = %v; want the ValidationException beside the stop kept", err)
 	}
 	phases := bedrockPhases(ctx, nil, nil, nil, newTestAccount(testAccountID), testRegion, st, testScanID)
-	agentsAt := slices.IndexFunc(phases, func(ph bedrockPhase) bool { return ph.op == "bedrockagent:ListAgents" })
+	agentsAt := slices.IndexFunc(phases, func(ph hostPhase) bool { return ph.op == "bedrockagent:ListAgents" })
 	if notRun := fmt.Sprintf("%d phases not run", len(phases)-agentsAt-1); agentsAt < 0 || !strings.Contains(err.Error(), notRun) {
 		t.Errorf("err = %v; want it to say %s", err, notRun)
 	}
@@ -1573,7 +1573,7 @@ func TestScanBedrock_KnowledgeBaseGetCutShortByContext(t *testing.T) {
 	}
 }
 
-// readBedrockDetails keeps every row whose read ctx's end cut short or kept
+// readRowDetails keeps every row whose read ctx's end cut short or kept
 // from starting, as the list element, and returns that stop as one error.
 func TestReadBedrockDetails_ContextEndIsOneError(t *testing.T) {
 	st := newTestStore(t)
@@ -1584,7 +1584,7 @@ func TestReadBedrockDetails_ContextEndIsOneError(t *testing.T) {
 		bacRowAt(acct, testRegion, testScanID, TypeBedrockKnowledgeBase, "kb-1", "kb-1", map[string]string{"Id": "kb-1"}),
 		bacRowAt(acct, testRegion, testScanID, TypeBedrockKnowledgeBase, "kb-2", "kb-2", map[string]string{"Id": "kb-2"}),
 	}
-	kept, _, hard, transient := readBedrockDetails(ctx, st, acct, testRegion, bedrockGetKBOp, "knowledge base(s)", rows,
+	kept, _, hard, transient := readRowDetails(ctx, st, acct, testRegion, bedrockGetKBOp, "knowledge base(s)", bedrockGetNotFound, rows,
 		func(ctx context.Context, _ *store.Resource) (any, error) {
 			cancel()
 			return nil, ctx.Err()
@@ -1611,7 +1611,7 @@ func TestReadBedrockDetails_ContextEndedBeforeAnyRead(t *testing.T) {
 		bacRowAt(acct, testRegion, testScanID, TypeBedrockKnowledgeBase, "kb-1", "kb-1", map[string]string{"Id": "kb-1"}),
 		bacRowAt(acct, testRegion, testScanID, TypeBedrockKnowledgeBase, "kb-2", "kb-2", map[string]string{"Id": "kb-2"}),
 	}
-	kept, _, hard, _ := readBedrockDetails(ctx, st, acct, testRegion, bedrockGetKBOp, "knowledge base(s)", rows,
+	kept, _, hard, _ := readRowDetails(ctx, st, acct, testRegion, bedrockGetKBOp, "knowledge base(s)", bedrockGetNotFound, rows,
 		func(context.Context, *store.Resource) (any, error) {
 			t.Error("a Get started after ctx ended")
 			return nil, nil

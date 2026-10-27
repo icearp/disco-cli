@@ -107,42 +107,27 @@ const (
 	bedrockDAHost
 )
 
-// bedrockPhase is one listing of the bedrock scan: the op it is reported
-// under, the host it calls, and run, which adds its counts and errors to p
-// and reports whether a store write failed.
-type bedrockPhase struct {
-	op   string
-	host int
-	run  func(p *phaseTotals) (storeWriteFailed bool)
-}
-
 // bedrockPhases is the bedrock scan's phases in the order they run. A child
 // phase gets the parents its parent phase stored, so the phases must run one
 // at a time, in order.
-func bedrockPhases(ctx context.Context, bclient bedrockAPI, aclient bedrockAgentAPI, dclient bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string) []bedrockPhase {
+func bedrockPhases(ctx context.Context, bclient bedrockAPI, aclient bedrockAgentAPI, dclient bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string) []hostPhase {
 	var (
 		btags, atags, dtags                               = bedrockTags(bclient), bedrockAgentTags(aclient), bedrockDATags(dclient)
 		guardrails, policies, agents, kbs, flows, prompts []childParent
 	)
-	counted := func(host int, op string, run func() (int, int, error)) bedrockPhase {
-		return bedrockPhase{op, host, func(p *phaseTotals) bool {
-			t, i, err := run()
-			return p.addPhase(op, t, i, err)
-		}}
-	}
-	return []bedrockPhase{
+	return []hostPhase{
 		{"bedrock:ListGuardrails", bedrockHost, func(p *phaseTotals) (stop bool) {
 			guardrails, stop = scanBedrockGuardrails(ctx, bclient, acct, region, st, scanID, btags, p)
 			return stop
 		}},
-		counted(bedrockHost, "bedrock:ListGuardrails(versions)", func() (int, int, error) {
+		countedPhase(bedrockHost, "bedrock:ListGuardrails(versions)", func() (int, int, error) {
 			return scanBedrockGuardrailVersions(ctx, bclient, acct, region, st, scanID, childParentIDs(guardrails))
 		}),
 		{"bedrock:ListAutomatedReasoningPolicies", bedrockHost, func(p *phaseTotals) (stop bool) {
 			policies, stop = scanBedrockARPolicies(ctx, bclient, acct, region, st, scanID, btags, p)
 			return stop
 		}},
-		counted(bedrockHost, "bedrock:ListAutomatedReasoningPolicies(versions)", func() (int, int, error) {
+		countedPhase(bedrockHost, "bedrock:ListAutomatedReasoningPolicies(versions)", func() (int, int, error) {
 			return scanBedrockARPolicyVersions(ctx, bclient, acct, region, st, scanID, childParentIDs(policies))
 		}),
 		{"bedrock:ListPromptRouters", bedrockHost, func(p *phaseTotals) bool {
@@ -151,10 +136,10 @@ func bedrockPhases(ctx context.Context, bclient bedrockAPI, aclient bedrockAgent
 		{"bedrock:ListInferenceProfiles", bedrockHost, func(p *phaseTotals) bool {
 			return scanBedrockInferenceProfiles(ctx, bclient, acct, region, st, scanID, btags, p)
 		}},
-		counted(bedrockHost, "bedrock:ListEnforcedGuardrailsConfiguration", func() (int, int, error) {
+		countedPhase(bedrockHost, "bedrock:ListEnforcedGuardrailsConfiguration", func() (int, int, error) {
 			return scanBedrockEnforcedGuardrails(ctx, bclient, acct, region, st, scanID)
 		}),
-		counted(bedrockHost, "bedrock:ListFoundationModels", func() (int, int, error) {
+		countedPhase(bedrockHost, "bedrock:ListFoundationModels", func() (int, int, error) {
 			return scanBedrockFoundationModels(ctx, bclient, acct, region, st, scanID)
 		}),
 		{"bedrockagent:ListAgents", bedrockAgentHost, func(p *phaseTotals) (stop bool) {
@@ -178,7 +163,7 @@ func bedrockPhases(ctx context.Context, bclient bedrockAPI, aclient bedrockAgent
 		{"bedrockagent:ListFlowAliases", bedrockAgentHost, func(p *phaseTotals) bool {
 			return scanBedrockFlowAliases(ctx, aclient, acct, region, st, scanID, flows, atags, p)
 		}},
-		counted(bedrockAgentHost, "bedrockagent:ListFlowVersions", func() (int, int, error) {
+		countedPhase(bedrockAgentHost, "bedrockagent:ListFlowVersions", func() (int, int, error) {
 			return scanBedrockFlowVersions(ctx, aclient, acct, region, st, scanID, childParentIDs(flows))
 		}),
 		{"bedrockagent:ListPrompts", bedrockAgentHost, func(p *phaseTotals) (stop bool) {
@@ -200,7 +185,7 @@ func bedrockPhases(ctx context.Context, bclient bedrockAPI, aclient bedrockAgent
 		{"bedrock:ListCustomModelDeployments", bedrockHost, func(p *phaseTotals) bool {
 			return scanBedrockCustomModelDeployments(ctx, bclient, acct, region, st, scanID, btags, p)
 		}},
-		counted(bedrockHost, "bedrock:ListMarketplaceModelEndpoints", func() (int, int, error) {
+		countedPhase(bedrockHost, "bedrock:ListMarketplaceModelEndpoints", func() (int, int, error) {
 			return scanBedrockMarketplaceModelEndpoints(ctx, bclient, acct, region, st, scanID)
 		}),
 		{"bedrockdataautomation:ListBlueprints", bedrockDAHost, func(p *phaseTotals) bool {
@@ -214,80 +199,32 @@ func bedrockPhases(ctx context.Context, bclient bedrockAPI, aclient bedrockAgent
 		}},
 		// The per-parent child fan-outs run last: they make one call per agent
 		// or policy, so they are the likeliest to fail.
-		counted(bedrockAgentHost, "bedrockagent:ListAgentVersions", func() (int, int, error) {
+		countedPhase(bedrockAgentHost, "bedrockagent:ListAgentVersions", func() (int, int, error) {
 			return scanBedrockAgentVersions(ctx, aclient, acct, region, st, scanID, childParentIDs(agents))
 		}),
-		counted(bedrockAgentHost, "bedrockagent:ListAgentActionGroups", func() (int, int, error) {
+		countedPhase(bedrockAgentHost, "bedrockagent:ListAgentActionGroups", func() (int, int, error) {
 			return scanBedrockAgentActionGroups(ctx, aclient, acct, region, st, scanID, childParentIDs(agents))
 		}),
-		counted(bedrockAgentHost, "bedrockagent:ListAgentKnowledgeBases", func() (int, int, error) {
+		countedPhase(bedrockAgentHost, "bedrockagent:ListAgentKnowledgeBases", func() (int, int, error) {
 			return scanBedrockAgentKnowledgeBases(ctx, aclient, acct, region, st, scanID, childParentIDs(agents))
 		}),
-		counted(bedrockAgentHost, "bedrockagent:ListAgentCollaborators", func() (int, int, error) {
+		countedPhase(bedrockAgentHost, "bedrockagent:ListAgentCollaborators", func() (int, int, error) {
 			return scanBedrockAgentCollaborators(ctx, aclient, acct, region, st, scanID, childParentIDs(agents))
 		}),
-		counted(bedrockHost, "bedrock:ListAutomatedReasoningPolicyTestCases", func() (int, int, error) {
+		countedPhase(bedrockHost, "bedrock:ListAutomatedReasoningPolicyTestCases", func() (int, int, error) {
 			return scanBedrockARPolicyTestCases(ctx, bclient, acct, region, st, scanID, childParentIDs(policies))
 		}),
 	}
 }
 
-// scanBedrockClients runs every bedrock phase (bedrockPhases) in order. A
-// phase's error does not stop the later ones; a failed write does, since
-// every later write would fail too, and so does ctx's end, reported as one
-// error. The phases run one at a time, so readRowTags's own bound is the
-// bound on the tag reads in flight.
-//
-// A host whose first phase stores nothing and fails only with NXDOMAIN (the
-// blueprint phase makes one listing per owner, each failing alike) is not
-// served in this region, and its later phases are not run. For the agent and
-// data-automation hosts that NXDOMAIN is dropped: the region serves bedrock
-// without that part of it. The bedrock host's NXDOMAIN is kept, so a region
-// without bedrock is reported unavailable; once any host stored rows, every
-// NXDOMAIN left is a failure of this scan instead (resultLateNXDOMAIN), so
-// those rows keep their counts.
+// scanBedrockClients runs every bedrock phase (bedrockPhases) in order
+// through runHostPhases. The bedrock host is the primary one: a region
+// without it is reported unavailable, while one serving bedrock without the
+// agent or data-automation host skips that host's phases silently. The
+// phases run one at a time, so readRowTags's own bound is the bound on the
+// tag reads in flight.
 func scanBedrockClients(ctx context.Context, bclient bedrockAPI, aclient bedrockAgentAPI, dclient bedrockDataAutomationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var p phaseTotals
-	phases := bedrockPhases(ctx, bclient, aclient, dclient, acct, region, st, scanID)
-	var ran, gone [3]bool
-	notRun := 0
-	for i, ph := range phases {
-		if gone[ph.host] {
-			continue
-		}
-		if ctx.Err() != nil {
-			for _, rest := range phases[i:] {
-				if !gone[rest.host] {
-					notRun++
-				}
-			}
-			break
-		}
-		total, errs := p.total, len(p.errs)
-		if ph.run(&p) {
-			break
-		}
-		if !ran[ph.host] && p.total == total && onlyDNSNotFound(p.errs[errs:]) {
-			gone[ph.host] = true
-			if ph.host != bedrockHost {
-				p.errs = p.errs[:errs]
-			}
-		}
-		ran[ph.host] = true
-	}
-	p.foldStop(ctx, "bedrock", notRun)
-	return p.resultLateNXDOMAIN(st, acct, region)
-}
-
-// onlyDNSNotFound reports whether errs is not empty and every one is an
-// NXDOMAIN.
-func onlyDNSNotFound(errs phaseErrs) bool {
-	for _, f := range errs {
-		if !isDNSNotFound(f.err) {
-			return false
-		}
-	}
-	return len(errs) > 0
+	return runHostPhases(ctx, st, acct, region, "bedrock", bedrockHost, bedrockPhases(ctx, bclient, aclient, dclient, acct, region, st, scanID))
 }
 
 // bedrockTags reads a row's tags with bedrock's ListTagsForResource, sent
