@@ -2459,6 +2459,46 @@ func TestStoreEachParentPagesTagsSkip_DropsWhatSkipReports(t *testing.T) {
 	}
 }
 
+// stored is handed exactly the rows written: not a row its tag read found
+// gone, and nothing once a write failed.
+func TestStoreEachParentPagesTagsWith_StoredGetsWrittenRows(t *testing.T) {
+	for _, c := range []struct {
+		name        string
+		refuseWrite bool
+		want        []string
+	}{
+		{"writes succeed", false, []string{"p0-1", "p0-2", "p1-2"}},
+		{"write fails", true, nil},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			if c.refuseWrite {
+				refuseStoreWrites(t, st, TypeNetworkFirewallProxy)
+			}
+			tags := pagesTestTags(map[string]error{"p1-1": tagTestNotFound})
+			tags.notFound = []string{"ResourceNotFoundException"}
+			var got []string
+			var p phaseTotals
+			acct := newTestAccount(testAccountID)
+			stop := storeEachParentPagesTagsWith(context.Background(), st, acct, testRegion, tagTestListOp, nil, pagesTestParents(2), (&pagesTest{stored1: map[string]bool{}}).page(st),
+				func(_ string, id string) (*store.Resource, string, string) { return tagTestRow(id) },
+				nil,
+				func(rows []*store.Resource) {
+					for _, r := range rows {
+						got = append(got, r.NativeID)
+					}
+				}, tags, &p)
+			if stop != c.refuseWrite {
+				t.Fatalf("stop = %v; want %v", stop, c.refuseWrite)
+			}
+			slices.Sort(got)
+			if !slices.Equal(got, c.want) {
+				t.Errorf("stored saw %v; want %v", got, c.want)
+			}
+		})
+	}
+}
+
 // skippedLeast names the smallest key first, whatever the order of the
 // calls.
 func TestSkipTally_SkippedLeast(t *testing.T) {

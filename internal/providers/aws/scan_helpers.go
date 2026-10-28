@@ -2039,6 +2039,23 @@ func storeEachParentPagesTagsSkip[Item any](
 	skip func(parent string, err error) bool,
 	tags rowTagReader, p *phaseTotals,
 ) (storeWriteFailed bool) {
+	return storeEachParentPagesTagsWith(ctx, st, acct, region, op, notFound, parents, page, row, skip, nil, tags, p)
+}
+
+// storeEachParentPagesTagsWith is storeEachParentPagesTagsSkip, except that
+// stored (nil for none) is handed each page's rows once they are written,
+// for a phase whose rows are the parents of a later one: a row dropped as
+// not found, or lost to a failed write, never reaches it. It runs while the
+// phase holds its write lock, so its calls never overlap, but the pages of
+// different parents reach it in no fixed order.
+func storeEachParentPagesTagsWith[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound []string, parents []childParent,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (*store.Resource, string, string),
+	skip func(parent string, err error) bool,
+	stored func(rows []*store.Resource),
+	tags rowTagReader, p *phaseTotals,
+) (storeWriteFailed bool) {
 	var (
 		mu              sync.Mutex // guards the counts and werr
 		total, inserted int
@@ -2083,11 +2100,15 @@ func storeEachParentPagesTagsSkip[Item any](
 			t, i, err := r.out.write(st, rows)
 			total += t
 			inserted += i
-			if err != nil && werr == nil {
+			if err != nil {
 				werr = err
 				stopPhase()
+				return err
 			}
-			return err
+			if stored != nil {
+				stored(rows)
+			}
+			return nil
 		})
 		if !writeFailed() {
 			r.out.parentErr(parent.id, readAny, err)

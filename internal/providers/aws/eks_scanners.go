@@ -2,10 +2,12 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eks"
+	ekstypes "github.com/aws/aws-sdk-go-v2/service/eks/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -34,91 +36,155 @@ type eksAPI interface {
 	DescribeCluster(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
 }
 
-// scanEKS discovers EKS clusters in one region. ListClusters returns names
-// only; clusters are described in parallel to avoid N+1 sequential API calls.
-//
-// Phases run in order and stop at the first hard error. The associated access
-// policies and certificate authorities run after every pre-existing phase, so
-// their failure cannot cost the older types; the certificate-authority API is
-// the newest, so it runs last.
-func scanEKS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// eksPageCap is the model's maxResults cap (1 to 100) of every EKS listing
+// that sends one.
+const eksPageCap = 100
+
+// scanEKS discovers the EKS resources of one region. Every listing runs as
+// its own phase, one at a time (runHostPhases): a phase's error does not stop
+// the later ones; a failed write and ctx's end do. The per-cluster listings
+// read the clusters ListClusters returned, those clusters concurrently, and
+// read each row's tags. The associated access policies read the access
+// entries stored this scan and the certificate authorities the clusters
+// stored, since each of their rows is recorded under that parent. The
+// certificate-authority API is the newest, so it runs last.
+func scanEKS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := eks.NewFromConfig(acct.cfg, func(o *eks.Options) { o.Region = region })
 	var (
-		clusters []childParent
-		entries  []eksAccessEntryRef
+		listed, stored []childParent
+		entries        []eksAccessEntryRef
 	)
-	for _, phase := range []func() (int, int, error){
-		func() (t, i int, err error) {
-			t, i, clusters, err = scanEKSClusters(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (t, i int, err error) {
-			t, i, entries, err = scanEKSExtended(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (int, int, error) { return scanEKSAnywhereSubscriptions(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+	return runHostPhases(ctx, st, acct, region, "eks", 0, []hostPhase{
+		{op: "eks:ListClusters", run: func(p *phaseTotals) (failed bool) {
+			listed, stored, failed = scanEKSClusters(ctx, client, acct, region, st, scanID, p)
+			return failed
+		}},
+		{op: "eks:ListAccessEntries", run: func(p *phaseTotals) (failed bool) {
+			entries, failed = scanEKSAccessEntries(ctx, client, acct, region, st, scanID, listed, p)
+			return failed
+		}},
+		{op: "eks:ListAddons", run: func(p *phaseTotals) bool {
+			return scanEKSAddons(ctx, client, acct, region, st, scanID, listed, p)
+		}},
+		{op: "eks:ListCapabilities", run: func(p *phaseTotals) bool {
+			return scanEKSCapabilities(ctx, client, acct, region, st, scanID, listed, p)
+		}},
+		{op: "eks:ListFargateProfiles", run: func(p *phaseTotals) bool {
+			return scanEKSFargateProfiles(ctx, client, acct, region, st, scanID, listed, p)
+		}},
+		{op: "eks:ListIdentityProviderConfigs", run: func(p *phaseTotals) bool {
+			return scanEKSIdentityProviderConfigs(ctx, client, acct, region, st, scanID, listed, p)
+		}},
+		{op: "eks:ListNodegroups", run: func(p *phaseTotals) bool {
+			return scanEKSNodegroups(ctx, client, acct, region, st, scanID, listed, p)
+		}},
+		{op: "eks:ListPodIdentityAssociations", run: func(p *phaseTotals) bool {
+			return scanEKSPodIdentityAssociations(ctx, client, acct, region, st, scanID, listed, p)
+		}},
+		countedPhase(0, "eks:ListEksAnywhereSubscriptions", func() (int, int, error) {
+			return scanEKSAnywhereSubscriptions(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "eks:ListAssociatedAccessPolicies", func() (int, int, error) {
 			return scanEKSAssociatedAccessPolicies(ctx, client, acct, region, st, scanID, entries)
-		},
-		func() (int, int, error) {
-			return scanEKSCertificateAuthorities(ctx, client, acct, region, st, scanID, clusters)
-		},
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+		}),
+		countedPhase(0, "eks:ListCertificateAuthorities", func() (int, int, error) {
+			return scanEKSCertificateAuthorities(ctx, client, acct, region, st, scanID, stored)
+		}),
+	})
 }
 
-// scanEKSClusters holds the testable scan body. It also returns the clusters it
-// stored, so a cluster whose describe was denied gets no child phase.
-func scanEKSClusters(ctx context.Context, client eksAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
-	var (
-		mu     sync.Mutex
-		stored []childParent
+// eksClusterRead is one cluster's DescribeCluster result.
+type eksClusterRead struct {
+	cluster *ekstypes.Cluster
+	err     error
+}
+
+// scanEKSClusters lists the cluster names, describes each one and stores the
+// clusters with the tags DescribeCluster returns. It returns the clusters
+// listed, for the per-cluster listings, and the clusters stored, for the
+// certificate authorities, whose rows are recorded under a stored cluster.
+//
+// ListClusters returns names only, so a cluster whose describe fails has no
+// element to store. One DescribeCluster no longer finds
+// (ResourceNotFoundException, deleted after it was listed) is dropped
+// silently, and its per-cluster resources are not listed. Any other failure
+// still has them listed, as their listings do not need the cluster's row: a
+// denied describe warns once, after the write succeeded; any other error is
+// returned after the others are stored, a transient one apart so that it is
+// demoted beside a hard error. It reports whether the write failed, after
+// which the scanner must stop.
+func scanEKSClusters(ctx context.Context, client eksAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (listed, stored []childParent, storeWriteFailed bool) {
+	const (
+		listOp     = "eks:ListClusters"
+		describeOp = "eks:DescribeCluster"
 	)
-	p := eks.NewListClustersPaginator(client, &eks.ListClustersInput{})
-	total, inserted, err := pageScanConcurrent(ctx, "eks:ListClusters", acct, region, st,
-		p.HasMorePages,
-		func(c context.Context) (*eks.ListClustersOutput, error) { return p.NextPage(c) },
-		func(o *eks.ListClustersOutput) []string { return o.Clusters },
-		func(gctx context.Context, name string) (*store.Resource, error) {
-			desc, err := client.DescribeCluster(gctx, &eks.DescribeClusterInput{Name: &name})
-			if err != nil {
-				if isAccessDenied(err) {
-					return nil, nil
-				}
-				return nil, fmt.Errorf("eks:DescribeCluster %s: %w", name, err)
+	names, listErr := readTokenPages(ctx, func(ctx context.Context, token *string) ([]string, *string, error) {
+		out, err := client.ListClusters(ctx, &eks.ListClustersInput{NextToken: token, MaxResults: sdkaws.Int32(eksPageCap)})
+		if err != nil {
+			return nil, nil, err
+		}
+		return out.Clusters, out.NextToken, nil
+	})
+	reads, stopped := readEachKey(ctx, names, func(ctx context.Context, name string) eksClusterRead {
+		out, err := client.DescribeCluster(ctx, &eks.DescribeClusterInput{Name: &name})
+		if err != nil {
+			return eksClusterRead{err: err}
+		}
+		return eksClusterRead{cluster: out.Cluster}
+	})
+	var (
+		rows       []*store.Resource
+		skips      notStoredSkips
+		denied     skipTally
+		transients transientTally
+		errs       []error
+	)
+	for i, read := range reads {
+		name := names[i]
+		switch err := read.err; {
+		case err == nil:
+			c := read.cluster
+			if c == nil || sv(c.Arn) == "" {
+				skips.skipped("clusters were described without an ARN", name)
+				break
 			}
-			c := desc.Cluster
-			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeEKSCluster,
-				NativeID:       sv(c.Arn),
-				Name:           c.Name,
-				Region:         &region,
-				CreatedAt:      tp(c.CreatedAt),
-				Status:         sp(string(c.Status)),
-				AttributesJSON: mustJSON(c),
-				DiscoveredBy:   scanID,
-			}
-			if len(c.Tags) > 0 {
-				s := mustJSON(c.Tags)
-				r.TagsJSON = &s
-			}
-			mu.Lock()
-			stored = append(stored, childParent{id: name, arn: r.NativeID})
-			mu.Unlock()
-			return r, nil
-		}, 0)
-	if err != nil {
-		return 0, 0, nil, err
+			rows = append(rows, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeEKSCluster, NativeID: sv(c.Arn), Name: c.Name, Region: &region,
+				CreatedAt: tp(c.CreatedAt), Status: sp(string(c.Status)),
+				TagsJSON: mapTagsJSON(c.Tags), AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			})
+			stored = append(stored, childParent{id: name, arn: sv(c.Arn)})
+		case isEKSNotFound(err):
+			continue
+		case isAccessDenied(err):
+			denied.skipped(name, err)
+		case transients.drop(name, err):
+		default:
+			errs = append(errs, fmt.Errorf("%s %s: %w", describeOp, name, err))
+		}
+		listed = append(listed, childParent{id: name})
 	}
-	return total, inserted, stored, nil
+	if stopped != nil {
+		errs = append(errs, fmt.Errorf("%s: %w", describeOp, stopped))
+	}
+	var transient error
+	if t := &transients.skipTally; t.count > 0 {
+		transient = fmt.Errorf("%s: %d cluster(s) not described, so not stored, first %s: %w", describeOp, t.count, t.first, t.err)
+	}
+	hard := errors.Join(errs...)
+	total, inserted, err := storeReadRows(st, acct, region, listOp, rows, listErr, func() {
+		skips.warn(st, describeOp, acct, region)
+		if denied.count > 0 {
+			_ = skipIfAccessDenied(st, describeOp, acct.ID, region, fmt.Errorf("%d cluster(s) not stored, first %s: %w", denied.count, denied.first, denied.err))
+		}
+	})
+	if errors.Is(err, store.ErrStoreWrite) {
+		p.addPhase(listOp, total, inserted, errors.Join(err, hard, transient))
+		return nil, nil, true
+	}
+	p.errs.add(describeOp, hard)
+	p.errs.add(describeOp, transient)
+	p.addPhase(listOp, total, inserted, err)
+	return listed, stored, false
 }
