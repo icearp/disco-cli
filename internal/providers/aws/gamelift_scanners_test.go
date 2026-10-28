@@ -481,3 +481,97 @@ func TestScanGameLiftIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
 		t.Errorf("total = %d, stored rows = %d; want the stored rows counted", total, stored)
 	}
 }
+
+// A fleet whose child listing is denied, with UnauthorizedException or
+// AccessDeniedException, is skipped while its siblings' children are stored;
+// one warning under the op covers every denied fleet, whatever the codes,
+// and none is sent when the write fails. DescribeVpcPeeringConnections, one
+// call for the account, warns once on UnauthorizedException.
+func TestGLChildFanOut_DeniedFleetsSkipped(t *testing.T) {
+	unauthorized := glNewError("UnauthorizedException")
+	phases := []struct {
+		op, typ string
+		fleets  []gltypes.FleetAttributes
+		out     func(fleet string) any
+		run     func(context.Context, gameLiftAPI, *store.Store, []gltypes.FleetAttributes) (int, int, error)
+	}{
+		{"ListCompute", TypeGameLiftCompute, []gltypes.FleetAttributes{
+			glFleet("fleet-a1", gltypes.ComputeTypeAnywhere, gltypes.FleetStatusActive),
+			glFleet("fleet-a2", gltypes.ComputeTypeAnywhere, gltypes.FleetStatusActive),
+			glFleet("fleet-a3", gltypes.ComputeTypeAnywhere, gltypes.FleetStatusActive),
+		}, func(fleet string) any {
+			return &gamelift.ListComputeOutput{ComputeList: []gltypes.Compute{{ComputeArn: ptrStr("arn:aws:gamelift:us-east-1:123456789012:compute/" + fleet + "/c1")}}}
+		}, func(ctx context.Context, c gameLiftAPI, st *store.Store, fleets []gltypes.FleetAttributes) (int, int, error) {
+			return scanGLComputes(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, fleets)
+		}},
+		{"DescribeScalingPolicies", TypeGameLiftScalingPolicy, []gltypes.FleetAttributes{
+			glFleet("fleet-e1", gltypes.ComputeTypeEc2, gltypes.FleetStatusActive),
+			glFleet("fleet-e2", gltypes.ComputeTypeEc2, gltypes.FleetStatusActive),
+			glFleet("fleet-e3", gltypes.ComputeTypeEc2, gltypes.FleetStatusActive),
+		}, func(string) any {
+			return &gamelift.DescribeScalingPoliciesOutput{ScalingPolicies: []gltypes.ScalingPolicy{{Name: ptrStr("up")}}}
+		}, func(ctx context.Context, c gameLiftAPI, st *store.Store, fleets []gltypes.FleetAttributes) (int, int, error) {
+			return scanGLScalingPolicies(ctx, c, newTestAccount(testAccountID), testRegion, st, testScanID, fleets)
+		}},
+	}
+	for _, p := range phases {
+		for _, c := range []struct {
+			name        string
+			third       error
+			refuseWrite bool
+		}{
+			{"unauthorized", unauthorized, false},
+			{"mixed codes", glDenied, false},
+			{"failed write", unauthorized, true},
+		} {
+			t.Run(p.op+"/"+c.name, func(t *testing.T) {
+				st := newTestStore(t)
+				glSeedFleets(t, st, p.fleets)
+				warned := countWarnings(st)
+				if c.refuseWrite {
+					refuseStoreWrites(t, st, p.typ)
+				}
+				first, second := sv(p.fleets[0].FleetId), sv(p.fleets[1].FleetId)
+				handlers := map[string]func(any) (any, error){p.op: func(in any) (any, error) {
+					switch fleet := sv(bacField[*string](in, "FleetId")); fleet {
+					case first:
+						return p.out(fleet), nil
+					case second:
+						return nil, unauthorized
+					default:
+						return nil, c.third
+					}
+				}}
+
+				total, _, err := p.run(context.Background(), glClient(handlers), st, p.fleets)
+				if c.refuseWrite {
+					if !errors.Is(err, store.ErrStoreWrite) {
+						t.Errorf("err = %v; want store.ErrStoreWrite", err)
+					}
+					if *warned != 0 {
+						t.Errorf("warnings = %d; want 0 after the failed write", *warned)
+					}
+					return
+				}
+				if err != nil || total != 1 {
+					t.Errorf("total, err = %d, %v; want 1, nil", total, err)
+				}
+				if *warned != 1 {
+					t.Errorf("warnings = %d; want 1", *warned)
+				}
+			})
+		}
+	}
+	t.Run("DescribeVpcPeeringConnections/unauthorized", func(t *testing.T) {
+		st := newTestStore(t)
+		warned := countOpWarnings(st, "gamelift:DescribeVpcPeeringConnections")
+		handlers := map[string]func(any) (any, error){"DescribeVpcPeeringConnections": func(any) (any, error) { return nil, unauthorized }}
+		total, _, err := scanGLVpcPeeringConnections(context.Background(), glClient(handlers), newTestAccount(testAccountID), testRegion, st, testScanID, nil)
+		if err != nil || total != 0 {
+			t.Errorf("total, err = %d, %v; want 0, nil", total, err)
+		}
+		if *warned != 1 {
+			t.Errorf("warnings = %d; want 1", *warned)
+		}
+	})
+}
