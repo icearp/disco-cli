@@ -120,7 +120,10 @@ func dfProjectARNFromChild(childARN string) string {
 }
 
 // resolveDeviceFarmProjectChildren attaches device pools, network profiles and uploads to
-// their parent project via the project GUID embedded in the child ARN.
+// their parent project via the project GUID embedded in the child ARN. Curated rows of
+// all three types are ManagedByProvider, so the listing includes managed rows: a
+// curated child whose ARN names a scanned project still gets its edge. A child ARN
+// without an account names no scanned project and gets none.
 func resolveDeviceFarmProjectChildren(acct *account, st *store.Store) error {
 	projSet, err := scannedIDSet(acct, st, TypeDeviceFarmProject)
 	if err != nil {
@@ -129,6 +132,7 @@ func resolveDeviceFarmProjectChildren(acct *account, st *store.Store) error {
 	for _, ctype := range []string{TypeDeviceFarmDevicePool, TypeDeviceFarmNetworkProfile, TypeDeviceFarmUpload} {
 		rows, err := st.ListResources(store.ResourceFilter{
 			Providers: []string{"aws"}, AccountID: acct.ID, Types: []string{ctype}, Limit: util.AllResources,
+			IncludeManaged: true,
 		})
 		if err != nil {
 			return err

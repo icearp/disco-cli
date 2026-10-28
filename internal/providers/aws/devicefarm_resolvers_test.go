@@ -47,6 +47,29 @@ func TestResolveDeviceFarmProjectChildren(t *testing.T) {
 	assertRelationship(t, rels, upID, projID, store.RelAttachedTo)
 }
 
+// A curated child is stored ManagedByProvider; the resolver must still see it.
+func TestResolveDeviceFarmProjectChildren_ManagedChild(t *testing.T) {
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	region := "us-west-2"
+	projARN := fmt.Sprintf("arn:aws:devicefarm:%s:%s:project:PROJ-1", region, acct.ID)
+	projID := upsertTestResource(t, st, "aws", acct.ID, TypeDeviceFarmProject, projARN, region, "{}")
+	upARN := fmt.Sprintf("arn:aws:devicefarm:%s:%s:upload:PROJ-1/CURATED-1", region, acct.ID)
+	if _, err := st.UpsertResource(&store.Resource{
+		Provider: "aws", AccountID: acct.ID, Type: TypeDeviceFarmUpload, NativeID: upARN,
+		Region: &region, AttributesJSON: "{}", DiscoveredBy: testScanID, ManagedByProvider: true,
+	}); err != nil {
+		t.Fatalf("upsert curated upload: %v", err)
+	}
+	upID := store.ResourceID("aws", acct.ID, upARN)
+
+	if err := resolveDeviceFarmProjectChildren(acct, st); err != nil {
+		t.Fatalf("resolveDeviceFarmProjectChildren: %v", err)
+	}
+	rels, _ := st.RelationshipsFrom(upID)
+	assertRelationship(t, rels, upID, projID, store.RelAttachedTo)
+}
+
 func TestResolveDeviceFarmDeviceInstanceProfile(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
