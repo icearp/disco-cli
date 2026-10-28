@@ -1,10 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kendra"
+	kendratypes "github.com/aws/aws-sdk-go-v2/service/kendra/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -45,7 +47,29 @@ type kendraAPI interface {
 	ListThesauri(context.Context, *kendra.ListThesauriInput, ...func(*kendra.Options)) (*kendra.ListThesauriOutput, error)
 	ListExperienceEntities(context.Context, *kendra.ListExperienceEntitiesInput, ...func(*kendra.Options)) (*kendra.ListExperienceEntitiesOutput, error)
 	ListEntityPersonas(context.Context, *kendra.ListEntityPersonasInput, ...func(*kendra.Options)) (*kendra.ListEntityPersonasOutput, error)
+	ListTagsForResource(context.Context, *kendra.ListTagsForResourceInput, ...func(*kendra.Options)) (*kendra.ListTagsForResourceOutput, error)
 }
+
+const (
+	// kendraPageCap is the model's MaxResults cap (1 to 100) of the index
+	// listing and of every per-index listing.
+	kendraPageCap = 100
+
+	kendraTagsOp                     = "kendra:ListTagsForResource"
+	kendraListIndicesOp              = "kendra:ListIndices"
+	kendraDescribeIndexOp            = "kendra:DescribeIndex"
+	kendraListDataSourcesOp          = "kendra:ListDataSources"
+	kendraListFaqsOp                 = "kendra:ListFaqs"
+	kendraListAccessControlConfigsOp = "kendra:ListAccessControlConfigurations"
+	kendraListExperiencesOp          = "kendra:ListExperiences"
+	kendraListFeaturedResultsSetsOp  = "kendra:ListFeaturedResultsSets"
+	kendraListBlockListsOp           = "kendra:ListQuerySuggestionsBlockLists"
+	kendraListThesauriOp             = "kendra:ListThesauri"
+)
+
+// kendraNotFound is the not-found code DescribeIndex and every per-index
+// listing model: an index deleted since it was listed.
+var kendraNotFound = []string{"ResourceNotFoundException"}
 
 // scanKendra discovers Kendra indices, their per-index children, and each
 // experience's entities and personas. List APIs return only IDs — synthesize
@@ -55,154 +79,152 @@ func scanKendra(ctx context.Context, acct *account, region string, st *store.Sto
 	return scanKendraAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanKendraAll runs the older phases, which stop at their first error other
-// than an access denial (a transient one included), then the experience entity
-// and persona phases over the experiences stored before that error. The older
-// side's transient error is demoted to a warning only beside a hard error:
-// joined, it would be buried in the hard error instead of reported under its
-// op.
+// scanKendraAll runs every Kendra listing as its own phase, one at a time:
+// the indices, then each kind of per-index child over the indices stored,
+// then the entities and personas of the experiences stored. A phase's error
+// does not stop the later ones; a failed write and ctx's end do; a region
+// whose index listing finds no endpoint runs no other phase
+// (runHostPhases). Indices and the five taggable per-index kinds have their
+// tags read per row (kendraTags), and the tag denials of the whole scan are
+// one warning. An account Kendra is closed to has no index listed and is
+// reported not entitled.
 func scanKendraAll(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, experiences, err := scanKendraOlderPhases(ctx, client, acct, region, st, scanID)
-	te, ie, eerr := scanKendraExperienceEntities(ctx, client, acct, region, st, scanID, experiences)
-	tp, ip, perr := scanKendraEntityPersonas(ctx, client, acct, region, st, scanID, experiences)
-	return total + te + tp, inserted + ie + ip, demoteBeside(st, "kendra", acct, region, err, eerr, perr)
+	tags := kendraTags(client).sharingDenials()
+	var (
+		indices     []childParent
+		closed      error
+		experiences []kendraExperience
+	)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "kendra", 0, []hostPhase{
+		{op: kendraListIndicesOp, run: func(p *phaseTotals) (failed bool) {
+			indices, failed, closed = scanKendraIndices(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: kendraListDataSourcesOp, run: func(p *phaseTotals) bool {
+			return scanKendraDataSources(ctx, client, acct, region, st, scanID, indices, tags, p)
+		}},
+		{op: kendraListFaqsOp, run: func(p *phaseTotals) bool {
+			return scanKendraFaqs(ctx, client, acct, region, st, scanID, indices, tags, p)
+		}},
+		countedPhase(0, kendraListAccessControlConfigsOp, func() (int, int, error) {
+			return scanKendraAccessControlConfigurations(ctx, client, acct, region, st, scanID, indices)
+		}),
+		countedPhase(0, kendraListExperiencesOp, func() (t, i int, err error) {
+			experiences, t, i, err = scanKendraExperiences(ctx, client, acct, region, st, scanID, indices)
+			return t, i, err
+		}),
+		{op: kendraListFeaturedResultsSetsOp, run: func(p *phaseTotals) bool {
+			return scanKendraFeaturedResultsSets(ctx, client, acct, region, st, scanID, indices, tags, p)
+		}},
+		{op: kendraListBlockListsOp, run: func(p *phaseTotals) bool {
+			return scanKendraQuerySuggestionsBlockLists(ctx, client, acct, region, st, scanID, indices, tags, p)
+		}},
+		{op: kendraListThesauriOp, run: func(p *phaseTotals) bool {
+			return scanKendraThesauri(ctx, client, acct, region, st, scanID, indices, tags, p)
+		}},
+		countedPhase(0, kendraListExperienceEntitiesOp, func() (int, int, error) {
+			return scanKendraExperienceEntities(ctx, client, acct, region, st, scanID, experiences)
+		}),
+		countedPhase(0, kendraListEntityPersonasOp, func() (int, int, error) {
+			return scanKendraEntityPersonas(ctx, client, acct, region, st, scanID, experiences)
+		}),
+	})
+	// Closed, the index listing stored nothing, so no later phase had an
+	// index or experience to read.
+	if closed != nil {
+		return 0, 0, markServiceNotEntitled(closed)
+	}
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// scanKendraOlderPhases runs the phases that predate experience entities and
-// personas sequentially, stopping at the first error other than an access
-// denial (which warns and continues), transient errors included, and returns
-// the experiences stored before it.
-func scanKendraOlderPhases(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, experiences []kendraExperience, err error) {
-	indexIDs, t, i, ferr := scanKendraIndices(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, nil, ferr
-	}
-	total += t
-	inserted += i
-
-	collectExperiences := func(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID, indexID string) (int, int, error) {
-		exps, t, i, err := scanKendraExperiences(ctx, client, acct, region, st, scanID, indexID)
-		experiences = append(experiences, exps...)
-		return t, i, err
-	}
-	for _, id := range indexIDs {
-		for _, phase := range []func(context.Context, kendraAPI, *account, string, *store.Store, string, string) (int, int, error){
-			scanKendraDataSources,
-			scanKendraFaqs,
-			scanKendraAccessControlConfigurations,
-			collectExperiences,
-			scanKendraFeaturedResultsSets,
-			scanKendraQuerySuggestionsBlockLists,
-			scanKendraThesauri,
-		} {
-			t, i, ferr = phase(ctx, client, acct, region, st, scanID, id)
-			if ferr != nil {
-				return total, inserted, experiences, ferr
+// kendraTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: the ARN the Service Reference gives its type
+// (index/{IndexId}, or index/{IndexId}/{kind}/{Id} for an index's
+// children), built by the scan because no Kendra listing returns one. The op
+// answers with every tag at once (no page token). It models no not-found
+// code, so no tag-read error drops a row. Its one resource-level error,
+// ResourceUnavailableException ("isn't available"), is not taken as one:
+// Kendra's model lists it beside ResourceNotFoundException on SubmitFeedback,
+// so the two mean different things. That error keeps the row without tags and
+// is returned, as any other error is. Known race: a resource deleted after it
+// was listed is kept untagged and its tag read's error makes the scan
+// partial. Every listing read here returns the account's own resources.
+func kendraTags(client kendraAPI) rowTagReader {
+	return rowTagReader{
+		op: kendraTagsOp,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &kendra.ListTagsForResourceInput{ResourceARN: sdkaws.String(r.NativeID)})
+			if err != nil {
+				return nil, err
 			}
-			total += t
-			inserted += i
-		}
+			return kvTagsJSON(out.Tags, func(t kendratypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
 	}
-	return total, inserted, experiences, nil
 }
 
-func scanKendraIndices(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := kendra.NewListIndicesPaginator(client, &kendra.ListIndicesInput{})
-	var batch []*store.Resource
-	var ids []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isKendraClosedToAccount(err) {
-				return nil, 0, 0, markServiceNotEntitled(err)
+// scanKendraIndices stores the region's indices a page at a time with their
+// tags, each row the index's DescribeIndex body. A DescribeIndex
+// ResourceNotFoundException drops an index deleted since it was listed; any
+// other failure keeps the list element as the row (rowDetailReader). It
+// returns the indices stored, as the parents of the per-index listings,
+// whether a write failed, and the error of a first page refused because
+// Kendra is closed to the account, which then stores nothing.
+func scanKendraIndices(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (indices []childParent, storeWriteFailed bool, closed error) {
+	// ids maps each row of the page in flight to its index id, which
+	// DescribeIndex and the per-index listings take. The row builder fills it
+	// and the reads only look entries up; it is emptied before the next page
+	// is fetched, which follows that page's write, so one page is held.
+	ids := map[*store.Resource]string{}
+	steps := tokenPageSteps{
+		details: rowDetailReader{
+			op: kendraDescribeIndexOp, what: "index(es)", notFound: kendraNotFound,
+			get: func(ctx context.Context, r *store.Resource) (any, error) {
+				out, err := client.DescribeIndex(ctx, &kendra.DescribeIndexInput{Id: sdkaws.String(ids[r])})
+				if err != nil {
+					return nil, err
+				}
+				return out, nil
+			},
+		},
+		stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				indices = append(indices, childParent{id: ids[r], arn: r.NativeID})
 			}
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "kendra:ListIndices", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("kendra:ListIndices: %w", err)
+		},
+	}
+	isClosed := func(err error) bool {
+		if isKendraClosedToAccount(err) {
+			closed = err
+			return true
 		}
-		for _, idx := range out.IndexConfigurationSummaryItems {
+		return false
+	}
+	failed := storeTokenPagesTagsWith(ctx, st, acct, region, kendraListIndicesOp,
+		firstPageGapPages(isClosed, func(ctx context.Context, token *string) ([]kendratypes.IndexConfigurationSummary, *string, error) {
+			clear(ids)
+			out, err := client.ListIndices(ctx, &kendra.ListIndicesInput{NextToken: token, MaxResults: sdkaws.Int32(kendraPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.IndexConfigurationSummaryItems, out.NextToken, nil
+		}),
+		func(idx kendratypes.IndexConfigurationSummary) (*store.Resource, string, string) {
 			id := sv(idx.Id)
 			if id == "" {
-				continue
+				return nil, "indices have an empty Id", cmp.Or(sv(idx.Name), "(an index with no name)")
 			}
-			ids = append(ids, id)
-			arn := arnFor(acct.partition(), "kendra", region, acct.ID, "index/"+id)
 			status := string(idx.Status)
-			attrsJSON := mustJSON(idx)
-			if dout, derr := client.DescribeIndex(ctx, &kendra.DescribeIndexInput{Id: idx.Id}); derr == nil {
-				attrsJSON = mustJSON(dout)
-			}
-			batch = append(batch, &store.Resource{
+			r := &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKendraIndex, NativeID: arn,
+				Type: TypeKendraIndex, NativeID: arnFor(acct.partition(), "kendra", region, acct.ID, "index/"+id),
 				Name: idx.Name, Region: &region, Status: &status,
-				AttributesJSON: attrsJSON, DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "kendra indices")
-	return ids, t, i, err
-}
-
-func scanKendraDataSources(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indexID string) (int, int, error) {
-	iid := indexID
-	pager := kendra.NewListDataSourcesPaginator(client, &kendra.ListDataSourcesInput{IndexId: &iid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "kendra:ListDataSources", acct.ID, region, err)
+				AttributesJSON: mustJSON(idx), DiscoveredBy: scanID,
 			}
-			return 0, 0, fmt.Errorf("kendra:ListDataSources: %w", err)
-		}
-		for _, d := range out.SummaryItems {
-			id := sv(d.Id)
-			if id == "" {
-				continue
-			}
-			arn := kendraChildNativeID(acct.partition(), region, acct.ID, iid, "data-source", id)
-			status := string(d.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKendraDataSource, NativeID: arn,
-				Name: d.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "kendra data-sources")
-}
-
-func scanKendraFaqs(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indexID string) (int, int, error) {
-	iid := indexID
-	pager := kendra.NewListFaqsPaginator(client, &kendra.ListFaqsInput{IndexId: &iid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "kendra:ListFaqs", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("kendra:ListFaqs: %w", err)
-		}
-		for _, f := range out.FaqSummaryItems {
-			id := sv(f.Id)
-			if id == "" {
-				continue
-			}
-			arn := kendraChildNativeID(acct.partition(), region, acct.ID, iid, "faq", id)
-			status := string(f.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKendraFaq, NativeID: arn,
-				Name: f.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "kendra faqs")
+			ids[r] = id
+			return r, "", ""
+		}, steps, tags, p)
+	return indices, failed, closed
 }
 
 // kendraChildNativeID synthesizes the dominant `{indexARN}/<kind>/{id}` shape;
@@ -211,31 +233,73 @@ func kendraChildNativeID(partition, region, acct, indexID, kind, id string) stri
 	return arnFor(partition, "kendra", region, acct, "index/"+indexID+"/"+kind+"/"+id)
 }
 
-func scanKendraAccessControlConfigurations(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indexID string) (int, int, error) {
-	iid := indexID
-	pager := kendra.NewListAccessControlConfigurationsPaginator(client, &kendra.ListAccessControlConfigurationsInput{IndexId: &iid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "kendra:ListAccessControlConfigurations", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("kendra:ListAccessControlConfigurations: %w", err)
-		}
-		for _, a := range out.AccessControlConfigurations {
-			id := sv(a.Id)
-			if id == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKendraAccessControlConfiguration, NativeID: kendraChildNativeID(acct.partition(), region, acct.ID, iid, "access-control-configuration", id),
-				Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
+// kendraChildRow is the row of an item of kind listed for index indexID,
+// keyed by kendraChildNativeID, the item verbatim as the attributes. An item
+// without an id is not stored, as one empty id would merge every such item
+// of the index into one resource; what names the items in that warning.
+func kendraChildRow(acct *account, region, scanID, typ, what, kind, indexID string, id, name, status *string, item any) (*store.Resource, string, string) {
+	if sv(id) == "" {
+		return nil, what + " have an empty Id", cmp.Or(sv(name), "(an item with no name)") + " of index " + indexID
 	}
-	return upsertBatch(st, batch, "kendra access-control-configurations")
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: kendraChildNativeID(acct.partition(), region, acct.ID, indexID, kind, sv(id)),
+		Name: name, Region: &region, Status: status,
+		AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}, "", ""
+}
+
+// kendraStatus is a row's Status: the listed status, empty included.
+func kendraStatus(status string) *string { return &status }
+
+// scanKendraDataSources stores the data sources of each index with their
+// tags, the indices read concurrently and each page written as soon as its
+// tags are read (storeEachParentPagesTags).
+func scanKendraDataSources(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indices []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeEachParentPagesTags(ctx, st, acct, region, kendraListDataSourcesOp, kendraNotFound, indices,
+		func(ctx context.Context, index string, token *string) ([]kendratypes.DataSourceSummary, *string, error) {
+			out, err := client.ListDataSources(ctx, &kendra.ListDataSourcesInput{IndexId: &index, NextToken: token, MaxResults: sdkaws.Int32(kendraPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.SummaryItems, out.NextToken, nil
+		},
+		func(index string, d kendratypes.DataSourceSummary) (*store.Resource, string, string) {
+			return kendraChildRow(acct, region, scanID, TypeKendraDataSource, "data sources", "data-source", index, d.Id, d.Name, kendraStatus(string(d.Status)), d)
+		}, tags, p)
+}
+
+// scanKendraFaqs stores the FAQs of each index with their tags, as
+// scanKendraDataSources does.
+func scanKendraFaqs(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indices []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeEachParentPagesTags(ctx, st, acct, region, kendraListFaqsOp, kendraNotFound, indices,
+		func(ctx context.Context, index string, token *string) ([]kendratypes.FaqSummary, *string, error) {
+			out, err := client.ListFaqs(ctx, &kendra.ListFaqsInput{IndexId: &index, NextToken: token, MaxResults: sdkaws.Int32(kendraPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.FaqSummaryItems, out.NextToken, nil
+		},
+		func(index string, f kendratypes.FaqSummary) (*store.Resource, string, string) {
+			return kendraChildRow(acct, region, scanID, TypeKendraFaq, "FAQs", "faq", index, f.Id, f.Name, kendraStatus(string(f.Status)), f)
+		}, tags, p)
+}
+
+// scanKendraAccessControlConfigurations stores the access control
+// configurations of each index, the indices read concurrently
+// (storeTokenEachParent). The type has no tags.
+func scanKendraAccessControlConfigurations(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indices []childParent) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, kendraListAccessControlConfigsOp, kendraNotFound, childParentIDs(indices),
+		func(ctx context.Context, index string, token *string) ([]kendratypes.AccessControlConfigurationSummary, *string, error) {
+			out, err := client.ListAccessControlConfigurations(ctx, &kendra.ListAccessControlConfigurationsInput{IndexId: &index, NextToken: token, MaxResults: sdkaws.Int32(kendraPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.AccessControlConfigurations, out.NextToken, nil
+		},
+		func(index string, a kendratypes.AccessControlConfigurationSummary) (*store.Resource, string, string) {
+			return kendraChildRow(acct, region, scanID, TypeKendraAccessControlConfiguration, "access control configurations", "access-control-configuration", index, a.Id, nil, nil, a)
+		})
 }
 
 // kendraExperience is an experience stored this scan: its index, its id
@@ -245,133 +309,78 @@ type kendraExperience struct {
 	childParent
 }
 
-// scanKendraExperiences stores the index's experiences and returns them only
-// once they are stored.
-func scanKendraExperiences(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indexID string) ([]kendraExperience, int, int, error) {
-	iid := indexID
-	pager := kendra.NewListExperiencesPaginator(client, &kendra.ListExperiencesInput{IndexId: &iid})
-	var batch []*store.Resource
+// scanKendraExperiences stores the experiences of each index, the indices
+// read concurrently (storeTokenEachParent), and returns every one built. A
+// failed write stops the scan (runHostPhases), so none is read from after
+// it. The type has no tags.
+func scanKendraExperiences(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indices []childParent) ([]kendraExperience, int, int, error) {
 	var exps []kendraExperience
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "kendra:ListExperiences", acct.ID, region, err)
+	total, inserted, err := storeTokenEachParent(ctx, st, acct, region, kendraListExperiencesOp, kendraNotFound, childParentIDs(indices),
+		func(ctx context.Context, index string, token *string) ([]kendratypes.ExperiencesSummary, *string, error) {
+			out, err := client.ListExperiences(ctx, &kendra.ListExperiencesInput{IndexId: &index, NextToken: token, MaxResults: sdkaws.Int32(kendraPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("kendra:ListExperiences: %w", err)
-		}
-		for _, e := range out.SummaryItems {
-			id := sv(e.Id)
-			if id == "" {
-				continue
+			return out.SummaryItems, out.NextToken, nil
+		},
+		func(index string, e kendratypes.ExperiencesSummary) (*store.Resource, string, string) {
+			r, why, key := kendraChildRow(acct, region, scanID, TypeKendraExperience, "experiences", "experience", index, e.Id, e.Name, kendraStatus(string(e.Status)), e)
+			if r != nil {
+				exps = append(exps, kendraExperience{indexID: index, childParent: childParent{id: sv(e.Id), arn: r.NativeID}})
 			}
-			nativeID := kendraChildNativeID(acct.partition(), region, acct.ID, iid, "experience", id)
-			exps = append(exps, kendraExperience{indexID: iid, childParent: childParent{id: id, arn: nativeID}})
-			status := string(e.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKendraExperience, NativeID: nativeID,
-				Name: e.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "kendra experiences")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return exps, t, i, nil
+			return r, why, key
+		})
+	return exps, total, inserted, err
 }
 
-func scanKendraFeaturedResultsSets(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indexID string) (int, int, error) {
-	iid := indexID
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.ListFeaturedResultsSets(ctx, &kendra.ListFeaturedResultsSetsInput{IndexId: &iid, NextToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "kendra:ListFeaturedResultsSets", acct.ID, region, err)
+// scanKendraFeaturedResultsSets stores the featured results sets of each
+// index with their tags, as scanKendraDataSources does. The op has no SDK
+// paginator; eachTokenPage follows its NextToken.
+func scanKendraFeaturedResultsSets(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indices []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeEachParentPagesTags(ctx, st, acct, region, kendraListFeaturedResultsSetsOp, kendraNotFound, indices,
+		func(ctx context.Context, index string, token *string) ([]kendratypes.FeaturedResultsSetSummary, *string, error) {
+			out, err := client.ListFeaturedResultsSets(ctx, &kendra.ListFeaturedResultsSetsInput{IndexId: &index, NextToken: token, MaxResults: sdkaws.Int32(kendraPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("kendra:ListFeaturedResultsSets: %w", err)
-		}
-		for _, f := range out.FeaturedResultsSetSummaryItems {
-			id := sv(f.FeaturedResultsSetId)
-			if id == "" {
-				continue
-			}
-			status := string(f.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKendraFeaturedResultsSet, NativeID: kendraChildNativeID(acct.partition(), region, acct.ID, iid, "featured-results-set", id),
-				Name: f.FeaturedResultsSetName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil {
-			break
-		}
-		token = out.NextToken
-	}
-	return upsertBatch(st, batch, "kendra featured-results-sets")
+			return out.FeaturedResultsSetSummaryItems, out.NextToken, nil
+		},
+		func(index string, f kendratypes.FeaturedResultsSetSummary) (*store.Resource, string, string) {
+			return kendraChildRow(acct, region, scanID, TypeKendraFeaturedResultsSet, "featured results sets", "featured-results-set", index,
+				f.FeaturedResultsSetId, f.FeaturedResultsSetName, kendraStatus(string(f.Status)), f)
+		}, tags, p)
 }
 
-func scanKendraQuerySuggestionsBlockLists(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indexID string) (int, int, error) {
-	iid := indexID
-	pager := kendra.NewListQuerySuggestionsBlockListsPaginator(client, &kendra.ListQuerySuggestionsBlockListsInput{IndexId: &iid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "kendra:ListQuerySuggestionsBlockLists", acct.ID, region, err)
+// scanKendraQuerySuggestionsBlockLists stores the query suggestions block
+// lists of each index with their tags, as scanKendraDataSources does.
+func scanKendraQuerySuggestionsBlockLists(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indices []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeEachParentPagesTags(ctx, st, acct, region, kendraListBlockListsOp, kendraNotFound, indices,
+		func(ctx context.Context, index string, token *string) ([]kendratypes.QuerySuggestionsBlockListSummary, *string, error) {
+			out, err := client.ListQuerySuggestionsBlockLists(ctx, &kendra.ListQuerySuggestionsBlockListsInput{IndexId: &index, NextToken: token, MaxResults: sdkaws.Int32(kendraPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("kendra:ListQuerySuggestionsBlockLists: %w", err)
-		}
-		for _, b := range out.BlockListSummaryItems {
-			id := sv(b.Id)
-			if id == "" {
-				continue
-			}
-			status := string(b.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKendraQuerySuggestionsBlockList, NativeID: kendraChildNativeID(acct.partition(), region, acct.ID, iid, "query-suggestions-block-list", id),
-				Name: b.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "kendra query-suggestions-block-lists")
+			return out.BlockListSummaryItems, out.NextToken, nil
+		},
+		func(index string, b kendratypes.QuerySuggestionsBlockListSummary) (*store.Resource, string, string) {
+			return kendraChildRow(acct, region, scanID, TypeKendraQuerySuggestionsBlockList, "query suggestions block lists", "query-suggestions-block-list", index, b.Id, b.Name, kendraStatus(string(b.Status)), b)
+		}, tags, p)
 }
 
-func scanKendraThesauri(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indexID string) (int, int, error) {
-	iid := indexID
-	pager := kendra.NewListThesauriPaginator(client, &kendra.ListThesauriInput{IndexId: &iid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "kendra:ListThesauri", acct.ID, region, err)
+// scanKendraThesauri stores the thesauri of each index with their tags, as
+// scanKendraDataSources does.
+func scanKendraThesauri(ctx context.Context, client kendraAPI, acct *account, region string, st *store.Store, scanID string, indices []childParent, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeEachParentPagesTags(ctx, st, acct, region, kendraListThesauriOp, kendraNotFound, indices,
+		func(ctx context.Context, index string, token *string) ([]kendratypes.ThesaurusSummary, *string, error) {
+			out, err := client.ListThesauri(ctx, &kendra.ListThesauriInput{IndexId: &index, NextToken: token, MaxResults: sdkaws.Int32(kendraPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("kendra:ListThesauri: %w", err)
-		}
-		for _, th := range out.ThesaurusSummaryItems {
-			id := sv(th.Id)
-			if id == "" {
-				continue
-			}
-			status := string(th.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKendraThesaurus, NativeID: kendraChildNativeID(acct.partition(), region, acct.ID, iid, "thesaurus", id),
-				Name: th.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(th), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "kendra thesauri")
+			return out.ThesaurusSummaryItems, out.NextToken, nil
+		},
+		func(index string, th kendratypes.ThesaurusSummary) (*store.Resource, string, string) {
+			return kendraChildRow(acct, region, scanID, TypeKendraThesaurus, "thesauri", "thesaurus", index, th.Id, th.Name, kendraStatus(string(th.Status)), th)
+		}, tags, p)
 }
 
 const (
