@@ -185,9 +185,15 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 		},
 		{
 			name: "memorydb default user", typ: TypeMemoryDBUser,
-			handlers: handlers{"DescribeUsers": ret(&memorydb.DescribeUsersOutput{Users: []memorydbtypes.User{{ARN: sdkaws.String(arn("memorydb", "user/default")), Name: sdkaws.String("default")}}})},
+			handlers: handlers{
+				"DescribeUsers": ret(&memorydb.DescribeUsersOutput{Users: []memorydbtypes.User{{ARN: sdkaws.String(arn("memorydb", "user/default")), Name: sdkaws.String("default")}}}),
+				"ListTags":      ret(&memorydb.ListTagsOutput{}),
+			},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanMemDBUsers(ctx, memorydb.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				client := memorydb.NewFromConfig(cfg)
+				var p phaseTotals
+				scanMemDBUsers(ctx, client, acct, testRegion, st, testScanID, memDBTags(client), &p)
+				_, _, err := p.result(st, acct, testRegion)
 				return err
 			},
 		},
