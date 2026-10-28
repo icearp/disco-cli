@@ -56,10 +56,18 @@ func acExpDefHandler(inputs *[]appconfig.ListExperimentDefinitionsInput, mu *syn
 
 func scanACExpDefs(t *testing.T, st *store.Store, handler func(in any) (any, error)) (int, error) {
 	t.Helper()
-	client := appconfig.NewFromConfig(opStubConfig(map[string]func(any) (any, error){"ListExperimentDefinitions": handler}, acDenied))
-	total, _, err := scanACExperimentDefinitions(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
+	client := appconfig.NewFromConfig(opStubConfig(map[string]func(any) (any, error){
+		"ListExperimentDefinitions": handler,
+		"ListTagsForResource":       acNoTags,
+	}, acDenied))
+	acct := newTestAccount(testAccountID)
+	var p phaseTotals
+	scanACExperimentDefinitions(context.Background(), client, acct, testRegion, st, testScanID, acTags(client), &p)
+	total, _, err := p.result(st, acct, testRegion)
 	return total, err
 }
+
+func acNoTags(any) (any, error) { return &appconfig.ListTagsForResourceOutput{}, nil }
 
 // Both pages are stored, elements missing either half of the NativeID are
 // skipped, and the list carries no filter.
@@ -215,6 +223,7 @@ func acTopLevelHandlers(expDefs func(in any) (any, error)) map[string]func(in an
 			return &appconfig.ListExtensionAssociationsOutput{Items: []actypes.ExtensionAssociationSummary{{Id: ptrStr("ea1")}}}, nil
 		},
 		"ListExperimentDefinitions": expDefs,
+		"ListTagsForResource":       acNoTags,
 	}
 }
 
