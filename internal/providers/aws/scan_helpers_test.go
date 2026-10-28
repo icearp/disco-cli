@@ -1275,6 +1275,109 @@ func TestStoreTokenPagesTags_OneWarningPerKind(t *testing.T) {
 	}
 }
 
+// pagesDetailOp is the detail read op of the storeTokenPagesTagsWith tests.
+const pagesDetailOp = "svc:GetThing"
+
+// pagesDetailSteps reads each row's body {"body": <id>}, failing with errs
+// by row, and records the rows each page stored and the rows whose tags
+// were read.
+func pagesDetailSteps(errs map[string]error, stored *[][]string) tokenPageSteps {
+	return tokenPageSteps{
+		details: rowDetailReader{
+			op: pagesDetailOp, what: "thing(s)", notFound: []string{"ResourceNotFoundException"},
+			get: func(_ context.Context, r *store.Resource) (any, error) {
+				if err := errs[r.NativeID]; err != nil {
+					return nil, err
+				}
+				return map[string]string{"body": r.NativeID}, nil
+			},
+		},
+		stored: func(rows []*store.Resource) { *stored = append(*stored, resourceNativeIDs(rows)) },
+	}
+}
+
+// Each page's rows get their detail body before their tags are read: a row
+// the detail read no longer finds is dropped (its tags not read, not handed
+// to stored); any other failure keeps the listed row, a denial warned about
+// once for the listing under the detail op, a transient and a hard error
+// each returned under it. stored gets each page's rows as written.
+func TestStoreTokenPagesTagsWith_Details(t *testing.T) {
+	st := newTestStore(t)
+	all := countWarnings(st)
+	detailWarns := countOpWarnings(st, pagesDetailOp)
+	var (
+		stored  [][]string
+		tagRead []string
+		mu      sync.Mutex
+	)
+	tags := pagesTestTags(nil)
+	read := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		mu.Lock()
+		tagRead = append(tagRead, r.NativeID)
+		mu.Unlock()
+		return read(ctx, r)
+	}
+	steps := pagesDetailSteps(map[string]error{"1-b": tagTestDenied, "2-a": tagTestNotFound, "2-b": tagTestThrottle, "3-a": tagTestDenied, "3-b": tagTestInvalid}, &stored)
+	var p phaseTotals
+	acct := newTestAccount(testAccountID)
+	stop := storeTokenPagesTagsWith(context.Background(), st, acct, testRegion, tagTestListOp, (&tokenPagesTest{}).page(st), tagTestRow, steps, tags, &p)
+	if stop {
+		t.Fatal("stop = true; want false")
+	}
+	if want := [][]string{{"1-a", "1-b"}, {"2-b"}, {"3-a", "3-b"}}; !slices.EqualFunc(stored, want, slices.Equal) {
+		t.Errorf("stored = %v; want %v", stored, want)
+	}
+	if slices.Contains(tagRead, "2-a") {
+		t.Errorf("tags read for %v; want none for the dropped 2-a", tagRead)
+	}
+	rows := rowsByNativeIDNoFail(st)
+	if len(rows) != 5 || rows["2-a"] != nil {
+		t.Fatalf("rows = %v; want all but 2-a", slices.Sorted(maps.Keys(rows)))
+	}
+	if got := rows["1-a"].AttributesJSON; got != `{"body":"1-a"}` {
+		t.Errorf("1-a attributes = %s; want its body", got)
+	}
+	if got := rows["1-b"].AttributesJSON; got != "" {
+		t.Errorf("1-b attributes = %s; want the listed row's (none)", got)
+	}
+	assertTagsMap(t, rows["1-b"].TagsJSON, map[string]string{"k": "v"})
+	var detailErrs []error
+	for _, f := range p.errs {
+		if f.op == pagesDetailOp {
+			detailErrs = append(detailErrs, f.err)
+		}
+	}
+	if len(detailErrs) != 2 || !isAPIErrorCode(detailErrs[0], "ValidationException") || !isTransientNetworkError(detailErrs[1]) {
+		t.Errorf("%s errors = %v; want the ValidationException, then the throttle", pagesDetailOp, detailErrs)
+	}
+	if *detailWarns != 1 || *all != 1 {
+		t.Errorf("%s warnings = %d (all %d); want 1", pagesDetailOp, *detailWarns, *all)
+	}
+}
+
+// After a failed write the detail reads' errors are joined into the write's
+// error, nothing is warned about, and stored is not called.
+func TestStoreTokenPagesTagsWith_DetailsFailedWrite(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	refuseStoreWrites(t, st, TypeNetworkFirewallProxy)
+	var (
+		stored [][]string
+		p      phaseTotals
+	)
+	steps := pagesDetailSteps(map[string]error{"1-a": tagTestInvalid, "1-b": tagTestDenied}, &stored)
+	acct := newTestAccount(testAccountID)
+	stop := storeTokenPagesTagsWith(context.Background(), st, acct, testRegion, tagTestListOp, (&tokenPagesTest{}).page(st), tagTestRow, steps, pagesTestTags(nil), &p)
+	_, _, err := p.result(st, acct, testRegion)
+	if !stop || !errors.Is(err, store.ErrStoreWrite) || !errors.Is(err, tagTestInvalid) {
+		t.Fatalf("stop, err = %v, %v; want true, store.ErrStoreWrite joined with the detail read's error", stop, err)
+	}
+	if *warns != 0 || stored != nil {
+		t.Errorf("warnings = %d, stored = %v; want 0, none", *warns, stored)
+	}
+}
+
 // A row the tag read no longer finds is neither stored nor returned as a
 // parent; a stored row without the child key is warned about and returned as
 // no parent.

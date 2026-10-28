@@ -1,12 +1,14 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambdacore"
@@ -58,7 +60,8 @@ func init() {
 // lambdaAPI is the narrow set of Lambda ops called by scanLambda's
 // sub-phases: functions, their aliases / versions / URLs / event-invoke
 // configs / provisioned concurrency, plus event-source mappings, code-signing
-// configs, capacity providers, layers, and layer-versions.
+// configs, capacity providers, layers, layer-versions, and the tags of the
+// types ListTags takes.
 type lambdaAPI interface {
 	ListProvisionedConcurrencyConfigs(context.Context, *lambda.ListProvisionedConcurrencyConfigsInput, ...func(*lambda.Options)) (*lambda.ListProvisionedConcurrencyConfigsOutput, error)
 	ListFunctions(context.Context, *lambda.ListFunctionsInput, ...func(*lambda.Options)) (*lambda.ListFunctionsOutput, error)
@@ -75,7 +78,32 @@ type lambdaAPI interface {
 	GetLayerVersionByArn(context.Context, *lambda.GetLayerVersionByArnInput, ...func(*lambda.Options)) (*lambda.GetLayerVersionByArnOutput, error)
 	GetPolicy(context.Context, *lambda.GetPolicyInput, ...func(*lambda.Options)) (*lambda.GetPolicyOutput, error)
 	GetLayerVersionPolicy(context.Context, *lambda.GetLayerVersionPolicyInput, ...func(*lambda.Options)) (*lambda.GetLayerVersionPolicyOutput, error)
+	ListTags(context.Context, *lambda.ListTagsInput, ...func(*lambda.Options)) (*lambda.ListTagsOutput, error)
 }
+
+const (
+	lambdaListFunctionsOp          = "lambda:ListFunctions"
+	lambdaGetFunctionOp            = "lambda:GetFunction"
+	lambdaListCodeSigningConfigsOp = "lambda:ListCodeSigningConfigs"
+	lambdaListCapacityProvidersOp  = "lambda:ListCapacityProviders"
+	lambdaListESMsOp               = "lambda:ListEventSourceMappings"
+	lambdaListTagsOp               = "lambda:ListTags"
+)
+
+// Page caps of the account-wide listings. ListFunctions and
+// ListEventSourceMappings document returning at most 50 and 100 items a
+// page whatever is asked; the others are the MaxItems range maximum of
+// their model.
+const (
+	lambdaFunctionsPageCap          int32 = 50
+	lambdaCodeSigningConfigsPageCap int32 = 10000
+	lambdaCapacityProvidersPageCap  int32 = 50
+	lambdaESMsPageCap               int32 = 100
+)
+
+// lambdaNotFound is the not-found code ListTags (of both the Lambda and the
+// Lambda MicroVMs clients) and GetFunction model.
+var lambdaNotFound = []string{"ResourceNotFoundException"}
 
 // lambdaFunctionSummary holds minimal per-function data reused by the
 // per-function sub-scanners (aliases, versions, event invoke configs, URLs).
@@ -84,135 +112,208 @@ type lambdaFunctionSummary struct {
 	arn  string // FunctionArn (unqualified)
 }
 
-// scanLambda is the dispatcher. It scans functions first to collect names for
-// per-function sub-scanners, then scans account-level resources.
-func scanLambda(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := lambda.NewFromConfig(acct.cfg, func(o *lambda.Options) { o.Region = region })
-
-	// Scan functions; collect summaries for per-function sub-scanners.
-	fns, tt, nn, err := scanLambdaFunctions(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return 0, 0, err
-	}
-	total += tt
-	inserted += nn
-
-	pcCandidates, tt, nn, err := scanLambdaVersions(ctx, client, acct, fns, region, st, scanID)
-	if err != nil {
-		return total, inserted, err
-	}
-	total += tt
-	inserted += nn
-
-	// Per-function resources. Most functions have none of these; the paginator
-	// returns immediately, so the overhead per function is minimal.
-	type perFnScanner func(context.Context, lambdaAPI, *account, []lambdaFunctionSummary, string, *store.Store, string) (int, int, error)
-	for _, scan := range []perFnScanner{
-		scanLambdaAliases,
-		scanLambdaEventInvokeConfigs,
-		scanLambdaFunctionURLs,
-		scanLambdaPermissions,
-	} {
-		tt, nn, err := scan(ctx, client, acct, fns, region, st, scanID)
-		if err != nil {
-			return total, inserted, err
-		}
-		total += tt
-		inserted += nn
-	}
-
-	// Account-level resources (not per-function).
-	for _, scan := range []func(context.Context, lambdaAPI, *account, string, *store.Store, string) (int, int, error){
-		scanLambdaCodeSigningConfigs,
-		scanLambdaCapacityProviders,
-		scanLambdaEventSourceMappings,
-		scanLambdaLayerVersions,
-		scanLambdaLayerVersionPermissions,
-		scanLambdaForeignLayers,
-	} {
-		tt, nn, err := scan(ctx, client, acct, region, st, scanID)
-		if err != nil {
-			return total, inserted, err
-		}
-		total += tt
-		inserted += nn
-	}
-
-	// The newest phases run last so that an error in one leaves the rows the
-	// established phases above already stored.
-	core := lambdacore.NewFromConfig(acct.cfg, func(o *lambdacore.Options) { o.Region = region })
-	microvms := lambdamicrovms.NewFromConfig(acct.cfg, func(o *lambdamicrovms.Options) { o.Region = region })
-	for _, scan := range []func() (int, int, error){
-		func() (int, int, error) {
-			return scanLambdaProvisionedConcurrencyConfigs(ctx, client, acct, pcCandidates, region, st, scanID)
+// lambdaTags reads a row's tags with ListTags, sent the row's NativeID, the
+// ARN its listing returned; the op does not page. The Service Reference
+// lists function, code signing config, event source mapping, capacity
+// provider and network connector as the Lambda resources ListTags takes,
+// and the op's Resource pattern accepts each of their ARNs. Versions and
+// aliases are not read: the op's documentation says Lambda does not support
+// tags on them, so they carry none of their own to store.
+func lambdaTags(client lambdaAPI) rowTagReader {
+	return rowTagReader{
+		op:       lambdaListTagsOp,
+		notFound: lambdaNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTags(ctx, &lambda.ListTagsInput{Resource: &arn})
+			if err != nil {
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
 		},
-		func() (int, int, error) { return scanLambdaNetworkConnectors(ctx, core, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLambdaMicrovmFamily(ctx, microvms, acct, region, st, scanID) },
-	} {
-		tt, nn, err := scan()
-		total += tt
-		inserted += nn
-		if err != nil {
-			return total, inserted, err
-		}
 	}
-	return total, inserted, nil
 }
 
-// scanLambdaFunctions discovers Lambda functions in one region and returns a
-// summary list for use by per-function sub-scanners.
-func scanLambdaFunctions(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (fns []lambdaFunctionSummary, total, inserted int, err error) {
-	pager := lambda.NewListFunctionsPaginator(client, &lambda.ListFunctionsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "lambda:ListFunctions", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("lambda:ListFunctions: %w", err)
-		}
-		var batch []*store.Resource
-		for _, fn := range page.Functions {
-			name := sv(fn.FunctionName)
-			fns = append(fns, lambdaFunctionSummary{name: name, arn: sv(fn.FunctionArn)})
-			// For image-package functions, fan out to GetFunction once to
-			// recover Code.ImageURI (not present in ListFunctions). ImageURI
-			// is the only edge-bearing field on Code — image → ECR
-			// repository edges are emitted by resolveLambdaRelationships.
-			attrs := lambdaFunctionAttrs{FunctionConfiguration: fn}
-			if fn.PackageType == lambdatypes.PackageTypeImage {
-				if out, gerr := client.GetFunction(ctx, &lambda.GetFunctionInput{FunctionName: &name}); gerr == nil {
-					if out.Code != nil && sv(out.Code.ImageUri) != "" {
-						uri := sv(out.Code.ImageUri)
-						attrs.Code = &lambdaFunctionCodeAttrs{ImageURI: &uri}
-					}
-				} else if !isAccessDenied(gerr) && !isAPIErrorCode(gerr, "ResourceNotFoundException") {
-					return nil, 0, 0, fmt.Errorf("lambda:GetFunction (%s): %w", name, gerr)
-				}
-			}
-			// Tags are not included in ListFunctions; fetch separately if needed.
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeLambdaFunction,
-				NativeID:       sv(fn.FunctionArn),
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(attrs),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return nil, 0, 0, fmt.Errorf("upsert Lambda functions: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
+// scanLambda runs every Lambda listing as its own phase, one at a time
+// (runHostPhases), in the order below: a child phase gets the parents its
+// parent phase stored, and a phase's error does not stop the later ones; a
+// failed write and ctx's end do. Lambda Core and Lambda MicroVMs are served
+// on the same lambda endpoint, so every phase is on one host. The tags of
+// the types ListTags takes are read with their listing (lambdaTags,
+// lambdaMicrovmTags); both clients' ListTags is the one IAM action
+// lambda:ListTags, so every tag denial of the scan is one warning.
+func scanLambda(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	client := lambda.NewFromConfig(acct.cfg, func(o *lambda.Options) { o.Region = region })
+	core := lambdacore.NewFromConfig(acct.cfg, func(o *lambdacore.Options) { o.Region = region })
+	microvms := lambdamicrovms.NewFromConfig(acct.cfg, func(o *lambdamicrovms.Options) { o.Region = region })
+	tags := lambdaTags(client).sharingDenials()
+	imageTags := lambdaMicrovmTags(microvms)
+	imageTags.denials = tags.denials
+
+	var (
+		fns, pcCandidates []lambdaFunctionSummary
+		images            []childParent
+	)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "lambda", 0, []hostPhase{
+		{op: lambdaListFunctionsOp, run: func(p *phaseTotals) (failed bool) {
+			fns, failed = scanLambdaFunctions(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		countedPhase(0, "lambda:ListVersionsByFunction", func() (t, n int, err error) {
+			pcCandidates, t, n, err = scanLambdaVersions(ctx, client, acct, fns, region, st, scanID)
+			return t, n, err
+		}),
+		countedPhase(0, "lambda:ListAliases", func() (int, int, error) {
+			return scanLambdaAliases(ctx, client, acct, fns, region, st, scanID)
+		}),
+		countedPhase(0, "lambda:ListFunctionEventInvokeConfigs", func() (int, int, error) {
+			return scanLambdaEventInvokeConfigs(ctx, client, acct, fns, region, st, scanID)
+		}),
+		countedPhase(0, "lambda:ListFunctionUrlConfigs", func() (int, int, error) {
+			return scanLambdaFunctionURLs(ctx, client, acct, fns, region, st, scanID)
+		}),
+		countedPhase(0, "lambda:GetPolicy", func() (int, int, error) {
+			return scanLambdaPermissions(ctx, client, acct, fns, region, st, scanID)
+		}),
+		{op: lambdaListCodeSigningConfigsOp, run: func(p *phaseTotals) bool {
+			return scanLambdaCodeSigningConfigs(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: lambdaListCapacityProvidersOp, run: func(p *phaseTotals) bool {
+			return scanLambdaCapacityProviders(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: lambdaListESMsOp, run: func(p *phaseTotals) bool {
+			return scanLambdaEventSourceMappings(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, "lambda:ListLayerVersions", func() (int, int, error) {
+			return scanLambdaLayerVersions(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "lambda:GetLayerVersionPolicy", func() (int, int, error) {
+			return scanLambdaLayerVersionPermissions(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "lambda:GetLayerVersionByArn", func() (int, int, error) {
+			return scanLambdaForeignLayers(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "lambda:ListProvisionedConcurrencyConfigs", func() (int, int, error) {
+			return scanLambdaProvisionedConcurrencyConfigs(ctx, client, acct, pcCandidates, region, st, scanID)
+		}),
+		{op: lambdaListNetworkConnectorsOp, run: func(p *phaseTotals) bool {
+			return scanLambdaNetworkConnectors(ctx, core, acct, region, st, scanID, tags, p)
+		}},
+		{op: lambdaListMicrovmImagesOp, run: func(p *phaseTotals) (failed bool) {
+			images, failed = scanLambdaMicrovmImages(ctx, microvms, acct, region, st, scanID, imageTags, p)
+			return failed
+		}},
+		countedPhase(0, "lambda:ListMicrovmImageVersions", func() (int, int, error) {
+			return scanLambdaMicrovmImageVersions(ctx, microvms, acct, region, st, scanID, images)
+		}),
+		countedPhase(0, "lambda:ListMicrovms", func() (int, int, error) {
+			return scanLambdaMicrovms(ctx, microvms, acct, region, st, scanID)
+		}),
+		countedPhase(0, "lambda:ListManagedMicrovmImages", func() (int, int, error) {
+			return scanLambdaManagedMicrovmImages(ctx, microvms, acct, region, st, scanID)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
+}
+
+// lambdaRow is the row of a listed element keyed by its ARN. An element
+// without an ARN is not stored; what names the elements in the warning and
+// key names the element.
+func lambdaRow(acct *account, region, scanID, typ, what, arn, key string, name, status *string, item any) (*store.Resource, string, string) {
+	if arn == "" {
+		return nil, what + " have no ARN", cmp.Or(key, "(an element with no identifier)")
 	}
-	return fns, total, inserted, nil
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: arn, Name: name, Region: &region, Status: status,
+		AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}, "", ""
+}
+
+// scanLambdaFunctions stores the region's functions a page at a time with
+// their tags (storeTokenPagesTagsWith) and returns the stored ones for the
+// per-function phases. GetFunction is read for every function: its Tags are
+// the function's tags, and for an image-package function its Code.ImageUri,
+// which ListFunctions omits, is stored beside the listed element
+// (lambdaFunctionAttrs). Nothing else of the GetFunction body is stored:
+// Code.Location is a presigned URL carrying a signature. A function
+// GetFunction no longer finds was deleted since the listing and is dropped;
+// any other GetFunction failure, or a TagsError in its body, keeps the listed
+// element and reads its tags with ListTags.
+//
+// Tags come from GetFunction rather than ListTags for speed: the AWS Lambda
+// quotas page counts ListTags in the 15 requests a second of "control plane
+// API requests", which it says "excludes GetFunction" (GetFunction has a
+// quota of its own). Unverified live.
+func scanLambdaFunctions(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (fns []lambdaFunctionSummary, storeWriteFailed bool) {
+	// The page's listed elements, for its GetFunction calls, and the tags
+	// those calls returned. The row builder fills the map and the reads only
+	// look entries up, each writing only its own entry; it is emptied before
+	// the next page is fetched, which follows that page's write, so one page
+	// is held.
+	listed := map[*store.Resource]*lambdaListedFunction{}
+	fnTags := tags
+	fnTags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		if l := listed[r]; l.tagged {
+			return l.tags, nil
+		}
+		return tags.read(ctx, r)
+	}
+	steps := tokenPageSteps{
+		details: rowDetailReader{
+			op: lambdaGetFunctionOp, what: "function(s)", notFound: lambdaNotFound,
+			get: func(ctx context.Context, r *store.Resource) (any, error) {
+				l := listed[r]
+				out, err := client.GetFunction(ctx, &lambda.GetFunctionInput{FunctionName: l.fn.FunctionArn})
+				if err != nil {
+					return nil, err
+				}
+				if out.TagsError == nil {
+					l.tags, l.tagged = mapTagsJSON(out.Tags), true
+				}
+				if l.fn.PackageType != lambdatypes.PackageTypeImage {
+					return nil, nil
+				}
+				attrs := lambdaFunctionAttrs{FunctionConfiguration: l.fn}
+				if out.Code != nil && sv(out.Code.ImageUri) != "" {
+					attrs.Code = &lambdaFunctionCodeAttrs{ImageURI: out.Code.ImageUri}
+				}
+				return attrs, nil
+			},
+		},
+		stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				fns = append(fns, lambdaFunctionSummary{name: sv(r.Name), arn: r.NativeID})
+			}
+		},
+	}
+	failed := storeTokenPagesTagsWith(ctx, st, acct, region, lambdaListFunctionsOp,
+		func(ctx context.Context, token *string) ([]lambdatypes.FunctionConfiguration, *string, error) {
+			clear(listed)
+			out, err := client.ListFunctions(ctx, &lambda.ListFunctionsInput{Marker: token, MaxItems: sdkaws.Int32(lambdaFunctionsPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Functions, out.NextMarker, nil
+		},
+		func(fn lambdatypes.FunctionConfiguration) (*store.Resource, string, string) {
+			name := sv(fn.FunctionName)
+			r, why, key := lambdaRow(acct, region, scanID, TypeLambdaFunction, "functions", sv(fn.FunctionArn), name, &name, nil, lambdaFunctionAttrs{FunctionConfiguration: fn})
+			if r != nil {
+				listed[r] = &lambdaListedFunction{fn: fn}
+			}
+			return r, why, key
+		}, steps, fnTags, p)
+	return fns, failed
+}
+
+// lambdaListedFunction is a listed function and, once GetFunction returned
+// them (tagged), its tags.
+type lambdaListedFunction struct {
+	fn     lambdatypes.FunctionConfiguration
+	tags   *string
+	tagged bool
 }
 
 // scanLambdaAliases discovers all aliases for each function and upserts them as
@@ -265,7 +366,7 @@ func scanLambdaAliases(ctx context.Context, client lambdaAPI, acct *account, fns
 // a published version (or an alias of one), so the provisioned concurrency
 // phase skips every function this rules out instead of calling once per function.
 func scanLambdaVersions(ctx context.Context, client lambdaAPI, acct *account, fns []lambdaFunctionSummary, region string, st *store.Store, scanID string) (pcCandidates []lambdaFunctionSummary, total, inserted int, err error) {
-	for _, fn := range fns {
+	for i, fn := range fns {
 		mayCarryPC := false
 		pager := lambda.NewListVersionsByFunctionPaginator(client, &lambda.ListVersionsByFunctionInput{FunctionName: &fn.name})
 		for pager.HasMorePages() {
@@ -279,7 +380,7 @@ func scanLambdaVersions(ctx context.Context, client lambdaAPI, acct *account, fn
 				if isAPIErrorCode(err, "ResourceNotFoundException") {
 					break
 				}
-				return nil, total, inserted, fmt.Errorf("lambda:ListVersionsByFunction (%s): %w", fn.name, err)
+				return append(pcCandidates, fns[i:]...), total, inserted, fmt.Errorf("lambda:ListVersionsByFunction (%s): %w", fn.name, err)
 			}
 			var batch []*store.Resource
 			for _, v := range page.Versions {
@@ -401,131 +502,57 @@ func scanLambdaFunctionURLs(ctx context.Context, client lambdaAPI, acct *account
 	return
 }
 
-// scanLambdaCodeSigningConfigs discovers all code signing configurations in the
-// region and upserts them as aws:lambda:code-signing-config resources.
-func scanLambdaCodeSigningConfigs(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := lambda.NewListCodeSigningConfigsPaginator(client, &lambda.ListCodeSigningConfigsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lambda:ListCodeSigningConfigs", acct.ID, region, err)
+// scanLambdaCodeSigningConfigs stores the region's code signing configs a
+// page at a time with their tags.
+func scanLambdaCodeSigningConfigs(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenPagesTags(ctx, st, acct, region, lambdaListCodeSigningConfigsOp,
+		func(ctx context.Context, token *string) ([]lambdatypes.CodeSigningConfig, *string, error) {
+			out, err := client.ListCodeSigningConfigs(ctx, &lambda.ListCodeSigningConfigsInput{Marker: token, MaxItems: sdkaws.Int32(lambdaCodeSigningConfigsPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return total, inserted, fmt.Errorf("lambda:ListCodeSigningConfigs: %w", err)
-		}
-		var batch []*store.Resource
-		for _, c := range page.CodeSigningConfigs {
+			return out.CodeSigningConfigs, out.NextMarker, nil
+		},
+		func(c lambdatypes.CodeSigningConfig) (*store.Resource, string, string) {
 			name := sv(c.CodeSigningConfigId)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeLambdaCodeSigningConfig,
-				NativeID:       sv(c.CodeSigningConfigArn),
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(c),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert Lambda code signing configs: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
+			return lambdaRow(acct, region, scanID, TypeLambdaCodeSigningConfig, "code signing configs", sv(c.CodeSigningConfigArn), name, &name, nil, c)
+		}, tags, p)
 }
 
-// scanLambdaCapacityProviders discovers all Lambda capacity providers in the
-// region and upserts them as aws:lambda:capacity-provider resources.
-func scanLambdaCapacityProviders(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := lambda.NewListCapacityProvidersPaginator(client, &lambda.ListCapacityProvidersInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			// Per-region feature gap: gateway-level "Unable to determine
-			// service/operation name to be authorized" means the op is not
-			// recognised by the regional endpoint. Silent-skip.
-			if isServiceNotAvailableInRegion(err) {
-				return 0, 0, nil
-			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lambda:ListCapacityProviders", acct.ID, region, err)
-			}
-			return total, inserted, fmt.Errorf("lambda:ListCapacityProviders: %w", err)
-		}
-		var batch []*store.Resource
-		for _, p := range page.CapacityProviders {
-			arn := sv(p.CapacityProviderArn)
-			status := string(p.State)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeLambdaCapacityProvider,
-				NativeID:       arn,
-				Name:           &arn,
-				Region:         &region,
-				Status:         &status,
-				AttributesJSON: mustJSON(p),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+// scanLambdaCapacityProviders stores the region's capacity providers a page
+// at a time with their tags. A region whose endpoint does not route the op
+// answers the first page with "Unable to determine service/operation name",
+// read as an empty listing (firstPageGapPages).
+func scanLambdaCapacityProviders(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenPagesTags(ctx, st, acct, region, lambdaListCapacityProvidersOp,
+		firstPageGapPages(isServiceNotAvailableInRegion, func(ctx context.Context, token *string) ([]lambdatypes.CapacityProvider, *string, error) {
+			out, err := client.ListCapacityProviders(ctx, &lambda.ListCapacityProvidersInput{Marker: token, MaxItems: sdkaws.Int32(lambdaCapacityProvidersPageCap)})
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert Lambda capacity providers: %w", err)
+				return nil, nil, err
 			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
+			return out.CapacityProviders, out.NextMarker, nil
+		}),
+		func(c lambdatypes.CapacityProvider) (*store.Resource, string, string) {
+			arn, status := sv(c.CapacityProviderArn), string(c.State)
+			return lambdaRow(acct, region, scanID, TypeLambdaCapacityProvider, "capacity providers", arn, arn, &arn, &status, c)
+		}, tags, p)
 }
 
-// scanLambdaEventSourceMappings discovers all event source mappings in the
-// region and upserts them as aws:lambda:event-source-mapping resources.
-func scanLambdaEventSourceMappings(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := lambda.NewListEventSourceMappingsPaginator(client, &lambda.ListEventSourceMappingsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lambda:ListEventSourceMappings", acct.ID, region, err)
-			}
-			return total, inserted, fmt.Errorf("lambda:ListEventSourceMappings: %w", err)
-		}
-		var batch []*store.Resource
-		for _, m := range page.EventSourceMappings {
-			name := sv(m.UUID)
-			status := sv(m.State)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeLambdaESM,
-				NativeID:       sv(m.EventSourceMappingArn),
-				Name:           &name,
-				Region:         &region,
-				Status:         &status,
-				AttributesJSON: mustJSON(m),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+// scanLambdaEventSourceMappings stores the region's event source mappings a
+// page at a time with their tags.
+func scanLambdaEventSourceMappings(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenPagesTags(ctx, st, acct, region, lambdaListESMsOp,
+		func(ctx context.Context, token *string) ([]lambdatypes.EventSourceMappingConfiguration, *string, error) {
+			out, err := client.ListEventSourceMappings(ctx, &lambda.ListEventSourceMappingsInput{Marker: token, MaxItems: sdkaws.Int32(lambdaESMsPageCap)})
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert Lambda event source mappings: %w", err)
+				return nil, nil, err
 			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
+			return out.EventSourceMappings, out.NextMarker, nil
+		},
+		func(m lambdatypes.EventSourceMappingConfiguration) (*store.Resource, string, string) {
+			name, status := sv(m.UUID), sv(m.State)
+			return lambdaRow(acct, region, scanID, TypeLambdaESM, "event source mappings", sv(m.EventSourceMappingArn), name, &name, &status, m)
+		}, tags, p)
 }
 
 // scanLambdaLayerVersions discovers all Lambda layer versions in the region and

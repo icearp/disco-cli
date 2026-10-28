@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -37,6 +38,15 @@ type stubLambdaNew struct {
 	versions   map[string][][]lambdamicrovmstypes.MicrovmImageVersionSummary
 	microvms   [][]lambdamicrovmstypes.MicrovmItem
 	managed    [][]lambdamicrovmstypes.ManagedMicrovmImageSummary
+	// tagErrs fails ListTags for an ARN; any other ARN has no tags.
+	tagErrs map[string]error
+}
+
+func (s *stubLambdaNew) ListTags(_ context.Context, in *lambdamicrovms.ListTagsInput, _ ...func(*lambdamicrovms.Options)) (*lambdamicrovms.ListTagsOutput, error) {
+	if err := s.tagErrs[sv(in.Resource)]; err != nil {
+		return nil, err
+	}
+	return &lambdamicrovms.ListTagsOutput{}, nil
 }
 
 // lambdaServe records the call to key and pages through pages via stubPage,
@@ -143,6 +153,17 @@ type lmvListCase struct {
 	wantManaged   bool
 	attrKey       string // an attribute the fixture sets on a
 	attrWant      string
+	// idLessWarns is the warnings the id-less item on the first page sends:
+	// 1 for the listings stored with their tags, which warn about it.
+	idLessWarns int
+}
+
+// lmvTaggedPhase runs a tagged phase and returns its counts and joined
+// errors.
+func lmvTaggedPhase(st *store.Store, run func(p *phaseTotals) bool) (int, int, error) {
+	var p phaseTotals
+	run(&p)
+	return p.result(st, newTestAccount(testAccountID), testRegion)
 }
 
 func lmvListCases() []lmvListCase {
@@ -161,10 +182,13 @@ func lmvListCases() []lmvListCase {
 				s.connectors = [][]lambdacoretypes.NetworkConnectorSummary{{nc("a"), nc("b"), {Id: sdkaws.String("x")}}, {nc("c")}}
 			},
 			run: func(ctx context.Context, s *stubLambdaNew, st *store.Store) (int, int, error) {
-				return scanLambdaNetworkConnectors(ctx, s, newTestAccount(testAccountID), testRegion, st, testScanID)
+				return lmvTaggedPhase(st, func(p *phaseTotals) bool {
+					return scanLambdaNetworkConnectors(ctx, s, newTestAccount(testAccountID), testRegion, st, testScanID, lambdaTags(&stubLambdaPerFn{}), p)
+				})
 			},
-			wantIDs:  []string{lmvARN("network-connector", "a"), lmvARN("network-connector", "b"), lmvARN("network-connector", "c")},
-			wantName: "n-a", wantStatus: "ACTIVE", attrKey: "Id", attrWant: "a",
+			idLessWarns: 1,
+			wantIDs:     []string{lmvARN("network-connector", "a"), lmvARN("network-connector", "b"), lmvARN("network-connector", "c")},
+			wantName:    "n-a", wantStatus: "ACTIVE", attrKey: "Id", attrWant: "a",
 		},
 		{
 			name: "microvm images", op: "ListMicrovmImages", typ: TypeLambdaMicrovmImage,
@@ -172,11 +196,14 @@ func lmvListCases() []lmvListCase {
 				s.images = [][]lambdamicrovmstypes.MicrovmImageSummary{{lmvImage("a"), lmvImage("b"), {Name: sdkaws.String("x")}}, {lmvImage("c")}}
 			},
 			run: func(ctx context.Context, s *stubLambdaNew, st *store.Store) (int, int, error) {
-				_, t, n, err := scanLambdaMicrovmImages(ctx, s, newTestAccount(testAccountID), testRegion, st, testScanID)
-				return t, n, err
+				return lmvTaggedPhase(st, func(p *phaseTotals) bool {
+					_, failed := scanLambdaMicrovmImages(ctx, s, newTestAccount(testAccountID), testRegion, st, testScanID, lambdaMicrovmTags(s), p)
+					return failed
+				})
 			},
-			wantIDs:  []string{lmvARN("microvm-image", "a"), lmvARN("microvm-image", "b"), lmvARN("microvm-image", "c")},
-			wantName: "a", wantStatus: "CREATED", wantCreated: true, attrKey: "ImageArn", attrWant: lmvARN("microvm-image", "a"),
+			idLessWarns: 1,
+			wantIDs:     []string{lmvARN("microvm-image", "a"), lmvARN("microvm-image", "b"), lmvARN("microvm-image", "c")},
+			wantName:    "a", wantStatus: "CREATED", wantCreated: true, attrKey: "ImageArn", attrWant: lmvARN("microvm-image", "a"),
 		},
 		{
 			name: "microvms", op: "ListMicrovms", typ: TypeLambdaMicrovm,
@@ -207,6 +234,7 @@ func TestLambdaNewListScanners_PagesAndFields(t *testing.T) {
 	for _, tc := range lmvListCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
+			warnings := countWarnings(st)
 			stub := &stubLambdaNew{}
 			tc.fill(stub)
 
@@ -216,6 +244,9 @@ func TestLambdaNewListScanners_PagesAndFields(t *testing.T) {
 			}
 			if total != 3 {
 				t.Errorf("total=%d, want 3 (two pages, id-less item skipped)", total)
+			}
+			if *warnings != tc.idLessWarns {
+				t.Errorf("warnings=%d, want %d (the id-less item)", *warnings, tc.idLessWarns)
 			}
 			rows := lmvRows(t, st, tc.typ)
 			if len(rows) != 3 {
@@ -303,8 +334,12 @@ func TestLambdaNewListScanners_ErrorHandling(t *testing.T) {
 				if err != nil {
 					t.Fatalf("err=%v, want nil", err)
 				}
-				if warnings != ec.wantWarnings {
-					t.Errorf("warnings=%d, want %d", warnings, ec.wantWarnings)
+				want := ec.wantWarnings
+				if ec.fail.page > 0 {
+					want += tc.idLessWarns
+				}
+				if warnings != want {
+					t.Errorf("warnings=%d, want %d", warnings, want)
 				}
 				if rows := lmvRows(t, st, tc.typ); len(rows) != ec.wantRows {
 					t.Errorf("stored %d rows, want %d", len(rows), ec.wantRows)
@@ -314,14 +349,21 @@ func TestLambdaNewListScanners_ErrorHandling(t *testing.T) {
 	}
 }
 
+// The parents are the images stored: not the id-less one, nor one the tag
+// read no longer finds.
 func TestScanLambdaMicrovmImages_ReturnsStoredImagesAsParents(t *testing.T) {
-	stub := &stubLambdaNew{images: [][]lambdamicrovmstypes.MicrovmImageSummary{{lmvImage("a"), {Name: sdkaws.String("x")}}, {lmvImage("c")}}}
-	parents, _, _, err := scanLambdaMicrovmImages(context.Background(), stub, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID)
-	if err != nil {
-		t.Fatalf("scan: %v", err)
+	stub := &stubLambdaNew{
+		images:  [][]lambdamicrovmstypes.MicrovmImageSummary{{lmvImage("a"), {Name: sdkaws.String("x")}, lmvImage("gone")}, {lmvImage("c")}},
+		tagErrs: map[string]error{lmvARN("microvm-image", "gone"): apiErr("ResourceNotFoundException", "gone")},
+	}
+	st := newTestStore(t)
+	var p phaseTotals
+	parents, failed := scanLambdaMicrovmImages(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, lambdaMicrovmTags(stub), &p)
+	if _, _, err := p.result(st, newTestAccount(testAccountID), testRegion); failed || err != nil {
+		t.Fatalf("scan: failed %v, err %v", failed, err)
 	}
 	want := []childParent{{id: lmvARN("microvm-image", "a"), arn: lmvARN("microvm-image", "a")}, {id: lmvARN("microvm-image", "c"), arn: lmvARN("microvm-image", "c")}}
-	if len(parents) != len(want) || parents[0] != want[0] || parents[1] != want[1] {
+	if !slices.Equal(parents, want) {
 		t.Errorf("parents=%v, want %v", parents, want)
 	}
 }
@@ -450,49 +492,6 @@ func TestScanLambdaMicrovmImageVersions_PerImageErrors(t *testing.T) {
 			}
 			if len(stub.calls) < len(parents) {
 				t.Errorf("calls=%v, want every image tried", stub.calls)
-			}
-		})
-	}
-}
-
-// Image versions are listed for the images the image phase just stored, and a
-// failing phase keeps the rows of the phases before it.
-func TestScanLambdaMicrovmFamily_WiresImagesIntoVersions(t *testing.T) {
-	for _, tc := range []struct {
-		name         string
-		failOp       string
-		wantVersions int
-		wantMicrovms int
-		wantErr      bool
-	}{
-		{name: "all succeed", wantVersions: 1, wantMicrovms: 1},
-		{name: "microvms fail", failOp: "ListMicrovms", wantVersions: 1, wantErr: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			st := newTestStore(t)
-			imageARN := lmvARN("microvm-image", "a")
-			stub := &stubLambdaNew{
-				images:   [][]lambdamicrovmstypes.MicrovmImageSummary{{lmvImage("a")}},
-				versions: map[string][][]lambdamicrovmstypes.MicrovmImageVersionSummary{imageARN: {{lmvVersion("a", "1")}}},
-				microvms: [][]lambdamicrovmstypes.MicrovmItem{{lmvMicrovm("vm-1")}},
-				managed:  [][]lambdamicrovmstypes.ManagedMicrovmImageSummary{{lmvManaged("base")}},
-			}
-			if tc.failOp != "" {
-				stub.fail = map[string]lambdaStubFail{tc.failOp: {err: apiErr("ValidationException", "bad")}}
-			}
-
-			_, _, err := scanLambdaMicrovmFamily(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
-			if tc.wantErr != isAPIErrorCode(err, "ValidationException") {
-				t.Fatalf("err=%v, wantErr=%t", err, tc.wantErr)
-			}
-			if _, ok := lmvRows(t, st, TypeLambdaMicrovmImage)[imageARN]; !ok {
-				t.Error("image row not stored")
-			}
-			if got := len(lmvRows(t, st, TypeLambdaMicrovmImageVersion)); got != tc.wantVersions {
-				t.Errorf("versions=%d, want %d", got, tc.wantVersions)
-			}
-			if got := len(lmvRows(t, st, TypeLambdaMicrovm)); got != tc.wantMicrovms {
-				t.Errorf("microvms=%d, want %d", got, tc.wantMicrovms)
 			}
 		})
 	}

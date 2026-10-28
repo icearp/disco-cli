@@ -53,6 +53,11 @@ func (s *stubLambdaPerFn) ListProvisionedConcurrencyConfigs(_ context.Context, i
 	return &lambda.ListProvisionedConcurrencyConfigsOutput{ProvisionedConcurrencyConfigs: items, NextMarker: next}, nil
 }
 
+// ListTags answers every resource with no tags.
+func (s *stubLambdaPerFn) ListTags(context.Context, *lambda.ListTagsInput, ...func(*lambda.Options)) (*lambda.ListTagsOutput, error) {
+	return &lambda.ListTagsOutput{}, nil
+}
+
 func lambdaFnARN(name string) string {
 	return "arn:aws:lambda:" + testRegion + ":" + testAccountID + ":function:" + name
 }

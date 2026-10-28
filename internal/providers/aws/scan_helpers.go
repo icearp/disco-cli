@@ -1287,13 +1287,42 @@ func storeTokenPagesTags[Item any](
 	row func(Item) (r *store.Resource, why, key string),
 	tags rowTagReader, p *phaseTotals,
 ) (storeWriteFailed bool) {
+	return storeTokenPagesTagsWith(ctx, st, acct, region, op, page, row, tokenPageSteps{}, tags, p)
+}
+
+// tokenPageSteps are what storeTokenPagesTagsWith runs on each page besides
+// its tag reads; the zero value runs none.
+type tokenPageSteps struct {
+	// details, when its get is set, replaces each row with its detail body
+	// before the row's tags are read, as readRowDetailsDeniedBy does (a nil
+	// isDenied means isAccessDenied); a row it drops as not found has no tags
+	// read and is not stored.
+	details rowDetailReader
+	// stored, when set, is handed each page's rows once they are written.
+	stored func(rows []*store.Resource)
+}
+
+// storeTokenPagesTagsWith is storeTokenPagesTags with steps run on each
+// page. The detail reads' denials are warned about once for the listing,
+// after every write succeeded, and their errors go to p under
+// steps.details.op, hard and transient apart, or are joined into the
+// write's error after a failed write (detailedRows.addPhase).
+func storeTokenPagesTagsWith[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (r *store.Resource, why, key string),
+	steps tokenPageSteps, tags rowTagReader, p *phaseTotals,
+) (storeWriteFailed bool) {
 	var (
-		skips           notStoredSkips
-		tally           rowTagTally
-		hard            []error
-		total, inserted int
-		werr            error
+		skips            notStoredSkips
+		tally            rowTagTally
+		detailTally      rowDetailTally
+		hard, detailHard []error
+		total, inserted  int
+		werr             error
 	)
+	details := steps.details
+	details.isDenied = orAccessDenied(details.isDenied)
 	// No page is asked for once ctx has ended, so a page whose tag reads the
 	// stop cut short is the last one written, whatever page does with ctx.
 	listErr := eachTokenPage(ctx, func(ctx context.Context, token *string) ([]Item, *string, error) {
@@ -1302,20 +1331,33 @@ func storeTokenPagesTags[Item any](
 		}
 		return page(ctx, token)
 	}, func(items []Item) error {
-		rows, h := tally.read(ctx, tags, buildListedRows(items, row, nil, &skips))
+		rows := buildListedRows(items, row, nil, &skips)
+		if details.get != nil {
+			var h error
+			rows, h = detailTally.read(ctx, details, rows)
+			detailHard = append(detailHard, h)
+		}
+		rows, h := tally.read(ctx, tags, rows)
 		hard = append(hard, h)
 		t, i, err := upsertBatch(st, rows, op)
 		total += t
 		inserted += i
 		werr = err
+		if err == nil && steps.stored != nil {
+			steps.stored(rows)
+		}
 		return err
 	})
+	detailErrs := rowTagErrs{hard: errors.Join(detailHard...), transient: detailTally.transient(details)}
 	errs := rowTagErrs{hard: errors.Join(hard...), transient: tally.transient(tags.op)}
 	if werr != nil {
-		return errs.addPhase(p, tags.op, op, total, inserted, werr)
+		return errs.addPhase(p, tags.op, op, total, inserted, errors.Join(werr, detailErrs.hard, detailErrs.transient))
 	}
+	p.errs.add(details.op, detailErrs.hard)
+	p.errs.add(details.op, detailErrs.transient)
 	_, _, err := storeReadRows(st, acct, region, op, nil, listErr, func() {
 		skips.warn(st, op, acct, region)
+		detailTally.warn(st, details, acct, region)
 		tally.warn(st, tags, acct, region)
 	})
 	return errs.addPhase(p, tags.op, op, total, inserted, err)
@@ -2147,55 +2189,89 @@ func readRowDetails(ctx context.Context, st *store.Store, acct *account, region,
 // isAccessDenied does not all match: a read whose error isDenied reports is a
 // denial.
 func readRowDetailsDeniedBy(ctx context.Context, st *store.Store, acct *account, region, op, what string, notFound []string, isDenied func(error) bool, rows []*store.Resource, get func(context.Context, *store.Resource) (any, error)) (kept []*store.Resource, warn func(), hard, transient error) {
+	d := rowDetailReader{op: op, what: what, notFound: notFound, isDenied: isDenied, get: get}
+	var tally rowDetailTally
+	kept, hard = tally.read(ctx, d, rows)
+	return kept, func() { tally.warn(st, d, acct, region) }, hard, tally.transient(d)
+}
+
+// rowDetailReader reads, with op, each row's detail body through get, as
+// readRowDetailsDeniedBy says; notFound, isDenied and what are its arguments
+// of those names.
+type rowDetailReader struct {
+	op, what string
+	notFound []string
+	isDenied func(error) bool
+	get      func(context.Context, *store.Resource) (any, error)
+}
+
+// rowDetailTally carries readRowDetailsDeniedBy's denied and transient rows
+// across reads, so that a listing whose rows are read in batches (one per
+// page) warns once about its denials and returns one transient error for the
+// whole listing.
+type rowDetailTally struct {
+	denied     skipTally
+	transients transientTally
+}
+
+// read is readRowDetailsDeniedBy for one batch of rows, its denied and
+// transient rows added to the tally. It returns the rows to store and the
+// hard errors, ctx's end among them as one error for the batch.
+func (t *rowDetailTally) read(ctx context.Context, d rowDetailReader, rows []*store.Resource) (kept []*store.Resource, hard error) {
 	type detail struct {
 		body any
 		err  error
 	}
 	reads, _ := readEachKey(ctx, rows, func(ctx context.Context, r *store.Resource) detail {
-		body, err := get(ctx, r)
+		body, err := d.get(ctx, r)
 		return detail{body, err}
 	})
-	var (
-		denied     skipTally
-		transients transientTally
-		errs       []error
-	)
+	var errs []error
 	cut := len(rows) - len(reads)
 	kept = make([]*store.Resource, 0, len(rows))
-	for i, d := range reads {
+	for i, got := range reads {
 		r := rows[i]
 		// The listing reached this host, so an NXDOMAIN now is a failure of
 		// this scan, not a region gap (lateNXDOMAIN).
-		switch err := lateNXDOMAIN(op, d.err); {
+		switch err := lateNXDOMAIN(d.op, got.err); {
 		case err == nil:
-			if d.body != nil {
-				r.AttributesJSON = mustJSON(d.body)
+			if got.body != nil {
+				r.AttributesJSON = mustJSON(got.body)
 			}
-		case isAPIErrorCode(err, notFound...):
+		case isAPIErrorCode(err, d.notFound...):
 			continue
 		case ctx.Err() != nil && errors.Is(err, ctx.Err()):
 			cut++
-		case isDenied(err):
-			denied.skipped(r.NativeID, err)
-		case transients.drop(r.NativeID, err):
+		case d.isDenied(err):
+			t.denied.skipped(r.NativeID, err)
+		case t.transients.drop(r.NativeID, err):
 		default:
-			errs = append(errs, fmt.Errorf("%s %s: %w", op, r.NativeID, err))
+			errs = append(errs, fmt.Errorf("%s %s: %w", d.op, r.NativeID, err))
 		}
 		kept = append(kept, r)
 	}
 	kept = append(kept, rows[len(reads):]...)
 	if cut > 0 {
-		errs = append(errs, fmt.Errorf("%s: %d %s stored as their list element: %w", op, cut, what, ctx.Err()))
+		errs = append(errs, fmt.Errorf("%s: %d %s stored as their list element: %w", d.op, cut, d.what, ctx.Err()))
 	}
-	if t := &transients.skipTally; t.count > 0 {
-		transient = fmt.Errorf("%s: %d %s stored as their list element, first %s: %w", op, t.count, what, t.first, t.err)
+	return kept, errors.Join(errs...)
+}
+
+// transient is one error for every row whose read stayed transient; nil for
+// none.
+func (t *rowDetailTally) transient(d rowDetailReader) error {
+	if tt := &t.transients.skipTally; tt.count > 0 {
+		return fmt.Errorf("%s: %d %s stored as their list element, first %s: %w", d.op, tt.count, d.what, tt.first, tt.err)
 	}
-	warn = func() {
-		if denied.count > 0 {
-			_ = skipIfAccessDenied(st, op, acct.ID, region, fmt.Errorf("%d %s stored as their list element, first %s: %w", denied.count, what, denied.first, denied.err))
-		}
+	return nil
+}
+
+// warn reports every denied row in one warning. Call it only once the rows
+// are stored.
+func (t *rowDetailTally) warn(st *store.Store, d rowDetailReader, acct *account, region string) {
+	if t.denied.count > 0 {
+		_ = skipIfAccessDenied(st, d.op, acct.ID, region, fmt.Errorf("%d %s stored as their list element, first %s: %w", t.denied.count, d.what, t.denied.first, t.denied.err))
 	}
-	return kept, warn, errors.Join(errs...), transient
 }
 
 // detailedRows replaces each row a listing built with its Get body

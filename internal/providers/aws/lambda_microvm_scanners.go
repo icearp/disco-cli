@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/lambdacore"
 	lambdacoretypes "github.com/aws/aws-sdk-go-v2/service/lambdacore/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambdamicrovms"
@@ -37,85 +38,84 @@ type lambdaMicrovmsAPI interface {
 	ListMicrovmImageVersions(context.Context, *lambdamicrovms.ListMicrovmImageVersionsInput, ...func(*lambdamicrovms.Options)) (*lambdamicrovms.ListMicrovmImageVersionsOutput, error)
 	ListMicrovms(context.Context, *lambdamicrovms.ListMicrovmsInput, ...func(*lambdamicrovms.Options)) (*lambdamicrovms.ListMicrovmsOutput, error)
 	ListManagedMicrovmImages(context.Context, *lambdamicrovms.ListManagedMicrovmImagesInput, ...func(*lambdamicrovms.Options)) (*lambdamicrovms.ListManagedMicrovmImagesOutput, error)
+	ListTags(context.Context, *lambdamicrovms.ListTagsInput, ...func(*lambdamicrovms.Options)) (*lambdamicrovms.ListTagsOutput, error)
 }
 
-func scanLambdaNetworkConnectors(ctx context.Context, client lambdaCoreAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	p := lambdacore.NewListNetworkConnectorsPaginator(client, &lambdacore.ListNetworkConnectorsInput{})
-	return pageScan(ctx, "lambda:ListNetworkConnectors", acct, region, st, p.HasMorePages,
-		func(ctx context.Context) (*lambdacore.ListNetworkConnectorsOutput, error) { return p.NextPage(ctx) },
-		func(o *lambdacore.ListNetworkConnectorsOutput) []lambdacoretypes.NetworkConnectorSummary {
-			return o.NetworkConnectors
+const (
+	lambdaListNetworkConnectorsOp = "lambda:ListNetworkConnectors"
+	lambdaListMicrovmImagesOp     = "lambda:ListMicrovmImages"
+)
+
+// Page caps: the MaxItems and maxResults range maximum of each op's model.
+const (
+	lambdaNetworkConnectorsPageCap int32 = 100
+	lambdaMicrovmImagesPageCap     int32 = 50
+)
+
+// lambdaMicrovmTags reads a MicroVM image's tags with the Lambda MicroVMs
+// client's ListTags, sent the image ARN its listing returned; the op does not
+// page. The Lambda client's ListTags does not take a microvm-image ARN (its
+// Resource pattern omits the kind); this one's does. The Service Reference
+// lists microvmImage among the resources lambda:ListTags takes. MicroVMs
+// themselves have no ARN and no Service Reference resource, so they are not
+// read.
+func lambdaMicrovmTags(client lambdaMicrovmsAPI) rowTagReader {
+	return rowTagReader{
+		op:       lambdaListTagsOp,
+		notFound: lambdaNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTags(ctx, &lambdamicrovms.ListTagsInput{Resource: &arn})
+			if err != nil {
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
 		},
-		func(c lambdacoretypes.NetworkConnectorSummary) *store.Resource {
-			arn := sv(c.Arn)
-			if arn == "" {
-				return nil
-			}
-			r := &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLambdaNetworkConnector, NativeID: arn, Name: c.Name, Region: &region,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			}
-			if c.State != "" {
-				status := string(c.State)
-				r.Status = &status
-			}
-			return r
-		})
-}
-
-// scanLambdaMicrovmFamily runs the MicroVM phases. Image versions need the
-// images listed first; the rest are independent.
-func scanLambdaMicrovmFamily(ctx context.Context, client lambdaMicrovmsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	images, total, inserted, err := scanLambdaMicrovmImages(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return total, inserted, err
 	}
-	for _, scan := range []func() (int, int, error){
-		func() (int, int, error) {
-			return scanLambdaMicrovmImageVersions(ctx, client, acct, region, st, scanID, images)
+}
+
+// scanLambdaNetworkConnectors stores the region's network connectors a page
+// at a time with their tags, read with the Lambda client's ListTags
+// (lambdaTags): Lambda Core has no tag op.
+func scanLambdaNetworkConnectors(ctx context.Context, client lambdaCoreAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenPagesTags(ctx, st, acct, region, lambdaListNetworkConnectorsOp,
+		func(ctx context.Context, token *string) ([]lambdacoretypes.NetworkConnectorSummary, *string, error) {
+			out, err := client.ListNetworkConnectors(ctx, &lambdacore.ListNetworkConnectorsInput{Marker: token, MaxItems: sdkaws.Int32(lambdaNetworkConnectorsPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.NetworkConnectors, out.NextMarker, nil
 		},
-		func() (int, int, error) { return scanLambdaMicrovms(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLambdaManagedMicrovmImages(ctx, client, acct, region, st, scanID) },
-	} {
-		t, n, err := scan()
-		total += t
-		inserted += n
-		if err != nil {
-			return total, inserted, err
+		func(c lambdacoretypes.NetworkConnectorSummary) (*store.Resource, string, string) {
+			return lambdaRow(acct, region, scanID, TypeLambdaNetworkConnector, "network connectors", sv(c.Arn), sv(c.Id), c.Name, nonEmptyPtr(string(c.State)), c)
+		}, tags, p)
+}
+
+// scanLambdaMicrovmImages stores the account's MicroVM images a page at a
+// time with their tags and returns the stored ones as parents for the
+// image-version phase.
+func scanLambdaMicrovmImages(ctx context.Context, client lambdaMicrovmsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (images []childParent, storeWriteFailed bool) {
+	steps := tokenPageSteps{stored: func(rows []*store.Resource) {
+		for _, r := range rows {
+			images = append(images, childParent{id: r.NativeID, arn: r.NativeID})
 		}
-	}
-	return total, inserted, nil
-}
-
-// scanLambdaMicrovmImages stores the account's MicroVM images and returns the
-// stored ones as parents for the image-version phase.
-func scanLambdaMicrovmImages(ctx context.Context, client lambdaMicrovmsAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	var images []childParent
-	p := lambdamicrovms.NewListMicrovmImagesPaginator(client, &lambdamicrovms.ListMicrovmImagesInput{})
-	total, inserted, err := pageScan(ctx, "lambda:ListMicrovmImages", acct, region, st, p.HasMorePages,
-		func(ctx context.Context) (*lambdamicrovms.ListMicrovmImagesOutput, error) { return p.NextPage(ctx) },
-		func(o *lambdamicrovms.ListMicrovmImagesOutput) []lambdamicrovmstypes.MicrovmImageSummary {
-			return o.Items
+	}}
+	failed := storeTokenPagesTagsWith(ctx, st, acct, region, lambdaListMicrovmImagesOp,
+		func(ctx context.Context, token *string) ([]lambdamicrovmstypes.MicrovmImageSummary, *string, error) {
+			out, err := client.ListMicrovmImages(ctx, &lambdamicrovms.ListMicrovmImagesInput{NextToken: token, MaxResults: sdkaws.Int32(lambdaMicrovmImagesPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
 		},
-		func(img lambdamicrovmstypes.MicrovmImageSummary) *store.Resource {
-			arn := sv(img.ImageArn)
-			if arn == "" {
-				return nil
+		func(img lambdamicrovmstypes.MicrovmImageSummary) (*store.Resource, string, string) {
+			r, why, key := lambdaRow(acct, region, scanID, TypeLambdaMicrovmImage, "MicroVM images", sv(img.ImageArn), sv(img.Name), img.Name, nonEmptyPtr(string(img.State)), img)
+			if r != nil {
+				r.CreatedAt = tp(img.CreatedAt)
 			}
-			images = append(images, childParent{id: arn, arn: arn})
-			r := &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLambdaMicrovmImage, NativeID: arn, Name: img.Name, Region: &region,
-				CreatedAt: tp(img.CreatedAt), AttributesJSON: mustJSON(img), DiscoveredBy: scanID,
-			}
-			if img.State != "" {
-				status := string(img.State)
-				r.Status = &status
-			}
-			return r
-		})
-	return images, total, inserted, err
+			return r, why, key
+		}, steps, tags, p)
+	return images, failed
 }
 
 // scanLambdaMicrovmImageVersions lists each image's versions. The API issues
