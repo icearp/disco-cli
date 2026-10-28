@@ -1,16 +1,16 @@
 package aws
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
-	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/proton"
 	protontypes "github.com/aws/aws-sdk-go-v2/service/proton/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -43,449 +43,343 @@ type protonAPI interface {
 	ListRepositories(context.Context, *proton.ListRepositoriesInput, ...func(*proton.Options)) (*proton.ListRepositoriesOutput, error)
 	ListEnvironmentTemplateVersions(context.Context, *proton.ListEnvironmentTemplateVersionsInput, ...func(*proton.Options)) (*proton.ListEnvironmentTemplateVersionsOutput, error)
 	ListServiceTemplateVersions(context.Context, *proton.ListServiceTemplateVersionsInput, ...func(*proton.Options)) (*proton.ListServiceTemplateVersionsOutput, error)
+	ListTagsForResource(context.Context, *proton.ListTagsForResourceInput, ...func(*proton.Options)) (*proton.ListTagsForResourceOutput, error)
+}
+
+// protonPageCap is the maxResults maximum of the MaxPageResults range trait
+// (1-100) that every Proton list op this scanner calls, the tag op included,
+// takes as its page size.
+const protonPageCap int32 = 100
+
+// protonTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, which is the ARN its listing returned, and reads every page. The
+// Service Reference lists every tagged type's ARN format, the versioned
+// template-version formats included, as a resource of the op.
+func protonTags(client protonAPI) rowTagReader {
+	return rowTagReader{
+		op:       "proton:ListTagsForResource",
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			tags, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]protontypes.Tag, *string, error) {
+				out, err := client.ListTagsForResource(ctx, &proton.ListTagsForResourceInput{ResourceArn: &arn, NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})
+				if err != nil {
+					return nil, nil, err
+				}
+				return out.Tags, out.NextToken, nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			return kvTagsJSON(tags, func(t protontypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
+	}
+}
+
+// protonConnectionTags is protonTags for environment account connections. A
+// connection is created in its environment account
+// (CreateEnvironmentAccountConnection's doc) and is listed from its management
+// account too (ListEnvironmentAccountConnections RequestedBy
+// MANAGEMENT_ACCOUNT), so a listed connection's ARN can carry another
+// account. This account may not be able to read another account's
+// connection, so for such a connection neither a denial nor a not-found
+// answer means the connection is gone: the row is kept without tags and
+// without a warning. Any other error is returned. An own-account connection
+// keeps the usual rules: not-found drops it, a denial warns.
+func protonConnectionTags(tags rowTagReader, acct *account) rowTagReader {
+	own := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		got, err := own(ctx, r)
+		if a, ok := parseARN(r.NativeID); ok && a.AccountID != acct.ID && (isAccessDenied(err) || isAPIErrorCode(err, tags.notFound...)) {
+			return nil, nil
+		}
+		return got, err
+	}
+	return tags
 }
 
 // scanProton discovers Proton account connections, templates, template
 // versions, environments, services, service instances, components,
-// deployments, and repositories. ARNs are native on every type; template
-// versions need a TemplateName, so they fan out over names captured in the
-// environment-/service-template phases.
-func scanProton(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// deployments and repositories. Every listing runs as its own phase: a
+// phase's error does not stop the later ones; a failed write and ctx's end
+// do (runHostPhases). The phases run one at a time, so readEachKey's own
+// bound is the bound on the reads in flight. Template versions are listed per
+// template stored this scan, since their op needs a TemplateName.
+//
+// Deployments are stored without tags: ListTagsForResource and TagResource
+// do not list the deployment resource in the Service Reference, and no op
+// creates a deployment with tags.
+func scanProton(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := proton.NewFromConfig(acct.cfg, func(o *proton.Options) { o.Region = region })
-
-	add := func(t, i int, perr error) error {
-		if perr != nil {
-			return perr
-		}
-		total += t
-		inserted += i
-		return nil
-	}
-
-	if err = add(scanProtonAccountConnections(ctx, client, acct, region, st, scanID)); err != nil {
-		return total, inserted, err
-	}
-
-	envTemplateNames, t, i, terr := scanProtonEnvTemplates(ctx, client, acct, region, st, scanID)
-	if err = add(t, i, terr); err != nil {
-		return total, inserted, err
-	}
-	svcTemplateNames, t, i, terr := scanProtonServiceTemplates(ctx, client, acct, region, st, scanID)
-	if err = add(t, i, terr); err != nil {
-		return total, inserted, err
-	}
-
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanProtonEnvironments(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanProtonServices(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanProtonServiceInstances(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanProtonComponents(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanProtonDeployments(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanProtonRepositories(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanProtonEnvTemplateVersions(ctx, client, acct, region, st, scanID, envTemplateNames)
-		},
-		func() (int, int, error) {
-			return scanProtonServiceTemplateVersions(ctx, client, acct, region, st, scanID, svcTemplateNames)
-		},
-	} {
-		if err = add(phase()); err != nil {
-			return total, inserted, err
-		}
-	}
-	return total, inserted, nil
+	tags := protonTags(client)
+	var envTemplates, svcTemplates []childParent
+	return runHostPhases(ctx, st, acct, region, "proton", 0, []hostPhase{
+		{op: "proton:ListEnvironmentAccountConnections", run: func(p *phaseTotals) bool {
+			return scanProtonAccountConnections(ctx, client, acct, region, st, scanID, protonConnectionTags(tags, acct), p)
+		}},
+		{op: "proton:ListEnvironmentTemplates", run: func(p *phaseTotals) (failed bool) {
+			envTemplates, failed = scanProtonEnvTemplates(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "proton:ListServiceTemplates", run: func(p *phaseTotals) (failed bool) {
+			svcTemplates, failed = scanProtonServiceTemplates(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "proton:ListEnvironments", run: func(p *phaseTotals) bool {
+			return scanProtonEnvironments(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "proton:ListServices", run: func(p *phaseTotals) bool {
+			return scanProtonServices(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "proton:ListServiceInstances", run: func(p *phaseTotals) bool {
+			return scanProtonServiceInstances(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "proton:ListComponents", run: func(p *phaseTotals) bool {
+			return scanProtonComponents(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, "proton:ListDeployments", func() (int, int, error) {
+			return scanProtonDeployments(ctx, client, acct, region, st, scanID)
+		}),
+		{op: "proton:ListRepositories", run: func(p *phaseTotals) bool {
+			return scanProtonRepositories(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "proton:ListEnvironmentTemplateVersions", run: func(p *phaseTotals) bool {
+			return scanProtonEnvTemplateVersions(ctx, client, acct, region, st, scanID, envTemplates, tags, p)
+		}},
+		{op: "proton:ListServiceTemplateVersions", run: func(p *phaseTotals) bool {
+			return scanProtonServiceTemplateVersions(ctx, client, acct, region, st, scanID, svcTemplates, tags, p)
+		}},
+	})
 }
 
-// scanProtonAccountConnections requires RequestedBy per call; iterate both
-// enum values to capture connections from either side. Dedup by ARN — a
-// connection normally appears under exactly one RequestedBy value, but this
-// guards against AWS evolving the API.
-func scanProtonAccountConnections(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	seen := map[string]struct{}{}
-	var batch []*store.Resource
+// protonRow is the row of a listed element whose NativeID is its ARN, named
+// by name, or by its ARN when name is empty. An element without an ARN is not
+// stored; what names the elements in the warning and key the element.
+func protonRow(acct *account, region, scanID, typ, what, arn, name, status, key string, item any) (*store.Resource, string, string) {
+	if arn == "" {
+		return nil, what + " have no ARN", cmp.Or(key, "(an element with no identifier)")
+	}
+	label := cmp.Or(name, arn)
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: arn,
+		Name: &label, Region: &region, Status: nonEmptyPtr(status),
+		AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}, "", ""
+}
+
+// scanProtonAccountConnections lists the connections requested by either
+// side, since the op takes one RequestedBy value per call, and stores each
+// once: a connection is expected under one value only, so a repeat is
+// dropped by ARN rather than written twice. One side's failure keeps the
+// other side's rows and the pages read before it.
+func scanProtonAccountConnections(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	const op = "proton:ListEnvironmentAccountConnections"
+	var (
+		items  []protontypes.EnvironmentAccountConnectionSummary
+		errs   []error
+		denied error
+	)
 	for _, rb := range []protontypes.EnvironmentAccountConnectionRequesterAccountType{
 		protontypes.EnvironmentAccountConnectionRequesterAccountTypeManagementAccount,
 		protontypes.EnvironmentAccountConnectionRequesterAccountTypeEnvironmentAccount,
 	} {
-		pager := proton.NewListEnvironmentAccountConnectionsPaginator(client, &proton.ListEnvironmentAccountConnectionsInput{
-			RequestedBy: rb,
-		})
-		for pager.HasMorePages() {
-			out, err := pager.NextPage(ctx)
+		got, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]protontypes.EnvironmentAccountConnectionSummary, *string, error) {
+			out, err := client.ListEnvironmentAccountConnections(ctx, &proton.ListEnvironmentAccountConnectionsInput{RequestedBy: rb, NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})
 			if err != nil {
-				if isAccessDenied(err) {
-					return 0, 0, skipIfAccessDenied(st, "proton:ListEnvironmentAccountConnections", acct.ID, region, err)
-				}
-				return 0, 0, fmt.Errorf("proton:ListEnvironmentAccountConnections %s: %w", rb, err)
+				return nil, nil, err
 			}
-			for _, c := range out.EnvironmentAccountConnections {
-				arn := sv(c.Arn)
-				if arn == "" {
-					continue
-				}
-				if _, dup := seen[arn]; dup {
-					continue
-				}
-				seen[arn] = struct{}{}
-				label := sv(c.EnvironmentName)
-				if label == "" {
-					label = sv(c.Id)
-				}
-				status := string(c.Status)
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeProtonEnvironmentAccountConnection, NativeID: arn,
-					Name: &label, Region: &region, Status: &status,
-					AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-				})
-			}
+			return out.EnvironmentAccountConnections, out.NextToken, nil
+		})
+		items = append(items, got...)
+		switch {
+		case err == nil:
+		case isAccessDenied(err):
+			denied = cmp.Or(denied, fmt.Errorf("RequestedBy %s: %w", rb, err))
+		default:
+			errs = append(errs, fmt.Errorf("RequestedBy %s: %w", rb, err))
 		}
 	}
-	return upsertBatch(st, batch, "proton environment-account-connections")
-}
-
-func scanProtonEnvTemplates(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (names []string, total, inserted int, err error) {
-	pager := proton.NewListEnvironmentTemplatesPaginator(client, &proton.ListEnvironmentTemplatesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return nil, 0, 0, skipIfAccessDenied(st, "proton:ListEnvironmentTemplates", acct.ID, region, perr)
-			}
-			return nil, 0, 0, fmt.Errorf("proton:ListEnvironmentTemplates: %w", perr)
-		}
-		for _, t := range out.Templates {
-			arn := sv(t.Arn)
-			if arn == "" {
-				continue
-			}
-			if n := sv(t.Name); n != "" {
-				names = append(names, n)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeProtonEnvironmentTemplate, NativeID: arn,
-				Name: t.Name, Region: &region,
-				AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
-			})
+	seen := map[string]bool{}
+	var skips notStoredSkips
+	rows := buildListedRows(items, func(c protontypes.EnvironmentAccountConnectionSummary) (*store.Resource, string, string) {
+		return protonRow(acct, region, scanID, TypeProtonEnvironmentAccountConnection, "environment account connections",
+			sv(c.Arn), cmp.Or(sv(c.EnvironmentName), sv(c.Id)), string(c.Status), sv(c.Id), c)
+	}, nil, &skips)
+	unique := rows[:0]
+	for _, r := range rows {
+		if !seen[r.NativeID] {
+			seen[r.NativeID] = true
+			unique = append(unique, r)
 		}
 	}
-	total, inserted, err = upsertBatch(st, batch, "proton environment-templates")
-	return names, total, inserted, err
+	return storeRowsTags(ctx, st, acct, region, op, unique, errors.Join(errs...), func() {
+		skips.warn(st, op, acct, region)
+		if denied != nil {
+			_ = skipIfAccessDenied(st, op, acct.ID, region, denied)
+		}
+	}, tags, p)
 }
 
-func scanProtonServiceTemplates(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (names []string, total, inserted int, err error) {
-	pager := proton.NewListServiceTemplatesPaginator(client, &proton.ListServiceTemplatesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return nil, 0, 0, skipIfAccessDenied(st, "proton:ListServiceTemplates", acct.ID, region, perr)
+// scanProtonEnvTemplates stores the environment templates with their tags and
+// returns the stored ones, keyed by Name, the parents of the version phase.
+func scanProtonEnvTemplates(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentListTags(ctx, st, acct, region, "proton:ListEnvironmentTemplates", "environment templates", "Name",
+		func(ctx context.Context, token *string) ([]protontypes.EnvironmentTemplateSummary, *string, error) {
+			out, err := client.ListEnvironmentTemplates(ctx, &proton.ListEnvironmentTemplatesInput{NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("proton:ListServiceTemplates: %w", perr)
-		}
-		for _, t := range out.Templates {
-			arn := sv(t.Arn)
-			if arn == "" {
-				continue
-			}
-			if n := sv(t.Name); n != "" {
-				names = append(names, n)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeProtonServiceTemplate, NativeID: arn,
-				Name: t.Name, Region: &region,
-				AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
-			})
-		}
-	}
-	total, inserted, err = upsertBatch(st, batch, "proton service-templates")
-	return names, total, inserted, err
+			return out.Templates, out.NextToken, nil
+		},
+		func(t protontypes.EnvironmentTemplateSummary) (*store.Resource, string, string) {
+			return protonRow(acct, region, scanID, TypeProtonEnvironmentTemplate, "environment templates", sv(t.Arn), sv(t.Name), "", sv(t.Name), t)
+		},
+		func(t protontypes.EnvironmentTemplateSummary) string { return sv(t.Name) },
+		tags, p)
 }
 
-func scanProtonEnvironments(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := proton.NewListEnvironmentsPaginator(client, &proton.ListEnvironmentsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "proton:ListEnvironments", acct.ID, region, err)
+// scanProtonServiceTemplates stores the service templates with their tags and
+// returns the stored ones, keyed by Name, the parents of the version phase.
+func scanProtonServiceTemplates(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentListTags(ctx, st, acct, region, "proton:ListServiceTemplates", "service templates", "Name",
+		func(ctx context.Context, token *string) ([]protontypes.ServiceTemplateSummary, *string, error) {
+			out, err := client.ListServiceTemplates(ctx, &proton.ListServiceTemplatesInput{NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("proton:ListEnvironments: %w", err)
-		}
-		for _, e := range out.Environments {
-			arn := sv(e.Arn)
-			if arn == "" {
-				continue
-			}
-			status := string(e.DeploymentStatus)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeProtonEnvironment, NativeID: arn,
-				Name: e.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "proton environments")
+			return out.Templates, out.NextToken, nil
+		},
+		func(t protontypes.ServiceTemplateSummary) (*store.Resource, string, string) {
+			return protonRow(acct, region, scanID, TypeProtonServiceTemplate, "service templates", sv(t.Arn), sv(t.Name), "", sv(t.Name), t)
+		},
+		func(t protontypes.ServiceTemplateSummary) string { return sv(t.Name) },
+		tags, p)
 }
 
-func scanProtonServices(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := proton.NewListServicesPaginator(client, &proton.ListServicesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "proton:ListServices", acct.ID, region, err)
+func scanProtonEnvironments(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "proton:ListEnvironments",
+		func(ctx context.Context, token *string) ([]protontypes.EnvironmentSummary, *string, error) {
+			out, err := client.ListEnvironments(ctx, &proton.ListEnvironmentsInput{NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("proton:ListServices: %w", err)
-		}
-		for _, s := range out.Services {
-			arn := sv(s.Arn)
-			if arn == "" {
-				continue
-			}
-			status := string(s.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeProtonService, NativeID: arn,
-				Name: s.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "proton services")
+			return out.Environments, out.NextToken, nil
+		},
+		func(e protontypes.EnvironmentSummary) (*store.Resource, string, string) {
+			return protonRow(acct, region, scanID, TypeProtonEnvironment, "environments", sv(e.Arn), sv(e.Name), string(e.DeploymentStatus), sv(e.Name), e)
+		}, tags, p)
 }
 
-func scanProtonServiceInstances(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := proton.NewListServiceInstancesPaginator(client, &proton.ListServiceInstancesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "proton:ListServiceInstances", acct.ID, region, err)
+func scanProtonServices(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "proton:ListServices",
+		func(ctx context.Context, token *string) ([]protontypes.ServiceSummary, *string, error) {
+			out, err := client.ListServices(ctx, &proton.ListServicesInput{NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("proton:ListServiceInstances: %w", err)
-		}
-		for _, si := range out.ServiceInstances {
-			arn := sv(si.Arn)
-			if arn == "" {
-				continue
-			}
-			status := string(si.DeploymentStatus)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeProtonServiceInstance, NativeID: arn,
-				Name: si.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(si), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "proton service-instances")
+			return out.Services, out.NextToken, nil
+		},
+		func(s protontypes.ServiceSummary) (*store.Resource, string, string) {
+			return protonRow(acct, region, scanID, TypeProtonService, "services", sv(s.Arn), sv(s.Name), string(s.Status), sv(s.Name), s)
+		}, tags, p)
 }
 
-func scanProtonComponents(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := proton.NewListComponentsPaginator(client, &proton.ListComponentsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "proton:ListComponents", acct.ID, region, err)
+func scanProtonServiceInstances(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "proton:ListServiceInstances",
+		func(ctx context.Context, token *string) ([]protontypes.ServiceInstanceSummary, *string, error) {
+			out, err := client.ListServiceInstances(ctx, &proton.ListServiceInstancesInput{NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("proton:ListComponents: %w", err)
-		}
-		for _, c := range out.Components {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
-			}
-			status := string(c.DeploymentStatus)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeProtonComponent, NativeID: arn,
-				Name: c.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "proton components")
+			return out.ServiceInstances, out.NextToken, nil
+		},
+		func(si protontypes.ServiceInstanceSummary) (*store.Resource, string, string) {
+			return protonRow(acct, region, scanID, TypeProtonServiceInstance, "service instances", sv(si.Arn), sv(si.Name), string(si.DeploymentStatus), sv(si.ServiceName)+"/"+sv(si.Name), si)
+		}, tags, p)
 }
 
+func scanProtonComponents(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "proton:ListComponents",
+		func(ctx context.Context, token *string) ([]protontypes.ComponentSummary, *string, error) {
+			out, err := client.ListComponents(ctx, &proton.ListComponentsInput{NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Components, out.NextToken, nil
+		},
+		func(c protontypes.ComponentSummary) (*store.Resource, string, string) {
+			return protonRow(acct, region, scanID, TypeProtonComponent, "components", sv(c.Arn), sv(c.Name), string(c.DeploymentStatus), sv(c.Name), c)
+		}, tags, p)
+}
+
+// scanProtonDeployments stores the deployments, without tags (scanProton
+// says why).
 func scanProtonDeployments(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := proton.NewListDeploymentsPaginator(client, &proton.ListDeploymentsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "proton:ListDeployments", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, "proton:ListDeployments",
+		func(ctx context.Context, token *string) ([]protontypes.DeploymentSummary, *string, error) {
+			out, err := client.ListDeployments(ctx, &proton.ListDeploymentsInput{NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("proton:ListDeployments: %w", err)
-		}
-		for _, d := range out.Deployments {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(d.Id)
-			status := string(d.DeploymentStatus)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeProtonDeployment, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "proton deployments")
-}
-
-func scanProtonRepositories(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := proton.NewListRepositoriesPaginator(client, &proton.ListRepositoriesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "proton:ListRepositories", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("proton:ListRepositories: %w", err)
-		}
-		for _, r := range out.Repositories {
-			arn := sv(r.Arn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeProtonRepository, NativeID: arn,
-				Name: r.Name, Region: &region,
-				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "proton repositories")
-}
-
-// scanProtonEnvTemplateVersions fans out ListEnvironmentTemplateVersions over
-// the environment-template names captured by scanProtonEnvTemplates — the op
-// requires a TemplateName. Concurrency capped at fanoutMed.
-func scanProtonEnvTemplateVersions(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string, templateNames []string) (int, int, error) {
-	if len(templateNames) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, name := range templateNames {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		tmpl := name
-		g.Go(func() error {
-			defer sem.Release(1)
-			pager := proton.NewListEnvironmentTemplateVersionsPaginator(client, &proton.ListEnvironmentTemplateVersionsInput{
-				TemplateName: &tmpl,
-			})
-			for pager.HasMorePages() {
-				out, perr := pager.NextPage(gctx)
-				if perr != nil {
-					if isAccessDenied(perr) {
-						_ = skipIfAccessDenied(st, "proton:ListEnvironmentTemplateVersions", acct.ID, region, perr)
-						return nil
-					}
-					return fmt.Errorf("proton:ListEnvironmentTemplateVersions %s: %w", tmpl, perr)
-				}
-				for _, v := range out.TemplateVersions {
-					arn := sv(v.Arn)
-					if arn == "" {
-						continue
-					}
-					label := sv(v.MajorVersion) + "." + sv(v.MinorVersion)
-					status := string(v.Status)
-					mu.Lock()
-					batch = append(batch, &store.Resource{
-						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeProtonEnvironmentTemplateVersion, NativeID: arn,
-						Name: &label, Region: &region, Status: &status,
-						AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
-					})
-					mu.Unlock()
-				}
-			}
-			return nil
+			return out.Deployments, out.NextToken, nil
+		},
+		func(d protontypes.DeploymentSummary) (*store.Resource, string, string) {
+			return protonRow(acct, region, scanID, TypeProtonDeployment, "deployments", sv(d.Arn), sv(d.Id), string(d.DeploymentStatus), sv(d.Id), d)
 		})
-	}
-	if err := g.Wait(); err != nil {
-		return 0, 0, err
-	}
-	return upsertBatch(st, batch, "proton environment-template-versions")
 }
 
-// scanProtonServiceTemplateVersions fans out ListServiceTemplateVersions over
-// the service-template names captured by scanProtonServiceTemplates — the op
-// requires a TemplateName. Concurrency capped at fanoutMed.
-func scanProtonServiceTemplateVersions(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string, templateNames []string) (int, int, error) {
-	if len(templateNames) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, name := range templateNames {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		tmpl := name
-		g.Go(func() error {
-			defer sem.Release(1)
-			pager := proton.NewListServiceTemplateVersionsPaginator(client, &proton.ListServiceTemplateVersionsInput{
-				TemplateName: &tmpl,
-			})
-			for pager.HasMorePages() {
-				out, perr := pager.NextPage(gctx)
-				if perr != nil {
-					if isAccessDenied(perr) {
-						_ = skipIfAccessDenied(st, "proton:ListServiceTemplateVersions", acct.ID, region, perr)
-						return nil
-					}
-					return fmt.Errorf("proton:ListServiceTemplateVersions %s: %w", tmpl, perr)
-				}
-				for _, v := range out.TemplateVersions {
-					arn := sv(v.Arn)
-					if arn == "" {
-						continue
-					}
-					label := sv(v.MajorVersion) + "." + sv(v.MinorVersion)
-					status := string(v.Status)
-					mu.Lock()
-					batch = append(batch, &store.Resource{
-						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeProtonServiceTemplateVersion, NativeID: arn,
-						Name: &label, Region: &region, Status: &status,
-						AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
-					})
-					mu.Unlock()
-				}
+func scanProtonRepositories(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "proton:ListRepositories",
+		func(ctx context.Context, token *string) ([]protontypes.RepositorySummary, *string, error) {
+			out, err := client.ListRepositories(ctx, &proton.ListRepositoriesInput{NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return 0, 0, err
-	}
-	return upsertBatch(st, batch, "proton service-template-versions")
+			return out.Repositories, out.NextToken, nil
+		},
+		func(r protontypes.RepositorySummary) (*store.Resource, string, string) {
+			return protonRow(acct, region, scanID, TypeProtonRepository, "repositories", sv(r.Arn), sv(r.Name), "", string(r.Provider)+":"+sv(r.Name), r)
+		}, tags, p)
+}
+
+// protonVersionName is a template version's Name, "{major}.{minor}".
+func protonVersionName(major, minor *string) string { return sv(major) + "." + sv(minor) }
+
+// scanProtonEnvTemplateVersions lists the versions of each environment
+// template the template phase stored and stores them with their tags
+// (storeEachParentTags). A template ResourceNotFoundException says was
+// deleted since it was listed is skipped.
+func scanProtonEnvTemplateVersions(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string, templates []childParent, tags rowTagReader, p *phaseTotals) bool {
+	_, failed := storeEachParentTags(ctx, st, acct, region, "proton:ListEnvironmentTemplateVersions", []string{"ResourceNotFoundException"}, templates,
+		func(ctx context.Context, template string, token *string) ([]protontypes.EnvironmentTemplateVersionSummary, *string, error) {
+			out, err := client.ListEnvironmentTemplateVersions(ctx, &proton.ListEnvironmentTemplateVersionsInput{TemplateName: &template, NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.TemplateVersions, out.NextToken, nil
+		},
+		func(template string, v protontypes.EnvironmentTemplateVersionSummary) (*store.Resource, string, string) {
+			name := protonVersionName(v.MajorVersion, v.MinorVersion)
+			return protonRow(acct, region, scanID, TypeProtonEnvironmentTemplateVersion, "environment template versions", sv(v.Arn), name, string(v.Status), template+":"+name, v)
+		}, tags, p)
+	return failed
+}
+
+// scanProtonServiceTemplateVersions is scanProtonEnvTemplateVersions for
+// service templates.
+func scanProtonServiceTemplateVersions(ctx context.Context, client protonAPI, acct *account, region string, st *store.Store, scanID string, templates []childParent, tags rowTagReader, p *phaseTotals) bool {
+	_, failed := storeEachParentTags(ctx, st, acct, region, "proton:ListServiceTemplateVersions", []string{"ResourceNotFoundException"}, templates,
+		func(ctx context.Context, template string, token *string) ([]protontypes.ServiceTemplateVersionSummary, *string, error) {
+			out, err := client.ListServiceTemplateVersions(ctx, &proton.ListServiceTemplateVersionsInput{TemplateName: &template, NextToken: token, MaxResults: sdkaws.Int32(protonPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.TemplateVersions, out.NextToken, nil
+		},
+		func(template string, v protontypes.ServiceTemplateVersionSummary) (*store.Resource, string, string) {
+			name := protonVersionName(v.MajorVersion, v.MinorVersion)
+			return protonRow(acct, region, scanID, TypeProtonServiceTemplateVersion, "service template versions", sv(v.Arn), name, string(v.Status), template+":"+name, v)
+		}, tags, p)
+	return failed
 }
