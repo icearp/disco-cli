@@ -1091,6 +1091,190 @@ func TestStoreTokenListTags_ContextEndedKeepsRows(t *testing.T) {
 	}
 }
 
+// tokenPagesTest is a three-page listing for storeTokenPagesTags: page n
+// lists "n-a" and "n-b". fail holds the error a page returns instead, by
+// number; before, when set, runs before each page is answered. It records
+// the pages asked for and, for each page after the first, whether the
+// previous page's "a" row was already stored with its tags.
+type tokenPagesTest struct {
+	fail       map[int]error
+	before     func(page int)
+	pages      int
+	prevStored []bool
+}
+
+func (pt *tokenPagesTest) page(st *store.Store) func(context.Context, *string) ([]string, *string, error) {
+	return func(_ context.Context, token *string) ([]string, *string, error) {
+		n := 1
+		if token != nil {
+			n, _ = strconv.Atoi(*token)
+		}
+		pt.pages++
+		if n > 1 {
+			r := rowsByNativeIDNoFail(st)[strconv.Itoa(n-1)+"-a"]
+			pt.prevStored = append(pt.prevStored, r != nil && r.TagsJSON != nil)
+		}
+		if pt.before != nil {
+			pt.before(n)
+		}
+		if err := pt.fail[n]; err != nil {
+			return nil, nil, err
+		}
+		var next *string
+		if n < 3 {
+			next = nonEmptyPtr(strconv.Itoa(n + 1))
+		}
+		return []string{strconv.Itoa(n) + "-a", strconv.Itoa(n) + "-b"}, next, nil
+	}
+}
+
+func runTokenPagesTest(ctx context.Context, st *store.Store, pt *tokenPagesTest, tags rowTagReader) (*phaseTotals, bool, error) {
+	var p phaseTotals
+	acct := newTestAccount(testAccountID)
+	stop := storeTokenPagesTags(ctx, st, acct, testRegion, tagTestListOp, pt.page(st), tagTestRow, tags, &p)
+	_, _, err := p.result(st, acct, testRegion)
+	return &p, stop, err
+}
+
+// Each page is stored with its tags before the next page is read; a failed
+// page keeps the pages before it and its error is returned; once ctx ends
+// the pages already stored stay stored and the stop is returned.
+func TestStoreTokenPagesTags_PageByPage(t *testing.T) {
+	for _, c := range []struct {
+		name      string
+		fail      error
+		wantErr   func(error) bool
+		wantTotal int
+	}{
+		{"every page", nil, func(err error) bool { return err == nil }, 6},
+		{"later page fails", tagTestInvalid, func(err error) bool { return isAPIErrorCode(err, "ValidationException") }, 2},
+		{"ctx ends", context.Canceled, func(err error) bool { return errors.Is(err, context.Canceled) }, 2},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countWarnings(st)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			pt := &tokenPagesTest{fail: map[int]error{}}
+			if c.fail != nil {
+				pt.fail[2] = c.fail
+			}
+			if errors.Is(c.fail, context.Canceled) {
+				pt.before = func(page int) {
+					if page == 2 {
+						cancel()
+					}
+				}
+			}
+			p, stop, err := runTokenPagesTest(ctx, st, pt, pagesTestTags(nil))
+			if stop || !c.wantErr(err) {
+				t.Fatalf("stop, err = %v, %v; want false and the %s error", stop, err, c.name)
+			}
+			if len(pt.prevStored) == 0 || !pt.prevStored[0] {
+				t.Errorf("page 1 stored with tags before page 2 was read = %v; want true", pt.prevStored)
+			}
+			rows := rowsByNativeIDNoFail(st)
+			if p.total != c.wantTotal || len(rows) != c.wantTotal {
+				t.Errorf("total = %d, rows stored = %d; want %d", p.total, len(rows), c.wantTotal)
+			}
+			for id, r := range rows {
+				assertTagsMap(t, r.TagsJSON, map[string]string{"k": "v"})
+				if !strings.HasPrefix(id, "1-") && c.wantTotal == 2 {
+					t.Errorf("%s stored; want only page 1's rows", id)
+				}
+			}
+			if *warns != 0 {
+				t.Errorf("warnings = %d; want 0", *warns)
+			}
+		})
+	}
+}
+
+// When ctx ends during a page's tag reads, that page is written with the
+// rows its reads did not reach kept untagged, and no later page is read,
+// even from a page func that ignores ctx.
+func TestStoreTokenPagesTags_ContextEndsDuringTagReads(t *testing.T) {
+	st := newTestStore(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	pt := &tokenPagesTest{}
+	tags := pagesTestTags(nil)
+	read := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		if r.NativeID == "1-a" {
+			cancel()
+			return nil, ctx.Err()
+		}
+		return read(ctx, r)
+	}
+	p, stop, err := runTokenPagesTest(ctx, st, pt, tags)
+	if stop || !errors.Is(err, context.Canceled) {
+		t.Fatalf("stop, err = %v, %v; want false, context.Canceled", stop, err)
+	}
+	if pt.pages != 1 {
+		t.Errorf("pages read = %d; want 1", pt.pages)
+	}
+	rows := rowsByNativeIDNoFail(st)
+	if p.total != 2 || len(rows) != 2 || rows["1-a"] == nil || rows["1-b"] == nil {
+		t.Errorf("total = %d, rows = %v; want 1-a and 1-b only", p.total, slices.Sorted(maps.Keys(rows)))
+	}
+	if r := rows["1-a"]; r != nil && r.TagsJSON != nil {
+		t.Errorf("1-a TagsJSON = %s; want nil (its read was cut short)", *r.TagsJSON)
+	}
+}
+
+// A failed write stops the listing: no later page is read, no warning is
+// sent about rows the write lost, and the tag reads' errors are returned
+// beside the write's.
+func TestStoreTokenPagesTags_FailedWriteStops(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	refuseStoreWrites(t, st, TypeNetworkFirewallProxy)
+	pt := &tokenPagesTest{}
+	_, stop, err := runTokenPagesTest(context.Background(), st, pt, pagesTestTags(map[string]error{"1-a": tagTestDenied, "1-b": tagTestInvalid}))
+	if !stop || !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("stop, err = %v, %v; want true, store.ErrStoreWrite", stop, err)
+	}
+	if !errors.Is(err, tagTestInvalid) {
+		t.Errorf("err = %v; want the ValidationException tag read error kept", err)
+	}
+	if pt.pages != 1 {
+		t.Errorf("pages read = %d; want 1", pt.pages)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d after a failed write; want 0", *warns)
+	}
+}
+
+// Each kind of warning is sent once for the listing although two pages hit
+// it: denied tag reads under the tag op, items without an id under the
+// listing op. A denied later page keeps the pages before it and warns under
+// the listing op too.
+func TestStoreTokenPagesTags_OneWarningPerKind(t *testing.T) {
+	st := newTestStore(t)
+	listWarns := countOpWarnings(st, tagTestListOp)
+	tagWarns := countOpWarnings(st, tagTestOp)
+	pt := &tokenPagesTest{fail: map[int]error{3: tagTestDenied}}
+	var p phaseTotals
+	acct := newTestAccount(testAccountID)
+	stop := storeTokenPagesTags(context.Background(), st, acct, testRegion, tagTestListOp, pt.page(st),
+		func(id string) (*store.Resource, string, string) {
+			if strings.HasSuffix(id, "-b") {
+				return nil, "things have no id", id
+			}
+			return tagTestRow(id)
+		}, pagesTestTags(map[string]error{"1-a": tagTestDenied, "2-a": tagTestDenied}), &p)
+	if _, _, err := p.result(st, acct, testRegion); stop || err != nil {
+		t.Fatalf("stop, err = %v, %v; want false, nil", stop, err)
+	}
+	if *listWarns != 2 || *tagWarns != 1 {
+		t.Errorf("warnings %s, %s = %d, %d; want 2 (items without an id, the denied page), 1", tagTestListOp, tagTestOp, *listWarns, *tagWarns)
+	}
+	if rows := rowsByNativeIDNoFail(st); len(rows) != 2 || rows["1-a"] == nil || rows["2-a"] == nil {
+		t.Errorf("rows = %v; want 1-a and 2-a, kept untagged", slices.Sorted(maps.Keys(rows)))
+	}
+}
+
 // A row the tag read no longer finds is neither stored nor returned as a
 // parent; a stored row without the child key is warned about and returned as
 // no parent.

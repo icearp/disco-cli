@@ -1270,6 +1270,57 @@ func storeTokenListTags[Item any](
 	return errs.addPhase(p, tags.op, op, total, inserted, err)
 }
 
+// storeTokenPagesTags is storeTokenListTags for a listing too large to hold:
+// each page's rows are written as soon as their tags are read, before the
+// next page is read, so one page is held at a time and the pages written
+// survive a later failure. A failed write stops the listing. Each kind of
+// warning (items not stored, a denied listing, denied tag reads) is sent
+// once for the whole listing, and only after every write succeeded. Counts
+// and errors go to p as rowTagErrs.addPhase says; it reports whether a write
+// failed, after which the scanner must stop. Once ctx ends, the page in
+// flight is written with the rows its tag reads did not reach kept untagged,
+// and no later page is read; the stop is reported both by the tag reads and
+// by the listing, for the runner to fold into one (phaseTotals.foldStop).
+func storeTokenPagesTags[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (r *store.Resource, why, key string),
+	tags rowTagReader, p *phaseTotals,
+) (storeWriteFailed bool) {
+	var (
+		skips           notStoredSkips
+		tally           rowTagTally
+		hard            []error
+		total, inserted int
+		werr            error
+	)
+	// No page is asked for once ctx has ended, so a page whose tag reads the
+	// stop cut short is the last one written, whatever page does with ctx.
+	listErr := eachTokenPage(ctx, func(ctx context.Context, token *string) ([]Item, *string, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
+		return page(ctx, token)
+	}, func(items []Item) error {
+		rows, h := tally.read(ctx, tags, buildListedRows(items, row, nil, &skips))
+		hard = append(hard, h)
+		t, i, err := upsertBatch(st, rows, op)
+		total += t
+		inserted += i
+		werr = err
+		return err
+	})
+	errs := rowTagErrs{hard: errors.Join(hard...), transient: tally.transient(tags.op)}
+	if werr != nil {
+		return errs.addPhase(p, tags.op, op, total, inserted, werr)
+	}
+	_, _, err := storeReadRows(st, acct, region, op, nil, listErr, func() {
+		skips.warn(st, op, acct, region)
+		tally.warn(st, tags, acct, region)
+	})
+	return errs.addPhase(p, tags.op, op, total, inserted, err)
+}
+
 // storeReadRows stores the rows read from op's listing, which ended with
 // listErr, and returns listErr (wrapped with op) and errs after the write. A
 // denied listing is warned about instead of returned. A failed write is
