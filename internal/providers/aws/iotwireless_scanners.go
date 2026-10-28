@@ -1,10 +1,10 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 
 	"github.com/aws/aws-sdk-go-v2/service/iotwireless"
 	iwtypes "github.com/aws/aws-sdk-go-v2/service/iotwireless/types"
@@ -44,6 +44,7 @@ type iotWirelessAPI interface {
 	ListWirelessDeviceImportTasks(context.Context, *iotwireless.ListWirelessDeviceImportTasksInput, ...func(*iotwireless.Options)) (*iotwireless.ListWirelessDeviceImportTasksOutput, error)
 	ListWirelessGateways(context.Context, *iotwireless.ListWirelessGatewaysInput, ...func(*iotwireless.Options)) (*iotwireless.ListWirelessGatewaysOutput, error)
 	ListWirelessGatewayTaskDefinitions(context.Context, *iotwireless.ListWirelessGatewayTaskDefinitionsInput, ...func(*iotwireless.Options)) (*iotwireless.ListWirelessGatewayTaskDefinitionsOutput, error)
+	ListTagsForResource(context.Context, *iotwireless.ListTagsForResourceInput, ...func(*iotwireless.Options)) (*iotwireless.ListTagsForResourceOutput, error)
 }
 
 func scanIoTWireless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -51,417 +52,324 @@ func scanIoTWireless(ctx context.Context, acct *account, region string, st *stor
 	return scanIoTWirelessAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanIoTWirelessAll runs the older phases, which stop at their first hard
-// error, then the event-configuration phase over the parents they stored, so a
-// failure on either side costs the other no rows. The older side's transient
-// error is demoted to a warning only beside a hard error: joined, it would be
-// buried in the hard error instead of reported under its op; the
-// event-configuration phase tallies its own transients into a warning.
+const (
+	iwTagsOp = "iotwireless:ListTagsForResource"
+	// iwPageLimit is the MaxResults range maximum of every IoT Wireless
+	// listing the scan calls.
+	iwPageLimit = 250
+)
+
+// iwNotFoundCodes is the not-found code ListTagsForResource models, for a
+// resource deleted after it was listed.
+var iwNotFoundCodes = []string{"ResourceNotFoundException"}
+
+// iwTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, which is the Arn its listing returned. The Service Reference
+// lists the ARN resource type of every listing it reads under
+// ListTagsForResource (event configurations have no ARN and are not read):
+// Destination, DeviceProfile, FuotaTask, ImportTask, MulticastGroup,
+// NetworkAnalyzerConfiguration, ServiceProfile, SidewalkAccount,
+// WirelessDevice, WirelessGateway and WirelessGatewayTaskDefinition. The op
+// returns every tag in one response (it takes no page token).
+func iwTags(client iotWirelessAPI) rowTagReader {
+	return rowTagReader{
+		op:       iwTagsOp,
+		notFound: iwNotFoundCodes,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &iotwireless.ListTagsForResourceInput{ResourceArn: &r.NativeID})
+			if err != nil {
+				return nil, err
+			}
+			return kvTagsJSON(out.Tags, func(t iwtypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
+	}
+}
+
+// scanIoTWirelessAll runs every listing as its own phase, one at a time: a
+// phase's error does not stop the later ones; a failed write and ctx's end
+// do (runHostPhases). The event-configuration phase runs last, over the
+// partner accounts, wireless devices and wireless gateways the earlier
+// phases stored.
 func scanIoTWirelessAll(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	tags := iwTags(client)
 	parents := iwEventParents{}
-	total, inserted, err := scanIWOlderPhases(ctx, client, acct, region, st, scanID, parents)
-	te, ie, eerr := scanIWEventConfigurations(ctx, client, acct, region, st, scanID, parents)
-	return total + te, inserted + ie, demoteBeside(st, "iotwireless", acct, region, err, eerr)
+	return runHostPhases(ctx, st, acct, region, "iotwireless", 0, []hostPhase{
+		{op: "iotwireless:ListDestinations", run: func(p *phaseTotals) bool {
+			return scanIWDestinations(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "iotwireless:ListDeviceProfiles", run: func(p *phaseTotals) bool {
+			return scanIWDeviceProfiles(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "iotwireless:ListFuotaTasks", run: func(p *phaseTotals) bool {
+			return scanIWFuotaTasks(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "iotwireless:ListMulticastGroups", run: func(p *phaseTotals) bool {
+			return scanIWMulticastGroups(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "iotwireless:ListNetworkAnalyzerConfigurations", run: func(p *phaseTotals) bool {
+			return scanIWNetworkAnalyzerConfigs(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "iotwireless:ListPartnerAccounts", run: func(p *phaseTotals) bool {
+			return scanIWPartnerAccounts(ctx, client, acct, region, st, scanID, tags, parents, p)
+		}},
+		{op: "iotwireless:ListServiceProfiles", run: func(p *phaseTotals) bool {
+			return scanIWServiceProfiles(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "iotwireless:ListWirelessDevices", run: func(p *phaseTotals) bool {
+			return scanIWWirelessDevices(ctx, client, acct, region, st, scanID, tags, parents, p)
+		}},
+		{op: "iotwireless:ListWirelessDeviceImportTasks", run: func(p *phaseTotals) bool {
+			return scanIWWirelessDeviceImportTasks(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "iotwireless:ListWirelessGateways", run: func(p *phaseTotals) bool {
+			return scanIWWirelessGateways(ctx, client, acct, region, st, scanID, tags, parents, p)
+		}},
+		{op: "iotwireless:ListWirelessGatewayTaskDefinitions", run: func(p *phaseTotals) bool {
+			return scanIWGatewayTaskDefs(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, iwListEventConfigurationsOp, func() (int, int, error) {
+			return scanIWEventConfigurations(ctx, client, acct, region, st, scanID, parents)
+		}),
+	})
 }
 
-// scanIWOlderPhases runs the phases that predate event configurations,
-// stopping at the first hard error. The partner-account, wireless-device and
-// wireless-gateway phases record what they stored in parents.
-func scanIWOlderPhases(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, parents iwEventParents) (total, inserted int, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanIWDestinations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIWDeviceProfiles(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIWFuotaTasks(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIWMulticastGroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIWNetworkAnalyzerConfigs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIWPartnerAccounts(ctx, client, acct, region, st, scanID, parents) },
-		func() (int, int, error) { return scanIWServiceProfiles(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanIWWirelessDevices(ctx, client, acct, region, st, scanID, parents) },
-		func() (int, int, error) {
-			return scanIWWirelessDeviceImportTasks(ctx, client, acct, region, st, scanID)
+// iwRow is the row of a listed element, stored under its Arn and named
+// label. An element without an Arn is not stored: what names the elements
+// in the warning, and key (its name or id) names the element.
+func iwRow(acct *account, region, scanID, typ, what string, arn *string, label, key string, item any) (*store.Resource, string, string) {
+	if sv(arn) == "" {
+		return nil, what + " have no Arn", cmp.Or(key, "(an element with no identifier)")
+	}
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: sv(arn),
+		Name: &label, Region: &region, AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}, "", ""
+}
+
+// iwIdent is one identifier an event configuration can name its resource by.
+type iwIdent struct {
+	idType iwtypes.IdentifierType
+	id     string
+}
+
+// storeIWParentList is storeTokenListTags for a listing whose rows can be
+// named by an event configuration: ids gives each row's identifiers, which
+// are recorded in parents for every row kept, so that no event configuration
+// is linked under a row the tag read dropped. storeParentListTags does not
+// fit: it keys each parent on one id, while a wireless device or gateway is
+// named by its id and by its EUI, and it warns about rows without that id as
+// stored without their children, which an event configuration is not.
+func storeIWParentList[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (*store.Resource, string, string),
+	ids func(Item) []iwIdent,
+	tags rowTagReader, parents iwEventParents, p *phaseTotals,
+) (storeWriteFailed bool) {
+	var (
+		errs   rowTagErrs
+		idents = map[*store.Resource][]iwIdent{}
+		kept   []*store.Resource
+	)
+	readTags := tags.hook(ctx, st, acct, region, &errs)
+	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op, page, func(it Item) (*store.Resource, string, string) {
+		r, why, key := row(it)
+		if r != nil {
+			idents[r] = ids(it)
+		}
+		return r, why, key
+	}, func(rows []*store.Resource) ([]*store.Resource, func()) {
+		var warn func()
+		kept, warn = readTags(rows)
+		return kept, warn
+	})
+	for _, r := range kept {
+		for _, in := range idents[r] {
+			parents.add(in.idType, in.id, r.NativeID)
+		}
+	}
+	return errs.addPhase(p, tags.op, op, total, inserted, err)
+}
+
+func scanIWDestinations(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "iotwireless:ListDestinations",
+		func(ctx context.Context, token *string) ([]iwtypes.Destinations, *string, error) {
+			out, err := client.ListDestinations(ctx, &iotwireless.ListDestinationsInput{MaxResults: iwPageLimit, NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.DestinationList, out.NextToken, nil
 		},
-		func() (int, int, error) {
-			return scanIWWirelessGateways(ctx, client, acct, region, st, scanID, parents)
+		func(d iwtypes.Destinations) (*store.Resource, string, string) {
+			return iwRow(acct, region, scanID, TypeIoTWirelessDestination, "destinations", d.Arn, cmp.Or(sv(d.Name), sv(d.Arn)), sv(d.Name), d)
+		}, tags, p)
+}
+
+func scanIWDeviceProfiles(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "iotwireless:ListDeviceProfiles",
+		func(ctx context.Context, token *string) ([]iwtypes.DeviceProfile, *string, error) {
+			out, err := client.ListDeviceProfiles(ctx, &iotwireless.ListDeviceProfilesInput{MaxResults: iwPageLimit, NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.DeviceProfileList, out.NextToken, nil
 		},
-		func() (int, int, error) { return scanIWGatewayTaskDefs(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+		func(d iwtypes.DeviceProfile) (*store.Resource, string, string) {
+			return iwRow(acct, region, scanID, TypeIoTWirelessDeviceProfile, "device profiles", d.Arn, cmp.Or(sv(d.Name), sv(d.Id)), cmp.Or(sv(d.Name), sv(d.Id)), d)
+		}, tags, p)
 }
 
-func scanIWDestinations(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iotwireless.NewListDestinationsPaginator(client, &iotwireless.ListDestinationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotwireless:ListDestinations", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIWFuotaTasks(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "iotwireless:ListFuotaTasks",
+		func(ctx context.Context, token *string) ([]iwtypes.FuotaTask, *string, error) {
+			out, err := client.ListFuotaTasks(ctx, &iotwireless.ListFuotaTasksInput{MaxResults: iwPageLimit, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iotwireless:ListDestinations: %w", perr)
-		}
-		for _, d := range out.DestinationList {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(d.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTWirelessDestination, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "iotwireless destinations")
+			return out.FuotaTaskList, out.NextToken, nil
+		},
+		func(f iwtypes.FuotaTask) (*store.Resource, string, string) {
+			return iwRow(acct, region, scanID, TypeIoTWirelessFuotaTask, "FUOTA tasks", f.Arn, cmp.Or(sv(f.Name), sv(f.Id)), cmp.Or(sv(f.Name), sv(f.Id)), f)
+		}, tags, p)
 }
 
-func scanIWDeviceProfiles(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iotwireless.NewListDeviceProfilesPaginator(client, &iotwireless.ListDeviceProfilesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotwireless:ListDeviceProfiles", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIWMulticastGroups(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "iotwireless:ListMulticastGroups",
+		func(ctx context.Context, token *string) ([]iwtypes.MulticastGroup, *string, error) {
+			out, err := client.ListMulticastGroups(ctx, &iotwireless.ListMulticastGroupsInput{MaxResults: iwPageLimit, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iotwireless:ListDeviceProfiles: %w", perr)
-		}
-		for _, d := range out.DeviceProfileList {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(d.Name)
-			if label == "" {
-				label = sv(d.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTWirelessDeviceProfile, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "iotwireless device-profiles")
+			return out.MulticastGroupList, out.NextToken, nil
+		},
+		func(m iwtypes.MulticastGroup) (*store.Resource, string, string) {
+			return iwRow(acct, region, scanID, TypeIoTWirelessMulticastGroup, "multicast groups", m.Arn, cmp.Or(sv(m.Name), sv(m.Id)), cmp.Or(sv(m.Name), sv(m.Id)), m)
+		}, tags, p)
 }
 
-func scanIWFuotaTasks(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iotwireless.NewListFuotaTasksPaginator(client, &iotwireless.ListFuotaTasksInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotwireless:ListFuotaTasks", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIWNetworkAnalyzerConfigs(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "iotwireless:ListNetworkAnalyzerConfigurations",
+		func(ctx context.Context, token *string) ([]iwtypes.NetworkAnalyzerConfigurations, *string, error) {
+			out, err := client.ListNetworkAnalyzerConfigurations(ctx, &iotwireless.ListNetworkAnalyzerConfigurationsInput{MaxResults: iwPageLimit, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iotwireless:ListFuotaTasks: %w", perr)
-		}
-		for _, f := range out.FuotaTaskList {
-			arn := sv(f.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(f.Name)
-			if label == "" {
-				label = sv(f.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTWirelessFuotaTask, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "iotwireless fuota-tasks")
+			return out.NetworkAnalyzerConfigurationList, out.NextToken, nil
+		},
+		func(n iwtypes.NetworkAnalyzerConfigurations) (*store.Resource, string, string) {
+			return iwRow(acct, region, scanID, TypeIoTWirelessNetworkAnalyzerConfiguration, "network analyzer configurations", n.Arn, cmp.Or(sv(n.Name), sv(n.Arn)), sv(n.Name), n)
+		}, tags, p)
 }
 
-func scanIWMulticastGroups(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iotwireless.NewListMulticastGroupsPaginator(client, &iotwireless.ListMulticastGroupsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotwireless:ListMulticastGroups", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iotwireless:ListMulticastGroups: %w", perr)
-		}
-		for _, m := range out.MulticastGroupList {
-			arn := sv(m.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(m.Name)
-			if label == "" {
-				label = sv(m.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTWirelessMulticastGroup, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "iotwireless multicast-groups")
+// scanIWPartnerAccounts stores the Sidewalk partner accounts, the only
+// partner type the model has. A first page refused with the region-gated
+// message is Sidewalk not being offered in this region, and ends the listing
+// silently.
+func scanIWPartnerAccounts(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, parents iwEventParents, p *phaseTotals) bool {
+	return storeIWParentList(ctx, st, acct, region, "iotwireless:ListPartnerAccounts",
+		firstPageGapPages(iwRegionGated,
+			func(ctx context.Context, token *string) ([]iwtypes.SidewalkAccountInfoWithFingerprint, *string, error) {
+				out, err := client.ListPartnerAccounts(ctx, &iotwireless.ListPartnerAccountsInput{MaxResults: iwPageLimit, NextToken: token})
+				if err != nil {
+					return nil, nil, err
+				}
+				return out.Sidewalk, out.NextToken, nil
+			}),
+		func(s iwtypes.SidewalkAccountInfoWithFingerprint) (*store.Resource, string, string) {
+			return iwRow(acct, region, scanID, TypeIoTWirelessPartnerAccount, "partner accounts", s.Arn, cmp.Or(sv(s.AmazonId), sv(s.Arn)), sv(s.AmazonId), s)
+		},
+		func(s iwtypes.SidewalkAccountInfoWithFingerprint) []iwIdent {
+			return []iwIdent{{iwtypes.IdentifierTypePartnerAccountId, sv(s.AmazonId)}}
+		}, tags, parents, p)
 }
 
-func scanIWNetworkAnalyzerConfigs(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iotwireless.NewListNetworkAnalyzerConfigurationsPaginator(client, &iotwireless.ListNetworkAnalyzerConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotwireless:ListNetworkAnalyzerConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIWServiceProfiles(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "iotwireless:ListServiceProfiles",
+		func(ctx context.Context, token *string) ([]iwtypes.ServiceProfile, *string, error) {
+			out, err := client.ListServiceProfiles(ctx, &iotwireless.ListServiceProfilesInput{MaxResults: iwPageLimit, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iotwireless:ListNetworkAnalyzerConfigurations: %w", perr)
-		}
-		for _, n := range out.NetworkAnalyzerConfigurationList {
-			arn := sv(n.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(n.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTWirelessNetworkAnalyzerConfiguration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "iotwireless network-analyzer-configurations")
+			return out.ServiceProfileList, out.NextToken, nil
+		},
+		func(s iwtypes.ServiceProfile) (*store.Resource, string, string) {
+			return iwRow(acct, region, scanID, TypeIoTWirelessServiceProfile, "service profiles", s.Arn, cmp.Or(sv(s.Name), sv(s.Id)), cmp.Or(sv(s.Name), sv(s.Id)), s)
+		}, tags, p)
 }
 
-// scanIWPartnerAccounts — Sidewalk-only; manual NextToken loop (no paginator).
-func scanIWPartnerAccounts(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, parents iwEventParents) (int, int, error) {
-	var batch []*store.Resource
-	listed := iwEventParents{}
-	var token *string
-	for {
-		out, err := client.ListPartnerAccounts(ctx, &iotwireless.ListPartnerAccountsInput{NextToken: token})
-		if err != nil {
-			// Per-region feature gap ("not authorized to call this API in this
-			// region <r>"): Sidewalk partner accounts gated to a region subset,
-			// distinct from canonical IAM-deny shape.
-			if isAccessDeniedWithMessage(err, iwRegionGatedMessage) {
-				return 0, 0, nil
+func scanIWWirelessDevices(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, parents iwEventParents, p *phaseTotals) bool {
+	return storeIWParentList(ctx, st, acct, region, "iotwireless:ListWirelessDevices",
+		func(ctx context.Context, token *string) ([]iwtypes.WirelessDeviceStatistics, *string, error) {
+			out, err := client.ListWirelessDevices(ctx, &iotwireless.ListWirelessDevicesInput{MaxResults: iwPageLimit, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "iotwireless:ListPartnerAccounts", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("iotwireless:ListPartnerAccounts: %w", err)
-		}
-		for _, s := range out.Sidewalk {
-			arn := sv(s.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(s.AmazonId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTWirelessPartnerAccount, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-			listed.add(iwtypes.IdentifierTypePartnerAccountId, sv(s.AmazonId), arn)
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	return upsertIWParents(st, batch, "iotwireless partner-accounts", parents, listed)
-}
-
-func scanIWServiceProfiles(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := iotwireless.NewListServiceProfilesPaginator(client, &iotwireless.ListServiceProfilesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotwireless:ListServiceProfiles", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iotwireless:ListServiceProfiles: %w", perr)
-		}
-		for _, s := range out.ServiceProfileList {
-			arn := sv(s.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(s.Name)
-			if label == "" {
-				label = sv(s.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTWirelessServiceProfile, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "iotwireless service-profiles")
-}
-
-func scanIWWirelessDevices(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, parents iwEventParents) (int, int, error) {
-	pager := iotwireless.NewListWirelessDevicesPaginator(client, &iotwireless.ListWirelessDevicesInput{})
-	var batch []*store.Resource
-	listed := iwEventParents{}
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotwireless:ListWirelessDevices", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("iotwireless:ListWirelessDevices: %w", perr)
-		}
-		for _, d := range out.WirelessDeviceList {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(d.Name)
-			if label == "" {
-				label = sv(d.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTWirelessWirelessDevice, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-			listed.add(iwtypes.IdentifierTypeWirelessDeviceId, sv(d.Id), arn)
+			return out.WirelessDeviceList, out.NextToken, nil
+		},
+		func(d iwtypes.WirelessDeviceStatistics) (*store.Resource, string, string) {
+			return iwRow(acct, region, scanID, TypeIoTWirelessWirelessDevice, "wireless devices", d.Arn, cmp.Or(sv(d.Name), sv(d.Id)), cmp.Or(sv(d.Name), sv(d.Id)), d)
+		},
+		func(d iwtypes.WirelessDeviceStatistics) []iwIdent {
+			ids := []iwIdent{{iwtypes.IdentifierTypeWirelessDeviceId, sv(d.Id)}}
 			if d.LoRaWAN != nil {
-				listed.add(iwtypes.IdentifierTypeDevEui, sv(d.LoRaWAN.DevEui), arn)
+				ids = append(ids, iwIdent{iwtypes.IdentifierTypeDevEui, sv(d.LoRaWAN.DevEui)})
 			}
-		}
-	}
-	return upsertIWParents(st, batch, "iotwireless wireless-devices", parents, listed)
+			return ids
+		}, tags, parents, p)
 }
 
-func scanIWWirelessDeviceImportTasks(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.ListWirelessDeviceImportTasks(ctx, &iotwireless.ListWirelessDeviceImportTasksInput{NextToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "iotwireless:ListWirelessDeviceImportTasks", acct.ID, region, err)
+func scanIWWirelessDeviceImportTasks(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "iotwireless:ListWirelessDeviceImportTasks",
+		func(ctx context.Context, token *string) ([]iwtypes.WirelessDeviceImportTask, *string, error) {
+			out, err := client.ListWirelessDeviceImportTasks(ctx, &iotwireless.ListWirelessDeviceImportTasksInput{MaxResults: iwPageLimit, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iotwireless:ListWirelessDeviceImportTasks: %w", err)
-		}
-		for _, t := range out.WirelessDeviceImportTaskList {
-			arn := sv(t.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(t.Id)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTWirelessWirelessDeviceImportTask, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	return upsertBatch(st, batch, "iotwireless wireless-device-import-tasks")
+			return out.WirelessDeviceImportTaskList, out.NextToken, nil
+		},
+		func(t iwtypes.WirelessDeviceImportTask) (*store.Resource, string, string) {
+			return iwRow(acct, region, scanID, TypeIoTWirelessWirelessDeviceImportTask, "wireless device import tasks", t.Arn, sv(t.Id), sv(t.Id), t)
+		}, tags, p)
 }
 
-func scanIWWirelessGateways(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, parents iwEventParents) (int, int, error) {
-	pager := iotwireless.NewListWirelessGatewaysPaginator(client, &iotwireless.ListWirelessGatewaysInput{})
-	var batch []*store.Resource
-	listed := iwEventParents{}
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "iotwireless:ListWirelessGateways", acct.ID, region, perr)
-				return 0, 0, nil
+func scanIWWirelessGateways(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, parents iwEventParents, p *phaseTotals) bool {
+	return storeIWParentList(ctx, st, acct, region, "iotwireless:ListWirelessGateways",
+		func(ctx context.Context, token *string) ([]iwtypes.WirelessGatewayStatistics, *string, error) {
+			out, err := client.ListWirelessGateways(ctx, &iotwireless.ListWirelessGatewaysInput{MaxResults: iwPageLimit, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iotwireless:ListWirelessGateways: %w", perr)
-		}
-		for _, g := range out.WirelessGatewayList {
-			arn := sv(g.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(g.Name)
-			if label == "" {
-				label = sv(g.Id)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTWirelessWirelessGateway, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-			listed.add(iwtypes.IdentifierTypeWirelessGatewayId, sv(g.Id), arn)
+			return out.WirelessGatewayList, out.NextToken, nil
+		},
+		func(g iwtypes.WirelessGatewayStatistics) (*store.Resource, string, string) {
+			return iwRow(acct, region, scanID, TypeIoTWirelessWirelessGateway, "wireless gateways", g.Arn, cmp.Or(sv(g.Name), sv(g.Id)), cmp.Or(sv(g.Name), sv(g.Id)), g)
+		},
+		func(g iwtypes.WirelessGatewayStatistics) []iwIdent {
+			ids := []iwIdent{{iwtypes.IdentifierTypeWirelessGatewayId, sv(g.Id)}}
 			if g.LoRaWAN != nil {
-				listed.add(iwtypes.IdentifierTypeGatewayEui, sv(g.LoRaWAN.GatewayEui), arn)
+				ids = append(ids, iwIdent{iwtypes.IdentifierTypeGatewayEui, sv(g.LoRaWAN.GatewayEui)})
 			}
-		}
-	}
-	return upsertIWParents(st, batch, "iotwireless wireless-gateways", parents, listed)
+			return ids
+		}, tags, parents, p)
 }
 
-func scanIWGatewayTaskDefs(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.ListWirelessGatewayTaskDefinitions(ctx, &iotwireless.ListWirelessGatewayTaskDefinitionsInput{NextToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "iotwireless:ListWirelessGatewayTaskDefinitions", acct.ID, region, err)
+func scanIWGatewayTaskDefs(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "iotwireless:ListWirelessGatewayTaskDefinitions",
+		func(ctx context.Context, token *string) ([]iwtypes.UpdateWirelessGatewayTaskEntry, *string, error) {
+			out, err := client.ListWirelessGatewayTaskDefinitions(ctx, &iotwireless.ListWirelessGatewayTaskDefinitionsInput{MaxResults: iwPageLimit, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("iotwireless:ListWirelessGatewayTaskDefinitions: %w", err)
-		}
-		for _, t := range out.TaskDefinitions {
-			arn := sv(t.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(t.Id)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeIoTWirelessTaskDefinition, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	return upsertBatch(st, batch, "iotwireless task-definitions")
+			return out.TaskDefinitions, out.NextToken, nil
+		},
+		func(t iwtypes.UpdateWirelessGatewayTaskEntry) (*store.Resource, string, string) {
+			return iwRow(acct, region, scanID, TypeIoTWirelessTaskDefinition, "task definitions", t.Arn, sv(t.Id), sv(t.Id), t)
+		}, tags, p)
 }
 
 const (
 	iwListEventConfigurationsOp = "iotwireless:ListEventConfigurations"
-	// iwEventConfigPageLimit is the model's MaxResults cap.
-	iwEventConfigPageLimit = 250
 	// iwRegionGatedMessage is how IoT Wireless refuses a Sidewalk API in a
 	// region Sidewalk is not offered in, under an AccessDeniedException code.
 	iwRegionGatedMessage = "not authorized to call this API in this region"
@@ -482,23 +390,6 @@ func (p iwEventParents) add(idType iwtypes.IdentifierType, identifier, nativeID 
 	p[idType][identifier] = nativeID
 }
 
-// upsertIWParents stores batch and, only once it is stored, records the
-// identifiers listed for it in parents, so no event configuration is linked
-// under a parent row that does not exist.
-func upsertIWParents(st *store.Store, batch []*store.Resource, label string, parents, listed iwEventParents) (int, int, error) {
-	total, inserted, err := upsertBatch(st, batch, label)
-	if err != nil {
-		return 0, 0, err
-	}
-	for idType, ids := range listed {
-		if parents[idType] == nil {
-			parents[idType] = map[string]string{}
-		}
-		maps.Copy(parents[idType], ids)
-	}
-	return total, inserted, nil
-}
-
 // iwEventConfigParentKinds is the Service Reference ARN resource type of each
 // identifier type that is the id in that ARN
 // (arn:{p}:iotwireless:{region}:{account}:{kind}/{id}). Sidewalk is the only
@@ -512,8 +403,8 @@ var iwEventConfigParentKinds = map[iwtypes.IdentifierType]string{
 // iwEventConfigNativeID is the NativeID of an event configuration: an ARN in
 // the Service Reference format built from the returned identifier, plus
 // "/event-configuration". The op returns no ARN. For a wireless device or
-// gateway id that ARN matches the parent row's NativeID in the aws partition
-// (the partition is hard-coded, as elsewhere in this package). Any other identifier type
+// gateway id that ARN, built in the account's partition, matches the parent
+// row's NativeID, the Arn its listing returned. Any other identifier type
 // (an EUI) is not the id in an ARN, so the identifier type stands in for the
 // ARN resource type (DevEui/{eui}); no IoT Wireless ARN resource type is
 // named after an identifier type, so the forms cannot collide.
@@ -530,16 +421,18 @@ func iwEventConfigNativeID(partition, region, accountID string, item iwtypes.Eve
 // resource type, and links each under the partner account, wireless device
 // or wireless gateway it names when an older phase stored that parent this
 // scan. Each resource type is listed independently and keeps the rows of the
-// pages it read: a Sidewalk region gap is skipped silently as
-// ListPartnerAccounts does; a denial warns once for the op; a transient error
-// is tallied into one warning; anything else, ValidationException included
-// (the resource type is the SDK's own enum value, so it means a bad request),
-// is returned after the other types' rows are stored.
+// pages it read: a Sidewalk region gap on its first page is skipped silently
+// as ListPartnerAccounts does (on a later page it is the denial it is); a
+// denial warns once for the op; a transient error is tallied into one
+// warning; anything else, ValidationException included (the resource type is
+// the SDK's own enum value, so it means a bad request), is returned after the
+// other types' rows are stored. The warnings are sent only once the rows are
+// written.
 func scanIWEventConfigurations(ctx context.Context, client iotWirelessAPI, acct *account, region string, st *store.Store, scanID string, parents iwEventParents) (int, int, error) {
 	var (
 		children  []containedChild
 		transient transientTally
-		denied    bool
+		denied    error
 		errs      []error
 	)
 	for _, rt := range iwtypes.EventNotificationResourceType("").Values() {
@@ -560,39 +453,37 @@ func scanIWEventConfigurations(ctx context.Context, client iotWirelessAPI, acct 
 		}
 		switch {
 		case err == nil:
-		case isAccessDeniedWithMessage(err, iwRegionGatedMessage):
 		case isAccessDenied(err):
-			if !denied {
-				denied = true
-				_ = skipIfAccessDenied(st, iwListEventConfigurationsOp, acct.ID, region, err)
-			}
+			denied = cmp.Or(denied, err)
 		case isTransientNetworkError(err):
 			transient.skipped(string(rt), err)
 		default:
 			errs = append(errs, fmt.Errorf("%s %s: %w", iwListEventConfigurationsOp, rt, err))
 		}
 	}
-	transient.warnSkipped(st, iwListEventConfigurationsOp, acct, region)
 	total, inserted, err := upsertContained(st, "iotwireless event-configurations", children)
+	if errors.Is(err, store.ErrStoreWrite) {
+		return total, inserted, errors.Join(append(errs, err)...)
+	}
+	if denied != nil {
+		_ = skipIfAccessDenied(st, iwListEventConfigurationsOp, acct.ID, region, denied)
+	}
+	transient.warnSkipped(st, iwListEventConfigurationsOp, acct, region)
 	return total, inserted, errors.Join(append(errs, err)...)
 }
 
 // listIWEventConfigurations lists the event configurations of one resource
-// type, returning the items of every page read before an error.
+// type, returning the items of every page read before an error. The
+// region-gated refusal on the first page reads as an empty listing.
 func listIWEventConfigurations(ctx context.Context, client iotWirelessAPI, rt iwtypes.EventNotificationResourceType) ([]iwtypes.EventConfigurationItem, error) {
-	in := &iotwireless.ListEventConfigurationsInput{ResourceType: rt, MaxResults: iwEventConfigPageLimit}
-	var items []iwtypes.EventConfigurationItem
-	for {
-		out, err := client.ListEventConfigurations(ctx, in)
+	return readTokenPages(ctx, firstPageGapPages(iwRegionGated, func(ctx context.Context, token *string) ([]iwtypes.EventConfigurationItem, *string, error) {
+		out, err := client.ListEventConfigurations(ctx, &iotwireless.ListEventConfigurationsInput{ResourceType: rt, MaxResults: iwPageLimit, NextToken: token})
 		if err != nil {
-			return items, err
+			return nil, nil, err
 		}
-		items = append(items, out.EventConfigurationsList...)
-		// ListEventConfigurations has no paginator; a repeated token would
-		// loop forever.
-		if done, err := lastPage(in.NextToken, out.NextToken); done {
-			return items, err
-		}
-		in.NextToken = out.NextToken
-	}
+		return out.EventConfigurationsList, out.NextToken, nil
+	}))
 }
+
+// iwRegionGated reports whether err is the region-gated refusal.
+func iwRegionGated(err error) bool { return isAccessDeniedWithMessage(err, iwRegionGatedMessage) }
