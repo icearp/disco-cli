@@ -1862,6 +1862,30 @@ func TestRunFamilies_FailureKeepsOtherFamilies(t *testing.T) {
 	}
 }
 
+// A phaseFamily family keeps each phase's error under that phase's op, and a
+// countedFamily family files its error under its op, never the service.
+func TestPhaseAndCountedFamily_KeepOps(t *testing.T) {
+	listErr, tagErr, countedErr := errors.New("list failed"), errors.New("tag read failed"), errors.New("counted failed")
+	p := runFamilies(context.Background(), "svc",
+		phaseFamily(func(q *phaseTotals) {
+			q.addPhase("svc:List", 2, 1, listErr)
+			q.addPhase("svc:ListTags", 1, 1, tagErr)
+		}),
+		countedFamily("svc:Describe", func() (int, int, error) { return 3, 2, countedErr }),
+		countedFamily("svc:Get", func() (int, int, error) { return 1, 0, nil }),
+	)
+	if p.total != 7 || p.inserted != 4 {
+		t.Errorf("total, inserted = %d, %d; want 7, 4", p.total, p.inserted)
+	}
+	got := map[string]error{}
+	for _, e := range p.errs {
+		got[e.op] = e.err
+	}
+	if len(p.errs) != 3 || !errors.Is(got["svc:List"], listErr) || !errors.Is(got["svc:ListTags"], tagErr) || !errors.Is(got["svc:Describe"], countedErr) {
+		t.Errorf("errors by op = %v; want svc:List: %v, svc:ListTags: %v, svc:Describe: %v", got, listErr, tagErr, countedErr)
+	}
+}
+
 // The families run at once: each waits for the other to start, which only
 // ends before the timeout when they overlap.
 func TestRunFamilies_RunsFamiliesConcurrently(t *testing.T) {

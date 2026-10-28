@@ -88,71 +88,58 @@ func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID 
 	client := cloudfront.NewFromConfig(acct.cfg, func(o *cloudfront.Options) { o.Region = home })
 	region := sv(regionGlobal)
 	tags := cfTags(client).boundedBy(make(chan struct{}, fanoutMed)).sharingDenials()
-	tagged := func(run func(p *phaseTotals)) func(context.Context) (int, int, error) {
-		return func(context.Context) (int, int, error) {
-			var p phaseTotals
-			run(&p)
-			return opErrsResult(&p)
-		}
-	}
-	untagged := func(op string, run func() (int, int, error)) func(context.Context) (int, int, error) {
-		return tagged(func(p *phaseTotals) {
-			total, inserted, err := run()
-			p.addPhase(op, total, inserted, err)
-		})
-	}
 	p := runFamilies(ctx, "cloudfront",
-		tagged(func(p *phaseTotals) {
+		phaseFamily(func(p *phaseTotals) {
 			dists := scanCloudFrontDistributions(ctx, client, acct, region, st, scanID, tags, p)
 			total, inserted, err := scanCloudFrontMonitoringSubscriptions(ctx, client, acct, region, st, scanID, dists)
 			p.addPhase(cfMonitoringOp, total, inserted, err)
 		}),
-		untagged("cloudfront:ListStreamingDistributions", func() (int, int, error) {
+		countedFamily("cloudfront:ListStreamingDistributions", func() (int, int, error) {
 			return scanCloudFrontStreamingDistributions(ctx, acct, client, st, scanID)
 		}),
-		tagged(func(p *phaseTotals) {
+		phaseFamily(func(p *phaseTotals) {
 			scanCloudFrontDistributionTenants(ctx, client, acct, region, st, scanID, tags, p)
 		}),
-		untagged("cloudfront:ListCachePolicies", func() (int, int, error) {
+		countedFamily("cloudfront:ListCachePolicies", func() (int, int, error) {
 			return scanCloudFrontCachePolicies(ctx, acct, client, st, scanID)
 		}),
-		untagged("cloudfront:ListOriginRequestPolicies", func() (int, int, error) {
+		countedFamily("cloudfront:ListOriginRequestPolicies", func() (int, int, error) {
 			return scanCloudFrontOriginRequestPolicies(ctx, acct, client, st, scanID)
 		}),
-		untagged("cloudfront:ListResponseHeadersPolicies", func() (int, int, error) {
+		countedFamily("cloudfront:ListResponseHeadersPolicies", func() (int, int, error) {
 			return scanCloudFrontResponseHeadersPolicies(ctx, acct, client, st, scanID)
 		}),
-		untagged("cloudfront:ListContinuousDeploymentPolicies", func() (int, int, error) {
+		countedFamily("cloudfront:ListContinuousDeploymentPolicies", func() (int, int, error) {
 			return scanCloudFrontContinuousDeploymentPolicies(ctx, acct, client, st, scanID)
 		}),
-		untagged("cloudfront:ListCloudFrontOriginAccessIdentities", func() (int, int, error) {
+		countedFamily("cloudfront:ListCloudFrontOriginAccessIdentities", func() (int, int, error) {
 			return scanCloudFrontOAIs(ctx, acct, client, st, scanID)
 		}),
-		untagged("cloudfront:ListOriginAccessControls", func() (int, int, error) {
+		countedFamily("cloudfront:ListOriginAccessControls", func() (int, int, error) {
 			return scanCloudFrontOriginAccessControls(ctx, acct, client, st, scanID)
 		}),
-		tagged(func(p *phaseTotals) { scanCloudFrontFunctions(ctx, client, acct, region, st, scanID, tags, p) }),
-		tagged(func(p *phaseTotals) {
+		phaseFamily(func(p *phaseTotals) { scanCloudFrontFunctions(ctx, client, acct, region, st, scanID, tags, p) }),
+		phaseFamily(func(p *phaseTotals) {
 			scanCloudFrontConnectionFunctions(ctx, client, acct, region, st, scanID, tags, p)
 		}),
-		untagged("cloudfront:ListKeyGroups", func() (int, int, error) {
+		countedFamily("cloudfront:ListKeyGroups", func() (int, int, error) {
 			return scanCloudFrontKeyGroups(ctx, acct, client, st, scanID)
 		}),
-		tagged(func(p *phaseTotals) { scanCloudFrontKeyValueStores(ctx, client, acct, region, st, scanID, tags, p) }),
-		untagged("cloudfront:ListPublicKeys", func() (int, int, error) {
+		phaseFamily(func(p *phaseTotals) { scanCloudFrontKeyValueStores(ctx, client, acct, region, st, scanID, tags, p) }),
+		countedFamily("cloudfront:ListPublicKeys", func() (int, int, error) {
 			return scanCloudFrontPublicKeys(ctx, acct, client, st, scanID)
 		}),
-		untagged("cloudfront:ListRealtimeLogConfigs", func() (int, int, error) {
+		countedFamily("cloudfront:ListRealtimeLogConfigs", func() (int, int, error) {
 			return scanCloudFrontRealtimeLogConfigs(ctx, acct, client, st, scanID)
 		}),
-		tagged(func(p *phaseTotals) { scanCloudFrontTrustStores(ctx, client, acct, region, st, scanID, tags, p) }),
-		tagged(func(p *phaseTotals) { scanCloudFrontConnectionGroups(ctx, client, acct, region, st, scanID, tags, p) }),
-		tagged(func(p *phaseTotals) { scanCloudFrontAnycastIPLists(ctx, client, acct, region, st, scanID, tags, p) }),
-		tagged(func(p *phaseTotals) { scanCloudFrontVpcOrigins(ctx, client, acct, region, st, scanID, tags, p) }),
-		untagged("cloudfront:ListFieldLevelEncryptionConfigs", func() (int, int, error) {
+		phaseFamily(func(p *phaseTotals) { scanCloudFrontTrustStores(ctx, client, acct, region, st, scanID, tags, p) }),
+		phaseFamily(func(p *phaseTotals) { scanCloudFrontConnectionGroups(ctx, client, acct, region, st, scanID, tags, p) }),
+		phaseFamily(func(p *phaseTotals) { scanCloudFrontAnycastIPLists(ctx, client, acct, region, st, scanID, tags, p) }),
+		phaseFamily(func(p *phaseTotals) { scanCloudFrontVpcOrigins(ctx, client, acct, region, st, scanID, tags, p) }),
+		countedFamily("cloudfront:ListFieldLevelEncryptionConfigs", func() (int, int, error) {
 			return scanCloudFrontFieldLevelEncryptionConfigs(ctx, acct, client, st, scanID)
 		}),
-		untagged("cloudfront:ListFieldLevelEncryptionProfiles", func() (int, int, error) {
+		countedFamily("cloudfront:ListFieldLevelEncryptionProfiles", func() (int, int, error) {
 			return scanCloudFrontFieldLevelEncryptionProfiles(ctx, acct, client, st, scanID)
 		}),
 	)

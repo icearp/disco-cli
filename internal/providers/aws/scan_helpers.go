@@ -1752,6 +1752,25 @@ func runFamilies(ctx context.Context, service string, families ...func(context.C
 	return &p
 }
 
+// phaseFamily is a runFamilies family whose phases add their counts and
+// errors to one phaseTotals, each error under its own op (opErrsResult).
+func phaseFamily(run func(p *phaseTotals)) func(context.Context) (int, int, error) {
+	return func(context.Context) (int, int, error) {
+		var p phaseTotals
+		run(&p)
+		return opErrsResult(&p)
+	}
+}
+
+// countedFamily is the runFamilies family of one phase that returns its
+// counts and error, the error filed under op rather than the service.
+func countedFamily(op string, run func() (int, int, error)) func(context.Context) (int, int, error) {
+	return phaseFamily(func(p *phaseTotals) {
+		total, inserted, err := run()
+		p.addPhase(op, total, inserted, err)
+	})
+}
+
 // storeParentList stores an account-wide listing through storeTokenList whose
 // rows are parents of a later phase, and returns the stored rows that carry
 // the id the child op keys on (read by key); the others are warned about, as

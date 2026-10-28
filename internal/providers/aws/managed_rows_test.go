@@ -193,11 +193,17 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 		},
 		{
 			name: "rds default DB security group", typ: TypeRDSDBSecurityGroup,
-			handlers: handlers{"DescribeDBSecurityGroups": ret(&rds.DescribeDBSecurityGroupsOutput{DBSecurityGroups: []rdstypes.DBSecurityGroup{{
-				DBSecurityGroupArn: sdkaws.String(arn("rds", "secgrp:default")), DBSecurityGroupName: sdkaws.String("default"),
-			}}})},
+			handlers: handlers{
+				"DescribeDBSecurityGroups": ret(&rds.DescribeDBSecurityGroupsOutput{DBSecurityGroups: []rdstypes.DBSecurityGroup{{
+					DBSecurityGroupArn: sdkaws.String(arn("rds", "secgrp:default")), DBSecurityGroupName: sdkaws.String("default"),
+				}}}),
+				"ListTagsForResource": ret(&rds.ListTagsForResourceOutput{}),
+			},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanDBSecurityGroups(ctx, rds.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				client := rds.NewFromConfig(cfg)
+				var p phaseTotals
+				scanDBSecurityGroups(ctx, client, acct, testRegion, st, testScanID, rdsTags(client), &p)
+				_, _, err := p.result(st, acct, testRegion)
 				return err
 			},
 		},

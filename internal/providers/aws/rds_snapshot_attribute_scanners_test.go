@@ -215,12 +215,13 @@ func TestScanRDS_SnapshotAttributeErrorKeepsOtherPhases(t *testing.T) {
 	}
 }
 
-// A throttled older phase is demoted to one warning, so the attribute phase's
-// hard error still reaches the dispatcher as a hard error, and the snapshots
-// that phase stored before the throttle are still described.
+// A throttled older phase is demoted to one warning under its own op, so the
+// attribute phase's hard error still reaches the dispatcher as a hard error,
+// and the snapshots that phase stored before the throttle are still
+// described.
 func TestScanRDS_ThrottledOlderPhaseKeepsAttributeHardError(t *testing.T) {
 	st := newTestStore(t)
-	warns := countOpWarnings(st, "rds")
+	warns := countOpWarnings(st, "rds:DescribeDBSnapshots")
 	var calls, clusterCalls parentCalls
 	var log opLog
 	h := rdsSnapshotAttrHandlers(&calls, &clusterCalls, func(string) error { return apiErr("InvalidParameterValue", "bad") })
@@ -237,16 +238,17 @@ func TestScanRDS_ThrottledOlderPhaseKeepsAttributeHardError(t *testing.T) {
 		t.Errorf("classifyServiceError = %v, want outcomeError", got)
 	}
 	if *warns != 1 {
-		t.Errorf("rds warnings = %d, want 1 for the demoted throttle", *warns)
+		t.Errorf("rds:DescribeDBSnapshots warnings = %d, want 1 for the demoted throttle", *warns)
 	}
 	if got := calls.distinct(); !slices.Equal(got, []string{rdsTestSnapA}) {
 		t.Errorf("snapshot attributes described for %v, want [%s] from the stored first page", got, rdsTestSnapA)
 	}
 }
 
-// A snapshot page whose upsert failed hands the attribute phase none of its
-// snapshots, and the write failure reaches the dispatcher.
-func TestScanRDS_UnstoredSnapshotPageIsNoParent(t *testing.T) {
+// A snapshot page whose upsert failed stops the scan before the attribute
+// phases, which would only fail the same write, and the write failure reaches
+// the dispatcher.
+func TestScanRDS_FailedWriteRunsNoAttributePhase(t *testing.T) {
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
 	if err != nil {
@@ -277,8 +279,27 @@ func TestScanRDS_UnstoredSnapshotPageIsNoParent(t *testing.T) {
 	if !errors.Is(err, store.ErrStoreWrite) {
 		t.Errorf("err = %v, want store.ErrStoreWrite", err)
 	}
-	if got := calls.distinct(); !slices.Equal(got, []string{rdsTestSnapA}) {
-		t.Errorf("snapshot attributes described for %v, want only page 1's [%s]", got, rdsTestSnapA)
+	if got := calls.distinct(); len(got) != 0 {
+		t.Errorf("snapshot attributes described for %v after the failed write, want none", got)
+	}
+}
+
+// A failed write of the DB snapshot attributes stops the scan before the
+// cluster snapshot attributes are described.
+func TestScanRDS_FailedAttributeWriteStopsClusterAttributes(t *testing.T) {
+	st := newTestStore(t)
+	refuseStoreWrites(t, st, TypeRDSDBSnapshotAttribute)
+	var calls, clusterCalls parentCalls
+	var log opLog
+	_, _, err := scanRDSTopLevel(st, rdsSnapshotAttrHandlers(&calls, &clusterCalls, noRDSAttrErr), &log)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v, want store.ErrStoreWrite", err)
+	}
+	if len(calls.distinct()) == 0 {
+		t.Error("snapshot attributes not described")
+	}
+	if got := clusterCalls.distinct(); len(got) != 0 {
+		t.Errorf("cluster snapshot attributes described for %v after the failed write, want none", got)
 	}
 }
 

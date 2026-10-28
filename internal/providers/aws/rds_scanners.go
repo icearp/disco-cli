@@ -1,17 +1,18 @@
 package aws
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
+	rdstypes "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
 )
 
 func init() {
@@ -73,6 +74,7 @@ type rdsAPI interface {
 	DescribeBlueGreenDeployments(context.Context, *rds.DescribeBlueGreenDeploymentsInput, ...func(*rds.Options)) (*rds.DescribeBlueGreenDeploymentsOutput, error)
 	DescribeDBSnapshotAttributes(context.Context, *rds.DescribeDBSnapshotAttributesInput, ...func(*rds.Options)) (*rds.DescribeDBSnapshotAttributesOutput, error)
 	DescribeDBClusterSnapshotAttributes(context.Context, *rds.DescribeDBClusterSnapshotAttributesInput, ...func(*rds.Options)) (*rds.DescribeDBClusterSnapshotAttributesOutput, error)
+	ListTagsForResource(context.Context, *rds.ListTagsForResourceInput, ...func(*rds.Options)) (*rds.ListTagsForResourceOutput, error)
 }
 
 // rdsPager is satisfied by every AWS SDK v2 RDS paginator.
@@ -131,98 +133,198 @@ func rdsPageScanParents[P any](
 	return
 }
 
-// scanRDS discovers all RDS resources in one region. The older phases run
-// concurrently, and the first error any of them returns cancels the rest,
-// which can cut the snapshot listings short. The snapshot-attribute phases run
-// after them, over only the manual snapshots stored before that point; their
-// own errors cost the older phases no rows.
-func scanRDS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanRDS discovers all RDS resources in one region. The listings run as
+// concurrent families (runFamilies): DB proxies then their target groups, and
+// each other listing on its own. A family's error, a failed write included,
+// does not stop the others. The snapshot-attribute phases run after them,
+// over only the manual snapshots stored before that point. The types whose
+// listing returns no tags have them read with ListTagsForResource (rdsTags),
+// fanoutMed reads at a time across every family, and every tag denial of the
+// scan is one warning.
+func scanRDS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := rds.NewFromConfig(acct.cfg, func(o *rds.Options) { o.Region = region })
+	tags := rdsTags(client).boundedBy(make(chan struct{}, fanoutMed)).sharingDenials()
+	var defaults rdsDefaultGroupRefusals
+	groupTags := defaults.tags(tags)
 	var snapshots, clusterSnapshots []childParent
-	total, inserted, err = runScanners(
-		ctx,
-		func(ctx context.Context) (int, int, error) {
+	p := runFamilies(ctx, "rds",
+		countedFamily("rds:DescribeDBInstances", func() (int, int, error) {
 			return scanDBInstances(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		countedFamily("rds:DescribeDBClusters", func() (int, int, error) {
 			return scanDBClusters(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanDBClusterParameterGroups(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanDBParameterGroups(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanDBProxies(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanDBProxyEndpoints(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanDBProxyTargetGroups(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanDBSecurityGroups(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		phaseFamily(func(p *phaseTotals) {
+			scanDBClusterParameterGroups(ctx, client, acct, region, st, scanID, groupTags, p)
+		}),
+		phaseFamily(func(p *phaseTotals) { scanDBParameterGroups(ctx, client, acct, region, st, scanID, groupTags, p) }),
+		phaseFamily(func(p *phaseTotals) { scanDBProxiesAndTargetGroups(ctx, client, acct, region, st, scanID, tags, p) }),
+		phaseFamily(func(p *phaseTotals) { scanDBProxyEndpoints(ctx, client, acct, region, st, scanID, tags, p) }),
+		phaseFamily(func(p *phaseTotals) { scanDBSecurityGroups(ctx, client, acct, region, st, scanID, tags, p) }),
+		countedFamily("rds:DescribeDBShardGroups", func() (int, int, error) {
 			return scanDBShardGroups(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanDBSubnetGroups(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanEventSubscriptions(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		phaseFamily(func(p *phaseTotals) { scanDBSubnetGroups(ctx, client, acct, region, st, scanID, tags, p) }),
+		phaseFamily(func(p *phaseTotals) { scanEventSubscriptions(ctx, client, acct, region, st, scanID, tags, p) }),
+		countedFamily("rds:DescribeGlobalClusters", func() (int, int, error) {
 			return scanGlobalClusters(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		countedFamily("rds:DescribeIntegrations", func() (int, int, error) {
 			return scanIntegrations(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanOptionGroups(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		phaseFamily(func(p *phaseTotals) { scanOptionGroups(ctx, client, acct, region, st, scanID, groupTags, p) }),
+		countedFamily("rds:DescribeDBEngineVersions", func() (int, int, error) {
 			return scanCustomDBEngineVersions(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (t, i int, err error) {
+		}),
+		countedFamily("rds:DescribeDBSnapshots", func() (t, i int, err error) {
 			t, i, snapshots, err = scanDBSnapshots(ctx, client, acct, region, st, scanID)
 			return t, i, err
-		},
-		func(ctx context.Context) (t, i int, err error) {
+		}),
+		countedFamily("rds:DescribeDBClusterSnapshots", func() (t, i int, err error) {
 			t, i, clusterSnapshots, err = scanDBClusterSnapshots(ctx, client, acct, region, st, scanID)
 			return t, i, err
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanDBClusterEndpoints(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanReservedDBInstances(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		phaseFamily(func(p *phaseTotals) { scanDBClusterEndpoints(ctx, client, acct, region, st, scanID, tags, p) }),
+		phaseFamily(func(p *phaseTotals) { scanReservedDBInstances(ctx, client, acct, region, st, scanID, tags, p) }),
+		countedFamily("rds:DescribeDBInstanceAutomatedBackups", func() (int, int, error) {
 			return scanDBInstanceAutomatedBackups(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		countedFamily("rds:DescribeDBClusterAutomatedBackups", func() (int, int, error) {
 			return scanDBClusterAutomatedBackups(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		countedFamily("rds:DescribeTenantDatabases", func() (int, int, error) {
 			return scanTenantDatabases(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		countedFamily("rds:DescribeDBSnapshotTenantDatabases", func() (int, int, error) {
 			return scanDBSnapshotTenantDatabases(ctx, client, acct, region, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		countedFamily("rds:DescribeBlueGreenDeployments", func() (int, int, error) {
 			return scanBlueGreenDeployments(ctx, client, acct, region, st, scanID)
-		},
+		}),
 	)
+	tags.warnDenials(st, acct, region)
+	writeFailed := errors.Is(opErrs{p.errs}, store.ErrStoreWrite)
+	if !writeFailed {
+		defaults.warn(st, acct, region)
+	}
 	// One attribute phase at a time, so at most fanoutMed attribute calls are
-	// in flight.
-	st1, in1, serr := scanDBSnapshotAttributes(ctx, client, acct, region, st, scanID, snapshots)
-	st2, in2, cerr := scanDBClusterSnapshotAttributes(ctx, client, acct, region, st, scanID, clusterSnapshots)
-	// The attribute phases need no demotion: childFanOutSkipTransient already
-	// drops their transient per-snapshot errors.
-	return total + st1 + st2, inserted + in1 + in2, demoteBeside(st, "rds", acct, region, err, serr, cerr)
+	// in flight. Their transient per-snapshot errors are already warnings
+	// (childFanOutSkipTransient). A failed write stops the scan, since every
+	// later write would fail too.
+	if !writeFailed {
+		t, i, err := scanDBSnapshotAttributes(ctx, client, acct, region, st, scanID, snapshots)
+		if !p.addPhase(rdsSnapshotAttributesOp, t, i, err) {
+			t, i, err = scanDBClusterSnapshotAttributes(ctx, client, acct, region, st, scanID, clusterSnapshots)
+			p.addPhase(rdsClusterSnapshotAttributesOp, t, i, err)
+		}
+	}
+	p.foldStop(ctx, "rds", 0)
+	// Every phase calls the one RDS host, so once any stored rows an NXDOMAIN
+	// is a failure of this scan, not a missing endpoint.
+	return p.resultLateNXDOMAIN(st, acct, region)
+}
+
+const (
+	rdsTagsOp = "rds:ListTagsForResource"
+	// rdsPageCap is the MaxRecords maximum of every RDS Describe whose rows
+	// have their tags read.
+	rdsPageCap = 100
+	// rdsNoIdentifier names, in a warning, a listed element with neither an
+	// ARN nor a name.
+	rdsNoIdentifier = "(an element with no identifier)"
+)
+
+// rdsTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, the ARN its listing returned. The Service Reference lists every
+// ARN resource type read here under ListTagsForResource (cluster-pg, pg,
+// proxy, proxy-endpoint, target-group, secgrp, subgrp, es, og,
+// cluster-endpoint, ri). The op returns every tag in one response (it takes
+// no page token; its Filters "isn't currently supported").
+//
+// The op models a not-found code only for some types (rdsTagsNotFound), so a
+// row of another type deleted between its listing and its tag read fails the
+// read as an error, and the row is kept untagged.
+func rdsTags(client rdsAPI) rowTagReader {
+	return rowTagReader{
+		op: rdsTagsOp,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &rds.ListTagsForResourceInput{ResourceName: &r.NativeID})
+			if err != nil {
+				return nil, err
+			}
+			return awsTagsJSON(out.TagList), nil
+		},
+	}
+}
+
+// rdsIsDefaultGroup reports whether name is that of an AWS-created default
+// group: parameter and cluster parameter groups are named default.<family>
+// (default.mysql8.0), option groups default:<engine>-<major>-<minor>
+// (default:mysql-8-0). The prefix alone decides it because the Create and
+// Copy ops of DBParameterGroup, DBClusterParameterGroup and OptionGroup allow
+// only letters, digits and hyphens, starting with a letter: no name a
+// customer gives can contain "." or ":".
+func rdsIsDefaultGroup(name string) bool {
+	return strings.HasPrefix(name, "default.") || strings.HasPrefix(name, "default:")
+}
+
+// rdsDefaultGroupRefusalCodes are the codes a refusal to read a default
+// group's tags would come as: the op's generic bad-request codes. Whether
+// ListTagsForResource refuses a default group at all, and under which code,
+// is unverified: nothing in the model or docs says so, and no live call has
+// tested it.
+var rdsDefaultGroupRefusalCodes = []string{"InvalidParameterValue", "InvalidParameterCombination"}
+
+// rdsDefaultGroupRefusals keeps the default groups' rows whose tag read was
+// refused (rdsDefaultGroupRefusalCodes). Every region lists default groups,
+// so such a refusal returned as an error would fail every RDS scan; it keeps
+// the row untagged and warns once per scan instead. Any other error on a
+// default group, and every error on a non-default one, takes the usual path.
+type rdsDefaultGroupRefusals struct{ skipTally }
+
+// tags is tags with a default group's refused read giving no tags and no
+// error, tallied in d. The reads run concurrently across families, so the
+// tally keeps the smallest ARN, not the first to arrive.
+func (d *rdsDefaultGroupRefusals) tags(tags rowTagReader) rowTagReader {
+	read := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		got, err := read(ctx, r)
+		if err != nil && rdsIsDefaultGroup(sv(r.Name)) && isAPIErrorCode(err, rdsDefaultGroupRefusalCodes...) {
+			d.skippedLeast(r.NativeID, err)
+			return nil, nil
+		}
+		return got, err
+	}
+	return tags
+}
+
+// warn reports the default groups stored untagged, once, naming the
+// smallest one's ARN. Call it only once their rows are written.
+func (d *rdsDefaultGroupRefusals) warn(st *store.Store, acct *account, region string) {
+	if d.count == 0 {
+		return
+	}
+	st.ReportWarning(store.ScanWarning{
+		Provider: "aws", Service: rdsTagsOp, Scope: acct.ID + "/" + region,
+		Message: fmt.Sprintf("%d default parameter or option group(s) stored without tags, first %s: %v", d.count, d.first, d.err),
+	})
+}
+
+// rdsTagsNotFound is tags dropping a row whose read fails with code, the
+// not-found code ListTagsForResource models for that row's type.
+func rdsTagsNotFound(tags rowTagReader, code string) rowTagReader {
+	tags.notFound = []string{code}
+	return tags
+}
+
+// rdsARNRow returns r, the row of a listed element stored under its ARN, or
+// no row when arn is empty: one empty NativeID would merge every such element
+// into one resource. what names the elements in the warning, key the element.
+func rdsARNRow(what string, arn *string, key string, r *store.Resource) (*store.Resource, string, string) {
+	if sv(arn) == "" {
+		return nil, what + " have no ARN", cmp.Or(key, rdsNoIdentifier)
+	}
+	return r, "", ""
 }
 
 // nonRDSEngines are engines that ride rds:Describe* APIs but have their own
@@ -291,175 +393,134 @@ func scanDBClusters(ctx context.Context, client rdsAPI, acct *account, region st
 	)
 }
 
-func scanDBClusterParameterGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(
-		ctx, "rds:DescribeDBClusterParameterGroups", acct, region, st,
-		rds.NewDescribeDBClusterParameterGroupsPaginator(client, &rds.DescribeDBClusterParameterGroupsInput{}),
-		func(page *rds.DescribeDBClusterParameterGroupsOutput) []*store.Resource {
-			var out []*store.Resource
-			for _, pg := range page.DBClusterParameterGroups {
-				name := sv(pg.DBClusterParameterGroupName)
-				out = append(out, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSDBClusterParameterGroup, NativeID: sv(pg.DBClusterParameterGroupArn),
-					Name: &name, Region: &region, AttributesJSON: mustJSON(pg),
-					DiscoveredBy: scanID,
-				})
+func scanDBClusterParameterGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) {
+	storeTokenPagesTags(ctx, st, acct, region, "rds:DescribeDBClusterParameterGroups",
+		func(ctx context.Context, marker *string) ([]rdstypes.DBClusterParameterGroup, *string, error) {
+			out, err := client.DescribeDBClusterParameterGroups(ctx, &rds.DescribeDBClusterParameterGroupsInput{MaxRecords: aws.Int32(rdsPageCap), Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return out
+			return out.DBClusterParameterGroups, out.Marker, nil
 		},
-	)
+		func(pg rdstypes.DBClusterParameterGroup) (*store.Resource, string, string) {
+			name := sv(pg.DBClusterParameterGroupName)
+			return rdsARNRow("DB cluster parameter groups", pg.DBClusterParameterGroupArn, name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRDSDBClusterParameterGroup, NativeID: sv(pg.DBClusterParameterGroupArn),
+				Name: &name, Region: &region, AttributesJSON: mustJSON(pg),
+				DiscoveredBy: scanID,
+			})
+		}, tags, p)
 }
 
-func scanDBParameterGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(
-		ctx, "rds:DescribeDBParameterGroups", acct, region, st,
-		rds.NewDescribeDBParameterGroupsPaginator(client, &rds.DescribeDBParameterGroupsInput{}),
-		func(page *rds.DescribeDBParameterGroupsOutput) []*store.Resource {
-			var out []*store.Resource
-			for _, pg := range page.DBParameterGroups {
-				name := sv(pg.DBParameterGroupName)
-				out = append(out, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSDBParameterGroup, NativeID: sv(pg.DBParameterGroupArn),
-					Name: &name, Region: &region, AttributesJSON: mustJSON(pg),
-					DiscoveredBy: scanID,
-				})
+func scanDBParameterGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) {
+	storeTokenPagesTags(ctx, st, acct, region, "rds:DescribeDBParameterGroups",
+		func(ctx context.Context, marker *string) ([]rdstypes.DBParameterGroup, *string, error) {
+			out, err := client.DescribeDBParameterGroups(ctx, &rds.DescribeDBParameterGroupsInput{MaxRecords: aws.Int32(rdsPageCap), Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return out
+			return out.DBParameterGroups, out.Marker, nil
 		},
-	)
+		func(pg rdstypes.DBParameterGroup) (*store.Resource, string, string) {
+			name := sv(pg.DBParameterGroupName)
+			return rdsARNRow("DB parameter groups", pg.DBParameterGroupArn, name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRDSDBParameterGroup, NativeID: sv(pg.DBParameterGroupArn),
+				Name: &name, Region: &region, AttributesJSON: mustJSON(pg),
+				DiscoveredBy: scanID,
+			})
+		}, tags, p)
 }
 
-func scanDBProxies(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(
-		ctx, "rds:DescribeDBProxies", acct, region, st,
-		rds.NewDescribeDBProxiesPaginator(client, &rds.DescribeDBProxiesInput{}),
-		func(page *rds.DescribeDBProxiesOutput) []*store.Resource {
-			var out []*store.Resource
-			for _, p := range page.DBProxies {
-				name := sv(p.DBProxyName)
-				status := string(p.Status)
-				out = append(out, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSDBProxy, NativeID: sv(p.DBProxyArn), Name: &name,
-					Region: &region, CreatedAt: tp(p.CreatedDate), Status: &status,
-					AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-				})
+// scanDBProxiesAndTargetGroups stores the DB proxies, then the target groups
+// of each proxy stored (DescribeDBProxyTargetGroups requires a DBProxyName).
+// The proxies are few (a per-region quota), so their listing is held whole.
+// A proxy deleted after it was listed (DBProxyNotFoundFault, which the op
+// models) has no target groups to read; one proxy's failure costs the others
+// none of theirs.
+func scanDBProxiesAndTargetGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) {
+	proxies, _ := storeParentListTags(ctx, st, acct, region, "rds:DescribeDBProxies", "DB proxies", "DBProxyName",
+		func(ctx context.Context, marker *string) ([]rdstypes.DBProxy, *string, error) {
+			out, err := client.DescribeDBProxies(ctx, &rds.DescribeDBProxiesInput{MaxRecords: aws.Int32(rdsPageCap), Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return out
+			return out.DBProxies, out.Marker, nil
 		},
-	)
+		func(px rdstypes.DBProxy) (*store.Resource, string, string) {
+			name := sv(px.DBProxyName)
+			status := string(px.Status)
+			return rdsARNRow("DB proxies", px.DBProxyArn, name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRDSDBProxy, NativeID: sv(px.DBProxyArn), Name: &name,
+				Region: &region, CreatedAt: tp(px.CreatedDate), Status: &status,
+				AttributesJSON: mustJSON(px), DiscoveredBy: scanID,
+			})
+		},
+		func(px rdstypes.DBProxy) string { return sv(px.DBProxyName) },
+		rdsTagsNotFound(tags, "DBProxyNotFoundFault"), p)
+	// After a failed write storeParentListTags returns no proxies, so no
+	// target group is listed.
+	storeEachParentTags(ctx, st, acct, region, "rds:DescribeDBProxyTargetGroups", []string{"DBProxyNotFoundFault"}, proxies,
+		func(ctx context.Context, proxy string, marker *string) ([]rdstypes.DBProxyTargetGroup, *string, error) {
+			out, err := client.DescribeDBProxyTargetGroups(ctx, &rds.DescribeDBProxyTargetGroupsInput{DBProxyName: &proxy, MaxRecords: aws.Int32(rdsPageCap), Marker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.TargetGroups, out.Marker, nil
+		},
+		func(_ string, tg rdstypes.DBProxyTargetGroup) (*store.Resource, string, string) {
+			name := sv(tg.TargetGroupName)
+			return rdsARNRow("DB proxy target groups", tg.TargetGroupArn, name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRDSDBProxyTargetGroup, NativeID: sv(tg.TargetGroupArn),
+				Name: &name, Region: &region, Status: tg.Status,
+				AttributesJSON: mustJSON(tg), DiscoveredBy: scanID,
+			})
+		},
+		rdsTagsNotFound(tags, "DBProxyTargetGroupNotFoundFault"), p)
 }
 
-func scanDBProxyEndpoints(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(
-		ctx, "rds:DescribeDBProxyEndpoints", acct, region, st,
-		rds.NewDescribeDBProxyEndpointsPaginator(client, &rds.DescribeDBProxyEndpointsInput{}),
-		func(page *rds.DescribeDBProxyEndpointsOutput) []*store.Resource {
-			var out []*store.Resource
-			for _, ep := range page.DBProxyEndpoints {
-				name := sv(ep.DBProxyEndpointName)
-				status := string(ep.Status)
-				out = append(out, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSDBProxyEndpoint, NativeID: sv(ep.DBProxyEndpointArn),
-					Name: &name, Region: &region, Status: &status,
-					AttributesJSON: mustJSON(ep), DiscoveredBy: scanID,
-				})
+func scanDBProxyEndpoints(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) {
+	storeTokenPagesTags(ctx, st, acct, region, "rds:DescribeDBProxyEndpoints",
+		func(ctx context.Context, marker *string) ([]rdstypes.DBProxyEndpoint, *string, error) {
+			out, err := client.DescribeDBProxyEndpoints(ctx, &rds.DescribeDBProxyEndpointsInput{MaxRecords: aws.Int32(rdsPageCap), Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return out
+			return out.DBProxyEndpoints, out.Marker, nil
 		},
-	)
+		func(ep rdstypes.DBProxyEndpoint) (*store.Resource, string, string) {
+			name := sv(ep.DBProxyEndpointName)
+			status := string(ep.Status)
+			return rdsARNRow("DB proxy endpoints", ep.DBProxyEndpointArn, name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRDSDBProxyEndpoint, NativeID: sv(ep.DBProxyEndpointArn),
+				Name: &name, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(ep), DiscoveredBy: scanID,
+			})
+		}, rdsTagsNotFound(tags, "DBProxyEndpointNotFoundFault"), p)
 }
 
-// scanDBProxyTargetGroups discovers RDS DB proxy target groups.
-// DescribeDBProxyTargetGroups requires a DBProxyName, so we first collect all
-// proxy names, then query target groups per proxy concurrently.
-func scanDBProxyTargetGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var proxyNames []string
-	// Collect proxy names — the toResources function returns nil so no upsert occurs.
-	if _, _, err := rdsPageScan(
-		ctx, "rds:DescribeDBProxies (for target groups)", acct, region, st,
-		rds.NewDescribeDBProxiesPaginator(client, &rds.DescribeDBProxiesInput{}),
-		func(page *rds.DescribeDBProxiesOutput) []*store.Resource {
-			for _, p := range page.DBProxies {
-				proxyNames = append(proxyNames, sv(p.DBProxyName))
+func scanDBSecurityGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) {
+	storeTokenPagesTags(ctx, st, acct, region, "rds:DescribeDBSecurityGroups",
+		func(ctx context.Context, marker *string) ([]rdstypes.DBSecurityGroup, *string, error) {
+			out, err := client.DescribeDBSecurityGroups(ctx, &rds.DescribeDBSecurityGroupsInput{MaxRecords: aws.Int32(rdsPageCap), Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil // only collecting names, no upsert needed
+			return out.DBSecurityGroups, out.Marker, nil
 		},
-	); err != nil {
-		return 0, 0, err
-	}
-	if len(proxyNames) == 0 {
-		return
-	}
-
-	// Collect target groups per proxy concurrently, then upsert as one batch.
-	var mu sync.Mutex
-	var batch []*store.Resource
-	g, ctx := errgroup.WithContext(ctx)
-	for _, name := range proxyNames {
-		proxyName := name
-		g.Go(func() error {
-			// toResources returns nil; resources are collected via closure.
-			_, _, err := rdsPageScan(
-				ctx, "rds:DescribeDBProxyTargetGroups", acct, region, st,
-				rds.NewDescribeDBProxyTargetGroupsPaginator(client, &rds.DescribeDBProxyTargetGroupsInput{
-					DBProxyName: &proxyName,
-				}),
-				func(page *rds.DescribeDBProxyTargetGroupsOutput) []*store.Resource {
-					var out []*store.Resource
-					for _, tg := range page.TargetGroups {
-						tgName := sv(tg.TargetGroupName)
-						out = append(out, &store.Resource{
-							Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-							Type: TypeRDSDBProxyTargetGroup, NativeID: sv(tg.TargetGroupArn),
-							Name: &tgName, Region: &region, Status: tg.Status,
-							AttributesJSON: mustJSON(tg), DiscoveredBy: scanID,
-						})
-					}
-					mu.Lock()
-					batch = append(batch, out...)
-					mu.Unlock()
-					return nil // collected into batch above; skip built-in upsert
-				},
-			)
-			return err
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return 0, 0, err
-	}
-	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert rds:DescribeDBProxyTargetGroups: %w", err)
-		}
-		total = len(batch)
-		inserted = n
-	}
-	return
-}
-
-func scanDBSecurityGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(
-		ctx, "rds:DescribeDBSecurityGroups", acct, region, st,
-		rds.NewDescribeDBSecurityGroupsPaginator(client, &rds.DescribeDBSecurityGroupsInput{}),
-		func(page *rds.DescribeDBSecurityGroupsOutput) []*store.Resource {
-			var out []*store.Resource
-			for _, sg := range page.DBSecurityGroups {
-				name := sv(sg.DBSecurityGroupName)
-				out = append(out, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSDBSecurityGroup, NativeID: sv(sg.DBSecurityGroupArn),
-					Name: &name, Region: &region, AttributesJSON: mustJSON(sg),
-					DiscoveredBy: scanID,
-				})
-			}
-			return out
-		},
-	)
+		func(sg rdstypes.DBSecurityGroup) (*store.Resource, string, string) {
+			name := sv(sg.DBSecurityGroupName)
+			return rdsARNRow("DB security groups", sg.DBSecurityGroupArn, name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRDSDBSecurityGroup, NativeID: sv(sg.DBSecurityGroupArn),
+				Name: &name, Region: &region, AttributesJSON: mustJSON(sg),
+				DiscoveredBy: scanID,
+			})
+		}, tags, p)
 }
 
 // scanDBShardGroups discovers RDS DB shard groups (Aurora Limitless).
@@ -500,44 +561,44 @@ func scanDBShardGroups(ctx context.Context, client rdsAPI, acct *account, region
 	}
 }
 
-func scanDBSubnetGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(
-		ctx, "rds:DescribeDBSubnetGroups", acct, region, st,
-		rds.NewDescribeDBSubnetGroupsPaginator(client, &rds.DescribeDBSubnetGroupsInput{}),
-		func(page *rds.DescribeDBSubnetGroupsOutput) []*store.Resource {
-			var out []*store.Resource
-			for _, sg := range page.DBSubnetGroups {
-				name := sv(sg.DBSubnetGroupName)
-				out = append(out, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSDBSubnetGroup, NativeID: sv(sg.DBSubnetGroupArn),
-					Name: &name, Region: &region, Status: sg.SubnetGroupStatus,
-					AttributesJSON: mustJSON(sg), DiscoveredBy: scanID,
-				})
+func scanDBSubnetGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) {
+	storeTokenPagesTags(ctx, st, acct, region, "rds:DescribeDBSubnetGroups",
+		func(ctx context.Context, marker *string) ([]rdstypes.DBSubnetGroup, *string, error) {
+			out, err := client.DescribeDBSubnetGroups(ctx, &rds.DescribeDBSubnetGroupsInput{MaxRecords: aws.Int32(rdsPageCap), Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return out
+			return out.DBSubnetGroups, out.Marker, nil
 		},
-	)
+		func(sg rdstypes.DBSubnetGroup) (*store.Resource, string, string) {
+			name := sv(sg.DBSubnetGroupName)
+			return rdsARNRow("DB subnet groups", sg.DBSubnetGroupArn, name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRDSDBSubnetGroup, NativeID: sv(sg.DBSubnetGroupArn),
+				Name: &name, Region: &region, Status: sg.SubnetGroupStatus,
+				AttributesJSON: mustJSON(sg), DiscoveredBy: scanID,
+			})
+		}, tags, p)
 }
 
-func scanEventSubscriptions(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(
-		ctx, "rds:DescribeEventSubscriptions", acct, region, st,
-		rds.NewDescribeEventSubscriptionsPaginator(client, &rds.DescribeEventSubscriptionsInput{}),
-		func(page *rds.DescribeEventSubscriptionsOutput) []*store.Resource {
-			var out []*store.Resource
-			for _, sub := range page.EventSubscriptionsList {
-				name := sv(sub.CustSubscriptionId)
-				out = append(out, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSEventSubscription, NativeID: sv(sub.EventSubscriptionArn),
-					Name: &name, Region: &region, Status: sub.Status,
-					AttributesJSON: mustJSON(sub), DiscoveredBy: scanID,
-				})
+func scanEventSubscriptions(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) {
+	storeTokenPagesTags(ctx, st, acct, region, "rds:DescribeEventSubscriptions",
+		func(ctx context.Context, marker *string) ([]rdstypes.EventSubscription, *string, error) {
+			out, err := client.DescribeEventSubscriptions(ctx, &rds.DescribeEventSubscriptionsInput{MaxRecords: aws.Int32(rdsPageCap), Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return out
+			return out.EventSubscriptionsList, out.Marker, nil
 		},
-	)
+		func(sub rdstypes.EventSubscription) (*store.Resource, string, string) {
+			name := sv(sub.CustSubscriptionId)
+			return rdsARNRow("event subscriptions", sub.EventSubscriptionArn, name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRDSEventSubscription, NativeID: sv(sub.EventSubscriptionArn),
+				Name: &name, Region: &region, Status: sub.Status,
+				AttributesJSON: mustJSON(sub), DiscoveredBy: scanID,
+			})
+		}, tags, p)
 }
 
 // scanGlobalClusters discovers RDS global clusters (Aurora Global Database).
@@ -585,24 +646,24 @@ func scanIntegrations(ctx context.Context, client rdsAPI, acct *account, region 
 	)
 }
 
-func scanOptionGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(
-		ctx, "rds:DescribeOptionGroups", acct, region, st,
-		rds.NewDescribeOptionGroupsPaginator(client, &rds.DescribeOptionGroupsInput{}),
-		func(page *rds.DescribeOptionGroupsOutput) []*store.Resource {
-			var out []*store.Resource
-			for _, og := range page.OptionGroupsList {
-				name := sv(og.OptionGroupName)
-				out = append(out, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSOptionGroup, NativeID: sv(og.OptionGroupArn),
-					Name: &name, Region: &region, AttributesJSON: mustJSON(og),
-					DiscoveredBy: scanID,
-				})
+func scanOptionGroups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) {
+	storeTokenPagesTags(ctx, st, acct, region, "rds:DescribeOptionGroups",
+		func(ctx context.Context, marker *string) ([]rdstypes.OptionGroup, *string, error) {
+			out, err := client.DescribeOptionGroups(ctx, &rds.DescribeOptionGroupsInput{MaxRecords: aws.Int32(rdsPageCap), Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return out
+			return out.OptionGroupsList, out.Marker, nil
 		},
-	)
+		func(og rdstypes.OptionGroup) (*store.Resource, string, string) {
+			name := sv(og.OptionGroupName)
+			return rdsARNRow("option groups", og.OptionGroupArn, name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRDSOptionGroup, NativeID: sv(og.OptionGroupArn),
+				Name: &name, Region: &region, AttributesJSON: mustJSON(og),
+				DiscoveredBy: scanID,
+			})
+		}, tags, p)
 }
 
 // scanCustomDBEngineVersions discovers user-created custom DB engine versions.
@@ -710,50 +771,66 @@ func scanDBClusterSnapshots(ctx context.Context, client rdsAPI, acct *account, r
 	)
 }
 
-func scanDBClusterEndpoints(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(
-		ctx, "rds:DescribeDBClusterEndpoints", acct, region, st,
-		rds.NewDescribeDBClusterEndpointsPaginator(client, &rds.DescribeDBClusterEndpointsInput{}),
-		func(page *rds.DescribeDBClusterEndpointsOutput) []*store.Resource {
-			var out []*store.Resource
-			for _, ep := range page.DBClusterEndpoints {
-				name := sv(ep.DBClusterEndpointIdentifier)
-				out = append(out, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSClusterEndpoint, NativeID: sv(ep.DBClusterEndpointArn),
-					Name: &name, Region: &region, Status: ep.Status,
-					AttributesJSON: mustJSON(ep), DiscoveredBy: scanID,
-				})
+// scanDBClusterEndpoints stores every endpoint the op lists. Aurora's
+// built-in WRITER and READER endpoints are listed without an ARN or an
+// identifier: they are no ARN resource of their own (the cluster's row
+// carries them as Endpoint and ReaderEndpoint), so they have no tags to read.
+// They are stored untagged under the NativeID "", so every built-in endpoint
+// of the account collapses into one row (a known defect: they need an id of
+// their own). Custom endpoints carry their ARN and have their tags read.
+func scanDBClusterEndpoints(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) {
+	withARN := tags
+	withARN.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		if r.NativeID == "" {
+			return nil, nil
+		}
+		return tags.read(ctx, r)
+	}
+	storeTokenPagesTags(ctx, st, acct, region, "rds:DescribeDBClusterEndpoints",
+		func(ctx context.Context, marker *string) ([]rdstypes.DBClusterEndpoint, *string, error) {
+			out, err := client.DescribeDBClusterEndpoints(ctx, &rds.DescribeDBClusterEndpointsInput{MaxRecords: aws.Int32(rdsPageCap), Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return out
+			return out.DBClusterEndpoints, out.Marker, nil
 		},
-	)
+		func(ep rdstypes.DBClusterEndpoint) (*store.Resource, string, string) {
+			name := sv(ep.DBClusterEndpointIdentifier)
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRDSClusterEndpoint, NativeID: sv(ep.DBClusterEndpointArn),
+				Name: &name, Region: &region, Status: ep.Status,
+				AttributesJSON: mustJSON(ep), DiscoveredBy: scanID,
+			}, "", ""
+		}, withARN, p)
 }
 
 // scanReservedDBInstances discovers reserved DB instance purchases. These carry
-// no graph edges (billing artefacts) so they are leaf resources.
-func scanReservedDBInstances(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	return rdsPageScan(
-		ctx, "rds:DescribeReservedDBInstances", acct, region, st,
-		rds.NewDescribeReservedDBInstancesPaginator(client, &rds.DescribeReservedDBInstancesInput{}),
-		func(page *rds.DescribeReservedDBInstancesOutput) []*store.Resource {
-			var out []*store.Resource
-			for _, ri := range page.ReservedDBInstances {
-				name := sv(ri.ReservedDBInstanceId)
-				nativeID := sv(ri.ReservedDBInstanceArn)
-				if nativeID == "" {
-					nativeID = rdsARNIn(acct.partition(), region, acct.ID, "ri", name)
-				}
-				out = append(out, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRDSReservedInstance, NativeID: nativeID,
-					Name: &name, Region: &region, CreatedAt: tp(ri.StartTime),
-					Status: ri.State, AttributesJSON: mustJSON(ri), DiscoveredBy: scanID,
-				})
+// no graph edges (billing artefacts) so they are leaf resources. A purchase
+// listed without its ARN is stored, and its tags read, under the ARN the
+// Service Reference's ri format gives for its id.
+func scanReservedDBInstances(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) {
+	storeTokenPagesTags(ctx, st, acct, region, "rds:DescribeReservedDBInstances",
+		func(ctx context.Context, marker *string) ([]rdstypes.ReservedDBInstance, *string, error) {
+			out, err := client.DescribeReservedDBInstances(ctx, &rds.DescribeReservedDBInstancesInput{MaxRecords: aws.Int32(rdsPageCap), Marker: marker})
+			if err != nil {
+				return nil, nil, err
 			}
-			return out
+			return out.ReservedDBInstances, out.Marker, nil
 		},
-	)
+		func(ri rdstypes.ReservedDBInstance) (*store.Resource, string, string) {
+			name := sv(ri.ReservedDBInstanceId)
+			nativeID := sv(ri.ReservedDBInstanceArn)
+			if nativeID == "" {
+				nativeID = rdsARNIn(acct.partition(), region, acct.ID, "ri", name)
+			}
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRDSReservedInstance, NativeID: nativeID,
+				Name: &name, Region: &region, CreatedAt: tp(ri.StartTime),
+				Status: ri.State, AttributesJSON: mustJSON(ri), DiscoveredBy: scanID,
+			}, "", ""
+		}, tags, p)
 }
 
 func scanDBInstanceAutomatedBackups(ctx context.Context, client rdsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -768,7 +845,7 @@ func scanDBInstanceAutomatedBackups(ctx context.Context, client rdsAPI, acct *ac
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeRDSAutoBackup, NativeID: sv(b.DBInstanceAutomatedBackupsArn),
 					Name: &name, Region: &region, Status: b.Status,
-					AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
+					TagsJSON: awsTagsJSON(b.TagList), AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
 				})
 			}
 			return out
@@ -788,7 +865,7 @@ func scanDBClusterAutomatedBackups(ctx context.Context, client rdsAPI, acct *acc
 					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 					Type: TypeRDSClusterAutoBackup, NativeID: sv(b.DBClusterAutomatedBackupsArn),
 					Name: &name, Region: &region, Status: b.Status,
-					AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
+					TagsJSON: awsTagsJSON(b.TagList), AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
 				})
 			}
 			return out
