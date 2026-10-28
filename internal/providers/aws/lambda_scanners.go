@@ -247,40 +247,32 @@ func lambdaRow(acct *account, region, scanID, typ, what, arn, key string, name, 
 // API requests", which it says "excludes GetFunction" (GetFunction has a
 // quota of its own). Unverified live.
 func scanLambdaFunctions(ctx context.Context, client lambdaAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (fns []lambdaFunctionSummary, storeWriteFailed bool) {
-	// The page's listed elements, for its GetFunction calls, and the tags
-	// those calls returned. The row builder fills the map and the reads only
-	// look entries up, each writing only its own entry; it is emptied before
+	// The page's listed elements, for its GetFunction calls. The row builder
+	// fills the map and the reads only look entries up; it is emptied before
 	// the next page is fetched, which follows that page's write, so one page
 	// is held.
-	listed := map[*store.Resource]*lambdaListedFunction{}
-	fnTags := tags
-	fnTags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
-		if l := listed[r]; l.tagged {
-			return l.tags, nil
-		}
-		return tags.read(ctx, r)
-	}
+	listed := map[*store.Resource]lambdatypes.FunctionConfiguration{}
 	steps := tokenPageSteps{
-		details: rowDetailReader{
-			op: lambdaGetFunctionOp, what: "function(s)", notFound: lambdaNotFound,
-			get: func(ctx context.Context, r *store.Resource) (any, error) {
-				l := listed[r]
-				out, err := client.GetFunction(ctx, &lambda.GetFunctionInput{FunctionName: l.fn.FunctionArn})
-				if err != nil {
-					return nil, err
-				}
-				if out.TagsError == nil {
-					l.tags, l.tagged = mapTagsJSON(out.Tags), true
-				}
-				if l.fn.PackageType != lambdatypes.PackageTypeImage {
-					return nil, nil
-				}
-				attrs := lambdaFunctionAttrs{FunctionConfiguration: l.fn}
-				if out.Code != nil && sv(out.Code.ImageUri) != "" {
-					attrs.Code = &lambdaFunctionCodeAttrs{ImageURI: out.Code.ImageUri}
-				}
-				return attrs, nil
-			},
+		details: rowDetailReader{op: lambdaGetFunctionOp, what: "function(s)", notFound: lambdaNotFound},
+		detailTags: func(ctx context.Context, r *store.Resource) (taggedDetail, error) {
+			fn := listed[r]
+			out, err := client.GetFunction(ctx, &lambda.GetFunctionInput{FunctionName: fn.FunctionArn})
+			if err != nil {
+				return taggedDetail{}, err
+			}
+			var d taggedDetail
+			if out.TagsError == nil {
+				d.tags, d.tagged = mapTagsJSON(out.Tags), true
+			}
+			if fn.PackageType != lambdatypes.PackageTypeImage {
+				return d, nil
+			}
+			attrs := lambdaFunctionAttrs{FunctionConfiguration: fn}
+			if out.Code != nil && sv(out.Code.ImageUri) != "" {
+				attrs.Code = &lambdaFunctionCodeAttrs{ImageURI: out.Code.ImageUri}
+			}
+			d.body = attrs
+			return d, nil
 		},
 		stored: func(rows []*store.Resource) {
 			for _, r := range rows {
@@ -301,19 +293,11 @@ func scanLambdaFunctions(ctx context.Context, client lambdaAPI, acct *account, r
 			name := sv(fn.FunctionName)
 			r, why, key := lambdaRow(acct, region, scanID, TypeLambdaFunction, "functions", sv(fn.FunctionArn), name, &name, nil, lambdaFunctionAttrs{FunctionConfiguration: fn})
 			if r != nil {
-				listed[r] = &lambdaListedFunction{fn: fn}
+				listed[r] = fn
 			}
 			return r, why, key
-		}, steps, fnTags, p)
+		}, steps, tags, p)
 	return fns, failed
-}
-
-// lambdaListedFunction is a listed function and, once GetFunction returned
-// them (tagged), its tags.
-type lambdaListedFunction struct {
-	fn     lambdatypes.FunctionConfiguration
-	tags   *string
-	tagged bool
 }
 
 // scanLambdaAliases discovers all aliases for each function and upserts them as

@@ -1356,6 +1356,70 @@ func TestStoreTokenPagesTagsWith_Details(t *testing.T) {
 	}
 }
 
+// With detailTags, a row whose detail body carried its tags is stored with
+// those tags (nil when the body says it has none) and has no tag read; a row
+// whose body did not carry them, or whose detail read failed other than as
+// not found, has its tags read with the tag reader; a row the detail read no
+// longer finds is dropped unread.
+func TestStoreTokenPagesTagsWith_DetailTags(t *testing.T) {
+	st := newTestStore(t)
+	var (
+		tagRead []string
+		mu      sync.Mutex
+	)
+	tags := pagesTestTags(nil)
+	read := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		mu.Lock()
+		tagRead = append(tagRead, r.NativeID)
+		mu.Unlock()
+		return read(ctx, r)
+	}
+	bodies := map[string]taggedDetail{
+		"1-a": {body: map[string]string{"body": "1-a"}, tags: mapTagsJSON(map[string]string{"from": "1-a"}), tagged: true},
+		"1-b": {body: map[string]string{"body": "1-b"}},
+		"3-a": {body: map[string]string{"body": "3-a"}, tagged: true},
+		"3-b": {body: map[string]string{"body": "3-b"}, tags: mapTagsJSON(map[string]string{"from": "3-b"}), tagged: true},
+	}
+	errs := map[string]error{"2-a": tagTestNotFound, "2-b": tagTestDenied}
+	steps := tokenPageSteps{
+		details: rowDetailReader{op: pagesDetailOp, what: "thing(s)", notFound: []string{"ResourceNotFoundException"}},
+		detailTags: func(_ context.Context, r *store.Resource) (taggedDetail, error) {
+			if err := errs[r.NativeID]; err != nil {
+				return taggedDetail{}, err
+			}
+			return bodies[r.NativeID], nil
+		},
+	}
+	var p phaseTotals
+	acct := newTestAccount(testAccountID)
+	if storeTokenPagesTagsWith(context.Background(), st, acct, testRegion, tagTestListOp, (&tokenPagesTest{}).page(st), tagTestRow, steps, tags, &p) {
+		t.Fatal("stop = true; want false")
+	}
+	if _, _, err := p.result(st, acct, testRegion); err != nil {
+		t.Fatalf("err = %v; want nil", err)
+	}
+	if slices.Sort(tagRead); !slices.Equal(tagRead, []string{"1-b", "2-b"}) {
+		t.Errorf("tags read for %v; want [1-b 2-b]", tagRead)
+	}
+	rows := rowsByNativeIDNoFail(st)
+	if len(rows) != 5 || rows["2-a"] != nil {
+		t.Fatalf("rows = %v; want all but 2-a", slices.Sorted(maps.Keys(rows)))
+	}
+	assertTagsMap(t, rows["1-a"].TagsJSON, map[string]string{"from": "1-a"})
+	assertTagsMap(t, rows["1-b"].TagsJSON, map[string]string{"k": "v"})
+	assertTagsMap(t, rows["2-b"].TagsJSON, map[string]string{"k": "v"})
+	if rows["3-a"].TagsJSON != nil {
+		t.Errorf("3-a TagsJSON = %q; want nil", *rows["3-a"].TagsJSON)
+	}
+	assertTagsMap(t, rows["3-b"].TagsJSON, map[string]string{"from": "3-b"})
+	for id, want := range map[string]string{"1-a": `{"body":"1-a"}`, "1-b": `{"body":"1-b"}`, "2-b": "", "3-a": `{"body":"3-a"}`} {
+		if got := rows[id].AttributesJSON; got != want {
+			t.Errorf("%s attributes = %s; want %q", id, got, want)
+		}
+	}
+}
+
 // After a failed write the detail reads' errors are joined into the write's
 // error, nothing is warned about, and stored is not called.
 func TestStoreTokenPagesTagsWith_DetailsFailedWrite(t *testing.T) {

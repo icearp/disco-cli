@@ -1309,13 +1309,53 @@ func storeTokenPagesTags[Item any](
 // tokenPageSteps are what storeTokenPagesTagsWith runs on each page besides
 // its tag reads; the zero value runs none.
 type tokenPageSteps struct {
-	// details, when its get is set, replaces each row with its detail body
+	// details, when its get (or detailTags) is set, replaces each row with its detail body
 	// before the row's tags are read, as readRowDetailsDeniedBy does (a nil
 	// isDenied means isAccessDenied); a row it drops as not found has no tags
 	// read and is not stored.
 	details rowDetailReader
+	// detailTags, when set, is details.get for a detail body that can carry
+	// the row's tags (bodyTagReads); details.get is then not used.
+	detailTags func(context.Context, *store.Resource) (taggedDetail, error)
 	// stored, when set, is handed each page's rows once they are written.
 	stored func(rows []*store.Resource)
+}
+
+// taggedDetail is a row's detail body and, when tagged, the tags the body
+// carried (nil for none).
+type taggedDetail struct {
+	body   any
+	tags   *string
+	tagged bool
+}
+
+// bodyTagReads splits get, a detail read whose body can carry the row's tags,
+// for one page's rows into the rowDetailReader get that returns the body and
+// a tag reader that returns the body's tags for a row whose get brought them
+// and reads any other row's (a failed get, a body without them) with tags.
+// Every row is mapped before the reads run and each get writes only its own
+// row's entry, so the concurrent reads never write the map; it lives as long
+// as the page's reads.
+func bodyTagReads(rows []*store.Resource, get func(context.Context, *store.Resource) (taggedDetail, error), tags rowTagReader) (func(context.Context, *store.Resource) (any, error), rowTagReader) {
+	got := make(map[*store.Resource]*taggedDetail, len(rows))
+	for _, r := range rows {
+		got[r] = &taggedDetail{}
+	}
+	read := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		if d := got[r]; d.tagged {
+			return d.tags, nil
+		}
+		return read(ctx, r)
+	}
+	return func(ctx context.Context, r *store.Resource) (any, error) {
+		d, err := get(ctx, r)
+		if err != nil {
+			return nil, err
+		}
+		*got[r] = d
+		return d.body, nil
+	}, tags
 }
 
 // storeTokenPagesTagsWith is storeTokenPagesTags with steps run on each
@@ -1348,12 +1388,16 @@ func storeTokenPagesTagsWith[Item any](
 		return page(ctx, token)
 	}, func(items []Item) error {
 		rows := buildListedRows(items, row, nil, &skips)
-		if details.get != nil {
+		pageDetails, pageTags := details, tags
+		if steps.detailTags != nil {
+			pageDetails.get, pageTags = bodyTagReads(rows, steps.detailTags, tags)
+		}
+		if pageDetails.get != nil {
 			var h error
-			rows, h = detailTally.read(ctx, details, rows)
+			rows, h = detailTally.read(ctx, pageDetails, rows)
 			detailHard = append(detailHard, h)
 		}
-		rows, h := tally.read(ctx, tags, rows)
+		rows, h := tally.read(ctx, pageTags, rows)
 		hard = append(hard, h)
 		t, i, err := upsertBatch(st, rows, op)
 		total += t

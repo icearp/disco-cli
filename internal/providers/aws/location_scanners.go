@@ -3,8 +3,11 @@ package aws
 import (
 	"context"
 	"fmt"
+	"time"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/location"
+	loctypes "github.com/aws/aws-sdk-go-v2/service/location/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -35,126 +38,211 @@ type locationAPI interface {
 	ListTrackerConsumers(context.Context, *location.ListTrackerConsumersInput, ...func(*location.Options)) (*location.ListTrackerConsumersOutput, error)
 	DescribeGeofenceCollection(context.Context, *location.DescribeGeofenceCollectionInput, ...func(*location.Options)) (*location.DescribeGeofenceCollectionOutput, error)
 	DescribeTracker(context.Context, *location.DescribeTrackerInput, ...func(*location.Options)) (*location.DescribeTrackerOutput, error)
+	ListTagsForResource(context.Context, *location.ListTagsForResourceInput, ...func(*location.Options)) (*location.ListTagsForResourceOutput, error)
 }
+
+const (
+	locListKeysOp             = "geo:ListKeys"
+	locListCollectionsOp      = "geo:ListGeofenceCollections"
+	locListMapsOp             = "geo:ListMaps"
+	locListPlaceIndexesOp     = "geo:ListPlaceIndexes"
+	locListRouteCalculatorsOp = "geo:ListRouteCalculators"
+	locListTrackersOp         = "geo:ListTrackers"
+	locListTrackerConsumersOp = "geo:ListTrackerConsumers"
+	locListGeofencesOp        = "geo:ListGeofences"
+	locTagsOp                 = "geo:ListTagsForResource"
+	// locPageLimit is the MaxResults range maximum the model gives every
+	// list op here.
+	locPageLimit = 100
+	// locNoName names, in a warning, a listed element without the name its
+	// ARN is built from.
+	locNoName = "(an element with no name)"
+)
+
+// The parts of Amazon Location Service the listings read, each on its own
+// host (the ops' EndpointHostPrefix in the SDK): cp.metadata. (API keys, and
+// ListTagsForResource for every type), cp.geofencing., cp.maps., cp.places.,
+// cp.routes. and cp.tracking. ListGeofences calls the data-plane host
+// geofencing. but is grouped with the collections it reads: a collection
+// stored this scan has geofences to list, so an NXDOMAIN there is a failure,
+// not a part of the service missing from the region.
+const (
+	locMetadataHost = iota
+	locGeofencingHost
+	locMapsHost
+	locPlacesHost
+	locRoutesHost
+	locTrackingHost
+)
+
+// locNotFound is the not-found code ListTagsForResource, both Describes and
+// the per-parent listings model, for a resource deleted after it was listed.
+var locNotFound = []string{"ResourceNotFoundException"}
 
 func locARN(partition, region, acct, kind, name string) string {
 	return arnFor(partition, "geo", region, acct, kind+"/"+name)
 }
 
-func scanLocation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanLocation(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := location.NewFromConfig(acct.cfg, func(o *location.Options) { o.Region = region })
-
-	var collections []childParent
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanLocationKeys(ctx, client, acct, region, st, scanID) },
-		func() (t, i int, err error) {
-			collections, t, i, err = scanLocationGeofenceCollections(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (int, int, error) { return scanLocationMaps(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLocationPlaceIndexes(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanLocationRouteCalculators(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-
-	trackerNames, t, i, ferr := scanLocationTrackers(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	for _, tn := range trackerNames {
-		t, i, perr := scanLocationTrackerConsumers(ctx, client, acct, region, st, scanID, tn)
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-
-	t, i, err = scanLocationGeofences(ctx, client, acct, region, st, scanID, collections)
-	return total + t, inserted + i, err
+	return scanLocationAll(ctx, client, acct, region, st, scanID)
 }
 
-func scanLocationKeys(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := location.NewListKeysPaginator(client, &location.ListKeysInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "geo:ListKeys", acct.ID, region, perr)
-				return 0, 0, nil
+// scanLocationAll runs every listing as its own phase, one at a time, in the
+// order below, the tracker consumers and geofences after the trackers and
+// collections stored this scan (runHostPhases): a phase's error does not
+// stop the later ones; a failed write and ctx's end do. A part whose first
+// listing stores nothing and answers only NXDOMAIN is not served in this
+// region and its later listings are not run. The API-key part is the
+// primary: its NXDOMAIN reports the region unavailable when no part stored
+// a row, and is an error once one did. Each tagged listing writes a page at
+// a time, and the tag denials of the whole scan are one warning.
+//
+// Geofences and tracker consumers carry no tags: neither has a resource type
+// in the Service Reference, ListTagsForResource and TagResource name neither,
+// and PutGeofence and AssociateTrackerConsumer take none.
+func scanLocationAll(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	tags := locationTags(client).sharingDenials()
+	var collections, trackers []childParent
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "location", locMetadataHost, []hostPhase{
+		{op: locListKeysOp, host: locMetadataHost, run: func(p *phaseTotals) bool {
+			return scanLocationKeys(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: locListCollectionsOp, host: locGeofencingHost, run: func(p *phaseTotals) (failed bool) {
+			collections, failed = scanLocationGeofenceCollections(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: locListMapsOp, host: locMapsHost, run: func(p *phaseTotals) bool {
+			return scanLocationMaps(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: locListPlaceIndexesOp, host: locPlacesHost, run: func(p *phaseTotals) bool {
+			return scanLocationPlaceIndexes(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: locListRouteCalculatorsOp, host: locRoutesHost, run: func(p *phaseTotals) bool {
+			return scanLocationRouteCalculators(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: locListTrackersOp, host: locTrackingHost, run: func(p *phaseTotals) (failed bool) {
+			trackers, failed = scanLocationTrackers(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		countedPhase(locTrackingHost, locListTrackerConsumersOp, func() (int, int, error) {
+			return scanLocationTrackerConsumers(ctx, client, acct, region, st, scanID, trackers)
+		}),
+		countedPhase(locGeofencingHost, locListGeofencesOp, func() (int, int, error) {
+			return scanLocationGeofences(ctx, client, acct, region, st, scanID, collections)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
+}
+
+// locationTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: no listing here returns an ARN, so it is the ARN locARN builds
+// from the listed name, in the Service Reference's ARN format for its type
+// (arn:${Partition}:geo:${Region}:${Account}:<type>/<name>). The Service
+// Reference lists every type read here as one ListTagsForResource takes,
+// and each type's Create op takes Tags. The op does not page.
+func locationTags(client locationAPI) rowTagReader {
+	return rowTagReader{
+		op:       locTagsOp,
+		notFound: locNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &location.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
 			}
-			return 0, 0, fmt.Errorf("geo:ListKeys: %w", perr)
-		}
-		for _, k := range out.Entries {
-			name := sv(k.KeyName)
-			if name == "" {
-				continue
-			}
-			arn := locARN(acct.partition(), region, acct.ID, "api-key", name)
-			label := name
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLocationAPIKey, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(k), DiscoveredBy: scanID,
-			})
-		}
+			return mapTagsJSON(out.Tags), nil
+		},
 	}
-	return upsertBatch(st, batch, "location api-keys")
+}
+
+// locationRow is the row of a listed element of typ, keyed by the ARN built
+// from its name; kind is the ARN's resource type. An element without a name
+// is not stored; what names the elements in the listing's one warning.
+func locationRow(acct *account, region, scanID, typ, kind, what, name string, created *time.Time, item any) (*store.Resource, string, string) {
+	if name == "" {
+		return nil, what + " have no name", locNoName
+	}
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: locARN(acct.partition(), region, acct.ID, kind, name),
+		Name: &name, Region: &region, CreatedAt: tp(created),
+		AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}, "", ""
+}
+
+func scanLocationKeys(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, locListKeysOp,
+		func(ctx context.Context, token *string) ([]loctypes.ListKeysResponseEntry, *string, error) {
+			out, err := client.ListKeys(ctx, &location.ListKeysInput{MaxResults: sdkaws.Int32(locPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Entries, out.NextToken, nil
+		},
+		func(k loctypes.ListKeysResponseEntry) (*store.Resource, string, string) {
+			return locationRow(acct, region, scanID, TypeLocationAPIKey, "api-key", "API keys", sv(k.KeyName), k.CreateTime, k)
+		}, tags, p)
+}
+
+// storeLocationDescribed stores a listing a page at a time with each row
+// replaced by its Describe body (describe, sent the row's name), which
+// carries what the list element lacks (KmsKeyId) and the resource's tags
+// (tokenPageSteps.detailTags). A resource the Describe no longer finds is
+// dropped; any other Describe failure keeps the list element as the row
+// (rowDetailReader) and reads its tags with ListTagsForResource instead. It
+// returns the rows stored as the parents of a later phase, keyed by name, or
+// storeWriteFailed (and none).
+func storeLocationDescribed[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op, describeOp, what string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (*store.Resource, string, string),
+	describe func(ctx context.Context, name string) (body any, tags map[string]string, err error),
+	tags rowTagReader, p *phaseTotals,
+) (parents []childParent, storeWriteFailed bool) {
+	steps := tokenPageSteps{
+		details: rowDetailReader{op: describeOp, what: what, notFound: locNotFound},
+		detailTags: func(ctx context.Context, r *store.Resource) (taggedDetail, error) {
+			body, t, err := describe(ctx, sv(r.Name))
+			if err != nil {
+				return taggedDetail{}, err
+			}
+			return taggedDetail{body: body, tags: mapTagsJSON(t), tagged: true}, nil
+		},
+		stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				parents = append(parents, childParent{id: sv(r.Name), arn: r.NativeID})
+			}
+		},
+	}
+	if storeTokenPagesTagsWith(ctx, st, acct, region, op, page, row, steps, tags, p) {
+		return nil, true
+	}
+	return parents, false
 }
 
 // scanLocationGeofenceCollections stores the collections and returns them as
 // the parents scanLocationGeofences fans out over.
-func scanLocationGeofenceCollections(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	pager := location.NewListGeofenceCollectionsPaginator(client, &location.ListGeofenceCollectionsInput{})
-	var batch []*store.Resource
-	var parents []childParent
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "geo:ListGeofenceCollections", acct.ID, region, perr)
-				return nil, 0, 0, nil
+func scanLocationGeofenceCollections(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeLocationDescribed(ctx, st, acct, region, locListCollectionsOp, "geo:DescribeGeofenceCollection", "geofence collection(s)",
+		func(ctx context.Context, token *string) ([]loctypes.ListGeofenceCollectionsResponseEntry, *string, error) {
+			out, err := client.ListGeofenceCollections(ctx, &location.ListGeofenceCollectionsInput{MaxResults: sdkaws.Int32(locPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("geo:ListGeofenceCollections: %w", perr)
-		}
-		for _, c := range out.Entries {
-			name := sv(c.CollectionName)
-			if name == "" {
-				continue
+			return out.Entries, out.NextToken, nil
+		},
+		func(c loctypes.ListGeofenceCollectionsResponseEntry) (*store.Resource, string, string) {
+			return locationRow(acct, region, scanID, TypeLocationGeofenceCollection, "geofence-collection", "geofence collections", sv(c.CollectionName), c.CreateTime, c)
+		},
+		func(ctx context.Context, name string) (any, map[string]string, error) {
+			out, err := client.DescribeGeofenceCollection(ctx, &location.DescribeGeofenceCollectionInput{CollectionName: &name})
+			if err != nil {
+				return nil, nil, err
 			}
-			arn := locARN(acct.partition(), region, acct.ID, "geofence-collection", name)
-			label := name
-			parents = append(parents, childParent{id: name, arn: arn})
-			// Enrich via DescribeGeofenceCollection — list summary lacks
-			// KmsKeyId; KMS edge needs Describe body.
-			var attrsJSON string
-			cn := name
-			if dout, derr := client.DescribeGeofenceCollection(ctx, &location.DescribeGeofenceCollectionInput{CollectionName: &cn}); derr == nil {
-				attrsJSON = mustJSON(dout)
-			} else {
-				attrsJSON = mustJSON(c)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLocationGeofenceCollection, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "location geofence-collections")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return parents, t, i, nil
+			return out, out.Tags, nil
+		}, tags, p)
 }
 
 // scanLocationGeofences lists the geofences of each collection stored this
@@ -176,7 +264,7 @@ func scanLocationGeofenceCollections(ctx context.Context, client locationAPI, ac
 // A DELETED geofence has left the system index and is dropped, as omics drops
 // DELETED shares; a DELETING one still exists and is stored.
 func scanLocationGeofences(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, collections []childParent) (int, int, error) {
-	const op = "geo:ListGeofences"
+	const op = locListGeofencesOp
 	return childFanOutStored(ctx, st, acct, region, op, collections, isLocationNotFound,
 		func(ctx context.Context, p childParent) (int, int, error) {
 			var total, inserted int
@@ -215,162 +303,96 @@ func scanLocationGeofences(ctx context.Context, client locationAPI, acct *accoun
 // isLocationNotFound matches a collection deleted between
 // ListGeofenceCollections and ListGeofences.
 func isLocationNotFound(err error) bool {
-	return isAPIErrorCode(err, "ResourceNotFoundException")
+	return isAPIErrorCode(err, locNotFound...)
 }
 
-func scanLocationMaps(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := location.NewListMapsPaginator(client, &location.ListMapsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "geo:ListMaps", acct.ID, region, perr)
-				return 0, 0, nil
+func scanLocationMaps(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, locListMapsOp,
+		func(ctx context.Context, token *string) ([]loctypes.ListMapsResponseEntry, *string, error) {
+			out, err := client.ListMaps(ctx, &location.ListMapsInput{MaxResults: sdkaws.Int32(locPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("geo:ListMaps: %w", perr)
-		}
-		for _, m := range out.Entries {
-			name := sv(m.MapName)
-			if name == "" {
-				continue
-			}
-			arn := locARN(acct.partition(), region, acct.ID, "map", name)
-			label := name
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLocationMap, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "location maps")
+			return out.Entries, out.NextToken, nil
+		},
+		func(m loctypes.ListMapsResponseEntry) (*store.Resource, string, string) {
+			return locationRow(acct, region, scanID, TypeLocationMap, "map", "maps", sv(m.MapName), m.CreateTime, m)
+		}, tags, p)
 }
 
-func scanLocationPlaceIndexes(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := location.NewListPlaceIndexesPaginator(client, &location.ListPlaceIndexesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "geo:ListPlaceIndexes", acct.ID, region, perr)
-				return 0, 0, nil
+func scanLocationPlaceIndexes(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, locListPlaceIndexesOp,
+		func(ctx context.Context, token *string) ([]loctypes.ListPlaceIndexesResponseEntry, *string, error) {
+			out, err := client.ListPlaceIndexes(ctx, &location.ListPlaceIndexesInput{MaxResults: sdkaws.Int32(locPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("geo:ListPlaceIndexes: %w", perr)
-		}
-		for _, p := range out.Entries {
-			name := sv(p.IndexName)
-			if name == "" {
-				continue
-			}
-			arn := locARN(acct.partition(), region, acct.ID, "place-index", name)
-			label := name
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLocationPlaceIndex, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "location place-indexes")
+			return out.Entries, out.NextToken, nil
+		},
+		func(x loctypes.ListPlaceIndexesResponseEntry) (*store.Resource, string, string) {
+			return locationRow(acct, region, scanID, TypeLocationPlaceIndex, "place-index", "place indexes", sv(x.IndexName), x.CreateTime, x)
+		}, tags, p)
 }
 
-func scanLocationRouteCalculators(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := location.NewListRouteCalculatorsPaginator(client, &location.ListRouteCalculatorsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "geo:ListRouteCalculators", acct.ID, region, perr)
-				return 0, 0, nil
+func scanLocationRouteCalculators(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, locListRouteCalculatorsOp,
+		func(ctx context.Context, token *string) ([]loctypes.ListRouteCalculatorsResponseEntry, *string, error) {
+			out, err := client.ListRouteCalculators(ctx, &location.ListRouteCalculatorsInput{MaxResults: sdkaws.Int32(locPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("geo:ListRouteCalculators: %w", perr)
-		}
-		for _, r := range out.Entries {
-			name := sv(r.CalculatorName)
-			if name == "" {
-				continue
-			}
-			arn := locARN(acct.partition(), region, acct.ID, "route-calculator", name)
-			label := name
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLocationRouteCalculator, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "location route-calculators")
+			return out.Entries, out.NextToken, nil
+		},
+		func(r loctypes.ListRouteCalculatorsResponseEntry) (*store.Resource, string, string) {
+			return locationRow(acct, region, scanID, TypeLocationRouteCalculator, "route-calculator", "route calculators", sv(r.CalculatorName), r.CreateTime, r)
+		}, tags, p)
 }
 
-func scanLocationTrackers(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := location.NewListTrackersPaginator(client, &location.ListTrackersInput{})
-	var batch []*store.Resource
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "geo:ListTrackers", acct.ID, region, perr)
-				return nil, 0, 0, nil
+// scanLocationTrackers stores the trackers and returns them as the parents
+// scanLocationTrackerConsumers reads.
+func scanLocationTrackers(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeLocationDescribed(ctx, st, acct, region, locListTrackersOp, "geo:DescribeTracker", "tracker(s)",
+		func(ctx context.Context, token *string) ([]loctypes.ListTrackersResponseEntry, *string, error) {
+			out, err := client.ListTrackers(ctx, &location.ListTrackersInput{MaxResults: sdkaws.Int32(locPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("geo:ListTrackers: %w", perr)
-		}
-		for _, t := range out.Entries {
-			name := sv(t.TrackerName)
-			if name == "" {
-				continue
+			return out.Entries, out.NextToken, nil
+		},
+		func(t loctypes.ListTrackersResponseEntry) (*store.Resource, string, string) {
+			return locationRow(acct, region, scanID, TypeLocationTracker, "tracker", "trackers", sv(t.TrackerName), t.CreateTime, t)
+		},
+		func(ctx context.Context, name string) (any, map[string]string, error) {
+			out, err := client.DescribeTracker(ctx, &location.DescribeTrackerInput{TrackerName: &name})
+			if err != nil {
+				return nil, nil, err
 			}
-			arn := locARN(acct.partition(), region, acct.ID, "tracker", name)
-			label := name
-			names = append(names, name)
-			// Enrich via DescribeTracker — list summary lacks KmsKeyId.
-			var attrsJSON string
-			tn := name
-			if dout, derr := client.DescribeTracker(ctx, &location.DescribeTrackerInput{TrackerName: &tn}); derr == nil {
-				attrsJSON = mustJSON(dout)
-			} else {
-				attrsJSON = mustJSON(t)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLocationTracker, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: attrsJSON, DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "location trackers")
-	return names, t, i, err
+			return out, out.Tags, nil
+		}, tags, p)
 }
 
-func scanLocationTrackerConsumers(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID, trackerName string) (int, int, error) {
-	tn := trackerName
-	pager := location.NewListTrackerConsumersPaginator(client, &location.ListTrackerConsumersInput{TrackerName: &tn})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "geo:ListTrackerConsumers", acct.ID, region, perr)
-				return 0, 0, nil
+// scanLocationTrackerConsumers stores the consumers (geofence collection
+// ARNs) of each tracker stored this scan, the trackers read concurrently
+// (storeTokenEachParent). The NativeID is {trackerARN}/consumer/{ConsumerArn}.
+func scanLocationTrackerConsumers(ctx context.Context, client locationAPI, acct *account, region string, st *store.Store, scanID string, trackers []childParent) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, locListTrackerConsumersOp, locNotFound, childParentIDs(trackers),
+		func(ctx context.Context, tracker string, token *string) ([]string, *string, error) {
+			out, err := client.ListTrackerConsumers(ctx, &location.ListTrackerConsumersInput{TrackerName: &tracker, MaxResults: sdkaws.Int32(locPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("geo:ListTrackerConsumers: %w", perr)
-		}
-		for _, consumerARN := range out.ConsumerArns {
+			return out.ConsumerArns, out.NextToken, nil
+		},
+		func(tracker, consumerARN string) (*store.Resource, string, string) {
 			if consumerARN == "" {
-				continue
+				return nil, "tracker consumers have an empty ARN", tracker
 			}
-			trackerARN := locARN(acct.partition(), region, acct.ID, "tracker", trackerName)
-			arn := fmt.Sprintf("%s/consumer/%s", trackerARN, consumerARN)
+			trackerARN := locARN(acct.partition(), region, acct.ID, "tracker", tracker)
 			label := consumerARN
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLocationTrackerConsumer, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(map[string]string{"TrackerName": trackerName, "ConsumerArn": consumerARN}), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "location tracker-consumers")
+				Type: TypeLocationTrackerConsumer, NativeID: fmt.Sprintf("%s/consumer/%s", trackerARN, consumerARN),
+				Name: &label, Region: &region, AttributesJSON: mustJSON(map[string]string{"TrackerName": tracker, "ConsumerArn": consumerARN}), DiscoveredBy: scanID,
+			}, "", ""
+		})
 }
