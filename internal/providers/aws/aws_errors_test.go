@@ -913,27 +913,6 @@ func TestIsWorkSpacesPoolsGap(t *testing.T) {
 	}
 }
 
-func TestChimeListErr_AvailabilityNoiseSilent(t *testing.T) {
-	st := newTestStore(t)
-	warned := false
-	st.OnWarn = func(store.ScanWarning) { warned = true }
-
-	for _, msg := range []string{"This feature is not available", "AWS account is not enabled", ""} {
-		warned = false
-		chimeListErr(st, "chime:ListVoiceProfileDomains", "1", "eu-west-1", apiErr("ForbiddenException", msg))
-		if warned {
-			t.Errorf("ForbiddenException %q is availability noise; must not warn", msg)
-		}
-	}
-	// A message-bearing IAM denial still warns.
-	warned = false
-	chimeListErr(st, "chime:ListVoiceProfileDomains", "1", "eu-west-1",
-		apiErr("AccessDeniedException", "User: arn:... is not authorized to perform: chime:ListVoiceProfileDomains"))
-	if !warned {
-		t.Error("real IAM denial must warn")
-	}
-}
-
 // A real store-write failure must carry store.ErrStoreWrite (so the dispatcher's
 // first rung can identify it) and must satisfy none of the ladder's skip
 // predicates below that rung — each of which would suppress the error or

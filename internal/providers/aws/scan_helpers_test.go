@@ -1318,3 +1318,148 @@ func TestPhaseTotalsResultLateNXDOMAIN(t *testing.T) {
 		})
 	}
 }
+
+// deniedTestErr is a denial code isAccessDenied does not match, which the
+// ...DeniedBy helpers below are told to treat as one.
+var deniedTestErr = apiErr("UnauthorizedClientException", "not authorized")
+
+func isDeniedTestErr(err error) bool {
+	return isAccessDenied(err) || isAPIErrorCode(err, "UnauthorizedClientException")
+}
+
+// deniedPages ends a listing without an error on a denial its predicate
+// reports, keeping that denial; on a later page the kept error says the
+// later pages were not read. Any other error and any page pass through.
+func TestDeniedPages_Outcomes(t *testing.T) {
+	page := func(err error) func(context.Context, *string) ([]string, *string, error) {
+		return func(context.Context, *string) ([]string, *string, error) {
+			if err != nil {
+				return nil, nil, err
+			}
+			return []string{"a"}, ptrStr("t"), nil
+		}
+	}
+	later := ptrStr("t1")
+	for _, c := range []struct {
+		name      string
+		err       error
+		token     *string
+		wantErr   error
+		wantItems int
+		wantKept  bool
+		wantWrap  bool
+	}{
+		{name: "page read", wantItems: 1},
+		{name: "first page denied", err: deniedTestErr, wantKept: true},
+		{name: "later page denied", err: deniedTestErr, token: later, wantKept: true, wantWrap: true},
+		{name: "access denied", err: tagTestDenied, wantKept: true},
+		{name: "other error", err: tagTestInvalid, wantErr: tagTestInvalid},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			d := listDenial{isDenied: isDeniedTestErr, unread: "things on later pages"}
+			items, _, err := deniedPages(&d, page(c.err))(context.Background(), c.token)
+			if !errors.Is(err, c.wantErr) || (c.wantErr == nil && err != nil) {
+				t.Fatalf("err = %v; want %v", err, c.wantErr)
+			}
+			if len(items) != c.wantItems {
+				t.Errorf("items = %v; want %d", items, c.wantItems)
+			}
+			if (d.err != nil) != c.wantKept || (c.wantKept && !errors.Is(d.err, c.err)) {
+				t.Fatalf("kept denial = %v; want %v kept", d.err, c.err)
+			}
+			if wrapped := c.wantKept && d.err != c.err; wrapped != c.wantWrap {
+				t.Errorf("kept denial %v wrapped = %v; want %v", d.err, wrapped, c.wantWrap)
+			}
+		})
+	}
+}
+
+// storeTokenEachParentDeniedBy tallies a parent refused with a code its
+// predicate reports together with one refused with AccessDeniedException,
+// under one warning, and stores the other parent's child; without the
+// predicate (storeTokenEachParent) the same code is an error.
+func TestStoreTokenEachParentDeniedBy_CustomCodeIsDenial(t *testing.T) {
+	page := func(_ context.Context, parent string, _ *string) ([]string, *string, error) {
+		switch parent {
+		case "p1":
+			return nil, nil, deniedTestErr
+		case "p2":
+			return nil, nil, tagTestDenied
+		}
+		return []string{parent + "-child"}, nil, nil
+	}
+	row := func(_ string, id string) (*store.Resource, string, string) { return tagTestRow(id) }
+	acct := newTestAccount(testAccountID)
+
+	st := newTestStore(t)
+	warns := countOpWarnings(st, tagTestListOp)
+	total, _, err := storeTokenEachParentDeniedBy(context.Background(), st, acct, testRegion, tagTestListOp, nil, []string{"p1", "p2", "p3"}, isDeniedTestErr, page, row)
+	if err != nil || total != 1 || *warns != 1 {
+		t.Errorf("total, err, warnings = %d, %v, %d; want 1, nil, 1", total, err, *warns)
+	}
+
+	st = newTestStore(t)
+	_, _, err = storeTokenEachParent(context.Background(), st, acct, testRegion, tagTestListOp, nil, []string{"p1", "p3"}, page, row)
+	assertAPICode(t, err, "UnauthorizedClientException")
+}
+
+// storeEachParentTagsDeniedBy tallies the predicate's code and
+// AccessDeniedException together under one warning, and stores the other
+// parent's child with its tags read.
+func TestStoreEachParentTagsDeniedBy_CustomCodeIsDenial(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, tagTestListOp)
+	var p phaseTotals
+	parents := []childParent{{id: "p1", arn: "p1"}, {id: "p2", arn: "p2"}, {id: "p3", arn: "p3"}}
+	stored, stop := storeEachParentTagsDeniedBy(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, nil, parents, isDeniedTestErr,
+		func(_ context.Context, parent string, _ *string) ([]string, *string, error) {
+			switch parent {
+			case "p1":
+				return nil, nil, deniedTestErr
+			case "p2":
+				return nil, nil, tagTestDenied
+			}
+			return []string{parent + "-child"}, nil, nil
+		},
+		func(_ string, id string) (*store.Resource, string, string) { return tagTestRow(id) },
+		tagTestReader(map[string]rowTagRead{"p3-child": {tags: mapTagsJSON(map[string]string{"k": "v"})}}), &p)
+	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+	if stop || err != nil || len(stored) != 1 || *warns != 1 {
+		t.Fatalf("stop, err, stored, warnings = %v, %v, %d, %d; want false, nil, 1, 1", stop, err, len(stored), *warns)
+	}
+	assertTagsMap(t, rowsByNativeID(t, st, TypeNetworkFirewallProxy)["p3-child"].TagsJSON, map[string]string{"k": "v"})
+}
+
+// readRowDetailsDeniedBy keeps a row whose Get its predicate reports denied,
+// as its list element, and warns once after the write; readRowDetails returns
+// the same code as an error.
+func TestReadRowDetailsDeniedBy_CustomCodeIsDenial(t *testing.T) {
+	const op = "svc:GetThing"
+	get := func(_ context.Context, r *store.Resource) (any, error) {
+		if r.NativeID == "x" {
+			return nil, deniedTestErr
+		}
+		return map[string]string{"body": r.NativeID}, nil
+	}
+	rows := func() []*store.Resource {
+		x, _, _ := tagTestRow("x")
+		y, _, _ := tagTestRow("y")
+		x.AttributesJSON, y.AttributesJSON = "{}", "{}"
+		return []*store.Resource{x, y}
+	}
+	acct := newTestAccount(testAccountID)
+
+	st := newTestStore(t)
+	warns := countOpWarnings(st, op)
+	kept, warn, hard, transient := readRowDetailsDeniedBy(context.Background(), st, acct, testRegion, op, "thing(s)", nil, isDeniedTestErr, rows(), get)
+	warn()
+	if len(kept) != 2 || hard != nil || transient != nil || *warns != 1 {
+		t.Fatalf("kept, hard, transient, warnings = %d, %v, %v, %d; want 2 rows, no errors, 1 warning", len(kept), hard, transient, *warns)
+	}
+	if kept[0].AttributesJSON != "{}" || kept[1].AttributesJSON != `{"body":"y"}` {
+		t.Errorf("attributes = %s, %s; want the denied row's list element and the other's body", kept[0].AttributesJSON, kept[1].AttributesJSON)
+	}
+
+	_, _, hard, _ = readRowDetails(context.Background(), st, acct, testRegion, op, "thing(s)", nil, rows(), get)
+	assertAPICode(t, hard, "UnauthorizedClientException")
+}

@@ -1190,10 +1190,33 @@ func storeTokenEachParentSkip[Item any](
 	row func(parent string, it Item) (r *store.Resource, why, key string),
 	skip func(parent string, err error) bool,
 ) (int, int, error) {
+	return storeTokenEachParentWith(ctx, st, acct, region, op, notFound, parents, page, row, skip, isAccessDenied)
+}
+
+// storeTokenEachParentDeniedBy is storeTokenEachParent for an op whose denial
+// codes isAccessDenied does not all match: a parent whose error isDenied
+// reports is tallied as denied, under the same one warning as the codes
+// isAccessDenied matches would be.
+func storeTokenEachParentDeniedBy[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound, parents []string,
+	isDenied func(error) bool,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (r *store.Resource, why, key string),
+) (int, int, error) {
+	return storeTokenEachParentWith(ctx, st, acct, region, op, notFound, parents, page, row, nil, isDenied)
+}
+
+func storeTokenEachParentWith[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound, parents []string,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (r *store.Resource, why, key string),
+	skip func(parent string, err error) bool,
+	isDenied func(error) bool,
+) (int, int, error) {
 	reads, stopped := readEachKey(ctx, parents, func(ctx context.Context, p string) parentItems[Item] {
 		return readParentPages(ctx, p, page)
 	})
-	out := parentOutcomes{op: op, notFound: notFound, skip: skip}
+	out := parentOutcomes{op: op, notFound: notFound, skip: skip, isDenied: isDenied}
 	for i, read := range reads {
 		addParentRows(&out, parents[i], read, row)
 	}
@@ -1262,9 +1285,11 @@ func storeChildrenEachParent[Item any](
 // parentOutcomes collects, for storeTokenPerParent and storeTokenEachParent,
 // the rows built from each parent's listing and what became of the parent.
 type parentOutcomes struct {
-	op               string
-	notFound         []string
-	skip             func(parent string, err error) bool
+	op       string
+	notFound []string
+	skip     func(parent string, err error) bool
+	// isDenied reports a denial; nil means isAccessDenied.
+	isDenied         func(error) bool
 	rows             []*store.Resource
 	errs             []error
 	denied, vanished skipTally
@@ -1286,11 +1311,23 @@ func addParentRows[Item any](o *parentOutcomes, parent string, read parentItems[
 	case isAPIErrorCode(err, o.notFound...):
 		o.vanished.skipped(parent, err)
 	case o.skip != nil && o.skip(parent, err):
-	case isAccessDenied(err):
+	case o.deniedBy(err):
 		o.denied.skipped(parent, err)
 	default:
 		o.errs = append(o.errs, fmt.Errorf("%s %s: %w", o.op, parent, err))
 	}
+}
+
+// deniedBy reports whether err denies o's op.
+func (o *parentOutcomes) deniedBy(err error) bool { return orAccessDenied(o.isDenied)(err) }
+
+// orAccessDenied is isDenied, or isAccessDenied when isDenied is nil: the
+// default of the optional denial predicates.
+func orAccessDenied(isDenied func(error) bool) func(error) bool {
+	if isDenied == nil {
+		return isAccessDenied
+	}
+	return isDenied
 }
 
 // stopped records that the parents not yet read were not, because ctx ended.
@@ -1447,23 +1484,46 @@ func storeParentListDeniedBy[Item any](
 	row func(Item) (*store.Resource, string, string),
 	key func(Item) string,
 ) (int, int, []childParent, error) {
-	var denied error
-	total, inserted, parents, err := storeParentList(ctx, st, acct, region, op, what, idField,
-		func(ctx context.Context, token *string) ([]Item, *string, error) {
-			items, next, err := page(ctx, token)
-			if !isDenied(err) {
-				return items, next, err
-			}
-			denied = err
-			if token != nil {
-				denied = fmt.Errorf("the listing stopped at a denied page after the first; %s on later pages and their children were not read: %w", what, err)
-			}
-			return nil, nil, nil
-		}, row, key)
-	if denied != nil && !errors.Is(err, store.ErrStoreWrite) {
-		_ = skipIfAccessDenied(st, op, acct.ID, region, denied)
+	d := listDenial{isDenied: isDenied, unread: what + " on later pages and their children"}
+	total, inserted, parents, err := storeParentList(ctx, st, acct, region, op, what, idField, deniedPages(&d, page), row, key)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		d.warn(st, op, acct, region)
 	}
 	return total, inserted, parents, err
+}
+
+// listDenial ends a listing on the first error isDenied reports, for an op
+// whose denial codes isAccessDenied does not all match, and holds that error
+// until the rows read before it are written. unread names what a denial
+// after the first page left unread.
+type listDenial struct {
+	isDenied func(error) bool
+	unread   string
+	err      error
+}
+
+// deniedPages is page with an error d.isDenied reports ending the listing
+// without an error, keeping the pages read before it; d records it.
+func deniedPages[Item any](d *listDenial, page func(ctx context.Context, token *string) ([]Item, *string, error)) func(ctx context.Context, token *string) ([]Item, *string, error) {
+	return func(ctx context.Context, token *string) ([]Item, *string, error) {
+		items, next, err := page(ctx, token)
+		if !d.isDenied(err) {
+			return items, next, err
+		}
+		d.err = err
+		if token != nil {
+			d.err = fmt.Errorf("the listing stopped at a denied page after the first; %s were not read: %w", d.unread, err)
+		}
+		return nil, nil, nil
+	}
+}
+
+// warn warns once under op about the denial the listing ended on, if any.
+// Call it only after the rows read were written.
+func (d *listDenial) warn(st *store.Store, op string, acct *account, region string) {
+	if d.err != nil {
+		_ = skipIfAccessDenied(st, op, acct.ID, region, d.err)
+	}
 }
 
 // childParentIDs is the ids of parents, which their child listings key on.
@@ -1486,11 +1546,24 @@ func storeEachParentTags[Item any](
 	row func(parent string, it Item) (*store.Resource, string, string),
 	tags rowTagReader, p *phaseTotals,
 ) (stored []*store.Resource, storeWriteFailed bool) {
+	return storeEachParentTagsDeniedBy(ctx, st, acct, region, op, notFound, parents, isAccessDenied, page, row, tags, p)
+}
+
+// storeEachParentTagsDeniedBy is storeEachParentTags for an op whose denial
+// codes isAccessDenied does not all match: a parent whose error isDenied
+// reports is tallied as denied, under the same one warning.
+func storeEachParentTagsDeniedBy[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound []string, parents []childParent,
+	isDenied func(error) bool,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (*store.Resource, string, string),
+	tags rowTagReader, p *phaseTotals,
+) (stored []*store.Resource, storeWriteFailed bool) {
 	ids := childParentIDs(parents)
 	reads, stopped := readEachKey(ctx, ids, func(ctx context.Context, id string) parentItems[Item] {
 		return readParentPages(ctx, id, page)
 	})
-	out := parentOutcomes{op: op, notFound: notFound}
+	out := parentOutcomes{op: op, notFound: notFound, isDenied: isDenied}
 	for i, read := range reads {
 		addParentRows(&out, ids[i], read, row)
 	}
@@ -1648,6 +1721,13 @@ func onlyDNSNotFound(errs phaseErrs) bool {
 // reads it cut short and those it kept from starting; any other error is
 // returned in hard. what names the rows in those messages.
 func readRowDetails(ctx context.Context, st *store.Store, acct *account, region, op, what string, notFound []string, rows []*store.Resource, get func(context.Context, *store.Resource) (any, error)) (kept []*store.Resource, warn func(), hard, transient error) {
+	return readRowDetailsDeniedBy(ctx, st, acct, region, op, what, notFound, isAccessDenied, rows, get)
+}
+
+// readRowDetailsDeniedBy is readRowDetails for an op whose denial codes
+// isAccessDenied does not all match: a read whose error isDenied reports is a
+// denial.
+func readRowDetailsDeniedBy(ctx context.Context, st *store.Store, acct *account, region, op, what string, notFound []string, isDenied func(error) bool, rows []*store.Resource, get func(context.Context, *store.Resource) (any, error)) (kept []*store.Resource, warn func(), hard, transient error) {
 	type detail struct {
 		body any
 		err  error
@@ -1676,7 +1756,7 @@ func readRowDetails(ctx context.Context, st *store.Store, acct *account, region,
 			continue
 		case ctx.Err() != nil && errors.Is(err, ctx.Err()):
 			cut++
-		case isAccessDenied(err):
+		case isDenied(err):
 			denied.skipped(r.NativeID, err)
 		case transients.drop(r.NativeID, err):
 		default:
@@ -1703,8 +1783,10 @@ func readRowDetails(ctx context.Context, st *store.Store, acct *account, region,
 // (readRowDetails), then reads its tags (readRowTags), and holds both reads'
 // errors until the write is done.
 type detailedRows struct {
-	getOp, what      string
-	notFound         []string
+	getOp, what string
+	notFound    []string
+	// isDenied reports the Get's denial; nil means isAccessDenied.
+	isDenied         func(error) bool
 	tags             rowTagReader
 	getErrs, tagErrs rowTagErrs
 }
@@ -1712,7 +1794,7 @@ type detailedRows struct {
 // before is the listing's beforeWrite: get reads one row's body.
 func (d *detailedRows) before(ctx context.Context, st *store.Store, acct *account, region string, get func(context.Context, *store.Resource) (any, error)) beforeWrite {
 	return func(rows []*store.Resource) ([]*store.Resource, func()) {
-		rows, getWarn, hard, transient := readRowDetails(ctx, st, acct, region, d.getOp, d.what, d.notFound, rows, get)
+		rows, getWarn, hard, transient := readRowDetailsDeniedBy(ctx, st, acct, region, d.getOp, d.what, d.notFound, orAccessDenied(d.isDenied), rows, get)
 		d.getErrs = rowTagErrs{hard, transient}
 		kept, tagWarn := d.tags.hook(ctx, st, acct, region, &d.tagErrs)(rows)
 		return kept, func() {
