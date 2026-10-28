@@ -197,11 +197,8 @@ func TestScanGDOrganizationConfigurations_NoDetectorsMakesNoCalls(t *testing.T) 
 func gdServiceStub(t *testing.T, override map[string][]stubCall) sdkaws.Config {
 	t.Helper()
 	one := func(out any) []stubCall { return []stubCall{{Output: out}} }
-	detectors := func() *guardduty.ListDetectorsOutput {
-		return &guardduty.ListDetectorsOutput{DetectorIds: []string{"d"}}
-	}
 	calls := map[string][]stubCall{
-		"ListDetectors":              {{Output: detectors()}, {Output: detectors()}},
+		"ListDetectors":              one(&guardduty.ListDetectorsOutput{DetectorIds: []string{"d"}}),
 		"GetDetector":                one(&guardduty.GetDetectorOutput{Status: gdtypes.DetectorStatusEnabled}),
 		"ListFilters":                one(&guardduty.ListFiltersOutput{}),
 		"ListMembers":                one(&guardduty.ListMembersOutput{}),
@@ -218,6 +215,7 @@ func gdServiceStub(t *testing.T, override map[string][]stubCall) sdkaws.Config {
 		}),
 		"ListCustomDetectionRuleAssociations":      one(&guardduty.ListCustomDetectionRuleAssociationsOutput{}),
 		"ListCustomDetectionRuleOrgConfigurations": one(&guardduty.ListCustomDetectionRuleOrgConfigurationsOutput{}),
+		"ListTagsForResource":                      one(&guardduty.ListTagsForResourceOutput{}),
 	}
 	for op, c := range override {
 		calls[op] = c

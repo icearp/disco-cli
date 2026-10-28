@@ -51,7 +51,7 @@ type gdRulePhase struct {
 
 var (
 	gdAssocPhase = gdRulePhase{
-		op: "ListCustomDetectionRuleAssociations", label: gdListCustomRuleAssocsOp, rtype: TypeGuardDutyCustomDetectionRuleAssociation, scan: scanGDCustomRuleAssociations,
+		op: "ListCustomDetectionRuleAssociations", label: gdListCustomRuleAssocsOp, rtype: TypeGuardDutyCustomDetectionRuleAssociation, scan: gdScanAssocs,
 		page: func(next string) any {
 			return &guardduty.ListCustomDetectionRuleAssociationsOutput{RuleAssociations: []gdtypes.AssociationSummary{gdTestAssoc("r-1", "a-"+pageName(next))}, NextToken: nextOf(next)}
 		},
@@ -86,6 +86,19 @@ var (
 	gdRulePhases = []gdRulePhase{gdAssocPhase, gdOrgPhase}
 )
 
+// gdScanAssocs runs the association phase alone and returns its counts and
+// errors as the service folds them.
+func gdScanAssocs(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var p phaseTotals
+	scanGDCustomRuleAssociations(ctx, client, acct, region, st, scanID, &p)
+	return p.result(st, acct, region)
+}
+
+// gdNoAssocTags answers GetCustomDetectionRuleAssociation without tags.
+func gdNoAssocTags(any) (any, error) {
+	return &guardduty.GetCustomDetectionRuleAssociationOutput{}, nil
+}
+
 // pageName names the item a page carries: "1" on the first page, "2" after.
 func pageName(token string) string {
 	if token == "" {
@@ -101,11 +114,11 @@ func nextOf(token string) *string {
 	return nil
 }
 
-// gdPhaseHandler serves p's two pages, failing the page whose token is
-// failToken with failErr (no failure when failErr is nil); repeat makes every
-// page answer NextToken "same". It records each call's token and MaxResults,
-// and fails the call past maxCalls so a paginator that loops ends instead of
-// hanging.
+// gdPhaseHandler serves p's two pages, failing the page whose token is failToken
+// with failErr (no failure when failErr is nil); repeat makes every page answer
+// NextToken "same", the second page's item still named "2". It records each
+// call's token and MaxResults, and fails the call past maxCalls so a paginator
+// that loops ends instead of hanging.
 type gdPhaseHandler struct {
 	p         gdRulePhase
 	failToken string
@@ -130,10 +143,10 @@ func (h *gdPhaseHandler) serve(in any) (any, error) {
 	if h.failErr != nil && token == h.failToken {
 		return nil, h.failErr
 	}
+	out := h.p.page(token)
 	if !h.repeat {
-		return h.p.page(token), nil
+		return out, nil
 	}
-	out := h.p.page("")
 	switch o := out.(type) {
 	case *guardduty.ListCustomDetectionRuleAssociationsOutput:
 		o.NextToken = sdkaws.String("same")
@@ -145,7 +158,9 @@ func (h *gdPhaseHandler) serve(in any) (any, error) {
 
 func runGDPhase(t *testing.T, st *store.Store, h *gdPhaseHandler) (int, error) {
 	t.Helper()
-	client := guardduty.NewFromConfig(opStubConfig(map[string]func(any) (any, error){h.p.op: h.serve}, apiErr("AccessDeniedException", "unstubbed op")))
+	client := guardduty.NewFromConfig(opStubConfig(map[string]func(any) (any, error){
+		h.p.op: h.serve, "GetCustomDetectionRuleAssociation": gdNoAssocTags,
+	}, apiErr("AccessDeniedException", "unstubbed op")))
 	total, _, err := h.p.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 	return total, err
 }
@@ -237,6 +252,8 @@ func TestScanGDCustomRuleOrgConfigurations_KeysOnRuleAndMode(t *testing.T) {
 	}
 }
 
+// An empty listing stores nothing and warns nothing; items without the id
+// their row needs are not stored and are warned about once per listing.
 func TestGDCustomRulePhases_EmptyAndIDlessItems(t *testing.T) {
 	idless := map[string]any{
 		gdAssocPhase.op: &guardduty.ListCustomDetectionRuleAssociationsOutput{
@@ -248,11 +265,13 @@ func TestGDCustomRulePhases_EmptyAndIDlessItems(t *testing.T) {
 	}
 	for _, p := range gdRulePhases {
 		for _, tc := range []struct {
-			name string
-			out  any
-		}{{"empty", p.empty()}, {"id-less", idless[p.op]}} {
+			name  string
+			out   any
+			warns int
+		}{{"empty", p.empty(), 0}, {"id-less", idless[p.op], 1}} {
 			t.Run(p.op+"/"+tc.name, func(t *testing.T) {
 				st := newTestStore(t)
+				warns := countOpWarnings(st, p.label)
 				client := guardduty.NewFromConfig(opStubConfig(map[string]func(any) (any, error){p.op: func(any) (any, error) { return tc.out, nil }}, apiErr("AccessDeniedException", "unstubbed op")))
 				total, _, err := p.scan(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
 				if err != nil || total != 0 {
@@ -261,23 +280,30 @@ func TestGDCustomRulePhases_EmptyAndIDlessItems(t *testing.T) {
 				if n := len(rowsByNativeID(t, st, p.rtype)); n != 0 {
 					t.Errorf("stored %d rows; want 0", n)
 				}
+				if *warns != tc.warns {
+					t.Errorf("%s warnings = %d; want %d", p.label, *warns, tc.warns)
+				}
 			})
 		}
 	}
 }
 
-// A page that repeats the token it was asked with stops the paginator after
-// that page instead of looping.
+// A page that repeats the token it was asked with ends the listing as an
+// error instead of looping, keeping the pages read.
 func TestGDCustomRulePhases_RepeatedTokenStops(t *testing.T) {
 	for _, p := range gdRulePhases {
 		t.Run(p.op, func(t *testing.T) {
 			st := newTestStore(t)
 			h := &gdPhaseHandler{p: p, repeat: true, maxCalls: 3}
-			if _, err := runGDPhase(t, st, h); err != nil {
-				t.Fatalf("scan: %v", err)
+			total, err := runGDPhase(t, st, h)
+			if !errors.Is(err, errRepeatedNextToken) {
+				t.Fatalf("err = %v; want errRepeatedNextToken", err)
 			}
 			if want := []string{"", "same"}; !slices.Equal(h.tokens, want) {
 				t.Errorf("tokens = %v; want %v", h.tokens, want)
+			}
+			if n := len(rowsByNativeID(t, st, p.rtype)); total != 2 || n != 2 {
+				t.Errorf("total = %d, stored = %d; want 2, 2", total, n)
 			}
 		})
 	}
@@ -344,6 +370,8 @@ func gdTopLevelHandlers() map[string]func(any) (any, error) {
 		"DescribeOrganizationConfiguration": one(&guardduty.DescribeOrganizationConfigurationOutput{
 			AutoEnableOrganizationMembers: gdtypes.AutoEnableMembersAll,
 		}),
+		"ListTagsForResource":               one(&guardduty.ListTagsForResourceOutput{}),
+		"GetCustomDetectionRuleAssociation": gdNoAssocTags,
 	}
 	for _, p := range gdRulePhases {
 		h[p.op] = func(any) (any, error) { return p.page("p2"), nil }

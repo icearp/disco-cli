@@ -1392,7 +1392,7 @@ func sortedSet(m map[string]bool) []string {
 
 // betterAnchor reports whether a should replace b as the op reported for a
 // candidate two functions both anchor. A listing beats a single-item read
-// (scanGuardDutyDetectors anchors both ListDetectors and GetDetector), and
+// (scanGDDetectors anchors both ListDetectors and GetDetector), and
 // the smaller label breaks the remaining ties so the choice is total.
 func betterAnchor(a, b sdkinv.Operation) bool {
 	if a.IsList != b.IsList {

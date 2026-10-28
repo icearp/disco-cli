@@ -1,10 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/guardduty"
 	gdtypes "github.com/aws/aws-sdk-go-v2/service/guardduty/types"
 	"github.com/icearp/disco-cli/store"
@@ -18,89 +20,63 @@ const (
 	gdDetectionRulePageLimit = 100
 )
 
-// scanGDCustomDetectionRules stores this account's custom detection rule
-// associations and the delegated administrator's organization configurations of
-// those rules. The rules themselves are an AWS-owned catalog and are not
-// scanned. orgConfigRefused is scanGDOrganizationConfigurations' report that
-// the region refused the account its organization configuration; the
-// organization-level list is skipped there, since the same delegated
-// administrator role is needed for both. The phases are independent, so each
-// runs whatever the other returns, and each adds its error to errs under its
-// own op for the caller to join.
-func scanGDCustomDetectionRules(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string, orgConfigRefused bool, errs *phaseErrs) (total, inserted int) {
-	total, inserted, err := scanGDCustomRuleAssociations(ctx, client, acct, region, st, scanID)
-	errs.add(gdListCustomRuleAssocsOp, err)
-	if !orgConfigRefused {
-		t, i, oerr := scanGDCustomRuleOrgConfigurations(ctx, client, acct, region, st, scanID)
-		total += t
-		inserted += i
-		errs.add(gdListCustomRuleOrgOp, oerr)
-	}
-	return total, inserted
-}
+// The custom detection rule ops arrived in SDK v1.89.0 (2026-09-01), so a
+// first page that isOpNotDeployed matches is a region whose endpoint does not
+// serve the op yet, read as an empty listing (firstPageGapPages). The rules
+// themselves are an AWS-owned catalog and are not scanned.
 
-// gdListPhase lists one region-wide custom-detection-rule collection page by
-// page and stores the row toRow builds for each item (nil drops the item). The
-// ops arrived in SDK v1.89.0 (2026-09-01), so a first page that isOpNotDeployed
-// matches is a region whose endpoint does not serve the op yet and skips the
-// phase silently. Otherwise a denial warns and any other error is returned;
-// either way the rows listed so far are stored.
-func gdListPhase[Page, Item any](
-	ctx context.Context, st *store.Store, acct *account, region, op string,
-	hasMore func() bool, next func(context.Context) (Page, error),
-	items func(Page) []Item, toRow func(Item) *store.Resource,
-) (int, int, error) {
-	var batch []*store.Resource
-	var listErr error
-	listed := false
-	for hasMore() {
-		page, err := next(ctx)
-		if err != nil {
-			switch {
-			case !listed && isOpNotDeployed(err):
-				return 0, 0, nil
-			case isAccessDenied(err):
-				_ = skipIfAccessDenied(st, op, acct.ID, region, err)
-			default:
-				listErr = fmt.Errorf("%s: %w", op, err)
+// gdAssocTags reads a custom detection rule association's tags from
+// GetCustomDetectionRuleAssociation, sent the RuleId and AssociationId of its
+// listed element (the row's attributes). It reads the get rather than
+// ListTagsForResource: the Service Reference lists
+// customdetectionruleassociation under ListTagsForResource, but that op's
+// model admits only ARNs under a detector (the GuardDutyArn pattern), while
+// the get's output carries the association's Tags.
+// ResourceNotFoundException, the get's modeled not-found, drops an
+// association deleted after it was listed.
+func gdAssocTags(client guardDutyExtAPI) rowTagReader {
+	return rowTagReader{
+		op:       "guardduty:GetCustomDetectionRuleAssociation",
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			var a gdtypes.AssociationSummary
+			if err := json.Unmarshal([]byte(r.AttributesJSON), &a); err != nil {
+				return nil, fmt.Errorf("decode the listed association %s: %w", r.NativeID, err)
 			}
-			break
-		}
-		listed = true
-		for _, it := range items(page) {
-			if r := toRow(it); r != nil {
-				batch = append(batch, r)
+			out, err := client.GetCustomDetectionRuleAssociation(ctx, &guardduty.GetCustomDetectionRuleAssociationInput{RuleId: a.RuleId, AssociationId: a.AssociationId})
+			if err != nil {
+				return nil, err
 			}
-		}
-	}
-	t, i, uerr := upsertBatch(st, batch, op)
-	return t, i, errors.Join(listErr, uerr)
-}
-
-func scanGDCustomRuleAssociations(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := guardduty.NewListCustomDetectionRuleAssociationsPaginator(client, &guardduty.ListCustomDetectionRuleAssociationsInput{}, func(o *guardduty.ListCustomDetectionRuleAssociationsPaginatorOptions) {
-		o.Limit = gdDetectionRulePageLimit
-		o.StopOnDuplicateToken = true
-	})
-	next := func(ctx context.Context) (*guardduty.ListCustomDetectionRuleAssociationsOutput, error) {
-		return pager.NextPage(ctx)
-	}
-	return gdListPhase(ctx, st, acct, region, gdListCustomRuleAssocsOp, pager.HasMorePages, next,
-		func(out *guardduty.ListCustomDetectionRuleAssociationsOutput) []gdtypes.AssociationSummary {
-			return out.RuleAssociations
+			return mapTagsJSON(out.Tags), nil
 		},
-		func(a gdtypes.AssociationSummary) *store.Resource {
+	}
+}
+
+// scanGDCustomRuleAssociations stores this account's custom detection rule
+// associations with their tags (gdAssocTags), a page at a time. Counts and
+// errors go to p; it reports whether a write failed, after which the scanner
+// must stop.
+func scanGDCustomRuleAssociations(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenPagesTags(ctx, st, acct, region, gdListCustomRuleAssocsOp,
+		firstPageGapPages(isOpNotDeployed, func(ctx context.Context, token *string) ([]gdtypes.AssociationSummary, *string, error) {
+			out, err := client.ListCustomDetectionRuleAssociations(ctx, &guardduty.ListCustomDetectionRuleAssociationsInput{NextToken: token, MaxResults: sdkaws.Int32(gdDetectionRulePageLimit)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.RuleAssociations, out.NextToken, nil
+		}),
+		func(a gdtypes.AssociationSummary) (*store.Resource, string, string) {
 			arn := sv(a.Arn)
 			if arn == "" {
-				return nil
+				return nil, "custom detection rule association(s) with an empty Arn", cmp.Or(sv(a.AssociationId), "(an association with no id)")
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeGuardDutyCustomDetectionRuleAssociation, NativeID: arn,
 				Name: a.AssociationId, Region: &region, CreatedAt: tp(a.CreatedAt),
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			}
-		})
+			}, "", ""
+		}, gdAssocTags(client), p)
 }
 
 // gdRuleOrgConfigNativeID names an organization configuration, which carries
@@ -115,23 +91,21 @@ func gdRuleOrgConfigNativeID(partition, region, accountID, ruleID string, mode g
 // scanGDCustomRuleOrgConfigurations stores the organization configurations
 // that the GuardDuty delegated administrator creates
 // (CreateCustomDetectionRuleOrgConfiguration "is available only to the
-// delegated administrator account").
+// delegated administrator account"). They have no tags to read: the Service
+// Reference names no resource for them.
 func scanGDCustomRuleOrgConfigurations(ctx context.Context, client guardDutyExtAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := guardduty.NewListCustomDetectionRuleOrgConfigurationsPaginator(client, &guardduty.ListCustomDetectionRuleOrgConfigurationsInput{}, func(o *guardduty.ListCustomDetectionRuleOrgConfigurationsPaginatorOptions) {
-		o.Limit = gdDetectionRulePageLimit
-		o.StopOnDuplicateToken = true
-	})
-	next := func(ctx context.Context) (*guardduty.ListCustomDetectionRuleOrgConfigurationsOutput, error) {
-		return pager.NextPage(ctx)
-	}
-	return gdListPhase(ctx, st, acct, region, gdListCustomRuleOrgOp, pager.HasMorePages, next,
-		func(out *guardduty.ListCustomDetectionRuleOrgConfigurationsOutput) []gdtypes.DetectionRuleOrgConfigurationSummary {
-			return out.Configurations
-		},
-		func(c gdtypes.DetectionRuleOrgConfigurationSummary) *store.Resource {
+	return storeTokenList(ctx, st, acct, region, gdListCustomRuleOrgOp,
+		firstPageGapPages(isOpNotDeployed, func(ctx context.Context, token *string) ([]gdtypes.DetectionRuleOrgConfigurationSummary, *string, error) {
+			out, err := client.ListCustomDetectionRuleOrgConfigurations(ctx, &guardduty.ListCustomDetectionRuleOrgConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(gdDetectionRulePageLimit)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Configurations, out.NextToken, nil
+		}),
+		func(c gdtypes.DetectionRuleOrgConfigurationSummary) (*store.Resource, string, string) {
 			ruleID := sv(c.RuleId)
 			if ruleID == "" || c.Mode == "" {
-				return nil
+				return nil, "rule organization configuration(s) with an empty RuleId or Mode", cmp.Or(ruleID, "(a configuration with no rule id)")
 			}
 			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -139,6 +113,6 @@ func scanGDCustomRuleOrgConfigurations(ctx context.Context, client guardDutyExtA
 				NativeID: gdRuleOrgConfigNativeID(acct.partition(), region, acct.ID, ruleID, c.Mode),
 				Name:     &ruleID, Region: &region, Status: nonEmptyPtr(string(c.Status)), CreatedAt: tp(c.CreatedAt),
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			}
+			}, "", ""
 		})
 }

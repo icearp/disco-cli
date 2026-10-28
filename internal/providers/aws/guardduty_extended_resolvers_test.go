@@ -10,7 +10,9 @@ import (
 func TestGuarddutyDetectorARNFromChild(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"arn:aws:guardduty:us-east-1:123:detector/abc/filter/f1", "arn:aws:guardduty:us-east-1:123:detector/abc"},
-		{"arn:aws:guardduty:us-east-1:123:detector/abc/publishingDestination/p1", "arn:aws:guardduty:us-east-1:123:detector/abc"},
+		{"arn:aws:guardduty:us-east-1:123:detector/abc/publishingdestination/p1", "arn:aws:guardduty:us-east-1:123:detector/abc"},
+		{"arn:aws:guardduty:us-east-1:123:detector/abc/threatentityset/te1", "arn:aws:guardduty:us-east-1:123:detector/abc"},
+		{"arn:aws:guardduty:us-east-1:123:detector/abc/trustedentityset/tr1", "arn:aws:guardduty:us-east-1:123:detector/abc"},
 		{"arn:aws:guardduty:us-east-1:123:detector/abc", ""},
 		{"", ""},
 	}
@@ -28,7 +30,7 @@ func TestResolveGuardDutyChildrenToDetector(t *testing.T) {
 	dID := upsertTestResource(t, st, "aws", acct.ID, TypeGuardDutyDetector, dARN, testRegion, "{}")
 	fARN := dARN + "/filter/f1"
 	fID := upsertTestResource(t, st, "aws", acct.ID, TypeGuardDutyFilter, fARN, testRegion, "{}")
-	pdARN := dARN + "/publishingDestination/p1"
+	pdARN := gdDetectorChildARN(acct.partition(), testRegion, acct.ID, "abc", "publishingdestination", "p1")
 	pdID := upsertTestResource(t, st, "aws", acct.ID, TypeGuardDutyPublishingDestination, pdARN, testRegion, "{}")
 	tisARN := dARN + "/threatintelset/ti1"
 	tisID := upsertTestResource(t, st, "aws", acct.ID, TypeGuardDutyThreatIntelSet, tisARN, testRegion, "{}")

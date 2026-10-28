@@ -28,12 +28,12 @@ func init() {
 	)
 }
 
-// noopGuardDutyHierarchy emits nothing: the detector → filter / ipset / member
-// contains edges are written at scan time by upsertGuardDutyChildren via
-// RecordHierarchyBatch (called from scanGuardDutyDetectors), and the detector →
-// organization-configuration edge by scanGDOrganizationConfigurations through
-// childFanOut. It is registered only so those edges are declared to coverage
-// tooling.
+// noopGuardDutyHierarchy emits nothing: the detector → filter / ipset contains
+// edges are written at scan time by storeGDDetectorSets and the detector →
+// member edges by scanGDMembers (storeChildrenEachParent), both via
+// RecordHierarchyBatch, and the detector → organization-configuration edge by
+// scanGDOrganizationConfigurations through childFanOut. It is registered only so
+// those edges are declared to coverage tooling.
 func noopGuardDutyHierarchy(_ *account, _ *store.Store) error {
 	return nil
 }
