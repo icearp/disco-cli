@@ -1,11 +1,13 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"slices"
 	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/appstream"
 	astypes "github.com/aws/aws-sdk-go-v2/service/appstream/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -52,6 +54,7 @@ type appStreamAPI interface {
 	DescribeUserStackAssociations(context.Context, *appstream.DescribeUserStackAssociationsInput, ...func(*appstream.Options)) (*appstream.DescribeUserStackAssociationsOutput, error)
 	ListAssociatedFleets(context.Context, *appstream.ListAssociatedFleetsInput, ...func(*appstream.Options)) (*appstream.ListAssociatedFleetsOutput, error)
 	ListEntitledApplications(context.Context, *appstream.ListEntitledApplicationsInput, ...func(*appstream.Options)) (*appstream.ListEntitledApplicationsOutput, error)
+	ListTagsForResource(context.Context, *appstream.ListTagsForResourceInput, ...func(*appstream.Options)) (*appstream.ListTagsForResourceOutput, error)
 }
 
 // asEntitlementKey carries (stackName, entitlementName) for the
@@ -92,304 +95,319 @@ func appStreamRegionSupported(acct *account, region string) bool {
 	return sdkTableAllows("aws:appstream", region)
 }
 
-// scanAppStream discovers the AppStream 2.0 resources of one region.
-//
-// The older phases (stacks through application-entitlement associations) stop
-// at their first hard error. The image-permission and software-association
-// phases run whatever any other phase returned, over the images and image
-// builders stored before a failure, so their failure costs no other phase its
-// rows and an older phase's failure does not skip them. Each of the three
-// results has its transient error demoted to a warning only beside a hard
-// error: joined, it would be buried in the hard error instead of reported under
-// its op, and the rest are joined; the counts of all three are summed.
+const (
+	asTagsOp = "appstream:ListTagsForResource"
+	// asNoIdentifier names, in a warning, a listed element with neither an
+	// ARN nor a name.
+	asNoIdentifier = "(an element with no identifier)"
+	// asPageCap is the page cap of DescribeImages (its model's MaxResults
+	// range) and of DescribeAppBlockBuilders (its MaxResults doc).
+	// DescribeAppBlocks, DescribeApplications, DescribeImageBuilders and
+	// DescribeApplicationFleetAssociations take MaxResults but model no range
+	// or documented cap for it, so none is sent; DescribeStacks and
+	// DescribeFleets have no MaxResults member.
+	asPageCap = 25
+)
+
+// scanAppStream discovers the AppStream 2.0 resources of one region. Every
+// listing runs as its own phase, one at a time, in the order below
+// (runHostPhases): a phase's error does not stop the later ones; a failed
+// write and ctx's end do. A child phase gets the parents its parent phase
+// stored: the stacks for entitlements and the stack associations, the fleets
+// for application-fleet associations, the images and image builders for
+// image permissions and software associations. Stacks, app blocks, app block
+// builders, applications, fleets, image builders and images have their tags
+// read per row (asTags), each such listing written a page at a time, and the
+// tag denials of the whole scan are one warning.
 func scanAppStream(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	if !appStreamRegionSupported(acct, region) {
 		return 0, 0, nil
 	}
 	client := appstream.NewFromConfig(acct.cfg, func(o *appstream.Options) { o.Region = region })
-	total, inserted, images, builders, err := scanASOlderPhases(ctx, client, acct, region, st, scanID)
-	var errs phaseErrs
-	errs.add("appstream", err)
-	for _, phase := range []struct {
-		op  string
-		run func() (int, int, error)
-	}{
-		{asImagePermissionOp, func() (int, int, error) {
+	tags := asTags(client).sharingDenials()
+	var (
+		stacks, fleets, builders, images []childParent
+		entKeys                          []asEntitlementKey
+	)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "appstream", 0, []hostPhase{
+		{op: "appstream:DescribeStacks", run: func(p *phaseTotals) (failed bool) {
+			stacks, failed = scanASStacks(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		countedPhase(0, "appstream:DescribeEntitlements", func() (t, i int, err error) {
+			entKeys, t, i, err = scanASEntitlements(ctx, client, acct, region, st, scanID, childParentIDs(stacks))
+			return t, i, err
+		}),
+		{op: "appstream:DescribeAppBlocks", run: func(p *phaseTotals) bool {
+			return scanASAppBlocks(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "appstream:DescribeAppBlockBuilders", run: func(p *phaseTotals) bool {
+			return scanASAppBlockBuilders(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "appstream:DescribeApplications", run: func(p *phaseTotals) bool {
+			return scanASApplications(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "appstream:DescribeFleets", run: func(p *phaseTotals) (failed bool) {
+			fleets, failed = scanASFleets(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		countedPhase(0, "appstream:DescribeApplicationFleetAssociations", func() (int, int, error) {
+			return scanASAppFleetAssocs(ctx, client, acct, region, st, scanID, childParentIDs(fleets))
+		}),
+		countedPhase(0, "appstream:DescribeDirectoryConfigs", func() (int, int, error) {
+			return scanASDirectoryConfigs(ctx, client, acct, region, st, scanID)
+		}),
+		{op: "appstream:DescribeImageBuilders", run: func(p *phaseTotals) (failed bool) {
+			builders, failed = scanASImageBuilders(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "appstream:DescribeImages", run: func(p *phaseTotals) (failed bool) {
+			images, failed = scanASImages(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		countedPhase(0, "appstream:ListAssociatedFleets", func() (int, int, error) {
+			return scanASStackFleetAssocs(ctx, client, acct, region, st, scanID, childParentIDs(stacks))
+		}),
+		countedPhase(0, "appstream:DescribeUserStackAssociations", func() (int, int, error) {
+			return scanASUserStackAssocs(ctx, client, acct, region, st, scanID, childParentIDs(stacks))
+		}),
+		countedPhase(0, "appstream:DescribeUsers", func() (int, int, error) {
+			return scanASUsers(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "appstream:ListEntitledApplications", func() (int, int, error) {
+			return scanASAppEntitlementAssocs(ctx, client, acct, region, st, scanID, entKeys)
+		}),
+		countedPhase(0, asImagePermissionOp, func() (int, int, error) {
 			return scanASImagePermissions(ctx, client, acct, region, st, scanID, images)
-		}},
-		{asSoftwareAssociationOp, func() (int, int, error) {
+		}),
+		countedPhase(0, asSoftwareAssociationOp, func() (int, int, error) {
 			return scanASSoftwareAssociations(ctx, client, acct, region, st, scanID, slices.Concat(images, builders))
-		}},
-	} {
-		t, i, perr := phase.run()
-		total += t
-		inserted += i
-		errs.add(phase.op, perr)
-	}
-	return total, inserted, errs.join(st, acct, region)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// scanASOlderPhases runs the phases that predate image permissions and software
-// associations, stopping at the first hard error. It also returns the images
-// and image builders stored.
-func scanASOlderPhases(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, images, builders []childParent, err error) {
-	stackNames, t, i, ferr := scanASStacks(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return 0, 0, nil, nil, ferr
+// asTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, the ARN its listing returned. The op returns every tag in one
+// response (it takes no page token); ResourceNotFoundException, the one error
+// it models, means the resource was deleted after it was listed.
+func asTags(client appStreamAPI) rowTagReader {
+	return rowTagReader{
+		op:       asTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &appstream.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
+		},
 	}
-	total += t
-	inserted += i
+}
 
-	entKeys, t, i, ferr := scanASEntitlements(ctx, client, acct, region, st, scanID, stackNames)
-	if ferr != nil {
-		return total, inserted, nil, nil, ferr
+// asRow returns r, the row of a listed element stored under its ARN, or no
+// row when arn is empty: one empty NativeID would merge every such element
+// into one resource. what names the elements in the warning, name the
+// element.
+func asRow(what string, arn, name *string, r *store.Resource) (*store.Resource, string, string) {
+	if sv(arn) == "" {
+		return nil, what + " have no ARN", cmp.Or(sv(name), asNoIdentifier)
 	}
-	total += t
-	inserted += i
+	return r, "", ""
+}
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanASAppBlocks(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanASAppBlockBuilders(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanASApplications(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanASAppFleetAssocs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanASDirectoryConfigs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanASFleets(ctx, client, acct, region, st, scanID) },
-		func() (t, i int, err error) {
-			builders, t, i, err = scanASImageBuilders(ctx, client, acct, region, st, scanID)
-			return t, i, err
+// asLabel is a row's Name: the element's name, else its ARN.
+func asLabel(name *string, arn string) *string {
+	label := cmp.Or(sv(name), arn)
+	return &label
+}
+
+func scanASAppBlocks(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "appstream:DescribeAppBlocks",
+		func(ctx context.Context, token *string) ([]astypes.AppBlock, *string, error) {
+			out, err := client.DescribeAppBlocks(ctx, &appstream.DescribeAppBlocksInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.AppBlocks, out.NextToken, nil
 		},
-		func() (t, i int, err error) {
-			images, t, i, err = scanASImages(ctx, client, acct, region, st, scanID)
-			return t, i, err
+		func(b astypes.AppBlock) (*store.Resource, string, string) {
+			return asRow("app blocks", b.Arn, b.Name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAppStreamAppBlock, NativeID: sv(b.Arn),
+				Name: asLabel(b.Name, sv(b.Arn)), Region: &region, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
+			})
+		}, tags, p)
+}
+
+func scanASAppBlockBuilders(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "appstream:DescribeAppBlockBuilders",
+		func(ctx context.Context, token *string) ([]astypes.AppBlockBuilder, *string, error) {
+			out, err := client.DescribeAppBlockBuilders(ctx, &appstream.DescribeAppBlockBuildersInput{MaxResults: sdkaws.Int32(asPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.AppBlockBuilders, out.NextToken, nil
 		},
-		func() (int, int, error) {
-			return scanASStackFleetAssocs(ctx, client, acct, region, st, scanID, stackNames)
+		func(b astypes.AppBlockBuilder) (*store.Resource, string, string) {
+			return asRow("app block builders", b.Arn, b.Name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAppStreamAppBlockBuilder, NativeID: sv(b.Arn),
+				Name: asLabel(b.Name, sv(b.Arn)), Region: &region, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
+			})
+		}, tags, p)
+}
+
+// scanASImages stores customer (PRIVATE) AppStream images. PUBLIC base images
+// are AWS-managed and unbounded (mirrors the AMI Owners=["self"] convention);
+// SHARED images belong to other accounts. Every image listed is this
+// account's own, so each has its tags read. NativeID = Arn. It returns the
+// images stored that carry a name, which is what DescribeImagePermissions
+// keys on.
+func scanASImages(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, "appstream:DescribeImages", "images", "Name",
+		func(ctx context.Context, token *string) ([]astypes.Image, *string, error) {
+			out, err := client.DescribeImages(ctx, &appstream.DescribeImagesInput{Type: astypes.VisibilityTypePrivate, MaxResults: sdkaws.Int32(asPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Images, out.NextToken, nil
 		},
-		func() (int, int, error) {
-			return scanASUserStackAssocs(ctx, client, acct, region, st, scanID, stackNames)
+		func(img astypes.Image) (*store.Resource, string, string) {
+			return asRow("images", img.Arn, img.Name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAppStreamImage, NativeID: sv(img.Arn),
+				Name: asLabel(img.Name, sv(img.Arn)), Region: &region, CreatedAt: tp(img.CreatedTime),
+				AttributesJSON: mustJSON(img), DiscoveredBy: scanID,
+			})
 		},
-		func() (int, int, error) { return scanASUsers(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanASAppEntitlementAssocs(ctx, client, acct, region, st, scanID, entKeys)
+		func(img astypes.Image) string { return sv(img.Name) }, tags, p)
+}
+
+func scanASApplications(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "appstream:DescribeApplications",
+		func(ctx context.Context, token *string) ([]astypes.Application, *string, error) {
+			out, err := client.DescribeApplications(ctx, &appstream.DescribeApplicationsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Applications, out.NextToken, nil
 		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, images, builders, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, images, builders, nil
+		func(a astypes.Application) (*store.Resource, string, string) {
+			return asRow("applications", a.Arn, a.Name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAppStreamApplication, NativeID: sv(a.Arn),
+				Name: asLabel(a.Name, sv(a.Arn)), Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			})
+		}, tags, p)
+}
+
+// scanASAppFleetAssocs — DescribeApplicationFleetAssociations requires a
+// FleetName or ApplicationArn filter; a blanket call returns nothing. It
+// describes the associations of each fleet the fleet phase stored, the
+// fleets read concurrently (storeTokenEachParent): one fleet's failure keeps
+// the rows of the others and those read before it, a denial warns once, and
+// a repeated token is an error. The op models no not-found code, so a fleet
+// deleted since it was listed fails like any other error.
+func scanASAppFleetAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, fleetNames []string) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, "appstream:DescribeApplicationFleetAssociations", nil, fleetNames,
+		func(ctx context.Context, fleet string, token *string) ([]astypes.ApplicationFleetAssociation, *string, error) {
+			out, err := client.DescribeApplicationFleetAssociations(ctx, &appstream.DescribeApplicationFleetAssociationsInput{FleetName: &fleet, NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ApplicationFleetAssociations, out.NextToken, nil
+		},
+		func(fleet string, a astypes.ApplicationFleetAssociation) (*store.Resource, string, string) {
+			appArn := sv(a.ApplicationArn)
+			if appArn == "" {
+				return nil, "application-fleet associations have no application ARN", fleet
+			}
+			label := fleet + "/" + appArn
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type:     TypeAppStreamApplicationFleetAssociation,
+				NativeID: asARN(acct.partition(), region, acct.ID, "application-fleet-association", label),
+				Name:     &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			}, "", ""
+		})
 }
 
 func asARN(partition, region, acct, kind, id string) string {
 	return arnFor(partition, "appstream", region, acct, kind+"/"+id)
 }
 
-func scanASAppBlocks(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.DescribeAppBlocks(ctx, &appstream.DescribeAppBlocksInput{NextToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "appstream:DescribeAppBlocks", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("appstream:DescribeAppBlocks: %w", err)
-		}
-		for _, b := range out.AppBlocks {
-			arn := sv(b.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(b.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeAppStreamAppBlock, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	return upsertBatch(st, batch, "appstream app-blocks")
-}
-
-func scanASAppBlockBuilders(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := appstream.NewDescribeAppBlockBuildersPaginator(client, &appstream.DescribeAppBlockBuildersInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "appstream:DescribeAppBlockBuilders", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("appstream:DescribeAppBlockBuilders: %w", perr)
-		}
-		for _, b := range out.AppBlockBuilders {
-			arn := sv(b.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(b.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeAppStreamAppBlockBuilder, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "appstream app-block-builders")
-}
-
-// scanASImages lists customer (PRIVATE) AppStream images. PUBLIC base images
-// are AWS-managed and unbounded (mirrors the AMI Owners=["self"] convention);
-// SHARED images belong to other accounts. NativeID = Arn.
-// It also returns the images stored that carry a name, which is what
-// DescribeImagePermissions keys on.
-func scanASImages(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	pager := appstream.NewDescribeImagesPaginator(client, &appstream.DescribeImagesInput{Type: astypes.VisibilityTypePrivate})
-	var (
-		batch  []*store.Resource
-		images []childParent
-	)
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "appstream:DescribeImages", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("appstream:DescribeImages: %w", perr)
-		}
-		for _, img := range out.Images {
-			arn := sv(img.Arn)
-			if arn == "" {
-				continue
-			}
-			if name := sv(img.Name); name != "" {
-				images = append(images, childParent{id: name, arn: arn})
-			}
-			label := sv(img.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeAppStreamImage, NativeID: arn,
-				Name: &label, Region: &region, CreatedAt: tp(img.CreatedTime),
-				AttributesJSON: mustJSON(img), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "appstream images")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return images, t, i, nil
-}
-
-func scanASApplications(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.DescribeApplications(ctx, &appstream.DescribeApplicationsInput{NextToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "appstream:DescribeApplications", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("appstream:DescribeApplications: %w", err)
-		}
-		for _, a := range out.Applications {
-			arn := sv(a.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(a.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeAppStreamApplication, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	return upsertBatch(st, batch, "appstream applications")
-}
-
-// scanASAppFleetAssocs — DescribeApplicationFleetAssociations requires a
-// FleetName or ApplicationArn filter; a blanket call returns nothing.
-// Collects fleet names via DescribeFleets, then describes associations
-// per fleet.
-func scanASAppFleetAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var fleetNames []string
-	var ftoken *string
-	for {
-		fout, err := client.DescribeFleets(ctx, &appstream.DescribeFleetsInput{NextToken: ftoken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("appstream:DescribeFleets (for app-fleet assocs): %w", err)
-		}
-		for _, f := range fout.Fleets {
-			if f.Name != nil {
-				fleetNames = append(fleetNames, *f.Name)
-			}
-		}
-		if fout.NextToken == nil || *fout.NextToken == "" {
-			break
-		}
-		ftoken = fout.NextToken
-	}
-	var batch []*store.Resource
-	for _, fn := range fleetNames {
-		fname := fn
-		var token *string
-		for {
-			out, err := client.DescribeApplicationFleetAssociations(ctx, &appstream.DescribeApplicationFleetAssociationsInput{FleetName: &fname, NextToken: token})
+// scanASFleets stores the fleets and returns those stored with a name, which
+// DescribeApplicationFleetAssociations keys on.
+func scanASFleets(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, "appstream:DescribeFleets", "fleets", "Name",
+		func(ctx context.Context, token *string) ([]astypes.Fleet, *string, error) {
+			out, err := client.DescribeFleets(ctx, &appstream.DescribeFleetsInput{NextToken: token})
 			if err != nil {
-				if isAccessDenied(err) {
-					break
-				}
-				return 0, 0, fmt.Errorf("appstream:DescribeApplicationFleetAssociations %s: %w", fn, err)
+				return nil, nil, err
 			}
-			for _, a := range out.ApplicationFleetAssociations {
-				appArn := sv(a.ApplicationArn)
-				if appArn == "" {
-					continue
-				}
-				arn := asARN(acct.partition(), region, acct.ID, "application-fleet-association", fname+"/"+appArn)
-				label := fname + "/" + appArn
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeAppStreamApplicationFleetAssociation, NativeID: arn,
-					Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-				})
-			}
-			if out.NextToken == nil || *out.NextToken == "" {
-				break
-			}
-			token = out.NextToken
+			return out.Fleets, out.NextToken, nil
+		},
+		func(f astypes.Fleet) (*store.Resource, string, string) {
+			// An ARN-less fleet is warned about and not stored, so its application
+			// associations are not read either; the model requires Fleet.Arn.
+			return asRow("fleets", f.Arn, f.Name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAppStreamFleet, NativeID: sv(f.Arn),
+				Name: asLabel(f.Name, sv(f.Arn)), Region: &region, AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
+			})
+		},
+		func(f astypes.Fleet) string { return sv(f.Name) }, tags, p)
+}
+
+// scanASImageBuilders stores the image builders a page at a time with their
+// tags and returns every one stored, as owners for the software-association
+// phase, which keys on the ARN each has.
+func scanASImageBuilders(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (builders []childParent, storeWriteFailed bool) {
+	steps := tokenPageSteps{stored: func(rows []*store.Resource) {
+		for _, r := range rows {
+			builders = append(builders, childParent{id: r.NativeID, arn: r.NativeID})
 		}
-	}
-	return upsertBatch(st, batch, "appstream application-fleet-associations")
+	}}
+	failed := storeTokenPagesTagsWith(ctx, st, acct, region, "appstream:DescribeImageBuilders",
+		func(ctx context.Context, token *string) ([]astypes.ImageBuilder, *string, error) {
+			out, err := client.DescribeImageBuilders(ctx, &appstream.DescribeImageBuildersInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ImageBuilders, out.NextToken, nil
+		},
+		func(b astypes.ImageBuilder) (*store.Resource, string, string) {
+			return asRow("image builders", b.Arn, b.Name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAppStreamImageBuilder, NativeID: sv(b.Arn),
+				Name: asLabel(b.Name, sv(b.Arn)), Region: &region, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
+			})
+		}, steps, tags, p)
+	return builders, failed
+}
+
+// scanASStacks stores the stacks and returns those stored with a name, which
+// their child listings key on.
+func scanASStacks(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, "appstream:DescribeStacks", "stacks", "Name",
+		func(ctx context.Context, token *string) ([]astypes.Stack, *string, error) {
+			out, err := client.DescribeStacks(ctx, &appstream.DescribeStacksInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Stacks, out.NextToken, nil
+		},
+		func(s astypes.Stack) (*store.Resource, string, string) {
+			return asRow("stacks", s.Arn, s.Name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAppStreamStack, NativeID: sv(s.Arn),
+				Name: asLabel(s.Name, sv(s.Arn)), Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
+			})
+		},
+		func(s astypes.Stack) string { return sv(s.Name) }, tags, p)
 }
 
 func scanASDirectoryConfigs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -460,124 +478,6 @@ func scanASEntitlements(ctx context.Context, client appStreamAPI, acct *account,
 	}
 	t, i, err := upsertBatch(st, batch, "appstream entitlements")
 	return keys, t, i, err
-}
-
-func scanASFleets(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.DescribeFleets(ctx, &appstream.DescribeFleetsInput{NextToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "appstream:DescribeFleets", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("appstream:DescribeFleets: %w", err)
-		}
-		for _, f := range out.Fleets {
-			arn := sv(f.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(f.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeAppStreamFleet, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	return upsertBatch(st, batch, "appstream fleets")
-}
-
-// scanASImageBuilders also returns the image builders stored.
-func scanASImageBuilders(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	var (
-		batch    []*store.Resource
-		builders []childParent
-		token    *string
-	)
-	for {
-		out, err := client.DescribeImageBuilders(ctx, &appstream.DescribeImageBuildersInput{NextToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "appstream:DescribeImageBuilders", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("appstream:DescribeImageBuilders: %w", err)
-		}
-		for _, b := range out.ImageBuilders {
-			arn := sv(b.Arn)
-			if arn == "" {
-				continue
-			}
-			builders = append(builders, childParent{id: sv(b.Name), arn: arn})
-			label := sv(b.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeAppStreamImageBuilder, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	t, i, err := upsertBatch(st, batch, "appstream image-builders")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return builders, t, i, nil
-}
-
-func scanASStacks(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	var names []string
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.DescribeStacks(ctx, &appstream.DescribeStacksInput{NextToken: token})
-		if err != nil {
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "appstream:DescribeStacks", acct.ID, region, err)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("appstream:DescribeStacks: %w", err)
-		}
-		for _, s := range out.Stacks {
-			arn := sv(s.Arn)
-			if arn == "" {
-				continue
-			}
-			n := sv(s.Name)
-			if n != "" {
-				names = append(names, n)
-			}
-			label := n
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeAppStreamStack, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	t, i, err := upsertBatch(st, batch, "appstream stacks")
-	return names, t, i, err
 }
 
 func scanASStackFleetAssocs(ctx context.Context, client appStreamAPI, acct *account, region string, st *store.Store, scanID string, stackNames []string) (int, int, error) {

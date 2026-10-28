@@ -2473,3 +2473,93 @@ func TestLastPage(t *testing.T) {
 		})
 	}
 }
+
+// --- storeParentPagesTags ---
+
+// parentPagesTestPages lists "a" (key ka) and "nokey" (no key) on the first
+// page and "b" (key kb) and "gone" (key kg, its tag read not found) on the
+// second; failPage2, when set, fails the second page instead.
+func parentPagesTestPages(failPage2 error) func(context.Context, *string) ([]string, *string, error) {
+	return func(_ context.Context, token *string) ([]string, *string, error) {
+		if token == nil {
+			return []string{"a", "nokey"}, ptrStr("p2"), nil
+		}
+		if failPage2 != nil {
+			return nil, nil, failPage2
+		}
+		return []string{"b", "gone"}, nil, nil
+	}
+}
+
+var parentPagesTestKeys = map[string]string{"a": "ka", "nokey": "", "b": "kb", "gone": "kg"}
+
+func storeParentPagesTest(st *store.Store, failPage2 error) ([]childParent, bool, *phaseTotals) {
+	var p phaseTotals
+	parents, stop := storeParentPagesTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, "things", "ThingId",
+		parentPagesTestPages(failPage2), tagTestRow, func(id string) string { return parentPagesTestKeys[id] },
+		tagTestReader(map[string]rowTagRead{"gone": {err: tagTestNotFound}}), &p)
+	return parents, stop, &p
+}
+
+// The rows stored on every page with a key are returned as parents; a row
+// dropped as not found is neither stored nor a parent; a stored row with an
+// empty key is no parent and is warned about once under the listing op,
+// naming it.
+func TestStoreParentPagesTags_ReturnsKeyedStoredParents(t *testing.T) {
+	st := newTestStore(t)
+	warns := recordWarnings(st)
+	parents, stop, p := storeParentPagesTest(st, nil)
+	if _, _, err := p.result(st, newTestAccount(testAccountID), testRegion); stop || err != nil {
+		t.Fatalf("stop, err = %v, %v; want false, nil", stop, err)
+	}
+	if want := []childParent{{id: "ka", arn: "a"}, {id: "kb", arn: "b"}}; !slices.Equal(parents, want) {
+		t.Errorf("parents = %v; want %v", parents, want)
+	}
+	if got := slices.Sorted(maps.Keys(rowsByNativeID(t, st, TypeNetworkFirewallProxy))); !slices.Equal(got, []string{"a", "b", "nokey"}) {
+		t.Errorf("stored %v; want [a b nokey]", got)
+	}
+	if p.total != 3 {
+		t.Errorf("total = %d; want 3", p.total)
+	}
+	if len(*warns) != 1 || (*warns)[0].Service != tagTestListOp || (*warns)[0].Scope != testAccountID+"/"+testRegion || !strings.Contains((*warns)[0].Message, "nokey") {
+		t.Errorf("warnings = %v; want one under %s naming nokey", *warns, tagTestListOp)
+	}
+}
+
+// A failed write of the second page returns no parents and storeWriteFailed,
+// and warns nothing, not even about the keyless row the first page stored.
+func TestStoreParentPagesTags_FailedWriteWarnsNothing(t *testing.T) {
+	st := newTestStore(t)
+	warns := recordWarnings(st)
+	if _, err := st.DB().Exec(`CREATE TRIGGER refuse_b BEFORE INSERT ON resources
+		WHEN NEW.native_id = 'b'
+		BEGIN SELECT RAISE(ABORT, 'test: write refused'); END`); err != nil {
+		t.Fatalf("create trigger: %v", err)
+	}
+	parents, stop, p := storeParentPagesTest(st, nil)
+	if _, _, err := p.result(st, newTestAccount(testAccountID), testRegion); !stop || !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("stop, err = %v, %v; want true, store.ErrStoreWrite", stop, err)
+	}
+	if parents != nil || len(*warns) != 0 {
+		t.Errorf("parents, warnings = %v, %v; want none, none", parents, *warns)
+	}
+}
+
+// A failed later page keeps the first page's rows and parents, and its error
+// is returned under the listing op.
+func TestStoreParentPagesTags_LaterPageFailureKeepsEarlierPages(t *testing.T) {
+	st := newTestStore(t)
+	parents, stop, p := storeParentPagesTest(st, tagTestInvalid)
+	if stop {
+		t.Fatal("stop = true; want false")
+	}
+	if len(p.errs) != 1 || p.errs[0].op != tagTestListOp || !errors.Is(p.errs[0].err, tagTestInvalid) {
+		t.Fatalf("errs = %v; want the page error under %s", p.errs, tagTestListOp)
+	}
+	if want := []childParent{{id: "ka", arn: "a"}}; !slices.Equal(parents, want) {
+		t.Errorf("parents = %v; want %v", parents, want)
+	}
+	if got := slices.Sorted(maps.Keys(rowsByNativeID(t, st, TypeNetworkFirewallProxy))); !slices.Equal(got, []string{"a", "nokey"}) {
+		t.Errorf("stored %v; want [a nokey]", got)
+	}
+}

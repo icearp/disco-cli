@@ -1793,33 +1793,81 @@ func storeParentListWith[Item any](
 	key func(Item) string,
 	before beforeWrite,
 ) (int, int, []childParent, error) {
-	var (
-		keys    = map[*store.Resource]string{}
-		parents []childParent
-		noID    skipTally
-	)
-	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op, page, func(it Item) (*store.Resource, string, string) {
-		r, why, k := row(it)
-		if r != nil {
-			keys[r] = key(it)
-		}
-		return r, why, k
-	}, func(rows []*store.Resource) ([]*store.Resource, func()) {
+	keys := parentKeys[Item]{key: key}
+	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op, page, keys.row(row), func(rows []*store.Resource) ([]*store.Resource, func()) {
 		kept, warn := before(rows)
-		for _, r := range kept {
-			if id := keys[r]; id != "" {
-				parents = append(parents, childParent{id: id, arn: r.NativeID})
-			} else {
-				noID.skipped(r.NativeID, nil)
-			}
-		}
+		keys.add(kept)
 		return kept, warn
 	})
 	if errors.Is(err, store.ErrStoreWrite) {
 		return total, inserted, nil, err
 	}
-	warnNoChildID(st, op, acct, region, &noID, what, idField)
-	return total, inserted, parents, err
+	warnNoChildID(st, op, acct, region, &keys.noID, what, idField)
+	return total, inserted, keys.parents, err
+}
+
+// parentKeys turns the rows a parent listing stores into the parents of a
+// later phase: row records the key (key: the id the child op keys on) of each
+// row built, and add makes each row handed to it a parent, or tallies it in
+// noID when its key is empty, for warnNoChildID once the write succeeded.
+type parentKeys[Item any] struct {
+	key     func(Item) string
+	keys    map[*store.Resource]string
+	parents []childParent
+	noID    skipTally
+}
+
+// row is row with the key of each row it builds recorded.
+func (k *parentKeys[Item]) row(row func(Item) (*store.Resource, string, string)) func(Item) (*store.Resource, string, string) {
+	return func(it Item) (*store.Resource, string, string) {
+		r, why, key := row(it)
+		if r != nil {
+			if k.keys == nil {
+				k.keys = map[*store.Resource]string{}
+			}
+			k.keys[r] = k.key(it)
+		}
+		return r, why, key
+	}
+}
+
+// add makes rows parents, or tallies those with an empty key. It then forgets
+// every key recorded so far, including those of rows the tag reader dropped
+// as not found: add runs once per written page, after that page's rows were
+// built, so clearing keeps only one page's rows reachable, which is the point
+// of writing a page at a time.
+func (k *parentKeys[Item]) add(rows []*store.Resource) {
+	for _, r := range rows {
+		if id := k.keys[r]; id != "" {
+			k.parents = append(k.parents, childParent{id: id, arn: r.NativeID})
+		} else {
+			k.noID.skipped(r.NativeID, nil)
+		}
+	}
+	clear(k.keys)
+}
+
+// storeParentPagesTags is storeParentListTags for a listing too large to
+// hold: each page is written as soon as its rows' tags are read
+// (storeTokenPagesTags), and the rows stored become parents as storeParentList
+// says, those with an empty key warned about once after every write
+// succeeded. A row dropped as not found is not a parent. Counts and errors go
+// to p as rowTagErrs.addPhase says. It returns the parents, or
+// storeWriteFailed (and none) when a write failed, after which the scanner
+// must stop.
+func storeParentPagesTags[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op, what, idField string,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (*store.Resource, string, string),
+	key func(Item) string,
+	tags rowTagReader, p *phaseTotals,
+) (parents []childParent, storeWriteFailed bool) {
+	keys := parentKeys[Item]{key: key}
+	if storeTokenPagesTagsWith(ctx, st, acct, region, op, page, keys.row(row), tokenPageSteps{stored: keys.add}, tags, p) {
+		return nil, true
+	}
+	warnNoChildID(st, op, acct, region, &keys.noID, what, idField)
+	return keys.parents, false
 }
 
 // storeParentListTags is storeParentList with each row's tags read through
