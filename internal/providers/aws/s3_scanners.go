@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
@@ -32,78 +34,186 @@ func init() {
 	})
 }
 
-// s3API is the narrow set of S3 operations called by the global ListBuckets
-// phase + per-bucket sub-phases. s3 sub-phases construct PER-REGION clients
-// (each bucket's home region), so the iface lift is intentionally SHALLOW:
-// only ListBuckets / GetBucketLocation / HeadBucket (top-level client) are bound here;
-// per-bucket clients (GetBucketEncryption / GetBucketPolicy) stay constructed
-// inline. Lifting those would need a region→client factory abstraction; defer.
+// s3API is the narrow set of S3 operations the scan sends from its
+// top-level client: ListBuckets, GetBucketLocation and HeadBucket. Every
+// per-bucket call (GetBucketTagging, GetBucketPolicy, GetBucketEncryption and
+// the configuration listings) goes to a client built from acct.cfg for the
+// bucket's home region, one per region: s3ListedHomes builds those for the
+// tag reads, s3HomedBuckets for the others. Tests stub those calls through
+// acct.cfg, not through this interface.
 type s3API interface {
 	ListBuckets(context.Context, *s3.ListBucketsInput, ...func(*s3.Options)) (*s3.ListBucketsOutput, error)
 	GetBucketLocation(context.Context, *s3.GetBucketLocationInput, ...func(*s3.Options)) (*s3.GetBucketLocationOutput, error)
 	HeadBucket(context.Context, *s3.HeadBucketInput, ...func(*s3.Options)) (*s3.HeadBucketOutput, error)
 }
 
-// scanS3 discovers S3 buckets. S3 is a global service; ListBuckets returns no
-// region info, but each bucket's region can be fetched separately and is
-// stored in attributes.
-func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	// S3 ListBuckets uses a regional endpoint but returns all the partition's
-	// buckets from any of them, so it is called once, in S3's once-region.
+const (
+	// s3ListBucketsCap is the model's MaxBuckets cap (1 to 10000). Sending it
+	// also makes S3 return each bucket's BucketRegion, which it leaves out of
+	// a ListBuckets request without parameters.
+	s3ListBucketsCap = 10000
+
+	s3TagsOp = "s3:GetBucketTagging"
+)
+
+// scanS3 discovers S3 buckets with their tags, then each bucket's home
+// region, policy, default encryption and configurations, one phase at a time: a phase's error
+// does not stop the later ones; a failed write and ctx's end do
+// (runHostPhases). The per-bucket phases read only the buckets stored this
+// scan. S3 is a global service: ListBuckets uses a regional endpoint but
+// returns all the partition's buckets from any of them, so it is called once,
+// in S3's once-region; each per-bucket call goes to the bucket's home region.
+func scanS3(ctx context.Context, acct *account, st *store.Store, scanID string) (int, int, error) {
 	region, err := acct.onceRegion("s3")
 	if err != nil {
 		return 0, 0, err
 	}
 	client := s3.NewFromConfig(acct.cfg, func(o *s3.Options) { o.Region = region })
+	var (
+		buckets []string
+		homed   map[string]s3HomedBucket
+	)
+	return runHostPhases(ctx, st, acct, sv(regionGlobal), "s3", 0, []hostPhase{
+		{op: "s3:ListBuckets", run: func(p *phaseTotals) bool {
+			var failed bool
+			buckets, failed = scanS3Buckets(ctx, client, acct, st, scanID, p)
+			return failed
+		}},
+		// One region lookup per bucket serves every later phase, so each
+		// lookup error is reported once, under the op that failed.
+		{op: "s3:GetBucketLocation", run: func(p *phaseTotals) bool {
+			var err error
+			homed, err = s3HomedBuckets(ctx, acct, client, buckets, st)
+			return addOpErrsPhase(p, "s3:GetBucketLocation", 0, 0, err)
+		}},
+		countedPhase(0, "s3:GetBucketPolicy", func() (int, int, error) {
+			return scanS3BucketPolicies(ctx, acct, homed, st, scanID)
+		}),
+		// Populate per-bucket SSE config on the account for
+		// resolveS3BucketEncryptionRelationships. No resources upserted — the
+		// config only exists to drive the bucket→KMS edge.
+		countedPhase(0, "s3:GetBucketEncryption", func() (int, int, error) {
+			return 0, 0, scanS3BucketEncryptions(ctx, acct, homed)
+		}),
+		countedPhase(0, "s3:ListBucketAnalyticsConfigurations", func() (int, int, error) {
+			return scanS3AnalyticsConfigs(ctx, acct, homed, st, scanID)
+		}),
+		countedPhase(0, "s3:ListBucketIntelligentTieringConfigurations", func() (int, int, error) {
+			return scanS3IntelligentTieringConfigs(ctx, acct, homed, st, scanID)
+		}),
+		countedPhase(0, "s3:ListBucketInventoryConfigurations", func() (int, int, error) {
+			return scanS3InventoryConfigs(ctx, acct, homed, st, scanID)
+		}),
+		countedPhase(0, "s3:ListBucketMetricsConfigurations", func() (int, int, error) {
+			return scanS3MetricsConfigs(ctx, acct, homed, st, scanID)
+		}),
+	})
+}
 
-	out, err := client.ListBuckets(ctx, &s3.ListBucketsInput{})
-	if err != nil {
-		if isAccessDenied(err) {
-			return 0, 0, skipIfAccessDenied(st, "s3:ListBuckets", acct.ID, "global", err)
-		}
-		return 0, 0, fmt.Errorf("s3:ListBuckets: %w", err)
-	}
+// scanS3Buckets stores the partition's buckets with their tags, a page at a
+// time (s3BucketTags), and returns the names of those stored. A bucket listed
+// without a name is warned about rather than stored: its ARN would be the
+// bare arn:<partition>:s3::: of every such bucket.
+func scanS3Buckets(ctx context.Context, client s3API, acct *account, st *store.Store, scanID string, p *phaseTotals) (names []string, storeWriteFailed bool) {
+	homes := s3ListedHomes{cfg: acct.cfg}
+	stored, failed := storeParentPagesTags(ctx, st, acct, sv(regionGlobal), "s3:ListBuckets", "buckets", "Name",
+		func(ctx context.Context, token *string) ([]s3types.Bucket, *string, error) {
+			out, err := client.ListBuckets(ctx, &s3.ListBucketsInput{ContinuationToken: token, MaxBuckets: sdkaws.Int32(s3ListBucketsCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Buckets, out.ContinuationToken, nil
+		},
+		func(b s3types.Bucket) (*store.Resource, string, string) {
+			name := sv(b.Name)
+			if name == "" {
+				return nil, "buckets have an empty Name", cmp.Or(sv(b.BucketArn), "(a bucket with no name)")
+			}
+			arn := s3BucketARN(acct.partition(), name)
+			homes.add(arn, name, sv(b.BucketRegion))
+			return &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Region:         regionGlobal,
+				Type:           TypeS3Bucket,
+				NativeID:       arn,
+				Name:           &name,
+				CreatedAt:      tp(b.CreationDate),
+				AttributesJSON: mustJSON(b),
+				DiscoveredBy:   scanID,
+			}, "", ""
+		},
+		func(b s3types.Bucket) string { return sv(b.Name) },
+		s3BucketTags(&homes), p)
+	return childParentIDs(stored), failed
+}
 
-	var batch []*store.Resource
-	for _, b := range out.Buckets {
-		name := sv(b.Name)
-		arn := s3BucketARN(acct.partition(), name)
-		r := &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Region:         regionGlobal,
-			Type:           TypeS3Bucket,
-			NativeID:       arn,
-			Name:           &name,
-			CreatedAt:      tp(b.CreationDate),
-			AttributesJSON: mustJSON(b),
-			DiscoveredBy:   scanID,
-		}
-		batch = append(batch, r)
+// s3ListedHomes is, for each bucket row built from the listing with a
+// BucketRegion, the bucket's name and an S3 client for that region, one
+// client per region. S3 answers a request sent to any other region with 301
+// PermanentRedirect.
+type s3ListedHomes struct {
+	cfg     sdkaws.Config
+	mu      sync.Mutex
+	clients map[string]*s3.Client    // by region
+	buckets map[string]s3HomedBucket // by bucket ARN
+}
+
+func (h *s3ListedHomes) add(arn, name, region string) {
+	if region == "" {
+		return
 	}
-	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert S3 buckets: %w", err)
-		}
-		total += len(batch)
-		inserted += n
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.buckets == nil {
+		h.clients, h.buckets = map[string]*s3.Client{}, map[string]s3HomedBucket{}
 	}
-	t, n, err := scanS3BucketPolicies(ctx, acct, client, out.Buckets, st, scanID)
-	total += t
-	inserted += n
-	if err != nil {
-		return total, inserted, err
+	c, ok := h.clients[region]
+	if !ok {
+		c = s3.NewFromConfig(h.cfg, func(o *s3.Options) { o.Region = region })
+		h.clients[region] = c
 	}
-	// Populate per-bucket SSE config on the account for
-	// resolveS3BucketEncryptionRelationships. No resources upserted — the
-	// config only exists to drive the bucket→KMS edge.
-	if err := scanS3BucketEncryptions(ctx, acct, client, out.Buckets); err != nil {
-		return total, inserted, err
+	h.buckets[arn] = s3HomedBucket{name: name, region: region, client: c}
+}
+
+func (h *s3ListedHomes) get(arn string) (s3HomedBucket, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	b, ok := h.buckets[arn]
+	return b, ok
+}
+
+// errS3NoListedRegion is the tag read of a bucket ListBuckets listed without
+// a BucketRegion. S3 documents one for every bucket of a request that sets a
+// parameter, as this scan sets MaxBuckets, so its absence is an error rather
+// than a reason to look the region up another way.
+var errS3NoListedRegion = errors.New("ListBuckets returned no BucketRegion for the bucket, so its tags were not read; its policy, encryption and configurations are still read from the region GetBucketLocation names")
+
+// s3BucketTags reads a bucket row's tags with GetBucketTagging, sent the
+// bucket's name from its home region (homes). S3 answers NoSuchTagSet for a
+// bucket without tags, documented on the op as its special error; that is no
+// tags, not a failure. The op's model lists no error code, so a bucket
+// deleted between ListBuckets and this read (NoSuchBucket) is kept and its
+// error returned. ListBuckets returns only the caller's own buckets.
+func s3BucketTags(homes *s3ListedHomes) rowTagReader {
+	return rowTagReader{
+		op: s3TagsOp,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			b, ok := homes.get(r.NativeID)
+			if !ok {
+				return nil, errS3NoListedRegion
+			}
+			out, err := b.client.GetBucketTagging(ctx, &s3.GetBucketTaggingInput{Bucket: &b.name})
+			if isAPIErrorCode(err, "NoSuchTagSet") {
+				return nil, nil
+			}
+			if err != nil {
+				return nil, err
+			}
+			return kvTagsJSON(out.TagSet, func(t s3types.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
 	}
-	t, n, err = scanS3BucketConfigs(ctx, acct, client, out.Buckets, st, scanID)
-	return total + t, inserted + n, err
 }
 
 // s3BucketGone reports a bucket deleted between ListBuckets and a per-bucket call.
@@ -114,11 +224,12 @@ func s3BucketGone(err error) bool { return isAPIErrorCode(err, "NoSuchBucket") }
 // missing bucket as its modeled NotFound rather than NoSuchBucket.
 func s3BucketRegionGone(err error) bool { return s3BucketGone(err) || isAPIErrorCode(err, "NotFound") }
 
-// s3HomedBucket is a bucket listed this scan with the S3 client for its home
-// region; S3 answers a request sent to any other region with 301 PermanentRedirect.
+// s3HomedBucket is a bucket listed this scan with its home region and the S3
+// client for it; S3 answers a request sent to any other region with 301
+// PermanentRedirect.
 type s3HomedBucket struct {
-	name   string
-	client *s3.Client
+	name, region string
+	client       *s3.Client
 }
 
 // s3MetricsConfigAttrs is a metrics configuration with its Filter's union
@@ -147,69 +258,72 @@ func newS3MetricsConfigAttrs(c s3types.MetricsConfiguration) s3MetricsConfigAttr
 	return out
 }
 
-// scanS3BucketConfigs stores each bucket's analytics, intelligent-tiering,
-// inventory and metrics configurations under the bucket. A failing kind does
-// not stop the others; their errors are joined.
-func scanS3BucketConfigs(ctx context.Context, acct *account, client s3API, buckets []s3types.Bucket, st *store.Store, scanID string) (total, inserted int, err error) {
-	homed, err := s3HomedBuckets(ctx, acct, client, buckets, st)
-	if err != nil {
-		return 0, 0, err
+// s3HomedBuckets looks up each bucket's home region for the per-bucket
+// phases, keyed by bucket name, sharing one client per region. A bucket
+// deleted since ListBuckets, or whose location is denied (warned once), is
+// left out, as is one whose region is unknown (warned per bucket, see
+// s3BucketRegion). Any other failure leaves its bucket out and is returned
+// beside the buckets found, so one bucket's failure costs no other bucket
+// its reads; the errors are opErrs, each under the op that failed
+// (GetBucketLocation, or the HeadBucket s3BucketRegion falls back to).
+func s3HomedBuckets(ctx context.Context, acct *account, client s3API, buckets []string, st *store.Store) (map[string]s3HomedBucket, error) {
+	type lookup struct {
+		region string
+		err    error
 	}
-	var errs []error
-	for _, scan := range []func(context.Context, *account, map[string]s3HomedBucket, *store.Store, string) (int, int, error){
-		scanS3AnalyticsConfigs, scanS3IntelligentTieringConfigs, scanS3InventoryConfigs, scanS3MetricsConfigs,
-	} {
-		t, n, err := scan(ctx, acct, homed, st, scanID)
-		total += t
-		inserted += n
-		errs = append(errs, err)
-	}
-	return total, inserted, errors.Join(errs...)
-}
-
-// s3HomedBuckets looks up each bucket's home region for the configuration
-// phase, keyed by bucket name, sharing one client per region; the policy and
-// encryption phases do their own lookups. A bucket deleted since ListBuckets, or
-// whose location is denied (warned once), is left out, as is one whose region
-// is unknown (warned per bucket, see s3BucketRegion).
-func s3HomedBuckets(ctx context.Context, acct *account, client s3API, buckets []s3types.Bucket, st *store.Store) (map[string]s3HomedBucket, error) {
-	var (
-		mu      sync.Mutex
-		regions = map[string]string{}
-	)
-	errs := &fanOutErrs{st: st, acct: acct, region: sv(regionGlobal), op: "s3:GetBucketLocation", isSkip: s3BucketRegionGone}
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(fanoutMed)
-	for _, b := range buckets {
-		name := sv(b.Name)
-		g.Go(func() error {
-			region, err := s3BucketRegion(gctx, acct, client, name)
-			var unknown *s3BucketRegionUnknownError
-			if errors.As(err, &unknown) {
-				st.ReportWarning(store.ScanWarning{Provider: "aws", Service: "s3:HeadBucket", Scope: acct.ID, Message: unknown.Error()})
-				return nil
-			}
-			if err != nil {
-				return errs.keyErr(name, err)
-			}
-			mu.Lock()
-			regions[name] = region
-			mu.Unlock()
-			return nil
-		})
-	}
-	if err := g.Wait(); err != nil {
-		return nil, err
+	reads, stopped := readEachKey(ctx, buckets, func(ctx context.Context, name string) lookup {
+		region, err := s3BucketRegion(ctx, acct, client, name)
+		return lookup{region, err}
+	})
+	ops := []string{"s3:GetBucketLocation", "s3:HeadBucket"}
+	keyErrs := map[string]*fanOutErrs{}
+	failed := map[string][]error{}
+	for _, op := range ops {
+		keyErrs[op] = &fanOutErrs{st: st, acct: acct, region: sv(regionGlobal), op: op, isSkip: s3BucketRegionGone}
 	}
 	clients := map[string]*s3.Client{}
-	homed := make(map[string]s3HomedBucket, len(regions))
-	for name, region := range regions {
-		if clients[region] == nil {
-			clients[region] = s3.NewFromConfig(acct.cfg, func(o *s3.Options) { o.Region = region })
+	homed := make(map[string]s3HomedBucket, len(reads))
+	for i, l := range reads {
+		name := buckets[i]
+		var unknown *s3BucketRegionUnknownError
+		switch {
+		case errors.As(l.err, &unknown):
+			st.ReportWarning(store.ScanWarning{Provider: "aws", Service: "s3:HeadBucket", Scope: acct.ID, Message: unknown.Error()})
+		case l.err != nil:
+			op := s3RegionLookupOp(l.err)
+			if err := keyErrs[op].keyErr(name, l.err); err != nil {
+				failed[op] = append(failed[op], err)
+			}
+		default:
+			if clients[l.region] == nil {
+				clients[l.region] = s3.NewFromConfig(acct.cfg, func(o *s3.Options) { o.Region = l.region })
+			}
+			homed[name] = s3HomedBucket{name: name, region: l.region, client: clients[l.region]}
 		}
-		homed[name] = s3HomedBucket{name: name, client: clients[region]}
 	}
-	return homed, nil
+	if stopped != nil {
+		failed[ops[0]] = append(failed[ops[0]], fmt.Errorf("%s: %w", ops[0], stopped))
+	}
+	// One member per op, so a demoted op is one warning, not one per bucket.
+	var errs phaseErrs
+	for _, op := range ops {
+		errs.add(op, errors.Join(failed[op]...))
+	}
+	if len(errs) == 0 {
+		return homed, nil
+	}
+	return homed, opErrs{errs}
+}
+
+// s3RegionLookupOp is the op an s3BucketRegion error came from: HeadBucket,
+// which it asks when GetBucketLocation names no region outside aws, or
+// GetBucketLocation.
+func s3RegionLookupOp(err error) string {
+	var oe *smithy.OperationError
+	if errors.As(err, &oe) && oe.OperationName == "HeadBucket" {
+		return "s3:HeadBucket"
+	}
+	return "s3:GetBucketLocation"
 }
 
 // s3BucketConfigFanOut runs list for every homed bucket and stores the rows
@@ -357,37 +471,23 @@ func scanS3MetricsConfigs(ctx context.Context, acct *account, homed map[string]s
 		})
 }
 
-// scanS3BucketEncryptions fetches GetBucketEncryption for each bucket
+// scanS3BucketEncryptions fetches GetBucketEncryption for each homed bucket
 // concurrently and stores the result in acct.s3BucketEncryption, keyed by
 // bucket name. Buckets without explicit encryption config return
 // ServerSideEncryptionConfigurationNotFoundError and are silently skipped;
 // AccessDenied is also tolerated (best-effort).
-func scanS3BucketEncryptions(ctx context.Context, acct *account, client s3API, buckets []s3types.Bucket) error {
+func scanS3BucketEncryptions(ctx context.Context, acct *account, homed map[string]s3HomedBucket) error {
 	sem := semaphore.NewWeighted(fanoutHigh)
 	acct.s3BucketEncryption = make(map[string]s3BucketEncryptionEntry)
 	g, gctx := errgroup.WithContext(ctx)
-	for _, b := range buckets {
+	for name, b := range homed {
 		g.Go(func() error {
 			if err := sem.Acquire(gctx, 1); err != nil {
 				return err
 			}
 			defer sem.Release(1)
-			name := sv(b.Name)
 
-			region, err := s3BucketRegion(gctx, acct, client, name)
-			var unknown *s3BucketRegionUnknownError
-			if errors.As(err, &unknown) {
-				return nil // s3HomedBuckets warns, naming the bucket
-			}
-			if err != nil {
-				if isAccessDenied(err) || s3BucketRegionGone(err) {
-					return nil
-				}
-				return fmt.Errorf("s3:GetBucketLocation %s: %w", name, err)
-			}
-
-			rc := s3.NewFromConfig(acct.cfg, func(o *s3.Options) { o.Region = region })
-			out, err := rc.GetBucketEncryption(gctx, &s3.GetBucketEncryptionInput{Bucket: &name})
+			out, err := b.client.GetBucketEncryption(gctx, &s3.GetBucketEncryptionInput{Bucket: &b.name})
 			if err != nil {
 				// No explicit config = default SSE-S3; very common — skip.
 				if isAPIErrorCode(err, "ServerSideEncryptionConfigurationNotFoundError") || isAccessDenied(err) {
@@ -400,7 +500,7 @@ func scanS3BucketEncryptions(ctx context.Context, acct *account, client s3API, b
 			}
 			acct.s3BucketEncryptionMu.Lock()
 			acct.s3BucketEncryption[name] = s3BucketEncryptionEntry{
-				Region: region,
+				Region: b.region,
 				Config: out.ServerSideEncryptionConfiguration,
 			}
 			acct.s3BucketEncryptionMu.Unlock()
@@ -410,43 +510,25 @@ func scanS3BucketEncryptions(ctx context.Context, acct *account, client s3API, b
 	return g.Wait()
 }
 
-// scanS3BucketPolicies fetches the bucket policy for each bucket concurrently.
-// Buckets with no policy (NoSuchBucketPolicy) are silently skipped.
-// Each GetBucketPolicy call uses a client pinned to the bucket's home region —
-// the wrong region endpoint causes a 301 PermanentRedirect error.
-func scanS3BucketPolicies(ctx context.Context, acct *account, client s3API, buckets []s3types.Bucket, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanS3BucketPolicies fetches the bucket policy for each homed bucket
+// concurrently, from the bucket's home region (S3 answers any other region
+// with 301 PermanentRedirect). Buckets with no policy (NoSuchBucketPolicy)
+// are silently skipped.
+func scanS3BucketPolicies(ctx context.Context, acct *account, homed map[string]s3HomedBucket, st *store.Store, scanID string) (total, inserted int, err error) {
 	sem := semaphore.NewWeighted(fanoutHigh)
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource
 	)
 	g, gctx := errgroup.WithContext(ctx)
-	for _, b := range buckets {
+	for name, b := range homed {
 		g.Go(func() error {
 			if err := sem.Acquire(gctx, 1); err != nil {
 				return err
 			}
 			defer sem.Release(1)
-			name := sv(b.Name)
 
-			// Resolve the bucket's home region before fetching the policy:
-			// S3 returns 301 PermanentRedirect on region mismatch.
-			// GetBucketLocation works from any endpoint.
-			region, err := s3BucketRegion(gctx, acct, client, name)
-			var unknown *s3BucketRegionUnknownError
-			if errors.As(err, &unknown) {
-				return nil // s3HomedBuckets warns, naming the bucket
-			}
-			if err != nil {
-				if isAccessDenied(err) || s3BucketRegionGone(err) {
-					return nil // best-effort; a vanished bucket has no policy to read
-				}
-				return fmt.Errorf("s3:GetBucketLocation %s: %w", name, err)
-			}
-
-			// Use a region-specific client for the policy fetch.
-			rc := s3.NewFromConfig(acct.cfg, func(o *s3.Options) { o.Region = region })
-			out, err := rc.GetBucketPolicy(gctx, &s3.GetBucketPolicyInput{Bucket: &name})
+			out, err := b.client.GetBucketPolicy(gctx, &s3.GetBucketPolicyInput{Bucket: &b.name})
 			if err != nil {
 				// No policy on this bucket — expected and common.
 				if isAPIErrorCode(err, "NoSuchBucketPolicy") || isAccessDenied(err) {

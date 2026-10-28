@@ -1,9 +1,11 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3control"
 	s3ctypes "github.com/aws/aws-sdk-go-v2/service/s3control/types"
@@ -27,6 +29,8 @@ type s3controlAPI interface {
 	ListStorageLensGroups(context.Context, *s3control.ListStorageLensGroupsInput, ...func(*s3control.Options)) (*s3control.ListStorageLensGroupsOutput, error)
 	ListAccessPointsForObjectLambda(context.Context, *s3control.ListAccessPointsForObjectLambdaInput, ...func(*s3control.Options)) (*s3control.ListAccessPointsForObjectLambdaOutput, error)
 	GetAccessPointPolicyForObjectLambda(context.Context, *s3control.GetAccessPointPolicyForObjectLambdaInput, ...func(*s3control.Options)) (*s3control.GetAccessPointPolicyForObjectLambdaOutput, error)
+	ListTagsForResource(context.Context, *s3control.ListTagsForResourceInput, ...func(*s3control.Options)) (*s3control.ListTagsForResourceOutput, error)
+	GetStorageLensConfigurationTagging(context.Context, *s3control.GetStorageLensConfigurationTaggingInput, ...func(*s3control.Options)) (*s3control.GetStorageLensConfigurationTaggingOutput, error)
 }
 
 func init() {
@@ -47,226 +51,207 @@ func init() {
 	})
 }
 
-// scanS3Control discovers S3 Control resources for the given region.
-// Regional resources (Access Grants, Access Points, Storage Lens) scan in
-// every region; global resources (Multi-Region Access Points) scan only in
-// us-west-2, and only for aws accounts.
-func scanS3Control(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+const (
+	// s3controlPageCap is the model's MaxResults cap (0 to 1000) of the
+	// Access Grants and access point listings.
+	s3controlPageCap = 1000
+
+	s3controlTagsOp = "s3control:ListTagsForResource"
+	s3LensTagsOp    = "s3control:GetStorageLensConfigurationTagging"
+)
+
+// scanS3Control discovers S3 Control resources for the given region, one
+// listing or policy read at a time: a phase's error does not stop the later
+// ones; a failed write and ctx's end do; a region whose first listing finds
+// no endpoint runs no other (runHostPhases). Regional resources (Access Grants, Access Points,
+// Storage Lens) scan in every region; global resources (Multi-Region Access
+// Points) scan only in us-west-2, and only for aws accounts. The Access
+// Grants, access point and Storage Lens group rows have their tags read with
+// ListTagsForResource, whose denials are one warning for the scan; Storage
+// Lens configurations with GetStorageLensConfigurationTagging.
+func scanS3Control(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := newS3ControlClient(acct.cfg, region)
-	// Regional resources: scan in every region.
-	for _, scan := range []func(context.Context, *account, string, s3controlAPI, *store.Store, string) (int, int, error){
-		scanAccessGrantsInstances,
-		scanAccessGrantsLocations,
-		scanAccessGrants,
-		scanS3AccessPoints,
-		scanStorageLens,
-		scanStorageLensGroups,
-		scanS3ObjectLambdaAccessPoints,
-	} {
-		tt, nn, e := scan(ctx, acct, region, client, st, scanID)
-		if e != nil {
-			return total, inserted, e
-		}
-		total += tt
-		inserted += nn
+	tags := s3controlTags(client, acct.ID).sharingDenials()
+	// Each policy read is its own phase, so its errors are reported under
+	// its own op rather than its listing's.
+	var (
+		objectLambdaAPs []s3ctypes.ObjectLambdaAccessPoint
+		mraps           []s3ctypes.MultiRegionAccessPointReport
+	)
+	phases := []hostPhase{
+		{op: "s3control:ListAccessGrantsInstances", run: func(p *phaseTotals) bool {
+			return scanAccessGrantsInstances(ctx, acct, region, client, st, scanID, tags, p)
+		}},
+		{op: "s3control:ListAccessGrantsLocations", run: func(p *phaseTotals) bool {
+			return scanAccessGrantsLocations(ctx, acct, region, client, st, scanID, tags, p)
+		}},
+		{op: "s3control:ListAccessGrants", run: func(p *phaseTotals) bool {
+			return scanAccessGrants(ctx, acct, region, client, st, scanID, tags, p)
+		}},
+		{op: "s3control:ListAccessPoints", run: func(p *phaseTotals) bool {
+			return scanS3AccessPoints(ctx, acct, region, client, st, scanID, tags, p)
+		}},
+		{op: "s3control:ListStorageLensConfigurations", run: func(p *phaseTotals) bool {
+			return scanStorageLens(ctx, acct, region, client, st, scanID, p)
+		}},
+		{op: "s3control:ListStorageLensGroups", run: func(p *phaseTotals) bool {
+			return scanStorageLensGroups(ctx, acct, region, client, st, scanID, tags, p)
+		}},
+		countedPhase(0, "s3control:ListAccessPointsForObjectLambda", func() (total, inserted int, err error) {
+			objectLambdaAPs, total, inserted, err = scanS3ObjectLambdaAccessPoints(ctx, acct, region, client, st, scanID)
+			return total, inserted, err
+		}),
+		countedPhase(0, "s3control:GetAccessPointPolicyForObjectLambda", func() (int, int, error) {
+			return scanS3ObjectLambdaAccessPointPolicies(ctx, acct, region, client, objectLambdaAPs, st, scanID)
+		}),
 	}
 	// MRAPs are a global resource but the commercial API endpoint is only
-	// available in us-west-2 — scan once with a client pinned to that region.
+	// available in us-west-2 — scan once, from that region's client.
 	// No SDK table names the MRAP endpoint of any partition (s3control's own
 	// home, us-east-1, is not it), and us-west-2 belongs to aws alone, so
 	// accounts in other partitions make no MRAP call.
 	if region == "us-west-2" {
-		mrapClient := newS3ControlClient(acct.cfg, "us-west-2")
-		tt, nn, e := scanMultiRegionAccessPoints(ctx, acct, mrapClient, st, scanID)
-		if e != nil {
-			return total, inserted, e
-		}
-		total += tt
-		inserted += nn
+		phases = append(phases,
+			countedPhase(0, "s3control:ListMultiRegionAccessPoints", func() (total, inserted int, err error) {
+				mraps, total, inserted, err = scanMultiRegionAccessPoints(ctx, acct, client, st, scanID)
+				return total, inserted, err
+			}),
+			countedPhase(0, "s3control:GetMultiRegionAccessPointPolicy", func() (int, int, error) {
+				return scanMRAPPolicies(ctx, acct, client, mraps, st, scanID)
+			}))
 	}
-	return
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "s3control", 0, phases)
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// scanAccessGrantsInstances lists S3 Access Grants instances for one region.
-// There is at most one instance per region per account.
-func scanAccessGrantsInstances(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	var batch []*store.Resource
-	p := s3control.NewListAccessGrantsInstancesPaginator(client, &s3control.ListAccessGrantsInstancesInput{AccountId: &acct.ID})
-	for p.HasMorePages() {
-		out, apiErr := p.NextPage(ctx)
-		if apiErr != nil {
-			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied(st, "s3control:ListAccessGrantsInstances", acct.ID, region, apiErr)
+// s3controlTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, the ARN its list element carries, and the scanned account, which
+// every listing read here is filtered to; the op answers with every tag at
+// once (no page token). Its model lists no error code, so a resource deleted
+// between its listing and this read is kept and the error returned.
+func s3controlTags(client s3controlAPI, accountID string) rowTagReader {
+	return rowTagReader{
+		op: s3controlTagsOp,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &s3control.ListTagsForResourceInput{AccountId: &accountID, ResourceArn: &r.NativeID})
+			if err != nil {
+				return nil, err
 			}
-			return 0, 0, fmt.Errorf("s3control:ListAccessGrantsInstances: %w", apiErr)
-		}
-		for _, e := range out.AccessGrantsInstancesList {
-			arn := sv(e.AccessGrantsInstanceArn)
+			return kvTagsJSON(out.Tags, func(t s3ctypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
+	}
+}
+
+// s3controlRow is the row of a listed item stored under the ARN it carries,
+// the item verbatim as the attributes. An item without an ARN is not stored:
+// one empty NativeID would merge every such item into one resource; what
+// names the items in that warning, key the item.
+func s3controlRow(acct *account, region, scanID, typ, what string, arn *string, name string, created *time.Time, key string, item any) (*store.Resource, string, string) {
+	if sv(arn) == "" {
+		return nil, what + " have an empty ARN", key
+	}
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: sv(arn), Name: &name, Region: &region,
+		CreatedAt: tp(created), AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}, "", ""
+}
+
+// isNoAccessGrantsInstance reports the error the Access Grants location and
+// grant listings answer with in a region where the account has no Access
+// Grants instance.
+func isNoAccessGrantsInstance(err error) bool {
+	return isAPIErrorCode(err, "AccessGrantsInstanceNotExistsError")
+}
+
+// scanAccessGrantsInstances stores the region's S3 Access Grants instance
+// with its tags. There is at most one instance per region per account.
+func scanAccessGrantsInstances(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenPagesTags(ctx, st, acct, region, "s3control:ListAccessGrantsInstances",
+		func(ctx context.Context, token *string) ([]s3ctypes.ListAccessGrantsInstanceEntry, *string, error) {
+			out, err := client.ListAccessGrantsInstances(ctx, &s3control.ListAccessGrantsInstancesInput{AccountId: &acct.ID, NextToken: token, MaxResults: s3controlPageCap})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.AccessGrantsInstancesList, out.NextToken, nil
+		},
+		func(e s3ctypes.ListAccessGrantsInstanceEntry) (*store.Resource, string, string) {
 			id := sv(e.AccessGrantsInstanceId)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeS3AccessGrantsInstance,
-				NativeID:       arn,
-				Name:           &id,
-				Region:         &region,
-				CreatedAt:      tp(e.CreatedAt),
-				AttributesJSON: mustJSON(e),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert S3 access grants instances: %w", err)
-		}
-		total = len(batch)
-		inserted = n
-	}
-	return
+			return s3controlRow(acct, region, scanID, TypeS3AccessGrantsInstance, "access grants instances",
+				e.AccessGrantsInstanceArn, id, e.CreatedAt, cmp.Or(id, "(an access grants instance with no id)"), e)
+		}, tags, p)
 }
 
-// scanAccessGrantsLocations lists the registered locations in the account's
-// S3 Access Grants instance for the given region.
-func scanAccessGrantsLocations(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	var batch []*store.Resource
-	p := s3control.NewListAccessGrantsLocationsPaginator(client, &s3control.ListAccessGrantsLocationsInput{AccountId: &acct.ID})
-	for p.HasMorePages() {
-		out, apiErr := p.NextPage(ctx)
-		if apiErr != nil {
-			if isAPIErrorCode(apiErr, "AccessGrantsInstanceNotExistsError") {
-				return 0, 0, nil // no instance in this region — expected
+// scanAccessGrantsLocations stores the locations registered in the account's
+// S3 Access Grants instance for the region, with their tags, a page at a
+// time. A region without an instance has none.
+func scanAccessGrantsLocations(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenPagesTags(ctx, st, acct, region, "s3control:ListAccessGrantsLocations",
+		firstPageGapPages(isNoAccessGrantsInstance, func(ctx context.Context, token *string) ([]s3ctypes.ListAccessGrantsLocationsEntry, *string, error) {
+			out, err := client.ListAccessGrantsLocations(ctx, &s3control.ListAccessGrantsLocationsInput{AccountId: &acct.ID, NextToken: token, MaxResults: s3controlPageCap})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied(st, "s3control:ListAccessGrantsLocations", acct.ID, region, apiErr)
-			}
-			return 0, 0, fmt.Errorf("s3control:ListAccessGrantsLocations: %w", apiErr)
-		}
-		for _, e := range out.AccessGrantsLocationsList {
-			arn := sv(e.AccessGrantsLocationArn)
+			return out.AccessGrantsLocationsList, out.NextToken, nil
+		}),
+		func(e s3ctypes.ListAccessGrantsLocationsEntry) (*store.Resource, string, string) {
 			id := sv(e.AccessGrantsLocationId)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeS3AccessGrantsLocation,
-				NativeID:       arn,
-				Name:           &id,
-				Region:         &region,
-				CreatedAt:      tp(e.CreatedAt),
-				AttributesJSON: mustJSON(e),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert S3 access grants locations: %w", err)
-		}
-		total = len(batch)
-		inserted = n
-	}
-	return
+			return s3controlRow(acct, region, scanID, TypeS3AccessGrantsLocation, "access grants locations",
+				e.AccessGrantsLocationArn, id, e.CreatedAt, cmp.Or(id, sv(e.LocationScope), "(an access grants location with no id)"), e)
+		}, tags, p)
 }
 
-// scanAccessGrants lists all access grants in the account's S3 Access Grants
-// instance for the given region.
-func scanAccessGrants(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	var batch []*store.Resource
-	p := s3control.NewListAccessGrantsPaginator(client, &s3control.ListAccessGrantsInput{AccountId: &acct.ID})
-	for p.HasMorePages() {
-		out, apiErr := p.NextPage(ctx)
-		if apiErr != nil {
-			if isAPIErrorCode(apiErr, "AccessGrantsInstanceNotExistsError") {
-				return 0, 0, nil // no instance in this region — expected
+// scanAccessGrants stores the grants in the account's S3 Access Grants
+// instance for the region, with their tags, a page at a time. A region
+// without an instance has none.
+func scanAccessGrants(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenPagesTags(ctx, st, acct, region, "s3control:ListAccessGrants",
+		firstPageGapPages(isNoAccessGrantsInstance, func(ctx context.Context, token *string) ([]s3ctypes.ListAccessGrantEntry, *string, error) {
+			out, err := client.ListAccessGrants(ctx, &s3control.ListAccessGrantsInput{AccountId: &acct.ID, NextToken: token, MaxResults: s3controlPageCap})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied(st, "s3control:ListAccessGrants", acct.ID, region, apiErr)
-			}
-			return 0, 0, fmt.Errorf("s3control:ListAccessGrants: %w", apiErr)
-		}
-		for _, e := range out.AccessGrantsList {
-			arn := sv(e.AccessGrantArn)
+			return out.AccessGrantsList, out.NextToken, nil
+		}),
+		func(e s3ctypes.ListAccessGrantEntry) (*store.Resource, string, string) {
 			id := sv(e.AccessGrantId)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeS3AccessGrant,
-				NativeID:       arn,
-				Name:           &id,
-				Region:         &region,
-				CreatedAt:      tp(e.CreatedAt),
-				AttributesJSON: mustJSON(e),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert S3 access grants: %w", err)
-		}
-		total = len(batch)
-		inserted = n
-	}
-	return
+			return s3controlRow(acct, region, scanID, TypeS3AccessGrant, "access grants",
+				e.AccessGrantArn, id, e.CreatedAt, cmp.Or(id, sv(e.GrantScope), "(an access grant with no id)"), e)
+		}, tags, p)
 }
 
-// scanS3AccessPoints lists S3 access points in the given region.
-func scanS3AccessPoints(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	var batch []*store.Resource
-	p := s3control.NewListAccessPointsPaginator(client, &s3control.ListAccessPointsInput{AccountId: &acct.ID})
-	for p.HasMorePages() {
-		out, apiErr := p.NextPage(ctx)
-		if apiErr != nil {
-			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied(st, "s3control:ListAccessPoints", acct.ID, region, apiErr)
+// scanS3AccessPoints stores the region's S3 access points with their tags, a
+// page at a time.
+func scanS3AccessPoints(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenPagesTags(ctx, st, acct, region, "s3control:ListAccessPoints",
+		func(ctx context.Context, token *string) ([]s3ctypes.AccessPoint, *string, error) {
+			out, err := client.ListAccessPoints(ctx, &s3control.ListAccessPointsInput{AccountId: &acct.ID, NextToken: token, MaxResults: s3controlPageCap})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("s3control:ListAccessPoints: %w", apiErr)
-		}
-		for _, e := range out.AccessPointList {
-			arn := sv(e.AccessPointArn)
+			return out.AccessPointList, out.NextToken, nil
+		},
+		func(e s3ctypes.AccessPoint) (*store.Resource, string, string) {
 			name := sv(e.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeS3AccessPoint,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(e),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert S3 access points: %w", err)
-		}
-		total = len(batch)
-		inserted = n
-	}
-	return
+			return s3controlRow(acct, region, scanID, TypeS3AccessPoint, "access points",
+				e.AccessPointArn, name, nil, cmp.Or(name, "(an access point with no name)"), e)
+		}, tags, p)
 }
 
-// scanMultiRegionAccessPoints lists all Multi-Region Access Points (global,
-// control plane routed through us-west-2 for aws accounts) and then fetches each one's policy.
-func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanMultiRegionAccessPoints stores all Multi-Region Access Points (global,
+// control plane routed through us-west-2 for aws accounts) and returns those
+// stored, whose policies scanMRAPPolicies reads.
+func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client s3controlAPI, st *store.Store, scanID string) (stored []s3ctypes.MultiRegionAccessPointReport, total, inserted int, err error) {
 	var mraps []s3ctypes.MultiRegionAccessPointReport
 	p := s3control.NewListMultiRegionAccessPointsPaginator(client, &s3control.ListMultiRegionAccessPointsInput{AccountId: &acct.ID})
 	for p.HasMorePages() {
 		out, apiErr := p.NextPage(ctx)
 		if apiErr != nil {
 			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied(st, "s3control:ListMultiRegionAccessPoints", acct.ID, "global", apiErr)
+				return nil, 0, 0, skipIfAccessDenied(st, "s3control:ListMultiRegionAccessPoints", acct.ID, "global", apiErr)
 			}
-			return 0, 0, fmt.Errorf("s3control:ListMultiRegionAccessPoints: %w", apiErr)
+			return nil, 0, 0, fmt.Errorf("s3control:ListMultiRegionAccessPoints: %w", apiErr)
 		}
 		mraps = append(mraps, out.AccessPoints...)
 	}
@@ -291,16 +276,12 @@ func scanMultiRegionAccessPoints(ctx context.Context, acct *account, client s3co
 	if len(batch) > 0 {
 		n, err := st.UpsertResources(batch)
 		if err != nil {
-			return 0, 0, fmt.Errorf("upsert S3 multi-region access points: %w", err)
+			return nil, 0, 0, fmt.Errorf("upsert S3 multi-region access points: %w", err)
 		}
 		total += len(batch)
 		inserted += n
 	}
-
-	tt, nn, err := scanMRAPPolicies(ctx, acct, client, mraps, st, scanID)
-	total += tt
-	inserted += nn
-	return total, inserted, err
+	return mraps, total, inserted, nil
 }
 
 // scanMRAPPolicies fetches the policy for each MRAP concurrently.
@@ -362,142 +343,91 @@ func scanMRAPPolicies(ctx context.Context, acct *account, client s3controlAPI, m
 	return
 }
 
-// scanStorageLens lists S3 Storage Lens configs for the region, then fans out
-// GetStorageLensConfiguration concurrently for the full body (Include/Exclude
-// buckets, DataExport target) — the list response is sparse; only Get carries
-// the edge-bearing fields resolveStorageLensRelationships needs. Per-item
-// access-denied is tolerated so one unreadable config doesn't fail the whole
-// scan.
-func scanStorageLens(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	// 1. List.
-	var entries []s3ctypes.ListStorageLensConfigurationEntry
-	p := s3control.NewListStorageLensConfigurationsPaginator(client, &s3control.ListStorageLensConfigurationsInput{AccountId: &acct.ID})
-	for p.HasMorePages() {
-		out, apiErr := p.NextPage(ctx)
-		if apiErr != nil {
-			// Storage Lens configurations live only in the account's supported
-			// home Regions; other regions reject with this message — region gap,
-			// not denial, so silent-skip.
-			if isStorageLensHomeRegionGap(apiErr) {
-				return 0, 0, nil
+// scanStorageLens stores the region's S3 Storage Lens configurations with
+// their tags, a page at a time. The list entry is sparse, so each row is the
+// configuration's GetStorageLensConfiguration body (Include/Exclude buckets,
+// DataExport target), which resolveStorageLensRelationships needs; a
+// configuration whose Get fails keeps its list entry as the row: a denial is
+// warned about once, any other failure returned (readRowDetails). A region
+// that is not a Storage Lens home Region has none. The row's Name is the
+// configuration's Id, which the Get and the tag read are sent.
+func scanStorageLens(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string, p *phaseTotals) (storeWriteFailed bool) {
+	const op = "s3control:ListStorageLensConfigurations"
+	listDenied := listDenial{isDenied: isStorageLensListDenied, unread: "storage lens configurations on later pages"}
+	page := deniedPages(&listDenied, firstPageGapPages(isStorageLensHomeRegionGap,
+		func(ctx context.Context, token *string) ([]s3ctypes.ListStorageLensConfigurationEntry, *string, error) {
+			out, err := client.ListStorageLensConfigurations(ctx, &s3control.ListStorageLensConfigurationsInput{AccountId: &acct.ID, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensConfigurations", acct.ID, region, apiErr)
-			}
-			// Backstop: a 403 whose body smithy still could not map to a code
-			// (generic UnknownError) is a permission signal — warn rather than
-			// abort the region.
-			if c, ok := httpStatusCode(apiErr); ok && c == 403 {
-				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensConfigurations", acct.ID, region, apiErr)
-			}
-			return 0, 0, fmt.Errorf("s3control:ListStorageLensConfigurations: %w", apiErr)
-		}
-		entries = append(entries, out.StorageLensConfigurationList...)
+			return out.StorageLensConfigurationList, out.NextToken, nil
+		}))
+	row := func(e s3ctypes.ListStorageLensConfigurationEntry) (*store.Resource, string, string) {
+		id := sv(e.Id)
+		return s3controlRow(acct, region, scanID, TypeS3StorageLens, "storage lens configurations",
+			e.StorageLensArn, id, nil, cmp.Or(id, "(a storage lens configuration with no id)"), e)
 	}
-	if len(entries) == 0 {
-		return 0, 0, nil
-	}
-
-	// 2. Fan-out Get per entry.
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, e := range entries {
-		g.Go(func() error {
-			if err := sem.Acquire(gctx, 1); err != nil {
-				return err
+	details := rowDetailReader{
+		op: "s3control:GetStorageLensConfiguration", what: "storage lens configurations",
+		get: func(ctx context.Context, r *store.Resource) (any, error) {
+			out, err := client.GetStorageLensConfiguration(ctx, &s3control.GetStorageLensConfigurationInput{AccountId: &acct.ID, ConfigId: r.Name})
+			if err != nil {
+				return nil, err
 			}
-			defer sem.Release(1)
-			id := sv(e.Id)
-			arn := sv(e.StorageLensArn)
-			out, gerr := client.GetStorageLensConfiguration(gctx, &s3control.GetStorageLensConfigurationInput{
-				AccountId: &acct.ID,
-				ConfigId:  &id,
-			})
-			if gerr != nil {
-				if isAccessDenied(gerr) {
-					return nil
-				}
-				return fmt.Errorf("s3control:GetStorageLensConfiguration %s: %w", id, gerr)
-			}
+			// A nil pointer in the any would replace the row's attributes
+			// with null; untyped nil keeps the list entry.
 			if out.StorageLensConfiguration == nil {
-				return nil
+				return nil, nil
 			}
-			res := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeS3StorageLens,
-				NativeID:       arn,
-				Name:           &id,
-				Region:         &region,
-				AttributesJSON: mustJSON(out.StorageLensConfiguration),
-				DiscoveredBy:   scanID,
-			}
-			mu.Lock()
-			batch = append(batch, res)
-			mu.Unlock()
-			return nil
-		})
+			return out.StorageLensConfiguration, nil
+		},
 	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
+	if storeTokenPagesTagsWith(ctx, st, acct, region, op, page, row, tokenPageSteps{details: details}, storageLensTags(client, acct.ID), p) {
+		return true
 	}
-	if len(batch) > 0 {
-		n, uerr := st.UpsertResources(batch)
-		if uerr != nil {
-			return 0, 0, fmt.Errorf("upsert S3 Storage Lens configurations: %w", uerr)
-		}
-		total = len(batch)
-		inserted = n
-	}
-	return
+	listDenied.warn(st, op, acct, region)
+	return false
 }
 
-// scanStorageLensGroups lists S3 Storage Lens groups for the given region.
-func scanStorageLensGroups(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	var batch []*store.Resource
-	p := s3control.NewListStorageLensGroupsPaginator(client, &s3control.ListStorageLensGroupsInput{AccountId: &acct.ID})
-	for p.HasMorePages() {
-		out, apiErr := p.NextPage(ctx)
-		if apiErr != nil {
-			// Storage Lens groups live only in the account's supported home
-			// Regions; other regions reject with this message — region gap, not
-			// denial, so silent-skip.
-			if isStorageLensHomeRegionGap(apiErr) {
-				return 0, 0, nil
+// isStorageLensListDenied is isAccessDenied, plus a 403 whose body smithy
+// could not map to a code (a generic UnknownError): a permission signal too.
+func isStorageLensListDenied(err error) bool {
+	c, ok := httpStatusCode(err)
+	return isAccessDenied(err) || (ok && c == 403)
+}
+
+// storageLensTags reads a Storage Lens configuration row's tags with
+// GetStorageLensConfigurationTagging, sent the row's Name, the configuration
+// Id. Its model lists no error code, so a configuration deleted between its
+// listing and this read is kept and the error returned.
+func storageLensTags(client s3controlAPI, accountID string) rowTagReader {
+	return rowTagReader{
+		op: s3LensTagsOp,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.GetStorageLensConfigurationTagging(ctx, &s3control.GetStorageLensConfigurationTaggingInput{AccountId: &accountID, ConfigId: r.Name})
+			if err != nil {
+				return nil, err
 			}
-			if isAccessDenied(apiErr) {
-				return 0, 0, skipIfAccessDenied(st, "s3control:ListStorageLensGroups", acct.ID, region, apiErr)
+			return kvTagsJSON(out.Tags, func(t s3ctypes.StorageLensTag) (*string, *string) { return t.Key, t.Value }), nil
+		},
+	}
+}
+
+// scanStorageLensGroups stores the region's S3 Storage Lens groups with their
+// tags, a page at a time. A region that is not a Storage Lens home Region has
+// none.
+func scanStorageLensGroups(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenPagesTags(ctx, st, acct, region, "s3control:ListStorageLensGroups",
+		firstPageGapPages(isStorageLensHomeRegionGap, func(ctx context.Context, token *string) ([]s3ctypes.ListStorageLensGroupEntry, *string, error) {
+			out, err := client.ListStorageLensGroups(ctx, &s3control.ListStorageLensGroupsInput{AccountId: &acct.ID, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("s3control:ListStorageLensGroups: %w", apiErr)
-		}
-		for _, e := range out.StorageLensGroupList {
-			arn := sv(e.StorageLensGroupArn)
+			return out.StorageLensGroupList, out.NextToken, nil
+		}),
+		func(e s3ctypes.ListStorageLensGroupEntry) (*store.Resource, string, string) {
 			name := sv(e.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeS3StorageLensGroup,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(e),
-				DiscoveredBy:   scanID,
-			})
-		}
-	}
-	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert S3 Storage Lens groups: %w", err)
-		}
-		total = len(batch)
-		inserted = n
-	}
-	return
+			return s3controlRow(acct, region, scanID, TypeS3StorageLensGroup, "storage lens groups",
+				e.StorageLensGroupArn, name, nil, cmp.Or(name, "(a storage lens group with no name)"), e)
+		}, tags, p)
 }

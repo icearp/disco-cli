@@ -2,18 +2,19 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3control"
+	s3ctypes "github.com/aws/aws-sdk-go-v2/service/s3control/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanS3ObjectLambdaAccessPoints discovers S3 Object Lambda access points
-// (with embedded resource policies), both listed under s3control and
-// scoped by AccountId.
-func scanS3ObjectLambdaAccessPoints(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanS3ObjectLambdaAccessPoints stores the region's S3 Object Lambda access
+// points, listed under s3control and scoped by AccountId, and returns those
+// stored, whose policies scanS3ObjectLambdaAccessPointPolicies reads.
+func scanS3ObjectLambdaAccessPoints(ctx context.Context, acct *account, region string, client s3controlAPI, st *store.Store, scanID string) (stored []s3ctypes.ObjectLambdaAccessPoint, total, inserted int, err error) {
 	var apBatch []*store.Resource
-	var policyBatch []*store.Resource
 	var nextToken *string
 	for {
 		out, lerr := client.ListAccessPointsForObjectLambda(ctx, &s3control.ListAccessPointsForObjectLambdaInput{
@@ -22,9 +23,9 @@ func scanS3ObjectLambdaAccessPoints(ctx context.Context, acct *account, region s
 		})
 		if lerr != nil {
 			if isAccessDenied(lerr) {
-				return 0, 0, skipIfAccessDenied(st, "s3control:ListAccessPointsForObjectLambda", acct.ID, region, lerr)
+				return nil, 0, 0, skipIfAccessDenied(st, "s3control:ListAccessPointsForObjectLambda", acct.ID, region, lerr)
 			}
-			return 0, 0, fmt.Errorf("s3control:ListAccessPointsForObjectLambda: %w", lerr)
+			return nil, 0, 0, fmt.Errorf("s3control:ListAccessPointsForObjectLambda: %w", lerr)
 		}
 		for _, ap := range out.ObjectLambdaAccessPointList {
 			arn := sv(ap.ObjectLambdaAccessPointArn)
@@ -38,41 +39,51 @@ func scanS3ObjectLambdaAccessPoints(ctx context.Context, acct *account, region s
 				Name: &name, Region: &region,
 				AttributesJSON: mustJSON(ap), DiscoveredBy: scanID,
 			})
-			polOut, perr := client.GetAccessPointPolicyForObjectLambda(ctx, &s3control.GetAccessPointPolicyForObjectLambdaInput{
-				AccountId: &acct.ID,
-				Name:      &name,
-			})
-			if perr != nil {
-				if isAccessDenied(perr) || isAPIErrorCode(perr, "NoSuchAccessPointPolicy") {
-					continue
-				}
-				return 0, 0, fmt.Errorf("s3control:GetAccessPointPolicyForObjectLambda %s: %w", name, perr)
-			}
-			if sv(polOut.Policy) == "" {
-				continue
-			}
-			polArn := arn + "/policy"
-			polLabel := name
-			policyBatch = append(policyBatch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeS3ObjectLambdaAccessPointPolicy, NativeID: polArn,
-				Name: &polLabel, Region: &region,
-				AttributesJSON: mustJSON(polOut), DiscoveredBy: scanID,
-			})
+			stored = append(stored, ap)
 		}
 		if out.NextToken == nil || *out.NextToken == "" {
 			break
 		}
 		nextToken = out.NextToken
 	}
-	t1, i1, err := upsertBatch(st, apBatch, "s3-object-lambda access-points")
+	total, inserted, err = upsertBatch(st, apBatch, "s3-object-lambda access-points")
 	if err != nil {
-		return total, inserted, err
+		return nil, total, inserted, err
 	}
-	total += t1
-	inserted += i1
-	t2, i2, err := upsertBatch(st, policyBatch, "s3-object-lambda access-point-policies")
-	total += t2
-	inserted += i2
-	return total, inserted, err
+	return stored, total, inserted, nil
+}
+
+// scanS3ObjectLambdaAccessPointPolicies stores the resource policy of each
+// stored Object Lambda access point that has one. A failed read does not
+// stop the others: its error is returned once the policies read are stored.
+func scanS3ObjectLambdaAccessPointPolicies(ctx context.Context, acct *account, region string, client s3controlAPI, aps []s3ctypes.ObjectLambdaAccessPoint, st *store.Store, scanID string) (int, int, error) {
+	var (
+		policyBatch []*store.Resource
+		errs        []error
+	)
+	for _, ap := range aps {
+		name := sv(ap.Name)
+		polOut, perr := client.GetAccessPointPolicyForObjectLambda(ctx, &s3control.GetAccessPointPolicyForObjectLambdaInput{
+			AccountId: &acct.ID,
+			Name:      &name,
+		})
+		if perr != nil {
+			if !isAccessDenied(perr) && !isAPIErrorCode(perr, "NoSuchAccessPointPolicy") {
+				errs = append(errs, fmt.Errorf("s3control:GetAccessPointPolicyForObjectLambda %s: %w", name, perr))
+			}
+			continue
+		}
+		if sv(polOut.Policy) == "" {
+			continue
+		}
+		polArn := sv(ap.ObjectLambdaAccessPointArn) + "/policy"
+		policyBatch = append(policyBatch, &store.Resource{
+			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+			Type: TypeS3ObjectLambdaAccessPointPolicy, NativeID: polArn,
+			Name: &name, Region: &region,
+			AttributesJSON: mustJSON(polOut), DiscoveredBy: scanID,
+		})
+	}
+	total, inserted, err := upsertBatch(st, policyBatch, "s3-object-lambda access-point-policies")
+	return total, inserted, errors.Join(append([]error{err}, errs...)...)
 }

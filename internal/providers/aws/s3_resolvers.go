@@ -48,7 +48,8 @@ func init() {
 }
 
 // noopS3BucketConfigHierarchy only declares the bucket→configuration contains
-// edges; scanS3BucketConfigs records them through childFanOut.
+// edges; the configuration phases record them through childFanOut
+// (s3BucketConfigFanOut).
 func noopS3BucketConfigHierarchy(_ *account, _ *store.Store) error {
 	return nil
 }

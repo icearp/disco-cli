@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	awsmw "github.com/aws/aws-sdk-go-v2/aws/middleware"
@@ -25,6 +27,7 @@ var (
 	s3Denied   = &smithy.GenericAPIError{Code: "AccessDenied", Message: "User: arn:aws:iam::123456789012:user/t is not authorized to perform: s3:List"}
 	s3NoBucket = &smithy.GenericAPIError{Code: "NoSuchBucket", Message: "The specified bucket does not exist"}
 	s3Broken   = &smithy.GenericAPIError{Code: "InvalidRequest", Message: "bad"}
+	s3NoTagSet = &smithy.GenericAPIError{Code: "NoSuchTagSet", Message: "The TagSet does not exist"}
 )
 
 // s3StubConfig answers each S3 call from handlers keyed by operation name,
@@ -57,10 +60,13 @@ func s3LocationHandler(_ string, in any) (any, error) {
 	return &s3.GetBucketLocationOutput{LocationConstraint: loc}, nil
 }
 
+// s3TestBuckets lists each named bucket as ListBuckets does when sent
+// MaxBuckets: with its BucketRegion, the region s3TestHomes gives it
+// (us-east-1 when it gives none).
 func s3TestBuckets(names ...string) []s3types.Bucket {
 	out := make([]s3types.Bucket, len(names))
 	for i, n := range names {
-		out[i] = s3types.Bucket{Name: sdkaws.String(n)}
+		out[i] = s3types.Bucket{Name: sdkaws.String(n), BucketRegion: sdkaws.String(cmp.Or(string(s3TestHomes[n]), "us-east-1"))}
 	}
 	return out
 }
@@ -176,7 +182,7 @@ func runS3ConfigKind(t *testing.T, k s3ConfigKind, list func(bucket string, toke
 		},
 	})
 	ctx := context.Background()
-	homed, err := s3HomedBuckets(ctx, acct, s3.NewFromConfig(acct.cfg), s3TestBuckets("b-east", "b-west"), run.st)
+	homed, err := s3HomedBuckets(ctx, acct, s3.NewFromConfig(acct.cfg), []string{"b-east", "b-west"}, run.st)
 	if err != nil {
 		t.Fatalf("s3HomedBuckets: %v", err)
 	}
@@ -377,7 +383,7 @@ func TestS3HomedBuckets_LocationErrors(t *testing.T) {
 	}{
 		{name: "bucket gone skipped silently", err: s3NoBucket},
 		{name: "denied warns once", err: s3Denied, wantWarns: 1},
-		{name: "other error propagates", err: s3Broken, wantErr: true},
+		{name: "other error returned beside the buckets found", err: s3Broken, wantErr: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -392,15 +398,9 @@ func TestS3HomedBuckets_LocationErrors(t *testing.T) {
 					return s3LocationHandler(region, in)
 				},
 			})
-			homed, err := s3HomedBuckets(context.Background(), acct, s3.NewFromConfig(acct.cfg), s3TestBuckets("b-east", "x1", "b-west", "x2"), st)
-			if tc.wantErr {
-				if !isAPIErrorCode(err, "InvalidRequest") {
-					t.Fatalf("err = %v; want the InvalidRequest error", err)
-				}
-				return
-			}
-			if err != nil {
-				t.Fatalf("s3HomedBuckets: %v", err)
+			homed, err := s3HomedBuckets(context.Background(), acct, s3.NewFromConfig(acct.cfg), []string{"b-east", "x1", "b-west", "x2"}, st)
+			if tc.wantErr != isAPIErrorCode(err, "InvalidRequest") || (!tc.wantErr && err != nil) {
+				t.Fatalf("err = %v; want the InvalidRequest error: %v", err, tc.wantErr)
 			}
 			if len(homed) != 2 || homed["b-east"].name != "b-east" || homed["b-west"].name != "b-west" {
 				t.Errorf("homed = %v; want b-east and b-west only", homed)
@@ -413,13 +413,15 @@ func TestS3HomedBuckets_LocationErrors(t *testing.T) {
 }
 
 // s3ServiceHandlers answers every call scanS3 makes for b-east and b-west:
-// each bucket has a policy, b-east a default encryption, and one configuration
-// "c" of each kind; failOp names a configuration op that fails instead.
+// each bucket has a policy, b-east a default encryption, no tags, and one
+// configuration "c" of each kind; failOp names a configuration op that fails
+// instead.
 func s3ServiceHandlers(failOp string) map[string]func(string, any) (any, error) {
 	h := map[string]func(string, any) (any, error){
 		"ListBuckets": func(string, any) (any, error) {
 			return &s3.ListBucketsOutput{Buckets: s3TestBuckets("b-east", "b-west")}, nil
 		},
+		"GetBucketTagging":  func(string, any) (any, error) { return nil, s3NoTagSet },
 		"GetBucketLocation": s3LocationHandler,
 		"GetBucketPolicy": func(string, any) (any, error) {
 			return &s3.GetBucketPolicyOutput{Policy: sdkaws.String("{}")}, nil
@@ -448,6 +450,10 @@ func TestScanS3_StoresBucketConfigs(t *testing.T) {
 	acct.cfg = s3StubConfig(s3ServiceHandlers(""))
 	if _, _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
 		t.Fatalf("scanS3: %v", err)
+	}
+	// The KMS resolver resolves an alias or bare key id in this region.
+	if got := acct.s3BucketEncryption["b-east"].Region; got != "us-east-1" {
+		t.Errorf("b-east encryption Region = %q; want us-east-1", got)
 	}
 	for _, k := range s3ConfigKinds {
 		for bucket := range s3TestHomes {
@@ -513,7 +519,7 @@ func TestScanS3BucketConfigs_LegacyEULocationUsesEUWest1(t *testing.T) {
 		},
 	})
 	ctx := context.Background()
-	homed, err := s3HomedBuckets(ctx, acct, s3.NewFromConfig(acct.cfg), s3TestBuckets("b-eu"), st)
+	homed, err := s3HomedBuckets(ctx, acct, s3.NewFromConfig(acct.cfg), []string{"b-eu"}, st)
 	if err != nil {
 		t.Fatalf("s3HomedBuckets: %v", err)
 	}
@@ -660,7 +666,7 @@ func TestS3BucketRegion_RawHeadBucketErrors(t *testing.T) {
 }
 
 // A deadline hit while reading a bucket's region reaches the dispatcher raw
-// through every phase that reads it, so the scan is classified outcomeDeadline,
+// through the phase that reads it, so the scan is classified outcomeDeadline,
 // not a skipped bucket.
 func TestScanS3_HeadBucketDeadlineIsDeadline(t *testing.T) {
 	acct := testAccountIn("aws-us-gov")
@@ -669,17 +675,12 @@ func TestScanS3_HeadBucketDeadlineIsDeadline(t *testing.T) {
 	h["HeadBucket"] = func(string, any) (any, error) { return nil, context.DeadlineExceeded }
 	acct.cfg = s3StubConfig(h)
 	client := s3.NewFromConfig(acct.cfg)
-	buckets := s3TestBuckets("b-east")
+	buckets := []string{"b-east"}
 	ctx := context.Background()
 	st := newTestStore(t)
 	sites := map[string]func() error{
-		"scanS3": func() error { _, _, err := scanS3(ctx, acct, st, testScanID); return err },
-		"scanS3BucketPolicies": func() error {
-			_, _, err := scanS3BucketPolicies(ctx, acct, client, buckets, st, testScanID)
-			return err
-		},
-		"scanS3BucketEncryptions": func() error { return scanS3BucketEncryptions(ctx, acct, client, buckets) },
-		"s3HomedBuckets":          func() error { _, err := s3HomedBuckets(ctx, acct, client, buckets, st); return err },
+		"scanS3":         func() error { _, _, err := scanS3(ctx, acct, st, testScanID); return err },
+		"s3HomedBuckets": func() error { _, err := s3HomedBuckets(ctx, acct, client, buckets, st); return err },
 	}
 	for name, run := range sites {
 		if err := run(); classifyServiceError(err) != outcomeDeadline {
@@ -689,7 +690,7 @@ func TestScanS3_HeadBucketDeadlineIsDeadline(t *testing.T) {
 }
 
 // A bucket that vanished before its region was read (HeadBucket answers 404
-// NotFound) is skipped silently by every phase that reads the region, as a
+// NotFound) is skipped silently by the region lookup and the scan, as a
 // vanished bucket is everywhere else.
 func TestScanS3_HeadBucketGoneIsSilent(t *testing.T) {
 	acct := testAccountIn("aws-us-gov")
@@ -700,7 +701,7 @@ func TestScanS3_HeadBucketGoneIsSilent(t *testing.T) {
 	}
 	acct.cfg = s3StubConfig(h)
 	client := s3.NewFromConfig(acct.cfg)
-	buckets := s3TestBuckets("b-east")
+	buckets := []string{"b-east"}
 	ctx := context.Background()
 	st := newTestStore(t)
 	var (
@@ -709,12 +710,8 @@ func TestScanS3_HeadBucketGoneIsSilent(t *testing.T) {
 	)
 	st.OnWarn = func(store.ScanWarning) { mu.Lock(); warns++; mu.Unlock() }
 	sites := map[string]func() error{
-		"scanS3BucketPolicies": func() error {
-			_, _, err := scanS3BucketPolicies(ctx, acct, client, buckets, st, testScanID)
-			return err
-		},
-		"scanS3BucketEncryptions": func() error { return scanS3BucketEncryptions(ctx, acct, client, buckets) },
-		"s3HomedBuckets":          func() error { _, err := s3HomedBuckets(ctx, acct, client, buckets, st); return err },
+		"scanS3":         func() error { _, _, err := scanS3(ctx, acct, st, testScanID); return err },
+		"s3HomedBuckets": func() error { _, err := s3HomedBuckets(ctx, acct, client, buckets, st); return err },
 	}
 	for name, run := range sites {
 		if err := run(); err != nil {
@@ -741,6 +738,9 @@ func TestScanS3_UnknownRegionKeepsBucketSkipsReads(t *testing.T) {
 		return &s3.GetBucketLocationOutput{}, nil
 	}
 	h["HeadBucket"] = func(string, any) (any, error) { return nil, s3ForbiddenNoRegion }
+	h["GetBucketEncryption"] = func(string, any) (any, error) {
+		return &s3.GetBucketEncryptionOutput{ServerSideEncryptionConfiguration: &s3types.ServerSideEncryptionConfiguration{}}, nil
+	}
 	acct.cfg = s3StubConfig(h)
 	if _, _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
 		t.Fatalf("scanS3: %v", err)
@@ -760,6 +760,9 @@ func TestScanS3_UnknownRegionKeepsBucketSkipsReads(t *testing.T) {
 	if _, ok := acct.s3BucketEncryption["b-east"]; ok {
 		t.Error("b-east encryption was read; its region is unknown")
 	}
+	if got := acct.s3BucketEncryption["b-west"].Region; got != "us-gov-east-1" {
+		t.Errorf("b-west encryption Region = %q; want us-gov-east-1", got)
+	}
 	for _, k := range s3ConfigKinds {
 		rows := rowsByNativeID(t, st, k.typ)
 		want := west + "/" + k.segment + "/c"
@@ -771,5 +774,469 @@ func TestScanS3_UnknownRegionKeepsBucketSkipsReads(t *testing.T) {
 	}
 	if *warns != 1 {
 		t.Errorf("s3:HeadBucket warnings = %d; want 1", *warns)
+	}
+}
+
+// s3TagCalls records the ListBuckets and GetBucketTagging requests scanS3
+// sends, and the buckets GetBucketPolicy is asked about, and answers
+// GetBucketTagging from tags or errs by bucket; a bucket in neither answers
+// NoSuchTagSet. Handlers run on fan-out goroutines.
+type s3TagCalls struct {
+	mu         sync.Mutex
+	tagRegions map[string][]string // bucket → regions its tags were read from
+	tokens     []string            // ListBuckets ContinuationToken, "" for none
+	maxBuckets []int32
+	policies   []string
+	tags       map[string]map[string]string
+	errs       map[string]error
+}
+
+func newS3TagCalls() *s3TagCalls {
+	return &s3TagCalls{tagRegions: map[string][]string{}, tags: map[string]map[string]string{}, errs: map[string]error{}}
+}
+
+// handlers is s3ServiceHandlers with ListBuckets answering pages (one per
+// call, the token "p<n>" leading to page n) and the tag and policy reads
+// recorded.
+func (c *s3TagCalls) handlers(pages ...[]s3types.Bucket) map[string]func(string, any) (any, error) {
+	h := s3ServiceHandlers("")
+	h["ListBuckets"] = func(_ string, in any) (any, error) {
+		lb := in.(*s3.ListBucketsInput)
+		c.mu.Lock()
+		c.tokens = append(c.tokens, sv(lb.ContinuationToken))
+		c.maxBuckets = append(c.maxBuckets, sdkaws.ToInt32(lb.MaxBuckets))
+		c.mu.Unlock()
+		page := 0
+		for i := range pages {
+			if sv(lb.ContinuationToken) == fmt.Sprintf("p%d", i) {
+				page = i
+			}
+		}
+		out := &s3.ListBucketsOutput{}
+		if page < len(pages) {
+			out.Buckets = pages[page]
+		}
+		if page+1 < len(pages) {
+			out.ContinuationToken = sdkaws.String(fmt.Sprintf("p%d", page+1))
+		}
+		return out, nil
+	}
+	h["GetBucketTagging"] = func(region string, in any) (any, error) {
+		bucket := sv(in.(*s3.GetBucketTaggingInput).Bucket)
+		c.mu.Lock()
+		c.tagRegions[bucket] = append(c.tagRegions[bucket], region)
+		err, tags := c.errs[bucket], c.tags[bucket]
+		c.mu.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		if tags == nil {
+			return nil, s3NoTagSet
+		}
+		out := &s3.GetBucketTaggingOutput{}
+		for k, v := range tags {
+			out.TagSet = append(out.TagSet, s3types.Tag{Key: sdkaws.String(k), Value: sdkaws.String(v)})
+		}
+		return out, nil
+	}
+	policy := h["GetBucketPolicy"]
+	h["GetBucketPolicy"] = func(region string, in any) (any, error) {
+		c.mu.Lock()
+		c.policies = append(c.policies, sv(in.(*s3.GetBucketPolicyInput).Bucket))
+		c.mu.Unlock()
+		return policy(region, in)
+	}
+	return h
+}
+
+// s3TagFixture is b-east on the first ListBuckets page and b-west on the
+// second, b-west tagged.
+func s3TagFixture() (*s3TagCalls, map[string]func(string, any) (any, error)) {
+	c := newS3TagCalls()
+	c.tags["b-west"] = map[string]string{"env": "prod"}
+	return c, c.handlers(s3TestBuckets("b-east"), s3TestBuckets("b-west"))
+}
+
+// s3TagScan runs scanS3 for an aws account against handlers.
+func s3TagScan(t *testing.T, st *store.Store, handlers map[string]func(string, any) (any, error)) (int, int, error) {
+	t.Helper()
+	acct := newTestAccount(testAccountID)
+	acct.cfg = s3StubConfig(handlers)
+	return scanS3(context.Background(), acct, st, testScanID)
+}
+
+// s3FixtureTotal is every row the fixture stores: two buckets, their two
+// policies and one configuration of each of the four kinds per bucket.
+const s3FixtureTotal = 12
+
+// Each bucket's tags are read with GetBucketTagging from the region
+// ListBuckets names as its BucketRegion and stored; NoSuchTagSet is no tags.
+// ListBuckets is sent MaxBuckets 10000 and its token. Each bucket row keeps
+// the base scan's Name, Region, CreatedAt and verbatim element, and the scan
+// reports no error or warning.
+func TestScanS3_StoresBucketTagsFromHomeRegion(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	created := time.Date(2024, 5, 6, 7, 8, 9, 0, time.UTC)
+	c := newS3TagCalls()
+	c.tags["b-west"] = map[string]string{"env": "prod"}
+	east, west := s3TestBuckets("b-east")[0], s3TestBuckets("b-west")[0]
+	east.CreationDate, west.CreationDate = &created, &created
+
+	total, _, err := s3TagScan(t, st, c.handlers([]s3types.Bucket{east}, []s3types.Bucket{west}))
+	if err != nil || total != s3FixtureTotal {
+		t.Fatalf("scanS3 = %d, %v; want %d, nil", total, err, s3FixtureTotal)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0", *warns)
+	}
+	if want := map[string][]string{"b-east": {"us-east-1"}, "b-west": {"us-west-2"}}; !maps.EqualFunc(c.tagRegions, want, slices.Equal) {
+		t.Errorf("GetBucketTagging bucket → regions = %v; want %v", c.tagRegions, want)
+	}
+	if !slices.Equal(c.tokens, []string{"", "p1"}) || !slices.Equal(c.maxBuckets, []int32{10000, 10000}) {
+		t.Errorf("ListBuckets tokens = %q, MaxBuckets = %v; want [\"\" \"p1\"], [10000 10000]", c.tokens, c.maxBuckets)
+	}
+	rows := rowsByNativeID(t, st, TypeS3Bucket)
+	if len(rows) != 2 {
+		t.Fatalf("bucket rows = %v; want 2", slices.Sorted(maps.Keys(rows)))
+	}
+	for _, b := range []s3types.Bucket{east, west} {
+		r, ok := rows["arn:aws:s3:::"+sv(b.Name)]
+		if !ok {
+			t.Fatalf("bucket %s not stored", sv(b.Name))
+		}
+		if sv(r.Name) != sv(b.Name) || sv(r.Region) != "global" || sv(r.CreatedAt) != "2024-05-06T07:08:09Z" {
+			t.Errorf("%s Name, Region, CreatedAt = %q, %q, %q", r.NativeID, sv(r.Name), sv(r.Region), sv(r.CreatedAt))
+		}
+		var attrs s3types.Bucket
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || sv(attrs.Name) != sv(b.Name) || sv(attrs.BucketRegion) != sv(b.BucketRegion) {
+			t.Errorf("%s attrs = %s (%v); want the listed element", r.NativeID, r.AttributesJSON, err)
+		}
+	}
+	if r := rows["arn:aws:s3:::b-east"]; r.TagsJSON != nil {
+		t.Errorf("b-east TagsJSON = %q; want nil (NoSuchTagSet)", *r.TagsJSON)
+	}
+	assertTagsMap(t, rows["arn:aws:s3:::b-west"].TagsJSON, map[string]string{"env": "prod"})
+}
+
+// An aws-us-gov account stores its bucket under the gov ARN and reads its
+// tags in the gov region ListBuckets names.
+func TestScanS3_GovBucketTagsReadInGovRegion(t *testing.T) {
+	st := newTestStore(t)
+	c := newS3TagCalls()
+	c.tags["b-gov"] = map[string]string{"env": "gov"}
+	h := c.handlers([]s3types.Bucket{{Name: sdkaws.String("b-gov"), BucketRegion: sdkaws.String("us-gov-west-1")}})
+	h["GetBucketLocation"] = func(string, any) (any, error) {
+		return &s3.GetBucketLocationOutput{LocationConstraint: "us-gov-west-1"}, nil
+	}
+	acct := partitionAccount("aws-us-gov")
+	acct.cfg = s3StubConfig(h)
+
+	if _, _, err := scanS3(context.Background(), acct, st, testScanID); err != nil {
+		t.Fatalf("scanS3: %v", err)
+	}
+	if want := map[string][]string{"b-gov": {"us-gov-west-1"}}; !maps.EqualFunc(c.tagRegions, want, slices.Equal) {
+		t.Errorf("GetBucketTagging bucket → regions = %v; want %v", c.tagRegions, want)
+	}
+	r, ok := rowsByNativeID(t, st, TypeS3Bucket)["arn:aws-us-gov:s3:::b-gov"]
+	if !ok {
+		t.Fatal("arn:aws-us-gov:s3:::b-gov not stored")
+	}
+	assertTagsMap(t, r.TagsJSON, map[string]string{"env": "gov"})
+}
+
+// An empty listing stores nothing, reads no tags or policies and reports
+// nothing.
+func TestScanS3_EmptyBucketListing(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	c := newS3TagCalls()
+
+	total, inserted, err := s3TagScan(t, st, c.handlers())
+	if err != nil || total != 0 || inserted != 0 {
+		t.Fatalf("scanS3 = %d, %d, %v; want 0, 0, nil", total, inserted, err)
+	}
+	if *warns != 0 || len(c.tagRegions) != 0 || len(c.policies) != 0 {
+		t.Errorf("warnings, tag reads, policy reads = %d, %v, %v; want none", *warns, c.tagRegions, c.policies)
+	}
+}
+
+// A rescan stores the same rows without inserting any.
+func TestScanS3_RescanInsertsNone(t *testing.T) {
+	st := newTestStore(t)
+	_, h := s3TagFixture()
+	if _, _, err := s3TagScan(t, st, h); err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+	total, inserted, err := s3TagScan(t, st, h)
+	if err != nil || total != s3FixtureTotal || inserted != 0 {
+		t.Errorf("rescan = %d, %d, %v; want %d, 0, nil", total, inserted, err, s3FixtureTotal)
+	}
+}
+
+// A failed tag read keeps the bucket without tags and costs no later phase
+// its rows: a denial warns once under s3:GetBucketTagging, a throttle after
+// retries is a transient error, any other code a hard one. GetBucketTagging
+// models no error code, so NoSuchBucket (a bucket deleted after the listing)
+// is returned too.
+func TestScanS3_BucketTagReadFailures(t *testing.T) {
+	for _, c := range []struct {
+		name      string
+		err       error
+		outcome   serviceOutcome
+		code      string
+		wantWarns int
+	}{
+		{"denied", s3Denied, 0, "", 1},
+		{"other error", s3Broken, outcomeError, "InvalidRequest", 0},
+		{"bucket gone", s3NoBucket, outcomeError, "NoSuchBucket", 0},
+		{"transient", apiErr("Throttling", "slow down"), outcomeTransient, "Throttling", 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warnings := bacWarnings(st, s3TagsOp)
+			calls, h := s3TagFixture()
+			calls.errs["b-west"] = c.err
+
+			total, _, err := s3TagScan(t, st, h)
+			if c.outcome == 0 && err != nil {
+				t.Fatalf("err = %v; want nil", err)
+			}
+			if c.outcome != 0 {
+				assertGlueOutcome(t, err, c.outcome)
+				assertAPICode(t, err, c.code)
+			}
+			r, ok := rowsByNativeID(t, st, TypeS3Bucket)["arn:aws:s3:::b-west"]
+			if !ok || r.TagsJSON != nil {
+				t.Fatalf("b-west stored = %v, TagsJSON = %v; want kept without tags", ok, r.TagsJSON)
+			}
+			if total != s3FixtureTotal || len(rowsByNativeID(t, st, TypeS3BucketPolicy)) != 2 {
+				t.Errorf("total = %d, policies = %d; want %d, 2 (later phases run)", total, len(rowsByNativeID(t, st, TypeS3BucketPolicy)), s3FixtureTotal)
+			}
+			if len(*warnings) != c.wantWarns {
+				t.Fatalf("%s warnings = %v; want %d", s3TagsOp, *warnings, c.wantWarns)
+			}
+			for _, w := range *warnings {
+				if w.Scope != testAccountID {
+					t.Errorf("warning Scope = %q; want %s", w.Scope, testAccountID)
+				}
+			}
+		})
+	}
+}
+
+// Denied tag reads on several pages are one warning for the scan.
+func TestScanS3_BucketTagDenialsWarnOnce(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, s3TagsOp)
+	calls, h := s3TagFixture()
+	calls.errs["b-east"], calls.errs["b-west"] = s3Denied, s3Denied
+
+	if _, _, err := s3TagScan(t, st, h); err != nil {
+		t.Fatalf("err = %v; want nil", err)
+	}
+	if *warns != 1 {
+		t.Errorf("%s warnings = %d; want 1", s3TagsOp, *warns)
+	}
+}
+
+// A throttled tag read beside a hard failure of the same op is demoted to one
+// warning, so the hard error decides the outcome.
+func TestScanS3_BucketTagThrottleDemotedBesideHardError(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, s3TagsOp)
+	calls, h := s3TagFixture()
+	calls.errs["b-east"], calls.errs["b-west"] = apiErr("Throttling", "slow down"), s3Broken
+
+	_, _, err := s3TagScan(t, st, h)
+	assertGlueOutcome(t, err, outcomeError)
+	assertAPICode(t, err, "InvalidRequest")
+	if *warns != 1 {
+		t.Errorf("%s warnings = %d; want 1", s3TagsOp, *warns)
+	}
+}
+
+// A failed ListBuckets page keeps the buckets of the pages before it, with
+// their tags, and the later phases read those buckets only.
+func TestScanS3_BucketPageFailureKeepsEarlierPages(t *testing.T) {
+	st := newTestStore(t)
+	calls, h := s3TagFixture()
+	calls.tags["b-east"] = map[string]string{"page": "1"}
+	list := h["ListBuckets"]
+	h["ListBuckets"] = func(region string, in any) (any, error) {
+		if in.(*s3.ListBucketsInput).ContinuationToken != nil {
+			return nil, s3Broken
+		}
+		return list(region, in)
+	}
+
+	total, _, err := s3TagScan(t, st, h)
+	assertAPICode(t, err, "InvalidRequest")
+	buckets := rowsByNativeID(t, st, TypeS3Bucket)
+	if len(buckets) != 1 {
+		t.Fatalf("bucket rows = %v; want b-east only", slices.Sorted(maps.Keys(buckets)))
+	}
+	assertTagsMap(t, buckets["arn:aws:s3:::b-east"].TagsJSON, map[string]string{"page": "1"})
+	if !slices.Equal(calls.policies, []string{"b-east"}) || total != 6 {
+		t.Errorf("GetBucketPolicy buckets = %v, total = %d; want [b-east], 6", calls.policies, total)
+	}
+}
+
+// A ListBuckets page that repeats the token it was sent ends the listing
+// with errRepeatedNextToken, keeping the buckets of both pages.
+func TestScanS3_ListBucketsRepeatedTokenFails(t *testing.T) {
+	st := newTestStore(t)
+	calls := newS3TagCalls()
+	h := calls.handlers()
+	var n int
+	h["ListBuckets"] = func(string, any) (any, error) {
+		calls.mu.Lock()
+		n++
+		name := fmt.Sprintf("b-%d", n)
+		calls.mu.Unlock()
+		// A third call means the repeated token was followed.
+		return &s3.ListBucketsOutput{Buckets: s3TestBuckets(name), ContinuationToken: sdkaws.String("same")}, nil
+	}
+
+	_, _, err := s3TagScan(t, st, h)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v; want errRepeatedNextToken", err)
+	}
+	if got := len(rowsByNativeID(t, st, TypeS3Bucket)); n != 2 || got != 2 {
+		t.Errorf("ListBuckets calls = %d, bucket rows = %d; want 2, 2", n, got)
+	}
+}
+
+// A denied ListBuckets warns once under its op, stores nothing and reads no
+// bucket.
+func TestScanS3_DeniedListBucketsWarns(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	listWarns := countOpWarnings(st, "s3:ListBuckets")
+	calls, h := s3TagFixture()
+	h["ListBuckets"] = func(string, any) (any, error) { return nil, s3Denied }
+
+	total, _, err := s3TagScan(t, st, h)
+	if err != nil || total != 0 {
+		t.Fatalf("scanS3 = %d, %v; want 0, nil", total, err)
+	}
+	if *warns != 1 || *listWarns != 1 || len(calls.policies) != 0 {
+		t.Errorf("warnings = %d (s3:ListBuckets %d), policy reads = %v; want 1, 1, none", *warns, *listWarns, calls.policies)
+	}
+}
+
+// A failed bucket write stops the listing at that page, fails the scan with
+// store.ErrStoreWrite and sends no warning about the rows it lost.
+func TestScanS3_FailedBucketWriteStopsWithoutWarning(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	refuseStoreWrites(t, st, TypeS3Bucket)
+	calls, h := s3TagFixture()
+	calls.errs["b-east"] = s3Denied
+
+	_, _, err := s3TagScan(t, st, h)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
+	}
+	if *warns != 0 || len(calls.tokens) != 1 {
+		t.Errorf("warnings = %d, ListBuckets calls = %d; want 0, 1", *warns, len(calls.tokens))
+	}
+}
+
+// A bucket listed without a name is warned about once rather than stored
+// under the bare arn:aws:s3:::, and no later phase reads it.
+func TestScanS3_BucketWithoutNameWarnedNotStored(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	listWarns := countOpWarnings(st, "s3:ListBuckets")
+	calls := newS3TagCalls()
+	h := calls.handlers(append(s3TestBuckets("b-east"), s3types.Bucket{BucketRegion: sdkaws.String("us-east-1")}))
+
+	if _, _, err := s3TagScan(t, st, h); err != nil {
+		t.Fatalf("scanS3: %v", err)
+	}
+	if got := slices.Sorted(maps.Keys(rowsByNativeID(t, st, TypeS3Bucket))); !slices.Equal(got, []string{"arn:aws:s3:::b-east"}) {
+		t.Errorf("bucket rows = %v; want b-east only", got)
+	}
+	if *warns != 1 || *listWarns != 1 {
+		t.Errorf("warnings = %d (s3:ListBuckets %d); want 1 under s3:ListBuckets", *warns, *listWarns)
+	}
+	if !slices.Equal(calls.policies, []string{"b-east"}) || len(calls.tagRegions) != 1 {
+		t.Errorf("policy reads = %v, tag reads = %v; want b-east only", calls.policies, calls.tagRegions)
+	}
+}
+
+// Each bucket's region is looked up once for every later phase, and a lookup
+// that stays throttled beside a hard error elsewhere is demoted to a warning
+// under the op that failed: GetBucketLocation, or the HeadBucket it falls
+// back to outside aws. No warning names a policy or encryption read that was
+// never sent.
+func TestScanS3_RegionLookupThrottleWarnsUnderItsOp(t *testing.T) {
+	throttled := apiErr("Throttling", "slow down")
+	for _, c := range []struct {
+		name, partition, op string
+		headBucket          bool
+	}{
+		{"GetBucketLocation", "aws", "s3:GetBucketLocation", false},
+		{"HeadBucket", "aws-us-gov", "s3:HeadBucket", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			var (
+				mu       sync.Mutex
+				lookups  int
+				warnings []store.ScanWarning
+			)
+			st.OnWarn = func(w store.ScanWarning) { mu.Lock(); warnings = append(warnings, w); mu.Unlock() }
+			calls, h := s3TagFixture()
+			calls.errs["b-east"] = s3Broken
+			h["GetBucketLocation"] = func(string, any) (any, error) {
+				mu.Lock()
+				lookups++
+				mu.Unlock()
+				if c.headBucket {
+					return &s3.GetBucketLocationOutput{}, nil
+				}
+				return nil, throttled
+			}
+			h["HeadBucket"] = func(string, any) (any, error) { return nil, throttled }
+			acct := testAccountIn(c.partition)
+			acct.cfg = s3StubConfig(h)
+
+			_, _, err := scanS3(context.Background(), acct, st, testScanID)
+			assertGlueOutcome(t, err, outcomeError)
+			assertAPICode(t, err, "InvalidRequest")
+			if len(warnings) != 1 || warnings[0].Service != c.op {
+				t.Errorf("warnings = %v; want one under %s", warnings, c.op)
+			}
+			if lookups != 2 || len(calls.policies) != 0 {
+				t.Errorf("GetBucketLocation calls = %d, GetBucketPolicy buckets = %v; want 2 (one per bucket), none", lookups, calls.policies)
+			}
+		})
+	}
+}
+
+// A bucket listed without a BucketRegion keeps its row without tags and has
+// no tag read sent: the scan fails with errS3NoListedRegion rather than send
+// one that cannot reach S3. Its policy is still read from the region
+// GetBucketLocation names.
+func TestScanS3_BucketWithoutListedRegionFailsTagRead(t *testing.T) {
+	st := newTestStore(t)
+	calls := newS3TagCalls()
+	calls.tags["b-east"] = map[string]string{"env": "prod"}
+	east := s3types.Bucket{Name: sdkaws.String("b-east")}
+	h := calls.handlers(append([]s3types.Bucket{east}, s3TestBuckets("b-west")...))
+
+	total, _, err := s3TagScan(t, st, h)
+	assertGlueOutcome(t, err, outcomeError)
+	if !errors.Is(err, errS3NoListedRegion) {
+		t.Errorf("err = %v; want errS3NoListedRegion", err)
+	}
+	r, ok := rowsByNativeID(t, st, TypeS3Bucket)["arn:aws:s3:::b-east"]
+	if !ok || r.TagsJSON != nil || total != s3FixtureTotal {
+		t.Errorf("b-east stored = %v, TagsJSON = %v, total = %d; want kept without tags, %d", ok, r.TagsJSON, total, s3FixtureTotal)
+	}
+	if _, read := calls.tagRegions["b-east"]; read || !slices.Contains(calls.policies, "b-east") {
+		t.Errorf("GetBucketTagging buckets = %v, GetBucketPolicy buckets = %v; want no tag read and a policy read for b-east", calls.tagRegions, calls.policies)
 	}
 }

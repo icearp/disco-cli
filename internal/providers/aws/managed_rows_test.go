@@ -142,7 +142,9 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 				"GetStorageLensConfiguration": ret(&s3control.GetStorageLensConfigurationOutput{StorageLensConfiguration: &s3controltypes.StorageLensConfiguration{Id: sdkaws.String("default-account-dashboard")}}),
 			},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanStorageLens(ctx, acct, testRegion, s3control.NewFromConfig(cfg), st, testScanID)
+				var p phaseTotals
+				scanStorageLens(ctx, acct, testRegion, s3control.NewFromConfig(cfg), st, testScanID, &p)
+				_, _, err := p.result(st, acct, testRegion)
 				return err
 			},
 		},
