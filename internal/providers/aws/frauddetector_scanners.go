@@ -1,10 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/frauddetector"
+	frauddetectortypes "github.com/aws/aws-sdk-go-v2/service/frauddetector/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -42,339 +44,306 @@ type fraudDetectorAPI interface {
 	DescribeDetector(context.Context, *frauddetector.DescribeDetectorInput, ...func(*frauddetector.Options)) (*frauddetector.DescribeDetectorOutput, error)
 	GetDetectorVersion(context.Context, *frauddetector.GetDetectorVersionInput, ...func(*frauddetector.Options)) (*frauddetector.GetDetectorVersionOutput, error)
 	DescribeModelVersions(context.Context, *frauddetector.DescribeModelVersionsInput, ...func(*frauddetector.Options)) (*frauddetector.DescribeModelVersionsOutput, error)
+	ListTagsForResource(context.Context, *frauddetector.ListTagsForResourceInput, ...func(*frauddetector.Options)) (*frauddetector.ListTagsForResourceOutput, error)
 }
 
-func scanFraudDetector(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+const fdListTagsOp = "frauddetector:ListTagsForResource"
+
+// fdNotFound is the code ListTagsForResource and the per-detector and
+// per-model listings model for a resource deleted since it was listed.
+var fdNotFound = []string{"ResourceNotFoundException"}
+
+// Every listing sends the maximum of its op's maxResults range trait; the
+// docs give no range of their own.
+
+func scanFraudDetector(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := frauddetector.NewFromConfig(acct.cfg, func(o *frauddetector.Options) { o.Region = region })
-
-	if ferr := gateFraudDetector(ctx, client); ferr != nil {
-		return 0, 0, ferr
-	}
-
-	var (
-		detectors []childParent
-		models    []fdModel
-	)
-	for _, phase := range []func() (int, int, error){
-		func() (t, i int, err error) {
-			detectors, t, i, err = scanFDDetectors(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (int, int, error) { return scanFDEntityTypes(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanFDEventTypes(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanFDLabels(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanFDLists(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanFDOutcomes(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanFDVariables(ctx, client, acct, region, st, scanID) },
-		func() (t, i int, err error) {
-			models, t, i, err = scanFDModels(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (int, int, error) { return scanFDExternalModels(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanFDRules(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanFDDetectorVersions(ctx, client, acct, region, st, scanID, detectors)
-		},
-		func() (int, int, error) { return scanFDModelVersions(ctx, client, acct, region, st, scanID, models) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+	return scanFraudDetectorIn(ctx, client, acct, region, st, scanID)
 }
 
-// gateFraudDetector probes the cheapest list op once. On the
-// closed-to-new-customers shape (empty-message AccessDeniedException) the
-// account can't self-enable — short-circuit via markServiceNotEntitled so the
-// dispatcher renders `(not available to this account)` once instead of N
-// per-phase warnings.
-func gateFraudDetector(ctx context.Context, client fraudDetectorAPI) error {
-	mr := int32(1)
-	_, err := client.GetDetectors(ctx, &frauddetector.GetDetectorsInput{MaxResults: &mr})
-	if err != nil && isClosedToNewCustomers(err) {
-		return markServiceNotEntitled(err)
+// scanFraudDetectorIn runs every listing in turn, each per-detector or
+// per-model listing after the listing of its parents, which hands it the
+// parents it stored. A phase's error does not stop the later ones; a failed
+// write and ctx's end do (runHostPhases). The phases run one at a time, so
+// readEachKey's own bound is the bound on the reads in flight. An account
+// the service is closed to is reported not entitled when a listing says so
+// before any listing answered with an item or an error (fdGate).
+func scanFraudDetectorIn(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	var (
+		gate              fdGate
+		tags              = fdTags(client)
+		detectors, models []childParent
+		modelTypes        map[string]frauddetectortypes.ModelTypeEnum
+		storeWriteFailed  bool
+		phase             = func(op string, run func(p *phaseTotals) bool) hostPhase {
+			return hostPhase{op: op, run: func(p *phaseTotals) bool {
+				if gate.err != nil {
+					return false
+				}
+				return run(p)
+			}}
+		}
+	)
+	phases := []hostPhase{
+		phase("frauddetector:GetDetectors", func(p *phaseTotals) bool {
+			detectors, storeWriteFailed = scanFDDetectors(ctx, client, acct, region, st, scanID, &gate, tags, p)
+			return storeWriteFailed
+		}),
+		phase("frauddetector:GetEntityTypes", func(p *phaseTotals) bool {
+			return scanFDEntityTypes(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("frauddetector:GetEventTypes", func(p *phaseTotals) bool {
+			return scanFDEventTypes(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("frauddetector:GetLabels", func(p *phaseTotals) bool {
+			return scanFDLabels(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("frauddetector:GetListsMetadata", func(p *phaseTotals) bool {
+			return scanFDLists(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("frauddetector:GetOutcomes", func(p *phaseTotals) bool {
+			return scanFDOutcomes(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("frauddetector:GetVariables", func(p *phaseTotals) bool {
+			return scanFDVariables(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("frauddetector:GetModels", func(p *phaseTotals) bool {
+			models, modelTypes, storeWriteFailed = scanFDModels(ctx, client, acct, region, st, scanID, &gate, tags, p)
+			return storeWriteFailed
+		}),
+		phase("frauddetector:GetExternalModels", func(p *phaseTotals) bool {
+			return scanFDExternalModels(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("frauddetector:GetRules", func(p *phaseTotals) bool {
+			return scanFDRules(ctx, client, acct, region, st, scanID, detectors, tags, p)
+		}),
+		phase("frauddetector:DescribeDetector", func(p *phaseTotals) bool {
+			return scanFDDetectorVersions(ctx, client, acct, region, st, scanID, detectors, tags, p)
+		}),
+		phase("frauddetector:DescribeModelVersions", func(p *phaseTotals) bool {
+			return scanFDModelVersions(ctx, client, acct, region, st, scanID, models, modelTypes, tags, p)
+		}),
 	}
-	return nil
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "frauddetector", 0, phases)
+	if gate.err != nil {
+		return total, inserted, markServiceNotEntitled(gate.err)
+	}
+	return total, inserted, err
 }
 
-// scanFDDetectors also returns the detectors it listed, as the parents of
-// scanFDDetectorVersions.
-func scanFDDetectors(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	input := &frauddetector.GetDetectorsInput{}
-	var (
-		batch   []*store.Resource
-		parents []childParent
-	)
-	for {
-		out, err := client.GetDetectors(ctx, input)
-		if err != nil {
-			if isClosedToNewCustomers(err) {
-				return nil, 0, 0, nil
-			}
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "frauddetector:GetDetectors", acct.ID, region, err)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("frauddetector:GetDetectors: %w", err)
+// fdGate records the closed-to-new-customers answer (isClosedToNewCustomers)
+// of an account-wide listing's first page while every page read before it
+// answered empty and without an error (answered stays false): the scan then
+// reports the service not entitled and no later listing runs. Nothing was
+// stored, failed or warned about by then, since only a listed item or an
+// error leads to a row, an error or a warning. The same answer after an item
+// or an error, or on a later page, follows answers that show the service open
+// to the account, and is warned about as the denial it is coded as, beside
+// the earlier phases' results.
+type fdGate struct {
+	err      error
+	answered bool
+}
+
+// fdListPage reads one page of an account-wide listing with read, ending the
+// listing without an error on the answer gate records.
+func fdListPage[Item any](gate *fdGate, read func(ctx context.Context, token *string) ([]Item, *string, error)) func(ctx context.Context, token *string) ([]Item, *string, error) {
+	return func(ctx context.Context, token *string) ([]Item, *string, error) {
+		items, next, err := read(ctx, token)
+		if err != nil && token == nil && !gate.answered && isClosedToNewCustomers(err) {
+			gate.err = err
+			return nil, nil, nil
 		}
-		for _, d := range out.Detectors {
+		if err != nil || len(items) > 0 {
+			gate.answered = true
+		}
+		return items, next, err
+	}
+}
+
+// fdTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, the ARN its element carries (whose pattern the op's resourceARN
+// trait accepts in every aws* partition). The op pages its answer, 50 tags a
+// page (its maxResults range is exactly 50), so every page is read. Its
+// model lists AccessDeniedException as its only denial code.
+func fdTags(client fraudDetectorAPI) rowTagReader {
+	return rowTagReader{
+		op:       fdListTagsOp,
+		notFound: fdNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			tags, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]frauddetectortypes.Tag, *string, error) {
+				out, err := client.ListTagsForResource(ctx, &frauddetector.ListTagsForResourceInput{
+					ResourceARN: sdkaws.String(r.NativeID), NextToken: token, MaxResults: sdkaws.Int32(50),
+				})
+				if err != nil {
+					return nil, nil, err
+				}
+				return out.Tags, out.NextToken, nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			return kvTagsJSON(tags, func(t frauddetectortypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
+	}
+}
+
+// fdRow is the row of a listed item stored under its ARN, item verbatim as
+// the attributes.
+func fdRow(acct *account, region, scanID, typ, arn string, name *string, item any) *store.Resource {
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: arn,
+		Name: name, Region: &region, AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}
+}
+
+// fdNoARN is the reason and key of a listed item not stored because it lacks
+// the ARN its NativeID is; the model marks every element's Arn optional.
+func fdNoARN(what, id string) (*store.Resource, string, string) {
+	return nil, what + " have an empty Arn", cmp.Or(id, "(an element with no id)")
+}
+
+// fdNamed is a row's Name: the item's name, else its ARN.
+func fdNamed(name *string, arn string) *string {
+	return sdkaws.String(cmp.Or(sv(name), arn))
+}
+
+// scanFDDetectors stores the detectors with their tags and returns the stored
+// ones, the parents of the rule and detector version phases.
+func scanFDDetectors(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string, gate *fdGate, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentListTags(ctx, st, acct, region, "frauddetector:GetDetectors", "detectors", "DetectorId",
+		fdListPage(gate, func(ctx context.Context, token *string) ([]frauddetectortypes.Detector, *string, error) {
+			out, err := client.GetDetectors(ctx, &frauddetector.GetDetectorsInput{NextToken: token, MaxResults: sdkaws.Int32(10)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Detectors, out.NextToken, nil
+		}),
+		func(d frauddetectortypes.Detector) (*store.Resource, string, string) {
 			arn := sv(d.Arn)
 			if arn == "" {
-				continue
+				return fdNoARN("detectors", sv(d.DetectorId))
 			}
-			id := sv(d.DetectorId)
-			label := id
-			if id == "" {
-				label = arn
-			} else {
-				parents = append(parents, childParent{id: id, arn: arn})
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFraudDetectorDetector, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		input.NextToken = out.NextToken
-	}
-	total, inserted, err := upsertBatch(st, batch, "frauddetector detectors")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return parents, total, inserted, nil
+			return fdRow(acct, region, scanID, TypeFraudDetectorDetector, arn, fdNamed(d.DetectorId, arn), d), "", ""
+		},
+		func(d frauddetectortypes.Detector) string { return sv(d.DetectorId) },
+		tags, p)
 }
 
-func scanFDEntityTypes(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	input := &frauddetector.GetEntityTypesInput{}
-	var batch []*store.Resource
-	for {
-		out, err := client.GetEntityTypes(ctx, input)
-		if err != nil {
-			if isClosedToNewCustomers(err) {
-				return 0, 0, nil
+func scanFDEntityTypes(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string, gate *fdGate, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "frauddetector:GetEntityTypes",
+		fdListPage(gate, func(ctx context.Context, token *string) ([]frauddetectortypes.EntityType, *string, error) {
+			out, err := client.GetEntityTypes(ctx, &frauddetector.GetEntityTypesInput{NextToken: token, MaxResults: sdkaws.Int32(10)})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "frauddetector:GetEntityTypes", acct.ID, region, err)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("frauddetector:GetEntityTypes: %w", err)
-		}
-		for _, e := range out.EntityTypes {
+			return out.EntityTypes, out.NextToken, nil
+		}),
+		func(e frauddetectortypes.EntityType) (*store.Resource, string, string) {
 			arn := sv(e.Arn)
 			if arn == "" {
-				continue
+				return fdNoARN("entity types", sv(e.Name))
 			}
-			label := sv(e.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFraudDetectorEntityType, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		input.NextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "frauddetector entity-types")
+			return fdRow(acct, region, scanID, TypeFraudDetectorEntityType, arn, fdNamed(e.Name, arn), e), "", ""
+		},
+		tags, p)
 }
 
-func scanFDEventTypes(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	input := &frauddetector.GetEventTypesInput{}
-	var batch []*store.Resource
-	for {
-		out, err := client.GetEventTypes(ctx, input)
-		if err != nil {
-			if isClosedToNewCustomers(err) {
-				return 0, 0, nil
+func scanFDEventTypes(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string, gate *fdGate, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "frauddetector:GetEventTypes",
+		fdListPage(gate, func(ctx context.Context, token *string) ([]frauddetectortypes.EventType, *string, error) {
+			out, err := client.GetEventTypes(ctx, &frauddetector.GetEventTypesInput{NextToken: token, MaxResults: sdkaws.Int32(10)})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "frauddetector:GetEventTypes", acct.ID, region, err)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("frauddetector:GetEventTypes: %w", err)
-		}
-		for _, e := range out.EventTypes {
+			return out.EventTypes, out.NextToken, nil
+		}),
+		func(e frauddetectortypes.EventType) (*store.Resource, string, string) {
 			arn := sv(e.Arn)
 			if arn == "" {
-				continue
+				return fdNoARN("event types", sv(e.Name))
 			}
-			label := sv(e.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFraudDetectorEventType, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		input.NextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "frauddetector event-types")
+			return fdRow(acct, region, scanID, TypeFraudDetectorEventType, arn, fdNamed(e.Name, arn), e), "", ""
+		},
+		tags, p)
 }
 
-func scanFDLabels(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	input := &frauddetector.GetLabelsInput{}
-	var batch []*store.Resource
-	for {
-		out, err := client.GetLabels(ctx, input)
-		if err != nil {
-			if isClosedToNewCustomers(err) {
-				return 0, 0, nil
+func scanFDLabels(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string, gate *fdGate, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "frauddetector:GetLabels",
+		fdListPage(gate, func(ctx context.Context, token *string) ([]frauddetectortypes.Label, *string, error) {
+			out, err := client.GetLabels(ctx, &frauddetector.GetLabelsInput{NextToken: token, MaxResults: sdkaws.Int32(50)})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "frauddetector:GetLabels", acct.ID, region, err)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("frauddetector:GetLabels: %w", err)
-		}
-		for _, l := range out.Labels {
+			return out.Labels, out.NextToken, nil
+		}),
+		func(l frauddetectortypes.Label) (*store.Resource, string, string) {
 			arn := sv(l.Arn)
 			if arn == "" {
-				continue
+				return fdNoARN("labels", sv(l.Name))
 			}
-			label := sv(l.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFraudDetectorLabel, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		input.NextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "frauddetector labels")
+			return fdRow(acct, region, scanID, TypeFraudDetectorLabel, arn, fdNamed(l.Name, arn), l), "", ""
+		},
+		tags, p)
 }
 
-func scanFDLists(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	input := &frauddetector.GetListsMetadataInput{}
-	var batch []*store.Resource
-	for {
-		out, err := client.GetListsMetadata(ctx, input)
-		if err != nil {
-			if isClosedToNewCustomers(err) {
-				return 0, 0, nil
+// scanFDLists stores the allow/deny lists with their tags. The Service
+// Reference lists the list resource under ListTagsForResource and CreateList
+// takes tags.
+func scanFDLists(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string, gate *fdGate, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "frauddetector:GetListsMetadata",
+		fdListPage(gate, func(ctx context.Context, token *string) ([]frauddetectortypes.AllowDenyList, *string, error) {
+			out, err := client.GetListsMetadata(ctx, &frauddetector.GetListsMetadataInput{NextToken: token, MaxResults: sdkaws.Int32(50)})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "frauddetector:GetListsMetadata", acct.ID, region, err)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("frauddetector:GetListsMetadata: %w", err)
-		}
-		for _, l := range out.Lists {
+			return out.Lists, out.NextToken, nil
+		}),
+		func(l frauddetectortypes.AllowDenyList) (*store.Resource, string, string) {
 			arn := sv(l.Arn)
 			if arn == "" {
-				continue
+				return fdNoARN("lists", sv(l.Name))
 			}
-			label := sv(l.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFraudDetectorList, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		input.NextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "frauddetector lists")
+			return fdRow(acct, region, scanID, TypeFraudDetectorList, arn, fdNamed(l.Name, arn), l), "", ""
+		},
+		tags, p)
 }
 
-func scanFDOutcomes(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	input := &frauddetector.GetOutcomesInput{}
-	var batch []*store.Resource
-	for {
-		out, err := client.GetOutcomes(ctx, input)
-		if err != nil {
-			if isClosedToNewCustomers(err) {
-				return 0, 0, nil
+func scanFDOutcomes(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string, gate *fdGate, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "frauddetector:GetOutcomes",
+		fdListPage(gate, func(ctx context.Context, token *string) ([]frauddetectortypes.Outcome, *string, error) {
+			out, err := client.GetOutcomes(ctx, &frauddetector.GetOutcomesInput{NextToken: token, MaxResults: sdkaws.Int32(100)})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "frauddetector:GetOutcomes", acct.ID, region, err)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("frauddetector:GetOutcomes: %w", err)
-		}
-		for _, o := range out.Outcomes {
+			return out.Outcomes, out.NextToken, nil
+		}),
+		func(o frauddetectortypes.Outcome) (*store.Resource, string, string) {
 			arn := sv(o.Arn)
 			if arn == "" {
-				continue
+				return fdNoARN("outcomes", sv(o.Name))
 			}
-			label := sv(o.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFraudDetectorOutcome, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(o), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		input.NextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "frauddetector outcomes")
+			return fdRow(acct, region, scanID, TypeFraudDetectorOutcome, arn, fdNamed(o.Name, arn), o), "", ""
+		},
+		tags, p)
 }
 
-func scanFDVariables(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	input := &frauddetector.GetVariablesInput{}
-	var batch []*store.Resource
-	for {
-		out, err := client.GetVariables(ctx, input)
-		if err != nil {
-			if isClosedToNewCustomers(err) {
-				return 0, 0, nil
+func scanFDVariables(ctx context.Context, client fraudDetectorAPI, acct *account, region string, st *store.Store, scanID string, gate *fdGate, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "frauddetector:GetVariables",
+		fdListPage(gate, func(ctx context.Context, token *string) ([]frauddetectortypes.Variable, *string, error) {
+			out, err := client.GetVariables(ctx, &frauddetector.GetVariablesInput{NextToken: token, MaxResults: sdkaws.Int32(100)})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "frauddetector:GetVariables", acct.ID, region, err)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("frauddetector:GetVariables: %w", err)
-		}
-		for _, v := range out.Variables {
+			return out.Variables, out.NextToken, nil
+		}),
+		func(v frauddetectortypes.Variable) (*store.Resource, string, string) {
 			arn := sv(v.Arn)
 			if arn == "" {
-				continue
+				return fdNoARN("variables", sv(v.Name))
 			}
-			label := sv(v.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFraudDetectorVariable, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		input.NextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "frauddetector variables")
+			return fdRow(acct, region, scanID, TypeFraudDetectorVariable, arn, fdNamed(v.Name, arn), v), "", ""
+		},
+		tags, p)
 }
