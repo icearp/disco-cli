@@ -203,11 +203,17 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 		},
 		{
 			name: "sms-voice Default opt-out list", typ: TypeSMSVoiceOptOutList,
-			handlers: handlers{"DescribeOptOutLists": ret(&pinpointsmsvoicev2.DescribeOptOutListsOutput{OptOutLists: []smsvoicetypes.OptOutListInformation{{
-				OptOutListArn: sdkaws.String(arn("sms-voice", "opt-out-list/Default")), OptOutListName: sdkaws.String("Default"),
-			}}})},
+			handlers: handlers{
+				"DescribeOptOutLists": ret(&pinpointsmsvoicev2.DescribeOptOutListsOutput{OptOutLists: []smsvoicetypes.OptOutListInformation{{
+					OptOutListArn: sdkaws.String(arn("sms-voice", "opt-out-list/Default")), OptOutListName: sdkaws.String("Default"),
+				}}}),
+				"ListTagsForResource": ret(&pinpointsmsvoicev2.ListTagsForResourceOutput{}),
+			},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanSVOptOutLists(ctx, pinpointsmsvoicev2.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				client := pinpointsmsvoicev2.NewFromConfig(cfg)
+				var p phaseTotals
+				scanSVOptOutLists(ctx, client, acct, testRegion, st, testScanID, svTags(client), &p)
+				_, _, err := p.result(st, acct, testRegion)
 				return err
 			},
 		},

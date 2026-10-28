@@ -1,10 +1,13 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
+	"time"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/pinpointsmsvoicev2"
+	svtypes "github.com/aws/aws-sdk-go-v2/service/pinpointsmsvoicev2/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -39,375 +42,282 @@ type smsVoiceAPI interface {
 	DescribeVerifiedDestinationNumbers(context.Context, *pinpointsmsvoicev2.DescribeVerifiedDestinationNumbersInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeVerifiedDestinationNumbersOutput, error)
 	DescribeNotifyConfigurations(context.Context, *pinpointsmsvoicev2.DescribeNotifyConfigurationsInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeNotifyConfigurationsOutput, error)
 	DescribeRcsAgents(context.Context, *pinpointsmsvoicev2.DescribeRcsAgentsInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.DescribeRcsAgentsOutput, error)
+	ListTagsForResource(context.Context, *pinpointsmsvoicev2.ListTagsForResourceInput, ...func(*pinpointsmsvoicev2.Options)) (*pinpointsmsvoicev2.ListTagsForResourceOutput, error)
 }
 
-func scanSMSVoice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	client := pinpointsmsvoicev2.NewFromConfig(acct.cfg, func(o *pinpointsmsvoicev2.Options) { o.Region = region })
+// svPageCap is the maximum of the MaxResults range trait (1-100) of every
+// Describe op this scanner calls.
+const svPageCap int32 = 100
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanSVConfigurationSets(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSVOptOutLists(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSVPhoneNumbers(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSVPools(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSVProtectConfigurations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSVSenderIDs(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSVRegistrations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSVRegistrationAttachments(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanSVVerifiedDestinationNumbers(ctx, client, acct, region, st, scanID)
+// svTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, which is the ARN its listing returned. The Service Reference
+// lists every type this scanner stores as a resource of the op, and the op
+// returns every tag in one response (its output has no NextToken).
+func svTags(client smsVoiceAPI) rowTagReader {
+	return rowTagReader{
+		op:       "sms-voice:ListTagsForResource",
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &pinpointsmsvoicev2.ListTagsForResourceInput{ResourceArn: &r.NativeID})
+			if err != nil {
+				return nil, err
+			}
+			return kvTagsJSON(out.Tags, func(t svtypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
 		},
-		func() (int, int, error) { return scanSVNotifyConfigurations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSVRcsAgents(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
 	}
-	return total, inserted, nil
 }
 
-func scanSVConfigurationSets(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := pinpointsmsvoicev2.NewDescribeConfigurationSetsPaginator(client, &pinpointsmsvoicev2.DescribeConfigurationSetsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sms-voice:DescribeConfigurationSets", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("sms-voice:DescribeConfigurationSets: %w", perr)
+// svSharedTags is svTags for the types whose Describe op takes an Owner
+// filter (SELF or SHARED: "shared with your account"): opt-out lists, phone
+// numbers, pools, sender ids and RCS agents. The scanner sends no Owner, and
+// the op's doc does not say which owners an unfiltered listing returns, so a
+// listed row's ARN may carry the sharing account. This account may not be
+// able to read another account's resource, so for such a row neither a
+// denial nor a not-found answer means it is gone: the row is kept without
+// tags and without a warning. Any other error is returned. An own-account row
+// keeps the usual rules: not-found drops it, a denial warns.
+func svSharedTags(tags rowTagReader, acct *account) rowTagReader {
+	own := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		got, err := own(ctx, r)
+		if a, ok := parseARN(r.NativeID); ok && a.AccountID != acct.ID && (isAccessDenied(err) || isAPIErrorCode(err, tags.notFound...)) {
+			return nil, nil
 		}
-		for _, c := range out.ConfigurationSets {
+		return got, err
+	}
+	return tags
+}
+
+// scanSMSVoice discovers the End User Messaging SMS and Voice v2 resources,
+// each with its tags. Every listing runs as its own phase: a phase's error
+// does not stop the later ones; a failed write and ctx's end do
+// (runHostPhases). The phases run one at a time, so readEachKey's own bound
+// is the bound on the tag reads in flight.
+func scanSMSVoice(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	client := pinpointsmsvoicev2.NewFromConfig(acct.cfg, func(o *pinpointsmsvoicev2.Options) { o.Region = region })
+	tags := svTags(client)
+	shared := svSharedTags(tags, acct)
+	return runHostPhases(ctx, st, acct, region, "sms-voice", 0, []hostPhase{
+		{op: "sms-voice:DescribeConfigurationSets", run: func(p *phaseTotals) bool {
+			return scanSVConfigurationSets(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "sms-voice:DescribeOptOutLists", run: func(p *phaseTotals) bool {
+			return scanSVOptOutLists(ctx, client, acct, region, st, scanID, shared, p)
+		}},
+		{op: "sms-voice:DescribePhoneNumbers", run: func(p *phaseTotals) bool {
+			return scanSVPhoneNumbers(ctx, client, acct, region, st, scanID, shared, p)
+		}},
+		{op: "sms-voice:DescribePools", run: func(p *phaseTotals) bool {
+			return scanSVPools(ctx, client, acct, region, st, scanID, shared, p)
+		}},
+		{op: "sms-voice:DescribeProtectConfigurations", run: func(p *phaseTotals) bool {
+			return scanSVProtectConfigurations(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "sms-voice:DescribeSenderIds", run: func(p *phaseTotals) bool {
+			return scanSVSenderIDs(ctx, client, acct, region, st, scanID, shared, p)
+		}},
+		{op: "sms-voice:DescribeRegistrations", run: func(p *phaseTotals) bool {
+			return scanSVRegistrations(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "sms-voice:DescribeRegistrationAttachments", run: func(p *phaseTotals) bool {
+			return scanSVRegistrationAttachments(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "sms-voice:DescribeVerifiedDestinationNumbers", run: func(p *phaseTotals) bool {
+			return scanSVVerifiedDestinationNumbers(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "sms-voice:DescribeNotifyConfigurations", run: func(p *phaseTotals) bool {
+			return scanSVNotifyConfigurations(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "sms-voice:DescribeRcsAgents", run: func(p *phaseTotals) bool {
+			return scanSVRcsAgents(ctx, client, acct, region, st, scanID, shared, p)
+		}},
+	})
+}
+
+// svRow is the row of a listed element whose NativeID is its ARN. An element
+// without an ARN is not stored; what names the elements in the warning and
+// key the element.
+func svRow(acct *account, region, scanID, typ, what, arn, name, key string, item any) (*store.Resource, string, string) {
+	if arn == "" {
+		return nil, what + " have no ARN", cmp.Or(key, "(an element with no identifier)")
+	}
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: arn,
+		Name: &name, Region: &region, AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}, "", ""
+}
+
+// svRowWithState is svRow for the elements that carry a status and a
+// creation time; an empty status stores none.
+func svRowWithState(acct *account, region, scanID, typ, what, arn, name, key, status string, created *time.Time, item any) (*store.Resource, string, string) {
+	r, why, k := svRow(acct, region, scanID, typ, what, arn, name, key, item)
+	if r != nil {
+		r.Status, r.CreatedAt = nonEmptyPtr(status), tp(created)
+	}
+	return r, why, k
+}
+
+func scanSVConfigurationSets(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "sms-voice:DescribeConfigurationSets",
+		func(ctx context.Context, token *string) ([]svtypes.ConfigurationSetInformation, *string, error) {
+			out, err := client.DescribeConfigurationSets(ctx, &pinpointsmsvoicev2.DescribeConfigurationSetsInput{NextToken: token, MaxResults: sdkaws.Int32(svPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ConfigurationSets, out.NextToken, nil
+		},
+		func(c svtypes.ConfigurationSetInformation) (*store.Resource, string, string) {
 			arn := sv(c.ConfigurationSetArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(c.ConfigurationSetName)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSMSVoiceConfigurationSet, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "sms-voice configuration-sets")
+			return svRow(acct, region, scanID, TypeSMSVoiceConfigurationSet, "configuration sets", arn, cmp.Or(sv(c.ConfigurationSetName), arn), sv(c.ConfigurationSetName), c)
+		}, tags, p)
 }
 
-func scanSVOptOutLists(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := pinpointsmsvoicev2.NewDescribeOptOutListsPaginator(client, &pinpointsmsvoicev2.DescribeOptOutListsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sms-voice:DescribeOptOutLists", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSVOptOutLists(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "sms-voice:DescribeOptOutLists",
+		func(ctx context.Context, token *string) ([]svtypes.OptOutListInformation, *string, error) {
+			out, err := client.DescribeOptOutLists(ctx, &pinpointsmsvoicev2.DescribeOptOutListsInput{NextToken: token, MaxResults: sdkaws.Int32(svPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sms-voice:DescribeOptOutLists: %w", perr)
-		}
-		for _, l := range out.OptOutLists {
+			return out.OptOutLists, out.NextToken, nil
+		},
+		func(l svtypes.OptOutListInformation) (*store.Resource, string, string) {
 			arn := sv(l.OptOutListArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(l.OptOutListName)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSMSVoiceOptOutList, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "sms-voice opt-out-lists")
+			return svRow(acct, region, scanID, TypeSMSVoiceOptOutList, "opt-out lists", arn, cmp.Or(sv(l.OptOutListName), arn), sv(l.OptOutListName), l)
+		}, tags, p)
 }
 
-func scanSVPhoneNumbers(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := pinpointsmsvoicev2.NewDescribePhoneNumbersPaginator(client, &pinpointsmsvoicev2.DescribePhoneNumbersInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sms-voice:DescribePhoneNumbers", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSVPhoneNumbers(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "sms-voice:DescribePhoneNumbers",
+		func(ctx context.Context, token *string) ([]svtypes.PhoneNumberInformation, *string, error) {
+			out, err := client.DescribePhoneNumbers(ctx, &pinpointsmsvoicev2.DescribePhoneNumbersInput{NextToken: token, MaxResults: sdkaws.Int32(svPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sms-voice:DescribePhoneNumbers: %w", perr)
-		}
-		for _, p := range out.PhoneNumbers {
-			arn := sv(p.PhoneNumberArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(p.PhoneNumber)
-			if label == "" {
-				label = sv(p.PhoneNumberId)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSMSVoicePhoneNumber, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "sms-voice phone-numbers")
+			return out.PhoneNumbers, out.NextToken, nil
+		},
+		func(n svtypes.PhoneNumberInformation) (*store.Resource, string, string) {
+			return svRow(acct, region, scanID, TypeSMSVoicePhoneNumber, "phone numbers", sv(n.PhoneNumberArn), cmp.Or(sv(n.PhoneNumber), sv(n.PhoneNumberId)), sv(n.PhoneNumberId), n)
+		}, tags, p)
 }
 
-func scanSVPools(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := pinpointsmsvoicev2.NewDescribePoolsPaginator(client, &pinpointsmsvoicev2.DescribePoolsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sms-voice:DescribePools", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSVPools(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "sms-voice:DescribePools",
+		func(ctx context.Context, token *string) ([]svtypes.PoolInformation, *string, error) {
+			out, err := client.DescribePools(ctx, &pinpointsmsvoicev2.DescribePoolsInput{NextToken: token, MaxResults: sdkaws.Int32(svPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sms-voice:DescribePools: %w", perr)
-		}
-		for _, p := range out.Pools {
-			arn := sv(p.PoolArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(p.PoolId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSMSVoicePool, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "sms-voice pools")
+			return out.Pools, out.NextToken, nil
+		},
+		func(l svtypes.PoolInformation) (*store.Resource, string, string) {
+			arn := sv(l.PoolArn)
+			return svRow(acct, region, scanID, TypeSMSVoicePool, "pools", arn, cmp.Or(sv(l.PoolId), arn), sv(l.PoolId), l)
+		}, tags, p)
 }
 
-func scanSVProtectConfigurations(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := pinpointsmsvoicev2.NewDescribeProtectConfigurationsPaginator(client, &pinpointsmsvoicev2.DescribeProtectConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sms-voice:DescribeProtectConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSVProtectConfigurations(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "sms-voice:DescribeProtectConfigurations",
+		func(ctx context.Context, token *string) ([]svtypes.ProtectConfigurationInformation, *string, error) {
+			out, err := client.DescribeProtectConfigurations(ctx, &pinpointsmsvoicev2.DescribeProtectConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(svPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sms-voice:DescribeProtectConfigurations: %w", perr)
-		}
-		for _, p := range out.ProtectConfigurations {
-			arn := sv(p.ProtectConfigurationArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(p.ProtectConfigurationId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSMSVoiceProtectConfiguration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "sms-voice protect-configurations")
+			return out.ProtectConfigurations, out.NextToken, nil
+		},
+		func(c svtypes.ProtectConfigurationInformation) (*store.Resource, string, string) {
+			arn := sv(c.ProtectConfigurationArn)
+			return svRow(acct, region, scanID, TypeSMSVoiceProtectConfiguration, "protect configurations", arn, cmp.Or(sv(c.ProtectConfigurationId), arn), sv(c.ProtectConfigurationId), c)
+		}, tags, p)
 }
 
-func scanSVSenderIDs(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := pinpointsmsvoicev2.NewDescribeSenderIdsPaginator(client, &pinpointsmsvoicev2.DescribeSenderIdsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sms-voice:DescribeSenderIds", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSVSenderIDs(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "sms-voice:DescribeSenderIds",
+		func(ctx context.Context, token *string) ([]svtypes.SenderIdInformation, *string, error) {
+			out, err := client.DescribeSenderIds(ctx, &pinpointsmsvoicev2.DescribeSenderIdsInput{NextToken: token, MaxResults: sdkaws.Int32(svPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sms-voice:DescribeSenderIds: %w", perr)
-		}
-		for _, s := range out.SenderIds {
+			return out.SenderIds, out.NextToken, nil
+		},
+		func(s svtypes.SenderIdInformation) (*store.Resource, string, string) {
 			arn := sv(s.SenderIdArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(s.SenderId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSMSVoiceSenderID, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "sms-voice sender-ids")
+			return svRow(acct, region, scanID, TypeSMSVoiceSenderID, "sender ids", arn, cmp.Or(sv(s.SenderId), arn), sv(s.SenderId), s)
+		}, tags, p)
 }
 
-func scanSVRegistrations(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := pinpointsmsvoicev2.NewDescribeRegistrationsPaginator(client, &pinpointsmsvoicev2.DescribeRegistrationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sms-voice:DescribeRegistrations", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSVRegistrations(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "sms-voice:DescribeRegistrations",
+		func(ctx context.Context, token *string) ([]svtypes.RegistrationInformation, *string, error) {
+			out, err := client.DescribeRegistrations(ctx, &pinpointsmsvoicev2.DescribeRegistrationsInput{NextToken: token, MaxResults: sdkaws.Int32(svPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sms-voice:DescribeRegistrations: %w", perr)
-		}
-		for _, r := range out.Registrations {
+			return out.Registrations, out.NextToken, nil
+		},
+		func(r svtypes.RegistrationInformation) (*store.Resource, string, string) {
 			arn := sv(r.RegistrationArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(r.RegistrationId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSMSVoiceRegistration, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "sms-voice registrations")
+			return svRow(acct, region, scanID, TypeSMSVoiceRegistration, "registrations", arn, cmp.Or(sv(r.RegistrationId), arn), sv(r.RegistrationId), r)
+		}, tags, p)
 }
 
-func scanSVRegistrationAttachments(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := pinpointsmsvoicev2.NewDescribeRegistrationAttachmentsPaginator(client, &pinpointsmsvoicev2.DescribeRegistrationAttachmentsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sms-voice:DescribeRegistrationAttachments", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSVRegistrationAttachments(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "sms-voice:DescribeRegistrationAttachments",
+		func(ctx context.Context, token *string) ([]svtypes.RegistrationAttachmentsInformation, *string, error) {
+			out, err := client.DescribeRegistrationAttachments(ctx, &pinpointsmsvoicev2.DescribeRegistrationAttachmentsInput{NextToken: token, MaxResults: sdkaws.Int32(svPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sms-voice:DescribeRegistrationAttachments: %w", perr)
-		}
-		for _, a := range out.RegistrationAttachments {
+			return out.RegistrationAttachments, out.NextToken, nil
+		},
+		func(a svtypes.RegistrationAttachmentsInformation) (*store.Resource, string, string) {
 			arn := sv(a.RegistrationAttachmentArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(a.RegistrationAttachmentId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSMSVoiceRegistrationAttachment, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "sms-voice registration-attachments")
+			return svRow(acct, region, scanID, TypeSMSVoiceRegistrationAttachment, "registration attachments", arn, cmp.Or(sv(a.RegistrationAttachmentId), arn), sv(a.RegistrationAttachmentId), a)
+		}, tags, p)
 }
 
-func scanSVVerifiedDestinationNumbers(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := pinpointsmsvoicev2.NewDescribeVerifiedDestinationNumbersPaginator(client, &pinpointsmsvoicev2.DescribeVerifiedDestinationNumbersInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sms-voice:DescribeVerifiedDestinationNumbers", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSVVerifiedDestinationNumbers(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "sms-voice:DescribeVerifiedDestinationNumbers",
+		func(ctx context.Context, token *string) ([]svtypes.VerifiedDestinationNumberInformation, *string, error) {
+			out, err := client.DescribeVerifiedDestinationNumbers(ctx, &pinpointsmsvoicev2.DescribeVerifiedDestinationNumbersInput{NextToken: token, MaxResults: sdkaws.Int32(svPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sms-voice:DescribeVerifiedDestinationNumbers: %w", perr)
-		}
-		for _, n := range out.VerifiedDestinationNumbers {
-			arn := sv(n.VerifiedDestinationNumberArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(n.DestinationPhoneNumber)
-			if label == "" {
-				label = sv(n.VerifiedDestinationNumberId)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSMSVoiceVerifiedDestinationNumber, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "sms-voice verified-destination-numbers")
+			return out.VerifiedDestinationNumbers, out.NextToken, nil
+		},
+		func(n svtypes.VerifiedDestinationNumberInformation) (*store.Resource, string, string) {
+			return svRow(acct, region, scanID, TypeSMSVoiceVerifiedDestinationNumber, "verified destination numbers", sv(n.VerifiedDestinationNumberArn), cmp.Or(sv(n.DestinationPhoneNumber), sv(n.VerifiedDestinationNumberId)), sv(n.VerifiedDestinationNumberId), n)
+		}, tags, p)
 }
 
-func scanSVNotifyConfigurations(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := pinpointsmsvoicev2.NewDescribeNotifyConfigurationsPaginator(client, &pinpointsmsvoicev2.DescribeNotifyConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sms-voice:DescribeNotifyConfigurations", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSVNotifyConfigurations(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "sms-voice:DescribeNotifyConfigurations",
+		func(ctx context.Context, token *string) ([]svtypes.NotifyConfigurationInformation, *string, error) {
+			out, err := client.DescribeNotifyConfigurations(ctx, &pinpointsmsvoicev2.DescribeNotifyConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(svPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sms-voice:DescribeNotifyConfigurations: %w", perr)
-		}
-		for _, c := range out.NotifyConfigurations {
-			arn := sv(c.NotifyConfigurationArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(c.DisplayName)
-			if label == "" {
-				label = sv(c.NotifyConfigurationId)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSMSVoiceNotifyConfiguration, NativeID: arn,
-				Name: &label, Region: &region, Status: nonEmptyPtr(string(c.Status)), CreatedAt: tp(c.CreatedTimestamp),
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "sms-voice notify-configurations")
+			return out.NotifyConfigurations, out.NextToken, nil
+		},
+		func(c svtypes.NotifyConfigurationInformation) (*store.Resource, string, string) {
+			return svRowWithState(acct, region, scanID, TypeSMSVoiceNotifyConfiguration, "notify configurations", sv(c.NotifyConfigurationArn),
+				cmp.Or(sv(c.DisplayName), sv(c.NotifyConfigurationId)), sv(c.NotifyConfigurationId), string(c.Status), c.CreatedTimestamp, c)
+		}, tags, p)
 }
 
-func scanSVRcsAgents(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := pinpointsmsvoicev2.NewDescribeRcsAgentsPaginator(client, &pinpointsmsvoicev2.DescribeRcsAgentsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sms-voice:DescribeRcsAgents", acct.ID, region, perr)
-				return 0, 0, nil
+func scanSVRcsAgents(ctx context.Context, client smsVoiceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "sms-voice:DescribeRcsAgents",
+		func(ctx context.Context, token *string) ([]svtypes.RcsAgentInformation, *string, error) {
+			out, err := client.DescribeRcsAgents(ctx, &pinpointsmsvoicev2.DescribeRcsAgentsInput{NextToken: token, MaxResults: sdkaws.Int32(svPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("sms-voice:DescribeRcsAgents: %w", perr)
-		}
-		for _, a := range out.RcsAgents {
+			return out.RcsAgents, out.NextToken, nil
+		},
+		func(a svtypes.RcsAgentInformation) (*store.Resource, string, string) {
 			arn := sv(a.RcsAgentArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(a.RcsAgentId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSMSVoiceRcsAgent, NativeID: arn,
-				Name: &label, Region: &region, Status: nonEmptyPtr(string(a.Status)), CreatedAt: tp(a.CreatedTimestamp),
-				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "sms-voice rcs-agents")
+			return svRowWithState(acct, region, scanID, TypeSMSVoiceRcsAgent, "RCS agents", arn,
+				cmp.Or(sv(a.RcsAgentId), arn), sv(a.RcsAgentId), string(a.Status), a.CreatedTimestamp, a)
+		}, tags, p)
 }
