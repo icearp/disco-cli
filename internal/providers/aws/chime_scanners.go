@@ -308,17 +308,9 @@ func isChimeHostGap(err error) bool {
 }
 
 // chimePages is page with a first page answered by isChimeHostGap read as an
-// empty listing: the op is not served here. The same answer on a later page
-// follows a page the op did serve, so it is returned as the error it is
-// coded as (a denial is warned about) and the later pages are not read.
+// empty listing: the op is not served here (firstPageGapPages).
 func chimePages[Item any](page func(ctx context.Context, token *string) ([]Item, *string, error)) func(ctx context.Context, token *string) ([]Item, *string, error) {
-	return func(ctx context.Context, token *string) ([]Item, *string, error) {
-		items, next, err := page(ctx, token)
-		if token == nil && isChimeHostGap(err) {
-			return nil, nil, nil
-		}
-		return items, next, err
-	}
+	return firstPageGapPages(isChimeHostGap, page)
 }
 
 // chimeRow is the row of a listed element whose NativeID is its ARN. An

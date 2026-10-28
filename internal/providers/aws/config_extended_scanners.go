@@ -1,221 +1,112 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/configservice"
+	cfgtypes "github.com/aws/aws-sdk-go-v2/service/configservice/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanConfigExtended discovers the AWS Config types beyond recorders, delivery
-// channels and rules. Remediation configurations and exceptions fetch per
-// Config rule; the rest use account/region list calls.
-//
-// The retention-configuration, remediation-exception and connector phases run
-// last so an error in one cannot cost the earlier phases their rows.
-func scanConfigExtended(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var rules []childParent
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanConfigAggAuthz(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanConfigAggregators(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanConfigConformancePacks(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanConfigOrgConfigRules(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanConfigOrgConformancePacks(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			var lerr error
-			if rules, lerr = listConfigRules(ctx, client, acct, region, st); lerr != nil {
-				return 0, 0, lerr
+func scanConfigAggAuthz(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "config:DescribeAggregationAuthorizations",
+		func(ctx context.Context, token *string) ([]cfgtypes.AggregationAuthorization, *string, error) {
+			out, err := client.DescribeAggregationAuthorizations(ctx, &configservice.DescribeAggregationAuthorizationsInput{Limit: configPageCap, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return scanConfigRemediationConfigs(ctx, client, rules, acct, region, st, scanID)
+			return out.AggregationAuthorizations, out.NextToken, nil
 		},
-		func() (int, int, error) { return scanConfigStoredQueries(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanConfigRetentionConfigurations(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
-			return scanConfigRemediationExceptions(ctx, client, rules, acct, region, st, scanID)
-		},
-		// Connectors go last on an assumption not verified live: as the newest
-		// feature, they may be missing in some regions with an unmodelled
-		// error, and last is where such an error costs the least.
-		func() (int, int, error) { return scanConfigConnectors(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
-}
-
-func scanConfigAggAuthz(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := configservice.NewDescribeAggregationAuthorizationsPaginator(client, &configservice.DescribeAggregationAuthorizationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "config:DescribeAggregationAuthorizations", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("config:DescribeAggregationAuthorizations: %w", err)
-		}
-		for _, a := range out.AggregationAuthorizations {
-			arn := sv(a.AggregationAuthorizationArn)
-			if arn == "" {
-				continue
-			}
+		func(a cfgtypes.AggregationAuthorization) (*store.Resource, string, string) {
 			label := fmt.Sprintf("%s/%s", sv(a.AuthorizedAccountId), sv(a.AuthorizedAwsRegion))
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeConfigAggregationAuthorization, NativeID: arn,
-				Name: &label, Region: &region,
-				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "config aggregation-authorizations")
+			return configRow(acct, region, scanID, TypeConfigAggregationAuthorization, "aggregation authorizations have no AggregationAuthorizationArn", sv(a.AggregationAuthorizationArn), label, &label, a)
+		}, tags, p)
 }
 
-func scanConfigAggregators(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := configservice.NewDescribeConfigurationAggregatorsPaginator(client, &configservice.DescribeConfigurationAggregatorsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "config:DescribeConfigurationAggregators", acct.ID, region, err)
+func scanConfigAggregators(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "config:DescribeConfigurationAggregators",
+		func(ctx context.Context, token *string) ([]cfgtypes.ConfigurationAggregator, *string, error) {
+			out, err := client.DescribeConfigurationAggregators(ctx, &configservice.DescribeConfigurationAggregatorsInput{Limit: configPageCap, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("config:DescribeConfigurationAggregators: %w", err)
-		}
-		for _, a := range out.ConfigurationAggregators {
-			arn := sv(a.ConfigurationAggregatorArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeConfigConfigurationAggregator, NativeID: arn,
-				Name: a.ConfigurationAggregatorName, Region: &region,
-				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "config configuration-aggregators")
+			return out.ConfigurationAggregators, out.NextToken, nil
+		},
+		func(a cfgtypes.ConfigurationAggregator) (*store.Resource, string, string) {
+			return configRow(acct, region, scanID, TypeConfigConfigurationAggregator, "configuration aggregators have no ConfigurationAggregatorArn", sv(a.ConfigurationAggregatorArn), sv(a.ConfigurationAggregatorName), a.ConfigurationAggregatorName, a)
+		}, tags, p)
 }
 
-func scanConfigConformancePacks(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := configservice.NewDescribeConformancePacksPaginator(client, &configservice.DescribeConformancePacksInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "config:DescribeConformancePacks", acct.ID, region, err)
+// scanConfigConformancePacks stores the conformance packs with their tags; a
+// service-linked pack's ValidationException is configServiceLinked's.
+func scanConfigConformancePacks(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	linked := newConfigServiceLinked("conformance pack(s)")
+	failed := storeTokenListTags(ctx, st, acct, region, "config:DescribeConformancePacks",
+		func(ctx context.Context, token *string) ([]cfgtypes.ConformancePackDetail, *string, error) {
+			out, err := client.DescribeConformancePacks(ctx, &configservice.DescribeConformancePacksInput{Limit: configConformancePackPageCap, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("config:DescribeConformancePacks: %w", err)
-		}
-		for _, c := range out.ConformancePackDetails {
-			arn := sv(c.ConformancePackArn)
-			if arn == "" {
-				continue
+			return out.ConformancePackDetails, out.NextToken, nil
+		},
+		func(c cfgtypes.ConformancePackDetail) (*store.Resource, string, string) {
+			r, why, key := configRow(acct, region, scanID, TypeConfigConformancePack, "conformance packs have no ConformancePackArn", sv(c.ConformancePackArn), sv(c.ConformancePackName), c.ConformancePackName, c)
+			if r != nil {
+				linked.add(r, c.CreatedBy)
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeConfigConformancePack, NativeID: arn,
-				Name: c.ConformancePackName, Region: &region,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
+			return r, why, key
+		}, linked.reader(tags), p)
+	if !failed {
+		linked.warn(st, acct, region)
 	}
-	return upsertBatch(st, batch, "config conformance-packs")
+	return failed
 }
 
-func scanConfigOrgConfigRules(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := configservice.NewDescribeOrganizationConfigRulesPaginator(client, &configservice.DescribeOrganizationConfigRulesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isAPIErrorCode(err, "OrganizationAccessDeniedException") {
-				return 0, 0, skipIfAccessDenied(st, "config:DescribeOrganizationConfigRules", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("config:DescribeOrganizationConfigRules: %w", err)
-		}
-		for _, r := range out.OrganizationConfigRules {
-			arn := sv(r.OrganizationConfigRuleArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeConfigOrganizationConfigRule, NativeID: arn,
-				Name: r.OrganizationConfigRuleName, Region: &region,
-				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "config organization-config-rules")
+// isConfigNotOrgAdmin reports OrganizationAccessDeniedException, which the
+// model's doc says the organization rule and conformance pack APIs throw
+// when called from a member account: its expected state, not a denial an
+// IAM change could fix, so on a listing's first page it reads as empty
+// (firstPageGapPages). What a standalone account gets is not modeled, and
+// neither answer is verified live. An IAM denial (isAccessDenied) still
+// warns.
+func isConfigNotOrgAdmin(err error) bool {
+	return isAPIErrorCode(err, "OrganizationAccessDeniedException")
 }
 
-func scanConfigOrgConformancePacks(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := configservice.NewDescribeOrganizationConformancePacksPaginator(client, &configservice.DescribeOrganizationConformancePacksInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) || isAPIErrorCode(err, "OrganizationAccessDeniedException") {
-				return 0, 0, skipIfAccessDenied(st, "config:DescribeOrganizationConformancePacks", acct.ID, region, err)
+func scanConfigOrgConfigRules(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "config:DescribeOrganizationConfigRules",
+		firstPageGapPages(isConfigNotOrgAdmin, func(ctx context.Context, token *string) ([]cfgtypes.OrganizationConfigRule, *string, error) {
+			out, err := client.DescribeOrganizationConfigRules(ctx, &configservice.DescribeOrganizationConfigRulesInput{Limit: configPageCap, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("config:DescribeOrganizationConformancePacks: %w", err)
-		}
-		for _, p := range out.OrganizationConformancePacks {
-			arn := sv(p.OrganizationConformancePackArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeConfigOrganizationConformancePack, NativeID: arn,
-				Name: p.OrganizationConformancePackName, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "config organization-conformance-packs")
+			return out.OrganizationConfigRules, out.NextToken, nil
+		}),
+		func(r cfgtypes.OrganizationConfigRule) (*store.Resource, string, string) {
+			return configRow(acct, region, scanID, TypeConfigOrganizationConfigRule, "organization config rules have no OrganizationConfigRuleArn", sv(r.OrganizationConfigRuleArn), sv(r.OrganizationConfigRuleName), r.OrganizationConfigRuleName, r)
+		}, tags, p)
 }
 
-// listConfigRules lists the region's Config rules for the per-rule phases. It
-// re-lists rather than threading the list out of scanConfigAll. A rule without
-// an ARN is dropped, as scanConfigAll drops it: it has no stored row to
-// contain children.
-func listConfigRules(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store) ([]childParent, error) {
-	var rules []childParent
-	pager := configservice.NewDescribeConfigRulesPaginator(client, &configservice.DescribeConfigRulesInput{})
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, skipIfAccessDenied(st, "config:DescribeConfigRules(remediation)", acct.ID, region, err)
+func scanConfigOrgConformancePacks(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "config:DescribeOrganizationConformancePacks",
+		firstPageGapPages(isConfigNotOrgAdmin, func(ctx context.Context, token *string) ([]cfgtypes.OrganizationConformancePack, *string, error) {
+			out, err := client.DescribeOrganizationConformancePacks(ctx, &configservice.DescribeOrganizationConformancePacksInput{Limit: configPageCap, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, fmt.Errorf("config:DescribeConfigRules(remediation): %w", err)
-		}
-		for _, r := range out.ConfigRules {
-			name, arn := sv(r.ConfigRuleName), sv(r.ConfigRuleArn)
-			if name == "" || arn == "" {
-				continue
-			}
-			rules = append(rules, childParent{id: name, arn: arn})
-		}
-	}
-	return rules, nil
+			return out.OrganizationConformancePacks, out.NextToken, nil
+		}),
+		func(c cfgtypes.OrganizationConformancePack) (*store.Resource, string, string) {
+			return configRow(acct, region, scanID, TypeConfigOrganizationConformancePack, "organization conformance packs have no OrganizationConformancePackArn", sv(c.OrganizationConformancePackArn), sv(c.OrganizationConformancePackName), c.OrganizationConformancePackName, c)
+		}, tags, p)
 }
 
-// scanConfigRemediationConfigs fetches remediation configs per Config rule.
-// DescribeRemediationConfigurations takes ConfigRuleNames (max 25/call), no
-// paginator.
+// scanConfigRemediationConfigs fetches the remediation configs of the rules
+// the rule phase stored. DescribeRemediationConfigurations takes
+// ConfigRuleNames (max 25/call), no paginator.
 func scanConfigRemediationConfigs(ctx context.Context, client configserviceAPI, rules []childParent, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	if len(rules) == 0 {
 		return 0, 0, nil
@@ -263,31 +154,18 @@ func scanConfigRemediationConfigs(ctx context.Context, client configserviceAPI, 
 	return upsertBatch(st, batch, "config remediation-configurations")
 }
 
-func scanConfigStoredQueries(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := configservice.NewListStoredQueriesPaginator(client, &configservice.ListStoredQueriesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "config:ListStoredQueries", acct.ID, region, err)
+func scanConfigStoredQueries(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "config:ListStoredQueries",
+		func(ctx context.Context, token *string) ([]cfgtypes.StoredQueryMetadata, *string, error) {
+			out, err := client.ListStoredQueries(ctx, &configservice.ListStoredQueriesInput{MaxResults: sdkaws.Int32(configPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("config:ListStoredQueries: %w", err)
-		}
-		for _, q := range out.StoredQueryMetadata {
-			arn := sv(q.QueryArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeConfigStoredQuery, NativeID: arn,
-				Name: q.QueryName, Region: &region,
-				AttributesJSON: mustJSON(q), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "config stored-queries")
+			return out.StoredQueryMetadata, out.NextToken, nil
+		},
+		func(q cfgtypes.StoredQueryMetadata) (*store.Resource, string, string) {
+			return configRow(acct, region, scanID, TypeConfigStoredQuery, "stored queries have no QueryArn", sv(q.QueryArn), sv(q.QueryName), q.QueryName, q)
+		}, tags, p)
 }
 
 // scanConfigRetentionConfigurations stores the region's retention
@@ -320,49 +198,36 @@ func scanConfigRetentionConfigurations(ctx context.Context, client configservice
 	return upsertBatch(st, batch, "config retention-configurations")
 }
 
-// scanConfigConnectors lists connector ARNs, then gets each: only
-// GetConnector carries the connector configuration.
-func scanConfigConnectors(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var arns []string
-	pager := configservice.NewListConnectorsPaginator(client, &configservice.ListConnectorsInput{})
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "config:ListConnectors", acct.ID, region, err)
+// scanConfigConnectors stores the region's connectors, each as its
+// GetConnector body (only it carries the connector configuration) with its
+// tags. A connector GetConnector fails for, other than not found, is stored
+// as its ListConnectors element (readRowDetails).
+func scanConfigConnectors(ctx context.Context, client configserviceAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	const op = "config:ListConnectors"
+	d := &detailedRows{getOp: "config:GetConnector", what: "connector(s)", notFound: configNotFoundCodes, tags: tags}
+	total, inserted, err := storeTokenListWith(ctx, st, acct, region, op,
+		func(ctx context.Context, token *string) ([]cfgtypes.ConnectorSummary, *string, error) {
+			out, err := client.ListConnectors(ctx, &configservice.ListConnectorsInput{MaxResults: configPageCap, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("config:ListConnectors: %w", err)
-		}
-		for _, c := range out.ConnectorSummaries {
-			if arn := sv(c.Arn); arn != "" {
-				arns = append(arns, arn)
+			return out.ConnectorSummaries, out.NextToken, nil
+		},
+		func(c cfgtypes.ConnectorSummary) (*store.Resource, string, string) {
+			r, why, key := configRow(acct, region, scanID, TypeConfigConnector, "connectors have no Arn", sv(c.Arn), cmp.Or(sv(c.Name), sv(c.TenantIdentifier)), c.Name, c)
+			if r != nil {
+				r.CreatedAt = tp(c.CreatedTime)
 			}
-		}
-	}
-	// ResourceNotFoundException is GetConnector's modeled code for a connector
-	// deleted after ListConnectors returned it.
-	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
-	rows, err := describeFanOut(ctx, st, acct, region, "config:GetConnector", arns, isGone,
-		func(gctx context.Context, arn string) (*store.Resource, error) {
-			out, gerr := client.GetConnector(gctx, &configservice.GetConnectorInput{Arn: &arn})
-			if gerr != nil {
-				return nil, gerr
+			return r, why, key
+		},
+		d.before(ctx, st, acct, region, func(ctx context.Context, r *store.Resource) (any, error) {
+			out, err := client.GetConnector(ctx, &configservice.GetConnectorInput{Arn: sdkaws.String(r.NativeID)})
+			if err != nil || out.Connector == nil {
+				return nil, err
 			}
-			c := out.Connector
-			if c == nil || sv(c.Arn) == "" {
-				return nil, nil
-			}
-			return &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeConfigConnector, NativeID: *c.Arn,
-				Name: c.Name, Region: &region, CreatedAt: tp(c.CreatedTime),
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			}, nil
-		})
-	if err != nil {
-		return 0, 0, err
-	}
-	return upsertBatch(st, rows, "config connectors")
+			return out.Connector, nil
+		}))
+	return d.addPhase(p, op, total, inserted, err)
 }
 
 // scanConfigRemediationExceptions lists each rule's remediation exceptions
@@ -370,8 +235,8 @@ func scanConfigConnectors(ctx context.Context, client configserviceAPI, acct *ac
 // resource's type and id identify it.
 //
 // No error is skipped silently: the op models no not-found code, and what it
-// returns for a rule deleted after listConfigRules is not verified live, so
-// such an error fails this phase.
+// returns for a rule deleted after the rule phase listed it is not verified
+// live, so such an error fails this phase.
 func scanConfigRemediationExceptions(ctx context.Context, client configserviceAPI, rules []childParent, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	return childFanOut(ctx, st, acct, region, "config:DescribeRemediationExceptions", rules,
 		func(error) bool { return false },

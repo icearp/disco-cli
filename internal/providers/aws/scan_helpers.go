@@ -865,6 +865,21 @@ func (p phaseErrs) join(st *store.Store, acct *account, region string) error {
 	return errors.Join(errs...)
 }
 
+// firstPageGapPages is page with a first page whose error isGap reports read
+// as an empty listing: the op has nothing to serve this caller here. The same
+// answer on a later page follows a page the op did serve, so it is returned
+// as the error it is (a denial is warned about) and the later pages are not
+// read.
+func firstPageGapPages[Item any](isGap func(error) bool, page func(ctx context.Context, token *string) ([]Item, *string, error)) func(ctx context.Context, token *string) ([]Item, *string, error) {
+	return func(ctx context.Context, token *string) ([]Item, *string, error) {
+		items, next, err := page(ctx, token)
+		if token == nil && isGap(err) {
+			return nil, nil, nil
+		}
+		return items, next, err
+	}
+}
+
 // readTokenPages reads every page of one listing. On a failed page it returns the
 // items already read with the error, so the caller can keep them. A repeated
 // NextToken ends the listing with errRepeatedNextToken.

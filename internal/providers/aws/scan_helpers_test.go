@@ -1472,6 +1472,50 @@ func TestStoreEachParentTagsDeniedBy_CustomCodeIsDenial(t *testing.T) {
 	assertTagsMap(t, rowsByNativeID(t, st, TypeNetworkFirewallProxy)["p3-child"].TagsJSON, map[string]string{"k": "v"})
 }
 
+// firstPageGapPages reads a gap on the first page as an empty listing, keeps
+// page 1 and returns the gap as an error on a later page, and returns any
+// other error as is.
+func TestFirstPageGapPages(t *testing.T) {
+	gap := apiErr("GapException", "not here")
+	isGap := func(err error) bool { return isAPIErrorCode(err, "GapException") }
+	pages := func(failOn int, err error) func(context.Context, *string) ([]string, *string, error) {
+		return func(_ context.Context, token *string) ([]string, *string, error) {
+			n := 1
+			if token != nil {
+				n = 2
+			}
+			if n == failOn {
+				return nil, nil, err
+			}
+			if n == 1 {
+				return []string{"a"}, ptrStr("p2"), nil
+			}
+			return []string{"b"}, nil, nil
+		}
+	}
+	for _, c := range []struct {
+		name      string
+		failOn    int
+		err       error
+		wantItems []string
+		wantErr   error
+	}{
+		{"gap on first page", 1, gap, nil, nil},
+		{"gap on later page", 2, gap, []string{"a"}, gap},
+		{"other error on first page", 1, tagTestInvalid, nil, tagTestInvalid},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			items, err := readTokenPages(context.Background(), firstPageGapPages(isGap, pages(c.failOn, c.err)))
+			if !errors.Is(err, c.wantErr) || (c.wantErr == nil && err != nil) {
+				t.Fatalf("err = %v; want %v", err, c.wantErr)
+			}
+			if !slices.Equal(items, c.wantItems) {
+				t.Errorf("items = %v; want %v", items, c.wantItems)
+			}
+		})
+	}
+}
+
 // readRowDetailsDeniedBy keeps a row whose Get its predicate reports denied,
 // as its list element, and warns once after the write; readRowDetails returns
 // the same code as an error.

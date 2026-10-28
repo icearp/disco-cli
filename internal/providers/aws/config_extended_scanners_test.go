@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
-	"sort"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -90,19 +88,12 @@ func configSingleListCases() []singleListCase {
 				return scanConfigRetentionConfigurations(ctx, c, a, testRegion, st, testScanID)
 			},
 		},
-		{
-			name: "connectors", op: "ListConnectors", typ: TypeConfigConnector,
-			run: func(ctx context.Context, c configserviceAPI, a *account, st *store.Store) (int, int, error) {
-				return scanConfigConnectors(ctx, c, a, testRegion, st, testScanID)
-			},
-		},
 	}
 }
 
 func TestConfigListPhases_Errors(t *testing.T) {
 	empty := map[string]any{
 		"DescribeRetentionConfigurations": &configservice.DescribeRetentionConfigurationsOutput{},
-		"ListConnectors":                  &configservice.ListConnectorsOutput{},
 	}
 	for _, c := range configSingleListCases() {
 		t.Run(c.name+"/empty", func(t *testing.T) {
@@ -163,98 +154,22 @@ func configConnectorBody(arn string) (any, error) {
 	}}, nil
 }
 
-func TestScanConfigConnectors_GetsEveryListedConnector(t *testing.T) {
-	st := newTestStore(t)
-	var (
-		mu  sync.Mutex
-		got []string
-	)
-	client := configStubClient(configConnectorHandlers(func(arn string) (any, error) {
-		mu.Lock()
-		got = append(got, arn)
-		mu.Unlock()
-		if arn == configConnectorARN("gone") {
-			return nil, configNotFound
-		}
-		return configConnectorBody(arn)
-	}))
-	total, _, err := scanConfigConnectors(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
-	sort.Strings(got)
-	if want := []string{configConnectorARN("a"), configConnectorARN("b"), configConnectorARN("gone")}; !slices.Equal(got, want) {
-		t.Errorf("GetConnector calls = %v, want %v", got, want)
-	}
-	rows := rowsByNativeID(t, st, TypeConfigConnector)
-	if total != 2 || len(rows) != 2 {
-		t.Fatalf("total = %d, rows = %d, want 2 and 2 (deleted connector skipped)", total, len(rows))
-	}
-	r, ok := rows[configConnectorARN("a")]
-	if !ok {
-		t.Fatalf("no row for connector a; got %v", rows)
-	}
-	if sv(r.Name) != "conn-a" || sv(r.Region) != testRegion || r.Type != TypeConfigConnector || sv(r.CreatedAt) != "2026-01-02T03:04:05Z" {
-		t.Errorf("row = name %q region %q type %q created %q", sv(r.Name), sv(r.Region), r.Type, sv(r.CreatedAt))
-	}
-	var attrs cfgtypes.Connector
-	if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil || attrs.ConnectorConfiguration == nil || sv(attrs.ConnectorConfiguration.Azure.ClientIdentifier) != "client-1" {
-		t.Errorf("attrs = %s (%v), want the GetConnector body", r.AttributesJSON, err)
-	}
-}
-
-func TestScanConfigConnectors_GetErrors(t *testing.T) {
-	t.Run("denied warns once and keeps siblings", func(t *testing.T) {
-		st := newTestStore(t)
-		warns := countOpWarnings(st, "config:GetConnector")
-		client := configStubClient(configConnectorHandlers(func(arn string) (any, error) {
-			if arn == configConnectorARN("a") {
-				return configConnectorBody(arn)
-			}
-			return nil, configDenied
-		}))
-		total, _, err := scanConfigConnectors(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
-		if err != nil || total != 1 {
-			t.Fatalf("total = %d, err = %v, want 1 and nil", total, err)
-		}
-		if *warns != 1 {
-			t.Errorf("warnings = %d, want 1 for two denied connectors", *warns)
-		}
-	})
-	t.Run("other error propagates", func(t *testing.T) {
-		st := newTestStore(t)
-		client := configStubClient(configConnectorHandlers(func(string) (any, error) { return nil, configBadParam }))
-		if _, _, err := scanConfigConnectors(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(err, "InvalidParameterValueException") {
-			t.Fatalf("err = %v, want InvalidParameterValueException", err)
-		}
-	})
-}
-
-// 30 rules over two DescribeConfigRules pages must reach
-// DescribeRemediationConfigurations in batches of at most 25 names, every rule
-// once, and each returned configuration must be stored.
+// 30 rules must reach DescribeRemediationConfigurations in batches of at
+// most 25 names, every rule once, and each returned configuration must be
+// stored.
 func TestScanConfigRemediationConfigs_BatchesEveryListedRule(t *testing.T) {
 	st := newTestStore(t)
-	var names []string
-	var page1, page2 []cfgtypes.ConfigRule
+	var (
+		names []string
+		rules []childParent
+	)
 	for i := range 30 {
 		n := "rule-" + strconv.Itoa(i)
 		names = append(names, n)
-		r := cfgtypes.ConfigRule{ConfigRuleName: ptrStr(n), ConfigRuleArn: ptrStr(configTestRulePrefix + n)}
-		if i < 20 {
-			page1 = append(page1, r)
-		} else {
-			page2 = append(page2, r)
-		}
+		rules = append(rules, childParent{id: n, arn: configTestRulePrefix + n})
 	}
 	var batches [][]string
 	client := configStubClient(map[string]func(any) (any, error){
-		"DescribeConfigRules": func(in any) (any, error) {
-			if in.(*configservice.DescribeConfigRulesInput).NextToken == nil {
-				return &configservice.DescribeConfigRulesOutput{NextToken: ptrStr("p2"), ConfigRules: page1}, nil
-			}
-			return &configservice.DescribeConfigRulesOutput{ConfigRules: page2}, nil
-		},
 		"DescribeRemediationConfigurations": func(in any) (any, error) {
 			batch := in.(*configservice.DescribeRemediationConfigurationsInput).ConfigRuleNames
 			batches = append(batches, batch)
@@ -268,10 +183,6 @@ func TestScanConfigRemediationConfigs_BatchesEveryListedRule(t *testing.T) {
 		},
 	})
 	acct := newTestAccount(testAccountID)
-	rules, err := listConfigRules(context.Background(), client, acct, testRegion, st)
-	if err != nil {
-		t.Fatalf("listConfigRules: %v", err)
-	}
 	total, _, err := scanConfigRemediationConfigs(context.Background(), client, rules, acct, testRegion, st, testScanID)
 	if err != nil {
 		t.Fatalf("scan: %v", err)
@@ -296,7 +207,7 @@ func TestScanConfigRemediationConfigs_BatchesEveryListedRule(t *testing.T) {
 	}
 }
 
-// configRules returns rule parents and seeds their rows, as scanConfigAll
+// configRules returns rule parents and seeds their rows, as the rule phase
 // stores them before the exception phase records pairs under them.
 func configRules(t *testing.T, st *store.Store, names ...string) []childParent {
 	t.Helper()
@@ -407,7 +318,7 @@ func TestScanConfigRemediationExceptions_Errors(t *testing.T) {
 }
 
 // configServiceHandlers answers the whole Config scan: rules r1 and r2 (stored
-// by scanConfigAll), one stored query (the last pre-existing phase) and the new
+// by the rule phase), one stored query (the last pre-existing phase) and the new
 // phases' rows. Ops without a handler (aggregators, packs, ...) are denied.
 func configServiceHandlers() map[string]func(any) (any, error) {
 	h := configConnectorHandlers(func(arn string) (any, error) {
