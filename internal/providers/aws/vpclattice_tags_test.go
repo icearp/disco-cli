@@ -716,8 +716,10 @@ func TestScanVpcLattice_NXDOMAIN(t *testing.T) {
 
 // A denied call about a resource another account owns (shared in through
 // RAM) keeps what was read and is not warned about: no IAM change in this
-// account can grant it. A denial about the account's own resource, in any
-// partition, still warns once under its op.
+// account can grant it. A not-found tag read of such a resource likewise
+// keeps its row untagged and silent (an own row's is dropped:
+// TestScanVpcLattice_TagReadFailures). A denial about the account's own
+// resource, in any partition, still warns once under its op.
 func TestScanVpcLattice_SharedResourceDenialSilent(t *testing.T) {
 	ownNet := vltARN("servicenetwork/sn-t")
 	for _, c := range []struct {
@@ -728,6 +730,9 @@ func TestScanVpcLattice_SharedResourceDenialSilent(t *testing.T) {
 	}{
 		{"tags of a shared network", vlListTagsOp, func(c *vltCalls, _ map[string]func(any) (any, error)) {
 			c.errs[vltSharedNet()] = vlDenied
+		}, vltRow{TypeVpcLatticeServiceNetwork, vltSharedNet()}, 0},
+		{"tags of a shared network not found", vlListTagsOp, func(c *vltCalls, _ map[string]func(any) (any, error)) {
+			c.errs[vltSharedNet()] = vlGone
 		}, vltRow{TypeVpcLatticeServiceNetwork, vltSharedNet()}, 0},
 		{"tags of an own network", vlListTagsOp, func(c *vltCalls, _ map[string]func(any) (any, error)) {
 			c.errs[ownNet] = vlDenied
@@ -785,8 +790,12 @@ func TestScanVpcLattice_SharedResourceDenialSilent(t *testing.T) {
 			if *warns != c.warns || *opWarns != c.warns {
 				t.Errorf("warnings = %d (%s: %d); want %d", *warns, c.op, *opWarns, c.warns)
 			}
-			if _, ok := vltRowOf(t, st, c.kept.typ, c.kept.arn); !ok {
-				t.Errorf("%s %s missing", c.kept.typ, c.kept.arn)
+			r, ok := vltRowOf(t, st, c.kept.typ, c.kept.arn)
+			if !ok {
+				t.Fatalf("%s %s missing", c.kept.typ, c.kept.arn)
+			}
+			if c.op == vlListTagsOp && r.TagsJSON != nil {
+				t.Errorf("%s TagsJSON = %q; want nil after the failed tag read", c.kept.arn, *r.TagsJSON)
 			}
 		})
 	}

@@ -178,12 +178,6 @@ func omicsListPage[Item any](gate *omicsGate, read func(ctx context.Context, tok
 	}
 }
 
-// omicsOtherAccount reports whether arn names an account other than acctID.
-func omicsOtherAccount(arn, acctID string) bool {
-	a, ok := parseARN(arn)
-	return ok && a.AccountID != acctID
-}
-
 // omicsChildPages reads a per-parent listing's pages with read, which is
 // handed the parent's key and, for a parent another account owns, that
 // account (else ""). A not-found answer for such a parent ends its listing,
@@ -201,8 +195,7 @@ func omicsChildPages[Item any](acctID string, parents []childParent, gone *skipT
 	}
 	owners := make(map[string]owner, len(parents))
 	for _, p := range parents {
-		if omicsOtherAccount(p.arn, acctID) {
-			a, _ := parseARN(p.arn)
+		if a, ok := parseARN(p.arn); ok && a.AccountID != acctID {
 			owners[p.id] = owner{true, a.AccountID}
 		}
 	}
@@ -236,21 +229,18 @@ func omicsWarnOtherOwnerGone(st *store.Store, op string, acct *account, region s
 // ARNs; those rows are read too, and whether the op refuses a longer ARN is
 // not verified live: a refusal is a hard error with the row kept.
 //
-// A row another account owns is read too: a denial of it is expected, the
-// tags being its owner's, and keeps the row untagged without a warning. So
-// does a not-found answer for such a row: what the op answers for another
-// account's resource is not verified, and dropping the row would lose a
-// resource the listing just returned. Such rows can exist: the model shares
-// variant stores, annotation stores and workflows with other accounts
-// (ShareResourceType, CreateShare), and ListWorkflows lists AWS's Ready2Run
-// workflows; whether the listings return either is not verified.
+// A row another account owns is read too, under otherAccountGap. Such rows
+// can exist: the model shares variant stores, annotation stores and
+// workflows with other accounts (ShareResourceType, CreateShare), and
+// ListWorkflows lists AWS's Ready2Run workflows; whether the listings return
+// either is not verified.
 func omicsTags(client omicsAPI, acctID string) rowTagReader {
 	return rowTagReader{
 		op:       omicsListTagsOp,
 		notFound: omicsNotFound,
 		read: func(ctx context.Context, r *store.Resource) (*string, error) {
 			out, err := client.ListTagsForResource(ctx, &omics.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
-			if err != nil && omicsOtherAccount(r.NativeID, acctID) && (isAccessDenied(err) || isAPIErrorCode(err, omicsNotFound...)) {
+			if otherAccountGap(r.NativeID, acctID, err, omicsNotFound) {
 				return nil, nil
 			}
 			if err != nil {

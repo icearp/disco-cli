@@ -79,25 +79,13 @@ func vlRow(acct *account, region, scanID, typ, arn, name string, item any) *stor
 	}
 }
 
-// vlSharedDenial reports whether err denies a call about arn, a resource
-// whose ARN names an account other than acctID: one shared in through RAM
-// (a service network, service or resource configuration) or a child of one.
-// Such a denial is expected and not warned about: the resource is its
-// owner's, and no IAM change in this account can grant the call.
-func vlSharedDenial(arn, acctID string, err error) bool {
-	if err == nil || !isAccessDenied(err) {
-		return false
-	}
-	a, ok := parseARN(arn)
-	return ok && a.AccountID != acctID
-}
-
-// vlParentPages is page with a denial for another account's parent
-// (vlSharedDenial) ending its listing silently, keeping the pages read.
+// vlParentPages is page with a denial for another account's parent (one
+// shared in through RAM: otherAccountGap) ending its listing silently,
+// keeping the pages read.
 func vlParentPages[Item any](acctID string, page func(ctx context.Context, parent string, token *string) ([]Item, *string, error)) func(ctx context.Context, parent string, token *string) ([]Item, *string, error) {
 	return func(ctx context.Context, parent string, token *string) ([]Item, *string, error) {
 		items, next, err := page(ctx, parent, token)
-		if vlSharedDenial(parent, acctID, err) {
+		if otherAccountGap(parent, acctID, err, nil) {
 			return nil, nil, nil
 		}
 		return items, next, err
@@ -107,15 +95,15 @@ func vlParentPages[Item any](acctID string, page func(ctx context.Context, paren
 // vlTags reads a row's tags with ListTagsForResource, sent the row's
 // NativeID, the ARN its list element carries. The Service Reference lists
 // TagResource for every type read through it. The op answers with every tag
-// at once (no page token). A denied read of a resource another account owns
-// (vlSharedDenial) keeps the row without tags and is not warned about.
+// at once (no page token). A resource another account owns (one shared in
+// through RAM, or a child of one) is read under otherAccountGap.
 func vlTags(client vpcLatticeAPI, acctID string) rowTagReader {
 	return rowTagReader{
 		op:       vlListTagsOp,
 		notFound: vlNotFound,
 		read: func(ctx context.Context, r *store.Resource) (*string, error) {
 			out, err := client.ListTagsForResource(ctx, &vpclattice.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
-			if vlSharedDenial(r.NativeID, acctID, err) {
+			if otherAccountGap(r.NativeID, acctID, err, vlNotFound) {
 				return nil, nil
 			}
 			if err != nil {
@@ -234,7 +222,7 @@ func scanVLServices(ctx context.Context, client vpcLatticeAPI, acct *account, re
 		func(s types.ServiceSummary) string { return sv(s.Arn) },
 		d.before(ctx, st, acct, region, func(ctx context.Context, r *store.Resource) (any, error) {
 			out, err := client.GetService(ctx, &vpclattice.GetServiceInput{ServiceIdentifier: sdkaws.String(r.NativeID)})
-			if vlSharedDenial(r.NativeID, acct.ID, err) {
+			if otherAccountGap(r.NativeID, acct.ID, err, nil) {
 				// A nil body keeps the row as its list element (readRowDetails).
 				return nil, nil
 			}

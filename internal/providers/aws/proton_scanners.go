@@ -81,16 +81,12 @@ func protonTags(client protonAPI) rowTagReader {
 // (CreateEnvironmentAccountConnection's doc) and is listed from its management
 // account too (ListEnvironmentAccountConnections RequestedBy
 // MANAGEMENT_ACCOUNT), so a listed connection's ARN can carry another
-// account. This account may not be able to read another account's
-// connection, so for such a connection neither a denial nor a not-found
-// answer means the connection is gone: the row is kept without tags and
-// without a warning. Any other error is returned. An own-account connection
-// keeps the usual rules: not-found drops it, a denial warns.
+// account; such a connection is read under otherAccountGap.
 func protonConnectionTags(tags rowTagReader, acct *account) rowTagReader {
 	own := tags.read
 	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
 		got, err := own(ctx, r)
-		if a, ok := parseARN(r.NativeID); ok && a.AccountID != acct.ID && (isAccessDenied(err) || isAPIErrorCode(err, tags.notFound...)) {
+		if otherAccountGap(r.NativeID, acct.ID, err, tags.notFound) {
 			return nil, nil
 		}
 		return got, err

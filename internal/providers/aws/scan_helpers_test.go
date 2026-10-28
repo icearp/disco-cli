@@ -122,6 +122,45 @@ func assertOneSkipWarning(t *testing.T, warns []store.ScanWarning, op string, co
 	}
 }
 
+// A denial or a listed not-found about another account's ARN, or one naming
+// no account, is a gap; the same answer about an own or unparseable ARN, or
+// any other error, is not.
+func TestOtherAccountGap_Outcomes(t *testing.T) {
+	const other = "210987654321"
+	notFound := []string{"ResourceNotFoundException"}
+	denied := apiErr("AccessDeniedException", "denied")
+	gone := apiErr("ResourceNotFoundException", "gone")
+	own := arnFor("aws", "omics", testRegion, testAccountID, "workflow/1")
+	foreign := arnFor("aws", "omics", testRegion, other, "workflow/1")
+	for _, c := range []struct {
+		name     string
+		arn      string
+		err      error
+		notFound []string
+		want     bool
+	}{
+		{"own denied", own, denied, notFound, false},
+		{"own not found", own, gone, notFound, false},
+		{"other denied", foreign, denied, notFound, true},
+		{"other not found", foreign, gone, notFound, true},
+		{"other not found, op lists none", foreign, gone, nil, false},
+		{"other validation", foreign, apiErr("ValidationException", "bad"), notFound, false},
+		{"other no error", foreign, nil, notFound, false},
+		{"unparseable ARN denied", "not-an-arn", denied, notFound, false},
+		{"unknown partition denied", arnFor("aws-xx", "omics", "xx-west-1", other, "workflow/1"), denied, notFound, false},
+		{"empty account denied", arnFor("aws", "omics", testRegion, "", "workflow/1"), denied, notFound, true},
+		{"empty account not found", arnFor("aws", "omics", testRegion, "", "workflow/1"), gone, notFound, true},
+		{"own gov-partition not found", arnFor("aws-us-gov", "omics", "us-gov-west-1", testAccountID, "workflow/1"), gone, notFound, false},
+		{"other gov-partition not found", arnFor("aws-us-gov", "omics", "us-gov-west-1", other, "workflow/1"), gone, notFound, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			if got := otherAccountGap(c.arn, testAccountID, c.err, c.notFound); got != c.want {
+				t.Errorf("otherAccountGap(%q, %q, %v, %v) = %v; want %v", c.arn, testAccountID, c.err, c.notFound, got, c.want)
+			}
+		})
+	}
+}
+
 func TestChildFanOutSkipTransient_Outcomes(t *testing.T) {
 	for _, tc := range []struct {
 		name      string

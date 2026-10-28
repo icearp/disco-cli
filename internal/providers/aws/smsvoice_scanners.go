@@ -71,16 +71,13 @@ func svTags(client smsVoiceAPI) rowTagReader {
 // filter (SELF or SHARED: "shared with your account"): opt-out lists, phone
 // numbers, pools, sender ids and RCS agents. The scanner sends no Owner, and
 // the op's doc does not say which owners an unfiltered listing returns, so a
-// listed row's ARN may carry the sharing account. This account may not be
-// able to read another account's resource, so for such a row neither a
-// denial nor a not-found answer means it is gone: the row is kept without
-// tags and without a warning. Any other error is returned. An own-account row
-// keeps the usual rules: not-found drops it, a denial warns.
+// listed row's ARN may carry the sharing account; such a row is read under
+// otherAccountGap.
 func svSharedTags(tags rowTagReader, acct *account) rowTagReader {
 	own := tags.read
 	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
 		got, err := own(ctx, r)
-		if a, ok := parseARN(r.NativeID); ok && a.AccountID != acct.ID && (isAccessDenied(err) || isAPIErrorCode(err, tags.notFound...)) {
+		if otherAccountGap(r.NativeID, acct.ID, err, tags.notFound) {
 			return nil, nil
 		}
 		return got, err

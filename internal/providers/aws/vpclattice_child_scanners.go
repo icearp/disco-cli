@@ -40,7 +40,7 @@ func vlTargetNativeID(tgARN, targetID string, port *int32) string {
 // of each listed service network, one row per association, each under its
 // service network. Networks shared with the account are listed too: an
 // association there can name this account's endpoint, which the resolver can
-// link. Per network: a denial of another account's network (vlSharedDenial)
+// link. Per network: a denial of another account's network (otherAccountGap)
 // keeps the pages read and is not warned about; any other denial warns once
 // for the op, a
 // transient error after the SDK's retries is skipped with one warning for all
@@ -57,7 +57,7 @@ func scanVLServiceNetworkVpcEndpointAssocs(ctx context.Context, client vpcLattic
 			var rows []*store.Resource
 			for pager.HasMorePages() {
 				out, err := pager.NextPage(ctx)
-				if vlSharedDenial(p.arn, acct.ID, err) {
+				if otherAccountGap(p.arn, acct.ID, err, nil) {
 					return rows, nil
 				}
 				if err != nil {

@@ -638,10 +638,11 @@ func odbSingleNetwork(c *odbCalls, arn string) map[string]func(any) (any, error)
 	}
 }
 
-// A resource another account owns has its tags read; a denied read of it is
-// expected, so the row is kept without tags and without a warning. A denied
-// read of an own-account row in another partition still warns, and the read
-// is sent the listed ARN.
+// A resource another account owns has its tags read; a denied or not-found
+// read of it is expected, so the row is kept without tags and without a
+// warning. A denied read of an own-account row in another partition still
+// warns, an own-account not-found drops the row, and the read is sent the
+// listed ARN.
 func TestScanODB_TagReadOwnership(t *testing.T) {
 	foreign := "arn:aws:odb:" + testRegion + ":210987654321:odb-network/net"
 	for _, c := range []struct {
@@ -650,11 +651,14 @@ func TestScanODB_TagReadOwnership(t *testing.T) {
 		arn       string
 		err       error
 		tags      map[string]string
+		kept      bool
 		wantWarns int
 	}{
-		{"foreign tags read", newTestAccount(testAccountID), foreign, nil, map[string]string{"k": "v"}, 0},
-		{"foreign denied is silent", newTestAccount(testAccountID), foreign, odbDenied, nil, 0},
-		{"own gov-partition denied warns", partitionAccount("aws-us-gov"), "", odbDenied, nil, 1},
+		{"foreign tags read", newTestAccount(testAccountID), foreign, nil, map[string]string{"k": "v"}, true, 0},
+		{"foreign denied is silent", newTestAccount(testAccountID), foreign, odbDenied, nil, true, 0},
+		{"foreign not found is kept silent", newTestAccount(testAccountID), foreign, odbGone, nil, true, 0},
+		{"own not found is dropped", newTestAccount(testAccountID), "", odbGone, nil, false, 0},
+		{"own gov-partition denied warns", partitionAccount("aws-us-gov"), "", odbDenied, nil, true, 1},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			region := c.acct.Regions[0]
@@ -669,8 +673,8 @@ func TestScanODB_TagReadOwnership(t *testing.T) {
 				t.Fatalf("scan: %v", err)
 			}
 			r, ok := odbRowOf(t, st, TypeODBOdbNetwork, arn)
-			if !ok {
-				t.Fatal("row not stored; want it kept")
+			if ok != c.kept {
+				t.Fatalf("row stored = %v; want %v", ok, c.kept)
 			}
 			if c.tags != nil {
 				assertTagsMap(t, r.TagsJSON, c.tags)

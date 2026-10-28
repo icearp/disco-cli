@@ -103,9 +103,8 @@ func odbListPage[Item any](gate *odbGate, firstPageGap bool, read func(ctx conte
 
 // odbTags reads a row's tags with ListTagsForResource, sent the ARN arnOf
 // returns for the row; a row it returns "" for is not read. The op returns
-// every tag in one response. A denied read of a resource another account
-// owns (its ARN's account is not acct's) is expected and keeps the row
-// without tags and without a warning. The Service Reference gives
+// every tag in one response. A resource another account owns is read under
+// otherAccountGap. The Service Reference gives
 // cloud-exadata-infrastructure, exascale-db-storage-vault and odb-network
 // resource-policy and grant-share actions (Get/PutResourcePolicy,
 // Create/Update/DeleteGrantShare), the shape of resources AWS RAM shares, so
@@ -120,10 +119,10 @@ func odbTags(client odbAPI, acct *account, arnOf func(*store.Resource) string) r
 				return nil, nil
 			}
 			out, err := client.ListTagsForResource(ctx, &odb.ListTagsForResourceInput{ResourceArn: &arn})
+			if otherAccountGap(arn, acct.ID, err, odbNotFound) {
+				return nil, nil
+			}
 			if err != nil {
-				if a, ok := parseARN(arn); ok && a.AccountID != acct.ID && isAccessDenied(err) {
-					return nil, nil
-				}
 				return nil, err
 			}
 			return mapTagsJSON(out.Tags), nil

@@ -957,6 +957,28 @@ type rowTagReader struct {
 	read     func(context.Context, *store.Resource) (*string, error)
 }
 
+// otherAccountGap reports whether err, from a read about arn, is a denial
+// (isAccessDenied) or one of notFound while arn names an account other than
+// acctID: a resource shared in through RAM, or listed from another account
+// (an invitation, a management account's view). Such a resource is its
+// owner's, so this account may be refused it or told it does not exist while
+// it does; dropping the row or warning would lose or misreport a resource the
+// listing just returned, and no IAM change here can grant the read. A tag
+// reader returns no tags for it (the row is kept untagged and silent) and
+// passes its op's notFound; a listing that tolerates only a denial passes nil.
+// An ARN with an empty account field counts as another account's: a scanned
+// account always has an id, so such a row is not one of its own; a type whose
+// own ARNs carry no account (path-style or global ARNs) must not use this. An
+// ARN that does not parse counts as acctID's own. Only isAccessDenied counts as
+// a denial: a reader with rowTagReader.denied codes would still warn on them.
+func otherAccountGap(arn, acctID string, err error, notFound []string) bool {
+	if !isAccessDenied(err) && !isAPIErrorCode(err, notFound...) {
+		return false
+	}
+	a, ok := parseARN(arn)
+	return ok && a.AccountID != acctID
+}
+
 // rowTagRead is one row's read result; both nil for a resource without tags.
 type rowTagRead struct {
 	tags *string

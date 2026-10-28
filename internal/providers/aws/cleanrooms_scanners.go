@@ -157,14 +157,6 @@ func crRow(acct *account, region, scanID, typ, arn, name string, item any) *stor
 	}
 }
 
-// crOtherAccount reports whether arn names an account other than acctID: a
-// collaboration this account was invited to, or a resource of another
-// member.
-func crOtherAccount(arn, acctID string) bool {
-	a, ok := parseARN(arn)
-	return ok && a.AccountID != acctID
-}
-
 // crTags reads a row's tags with ListTagsForResource, sent the row's
 // NativeID, the ARN its list element carries; the op answers with every tag
 // at once (no page token). Its model lists ResourceNotFoundException and
@@ -174,18 +166,16 @@ func crOtherAccount(arn, acctID string) bool {
 // the Service Reference lists them under ListTagsForResource (the ID
 // mapping table and ID namespace association only under TagResource, though
 // their Create ops take tags); whether the op accepts their ARNs is not
-// verified live. A row another account owns is read too: a denial of it is
-// expected, the tags being its owner's, and keeps the row untagged without
-// a warning. So does a not-found answer for such a row: what the op answers
-// for another account's resource is not verified, and dropping the row
-// would lose a resource the listing just returned.
+// verified live. A row another account owns (a collaboration this account
+// was invited to, or another member's resource) is read too, under
+// otherAccountGap.
 func crTags(client cleanRoomsAPI, acctID string) rowTagReader {
 	return rowTagReader{
 		op:       crListTagsOp,
 		notFound: crNotFoundCodes,
 		read: func(ctx context.Context, r *store.Resource) (*string, error) {
 			out, err := client.ListTagsForResource(ctx, &cleanrooms.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
-			if err != nil && crOtherAccount(r.NativeID, acctID) && (isAccessDenied(err) || isAPIErrorCode(err, crNotFoundCodes...)) {
+			if otherAccountGap(r.NativeID, acctID, err, crNotFoundCodes) {
 				return nil, nil
 			}
 			if err != nil {
@@ -394,11 +384,11 @@ func scanCRPrivacyBudgetTemplates(ctx context.Context, client cleanRoomsAPI, acc
 // that LEFT or were REMOVED stay listed by the API and are kept with that
 // status. A collaboration the listing no longer finds is skipped; a denied
 // listing of another account's collaboration is expected and not warned
-// about (crOtherAccount).
+// about (otherAccountGap).
 func scanCRMembers(ctx context.Context, client cleanRoomsAPI, acct *account, region string, st *store.Store, scanID string, collaborations []childParent) (int, int, error) {
 	return storeChildrenEachParent(ctx, st, acct, region, "cleanrooms:ListMembers", crNotFoundCodes, collaborations,
 		func(collaboration string, err error) bool {
-			return isAccessDenied(err) && crOtherAccount(collaboration, acct.ID)
+			return otherAccountGap(collaboration, acct.ID, err, nil)
 		}, nil,
 		func(ctx context.Context, c childParent, token *string) ([]types.MemberSummary, *string, error) {
 			out, err := client.ListMembers(ctx, &cleanrooms.ListMembersInput{CollaborationIdentifier: &c.id, NextToken: token, MaxResults: sdkaws.Int32(crPageCap)})
