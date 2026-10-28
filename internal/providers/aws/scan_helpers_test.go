@@ -2449,3 +2449,27 @@ func TestStoreEachParentPagesTags_OneWarningPerOp(t *testing.T) {
 		t.Errorf("rows = %d; want 5: two pages of p0 and p1, p3's first", n)
 	}
 }
+
+func TestLastPage(t *testing.T) {
+	ptr := func(s string) *string { return &s }
+	for _, tc := range []struct {
+		name      string
+		sent, got *string
+		wantLast  bool
+		wantErr   error
+	}{
+		{"first page, more follow", nil, ptr("t1"), false, nil},
+		{"later page, more follow", ptr("t1"), ptr("t2"), false, nil},
+		{"absent token ends", ptr("t1"), nil, true, nil},
+		{"empty token ends", ptr("t1"), ptr(""), true, nil},
+		{"empty token on first page ends", nil, ptr(""), true, nil},
+		{"repeated token ends with error", ptr("t1"), ptr("t1"), true, errRepeatedNextToken},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			last, err := lastPage(tc.sent, tc.got)
+			if last != tc.wantLast || !errors.Is(err, tc.wantErr) {
+				t.Errorf("lastPage(%q, %q) = %v, %v; want %v, %v", sv(tc.sent), sv(tc.got), last, err, tc.wantLast, tc.wantErr)
+			}
+		})
+	}
+}

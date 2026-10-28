@@ -684,8 +684,7 @@ func TestScanAPIGatewayV2_StoresPortalRows(t *testing.T) {
 }
 
 // TestScanAPIGatewayV2_PortalErrorAfterCorePhases checks that a failing portal
-// op's error propagates while the core phases' rows are kept. The run order is
-// pinned by TestScanAPIGatewayV2_CoreErrorSkipsPortals.
+// op's error propagates while the other families' rows are kept.
 func TestScanAPIGatewayV2_PortalErrorAfterCorePhases(t *testing.T) {
 	boom := apiErr("ConflictException", "boom")
 	product := &apigatewayv2.ListPortalProductsOutput{Items: []apigwv2types.PortalProductSummary{testPortalProduct(testAccountID, "p1")}}
@@ -719,21 +718,27 @@ func TestScanAPIGatewayV2_PortalErrorAfterCorePhases(t *testing.T) {
 				t.Fatalf("err = %v; want the %s ConflictException", err, failing)
 			}
 			if n := countPortalRows(t, st, TypeAPIGatewayV2VpcLink); n != 1 {
-				t.Errorf("vpc link rows = %d; want 1 (core phases finish before portals)", n)
+				t.Errorf("vpc link rows = %d; want 1 (a portal error costs the other families nothing)", n)
 			}
 		})
 	}
 }
 
-// TestScanAPIGatewayV2_CoreErrorSkipsPortals pins that portals run only after
-// the core phases succeed: no portal op has a stubbed response, so calling
-// one fails the test.
-func TestScanAPIGatewayV2_CoreErrorSkipsPortals(t *testing.T) {
+// TestScanAPIGatewayV2_CoreErrorStillStoresPortals pins that the portals do
+// not depend on the other families: a failed VPC link listing still stores
+// the portal, and its error is returned.
+func TestScanAPIGatewayV2_CoreErrorStillStoresPortals(t *testing.T) {
 	st := newTestStore(t)
 	responses := apigwv2CoreResponses(apiErr("ConflictException", "boom"))
+	responses["ListPortals"] = []stubCall{{Output: &apigatewayv2.ListPortalsOutput{Items: []apigwv2types.PortalSummary{testPortal("a")}}}}
+	responses["ListPortalProducts"] = []stubCall{{Output: &apigatewayv2.ListPortalProductsOutput{}}}
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
-	if _, _, err := scanAPIGatewayV2(context.Background(), acct, testRegion, st, testScanID); !isAPIErrorCode(err, "ConflictException") {
+	total, _, err := scanAPIGatewayV2(context.Background(), acct, testRegion, st, testScanID)
+	if !isAPIErrorCode(err, "ConflictException") {
 		t.Fatalf("err = %v; want the GetVpcLinks ConflictException", err)
+	}
+	if n := countPortalRows(t, st, TypeAPIGatewayV2Portal); n != 1 || total != 1 {
+		t.Errorf("portal rows, total = %d, %d; want 1, 1", n, total)
 	}
 }
 
