@@ -2399,6 +2399,66 @@ func TestStoreEachParentPagesTags_FirstIsInParentOrder(t *testing.T) {
 	}
 }
 
+// skip sees each parent's error that is not a not-found code: an error it
+// reports is dropped, keeping the parent's pages written before it and its
+// sibling's rows, with no warning; one it does not report is returned. A
+// not-found parent never reaches skip.
+func TestStoreEachParentPagesTagsSkip_DropsWhatSkipReports(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		skipped bool
+	}{{"skipped", true}, {"not skipped", false}} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countWarnings(st)
+			pt := &pagesTest{stored1: map[string]bool{}, fail: map[string]error{"p0/2": tagTestInvalid, "p1/1": tagTestNotFound}}
+			var (
+				mu   sync.Mutex
+				seen []string
+			)
+			var p phaseTotals
+			acct := newTestAccount(testAccountID)
+			stop := storeEachParentPagesTagsSkip(context.Background(), st, acct, testRegion, tagTestListOp, []string{"ResourceNotFoundException"}, pagesTestParents(3), pt.page(st),
+				func(_ string, id string) (*store.Resource, string, string) { return tagTestRow(id) },
+				func(parent string, err error) bool {
+					mu.Lock()
+					defer mu.Unlock()
+					code := "other"
+					if isAPIErrorCode(err, "ValidationException") {
+						code = "ValidationException"
+					}
+					seen = append(seen, parent+":"+code)
+					return c.skipped
+				}, pagesTestTags(nil), &p)
+			_, _, err := p.result(st, acct, testRegion)
+			if stop {
+				t.Fatal("stop = true; want false")
+			}
+			if c.skipped && err != nil {
+				t.Errorf("err = %v; want nil", err)
+			}
+			if !c.skipped && !isAPIErrorCode(err, "ValidationException") {
+				t.Errorf("err = %v; want p0's ValidationException", err)
+			}
+			if !slices.Equal(seen, []string{"p0:ValidationException"}) {
+				t.Errorf("skip saw %v; want only p0's ValidationException", seen)
+			}
+			rows := rowsByNativeIDNoFail(st)
+			for _, id := range []string{"p0-1", "p2-1", "p2-2"} {
+				if r := rows[id]; r == nil || r.TagsJSON == nil {
+					t.Errorf("%s not stored with tags", id)
+				}
+			}
+			if rows["p0-2"] != nil || len(rows) != 3 {
+				t.Errorf("rows = %d (p0-2 %v); want 3, p0-2 not stored", len(rows), rows["p0-2"] != nil)
+			}
+			if *warns != 0 {
+				t.Errorf("warnings = %d; want 0", *warns)
+			}
+		})
+	}
+}
+
 // skippedLeast names the smallest key first, whatever the order of the
 // calls.
 func TestSkipTally_SkippedLeast(t *testing.T) {

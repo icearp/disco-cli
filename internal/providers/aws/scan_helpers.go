@@ -2022,6 +2022,23 @@ func storeEachParentPagesTags[Item any](
 	row func(parent string, it Item) (*store.Resource, string, string),
 	tags rowTagReader, p *phaseTotals,
 ) (storeWriteFailed bool) {
+	return storeEachParentPagesTagsSkip(ctx, st, acct, region, op, notFound, parents, page, row, nil, tags, p)
+}
+
+// storeEachParentPagesTagsSkip is storeEachParentPagesTags, except that skip
+// (nil for none) sees each parent's error that is not a not-found code,
+// before the denial check: when it reports true the error is dropped,
+// keeping the pages written before it, and skip's caller warns about it
+// once the phase's writes succeeded. skip runs on the parents' concurrent
+// reads, so it must be safe for concurrent use, and a tally it keeps must
+// not depend on which parent finished first (skipTally.skippedLeast).
+func storeEachParentPagesTagsSkip[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound []string, parents []childParent,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (*store.Resource, string, string),
+	skip func(parent string, err error) bool,
+	tags rowTagReader, p *phaseTotals,
+) (storeWriteFailed bool) {
 	var (
 		mu              sync.Mutex // guards the counts and werr
 		total, inserted int
@@ -2036,7 +2053,7 @@ func storeEachParentPagesTags[Item any](
 	}
 	tags = tags.boundedBy(make(chan struct{}, fanoutMed))
 	results, stopped := readEachKey(phaseCtx, parents, func(ctx context.Context, parent childParent) *parentPages {
-		r := &parentPages{out: parentOutcomes{op: op, notFound: notFound}}
+		r := &parentPages{out: parentOutcomes{op: op, notFound: notFound, skip: skip}}
 		readAny := false
 		err := eachTokenPage(ctx, func(ctx context.Context, token *string) ([]Item, *string, error) {
 			// Checked before every page, a parent's first included.
