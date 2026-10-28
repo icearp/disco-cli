@@ -74,15 +74,7 @@ func svTags(client smsVoiceAPI) rowTagReader {
 // listed row's ARN may carry the sharing account; such a row is read under
 // otherAccountGap.
 func svSharedTags(tags rowTagReader, acct *account) rowTagReader {
-	own := tags.read
-	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
-		got, err := own(ctx, r)
-		if otherAccountGap(r.NativeID, acct.ID, err, tags.notFound) {
-			return nil, nil
-		}
-		return got, err
-	}
-	return tags
+	return tags.untaggedIfOtherAccount(acct.ID)
 }
 
 // scanSMSVoice discovers the End User Messaging SMS and Voice v2 resources,

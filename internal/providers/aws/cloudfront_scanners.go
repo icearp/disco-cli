@@ -1,20 +1,18 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/cloudfront"
 	cftypes "github.com/aws/aws-sdk-go-v2/service/cloudfront/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
 )
 
 // cloudfrontAPI is the narrow set of CloudFront operations called by the
-// scanCloudFront sub-phases. CloudFront has the broadest fan-out in the
-// codebase (~21 resource types from one service); the iface mirrors that.
+// scanCloudFront families.
 type cloudfrontAPI interface {
 	ListDistributions(context.Context, *cloudfront.ListDistributionsInput, ...func(*cloudfront.Options)) (*cloudfront.ListDistributionsOutput, error)
 	ListStreamingDistributions(context.Context, *cloudfront.ListStreamingDistributionsInput, ...func(*cloudfront.Options)) (*cloudfront.ListStreamingDistributionsOutput, error)
@@ -73,82 +71,96 @@ func init() {
 	})
 }
 
-// scanCloudFront is the orchestrator for all CloudFront resource types.
-// All CloudFront resources are global; the client is created against the
-// partition's home region (homeRegion).
-func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID string) (total, inserted int, err error) {
-	region, err := acct.homeRegion("cloudfront")
+// scanCloudFront discovers every CloudFront resource type. CloudFront is
+// account-wide: the client calls the partition's home region (homeRegion),
+// and rows and warnings carry the region "global". The listings run as
+// concurrent families (runFamilies): distributions then their monitoring
+// subscriptions, and each other listing on its own. A family's error, a
+// failed write included, does not stop the others; ctx's end is reported
+// once. The types ListTagsForResource accepts have their tags read (cfTags),
+// fanoutMed reads at a time across every family, and every tag denial of the
+// scan is one warning.
+func scanCloudFront(ctx context.Context, acct *account, st *store.Store, scanID string) (int, int, error) {
+	home, err := acct.homeRegion("cloudfront")
 	if err != nil {
 		return 0, 0, err
 	}
-	client := cloudfront.NewFromConfig(acct.cfg, func(o *cloudfront.Options) { o.Region = region })
-	return runScanners(
-		ctx,
-		func(ctx context.Context) (int, int, error) {
-			return scanCloudFrontDistributions(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanCloudFrontMonitoringSubscriptions(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+	client := cloudfront.NewFromConfig(acct.cfg, func(o *cloudfront.Options) { o.Region = home })
+	region := sv(regionGlobal)
+	tags := cfTags(client).boundedBy(make(chan struct{}, fanoutMed)).sharingDenials()
+	tagged := func(run func(p *phaseTotals)) func(context.Context) (int, int, error) {
+		return func(context.Context) (int, int, error) {
+			var p phaseTotals
+			run(&p)
+			return opErrsResult(&p)
+		}
+	}
+	untagged := func(op string, run func() (int, int, error)) func(context.Context) (int, int, error) {
+		return tagged(func(p *phaseTotals) {
+			total, inserted, err := run()
+			p.addPhase(op, total, inserted, err)
+		})
+	}
+	p := runFamilies(ctx, "cloudfront",
+		tagged(func(p *phaseTotals) {
+			dists := scanCloudFrontDistributions(ctx, client, acct, region, st, scanID, tags, p)
+			total, inserted, err := scanCloudFrontMonitoringSubscriptions(ctx, client, acct, region, st, scanID, dists)
+			p.addPhase(cfMonitoringOp, total, inserted, err)
+		}),
+		untagged("cloudfront:ListStreamingDistributions", func() (int, int, error) {
 			return scanCloudFrontStreamingDistributions(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanCloudFrontDistributionTenants(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		tagged(func(p *phaseTotals) {
+			scanCloudFrontDistributionTenants(ctx, client, acct, region, st, scanID, tags, p)
+		}),
+		untagged("cloudfront:ListCachePolicies", func() (int, int, error) {
 			return scanCloudFrontCachePolicies(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		untagged("cloudfront:ListOriginRequestPolicies", func() (int, int, error) {
 			return scanCloudFrontOriginRequestPolicies(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		untagged("cloudfront:ListResponseHeadersPolicies", func() (int, int, error) {
 			return scanCloudFrontResponseHeadersPolicies(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		untagged("cloudfront:ListContinuousDeploymentPolicies", func() (int, int, error) {
 			return scanCloudFrontContinuousDeploymentPolicies(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) { return scanCloudFrontOAIs(ctx, acct, client, st, scanID) },
-		func(ctx context.Context) (int, int, error) {
+		}),
+		untagged("cloudfront:ListCloudFrontOriginAccessIdentities", func() (int, int, error) {
+			return scanCloudFrontOAIs(ctx, acct, client, st, scanID)
+		}),
+		untagged("cloudfront:ListOriginAccessControls", func() (int, int, error) {
 			return scanCloudFrontOriginAccessControls(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanCloudFrontFunctions(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanCloudFrontConnectionFunctions(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		tagged(func(p *phaseTotals) { scanCloudFrontFunctions(ctx, client, acct, region, st, scanID, tags, p) }),
+		tagged(func(p *phaseTotals) {
+			scanCloudFrontConnectionFunctions(ctx, client, acct, region, st, scanID, tags, p)
+		}),
+		untagged("cloudfront:ListKeyGroups", func() (int, int, error) {
 			return scanCloudFrontKeyGroups(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanCloudFrontKeyValueStores(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		tagged(func(p *phaseTotals) { scanCloudFrontKeyValueStores(ctx, client, acct, region, st, scanID, tags, p) }),
+		untagged("cloudfront:ListPublicKeys", func() (int, int, error) {
 			return scanCloudFrontPublicKeys(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		untagged("cloudfront:ListRealtimeLogConfigs", func() (int, int, error) {
 			return scanCloudFrontRealtimeLogConfigs(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanCloudFrontTrustStores(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanCloudFrontConnectionGroups(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanCloudFrontAnycastIPLists(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
-			return scanCloudFrontVpcOrigins(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		tagged(func(p *phaseTotals) { scanCloudFrontTrustStores(ctx, client, acct, region, st, scanID, tags, p) }),
+		tagged(func(p *phaseTotals) { scanCloudFrontConnectionGroups(ctx, client, acct, region, st, scanID, tags, p) }),
+		tagged(func(p *phaseTotals) { scanCloudFrontAnycastIPLists(ctx, client, acct, region, st, scanID, tags, p) }),
+		tagged(func(p *phaseTotals) { scanCloudFrontVpcOrigins(ctx, client, acct, region, st, scanID, tags, p) }),
+		untagged("cloudfront:ListFieldLevelEncryptionConfigs", func() (int, int, error) {
 			return scanCloudFrontFieldLevelEncryptionConfigs(ctx, acct, client, st, scanID)
-		},
-		func(ctx context.Context) (int, int, error) {
+		}),
+		untagged("cloudfront:ListFieldLevelEncryptionProfiles", func() (int, int, error) {
 			return scanCloudFrontFieldLevelEncryptionProfiles(ctx, acct, client, st, scanID)
-		},
+		}),
 	)
+	tags.warnDenials(st, acct, region)
+	p.foldStop(ctx, "cloudfront", 0)
+	// Every family calls the one CloudFront host, so once any stored rows an
+	// NXDOMAIN is a failure of this scan, not a missing endpoint.
+	return p.resultLateNXDOMAIN(st, acct, region)
 }
 
 // cfMarkerScan abstracts Marker-based pagination for CloudFront list APIs that
@@ -183,155 +195,48 @@ func cfMarkerScan[Output any](
 	}
 }
 
-// --- Distributions ---
+// cfMonitoringOp reads one distribution's monitoring subscription.
+const cfMonitoringOp = "cloudfront:GetMonitoringSubscription"
 
-// scanCloudFrontDistributions discovers CloudFront distributions.
-// ListDistributions returns DistributionSummary items with full configuration —
-// no separate GetDistribution call is needed. Tags are fetched concurrently.
-func scanCloudFrontDistributions(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cloudfront.NewListDistributionsPaginator(client, &cloudfront.ListDistributionsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListDistributions", acct.ID, "global", err)
-			}
-			return total, inserted, fmt.Errorf("cloudfront:ListDistributions: %w", err)
-		}
-		if page.DistributionList == nil {
-			continue
-		}
+// cfMonitoringSkip holds the codes GetMonitoringSubscription models that skip
+// a distribution silently: NoSuchMonitoringSubscription is a distribution
+// without one, the usual state; NoSuchDistribution is one deleted since it
+// was listed; UnsupportedOperation is one whose kind or partition offers no
+// real-time metrics (which kinds, unverified live).
+var cfMonitoringSkip = []string{"NoSuchMonitoringSubscription", "NoSuchDistribution", "UnsupportedOperation"}
 
-		// Fetch tags for all distributions on this page concurrently.
-		var mu sync.Mutex
-		tagsByARN := make(map[string]*string, len(page.DistributionList.Items))
-		g, gctx := errgroup.WithContext(ctx)
-		for _, d := range page.DistributionList.Items {
-			arn := sv(d.ARN)
-			g.Go(func() error {
-				out, err := client.ListTagsForResource(gctx, &cloudfront.ListTagsForResourceInput{Resource: &arn})
-				if err != nil || out.Tags == nil {
-					return nil // tags are best-effort
-				}
-				if t := awsTagsJSON(out.Tags.Items); t != nil {
-					mu.Lock()
-					tagsByARN[arn] = t
-					mu.Unlock()
-				}
-				return nil
-			})
-		}
-		if err := g.Wait(); err != nil {
-			return total, inserted, err
-		}
-
-		var batch []*store.Resource
-		for _, d := range page.DistributionList.Items {
-			arn := sv(d.ARN)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Region:         regionGlobal,
-				Type:           TypeCloudFrontDistribution,
-				NativeID:       arn,
-				Name:           d.Id,
-				CreatedAt:      tp(d.LastModifiedTime),
-				Status:         d.Status,
-				AttributesJSON: mustJSON(d),
-				TagsJSON:       tagsByARN[arn],
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+// scanCloudFrontMonitoringSubscriptions stores the real-time metrics
+// subscription of each distribution the distribution phase stored this scan
+// (dists), fanoutMed at a time (storeTokenEachParent); there is no list op. A
+// distribution in cfMonitoringSkip is skipped silently; a denial warns once
+// for the op; any other error is returned after the others' rows are stored.
+// A subscription without a RealtimeMetricsSubscriptionConfig is not stored.
+// The row's NativeID is the distribution's ARN plus a suffix, which keeps it
+// apart from the distribution while the parent stays derivable; dists holds
+// only distributions stored with an ARN and an id.
+func scanCloudFrontMonitoringSubscriptions(ctx context.Context, client cloudfrontAPI, acct *account, region string, st *store.Store, scanID string, dists []childParent) (int, int, error) {
+	arns := make(map[string]string, len(dists))
+	for _, d := range dists {
+		arns[d.id] = d.arn
+	}
+	return storeTokenEachParent(ctx, st, acct, region, cfMonitoringOp, cfMonitoringSkip, childParentIDs(dists),
+		func(ctx context.Context, id string, _ *string) ([]cftypes.MonitoringSubscription, *string, error) {
+			out, err := client.GetMonitoringSubscription(ctx, &cloudfront.GetMonitoringSubscriptionInput{DistributionId: &id})
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert CloudFront distributions: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
-}
-
-// scanCloudFrontMonitoringSubscriptions fetches the CloudWatch monitoring
-// subscription (if any) for each distribution. GetMonitoringSubscription is the
-// only API — there is no list endpoint. A missing subscription is not an error.
-func scanCloudFrontMonitoringSubscriptions(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	// Collect all (id, arn) pairs from distributions.
-	type distRef struct{ id, arn string }
-	var refs []distRef
-	pager := cloudfront.NewListDistributionsPaginator(client, &cloudfront.ListDistributionsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "cloudfront:ListDistributions (monitoring)", acct.ID, "global", err)
-			}
-			return 0, 0, fmt.Errorf("cloudfront:ListDistributions (monitoring): %w", err)
-		}
-		if page.DistributionList == nil {
-			continue
-		}
-		for _, d := range page.DistributionList.Items {
-			if d.Id != nil {
-				refs = append(refs, distRef{id: sv(d.Id), arn: sv(d.ARN)})
-			}
-		}
-	}
-	if len(refs) == 0 {
-		return
-	}
-
-	// Fetch monitoring subscription for each distribution concurrently.
-	var mu sync.Mutex
-	var batch []*store.Resource
-	g, gctx := errgroup.WithContext(ctx)
-	for _, ref := range refs {
-		r := ref
-		g.Go(func() error {
-			out, err := client.GetMonitoringSubscription(gctx, &cloudfront.GetMonitoringSubscriptionInput{
-				DistributionId: &r.id,
-			})
-			if err != nil {
-				// NoSuchMonitoringSubscription is expected; treat all errors as benign.
-				return nil
+				return nil, nil, err
 			}
 			if out.MonitoringSubscription == nil || out.MonitoringSubscription.RealtimeMetricsSubscriptionConfig == nil {
-				return nil
+				return nil, nil, nil
 			}
-			res := &store.Resource{
-				Provider:    "aws",
-				AccountID:   acct.ID,
-				AccountName: &acct.Name,
-				Region:      regionGlobal,
-				Type:        TypeCloudFrontMonitoringSubscription,
-				// Suffix keeps this distinct from the distribution (same ARN) while
-				// staying parent-derivable.
-				NativeID:       r.arn + "/monitoring-subscription",
-				Name:           sp(r.id),
-				AttributesJSON: mustJSON(out.MonitoringSubscription),
-				DiscoveredBy:   scanID,
-			}
-			mu.Lock()
-			batch = append(batch, res)
-			mu.Unlock()
-			return nil
+			return []cftypes.MonitoringSubscription{*out.MonitoringSubscription}, nil, nil
+		},
+		func(id string, it cftypes.MonitoringSubscription) (*store.Resource, string, string) {
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name, Region: regionGlobal,
+				Type: TypeCloudFrontMonitoringSubscription, NativeID: arns[id] + "/monitoring-subscription",
+				Name: sp(id), AttributesJSON: mustJSON(it), DiscoveredBy: scanID,
+			}, "", ""
 		})
-	}
-	if err := g.Wait(); err != nil {
-		return 0, 0, err
-	}
-	if len(batch) > 0 {
-		n, err := st.UpsertResources(batch)
-		if err != nil {
-			return 0, 0, fmt.Errorf("upsert CloudFront monitoring subscriptions: %w", err)
-		}
-		total = len(batch)
-		inserted = n
-	}
-	return
 }
 
 // --- Streaming Distributions ---
@@ -370,46 +275,6 @@ func scanCloudFrontStreamingDistributions(ctx context.Context, acct *account, cl
 			n, err := st.UpsertResources(batch)
 			if err != nil {
 				return total, inserted, fmt.Errorf("upsert CloudFront streaming distributions: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
-}
-
-// --- Distribution Tenants ---
-
-// scanCloudFrontDistributionTenants discovers SaaS Manager distribution tenants.
-func scanCloudFrontDistributionTenants(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cloudfront.NewListDistributionTenantsPaginator(client, &cloudfront.ListDistributionTenantsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListDistributionTenants", acct.ID, "global", err)
-			}
-			return total, inserted, fmt.Errorf("cloudfront:ListDistributionTenants: %w", err)
-		}
-		var batch []*store.Resource
-		for _, t := range page.DistributionTenantList {
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Region:         regionGlobal,
-				Type:           TypeCloudFrontDistributionTenant,
-				NativeID:       sv(t.Arn),
-				Name:           t.Id,
-				CreatedAt:      tp(t.CreatedTime),
-				AttributesJSON: mustJSON(t),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert CloudFront distribution tenants: %w", err)
 			}
 			total += len(batch)
 			inserted += n
@@ -726,96 +591,6 @@ func scanCloudFrontOriginAccessControls(ctx context.Context, acct *account, clie
 	return
 }
 
-// --- Functions ---
-
-// scanCloudFrontFunctions discovers CloudFront Functions (lightweight edge compute).
-func scanCloudFrontFunctions(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(
-		ctx, "cloudfront:ListFunctions", st,
-		func(ctx context.Context, marker *string) (*cloudfront.ListFunctionsOutput, *string, error) {
-			out, err := client.ListFunctions(ctx, &cloudfront.ListFunctionsInput{Marker: marker})
-			if err != nil {
-				return nil, nil, err
-			}
-			if out.FunctionList == nil {
-				return out, nil, nil
-			}
-			return out, out.FunctionList.NextMarker, nil
-		},
-		func(out *cloudfront.ListFunctionsOutput) (int, int, error) {
-			if out.FunctionList == nil {
-				return 0, 0, nil
-			}
-			var batch []*store.Resource
-			for _, f := range out.FunctionList.Items {
-				if f.FunctionMetadata == nil {
-					continue
-				}
-				batch = append(batch, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Region:         regionGlobal,
-					Type:           TypeCloudFrontFunction,
-					NativeID:       sv(f.FunctionMetadata.FunctionARN),
-					Name:           f.Name,
-					CreatedAt:      tp(f.FunctionMetadata.LastModifiedTime),
-					AttributesJSON: mustJSON(f),
-					DiscoveredBy:   scanID,
-				})
-			}
-			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
-				if err != nil {
-					return 0, 0, err
-				}
-				return len(batch), n, nil
-			}
-			return 0, 0, nil
-		},
-	)
-}
-
-// --- Connection Functions ---
-
-// scanCloudFrontConnectionFunctions discovers connection functions.
-func scanCloudFrontConnectionFunctions(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cloudfront.NewListConnectionFunctionsPaginator(client, &cloudfront.ListConnectionFunctionsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListConnectionFunctions", acct.ID, "global", err)
-			}
-			return total, inserted, fmt.Errorf("cloudfront:ListConnectionFunctions: %w", err)
-		}
-		var batch []*store.Resource
-		for _, f := range page.ConnectionFunctions {
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Region:         regionGlobal,
-				Type:           TypeCloudFrontConnectionFunction,
-				NativeID:       sv(f.ConnectionFunctionArn),
-				Name:           f.Name,
-				CreatedAt:      tp(f.CreatedTime),
-				AttributesJSON: mustJSON(f),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert CloudFront connection functions: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
-}
-
 // --- Key Groups ---
 
 // scanCloudFrontKeyGroups discovers key groups used to sign URLs/cookies.
@@ -869,48 +644,6 @@ func scanCloudFrontKeyGroups(ctx context.Context, acct *account, client cloudfro
 			return 0, 0, nil
 		},
 	)
-}
-
-// --- Key Value Stores ---
-
-// scanCloudFrontKeyValueStores discovers CloudFront KeyValueStore resources.
-func scanCloudFrontKeyValueStores(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cloudfront.NewListKeyValueStoresPaginator(client, &cloudfront.ListKeyValueStoresInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListKeyValueStores", acct.ID, "global", err)
-			}
-			return total, inserted, fmt.Errorf("cloudfront:ListKeyValueStores: %w", err)
-		}
-		if page.KeyValueStoreList == nil {
-			continue
-		}
-		var batch []*store.Resource
-		for _, k := range page.KeyValueStoreList.Items {
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Region:         regionGlobal,
-				Type:           TypeCloudFrontKeyValueStore,
-				NativeID:       sv(k.ARN),
-				Name:           k.Name,
-				AttributesJSON: mustJSON(k),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert CloudFront key value stores: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
 }
 
 // --- Public Keys ---
@@ -988,176 +721,6 @@ func scanCloudFrontRealtimeLogConfigs(ctx context.Context, acct *account, client
 					NativeID:       sv(c.ARN),
 					Name:           c.Name,
 					AttributesJSON: mustJSON(c),
-					DiscoveredBy:   scanID,
-				})
-			}
-			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
-				if err != nil {
-					return 0, 0, err
-				}
-				return len(batch), n, nil
-			}
-			return 0, 0, nil
-		},
-	)
-}
-
-// --- Trust Stores ---
-
-// scanCloudFrontTrustStores discovers mutual TLS trust stores.
-func scanCloudFrontTrustStores(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cloudfront.NewListTrustStoresPaginator(client, &cloudfront.ListTrustStoresInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListTrustStores", acct.ID, "global", err)
-			}
-			return total, inserted, fmt.Errorf("cloudfront:ListTrustStores: %w", err)
-		}
-		var batch []*store.Resource
-		for _, t := range page.TrustStoreList {
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Region:         regionGlobal,
-				Type:           TypeCloudFrontTrustStore,
-				NativeID:       sv(t.Arn),
-				AttributesJSON: mustJSON(t),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert CloudFront trust stores: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
-}
-
-// --- Connection Groups ---
-
-// scanCloudFrontConnectionGroups discovers connection groups (VPC origins routing).
-func scanCloudFrontConnectionGroups(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cloudfront.NewListConnectionGroupsPaginator(client, &cloudfront.ListConnectionGroupsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "cloudfront:ListConnectionGroups", acct.ID, "global", err)
-			}
-			return total, inserted, fmt.Errorf("cloudfront:ListConnectionGroups: %w", err)
-		}
-		var batch []*store.Resource
-		for _, g := range page.ConnectionGroups {
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Region:         regionGlobal,
-				Type:           TypeCloudFrontConnectionGroup,
-				NativeID:       sv(g.Arn),
-				Name:           g.Name,
-				CreatedAt:      tp(g.CreatedTime),
-				AttributesJSON: mustJSON(g),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert CloudFront connection groups: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
-}
-
-// --- Anycast IP Lists ---
-
-// scanCloudFrontAnycastIPLists discovers Anycast static IP lists.
-func scanCloudFrontAnycastIPLists(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(
-		ctx, "cloudfront:ListAnycastIpLists", st,
-		func(ctx context.Context, marker *string) (*cloudfront.ListAnycastIpListsOutput, *string, error) {
-			out, err := client.ListAnycastIpLists(ctx, &cloudfront.ListAnycastIpListsInput{Marker: marker})
-			if err != nil {
-				return nil, nil, err
-			}
-			if out.AnycastIpLists == nil {
-				return out, nil, nil
-			}
-			return out, out.AnycastIpLists.NextMarker, nil
-		},
-		func(out *cloudfront.ListAnycastIpListsOutput) (int, int, error) {
-			if out.AnycastIpLists == nil {
-				return 0, 0, nil
-			}
-			var batch []*store.Resource
-			for _, a := range out.AnycastIpLists.Items {
-				batch = append(batch, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Region:         regionGlobal,
-					Type:           TypeCloudFrontAnycastIPList,
-					NativeID:       sv(a.Arn),
-					Name:           a.Name,
-					AttributesJSON: mustJSON(a),
-					DiscoveredBy:   scanID,
-				})
-			}
-			if len(batch) > 0 {
-				n, err := st.UpsertResources(batch)
-				if err != nil {
-					return 0, 0, err
-				}
-				return len(batch), n, nil
-			}
-			return 0, 0, nil
-		},
-	)
-}
-
-// --- VPC Origins ---
-
-// scanCloudFrontVpcOrigins discovers VPC origin configurations.
-func scanCloudFrontVpcOrigins(ctx context.Context, acct *account, client cloudfrontAPI, st *store.Store, scanID string) (total, inserted int, err error) {
-	return cfMarkerScan(
-		ctx, "cloudfront:ListVpcOrigins", st,
-		func(ctx context.Context, marker *string) (*cloudfront.ListVpcOriginsOutput, *string, error) {
-			out, err := client.ListVpcOrigins(ctx, &cloudfront.ListVpcOriginsInput{Marker: marker})
-			if err != nil {
-				return nil, nil, err
-			}
-			if out.VpcOriginList == nil {
-				return out, nil, nil
-			}
-			return out, out.VpcOriginList.NextMarker, nil
-		},
-		func(out *cloudfront.ListVpcOriginsOutput) (int, int, error) {
-			if out.VpcOriginList == nil {
-				return 0, 0, nil
-			}
-			var batch []*store.Resource
-			for _, v := range out.VpcOriginList.Items {
-				batch = append(batch, &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Region:         regionGlobal,
-					Type:           TypeCloudFrontVpcOrigin,
-					NativeID:       sv(v.Arn),
-					Name:           v.Name,
-					AttributesJSON: mustJSON(v),
 					DiscoveredBy:   scanID,
 				})
 			}
@@ -1265,4 +828,345 @@ func scanCloudFrontFieldLevelEncryptionProfiles(ctx context.Context, acct *accou
 			return 0, 0, nil
 		},
 	)
+}
+
+// --- Types whose tags are read ---
+//
+// The Service Reference lists distribution, distribution-tenant, function,
+// connection-function, key-value-store, trust-store, connection-group,
+// anycast-ip-list and vpcorigin as ListTagsForResource resources, and no list
+// element of these types carries tags. Streaming distributions are not read:
+// the Service Reference lists streaming-distribution for TagResource but not
+// for ListTagsForResource.
+//
+// No listing is sent MaxItems: the model gives the member no range, and no
+// list op's documentation names a maximum.
+
+// cfTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, which is the ARN its listing returned, so the partition is the
+// one CloudFront answered with. The op does not page; NoSuchResource is its
+// modeled not-found.
+func cfTags(client cloudfrontAPI) rowTagReader {
+	return rowTagReader{
+		op:       "cloudfront:ListTagsForResource",
+		notFound: []string{"NoSuchResource"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &cloudfront.ListTagsForResourceInput{Resource: &arn})
+			if err != nil {
+				return nil, err
+			}
+			if out.Tags == nil {
+				return nil, nil
+			}
+			return awsTagsJSON(out.Tags.Items), nil
+		},
+	}
+}
+
+// cfResource is the row of a listed element whose NativeID is arn, the ARN
+// its listing returned.
+func cfResource(acct *account, scanID, typ string, arn *string, item any) *store.Resource {
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name, Region: regionGlobal,
+		Type: typ, NativeID: sv(arn), AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	}
+}
+
+// cfRow returns r to store, or, when its listing returned no ARN, why it is
+// not and the key naming it in the warning: key (an id or name), or a fixed
+// text when key is empty. what names the type's elements.
+func cfRow(r *store.Resource, what, key string) (*store.Resource, string, string) {
+	if r.NativeID == "" {
+		return nil, what + " have no ARN", cmp.Or(key, "(an element with no identifier)")
+	}
+	return r, "", ""
+}
+
+// scanCloudFrontDistributions stores the distributions with their tags and
+// returns the stored ones, keyed by Id, the parents of the monitoring
+// subscription phase. ListDistributions returns DistributionSummary items
+// with the full configuration, so no GetDistribution call is needed.
+func scanCloudFrontDistributions(ctx context.Context, client cloudfrontAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) []childParent {
+	// A failed write is already in p's errors and returns no parents, so the
+	// monitoring phase after it reads nothing.
+	parents, _ := storeParentListTags(ctx, st, acct, region, "cloudfront:ListDistributions", "distributions", "Id",
+		func(ctx context.Context, marker *string) ([]cftypes.DistributionSummary, *string, error) {
+			out, err := client.ListDistributions(ctx, &cloudfront.ListDistributionsInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			if out.DistributionList == nil {
+				return nil, nil, nil
+			}
+			return out.DistributionList.Items, out.DistributionList.NextMarker, nil
+		},
+		func(it cftypes.DistributionSummary) (*store.Resource, string, string) {
+			r := cfResource(acct, scanID, TypeCloudFrontDistribution, it.ARN, it)
+			r.Name, r.CreatedAt, r.Status = it.Id, tp(it.LastModifiedTime), it.Status
+			return cfRow(r, "distributions", sv(it.Id))
+		},
+		func(it cftypes.DistributionSummary) string { return sv(it.Id) },
+		tags, p)
+	return parents
+}
+
+// scanCloudFrontDistributionTenants stores the SaaS Manager distribution
+// tenants with their tags.
+func scanCloudFrontDistributionTenants(ctx context.Context, client cloudfrontAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "cloudfront:ListDistributionTenants",
+		func(ctx context.Context, marker *string) ([]cftypes.DistributionTenantSummary, *string, error) {
+			out, err := client.ListDistributionTenants(ctx, &cloudfront.ListDistributionTenantsInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.DistributionTenantList, out.NextMarker, nil
+		},
+		func(it cftypes.DistributionTenantSummary) (*store.Resource, string, string) {
+			r := cfResource(acct, scanID, TypeCloudFrontDistributionTenant, it.Arn, it)
+			r.Name, r.CreatedAt = it.Id, tp(it.CreatedTime)
+			return cfRow(r, "distribution tenants", sv(it.Id))
+		}, tags, p)
+}
+
+// cfFunctionAttrs is a function's stored attributes: its LIVE summary (or its
+// only listed one) and, under DevelopmentStage, the DEVELOPMENT summary listed
+// under the same ARN (cfStoreOneRowPerARN).
+type cfFunctionAttrs struct {
+	cftypes.FunctionSummary
+	DevelopmentStage *cftypes.FunctionSummary `json:"DevelopmentStage,omitempty"`
+}
+
+// scanCloudFrontFunctions stores the CloudFront Functions with their tags,
+// one row per ARN (cfStoreOneRowPerARN). A function's ARN and stage are in
+// its FunctionMetadata.
+func scanCloudFrontFunctions(ctx context.Context, client cloudfrontAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return cfStoreOneRowPerARN(ctx, st, acct, region, "cloudfront:ListFunctions",
+		func(ctx context.Context, marker *string) ([]cftypes.FunctionSummary, *string, error) {
+			out, err := client.ListFunctions(ctx, &cloudfront.ListFunctionsInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			if out.FunctionList == nil {
+				return nil, nil, nil
+			}
+			return out.FunctionList.Items, out.FunctionList.NextMarker, nil
+		},
+		func(s cfStaged[cftypes.FunctionSummary]) (*store.Resource, string, string) {
+			it := s.item
+			var meta cftypes.FunctionMetadata
+			if it.FunctionMetadata != nil {
+				meta = *it.FunctionMetadata
+			}
+			r := cfResource(acct, scanID, TypeCloudFrontFunction, meta.FunctionARN, cfFunctionAttrs{it, s.development})
+			r.Name, r.CreatedAt = it.Name, tp(meta.LastModifiedTime)
+			return cfRow(r, "functions", sv(it.Name))
+		},
+		func(it cftypes.FunctionSummary) (string, cftypes.FunctionStage) {
+			if it.FunctionMetadata == nil {
+				return "", ""
+			}
+			return sv(it.FunctionMetadata.FunctionARN), it.FunctionMetadata.Stage
+		}, tags, p)
+}
+
+// cfConnectionFunctionAttrs is cfFunctionAttrs for a connection function.
+type cfConnectionFunctionAttrs struct {
+	cftypes.ConnectionFunctionSummary
+	DevelopmentStage *cftypes.ConnectionFunctionSummary `json:"DevelopmentStage,omitempty"`
+}
+
+// scanCloudFrontConnectionFunctions stores the connection functions with
+// their tags, one row per ARN (cfStoreOneRowPerARN).
+func scanCloudFrontConnectionFunctions(ctx context.Context, client cloudfrontAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return cfStoreOneRowPerARN(ctx, st, acct, region, "cloudfront:ListConnectionFunctions",
+		func(ctx context.Context, marker *string) ([]cftypes.ConnectionFunctionSummary, *string, error) {
+			out, err := client.ListConnectionFunctions(ctx, &cloudfront.ListConnectionFunctionsInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ConnectionFunctions, out.NextMarker, nil
+		},
+		func(s cfStaged[cftypes.ConnectionFunctionSummary]) (*store.Resource, string, string) {
+			it := s.item
+			r := cfResource(acct, scanID, TypeCloudFrontConnectionFunction, it.ConnectionFunctionArn, cfConnectionFunctionAttrs{it, s.development})
+			r.Name, r.CreatedAt = it.Name, tp(it.CreatedTime)
+			return cfRow(r, "connection functions", cmp.Or(sv(it.Name), sv(it.Id)))
+		},
+		func(it cftypes.ConnectionFunctionSummary) (string, cftypes.FunctionStage) {
+			return sv(it.ConnectionFunctionArn), it.Stage
+		}, tags, p)
+}
+
+// scanCloudFrontKeyValueStores stores the KeyValueStores with their tags.
+func scanCloudFrontKeyValueStores(ctx context.Context, client cloudfrontAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "cloudfront:ListKeyValueStores",
+		func(ctx context.Context, marker *string) ([]cftypes.KeyValueStore, *string, error) {
+			out, err := client.ListKeyValueStores(ctx, &cloudfront.ListKeyValueStoresInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			if out.KeyValueStoreList == nil {
+				return nil, nil, nil
+			}
+			return out.KeyValueStoreList.Items, out.KeyValueStoreList.NextMarker, nil
+		},
+		func(it cftypes.KeyValueStore) (*store.Resource, string, string) {
+			r := cfResource(acct, scanID, TypeCloudFrontKeyValueStore, it.ARN, it)
+			r.Name = it.Name
+			return cfRow(r, "key value stores", cmp.Or(sv(it.Name), sv(it.Id)))
+		}, tags, p)
+}
+
+// scanCloudFrontTrustStores stores the mutual TLS trust stores with their
+// tags.
+func scanCloudFrontTrustStores(ctx context.Context, client cloudfrontAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "cloudfront:ListTrustStores",
+		func(ctx context.Context, marker *string) ([]cftypes.TrustStoreSummary, *string, error) {
+			out, err := client.ListTrustStores(ctx, &cloudfront.ListTrustStoresInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.TrustStoreList, out.NextMarker, nil
+		},
+		func(it cftypes.TrustStoreSummary) (*store.Resource, string, string) {
+			return cfRow(cfResource(acct, scanID, TypeCloudFrontTrustStore, it.Arn, it), "trust stores", cmp.Or(sv(it.Name), sv(it.Id)))
+		}, tags, p)
+}
+
+// scanCloudFrontConnectionGroups stores the connection groups with their
+// tags.
+func scanCloudFrontConnectionGroups(ctx context.Context, client cloudfrontAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "cloudfront:ListConnectionGroups",
+		func(ctx context.Context, marker *string) ([]cftypes.ConnectionGroupSummary, *string, error) {
+			out, err := client.ListConnectionGroups(ctx, &cloudfront.ListConnectionGroupsInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ConnectionGroups, out.NextMarker, nil
+		},
+		func(it cftypes.ConnectionGroupSummary) (*store.Resource, string, string) {
+			r := cfResource(acct, scanID, TypeCloudFrontConnectionGroup, it.Arn, it)
+			r.Name, r.CreatedAt = it.Name, tp(it.CreatedTime)
+			return cfRow(r, "connection groups", cmp.Or(sv(it.Name), sv(it.Id)))
+		}, tags, p)
+}
+
+// scanCloudFrontAnycastIPLists stores the Anycast static IP lists with their
+// tags.
+func scanCloudFrontAnycastIPLists(ctx context.Context, client cloudfrontAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "cloudfront:ListAnycastIpLists",
+		func(ctx context.Context, marker *string) ([]cftypes.AnycastIpListSummary, *string, error) {
+			out, err := client.ListAnycastIpLists(ctx, &cloudfront.ListAnycastIpListsInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			if out.AnycastIpLists == nil {
+				return nil, nil, nil
+			}
+			return out.AnycastIpLists.Items, out.AnycastIpLists.NextMarker, nil
+		},
+		func(it cftypes.AnycastIpListSummary) (*store.Resource, string, string) {
+			r := cfResource(acct, scanID, TypeCloudFrontAnycastIPList, it.Arn, it)
+			r.Name = it.Name
+			return cfRow(r, "Anycast IP lists", cmp.Or(sv(it.Name), sv(it.Id)))
+		}, tags, p)
+}
+
+// scanCloudFrontVpcOrigins stores the VPC origins with their tags. A VPC
+// origin can be shared with other accounts through RAM, and its summary names
+// its owner (AccountId), so a listed VPC origin may be another account's;
+// whether ListVpcOrigins returns shared ones is unverified. Such a row is read
+// under otherAccountGap (rowTagReader.untaggedIfOtherAccount).
+func scanCloudFrontVpcOrigins(ctx context.Context, client cloudfrontAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "cloudfront:ListVpcOrigins",
+		func(ctx context.Context, marker *string) ([]cftypes.VpcOriginSummary, *string, error) {
+			out, err := client.ListVpcOrigins(ctx, &cloudfront.ListVpcOriginsInput{Marker: marker})
+			if err != nil {
+				return nil, nil, err
+			}
+			if out.VpcOriginList == nil {
+				return nil, nil, nil
+			}
+			return out.VpcOriginList.Items, out.VpcOriginList.NextMarker, nil
+		},
+		func(it cftypes.VpcOriginSummary) (*store.Resource, string, string) {
+			r := cfResource(acct, scanID, TypeCloudFrontVpcOrigin, it.Arn, it)
+			r.Name = it.Name
+			return cfRow(r, "VPC origins", cmp.Or(sv(it.Name), sv(it.Id)))
+		}, tags.untaggedIfOtherAccount(acct.ID), p)
+}
+
+// cfStoreOneRowPerARN is storeTokenListTags for ListFunctions and
+// ListConnectionFunctions. Neither is sent a Stage, so a published function
+// is listed twice, its DEVELOPMENT and LIVE stages under one ARN. A NativeID
+// holds one resource, so each ARN is one row, counted and tag-read once,
+// built from cfOneRowPerARN's pairing. (Before, both summaries were written
+// and the later one overwrote the other.) arnStage returns an item's ARN and
+// stage; items without an ARN are left for row to warn about.
+func cfStoreOneRowPerARN[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string,
+	page func(ctx context.Context, marker *string) ([]Item, *string, error),
+	row func(cfStaged[Item]) (*store.Resource, string, string),
+	arnStage func(Item) (string, cftypes.FunctionStage),
+	tags rowTagReader, p *phaseTotals,
+) (storeWriteFailed bool) {
+	var skips notStoredSkips
+	items, err := readTokenPages(ctx, page)
+	rows := buildListedRows(cfOneRowPerARN(items, arnStage, &skips), row, nil, &skips)
+	return storeRowsTags(ctx, st, acct, region, op, rows, err, func() { skips.warn(st, op, acct, region) }, tags, p)
+}
+
+// cfStaged is the entry a function's row is built from and the DEVELOPMENT
+// entry listed under the same ARN beside a LIVE one (nil when none).
+type cfStaged[Item any] struct {
+	item        Item
+	development *Item
+}
+
+// cfUnpairedStage is why cfOneRowPerARN does not store an entry.
+const cfUnpairedStage = "function entries under an ARN already listed that are neither a LIVE and DEVELOPMENT pair nor a repeat of a stage kept"
+
+// cfOneRowPerARN pairs, in listing order, the entries of each ARN. The row's
+// entry is the LIVE one when listed, else the first, so the stored summary
+// does not flip with listing order; beside a LIVE entry the DEVELOPMENT one
+// is kept as development, so neither stage's summary is lost. A further
+// entry in a stage already kept is the same listing data again and is
+// dropped silently. Any other further entry (an empty or unknown stage, or
+// one a LIVE entry displaces) is not stored and is added to skips under
+// cfUnpairedStage, keyed by its ARN, so it is warned about. Each entry
+// without an ARN is its own row, so each is warned about.
+func cfOneRowPerARN[Item any](items []Item, arnStage func(Item) (string, cftypes.FunctionStage), skips *notStoredSkips) []cfStaged[Item] {
+	rows := make([]cfStaged[Item], 0, len(items))
+	at := map[string]int{}
+	for _, it := range items {
+		arn, stage := arnStage(it)
+		i, seen := at[arn]
+		if !seen {
+			if arn != "" {
+				at[arn] = len(rows)
+			}
+			rows = append(rows, cfStaged[Item]{item: it})
+			continue
+		}
+		r := &rows[i]
+		_, kept := arnStage(r.item)
+		switch {
+		case stage == cftypes.FunctionStageLive && kept != cftypes.FunctionStageLive:
+			if kept == cftypes.FunctionStageDevelopment {
+				development := r.item
+				r.development = &development
+			} else {
+				skips.skipped(cfUnpairedStage, arn)
+			}
+			r.item = it
+		case stage == cftypes.FunctionStageDevelopment && kept == cftypes.FunctionStageLive && r.development == nil:
+			r.development = &it
+		case stage == kept, stage == cftypes.FunctionStageDevelopment && r.development != nil:
+			// A repeat of a kept stage: nothing new to store.
+		default:
+			skips.skipped(cfUnpairedStage, arn)
+		}
+	}
+	return rows
 }

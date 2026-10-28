@@ -33,7 +33,14 @@ type smTags struct {
 	arns []string
 }
 
-func (s *smTags) tagReadSlots() chan struct{} { return s.slots }
+// tagReadSlots is nil for a stub without tags (a nil *smTags): the reader
+// takes its slots when it is built, though such a stub reads none.
+func (s *smTags) tagReadSlots() chan struct{} {
+	if s == nil {
+		return nil
+	}
+	return s.slots
+}
 
 func (s *smTags) ListTags(_ context.Context, in *sagemaker.ListTagsInput, _ ...func(*sagemaker.Options)) (*sagemaker.ListTagsOutput, error) {
 	if got := sdkaws.ToInt32(in.MaxResults); got != 50 {

@@ -161,6 +161,48 @@ func TestOtherAccountGap_Outcomes(t *testing.T) {
 	}
 }
 
+// untaggedIfOtherAccount turns a read otherAccountGap reports for the row's
+// ARN, with the reader's notFound codes, into no tags and no error; any other
+// outcome of the read, tags included, passes through unchanged.
+func TestUntaggedIfOtherAccount_Outcomes(t *testing.T) {
+	const other = "210987654321"
+	denied := apiErr("AccessDeniedException", "denied")
+	gone := apiErr("ResourceNotFoundException", "gone")
+	invalid := apiErr("ValidationException", "bad")
+	tagged := sp(`{"k":"v"}`)
+	own := arnFor("aws", "omics", testRegion, testAccountID, "workflow/1")
+	foreign := arnFor("aws", "omics", testRegion, other, "workflow/1")
+	for _, c := range []struct {
+		name     string
+		arn      string
+		tags     *string
+		err      error
+		wantTags *string
+		wantErr  error
+	}{
+		{"other denied", foreign, nil, denied, nil, nil},
+		{"other not found", foreign, nil, gone, nil, nil},
+		{"other invalid", foreign, nil, invalid, nil, invalid},
+		{"other tagged", foreign, tagged, nil, tagged, nil},
+		{"own denied", own, nil, denied, nil, denied},
+		{"own not found", own, nil, gone, nil, gone},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			tags := rowTagReader{
+				op:       "omics:ListTagsForResource",
+				notFound: []string{"ResourceNotFoundException"},
+				read: func(context.Context, *store.Resource) (*string, error) {
+					return c.tags, c.err
+				},
+			}.untaggedIfOtherAccount(testAccountID)
+			got, err := tags.read(context.Background(), &store.Resource{NativeID: c.arn})
+			if got != c.wantTags || !errors.Is(err, c.wantErr) {
+				t.Errorf("read(%s) = %v, %v; want %v, %v", c.arn, sv(got), err, sv(c.wantTags), c.wantErr)
+			}
+		})
+	}
+}
+
 func TestChildFanOutSkipTransient_Outcomes(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -1462,4 +1504,50 @@ func TestReadRowDetailsDeniedBy_CustomCodeIsDenial(t *testing.T) {
 
 	_, _, hard, _ = readRowDetails(context.Background(), st, acct, testRegion, op, "thing(s)", nil, rows(), get)
 	assertAPICode(t, hard, "UnauthorizedClientException")
+}
+
+// A family's error does not lose the other families' counts; an opErrs
+// member is filed under its own op and any other error under the service.
+func TestRunFamilies_FailureKeepsOtherFamilies(t *testing.T) {
+	hard, tagErr := errors.New("list failed"), errors.New("tag read failed")
+	p := runFamilies(context.Background(), "svc",
+		func(context.Context) (int, int, error) { return 2, 1, nil },
+		func(context.Context) (int, int, error) { return 1, 0, hard },
+		func(context.Context) (int, int, error) {
+			var q phaseTotals
+			q.addPhase("svc:ListTags", 3, 3, tagErr)
+			return opErrsResult(&q)
+		},
+	)
+	if p.total != 6 || p.inserted != 4 {
+		t.Errorf("total, inserted = %d, %d; want 6, 4", p.total, p.inserted)
+	}
+	got := map[string]error{}
+	for _, e := range p.errs {
+		got[e.op] = e.err
+	}
+	if len(p.errs) != 2 || !errors.Is(got["svc"], hard) || !errors.Is(got["svc:ListTags"], tagErr) {
+		t.Errorf("errors by op = %v; want svc: %v, svc:ListTags: %v", got, hard, tagErr)
+	}
+}
+
+// The families run at once: each waits for the other to start, which only
+// ends before the timeout when they overlap.
+func TestRunFamilies_RunsFamiliesConcurrently(t *testing.T) {
+	a, b := make(chan struct{}), make(chan struct{})
+	meet := func(mine, theirs chan struct{}) func(context.Context) (int, int, error) {
+		return func(context.Context) (int, int, error) {
+			close(mine)
+			select {
+			case <-theirs:
+				return 1, 1, nil
+			case <-time.After(5 * time.Second):
+				return 0, 0, errors.New("the other family never started")
+			}
+		}
+	}
+	p := runFamilies(context.Background(), "svc", meet(a, b), meet(b, a))
+	if len(p.errs) != 0 || p.total != 2 {
+		t.Errorf("errors = %v, total = %d; want none, 2", p.errs, p.total)
+	}
 }

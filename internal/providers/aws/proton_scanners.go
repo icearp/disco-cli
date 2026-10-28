@@ -83,15 +83,7 @@ func protonTags(client protonAPI) rowTagReader {
 // MANAGEMENT_ACCOUNT), so a listed connection's ARN can carry another
 // account; such a connection is read under otherAccountGap.
 func protonConnectionTags(tags rowTagReader, acct *account) rowTagReader {
-	own := tags.read
-	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
-		got, err := own(ctx, r)
-		if otherAccountGap(r.NativeID, acct.ID, err, tags.notFound) {
-			return nil, nil
-		}
-		return got, err
-	}
-	return tags
+	return tags.untaggedIfOtherAccount(acct.ID)
 }
 
 // scanProton discovers Proton account connections, templates, template

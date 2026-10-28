@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -78,13 +77,6 @@ func sagemakerTagReader(client sagemakerTagsAPI) rowTagReader {
 	return rowTagReader{
 		op: sagemakerListTagsOp,
 		read: func(ctx context.Context, r *store.Resource) (*string, error) {
-			slots := client.tagReadSlots()
-			select {
-			case slots <- struct{}{}:
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-			defer func() { <-slots }()
 			tags, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]smtypes.Tag, *string, error) {
 				out, err := client.ListTags(ctx, &sagemaker.ListTagsInput{
 					ResourceArn: sdkaws.String(r.NativeID), MaxResults: sdkaws.Int32(sagemakerTagsPageLimit), NextToken: token,
@@ -99,7 +91,7 @@ func sagemakerTagReader(client sagemakerTagsAPI) rowTagReader {
 			}
 			return kvTagsJSON(tags, func(t smtypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
 		},
-	}
+	}.boundedBy(client.tagReadSlots())
 }
 
 // sagemakerPut stores a phase's rows, read before its listing ended with
@@ -118,7 +110,7 @@ func sagemakerStoreTagged(ctx context.Context, client sagemakerTagsAPI, acct *ac
 		// A failed write is also in p's errors, and this one phase has
 		// nothing after it to stop.
 		_ = storeRowsTags(ctx, st, acct, region, op, rows, lateNXDOMAIN(op, listErr), warn, sagemakerTagReader(client), &p)
-		return sagemakerResult(&p)
+		return opErrsResult(&p)
 	}
 }
 
@@ -128,48 +120,6 @@ func sagemakerStoreUntagged(st *store.Store, acct *account, region, op string) s
 	return func(rows []*store.Resource, listErr error, warn func()) (int, int, error) {
 		return storeReadRows(st, acct, region, op, rows, lateNXDOMAIN(op, listErr), warn)
 	}
-}
-
-// sagemakerOpErrs is the errors of a SageMaker phase or family, each under the
-// op it failed under. The phase and family runners carry it up unjoined, so
-// that scanSageMaker joins every error once (phaseErrs.join), demoting each
-// transient one under its own op (e.g. sagemaker:ListTags) rather than its
-// phase's List op or the service.
-type sagemakerOpErrs struct{ errs phaseErrs }
-
-func (e sagemakerOpErrs) Unwrap() []error {
-	errs := make([]error, len(e.errs))
-	for i, f := range e.errs {
-		errs[i] = f.err
-	}
-	return errs
-}
-
-func (e sagemakerOpErrs) Error() string { return errors.Join(e.Unwrap()...).Error() }
-
-// sagemakerResult returns p's counts and its errors as sagemakerOpErrs, nil
-// when there are none.
-func sagemakerResult(p *phaseTotals) (int, int, error) {
-	if len(p.errs) == 0 {
-		return p.total, p.inserted, nil
-	}
-	return p.total, p.inserted, sagemakerOpErrs{p.errs}
-}
-
-// addSageMakerPhase adds a phase's counts and error to p: the members of a
-// sagemakerOpErrs under their own ops, any other error under op. It reports
-// whether a write failed, after which the runner must stop.
-func addSageMakerPhase(p *phaseTotals, op string, total, inserted int, err error) (storeWriteFailed bool) {
-	// Only err itself is unpacked: a sagemakerOpErrs wrapped inside another
-	// error is filed whole under op, which keeps every member.
-	labelled, ok := err.(sagemakerOpErrs)
-	if !ok {
-		return p.addPhase(op, total, inserted, err)
-	}
-	p.total += total
-	p.inserted += inserted
-	p.errs = append(p.errs, labelled.errs...)
-	return errors.Is(err, store.ErrStoreWrite)
 }
 
 // sagemakerPhase is one phase of a family; op labels its error.
@@ -185,35 +135,17 @@ func runSageMakerPhases(phases ...sagemakerPhase) (int, int, error) {
 	var p phaseTotals
 	for _, phase := range phases {
 		t, i, err := phase.run()
-		if addSageMakerPhase(&p, phase.op, t, i, err) {
+		if addOpErrsPhase(&p, phase.op, t, i, err) {
 			break
 		}
 	}
-	return sagemakerResult(&p)
+	return opErrsResult(&p)
 }
 
-// runSageMakerFamilies runs the families concurrently on ctx itself, so one
-// family's error cannot cancel the others and lose the rows they have not
-// stored yet. It joins every family's errors once (phaseErrs.join).
+// runSageMakerFamilies runs the families concurrently (runFamilies) and joins
+// every family's errors once (phaseErrs.join).
 func runSageMakerFamilies(ctx context.Context, st *store.Store, acct *account, region string, families ...func(context.Context) (int, int, error)) (int, int, error) {
-	type result struct {
-		total, inserted int
-		err             error
-	}
-	results := make([]result, len(families))
-	var wg sync.WaitGroup
-	for i, family := range families {
-		wg.Go(func() {
-			r := &results[i]
-			r.total, r.inserted, r.err = family(ctx)
-		})
-	}
-	wg.Wait()
-	var p phaseTotals
-	for _, r := range results {
-		addSageMakerPhase(&p, sagemakerService, r.total, r.inserted, r.err)
-	}
-	return p.result(st, acct, region)
+	return runFamilies(ctx, sagemakerService, families...).result(st, acct, region)
 }
 
 // sagemakerDescribe lists keys with listOp and describes each with describeOp,
@@ -391,8 +323,8 @@ func (d sagemakerDescribe[Key]) describeEach(ctx context.Context, st *store.Stor
 		deniedListed.warnDeniedIn(st, d.describeOp, acct, region, "listed item(s) stored from their listing only as their describe was")
 		warnNotStored(st, d.describeOp, acct, region, &noARN, "items were described without an ARN")
 	})
-	addSageMakerPhase(&p, d.listOp, total, inserted, err)
-	return sagemakerResult(&p)
+	addOpErrsPhase(&p, d.listOp, total, inserted, err)
+	return opErrsResult(&p)
 }
 
 // sagemakerInUseProbe checks three highest-signal SageMaker surfaces for

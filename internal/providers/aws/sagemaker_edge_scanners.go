@@ -281,8 +281,8 @@ func scanSageMakerImageVersions(ctx context.Context, client sagemakerEdgeAPI, ac
 			c.warn()
 		})
 	})
-	addSageMakerPhase(&c.p, op, total, inserted, err)
-	return sagemakerResult(&c.p)
+	addOpErrsPhase(&c.p, op, total, inserted, err)
+	return opErrsResult(&c.p)
 }
 
 // sagemakerImageAliasAttrs is the stored body of an image alias: ListAliases

@@ -424,6 +424,17 @@ func (t *skipTally) skipped(key string, err error) {
 	t.count++
 }
 
+// addAll adds every key o tallied to t, keeping t's first unless t has none.
+// Read o only once its own fan-out has returned.
+func (t *skipTally) addAll(o *skipTally) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.count == 0 {
+		t.first, t.err = o.first, o.err
+	}
+	t.count += o.count
+}
+
 // transientTally collects the parents of a fan-out whose call still failed
 // transiently after the SDK's retries, so that a throttled account reports one
 // warning per fan-out rather than one per parent.
@@ -950,11 +961,50 @@ func storeTokenListWith[Item any](
 // does not exist; nil when it lists none. denied holds the denial codes op
 // models that isAccessDenied does not match (e.g. UnauthorizedException), so
 // that they are warned about as denials rather than returned; nil for none.
+// denials, when set, collects the denied rows of every readRowTags call
+// through this reader instead of each call warning on its own, so that a
+// service whose listings run as concurrent families warns once for op
+// (warnDenials); nil makes each call warn.
 type rowTagReader struct {
 	op       string
 	notFound []string
 	denied   []string
 	read     func(context.Context, *store.Resource) (*string, error)
+	denials  *skipTally
+}
+
+// sharingDenials is tags with one denial tally for every call through it;
+// warnDenials on the result sends the one warning.
+func (tags rowTagReader) sharingDenials() rowTagReader {
+	tags.denials = &skipTally{}
+	return tags
+}
+
+// warnDenials warns once under op about every denied row tallied through
+// tags.denials, if any. The rows were tallied only once their write
+// succeeded. With several families the first row named is whichever family
+// stored first.
+func (tags rowTagReader) warnDenials(st *store.Store, acct *account, region string) {
+	if t := tags.denials; t != nil && t.count > 0 {
+		_ = skipIfAccessDenied(st, tags.op, acct.ID, region, fmt.Errorf("%d row(s) stored without tags, first %s: %w", t.count, t.first, t.err))
+	}
+}
+
+// boundedBy is tags with each read holding one of slots while it runs, so
+// that the reads of several concurrent listings together stay within
+// cap(slots). A read that ctx ends while it waits returns ctx's error.
+func (tags rowTagReader) boundedBy(slots chan struct{}) rowTagReader {
+	read := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		select {
+		case slots <- struct{}{}:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		defer func() { <-slots }()
+		return read(ctx, r)
+	}
+	return tags
 }
 
 // otherAccountGap reports whether err, from a read about arn, is a denial
@@ -977,6 +1027,22 @@ func otherAccountGap(arn, acctID string, err error, notFound []string) bool {
 	}
 	a, ok := parseARN(arn)
 	return ok && a.AccountID != acctID
+}
+
+// untaggedIfOtherAccount is tags for a listing that can return resources
+// another account owns: a read whose error otherAccountGap reports for the
+// row's NativeID (its ARN) and acctID gives no tags and no error, so the row
+// is kept untagged without a warning.
+func (tags rowTagReader) untaggedIfOtherAccount(acctID string) rowTagReader {
+	own := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		got, err := own(ctx, r)
+		if otherAccountGap(r.NativeID, acctID, err, tags.notFound) {
+			return nil, nil
+		}
+		return got, err
+	}
+	return tags
 }
 
 // rowTagRead is one row's read result; both nil for a resource without tags.
@@ -1047,7 +1113,11 @@ func readRowTags(ctx context.Context, st *store.Store, acct *account, region str
 		transient = fmt.Errorf("%s: tags of %d row(s) not read, first %s: %w", tags.op, t.count, t.first, t.err)
 	}
 	warn = func() {
-		if denied.count > 0 {
+		switch {
+		case denied.count == 0:
+		case tags.denials != nil:
+			tags.denials.addAll(&denied)
+		default:
 			_ = skipIfAccessDenied(st, tags.op, acct.ID, region, fmt.Errorf("%d row(s) stored without tags, first %s: %w", denied.count, denied.first, denied.err))
 		}
 	}
@@ -1403,6 +1473,73 @@ func (p *phaseTotals) result(st *store.Store, acct *account, region string) (int
 	return p.total, p.inserted, p.errs.join(st, acct, region)
 }
 
+// opErrs is the errors of a phase or family, each under the op it failed
+// under. Phase and family runners carry it up unjoined, so that the service
+// joins every error once (phaseErrs.join), demoting each transient one under
+// its own op (e.g. a tag op) rather than its phase's List op or the service.
+type opErrs struct{ errs phaseErrs }
+
+func (e opErrs) Unwrap() []error {
+	errs := make([]error, len(e.errs))
+	for i, f := range e.errs {
+		errs[i] = f.err
+	}
+	return errs
+}
+
+func (e opErrs) Error() string { return errors.Join(e.Unwrap()...).Error() }
+
+// opErrsResult returns p's counts and its errors as opErrs, nil when there
+// are none.
+func opErrsResult(p *phaseTotals) (int, int, error) {
+	if len(p.errs) == 0 {
+		return p.total, p.inserted, nil
+	}
+	return p.total, p.inserted, opErrs{p.errs}
+}
+
+// addOpErrsPhase adds a phase's counts and error to p: the members of an
+// opErrs under their own ops, any other error under op. It reports whether a
+// write failed, after which the runner must stop.
+func addOpErrsPhase(p *phaseTotals, op string, total, inserted int, err error) (storeWriteFailed bool) {
+	// Only err itself is unpacked: an opErrs wrapped inside another error is
+	// filed whole under op, which keeps every member.
+	labelled, ok := err.(opErrs)
+	if !ok {
+		return p.addPhase(op, total, inserted, err)
+	}
+	p.total += total
+	p.inserted += inserted
+	p.errs = append(p.errs, labelled.errs...)
+	return errors.Is(err, store.ErrStoreWrite)
+}
+
+// runFamilies runs the families of one service concurrently on ctx itself,
+// so one family's error cannot cancel the others and lose the rows they have
+// not stored yet, and returns their summed counts and errors (each family's
+// opErrs members under their own ops, any other error under service). The
+// caller joins the errors once (phaseTotals.result).
+func runFamilies(ctx context.Context, service string, families ...func(context.Context) (int, int, error)) *phaseTotals {
+	type result struct {
+		total, inserted int
+		err             error
+	}
+	results := make([]result, len(families))
+	var wg sync.WaitGroup
+	for i, family := range families {
+		wg.Go(func() {
+			r := &results[i]
+			r.total, r.inserted, r.err = family(ctx)
+		})
+	}
+	wg.Wait()
+	var p phaseTotals
+	for _, r := range results {
+		addOpErrsPhase(&p, service, r.total, r.inserted, r.err)
+	}
+	return &p
+}
+
 // storeParentList stores an account-wide listing through storeTokenList whose
 // rows are parents of a later phase, and returns the stored rows that carry
 // the id the child op keys on (read by key); the others are warned about, as
@@ -1582,8 +1719,9 @@ func storeEachParentTagsDeniedBy[Item any](
 }
 
 // foldStop leaves ctx's end as one member of p's errors, for a scanner of
-// service whose phases run one at a time and stop starting once ctx ends,
-// notRun of them never started. Each phase in flight when ctx ended reports
+// service whose phases run one at a time and stop starting once ctx ends
+// (notRun of them never started), or run as concurrent families that all
+// start (runFamilies; notRun 0). Each phase in flight when ctx ended reports
 // the stop itself, from its listing and from its tag reads; those reports
 // are dropped from the joins they are in, the rest of each join kept, and
 // one stop is added: the phases not run when notRun is set, else the first

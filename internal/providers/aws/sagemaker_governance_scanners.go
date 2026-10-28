@@ -277,7 +277,7 @@ func scanSageMakerChildren(
 		c.warn()
 	}
 	c.p.addPhase(op, total, inserted, err)
-	return sagemakerResult(&c.p)
+	return opErrsResult(&c.p)
 }
 
 func scanSageMakerActions(ctx context.Context, client sagemakerGovernanceAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -444,8 +444,8 @@ func scanSageMakerHubContents(ctx context.Context, client sagemakerGovernanceAPI
 		return 0, 0, err
 	}
 	total, inserted, err := sagemakerStoreTagged(ctx, client, acct, region, st, op)(c.items, nil, c.warn)
-	addSageMakerPhase(&c.p, op, total, inserted, err)
-	return sagemakerResult(&c.p)
+	addOpErrsPhase(&c.p, op, total, inserted, err)
+	return opErrsResult(&c.p)
 }
 
 // sagemakerHubContentRow is the row of one content of hub hubName.
