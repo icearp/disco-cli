@@ -1,9 +1,11 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/transfer"
 	transfertypes "github.com/aws/aws-sdk-go-v2/service/transfer/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -29,6 +31,7 @@ func init() {
 
 type transferAPI interface {
 	DescribeAccess(context.Context, *transfer.DescribeAccessInput, ...func(*transfer.Options)) (*transfer.DescribeAccessOutput, error)
+	DescribeWebApp(context.Context, *transfer.DescribeWebAppInput, ...func(*transfer.Options)) (*transfer.DescribeWebAppOutput, error)
 	ListAccesses(context.Context, *transfer.ListAccessesInput, ...func(*transfer.Options)) (*transfer.ListAccessesOutput, error)
 	ListAgreements(context.Context, *transfer.ListAgreementsInput, ...func(*transfer.Options)) (*transfer.ListAgreementsOutput, error)
 	ListCertificates(context.Context, *transfer.ListCertificatesInput, ...func(*transfer.Options)) (*transfer.ListCertificatesOutput, error)
@@ -37,375 +40,342 @@ type transferAPI interface {
 	ListProfiles(context.Context, *transfer.ListProfilesInput, ...func(*transfer.Options)) (*transfer.ListProfilesOutput, error)
 	ListServers(context.Context, *transfer.ListServersInput, ...func(*transfer.Options)) (*transfer.ListServersOutput, error)
 	ListUsers(context.Context, *transfer.ListUsersInput, ...func(*transfer.Options)) (*transfer.ListUsersOutput, error)
+	ListTagsForResource(context.Context, *transfer.ListTagsForResourceInput, ...func(*transfer.Options)) (*transfer.ListTagsForResourceOutput, error)
 	ListWebApps(context.Context, *transfer.ListWebAppsInput, ...func(*transfer.Options)) (*transfer.ListWebAppsOutput, error)
 	ListWorkflows(context.Context, *transfer.ListWorkflowsInput, ...func(*transfer.Options)) (*transfer.ListWorkflowsOutput, error)
 }
 
-func scanTransfer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanTransfer discovers the Transfer Family resources of one region. Every
+// listing runs as its own phase, one at a time: a phase's error does not stop
+// the later ones; a failed write and ctx's end do (runHostPhases). The
+// per-server phases (agreements, users, host keys, accesses) read the servers
+// the server phase stored this scan, those servers concurrently. Every type
+// but access has its tags read per row: web apps with DescribeWebApp
+// (transferWebAppTags), the others with ListTagsForResource (transferTags),
+// whose denials are one warning for the whole scan.
+func scanTransfer(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := transfer.NewFromConfig(acct.cfg, func(o *transfer.Options) { o.Region = region })
-
-	// Phase 1: servers.
-	servers, t, i, ferr := scanTransferServers(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	// Per-server: agreements, users.
-	for _, srv := range servers {
-		sid := srv.id
-		t, i, perr := scanTransferAgreements(ctx, client, acct, region, st, scanID, sid)
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-
-		t, i, perr = scanTransferUsers(ctx, client, acct, region, st, scanID, sid)
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-
-		t, i, perr = scanTransferHostKeys(ctx, client, acct, region, st, scanID, sid)
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-
-	// Top-level phases.
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanTransferCertificates(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanTransferConnectors(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanTransferProfiles(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanTransferWebApps(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanTransferWorkflows(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-
-	// Accesses run last so that their failure cannot keep an older phase from running.
-	t, i, err = scanTransferAccesses(ctx, client, acct, region, st, scanID, transferDirectoryServers(servers))
-	return total + t, inserted + i, err
+	tags := transferTags(client).sharingDenials()
+	var servers []transferServer
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "transfer", 0, []hostPhase{
+		{op: "transfer:ListServers", run: func(p *phaseTotals) (failed bool) {
+			servers, failed = scanTransferServers(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "transfer:ListAgreements", run: func(p *phaseTotals) bool {
+			return scanTransferAgreements(ctx, client, acct, region, st, scanID, transferParents(servers), tags, p)
+		}},
+		{op: "transfer:ListUsers", run: func(p *phaseTotals) bool {
+			return scanTransferUsers(ctx, client, acct, region, st, scanID, transferParents(servers), tags, p)
+		}},
+		{op: "transfer:ListHostKeys", run: func(p *phaseTotals) bool {
+			return scanTransferHostKeys(ctx, client, acct, region, st, scanID, transferParents(servers), tags, p)
+		}},
+		{op: "transfer:ListCertificates", run: func(p *phaseTotals) bool {
+			return scanTransferCertificates(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "transfer:ListConnectors", run: func(p *phaseTotals) bool {
+			return scanTransferConnectors(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "transfer:ListProfiles", run: func(p *phaseTotals) bool {
+			return scanTransferProfiles(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "transfer:ListWebApps", run: func(p *phaseTotals) bool {
+			return scanTransferWebApps(ctx, client, acct, region, st, scanID, p)
+		}},
+		{op: "transfer:ListWorkflows", run: func(p *phaseTotals) bool {
+			return scanTransferWorkflows(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, transferListAccessesOp, func() (int, int, error) {
+			return scanTransferAccesses(ctx, client, acct, region, st, scanID, transferDirectoryServers(servers))
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// transferServer is a listed server with the identity provider type that
+const (
+	transferTagsOp = "transfer:ListTagsForResource"
+	// transferPageCap is the MaxResults maximum of every Transfer Family
+	// listing read here and of ListTagsForResource.
+	transferPageCap = 1000
+	// transferNoIdentifier names, in a warning, a listed element with neither
+	// an ARN nor an id.
+	transferNoIdentifier = "(an element with no identifier)"
+)
+
+// transferTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, the ARN its listing returned. The Service Reference lists every
+// ARN resource type read here under ListTagsForResource (agreement,
+// certificate, connector, host-key, profile, server, user, workflow); it
+// does not list webapp (transferWebAppTags). The op pages its tags; every
+// page is read, and a repeated NextToken fails the read.
+//
+// The op models no not-found code, so a resource deleted between its
+// listing and its tag read fails the read as an error, and its row is kept
+// untagged.
+func transferTags(client transferAPI) rowTagReader {
+	return rowTagReader{
+		op: transferTagsOp,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			tags, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]transfertypes.Tag, *string, error) {
+				out, err := client.ListTagsForResource(ctx, &transfer.ListTagsForResourceInput{Arn: &arn, MaxResults: aws.Int32(transferPageCap), NextToken: token})
+				if err != nil {
+					return nil, nil, err
+				}
+				return out.Tags, out.NextToken, nil
+			})
+			if err != nil {
+				return nil, err
+			}
+			return transferTagsJSON(tags), nil
+		},
+	}
+}
+
+// transferWebAppTags reads a web app's tags from DescribeWebApp, sent the
+// WebAppId ids holds for its row. The Service Reference lists webapp under
+// TagResource but not under ListTagsForResource, while DescribeWebApp is
+// authorized on webapp and returns its Tags. The row stays the listed
+// element. A web app DescribeWebApp no longer finds (ResourceNotFoundException,
+// which it models) was deleted since it was listed, and its row is dropped.
+func transferWebAppTags(client transferAPI, ids map[*store.Resource]string) rowTagReader {
+	return rowTagReader{
+		op:       "transfer:DescribeWebApp",
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			id := ids[r]
+			if id == "" {
+				return nil, fmt.Errorf("web app %s has no WebAppId to describe", r.NativeID)
+			}
+			out, err := client.DescribeWebApp(ctx, &transfer.DescribeWebAppInput{WebAppId: &id})
+			if err != nil {
+				return nil, err
+			}
+			if out.WebApp == nil {
+				return nil, fmt.Errorf("DescribeWebApp %s returned no WebApp", id)
+			}
+			return transferTagsJSON(out.WebApp.Tags), nil
+		},
+	}
+}
+
+func transferTagsJSON(tags []transfertypes.Tag) *string {
+	return kvTagsJSON(tags, func(t transfertypes.Tag) (*string, *string) { return t.Key, t.Value })
+}
+
+// transferRow is the row of a listed element stored under its ARN and named
+// by its id, or by its ARN when it has no id. An element without an ARN is
+// not stored: one empty NativeID would merge every such
+// element into one resource. what names the elements in that warning.
+func transferRow(acct *account, region, scanID, typ, what string, arn, id *string, element any) (*store.Resource, string, string) {
+	a, name := sv(arn), sv(id)
+	if a == "" {
+		return nil, what + " have no ARN", cmp.Or(name, transferNoIdentifier)
+	}
+	label := cmp.Or(name, a)
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: a,
+		Name: &label, Region: &region, AttributesJSON: mustJSON(element), DiscoveredBy: scanID,
+	}, "", ""
+}
+
+// transferServer is a stored server with the identity provider type that
 // decides whether it can have accesses.
 type transferServer struct {
 	childParent
 	identityProvider transfertypes.IdentityProviderType
 }
 
-// scanTransferServers stores the listed servers and returns those with a
-// ServerId, which the per-server phases key on. Every returned server is in
-// the batch it upserts, so its row is stored when it returns without error.
-func scanTransferServers(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string) ([]transferServer, int, int, error) {
-	pager := transfer.NewListServersPaginator(client, &transfer.ListServersInput{})
-	var batch []*store.Resource
-	var servers []transferServer
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "transfer:ListServers", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("transfer:ListServers: %w", perr)
-		}
-		for _, s := range out.Servers {
-			arn := sv(s.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(s.ServerId)
-			if label == "" {
-				label = arn
-			}
-			if id := sv(s.ServerId); id != "" {
-				servers = append(servers, transferServer{childParent{id: id, arn: arn}, s.IdentityProviderType})
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTransferServer, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
+// transferParents is the servers as the parents their child listings key on.
+func transferParents(servers []transferServer) []childParent {
+	parents := make([]childParent, len(servers))
+	for i, s := range servers {
+		parents[i] = s.childParent
 	}
-	t, i, err := upsertBatch(st, batch, "transfer servers")
-	return servers, t, i, err
+	return parents
 }
 
-func scanTransferAgreements(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID, serverID string) (int, int, error) {
-	sid := serverID
-	pager := transfer.NewListAgreementsPaginator(client, &transfer.ListAgreementsInput{ServerId: &sid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "transfer:ListAgreements", acct.ID, region, perr)
-				return 0, 0, nil
+// scanTransferServers stores the listed servers with their tags and returns
+// the stored ones that have a ServerId, which the per-server phases key on.
+// The servers are few (a per-region quota), so their listing is held whole.
+// It reports whether the write failed, after which the scanner must stop.
+func scanTransferServers(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]transferServer, bool) {
+	idp := map[string]transfertypes.IdentityProviderType{}
+	parents, failed := storeParentListTags(ctx, st, acct, region, "transfer:ListServers", "Transfer Family servers", "ServerId",
+		func(ctx context.Context, token *string) ([]transfertypes.ListedServer, *string, error) {
+			out, err := client.ListServers(ctx, &transfer.ListServersInput{MaxResults: aws.Int32(transferPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("transfer:ListAgreements: %w", perr)
-		}
-		for _, a := range out.Agreements {
-			arn := sv(a.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(a.AgreementId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTransferAgreement, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
+			return out.Servers, out.NextToken, nil
+		},
+		func(s transfertypes.ListedServer) (*store.Resource, string, string) {
+			return transferRow(acct, region, scanID, TypeTransferServer, "servers", s.Arn, s.ServerId, s)
+		},
+		func(s transfertypes.ListedServer) string {
+			idp[sv(s.ServerId)] = s.IdentityProviderType
+			return sv(s.ServerId)
+		},
+		tags, p)
+	servers := make([]transferServer, len(parents))
+	for i, s := range parents {
+		servers[i] = transferServer{s, idp[s.id]}
 	}
-	return upsertBatch(st, batch, "transfer agreements")
+	return servers, failed
 }
 
-func scanTransferUsers(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID, serverID string) (int, int, error) {
-	sid := serverID
-	pager := transfer.NewListUsersPaginator(client, &transfer.ListUsersInput{ServerId: &sid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "transfer:ListUsers", acct.ID, region, perr)
-				return 0, 0, nil
+// transferServerGone is the code ListAgreements, ListUsers and ListHostKeys
+// model for a server deleted since the server phase listed it.
+var transferServerGone = []string{"ResourceNotFoundException"}
+
+// scanTransferAgreements stores each server's agreements with their tags;
+// one server's failure costs the others none of theirs.
+func scanTransferAgreements(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string, servers []childParent, tags rowTagReader, p *phaseTotals) bool {
+	_, failed := storeEachParentTags(ctx, st, acct, region, "transfer:ListAgreements", transferServerGone, servers,
+		func(ctx context.Context, serverID string, token *string) ([]transfertypes.ListedAgreement, *string, error) {
+			out, err := client.ListAgreements(ctx, &transfer.ListAgreementsInput{ServerId: &serverID, MaxResults: aws.Int32(transferPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("transfer:ListUsers: %w", perr)
-		}
-		for _, u := range out.Users {
-			arn := sv(u.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(u.UserName)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTransferUser, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(u), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "transfer users")
+			return out.Agreements, out.NextToken, nil
+		},
+		func(_ string, a transfertypes.ListedAgreement) (*store.Resource, string, string) {
+			return transferRow(acct, region, scanID, TypeTransferAgreement, "agreements", a.Arn, a.AgreementId, a)
+		},
+		tags, p)
+	return failed
 }
 
-func scanTransferCertificates(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := transfer.NewListCertificatesPaginator(client, &transfer.ListCertificatesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "transfer:ListCertificates", acct.ID, region, perr)
-				return 0, 0, nil
+// scanTransferUsers stores each server's users with their tags. A server can
+// hold many users, so each page is written as soon as its tags are read
+// (storeEachParentPagesTags); one server's failure costs the others none of
+// theirs.
+func scanTransferUsers(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string, servers []childParent, tags rowTagReader, p *phaseTotals) bool {
+	return storeEachParentPagesTags(ctx, st, acct, region, "transfer:ListUsers", transferServerGone, servers,
+		func(ctx context.Context, serverID string, token *string) ([]transfertypes.ListedUser, *string, error) {
+			out, err := client.ListUsers(ctx, &transfer.ListUsersInput{ServerId: &serverID, MaxResults: aws.Int32(transferPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("transfer:ListCertificates: %w", perr)
-		}
-		for _, c := range out.Certificates {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(c.CertificateId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTransferCertificate, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "transfer certificates")
+			return out.Users, out.NextToken, nil
+		},
+		func(_ string, u transfertypes.ListedUser) (*store.Resource, string, string) {
+			return transferRow(acct, region, scanID, TypeTransferUser, "users", u.Arn, u.UserName, u)
+		},
+		tags, p)
 }
 
-func scanTransferConnectors(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := transfer.NewListConnectorsPaginator(client, &transfer.ListConnectorsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "transfer:ListConnectors", acct.ID, region, perr)
-				return 0, 0, nil
+// scanTransferHostKeys stores each server's SSH host keys with their tags.
+// ListHostKeys is per server (no account-wide list op) and has no SDK
+// paginator; one server's failure costs the others none of theirs.
+func scanTransferHostKeys(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string, servers []childParent, tags rowTagReader, p *phaseTotals) bool {
+	_, failed := storeEachParentTags(ctx, st, acct, region, "transfer:ListHostKeys", transferServerGone, servers,
+		func(ctx context.Context, serverID string, token *string) ([]transfertypes.ListedHostKey, *string, error) {
+			out, err := client.ListHostKeys(ctx, &transfer.ListHostKeysInput{ServerId: &serverID, MaxResults: aws.Int32(transferPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("transfer:ListConnectors: %w", perr)
-		}
-		for _, c := range out.Connectors {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(c.ConnectorId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTransferConnector, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "transfer connectors")
+			return out.HostKeys, out.NextToken, nil
+		},
+		func(_ string, h transfertypes.ListedHostKey) (*store.Resource, string, string) {
+			return transferRow(acct, region, scanID, TypeTransferHostKey, "host keys", h.Arn, h.HostKeyId, h)
+		},
+		tags, p)
+	return failed
 }
 
-func scanTransferProfiles(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := transfer.NewListProfilesPaginator(client, &transfer.ListProfilesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "transfer:ListProfiles", acct.ID, region, perr)
-				return 0, 0, nil
+func scanTransferCertificates(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "transfer:ListCertificates",
+		func(ctx context.Context, token *string) ([]transfertypes.ListedCertificate, *string, error) {
+			out, err := client.ListCertificates(ctx, &transfer.ListCertificatesInput{MaxResults: aws.Int32(transferPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("transfer:ListProfiles: %w", perr)
-		}
-		for _, p := range out.Profiles {
-			arn := sv(p.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(p.ProfileId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTransferProfile, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "transfer profiles")
+			return out.Certificates, out.NextToken, nil
+		},
+		func(c transfertypes.ListedCertificate) (*store.Resource, string, string) {
+			return transferRow(acct, region, scanID, TypeTransferCertificate, "certificates", c.Arn, c.CertificateId, c)
+		},
+		tags, p)
 }
 
-func scanTransferWebApps(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := transfer.NewListWebAppsPaginator(client, &transfer.ListWebAppsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "transfer:ListWebApps", acct.ID, region, perr)
-				return 0, 0, nil
+func scanTransferConnectors(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "transfer:ListConnectors",
+		func(ctx context.Context, token *string) ([]transfertypes.ListedConnector, *string, error) {
+			out, err := client.ListConnectors(ctx, &transfer.ListConnectorsInput{MaxResults: aws.Int32(transferPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("transfer:ListWebApps: %w", perr)
-		}
-		for _, w := range out.WebApps {
-			arn := sv(w.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(w.WebAppId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTransferWebApp, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "transfer web-apps")
+			return out.Connectors, out.NextToken, nil
+		},
+		func(c transfertypes.ListedConnector) (*store.Resource, string, string) {
+			return transferRow(acct, region, scanID, TypeTransferConnector, "connectors", c.Arn, c.ConnectorId, c)
+		},
+		tags, p)
 }
 
-func scanTransferWorkflows(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := transfer.NewListWorkflowsPaginator(client, &transfer.ListWorkflowsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "transfer:ListWorkflows", acct.ID, region, perr)
-				return 0, 0, nil
+func scanTransferProfiles(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "transfer:ListProfiles",
+		func(ctx context.Context, token *string) ([]transfertypes.ListedProfile, *string, error) {
+			out, err := client.ListProfiles(ctx, &transfer.ListProfilesInput{MaxResults: aws.Int32(transferPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("transfer:ListWorkflows: %w", perr)
-		}
-		for _, w := range out.Workflows {
-			arn := sv(w.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(w.WorkflowId)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTransferWorkflow, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "transfer workflows")
+			return out.Profiles, out.NextToken, nil
+		},
+		func(pr transfertypes.ListedProfile) (*store.Resource, string, string) {
+			return transferRow(acct, region, scanID, TypeTransferProfile, "profiles", pr.Arn, pr.ProfileId, pr)
+		},
+		tags, p)
 }
 
-// scanTransferHostKeys lists the SSH host keys of one server. ListHostKeys is
-// per-server (no account-wide list op) with no SDK paginator — pages manually
-// via NextToken.
-func scanTransferHostKeys(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID, serverID string) (int, int, error) {
-	sid := serverID
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, perr := client.ListHostKeys(ctx, &transfer.ListHostKeysInput{ServerId: &sid, NextToken: token})
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "transfer:ListHostKeys", acct.ID, region, perr)
+// scanTransferWebApps stores the web apps with the tags DescribeWebApp
+// returns (transferWebAppTags). ids is written while a page's rows are built
+// and read only by that page's tag reads, which start after. It is cleared
+// at each page fetch, which follows the previous page's write, so it holds no
+// row already written.
+func scanTransferWebApps(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) bool {
+	ids := map[*store.Resource]string{}
+	return storeTokenPagesTags(ctx, st, acct, region, "transfer:ListWebApps",
+		func(ctx context.Context, token *string) ([]transfertypes.ListedWebApp, *string, error) {
+			clear(ids)
+			out, err := client.ListWebApps(ctx, &transfer.ListWebAppsInput{MaxResults: aws.Int32(transferPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("transfer:ListHostKeys: %w", perr)
-		}
-		for _, h := range out.HostKeys {
-			arn := sv(h.Arn)
-			if arn == "" {
-				continue
+			return out.WebApps, out.NextToken, nil
+		},
+		func(w transfertypes.ListedWebApp) (*store.Resource, string, string) {
+			r, why, key := transferRow(acct, region, scanID, TypeTransferWebApp, "web apps", w.Arn, w.WebAppId, w)
+			if r != nil {
+				ids[r] = sv(w.WebAppId)
 			}
-			label := sv(h.HostKeyId)
-			if label == "" {
-				label = arn
+			return r, why, key
+		},
+		transferWebAppTags(client, ids), p)
+}
+
+func scanTransferWorkflows(ctx context.Context, client transferAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "transfer:ListWorkflows",
+		func(ctx context.Context, token *string) ([]transfertypes.ListedWorkflow, *string, error) {
+			out, err := client.ListWorkflows(ctx, &transfer.ListWorkflowsInput{MaxResults: aws.Int32(transferPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTransferHostKey, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(h), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || sv(out.NextToken) == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	return upsertBatch(st, batch, "transfer host-keys")
+			return out.Workflows, out.NextToken, nil
+		},
+		func(w transfertypes.ListedWorkflow) (*store.Resource, string, string) {
+			return transferRow(acct, region, scanID, TypeTransferWorkflow, "workflows", w.Arn, w.WorkflowId, w)
+		},
+		tags, p)
 }
 
 const (
 	transferListAccessesOp   = "transfer:ListAccesses"
 	transferDescribeAccessOp = "transfer:DescribeAccess"
-	// transferAccessPageLimit is the model's MaxResults cap for ListAccesses.
-	transferAccessPageLimit = 1000
 )
 
 // transferAccessSkipCodes are the codes the access phase skips per server with
@@ -483,7 +453,7 @@ func storeTransferAccesses(ctx context.Context, client transferAPI, acct *accoun
 ) (total, inserted int, err error) {
 	pager := transfer.NewListAccessesPaginator(client, &transfer.ListAccessesInput{ServerId: &srv.id},
 		func(o *transfer.ListAccessesPaginatorOptions) {
-			o.Limit = transferAccessPageLimit
+			o.Limit = transferPageCap
 			o.StopOnDuplicateToken = true
 		})
 	for pager.HasMorePages() {

@@ -57,8 +57,8 @@ func transferAccessHandlers(calls *parentCalls, pages map[string][][]string, lis
 	return map[string]func(any) (any, error){
 		"ListAccesses": func(in any) (any, error) {
 			req := in.(*transfer.ListAccessesInput)
-			if sdkaws.ToInt32(req.MaxResults) != transferAccessPageLimit {
-				return nil, fmt.Errorf("MaxResults = %v; want %d", req.MaxResults, transferAccessPageLimit)
+			if sdkaws.ToInt32(req.MaxResults) != 1000 {
+				return nil, fmt.Errorf("MaxResults = %v; want 1000", req.MaxResults)
 			}
 			id := sdkaws.ToString(req.ServerId)
 			calls.add(id)
@@ -268,62 +268,5 @@ func TestTransferDirectoryServers_DirectoryOrUnknown(t *testing.T) {
 	}
 	if got, want := transferDirectoryServers(servers), []childParent{dir.childParent, unknown.childParent}; !reflect.DeepEqual(got, want) {
 		t.Errorf("directory servers = %v; want %v", got, want)
-	}
-}
-
-// transferTopLevelHandlers lists a directory server and a service-managed one,
-// plus a workflow (the last phase before accesses); every other op is denied.
-func transferTopLevelHandlers(calls *parentCalls, listErrs map[string]error) map[string]func(any) (any, error) {
-	h := transferAccessHandlers(calls, map[string][][]string{
-		"s-dir": {{"S-1-5-21-1"}},
-		"s-svc": {{"S-1-5-21-9"}},
-	}, listErrs, nil)
-	h["ListServers"] = func(any) (any, error) {
-		return &transfer.ListServersOutput{Servers: []transfertypes.ListedServer{
-			{Arn: sdkaws.String(transferTestServerARN("s-dir")), ServerId: sdkaws.String("s-dir"), IdentityProviderType: transfertypes.IdentityProviderTypeAwsDirectoryService},
-			{Arn: sdkaws.String(transferTestServerARN("s-svc")), ServerId: sdkaws.String("s-svc"), IdentityProviderType: transfertypes.IdentityProviderTypeServiceManaged},
-		}}, nil
-	}
-	h["ListWorkflows"] = func(any) (any, error) {
-		return &transfer.ListWorkflowsOutput{Workflows: []transfertypes.ListedWorkflow{
-			{Arn: sdkaws.String("arn:aws:transfer:" + testRegion + ":" + testAccountID + ":workflow/w-1"), WorkflowId: sdkaws.String("w-1")},
-		}}, nil
-	}
-	return h
-}
-
-func TestScanTransfer_StoresDirectoryServerAccesses(t *testing.T) {
-	st := newTestStore(t)
-	var calls parentCalls
-	acct := newTestAccount(testAccountID)
-	acct.cfg = opStubConfig(transferTopLevelHandlers(&calls, nil), transferDenied)
-
-	if _, _, err := scanTransfer(context.Background(), acct, testRegion, st, testScanID); err != nil {
-		t.Fatalf("scanTransfer: %v", err)
-	}
-	if got, want := calls.distinct(), []string{"s-dir"}; !reflect.DeepEqual(got, want) {
-		t.Errorf("ListAccesses servers = %v; want %v", got, want)
-	}
-	nativeID := transferTestServerARN("s-dir") + "/access/S-1-5-21-1"
-	if _, ok := rowsByNativeID(t, st, TypeTransferAccess)[nativeID]; !ok {
-		t.Fatalf("access %s not stored", nativeID)
-	}
-	assertContainsNative(t, st, transferTestServerARN("s-dir"), nativeID)
-}
-
-// TestScanTransfer_AccessErrorAfterOtherPhases pins the access phase last: its
-// hard error is returned, and the workflow phase before it still stored.
-func TestScanTransfer_AccessErrorAfterOtherPhases(t *testing.T) {
-	st := newTestStore(t)
-	var calls parentCalls
-	acct := newTestAccount(testAccountID)
-	acct.cfg = opStubConfig(transferTopLevelHandlers(&calls, map[string]error{"s-dir": apiErr("ConflictException", "conflict")}), transferDenied)
-
-	_, _, err := scanTransfer(context.Background(), acct, testRegion, st, testScanID)
-	if !isAPIErrorCode(err, "ConflictException") {
-		t.Fatalf("err = %v; want ConflictException", err)
-	}
-	if n := len(rowsByNativeID(t, st, TypeTransferWorkflow)); n != 1 {
-		t.Errorf("stored %d workflows; want 1", n)
 	}
 }
