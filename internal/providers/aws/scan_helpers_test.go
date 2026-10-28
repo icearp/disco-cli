@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/icearp/disco-cli/internal/util"
 	"github.com/icearp/disco-cli/store"
 )
 
@@ -679,12 +680,11 @@ func TestTransientDemotersAreKnown(t *testing.T) {
 		},
 		// Per-item tallies: one warning names every item whose read was
 		// still throttled after the SDK's retries. Most keep the listed row
-		// unenriched; backup selections, Security Hub associations and
-		// subnet CIDR reservations instead skip that parent's children.
+		// unenriched; Security Hub associations and subnet CIDR
+		// reservations instead skip that parent's children.
 		// Either way the scan is not marked partial: whether a per-item
 		// throttle should be is an open question for the user.
 		"skipIfTransient": {
-			"backup_scanners.go:warn":                                   true,
 			"cloudtrail_scanners.go:scanCloudTrailEventDataStores":      true,
 			"cloudtrail_scanners.go:warn":                               true,
 			"cloudtrail_extended_scanners.go:settle":                    true,
@@ -1549,5 +1549,548 @@ func TestRunFamilies_RunsFamiliesConcurrently(t *testing.T) {
 	p := runFamilies(context.Background(), "svc", meet(a, b), meet(b, a))
 	if len(p.errs) != 0 || p.total != 2 {
 		t.Errorf("errors = %v, total = %d; want none, 2", p.errs, p.total)
+	}
+}
+
+// eachTokenPage hands each page to use before it reads the next, ends on a
+// page's error or use's, and ends a repeated NextToken with
+// errRepeatedNextToken after use saw that page.
+func TestEachTokenPage(t *testing.T) {
+	useErr := errors.New("use failed")
+	for _, c := range []struct {
+		name    string
+		page2   error  // page 2's error
+		next2   string // page 2's NextToken
+		useFail bool   // use fails on page 1
+		want    []string
+		wantErr error
+	}{
+		{"every page", nil, "", false, []string{"read 1", "use 1", "read 2", "use 2"}, nil},
+		{"later page fails", tagTestInvalid, "", false, []string{"read 1", "use 1", "read 2"}, tagTestInvalid},
+		{"use fails", nil, "", true, []string{"read 1", "use 1"}, useErr},
+		{"repeated token", nil, "2", false, []string{"read 1", "use 1", "read 2", "use 2"}, errRepeatedNextToken},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var got []string
+			err := eachTokenPage(context.Background(), func(_ context.Context, token *string) ([]string, *string, error) {
+				if token == nil {
+					got = append(got, "read 1")
+					return []string{"1"}, nonEmptyPtr("2"), nil
+				}
+				got = append(got, "read 2")
+				if c.page2 != nil {
+					return nil, nil, c.page2
+				}
+				return []string{"2"}, nonEmptyPtr(c.next2), nil
+			}, func(items []string) error {
+				got = append(got, "use "+items[0])
+				if c.useFail {
+					return useErr
+				}
+				return nil
+			})
+			if !errors.Is(err, c.wantErr) || (c.wantErr == nil && err != nil) {
+				t.Errorf("err = %v; want %v", err, c.wantErr)
+			}
+			if !slices.Equal(got, c.want) {
+				t.Errorf("calls = %v; want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// rowTagTally carries denials and transient reads across read calls: one
+// warning and one transient error for both batches, and no warning before
+// warn is called.
+func TestRowTagTally_AcrossReads(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, tagTestOp)
+	tags := tagTestReader(map[string]rowTagRead{
+		"a-denied": {err: tagTestDenied}, "a-throttled": {err: tagTestThrottle},
+		"b-denied": {err: tagTestDenied}, "b-throttled": {err: tagTestThrottle},
+		"b-tagged": {tags: mapTagsJSON(map[string]string{"k": "v"})},
+	})
+	batch := func(ids ...string) []*store.Resource {
+		var rows []*store.Resource
+		for _, id := range ids {
+			r, _, _ := tagTestRow(id)
+			rows = append(rows, r)
+		}
+		return rows
+	}
+	var tally rowTagTally
+	keptA, hardA := tally.read(context.Background(), tags, batch("a-denied", "a-throttled"))
+	keptB, hardB := tally.read(context.Background(), tags, batch("b-denied", "b-throttled", "b-tagged"))
+	if len(keptA) != 2 || len(keptB) != 3 || hardA != nil || hardB != nil {
+		t.Fatalf("kept %d, %d, hard %v, %v; want 2, 3 rows and no hard error", len(keptA), len(keptB), hardA, hardB)
+	}
+	if keptB[2].TagsJSON == nil {
+		t.Error("b-tagged TagsJSON = nil; want its tags")
+	}
+	transient := tally.transient(tagTestOp)
+	if !isAPIErrorCode(transient, "ThrottlingException") || len(bacTopMembers(transient)) > 1 {
+		t.Errorf("transient = %v; want one throttling error for both batches", transient)
+	}
+	if *warns != 0 {
+		t.Fatalf("warnings before warn = %d; want 0", *warns)
+	}
+	tally.warn(st, tags, newTestAccount(testAccountID), testRegion)
+	if *warns != 1 {
+		t.Errorf("warnings = %d; want 1 for both batches' denials", *warns)
+	}
+}
+
+// parentErr tallies each parent's error as storeTokenPerParent says; write
+// stores the rows it is given and warns about nothing; warn then sends the
+// denied and vanished parents' warnings.
+func TestParentOutcomes_ParentErrWriteWarn(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, tagTestListOp)
+	o := parentOutcomes{op: tagTestListOp, notFound: []string{"ResourceNotFoundException"}}
+	o.parentErr("ok", true, nil)
+	o.parentErr("gone-before-a-page", false, tagTestNotFound)
+	o.parentErr("gone-after-a-page", true, tagTestNotFound)
+	o.parentErr("denied", false, tagTestDenied)
+	o.parentErr("failed", true, tagTestInvalid)
+	if len(o.errs) != 1 || !isAPIErrorCode(o.errs[0], "ValidationException") {
+		t.Errorf("errs = %v; want the failed parent's error only", o.errs)
+	}
+	r, _, _ := tagTestRow("x")
+	total, inserted, err := o.write(st, []*store.Resource{r})
+	if err != nil || total != 1 || inserted != 1 {
+		t.Fatalf("write = %d, %d, %v; want 1, 1, nil", total, inserted, err)
+	}
+	if _, ok := rowsByNativeID(t, st, TypeNetworkFirewallProxy)["x"]; !ok {
+		t.Error("row x not stored")
+	}
+	if len(o.rows) != 0 {
+		t.Errorf("o.rows = %d; want write to leave it untouched", len(o.rows))
+	}
+	if *warns != 0 {
+		t.Fatalf("warnings after write = %d; want 0", *warns)
+	}
+	o.warn(st, newTestAccount(testAccountID), testRegion)
+	if *warns != 2 {
+		t.Errorf("warnings = %d; want 2, the denied and the vanished parent", *warns)
+	}
+}
+
+// pagesTest lists two pages per parent, "<parent>-1" then "<parent>-2",
+// through storeEachParentPagesTags. fail, keyed by "<parent>/<page>", makes
+// that page return its error.
+type pagesTest struct {
+	mu      sync.Mutex
+	calls   int
+	second  int             // second-page calls
+	stored1 map[string]bool // whether page 1 was stored with tags when page 2 was read
+	fail    map[string]error
+	before  func(ctx context.Context, parent string, page int) // runs before each page is answered
+}
+
+func (pt *pagesTest) page(st *store.Store) func(context.Context, string, *string) ([]string, *string, error) {
+	return func(ctx context.Context, parent string, token *string) ([]string, *string, error) {
+		n := 1
+		if token != nil {
+			n = 2
+		}
+		pt.mu.Lock()
+		pt.calls++
+		if n == 2 {
+			pt.second++
+			r := rowsByNativeIDNoFail(st)[parent+"-1"]
+			pt.stored1[parent] = r != nil && r.TagsJSON != nil
+		}
+		err := pt.fail[parent+"/"+strconv.Itoa(n)]
+		pt.mu.Unlock()
+		if pt.before != nil {
+			pt.before(ctx, parent, n)
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		if n == 1 {
+			return []string{parent + "-1"}, nonEmptyPtr("2"), nil
+		}
+		return []string{parent + "-2"}, nil, nil
+	}
+}
+
+// rowsByNativeIDNoFail is the stored test rows keyed by NativeID, read
+// without the test's t so that a stub may call it from any goroutine; nil on
+// a read error.
+func rowsByNativeIDNoFail(st *store.Store) map[string]*store.Resource {
+	rows, err := st.ListResources(store.ResourceFilter{Providers: []string{"aws"}, Types: []string{TypeNetworkFirewallProxy}, Limit: util.AllResources})
+	if err != nil {
+		return nil
+	}
+	byID := map[string]*store.Resource{}
+	for i := range rows {
+		byID[rows[i].NativeID] = &rows[i]
+	}
+	return byID
+}
+
+func pagesTestParents(n int) []childParent {
+	parents := make([]childParent, n)
+	for i := range parents {
+		id := "p" + strconv.Itoa(i)
+		parents[i] = childParent{id: id, arn: id}
+	}
+	return parents
+}
+
+// pagesTestTags tags every row k=v, except the rows in errs.
+func pagesTestTags(errs map[string]error) rowTagReader {
+	return rowTagReader{op: tagTestOp, read: func(_ context.Context, r *store.Resource) (*string, error) {
+		if err := errs[r.NativeID]; err != nil {
+			return nil, err
+		}
+		return mapTagsJSON(map[string]string{"k": "v"}), nil
+	}}
+}
+
+func runPagesTest(ctx context.Context, st *store.Store, pt *pagesTest, parents []childParent, tags rowTagReader) (bool, error) {
+	if pt.stored1 == nil {
+		pt.stored1 = map[string]bool{}
+	}
+	var p phaseTotals
+	acct := newTestAccount(testAccountID)
+	stop := storeEachParentPagesTags(ctx, st, acct, testRegion, tagTestListOp, []string{"ResourceNotFoundException"}, parents, pt.page(st),
+		func(_ string, id string) (*store.Resource, string, string) { return tagTestRow(id) }, tags, &p)
+	_, _, err := p.result(st, acct, testRegion)
+	return stop, err
+}
+
+// Each page is stored with its tags before the next page is read; a page
+// that fails keeps the pages before it and every other parent's rows; once
+// ctx ends the pages already stored stay stored.
+func TestStoreEachParentPagesTags_PageByPage(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		fail    error
+		wantErr func(error) bool
+		lost    []string
+	}{
+		{"every page", nil, func(err error) bool { return err == nil }, nil},
+		{"later page fails", tagTestInvalid, func(err error) bool { return isAPIErrorCode(err, "ValidationException") }, []string{"p0-2"}},
+		{"ctx ends", context.Canceled, func(err error) bool { return errors.Is(err, context.Canceled) }, []string{"p0-2"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countWarnings(st)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			pt := &pagesTest{fail: map[string]error{}}
+			if c.fail != nil {
+				pt.fail["p0/2"] = c.fail
+			}
+			if errors.Is(c.fail, context.Canceled) {
+				pt.before = func(_ context.Context, parent string, page int) {
+					if parent == "p0" && page == 2 {
+						cancel()
+					}
+				}
+			}
+			stop, err := runPagesTest(ctx, st, pt, pagesTestParents(2), pagesTestTags(nil))
+			if stop || !c.wantErr(err) {
+				t.Fatalf("stop, err = %v, %v; want false and the %s error", stop, err, c.name)
+			}
+			if !pt.stored1["p0"] {
+				t.Error("p0's page 1 not stored with tags before page 2 was read")
+			}
+			rows := rowsByNativeIDNoFail(st)
+			if r := rows["p0-1"]; r == nil || r.TagsJSON == nil {
+				t.Error("p0-1 not stored with tags")
+			}
+			for _, id := range c.lost {
+				if rows[id] != nil {
+					t.Errorf("%s stored; want it lost with its failed page", id)
+				}
+			}
+			if *warns != 0 {
+				t.Errorf("warnings = %d; want 0", *warns)
+			}
+		})
+	}
+}
+
+// The parents' first pages are read concurrently: both are in flight before
+// either returns.
+func TestStoreEachParentPagesTags_ParentsReadConcurrently(t *testing.T) {
+	var (
+		arrived    atomic.Int32
+		both       = make(chan struct{})
+		overlapped atomic.Bool
+	)
+	// Only the first arrival can see the overlap: read serially, it times
+	// out before the second starts.
+	pt := &pagesTest{fail: map[string]error{}, before: func(_ context.Context, _ string, page int) {
+		if page != 1 {
+			return
+		}
+		if arrived.Add(1) == 2 {
+			close(both)
+			return
+		}
+		select {
+		case <-both:
+			overlapped.Store(true)
+		case <-time.After(5 * time.Second):
+		}
+	}}
+	if _, err := runPagesTest(context.Background(), newTestStore(t), pt, pagesTestParents(2), pagesTestTags(nil)); err != nil {
+		t.Fatalf("err = %v", err)
+	}
+	if !overlapped.Load() {
+		t.Error("the parents' first pages were not in flight together; want them read concurrently")
+	}
+}
+
+// The tag reads of every parent read at once share one bound of fanoutMed.
+//
+// Every read holds until fanoutMed have started; the bound is broken if one
+// more starts while they hold. Without the bound three parents' fanoutMed
+// reads each would all start, so the extra start is seen however slow the
+// runner; the hold ends after a grace period only when the bound holds.
+func TestStoreEachParentPagesTags_TagReadsShareOneBound(t *testing.T) {
+	var (
+		inFlight         atomic.Int32
+		full, over, done = make(chan struct{}), make(chan struct{}), make(chan struct{})
+		fullOnce, once   sync.Once
+	)
+	tags := rowTagReader{op: tagTestOp, read: func(context.Context, *store.Resource) (*string, error) {
+		switch n := inFlight.Add(1); {
+		case n == fanoutMed:
+			fullOnce.Do(func() { close(full) })
+		case n > fanoutMed:
+			once.Do(func() { close(over) })
+		}
+		<-done
+		inFlight.Add(-1)
+		return nil, nil
+	}}
+	go func() {
+		defer close(done)
+		select {
+		case <-full:
+		case <-time.After(5 * time.Second):
+			return
+		}
+		select {
+		case <-over:
+		case <-time.After(200 * time.Millisecond):
+		}
+	}()
+	st := newTestStore(t)
+	var p phaseTotals
+	acct := newTestAccount(testAccountID)
+	storeEachParentPagesTags(context.Background(), st, acct, testRegion, tagTestListOp, nil, pagesTestParents(3),
+		func(_ context.Context, parent string, _ *string) ([]string, *string, error) {
+			ids := make([]string, fanoutMed)
+			for i := range ids {
+				ids[i] = parent + "-" + strconv.Itoa(i)
+			}
+			return ids, nil, nil
+		},
+		func(_ string, id string) (*store.Resource, string, string) { return tagTestRow(id) }, tags, &p)
+	select {
+	case <-over:
+		t.Errorf("more than %d tag reads were in flight at once", fanoutMed)
+	default:
+	}
+}
+
+// After a failed write, a page another parent already fetched is neither
+// tag-read nor written, and that parent's listing call in flight is
+// cancelled rather than left to run.
+func TestStoreEachParentPagesTags_FetchedPageDroppedAfterFailedWrite(t *testing.T) {
+	st := newTestStore(t)
+	if _, err := st.DB().Exec(`CREATE TRIGGER refuse_p0 BEFORE INSERT ON resources
+		WHEN NEW.native_id = 'p0-1'
+		BEGIN SELECT RAISE(ABORT, 'test: write refused'); END`); err != nil {
+		t.Fatalf("create trigger: %v", err)
+	}
+	var (
+		p1Asked     = make(chan struct{})
+		p1Cancelled atomic.Bool
+		p1TagReads  atomic.Int32
+	)
+	pt := &pagesTest{before: func(ctx context.Context, parent string, page int) {
+		switch {
+		case parent == "p0" && page == 1:
+			// p0's write fails only once p1's page is being fetched.
+			select {
+			case <-p1Asked:
+			case <-time.After(5 * time.Second):
+			}
+		case parent == "p1" && page == 1:
+			close(p1Asked)
+			select {
+			case <-ctx.Done():
+				p1Cancelled.Store(true)
+			case <-time.After(5 * time.Second):
+			}
+		}
+	}}
+	tags := rowTagReader{op: tagTestOp, read: func(_ context.Context, r *store.Resource) (*string, error) {
+		if strings.HasPrefix(r.NativeID, "p1-") {
+			p1TagReads.Add(1)
+		}
+		return nil, nil
+	}}
+	stop, err := runPagesTest(context.Background(), st, pt, pagesTestParents(2), tags)
+	if !stop || !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("stop, err = %v, %v; want true and store.ErrStoreWrite", stop, err)
+	}
+	if !p1Cancelled.Load() {
+		t.Error("p1's listing call was not cancelled by the failed write")
+	}
+	if n := p1TagReads.Load(); n != 0 {
+		t.Errorf("p1 tag reads = %d; want 0 after the failed write", n)
+	}
+	if _, ok := rowsByNativeIDNoFail(st)["p1-1"]; ok {
+		t.Error("p1-1 stored; want p1's page dropped after the failed write")
+	}
+}
+
+// A page whose tag reads are in flight when another parent's write fails has
+// them cancelled and is not written; its reads add no error, neither the
+// stop nor a transient "tags not read" for a row never written.
+func TestStoreEachParentPagesTags_TagReadsCutShortByFailedWrite(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		readErr func(ctx context.Context) error // what p1-1's read returns once cancelled
+	}{
+		{"read cancelled", func(ctx context.Context) error { return ctx.Err() }},
+		{"read throttled", func(context.Context) error { return tagTestThrottle }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			if _, err := st.DB().Exec(`CREATE TRIGGER refuse_p0 BEFORE INSERT ON resources
+				WHEN NEW.native_id = 'p0-1'
+				BEGIN SELECT RAISE(ABORT, 'test: write refused'); END`); err != nil {
+				t.Fatalf("create trigger: %v", err)
+			}
+			var (
+				p1Reading   = make(chan struct{})
+				p1Cancelled atomic.Bool
+			)
+			pt := &pagesTest{before: func(_ context.Context, parent string, page int) {
+				if parent == "p0" && page == 1 {
+					select {
+					case <-p1Reading:
+					case <-time.After(5 * time.Second):
+					}
+				}
+			}}
+			tags := rowTagReader{op: tagTestOp, read: func(ctx context.Context, r *store.Resource) (*string, error) {
+				if r.NativeID != "p1-1" {
+					return nil, nil
+				}
+				close(p1Reading)
+				select {
+				case <-ctx.Done():
+					p1Cancelled.Store(true)
+					return nil, c.readErr(ctx)
+				case <-time.After(5 * time.Second):
+					return nil, nil
+				}
+			}}
+			stop, err := runPagesTest(context.Background(), st, pt, pagesTestParents(2), tags)
+			if !stop || !errors.Is(err, store.ErrStoreWrite) || errors.Is(err, context.Canceled) || isAPIErrorCode(err, "ThrottlingException") {
+				t.Fatalf("stop, err = %v, %v; want true and store.ErrStoreWrite without the dropped page's reads", stop, err)
+			}
+			if !p1Cancelled.Load() {
+				t.Error("p1-1's tag read was not cancelled by the failed write")
+			}
+			if _, ok := rowsByNativeIDNoFail(st)["p1-1"]; ok {
+				t.Error("p1-1 stored; want its page dropped after the failed write")
+			}
+		})
+	}
+}
+
+// A warning's first row is the first parent's, not the first to finish: p1
+// is denied a tag read and goes on to its second page before p0's denied
+// tag read returns, and the warning still names p0's row.
+func TestStoreEachParentPagesTags_FirstIsInParentOrder(t *testing.T) {
+	st := newTestStore(t)
+	var got []store.ScanWarning
+	st.OnWarn = func(w store.ScanWarning) { got = append(got, w) }
+	p1Second := make(chan struct{})
+	pt := &pagesTest{before: func(_ context.Context, parent string, page int) {
+		if parent == "p1" && page == 2 {
+			close(p1Second)
+		}
+	}}
+	tags := rowTagReader{op: tagTestOp, read: func(_ context.Context, r *store.Resource) (*string, error) {
+		switch r.NativeID {
+		case "p0-1":
+			select {
+			case <-p1Second:
+			case <-time.After(5 * time.Second):
+			}
+			return nil, tagTestDenied
+		case "p1-1":
+			return nil, tagTestDenied
+		}
+		return nil, nil
+	}}
+	if _, err := runPagesTest(context.Background(), st, pt, pagesTestParents(2), tags); err != nil {
+		t.Fatalf("err = %v; want nil", err)
+	}
+	if len(got) != 1 || !strings.Contains(got[0].Message, "first p0-1:") {
+		t.Errorf("warnings = %+v; want one naming p0-1 first", got)
+	}
+}
+
+// skippedLeast names the smallest key first, whatever the order of the
+// calls.
+func TestSkipTally_SkippedLeast(t *testing.T) {
+	var s skipTally
+	s.skippedLeast("b", tagTestDenied)
+	s.skippedLeast("a", tagTestInvalid)
+	s.skippedLeast("c", tagTestDenied)
+	if s.count != 3 || s.first != "a" || !errors.Is(s.err, tagTestInvalid) {
+		t.Errorf("count, first, err = %d, %q, %v; want 3, a, its error", s.count, s.first, s.err)
+	}
+}
+
+// A failed write stops the phase: it reports the store error and no
+// warning, and no further page or parent is read.
+func TestStoreEachParentPagesTags_FailedWriteStops(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	refuseStoreWrites(t, st, TypeNetworkFirewallProxy)
+	pt := &pagesTest{}
+	parents := pagesTestParents(3 * fanoutMed)
+	stop, err := runPagesTest(context.Background(), st, pt, parents, pagesTestTags(map[string]error{"p0-1": tagTestDenied}))
+	if !stop || !errors.Is(err, store.ErrStoreWrite) || errors.Is(err, errPhaseWriteFailed) {
+		t.Fatalf("stop, err = %v, %v; want true and store.ErrStoreWrite alone, no parent's \"not read\"", stop, err)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0 after the failed write", *warns)
+	}
+	if pt.second != 0 || pt.calls > fanoutMed {
+		t.Errorf("page calls = %d (%d second pages); want at most %d first pages, those started before the write failed", pt.calls, pt.second, fanoutMed)
+	}
+}
+
+// Each warning is sent once for the phase: the listings denied for two
+// parents, and the tag reads denied on two parents and two pages.
+func TestStoreEachParentPagesTags_OneWarningPerOp(t *testing.T) {
+	st := newTestStore(t)
+	listWarns := countOpWarnings(st, tagTestListOp)
+	tagWarns := countOpWarnings(st, tagTestOp)
+	pt := &pagesTest{fail: map[string]error{"p2/1": tagTestDenied, "p3/2": tagTestDenied}}
+	tags := pagesTestTags(map[string]error{"p0-1": tagTestDenied, "p1-2": tagTestDenied})
+	if _, err := runPagesTest(context.Background(), st, pt, pagesTestParents(4), tags); err != nil {
+		t.Fatalf("err = %v; want nil", err)
+	}
+	if *listWarns != 1 || *tagWarns != 1 {
+		t.Errorf("warnings %s, %s = %d, %d; want 1, 1", tagTestListOp, tagTestOp, *listWarns, *tagWarns)
+	}
+	if n := len(rowsByNativeIDNoFail(st)); n != 5 {
+		t.Errorf("rows = %d; want 5: two pages of p0 and p1, p3's first", n)
 	}
 }

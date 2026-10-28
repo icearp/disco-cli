@@ -1,220 +1,118 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/backup"
+	backuptypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanBackupExtended discovers five additional Backup resource types:
-// frameworks (audit), report plans, restore testing plans, restore testing
-// selections (per testing plan), and tiering configurations.
-func scanBackupExtended(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	t, i, ferr := scanBackupFrameworks(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanBackupReportPlans(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	planNames, t, i, ferr := scanBackupRestoreTestingPlans(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, pn := range planNames {
-		t, i, ferr = scanBackupRestoreTestingSelections(ctx, client, acct, region, st, scanID, pn)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	t, i, ferr = scanBackupTieringConfigurations(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	return total, inserted, nil
-}
-
-func scanBackupFrameworks(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListFrameworks(ctx, &backup.ListFrameworksInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "backup:ListFrameworks", acct.ID, region, err)
+// scanBackupFrameworks stores the audit frameworks with their tags.
+func scanBackupFrameworks(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "backup:ListFrameworks",
+		func(ctx context.Context, token *string) ([]backuptypes.Framework, *string, error) {
+			out, err := client.ListFrameworks(ctx, &backup.ListFrameworksInput{NextToken: token, MaxResults: sdkaws.Int32(backupPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("backup:ListFrameworks: %w", err)
-		}
-		for _, f := range out.Frameworks {
+			return out.Frameworks, out.NextToken, nil
+		},
+		func(f backuptypes.Framework) (*store.Resource, string, string) {
 			arn := sv(f.FrameworkArn)
 			if arn == "" {
-				continue
+				return nil, "backup frameworks have no FrameworkArn", cmp.Or(sv(f.FrameworkName), bkNoName)
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBackupFramework, NativeID: arn,
-				Name: f.FrameworkName, Region: &region,
-				AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "backup frameworks")
+			return bkRow(acct, region, scanID, TypeBackupFramework, arn, f.FrameworkName, f), "", ""
+		}, tags, p)
 }
 
-func scanBackupReportPlans(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListReportPlans(ctx, &backup.ListReportPlansInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "backup:ListReportPlans", acct.ID, region, err)
+// scanBackupReportPlans stores the report plans with their tags.
+func scanBackupReportPlans(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "backup:ListReportPlans",
+		func(ctx context.Context, token *string) ([]backuptypes.ReportPlan, *string, error) {
+			out, err := client.ListReportPlans(ctx, &backup.ListReportPlansInput{NextToken: token, MaxResults: sdkaws.Int32(backupPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("backup:ListReportPlans: %w", err)
-		}
-		for _, p := range out.ReportPlans {
-			arn := sv(p.ReportPlanArn)
+			return out.ReportPlans, out.NextToken, nil
+		},
+		func(rp backuptypes.ReportPlan) (*store.Resource, string, string) {
+			arn := sv(rp.ReportPlanArn)
 			if arn == "" {
-				continue
+				return nil, "backup report plans have no ReportPlanArn", cmp.Or(sv(rp.ReportPlanName), bkNoName)
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBackupReportPlan, NativeID: arn,
-				Name: p.ReportPlanName, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "backup report-plans")
+			return bkRow(acct, region, scanID, TypeBackupReportPlan, arn, rp.ReportPlanName, rp), "", ""
+		}, tags, p)
 }
 
-func scanBackupRestoreTestingPlans(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	var batch []*store.Resource
-	var names []string
-	var nextToken *string
-	for {
-		out, err := client.ListRestoreTestingPlans(ctx, &backup.ListRestoreTestingPlansInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "backup:ListRestoreTestingPlans", acct.ID, region, err)
+// scanBackupRestoreTestingPlans stores the restore testing plans with their
+// tags and returns the stored ones keyed by name, the parents of the restore
+// testing selection phase.
+func scanBackupRestoreTestingPlans(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentListTags(ctx, st, acct, region, "backup:ListRestoreTestingPlans", "restore testing plans", "RestoreTestingPlanName",
+		func(ctx context.Context, token *string) ([]backuptypes.RestoreTestingPlanForList, *string, error) {
+			out, err := client.ListRestoreTestingPlans(ctx, &backup.ListRestoreTestingPlansInput{NextToken: token, MaxResults: sdkaws.Int32(backupPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("backup:ListRestoreTestingPlans: %w", err)
-		}
-		for _, p := range out.RestoreTestingPlans {
-			arn := sv(p.RestoreTestingPlanArn)
+			return out.RestoreTestingPlans, out.NextToken, nil
+		},
+		func(rtp backuptypes.RestoreTestingPlanForList) (*store.Resource, string, string) {
+			arn := sv(rtp.RestoreTestingPlanArn)
 			if arn == "" {
-				continue
+				return nil, "restore testing plans have no RestoreTestingPlanArn", cmp.Or(sv(rtp.RestoreTestingPlanName), bkNoName)
 			}
-			if n := sv(p.RestoreTestingPlanName); n != "" {
-				names = append(names, n)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBackupRestoreTestingPlan, NativeID: arn,
-				Name: p.RestoreTestingPlanName, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	t, i, err := upsertBatch(st, batch, "backup restore-testing-plans")
-	return names, t, i, err
+			return bkRow(acct, region, scanID, TypeBackupRestoreTestingPlan, arn, rtp.RestoreTestingPlanName, rtp), "", ""
+		},
+		func(rtp backuptypes.RestoreTestingPlanForList) string { return sv(rtp.RestoreTestingPlanName) },
+		tags, p)
 }
 
-// scanBackupRestoreTestingSelections synthesizes ARN: parent restore testing
-// plan ARN-shape + /selection/{name}. Selection has no native ARN.
-func scanBackupRestoreTestingSelections(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, planName string) (int, int, error) {
-	pn := planName
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListRestoreTestingSelections(ctx, &backup.ListRestoreTestingSelectionsInput{
-			RestoreTestingPlanName: &pn,
-			NextToken:              nextToken,
+// scanBackupRestoreTestingSelections stores the selections of each restore
+// testing plan the plan phase stored. A selection has no ARN, so its
+// NativeID is synthetic: the plan's ARN shape, keyed by plan name, plus
+// /selection/{name}. A plan ListRestoreTestingSelections no longer finds was
+// deleted since it was listed and is skipped.
+func scanBackupRestoreTestingSelections(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, plans []childParent) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, "backup:ListRestoreTestingSelections", backupNotFound, childParentIDs(plans),
+		func(ctx context.Context, plan string, token *string) ([]backuptypes.RestoreTestingSelectionForList, *string, error) {
+			out, err := client.ListRestoreTestingSelections(ctx, &backup.ListRestoreTestingSelectionsInput{
+				RestoreTestingPlanName: sdkaws.String(plan), NextToken: token, MaxResults: sdkaws.Int32(backupPageCap),
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.RestoreTestingSelections, out.NextToken, nil
+		},
+		func(plan string, s backuptypes.RestoreTestingSelectionForList) (*store.Resource, string, string) {
+			name := sv(s.RestoreTestingSelectionName)
+			if name == "" {
+				return nil, "restore testing selections have no RestoreTestingSelectionName", "in plan " + plan
+			}
+			nativeID := arnFor(acct.partition(), "backup", region, acct.ID, "restore-testing-plan:"+plan+"/selection/"+name)
+			return bkRow(acct, region, scanID, TypeBackupRestoreTestingSelection, nativeID, &name, s), "", ""
 		})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "backup:ListRestoreTestingSelections", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("backup:ListRestoreTestingSelections: %w", err)
-		}
-		for _, s := range out.RestoreTestingSelections {
-			selName := sv(s.RestoreTestingSelectionName)
-			if selName == "" {
-				continue
-			}
-			arn := arnFor(acct.partition(), "backup", region, acct.ID, "restore-testing-plan:"+pn+"/selection/"+selName)
-			label := selName
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBackupRestoreTestingSelection, NativeID: arn,
-				Name: &label, Region: &region,
-				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "backup restore-testing-selections")
 }
 
-func scanBackupTieringConfigurations(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListTieringConfigurations(ctx, &backup.ListTieringConfigurationsInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "backup:ListTieringConfigurations", acct.ID, region, err)
+// scanBackupTieringConfigurations stores the tiering configurations with
+// their tags.
+func scanBackupTieringConfigurations(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "backup:ListTieringConfigurations",
+		func(ctx context.Context, token *string) ([]backuptypes.TieringConfigurationsListMember, *string, error) {
+			out, err := client.ListTieringConfigurations(ctx, &backup.ListTieringConfigurationsInput{NextToken: token, MaxResults: sdkaws.Int32(backupPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("backup:ListTieringConfigurations: %w", err)
-		}
-		for _, c := range out.TieringConfigurations {
+			return out.TieringConfigurations, out.NextToken, nil
+		},
+		func(c backuptypes.TieringConfigurationsListMember) (*store.Resource, string, string) {
 			arn := sv(c.TieringConfigurationArn)
 			if arn == "" {
-				continue
+				return nil, "tiering configurations have no TieringConfigurationArn", cmp.Or(sv(c.TieringConfigurationName), bkNoName)
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBackupTieringConfiguration, NativeID: arn,
-				Name: c.TieringConfigurationName, Region: &region,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "backup tiering-configurations")
+			return bkRow(acct, region, scanID, TypeBackupTieringConfiguration, arn, c.TieringConfigurationName, c), "", ""
+		}, tags, p)
 }

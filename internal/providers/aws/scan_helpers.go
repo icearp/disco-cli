@@ -435,6 +435,18 @@ func (t *skipTally) addAll(o *skipTally) {
 	t.count += o.count
 }
 
+// skippedLeast is skipped with first kept as the smallest key tallied, not
+// the first to arrive, for a tally fed by concurrent reads whose warning must
+// not depend on which read finished first.
+func (t *skipTally) skippedLeast(key string, err error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.count == 0 || key < t.first {
+		t.first, t.err = key, err
+	}
+	t.count++
+}
+
 // transientTally collects the parents of a fan-out whose call still failed
 // transiently after the SDK's retries, so that a throttled account reports one
 // warning per fan-out rather than one per parent.
@@ -857,19 +869,31 @@ func (p phaseErrs) join(st *store.Store, acct *account, region string) error {
 // items already read with the error, so the caller can keep them. A repeated
 // NextToken ends the listing with errRepeatedNextToken.
 func readTokenPages[Item any](ctx context.Context, page func(ctx context.Context, token *string) ([]Item, *string, error)) ([]Item, error) {
-	var (
-		items []Item
-		token *string
-	)
+	var items []Item
+	err := eachTokenPage(ctx, page, func(got []Item) error {
+		items = append(items, got...)
+		return nil
+	})
+	return items, err
+}
+
+// eachTokenPage reads one listing page by page and hands each page's items to
+// use before it reads the next, so a caller can write a page instead of
+// holding the whole listing. It returns the first error of a page or of use,
+// and errRepeatedNextToken when a NextToken repeats (after use saw that page).
+func eachTokenPage[Item any](ctx context.Context, page func(ctx context.Context, token *string) ([]Item, *string, error), use func([]Item) error) error {
+	var token *string
 	for {
 		got, next, err := page(ctx, token)
 		if err != nil {
-			return items, err
+			return err
 		}
-		items = append(items, got...)
+		if err := use(got); err != nil {
+			return err
+		}
 		done, err := lastPage(token, next)
 		if done {
-			return items, err
+			return err
 		}
 		token = next
 	}
@@ -893,6 +917,23 @@ func (s *notStoredSkips) skipped(why, key string) {
 		s.whys = append(s.whys, why)
 	}
 	t.skipped(key, nil)
+}
+
+// addAll adds every item from tallied to s, each under its reason, after
+// s's own.
+func (s *notStoredSkips) addAll(from *notStoredSkips) {
+	for _, why := range from.whys {
+		if s.tallies == nil {
+			s.tallies = map[string]*skipTally{}
+		}
+		t, ok := s.tallies[why]
+		if !ok {
+			t = &skipTally{}
+			s.tallies[why] = t
+			s.whys = append(s.whys, why)
+		}
+		t.addAll(from.tallies[why])
+	}
 }
 
 func (s *notStoredSkips) warn(st *store.Store, op string, acct *account, region string) {
@@ -1070,13 +1111,27 @@ type rowTagRead struct {
 //
 // A row kept unread keeps the TagsJSON its builder set.
 func readRowTags(ctx context.Context, st *store.Store, acct *account, region string, tags rowTagReader, rows []*store.Resource) (kept []*store.Resource, warn func(), hard, transient error) {
+	var tally rowTagTally
+	kept, hard = tally.read(ctx, tags, rows)
+	return kept, func() { tally.warn(st, tags, acct, region) }, hard, tally.transient(tags.op)
+}
+
+// rowTagTally carries readRowTags' denied and transient rows across reads, so
+// that a listing whose rows are read in batches (one per page) warns once
+// about its denials and returns one transient error for the whole listing.
+type rowTagTally struct {
+	denied     skipTally
+	transients transientTally
+}
+
+// read is readRowTags for one batch of rows, its denied and transient rows
+// added to the tally. It returns the rows to store and the hard errors.
+func (t *rowTagTally) read(ctx context.Context, tags rowTagReader, rows []*store.Resource) (kept []*store.Resource, hard error) {
 	reads, stopped := readEachKey(ctx, rows, func(ctx context.Context, r *store.Resource) rowTagRead {
-		t, err := tags.read(ctx, r)
-		return rowTagRead{t, err}
+		tg, err := tags.read(ctx, r)
+		return rowTagRead{tg, err}
 	})
 	var (
-		denied      skipTally
-		transients  transientTally
 		errs        []error
 		interrupted bool
 	)
@@ -1093,8 +1148,8 @@ func readRowTags(ctx context.Context, st *store.Store, acct *account, region str
 		case isAPIErrorCode(err, tags.notFound...):
 			continue
 		case isAccessDenied(err) || isAPIErrorCode(err, tags.denied...):
-			denied.skipped(r.NativeID, err)
-		case transients.drop(r.NativeID, err):
+			t.denied.skipped(r.NativeID, err)
+		case t.transients.drop(r.NativeID, err):
 		default:
 			errs = append(errs, fmt.Errorf("%s %s: %w", tags.op, r.NativeID, err))
 		}
@@ -1109,19 +1164,35 @@ func readRowTags(ctx context.Context, st *store.Store, acct *account, region str
 	case interrupted:
 		errs = append(errs, fmt.Errorf("%s: reads cut short: %w", tags.op, ctx.Err()))
 	}
-	if t := &transients.skipTally; t.count > 0 {
-		transient = fmt.Errorf("%s: tags of %d row(s) not read, first %s: %w", tags.op, t.count, t.first, t.err)
+	return kept, errors.Join(errs...)
+}
+
+// addAll adds from's denied and transient rows to t's, after t's own.
+func (t *rowTagTally) addAll(from *rowTagTally) {
+	t.denied.addAll(&from.denied)
+	t.transients.addAll(&from.transients.skipTally)
+}
+
+// transient is one error for every row whose tag read stayed transient; nil
+// for none.
+func (t *rowTagTally) transient(op string) error {
+	if tt := &t.transients.skipTally; tt.count > 0 {
+		return fmt.Errorf("%s: tags of %d row(s) not read, first %s: %w", op, tt.count, tt.first, tt.err)
 	}
-	warn = func() {
-		switch {
-		case denied.count == 0:
-		case tags.denials != nil:
-			tags.denials.addAll(&denied)
-		default:
-			_ = skipIfAccessDenied(st, tags.op, acct.ID, region, fmt.Errorf("%d row(s) stored without tags, first %s: %w", denied.count, denied.first, denied.err))
-		}
+	return nil
+}
+
+// warn reports every denied row in one warning, or, when tags shares its
+// denials (sharingDenials), adds them to that tally for its caller to warn
+// once. Call it only once the rows are stored.
+func (t *rowTagTally) warn(st *store.Store, tags rowTagReader, acct *account, region string) {
+	switch {
+	case t.denied.count == 0:
+	case tags.denials != nil:
+		tags.denials.addAll(&t.denied)
+	default:
+		_ = skipIfAccessDenied(st, tags.op, acct.ID, region, fmt.Errorf("%d row(s) stored without tags, first %s: %w", t.denied.count, t.denied.first, t.denied.err))
 	}
-	return kept, warn, errors.Join(errs...), transient
 }
 
 // rowTagErrs is what readRowTags returned besides the rows, kept by
@@ -1375,9 +1446,15 @@ type parentOutcomes struct {
 // the listing's error, as storeTokenPerParent says.
 func addParentRows[Item any](o *parentOutcomes, parent string, read parentItems[Item], row func(parent string, it Item) (r *store.Resource, why, key string)) {
 	o.rows = buildListedRows(read.items, func(it Item) (*store.Resource, string, string) { return row(parent, it) }, o.rows, &o.skips)
-	switch err := read.err; {
+	o.parentErr(parent, len(read.items) > 0, read.err)
+}
+
+// parentErr tallies the error that ended parent's listing, nil when it read
+// every page; readAny says whether any item was read before it.
+func (o *parentOutcomes) parentErr(parent string, readAny bool, err error) {
+	switch {
 	case err == nil:
-	case isAPIErrorCode(err, o.notFound...) && len(read.items) == 0:
+	case isAPIErrorCode(err, o.notFound...) && !readAny:
 	case isAPIErrorCode(err, o.notFound...):
 		o.vanished.skipped(parent, err)
 	case o.skip != nil && o.skip(parent, err):
@@ -1386,6 +1463,17 @@ func addParentRows[Item any](o *parentOutcomes, parent string, read parentItems[
 	default:
 		o.errs = append(o.errs, fmt.Errorf("%s %s: %w", o.op, parent, err))
 	}
+}
+
+// addAll adds from's items not stored, parent outcomes and errors to o,
+// after o's own, so that merging per-parent outcomes in parent order keeps
+// that order. Rows and parentOf are not merged: their callers write rows as
+// they are built.
+func (o *parentOutcomes) addAll(from *parentOutcomes) {
+	o.skips.addAll(&from.skips)
+	o.denied.addAll(&from.denied)
+	o.vanished.addAll(&from.vanished)
+	o.errs = append(o.errs, from.errs...)
 }
 
 // deniedBy reports whether err denies o's op.
@@ -1411,19 +1499,36 @@ func (o *parentOutcomes) stopped(err error) {
 // about the denied and vanished parents and the items not stored, and
 // returns the collected errors. After a failed write it warns nothing.
 func (o *parentOutcomes) store(st *store.Store, acct *account, region string) (int, int, error) {
-	total, inserted, uerr := upsertBatch(st, o.rows, o.op)
+	total, inserted, werr := o.write(st, o.rows)
+	if werr != nil {
+		return total, inserted, errors.Join(append(o.errs, werr)...)
+	}
+	o.warn(st, acct, region)
+	return total, inserted, errors.Join(o.errs...)
+}
+
+// write stores rows and, with parentOf set, their closure, and returns the
+// write's error alone. It changes nothing in o, so concurrent calls are safe.
+func (o *parentOutcomes) write(st *store.Store, rows []*store.Resource) (int, int, error) {
+	total, inserted, uerr := upsertBatch(st, rows, o.op)
 	if uerr != nil {
-		return total, inserted, errors.Join(append(o.errs, uerr)...)
+		return total, inserted, uerr
 	}
 	if o.parentOf != nil {
-		pairs := make([][2]string, 0, len(o.rows))
-		for _, r := range o.rows {
+		pairs := make([][2]string, 0, len(rows))
+		for _, r := range rows {
 			pairs = append(pairs, [2]string{r.ID, o.parentOf[r]})
 		}
 		if herr := st.RecordHierarchyBatch(pairs); herr != nil {
-			return total, inserted, errors.Join(append(o.errs, fmt.Errorf("closure %s: %w", o.op, herr))...)
+			return total, inserted, fmt.Errorf("closure %s: %w", o.op, herr)
 		}
 	}
+	return total, inserted, nil
+}
+
+// warn warns about the denied and vanished parents and the items not
+// stored. Call it only once every row is written.
+func (o *parentOutcomes) warn(st *store.Store, acct *account, region string) {
 	if o.denied.count > 0 {
 		_ = skipIfAccessDenied(st, o.op, acct.ID, region, fmt.Errorf("%d parent(s) denied, first %s: %w", o.denied.count, o.denied.first, o.denied.err))
 	}
@@ -1434,7 +1539,6 @@ func (o *parentOutcomes) store(st *store.Store, acct *account, region string) (i
 		})
 	}
 	o.skips.warn(st, o.op, acct, region)
-	return total, inserted, errors.Join(o.errs...)
 }
 
 // warnNoChildID warns once for the parents stored without the id their
@@ -1717,6 +1821,117 @@ func storeEachParentTagsDeniedBy[Item any](
 	warn()
 	return out.rows, errs.addPhase(p, tags.op, op, total, inserted, err)
 }
+
+// storeEachParentPagesTags is storeEachParentTags for child listings too
+// large to hold (a vault's recovery points): each page's rows are written as
+// soon as their tags are read, so at most one page per parent read is held
+// and the pages written survive a later failure. The parents are read
+// concurrently (readEachKey) and their tag reads share one bound of
+// fanoutMed (rowTagReader.boundedBy): up to fanoutMed listing calls and
+// fanoutMed tag reads are in flight at once. Each parent's outcomes are kept
+// apart and merged in parent order, so every warning's "first" and the
+// order of the joined errors do not depend on which parent finished first.
+// Each kind of warning, the tag reads' included, is sent once for the whole
+// phase and only after every write succeeded.
+//
+// A failed write stops the phase: it cancels the calls in flight, so a page
+// already fetched starts no tag read; no further page or parent is read;
+// and no page is written after it, those whose tag reads it cut short
+// included. The listings and tag reads cut short by that stop report
+// nothing, not even as rows whose tags were not read; the phase returns the
+// write's error with the errors met before it. Counts and errors go to p as rowTagErrs.addPhase says; it
+// reports whether a write failed, after which the scanner must stop.
+func storeEachParentPagesTags[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound []string, parents []childParent,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (*store.Resource, string, string),
+	tags rowTagReader, p *phaseTotals,
+) (storeWriteFailed bool) {
+	var (
+		mu              sync.Mutex // guards the counts and werr
+		total, inserted int
+		werr            error
+	)
+	phaseCtx, stopPhase := context.WithCancel(ctx)
+	defer stopPhase()
+	writeFailed := func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return werr != nil
+	}
+	tags = tags.boundedBy(make(chan struct{}, fanoutMed))
+	results, stopped := readEachKey(phaseCtx, parents, func(ctx context.Context, parent childParent) *parentPages {
+		r := &parentPages{out: parentOutcomes{op: op, notFound: notFound}}
+		readAny := false
+		err := eachTokenPage(ctx, func(ctx context.Context, token *string) ([]Item, *string, error) {
+			// Checked before every page, a parent's first included.
+			if writeFailed() {
+				return nil, nil, errPhaseWriteFailed
+			}
+			return page(ctx, parent.id, token)
+		}, func(items []Item) error {
+			readAny = readAny || len(items) > 0
+			rows := buildListedRows(items, func(it Item) (*store.Resource, string, string) { return row(parent.id, it) }, nil, &r.out.skips)
+			var pageTally rowTagTally
+			rows, h := pageTally.read(ctx, tags, rows)
+			// The check and the write hold mu together, so no page is written
+			// once another's write failed (SQLite serialises the writes
+			// anyway). No test pins the lock: nothing runs between the check
+			// and the write that a test could use to order another parent's
+			// failure there. A page dropped here leaves nothing in r: its
+			// tag reads, cut short by the cancelled ctx, name no row as
+			// unread.
+			mu.Lock()
+			defer mu.Unlock()
+			if werr != nil {
+				return errPhaseWriteFailed
+			}
+			r.tally.addAll(&pageTally)
+			r.hard = append(r.hard, h)
+			t, i, err := r.out.write(st, rows)
+			total += t
+			inserted += i
+			if err != nil && werr == nil {
+				werr = err
+				stopPhase()
+			}
+			return err
+		})
+		if !writeFailed() {
+			r.out.parentErr(parent.id, readAny, err)
+		}
+		return r
+	})
+	var (
+		out   = parentOutcomes{op: op, notFound: notFound}
+		tally rowTagTally
+		hard  []error
+	)
+	for _, r := range results {
+		out.addAll(&r.out)
+		tally.addAll(&r.tally)
+		hard = append(hard, r.hard...)
+	}
+	errs := rowTagErrs{hard: errors.Join(hard...), transient: tally.transient(tags.op)}
+	if werr != nil {
+		return errs.addPhase(p, tags.op, op, total, inserted, errors.Join(append(out.errs, werr)...))
+	}
+	out.stopped(stopped)
+	out.warn(st, acct, region)
+	tally.warn(st, tags, acct, region)
+	return errs.addPhase(p, tags.op, op, total, inserted, errors.Join(out.errs...))
+}
+
+// parentPages is what storeEachParentPagesTags gathered from one parent.
+type parentPages struct {
+	out   parentOutcomes
+	tally rowTagTally
+	hard  []error
+}
+
+// errPhaseWriteFailed ends a listing whose phase already failed a write; the
+// write's own error is what the phase returns.
+var errPhaseWriteFailed = errors.New("not read: an earlier write of this phase failed")
 
 // foldStop leaves ctx's end as one member of p's errors, for a scanner of
 // service whose phases run one at a time and stop starting once ctx ends

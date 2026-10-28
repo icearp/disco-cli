@@ -1,126 +1,101 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/backup"
-	"github.com/icearp/disco-cli/internal/util"
+	backuptypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanBackupHoldsAndRecoveryPoints lists legal holds (account-wide) and recovery
-// points (per vault — ListRecoveryPointsByBackupVault requires a vault name, so
-// it fans out over vaults already scanned in this region).
-func scanBackupHoldsAndRecoveryPoints(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	lhTotal, lhInserted, ferr := scanBackupLegalHolds(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return lhTotal, lhInserted, ferr
-	}
-	rpTotal, rpInserted, ferr := scanBackupRecoveryPoints(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return lhTotal + rpTotal, lhInserted + rpInserted, ferr
-	}
-	return lhTotal + rpTotal, lhInserted + rpInserted, nil
-}
-
-func scanBackupLegalHolds(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := backup.NewListLegalHoldsPaginator(client, &backup.ListLegalHoldsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "backup:ListLegalHolds", acct.ID, region, perr)
-				return 0, 0, nil
+// scanBackupLegalHolds stores the legal holds, account- and region-wide,
+// with their tags.
+func scanBackupLegalHolds(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "backup:ListLegalHolds",
+		func(ctx context.Context, token *string) ([]backuptypes.LegalHold, *string, error) {
+			out, err := client.ListLegalHolds(ctx, &backup.ListLegalHoldsInput{NextToken: token, MaxResults: sdkaws.Int32(backupPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("backup:ListLegalHolds: %w", perr)
-		}
-		for _, h := range out.LegalHolds {
+			return out.LegalHolds, out.NextToken, nil
+		},
+		func(h backuptypes.LegalHold) (*store.Resource, string, string) {
 			arn := sv(h.LegalHoldArn)
 			if arn == "" {
-				continue
+				return nil, "legal holds have no LegalHoldArn", cmp.Or(sv(h.Title), sv(h.LegalHoldId), bkNoName)
 			}
-			label := sv(h.Title)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBackupLegalHold, NativeID: arn,
-				Name: &label, Region: &region, CreatedAt: tp(h.CreationDate),
-				AttributesJSON: mustJSON(h), DiscoveredBy: scanID,
+			label := cmp.Or(sv(h.Title), arn)
+			r := bkRow(acct, region, scanID, TypeBackupLegalHold, arn, &label, h)
+			r.CreatedAt = tp(h.CreationDate)
+			return r, "", ""
+		}, tags, p)
+}
+
+// backupRecoveryPointTags is tags for recovery points: only a recovery point
+// whose ARN is a Backup ARN is read. ListTags documents that an ARN of any
+// other service (a recovery point of a resource without full AWS Backup
+// management: an EBS snapshot, an RDS snapshot, an AMI) may be refused. Such
+// a row is stored without tags and no call is made; the backup's tags, if
+// any, are on that service's own resource, which this scanner does not read.
+//
+// A Backup ARN ListTags refuses with InvalidParameterValueException is
+// tallied in refused and its row kept untagged, not failed: the ListTags doc
+// says that error is returned for an ARN it does not support, and whether it
+// supports the recovery points of every resource type in a logically
+// air-gapped vault (all with Backup ARNs) is not verified live. The tally
+// names the smallest ARN first (skippedLeast), so the warning does not depend
+// on which concurrent read finished first.
+func backupRecoveryPointTags(tags rowTagReader, refused *skipTally) rowTagReader {
+	read := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		if !isARNOf(r.NativeID, "backup") {
+			return nil, nil
+		}
+		t, err := read(ctx, r)
+		if isAPIErrorCode(err, "InvalidParameterValueException") {
+			refused.skippedLeast(r.NativeID, err)
+			return nil, nil
+		}
+		return t, err
+	}
+	return tags
+}
+
+// scanBackupRecoveryPoints stores the recovery points of each vault the vault
+// phase stored, with their tags (storeEachParentPagesTags). A vault
+// ListRecoveryPointsByBackupVault no longer finds was deleted since it was
+// listed and is skipped. A vault may hold tens of thousands, so each page is
+// written once its tags are read rather than held for the whole phase.
+func scanBackupRecoveryPoints(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, vaults []childParent, tags rowTagReader, p *phaseTotals) bool {
+	var refused skipTally
+	failed := storeEachParentPagesTags(ctx, st, acct, region, "backup:ListRecoveryPointsByBackupVault", backupNotFound, vaults,
+		func(ctx context.Context, vault string, token *string) ([]backuptypes.RecoveryPointByBackupVault, *string, error) {
+			out, err := client.ListRecoveryPointsByBackupVault(ctx, &backup.ListRecoveryPointsByBackupVaultInput{
+				BackupVaultName: sdkaws.String(vault), NextToken: token, MaxResults: sdkaws.Int32(backupPageCap),
 			})
-		}
-	}
-	return upsertBatch(st, batch, "backup legal-holds")
-}
-
-// scanBackupRecoveryPoints fans out ListRecoveryPointsByBackupVault over the
-// vaults already scanned in this region. Recovery points are the actual backups;
-// cardinality scales with the account's backup history.
-func scanBackupRecoveryPoints(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	vaults, err := st.ListResources(store.ResourceFilter{
-		Providers: []string{"aws"}, AccountID: acct.ID,
-		Types: []string{TypeBackupVault, TypeBackupLogicallyAirGappedVault}, Limit: util.AllResources,
-	})
-	if err != nil {
-		return 0, 0, err
-	}
-	var total, inserted int
-	for _, v := range vaults {
-		if v.Region == nil || *v.Region != region || v.Name == nil || *v.Name == "" {
-			continue
-		}
-		t, i, ferr := scanBackupRecoveryPointsForVault(ctx, client, acct, region, st, scanID, *v.Name)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
-}
-
-func scanBackupRecoveryPointsForVault(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID, vaultName string) (int, int, error) {
-	// Recovery points can reach tens of thousands per vault, so request max
-	// page size and upsert per page rather than buffering the whole vault's
-	// history in memory.
-	pager := backup.NewListRecoveryPointsByBackupVaultPaginator(client, &backup.ListRecoveryPointsByBackupVaultInput{BackupVaultName: &vaultName},
-		func(o *backup.ListRecoveryPointsByBackupVaultPaginatorOptions) { o.Limit = 1000 })
-	var total, inserted int
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "backup:ListRecoveryPointsByBackupVault", acct.ID, region, perr)
-				return total, inserted, nil
+			if err != nil {
+				return nil, nil, err
 			}
-			return total, inserted, fmt.Errorf("backup:ListRecoveryPointsByBackupVault(%s): %w", vaultName, perr)
-		}
-		batch := make([]*store.Resource, 0, len(out.RecoveryPoints))
-		for _, rp := range out.RecoveryPoints {
+			return out.RecoveryPoints, out.NextToken, nil
+		},
+		func(vault string, rp backuptypes.RecoveryPointByBackupVault) (*store.Resource, string, string) {
 			arn := sv(rp.RecoveryPointArn)
 			if arn == "" {
-				continue
+				return nil, "recovery points have no RecoveryPointArn", cmp.Or(sv(rp.ResourceName), "in vault "+vault)
 			}
-			label := sv(rp.ResourceName)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBackupRecoveryPoint, NativeID: arn,
-				Name: &label, Region: &region, CreatedAt: tp(rp.CreationDate),
-				AttributesJSON: mustJSON(rp), DiscoveredBy: scanID,
-			})
-		}
-		t, i, err := upsertBatch(st, batch, "backup recovery-points")
-		if err != nil {
-			return total, inserted, err
-		}
-		total += t
-		inserted += i
+			label := cmp.Or(sv(rp.ResourceName), arn)
+			r := bkRow(acct, region, scanID, TypeBackupRecoveryPoint, arn, &label, rp)
+			r.CreatedAt = tp(rp.CreationDate)
+			return r, "", ""
+		}, backupRecoveryPointTags(tags, &refused), p)
+	if !failed && refused.count > 0 {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: tags.op, Scope: acct.ID + "/" + region,
+			Message: fmt.Sprintf("%d recovery point(s) stored without tags: ListTags refused their ARN; first %s: %v", refused.count, refused.first, refused.err),
+		})
 	}
-	return total, inserted, nil
+	return failed
 }

@@ -102,9 +102,9 @@ func init() {
 }
 
 // noopBackupHierarchy emits nothing: the plan → selection contains edges are
-// written at scan time by scanBackupAll via RecordHierarchyBatch, and the
-// air-gapped vault → restore access vault ones by scanBackupRestoreAccessVaults
-// via childFanOut. It is registered only so those edges are declared to
+// written at scan time by scanBackupSelections, and the air-gapped vault →
+// restore access vault ones by scanBackupRestoreAccessVaults, both through
+// storeChildrenEachParent. It is registered only so those edges are declared to
 // coverage tooling.
 func noopBackupHierarchy(_ *account, _ *store.Store) error {
 	return nil

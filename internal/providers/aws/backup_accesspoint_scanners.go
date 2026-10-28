@@ -1,80 +1,69 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/backup"
+	backuptypes "github.com/aws/aws-sdk-go-v2/service/backup/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanBackupAccessPoints lists the read-only S3 access points onto recovery
-// points, account- and region-wide.
-func scanBackupAccessPoints(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	const op = "backup:ListBackupAccessPoints"
-	pager := backup.NewListBackupAccessPointsPaginator(client, &backup.ListBackupAccessPointsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, op, acct.ID, region, err)
-				break
+// backupAccessPointPageCap is ListBackupAccessPoints' MaxResults: the maximum
+// of its model's range trait, lower than the other listings' backupPageCap.
+const backupAccessPointPageCap = 100
+
+// scanBackupAccessPoints stores the read-only S3 access points onto recovery
+// points, account- and region-wide, with their tags.
+func scanBackupAccessPoints(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, "backup:ListBackupAccessPoints",
+		func(ctx context.Context, token *string) ([]backuptypes.ListAccessPointsMember, *string, error) {
+			out, err := client.ListBackupAccessPoints(ctx, &backup.ListBackupAccessPointsInput{NextToken: token, MaxResults: sdkaws.Int32(backupAccessPointPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("%s: %w", op, err)
-		}
-		for _, ap := range out.BackupAccessPoints {
+			return out.BackupAccessPoints, out.NextToken, nil
+		},
+		func(ap backuptypes.ListAccessPointsMember) (*store.Resource, string, string) {
 			arn := sv(ap.AccessPointArn)
 			if arn == "" {
-				continue
+				return nil, "access points have no AccessPointArn", cmp.Or(sv(ap.Name), bkNoName)
 			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBackupAccessPoint, NativeID: arn,
-				Name: ap.Name, Status: nonEmptyPtr(string(ap.Status)), Region: &region,
-				CreatedAt: tp(ap.CreationTime), AttributesJSON: mustJSON(ap), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "backup access-points")
+			r := bkRow(acct, region, scanID, TypeBackupAccessPoint, arn, ap.Name, ap)
+			r.Status = nonEmptyPtr(string(ap.Status))
+			r.CreatedAt = tp(ap.CreationTime)
+			return r, "", ""
+		}, tags, p)
 }
 
-// scanBackupRestoreAccessVaults lists, per logically air-gapped vault, the
-// restore access vaults granted from it. The NativeID is
+// scanBackupRestoreAccessVaults lists, per logically air-gapped vault the
+// vault phase stored, the restore access vaults granted from it, linked under
+// it. A vault ListRestoreAccessBackupVaults no longer finds was deleted since
+// it was listed and is skipped. The NativeID is
 // {airGappedVaultARN}/restore-access-backup-vault/{restoreAccessVaultARN}
 // because the restore access vault's own ARN is a backup-vault ARN: when it
 // lives in this account ListBackupVaults already stores that ARN as a vault
 // row, and one NativeID for two types merges them into one version chain.
 func scanBackupRestoreAccessVaults(ctx context.Context, client backupAPI, acct *account, region string, st *store.Store, scanID string, airGapped []childParent) (int, int, error) {
-	return childFanOut(ctx, st, acct, region, "backup:ListRestoreAccessBackupVaults", airGapped, isBackupVaultGone,
-		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
-			pager := backup.NewListRestoreAccessBackupVaultsPaginator(client, &backup.ListRestoreAccessBackupVaultsInput{BackupVaultName: &p.id})
-			var rows []*store.Resource
-			for pager.HasMorePages() {
-				out, err := pager.NextPage(ctx)
-				if err != nil {
-					return nil, err
-				}
-				for _, v := range out.RestoreAccessBackupVaults {
-					vaultARN := sv(v.RestoreAccessBackupVaultArn)
-					if vaultARN == "" {
-						continue
-					}
-					rows = append(rows, &store.Resource{
-						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type:     TypeBackupRestoreAccessBackupVault,
-						NativeID: p.arn + "/restore-access-backup-vault/" + vaultARN,
-						Name:     &vaultARN, Status: nonEmptyPtr(string(v.VaultState)), Region: &region,
-						CreatedAt: tp(v.CreationDate), AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
-					})
-				}
+	return storeChildrenEachParent(ctx, st, acct, region, "backup:ListRestoreAccessBackupVaults", backupNotFound, airGapped, nil, nil,
+		func(ctx context.Context, vault childParent, token *string) ([]backuptypes.RestoreAccessBackupVaultListMember, *string, error) {
+			out, err := client.ListRestoreAccessBackupVaults(ctx, &backup.ListRestoreAccessBackupVaultsInput{
+				BackupVaultName: sdkaws.String(vault.id), NextToken: token, MaxResults: sdkaws.Int32(backupPageCap),
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return rows, nil
+			return out.RestoreAccessBackupVaults, out.NextToken, nil
+		},
+		func(vault childParent, v backuptypes.RestoreAccessBackupVaultListMember) (*store.Resource, string, string) {
+			vaultARN := sv(v.RestoreAccessBackupVaultArn)
+			if vaultARN == "" {
+				return nil, "restore access backup vaults have no RestoreAccessBackupVaultArn", "in vault " + vault.id
+			}
+			r := bkRow(acct, region, scanID, TypeBackupRestoreAccessBackupVault, vault.arn+"/restore-access-backup-vault/"+vaultARN, &vaultARN, v)
+			r.Status = nonEmptyPtr(string(v.VaultState))
+			r.CreatedAt = tp(v.CreationDate)
+			return r, "", ""
 		})
-}
-
-// isBackupVaultGone matches a vault deleted between ListBackupVaults and the
-// per-vault call.
-func isBackupVaultGone(err error) bool {
-	return isAPIErrorCode(err, "ResourceNotFoundException")
 }

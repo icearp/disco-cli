@@ -100,7 +100,7 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 				BackupVaultArn: sdkaws.String(arn("backup", "backup-vault:Default")), BackupVaultName: sdkaws.String("Default"), CreatorRequestId: sdkaws.String("Default"),
 			}}})},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, _, err := scanBackupAll(ctx, backup.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				_, _, err := scanBackupAll(ctx, backup.NewFromConfig(cfg), acct, testRegion, st, testScanID)
 				return err
 			},
 		},
