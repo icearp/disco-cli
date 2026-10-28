@@ -2663,3 +2663,25 @@ func TestStoreParentPagesTags_LaterPageFailureKeepsEarlierPages(t *testing.T) {
 		t.Errorf("stored %v; want [a nokey]", got)
 	}
 }
+
+// arnRow keeps a row that has an ARN, and refuses one without, keyed by its
+// name or, with no name either, by noIdentifier.
+func TestArnRow(t *testing.T) {
+	arn, name := "arn:aws:svc:us-east-1:123456789012:thing/a", "a"
+	r := &store.Resource{NativeID: arn}
+	for _, c := range []struct {
+		label      string
+		arn, name  *string
+		wantRow    *store.Resource
+		why, keyed string
+	}{
+		{"with an ARN", &arn, &name, r, "", ""},
+		{"no ARN, named", nil, &name, nil, "things have no ARN", name},
+		{"empty ARN, nameless", new(string), nil, nil, "things have no ARN", noIdentifier},
+	} {
+		got, why, key := arnRow("things", c.arn, c.name, r)
+		if got != c.wantRow || why != c.why || key != c.keyed {
+			t.Errorf("%s: arnRow = %p, %q, %q; want %p, %q, %q", c.label, got, why, key, c.wantRow, c.why, c.keyed)
+		}
+	}
+}

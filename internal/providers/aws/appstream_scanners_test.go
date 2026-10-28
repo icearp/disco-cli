@@ -1139,7 +1139,7 @@ func TestScanAppStream_ElementWithoutARNWarns(t *testing.T) {
 		{"fleet", "DescribeFleets", "fleet-x", func(any) (any, error) {
 			return &appstream.DescribeFleetsOutput{Fleets: []astypes.Fleet{{Name: sdkaws.String("fleet-x")}}}, nil
 		}},
-		{"app block without a name", "DescribeAppBlocks", asNoIdentifier, func(any) (any, error) {
+		{"app block without a name", "DescribeAppBlocks", noIdentifier, func(any) (any, error) {
 			return &appstream.DescribeAppBlocksOutput{AppBlocks: []astypes.AppBlock{{}}}, nil
 		}},
 	} {

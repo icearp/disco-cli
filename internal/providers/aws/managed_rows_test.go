@@ -125,11 +125,17 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 		},
 		{
 			name: "apprunner default auto scaling configuration", typ: TypeAppRunnerAutoScalingConfiguration,
-			handlers: handlers{"ListAutoScalingConfigurations": ret(&apprunner.ListAutoScalingConfigurationsOutput{AutoScalingConfigurationSummaryList: []apprunnertypes.AutoScalingConfigurationSummary{{
-				AutoScalingConfigurationArn: sdkaws.String(arn("apprunner", "autoscalingconfiguration/mine/1/abc")), AutoScalingConfigurationName: sdkaws.String("mine"), IsDefault: sdkaws.Bool(true),
-			}}})},
+			handlers: handlers{
+				"ListAutoScalingConfigurations": ret(&apprunner.ListAutoScalingConfigurationsOutput{AutoScalingConfigurationSummaryList: []apprunnertypes.AutoScalingConfigurationSummary{{
+					AutoScalingConfigurationArn: sdkaws.String(arn("apprunner", "autoscalingconfiguration/mine/1/abc")), AutoScalingConfigurationName: sdkaws.String("mine"), IsDefault: sdkaws.Bool(true),
+				}}}),
+				"ListTagsForResource": ret(&apprunner.ListTagsForResourceOutput{}),
+			},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, err := scanAppRunnerAutoScalingConfigs(ctx, apprunner.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				client := apprunner.NewFromConfig(cfg)
+				var p phaseTotals
+				scanAppRunnerAutoScalingConfigs(ctx, client, acct, testRegion, st, testScanID, appRunnerTags(client), &p)
+				_, _, err := p.result(st, acct, testRegion)
 				return err
 			},
 		},

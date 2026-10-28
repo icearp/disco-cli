@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -1253,6 +1254,21 @@ func storeRowsTags(ctx context.Context, st *store.Store, acct *account, region, 
 		tagWarn()
 	})
 	return errs.addPhase(p, tags.op, op, total, inserted, err)
+}
+
+// noIdentifier names, in a warning, a listed element with neither an ARN nor
+// a name.
+const noIdentifier = "(an element with no identifier)"
+
+// arnRow returns r, the row of a listed element stored under its ARN, or,
+// when arn is empty, no row and why with the key naming it in the warning:
+// one empty NativeID would merge every such element into one resource. what
+// names the listing's elements, name the element (noIdentifier when empty).
+func arnRow(what string, arn, name *string, r *store.Resource) (*store.Resource, string, string) {
+	if sv(arn) == "" {
+		return nil, what + " have no ARN", cmp.Or(sv(name), noIdentifier)
+	}
+	return r, "", ""
 }
 
 // storeTokenListTags is storeTokenList with each row's tags read through

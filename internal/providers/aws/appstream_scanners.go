@@ -97,9 +97,6 @@ func appStreamRegionSupported(acct *account, region string) bool {
 
 const (
 	asTagsOp = "appstream:ListTagsForResource"
-	// asNoIdentifier names, in a warning, a listed element with neither an
-	// ARN nor a name.
-	asNoIdentifier = "(an element with no identifier)"
 	// asPageCap is the page cap of DescribeImages (its model's MaxResults
 	// range) and of DescribeAppBlockBuilders (its MaxResults doc).
 	// DescribeAppBlocks, DescribeApplications, DescribeImageBuilders and
@@ -207,17 +204,6 @@ func asTags(client appStreamAPI) rowTagReader {
 	}
 }
 
-// asRow returns r, the row of a listed element stored under its ARN, or no
-// row when arn is empty: one empty NativeID would merge every such element
-// into one resource. what names the elements in the warning, name the
-// element.
-func asRow(what string, arn, name *string, r *store.Resource) (*store.Resource, string, string) {
-	if sv(arn) == "" {
-		return nil, what + " have no ARN", cmp.Or(sv(name), asNoIdentifier)
-	}
-	return r, "", ""
-}
-
 // asLabel is a row's Name: the element's name, else its ARN.
 func asLabel(name *string, arn string) *string {
 	label := cmp.Or(sv(name), arn)
@@ -234,7 +220,7 @@ func scanASAppBlocks(ctx context.Context, client appStreamAPI, acct *account, re
 			return out.AppBlocks, out.NextToken, nil
 		},
 		func(b astypes.AppBlock) (*store.Resource, string, string) {
-			return asRow("app blocks", b.Arn, b.Name, &store.Resource{
+			return arnRow("app blocks", b.Arn, b.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeAppStreamAppBlock, NativeID: sv(b.Arn),
 				Name: asLabel(b.Name, sv(b.Arn)), Region: &region, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
@@ -252,7 +238,7 @@ func scanASAppBlockBuilders(ctx context.Context, client appStreamAPI, acct *acco
 			return out.AppBlockBuilders, out.NextToken, nil
 		},
 		func(b astypes.AppBlockBuilder) (*store.Resource, string, string) {
-			return asRow("app block builders", b.Arn, b.Name, &store.Resource{
+			return arnRow("app block builders", b.Arn, b.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeAppStreamAppBlockBuilder, NativeID: sv(b.Arn),
 				Name: asLabel(b.Name, sv(b.Arn)), Region: &region, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
@@ -276,7 +262,7 @@ func scanASImages(ctx context.Context, client appStreamAPI, acct *account, regio
 			return out.Images, out.NextToken, nil
 		},
 		func(img astypes.Image) (*store.Resource, string, string) {
-			return asRow("images", img.Arn, img.Name, &store.Resource{
+			return arnRow("images", img.Arn, img.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeAppStreamImage, NativeID: sv(img.Arn),
 				Name: asLabel(img.Name, sv(img.Arn)), Region: &region, CreatedAt: tp(img.CreatedTime),
@@ -296,7 +282,7 @@ func scanASApplications(ctx context.Context, client appStreamAPI, acct *account,
 			return out.Applications, out.NextToken, nil
 		},
 		func(a astypes.Application) (*store.Resource, string, string) {
-			return asRow("applications", a.Arn, a.Name, &store.Resource{
+			return arnRow("applications", a.Arn, a.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeAppStreamApplication, NativeID: sv(a.Arn),
 				Name: asLabel(a.Name, sv(a.Arn)), Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
@@ -353,7 +339,7 @@ func scanASFleets(ctx context.Context, client appStreamAPI, acct *account, regio
 		func(f astypes.Fleet) (*store.Resource, string, string) {
 			// An ARN-less fleet is warned about and not stored, so its application
 			// associations are not read either; the model requires Fleet.Arn.
-			return asRow("fleets", f.Arn, f.Name, &store.Resource{
+			return arnRow("fleets", f.Arn, f.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeAppStreamFleet, NativeID: sv(f.Arn),
 				Name: asLabel(f.Name, sv(f.Arn)), Region: &region, AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
@@ -380,7 +366,7 @@ func scanASImageBuilders(ctx context.Context, client appStreamAPI, acct *account
 			return out.ImageBuilders, out.NextToken, nil
 		},
 		func(b astypes.ImageBuilder) (*store.Resource, string, string) {
-			return asRow("image builders", b.Arn, b.Name, &store.Resource{
+			return arnRow("image builders", b.Arn, b.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeAppStreamImageBuilder, NativeID: sv(b.Arn),
 				Name: asLabel(b.Name, sv(b.Arn)), Region: &region, AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
@@ -401,7 +387,7 @@ func scanASStacks(ctx context.Context, client appStreamAPI, acct *account, regio
 			return out.Stacks, out.NextToken, nil
 		},
 		func(s astypes.Stack) (*store.Resource, string, string) {
-			return asRow("stacks", s.Arn, s.Name, &store.Resource{
+			return arnRow("stacks", s.Arn, s.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeAppStreamStack, NativeID: sv(s.Arn),
 				Name: asLabel(s.Name, sv(s.Arn)), Region: &region, AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
