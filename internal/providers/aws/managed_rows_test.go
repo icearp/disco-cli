@@ -174,12 +174,16 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 		},
 		{
 			name: "organizations root", typ: TypeOrganizationsRoot,
-			handlers: handlers{"ListRoots": ret(&organizations.ListRootsOutput{Roots: []organizationstypes.Root{{
-				Id: sdkaws.String("r-ab12"), Arn: sdkaws.String("arn:aws:organizations::" + acctID + ":root/o-abc/r-ab12"), Name: sdkaws.String("Root"),
-			}}})},
+			handlers: handlers{
+				"ListRoots": ret(&organizations.ListRootsOutput{Roots: []organizationstypes.Root{{
+					Id: sdkaws.String("r-ab12"), Arn: sdkaws.String("arn:aws:organizations::" + acctID + ":root/o-abc/r-ab12"), Name: sdkaws.String("Root"),
+				}}}),
+				"ListTagsForResource": ret(&organizations.ListTagsForResourceOutput{}),
+			},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				var pairs [][2]string
-				_, _, _, _, err := scanOrgRoots(ctx, organizations.NewFromConfig(cfg), acct, st, testScanID, "o-abc", &pairs)
+				var p phaseTotals
+				scanOrgRoots(ctx, newOrgScan(organizations.NewFromConfig(cfg), acct, st, testScanID, orgTestOrgARN), &p)
+				_, _, err := p.result(st, acct, "")
 				return err
 			},
 		},
