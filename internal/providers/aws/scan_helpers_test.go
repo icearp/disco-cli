@@ -676,7 +676,7 @@ func TestTransientDemotersAreKnown(t *testing.T) {
 	known := map[string]map[string]bool{
 		"demoteTransient": {
 			// Enrichment only: the tapes are stored from ListTapes either way.
-			"storagegateway_scanners.go:describeSGWTapeArchives": true,
+			"storagegateway_scanners.go:reportArchives": true,
 		},
 		// Per-item tallies: one warning names every item whose read was
 		// still throttled after the SDK's retries. Most keep the listed row
