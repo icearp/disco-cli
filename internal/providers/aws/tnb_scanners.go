@@ -2,9 +2,10 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/tnb"
+	tnbtypes "github.com/aws/aws-sdk-go-v2/service/tnb/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -27,164 +28,173 @@ type tnbAPI interface {
 	ListSolNetworkInstances(context.Context, *tnb.ListSolNetworkInstancesInput, ...func(*tnb.Options)) (*tnb.ListSolNetworkInstancesOutput, error)
 	ListSolNetworkPackages(context.Context, *tnb.ListSolNetworkPackagesInput, ...func(*tnb.Options)) (*tnb.ListSolNetworkPackagesOutput, error)
 	ListSolNetworkOperations(context.Context, *tnb.ListSolNetworkOperationsInput, ...func(*tnb.Options)) (*tnb.ListSolNetworkOperationsOutput, error)
+	ListTagsForResource(context.Context, *tnb.ListTagsForResourceInput, ...func(*tnb.Options)) (*tnb.ListTagsForResourceOutput, error)
 }
 
-func scanTnb(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+const (
+	tnbTagsOp = "tnb:ListTagsForResource"
+	// tnbPageCap is the MaxResults maximum of every TNB listing read here.
+	tnbPageCap = 100
+)
+
+// scanTnb discovers TNB function packages, function instances, network
+// packages, network instances and network operations, each with its tags
+// (tnbTags). Every listing runs as its own phase, one at a time and in that
+// order: a phase's error does not stop the later ones; a failed write and
+// ctx's end do, and so does a first phase that stores nothing and fails only
+// with NXDOMAIN, since the region does not serve the service
+// (runHostPhases). The tag reads' denials are one warning for the whole scan.
+// AWS may refuse every TNB op as deprecated (403, "All API operations are
+// blocked"); each phase then fails alike and dispatch reports the service as
+// blocked, not as an error (isServiceBlocked).
+func scanTnb(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := tnb.NewFromConfig(acct.cfg, func(o *tnb.Options) { o.Region = region })
-
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanTnbFunctionPackages(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanTnbFunctionInstances(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanTnbNetworkPackages(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanTnbNetworkInstances(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanTnbNetworkOperations(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+	tags := tnbTags(client).sharingDenials()
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "tnb", 0, []hostPhase{
+		{op: "tnb:ListSolFunctionPackages", run: func(p *phaseTotals) bool {
+			return scanTnbFunctionPackages(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "tnb:ListSolFunctionInstances", run: func(p *phaseTotals) bool {
+			return scanTnbFunctionInstances(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "tnb:ListSolNetworkPackages", run: func(p *phaseTotals) bool {
+			return scanTnbNetworkPackages(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "tnb:ListSolNetworkInstances", run: func(p *phaseTotals) bool {
+			return scanTnbNetworkInstances(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "tnb:ListSolNetworkOperations", run: func(p *phaseTotals) bool {
+			return scanTnbNetworkOperations(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-func scanTnbFunctionInstances(ctx context.Context, client tnbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := tnb.NewListSolFunctionInstancesPaginator(client, &tnb.ListSolFunctionInstancesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "tnb:ListSolFunctionInstances", acct.ID, region, perr)
+// tnbTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: the ARN its listing returned. The Service Reference names no
+// resource on ListTagsForResource, but its TagResource takes every type
+// stored here (function-instance, function-package, network-instance,
+// network-operation, network-package), the op's model takes the ARN of any
+// TNB resource type of the aws partition (TNBResourceArn ^arn:aws:tnb:), the
+// only partition TNB is offered in, and each type's Get response carries
+// Tags. The op returns every tag at once.
+// ResourceNotFoundException, its modeled not-found, drops a resource deleted
+// after it was listed.
+func tnbTags(client tnbAPI) rowTagReader {
+	return rowTagReader{
+		op:       tnbTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &tnb.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
 			}
-			return 0, 0, fmt.Errorf("tnb:ListSolFunctionInstances: %w", perr)
-		}
-		for _, f := range out.FunctionInstances {
-			arn := sv(f.Arn)
-			if arn == "" {
-				continue
-			}
-			status := string(f.InstantiationState)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTnbFunctionInstance, NativeID: arn,
-				Name: f.Id, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
-			})
-		}
+			return mapTagsJSON(out.Tags), nil
+		},
 	}
-	return upsertBatch(st, batch, "tnb function-instances")
 }
 
-func scanTnbFunctionPackages(ctx context.Context, client tnbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := tnb.NewListSolFunctionPackagesPaginator(client, &tnb.ListSolFunctionPackagesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "tnb:ListSolFunctionPackages", acct.ID, region, perr)
-			}
-			return 0, 0, fmt.Errorf("tnb:ListSolFunctionPackages: %w", perr)
-		}
-		for _, p := range out.FunctionPackages {
-			arn := sv(p.Arn)
-			if arn == "" {
-				continue
-			}
-			status := string(p.OnboardingState)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTnbFunctionPackage, NativeID: arn,
-				Name: p.Id, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "tnb function-packages")
+// tnbRow is the row of a listed element stored under its ARN, named name; an
+// element without an ARN is not stored (arnRow), and what names such
+// elements in the listing's warning.
+func tnbRow(acct *account, region, scanID, typ, what string, arn, name *string, status string, element any) (*store.Resource, string, string) {
+	return arnRow(what, arn, name, &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: sv(arn),
+		Name: name, Region: &region, Status: &status,
+		AttributesJSON: mustJSON(element), DiscoveredBy: scanID,
+	})
 }
 
-func scanTnbNetworkInstances(ctx context.Context, client tnbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := tnb.NewListSolNetworkInstancesPaginator(client, &tnb.ListSolNetworkInstancesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "tnb:ListSolNetworkInstances", acct.ID, region, perr)
+// scanTnbFunctionPackages stores the function packages, each page written as
+// soon as its rows' tags are read. It reports whether a write failed, after
+// which the scan must stop.
+func scanTnbFunctionPackages(ctx context.Context, client tnbAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "tnb:ListSolFunctionPackages",
+		func(ctx context.Context, token *string) ([]tnbtypes.ListSolFunctionPackageInfo, *string, error) {
+			out, err := client.ListSolFunctionPackages(ctx, &tnb.ListSolFunctionPackagesInput{MaxResults: sdkaws.Int32(tnbPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("tnb:ListSolNetworkInstances: %w", perr)
-		}
-		for _, n := range out.NetworkInstances {
-			arn := sv(n.Arn)
-			if arn == "" {
-				continue
-			}
-			status := string(n.NsState)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTnbNetworkInstance, NativeID: arn,
-				Name: n.NsInstanceName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "tnb network-instances")
+			return out.FunctionPackages, out.NextToken, nil
+		},
+		func(f tnbtypes.ListSolFunctionPackageInfo) (*store.Resource, string, string) {
+			return tnbRow(acct, region, scanID, TypeTnbFunctionPackage, "function packages", f.Arn, f.Id, string(f.OnboardingState), f)
+		},
+		tags, p)
 }
 
-func scanTnbNetworkPackages(ctx context.Context, client tnbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := tnb.NewListSolNetworkPackagesPaginator(client, &tnb.ListSolNetworkPackagesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "tnb:ListSolNetworkPackages", acct.ID, region, perr)
+// scanTnbFunctionInstances stores the function instances, each page written
+// as soon as its rows' tags are read. It reports whether a write failed,
+// after which the scan must stop.
+func scanTnbFunctionInstances(ctx context.Context, client tnbAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "tnb:ListSolFunctionInstances",
+		func(ctx context.Context, token *string) ([]tnbtypes.ListSolFunctionInstanceInfo, *string, error) {
+			out, err := client.ListSolFunctionInstances(ctx, &tnb.ListSolFunctionInstancesInput{MaxResults: sdkaws.Int32(tnbPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("tnb:ListSolNetworkPackages: %w", perr)
-		}
-		for _, p := range out.NetworkPackages {
-			arn := sv(p.Arn)
-			if arn == "" {
-				continue
-			}
-			status := string(p.NsdOnboardingState)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTnbNetworkPackage, NativeID: arn,
-				Name: p.NsdName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "tnb network-packages")
+			return out.FunctionInstances, out.NextToken, nil
+		},
+		func(f tnbtypes.ListSolFunctionInstanceInfo) (*store.Resource, string, string) {
+			return tnbRow(acct, region, scanID, TypeTnbFunctionInstance, "function instances", f.Arn, f.Id, string(f.InstantiationState), f)
+		},
+		tags, p)
 }
 
-func scanTnbNetworkOperations(ctx context.Context, client tnbAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := tnb.NewListSolNetworkOperationsPaginator(client, &tnb.ListSolNetworkOperationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "tnb:ListSolNetworkOperations", acct.ID, region, perr)
+// scanTnbNetworkPackages stores the network packages, each page written as
+// soon as its rows' tags are read. It reports whether a write failed, after
+// which the scan must stop.
+func scanTnbNetworkPackages(ctx context.Context, client tnbAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "tnb:ListSolNetworkPackages",
+		func(ctx context.Context, token *string) ([]tnbtypes.ListSolNetworkPackageInfo, *string, error) {
+			out, err := client.ListSolNetworkPackages(ctx, &tnb.ListSolNetworkPackagesInput{MaxResults: sdkaws.Int32(tnbPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("tnb:ListSolNetworkOperations: %w", perr)
-		}
-		for _, o := range out.NetworkOperations {
-			arn := sv(o.Arn)
-			if arn == "" {
-				continue
+			return out.NetworkPackages, out.NextToken, nil
+		},
+		func(n tnbtypes.ListSolNetworkPackageInfo) (*store.Resource, string, string) {
+			return tnbRow(acct, region, scanID, TypeTnbNetworkPackage, "network packages", n.Arn, n.NsdName, string(n.NsdOnboardingState), n)
+		},
+		tags, p)
+}
+
+// scanTnbNetworkInstances stores the network instances, each page written as
+// soon as its rows' tags are read. It reports whether a write failed, after
+// which the scan must stop.
+func scanTnbNetworkInstances(ctx context.Context, client tnbAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "tnb:ListSolNetworkInstances",
+		func(ctx context.Context, token *string) ([]tnbtypes.ListSolNetworkInstanceInfo, *string, error) {
+			out, err := client.ListSolNetworkInstances(ctx, &tnb.ListSolNetworkInstancesInput{MaxResults: sdkaws.Int32(tnbPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			status := string(o.OperationState)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTnbNetworkOperation, NativeID: arn,
-				Name: o.Id, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(o), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "tnb network-operations")
+			return out.NetworkInstances, out.NextToken, nil
+		},
+		func(n tnbtypes.ListSolNetworkInstanceInfo) (*store.Resource, string, string) {
+			return tnbRow(acct, region, scanID, TypeTnbNetworkInstance, "network instances", n.Arn, n.NsInstanceName, string(n.NsState), n)
+		},
+		tags, p)
+}
+
+// scanTnbNetworkOperations stores the network operations (each instantiate,
+// update or terminate run on a network instance; an operation has its own
+// ARN and tags), each page written as soon as its rows' tags are read. It
+// reports whether a write failed, after which the scan must stop.
+func scanTnbNetworkOperations(ctx context.Context, client tnbAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "tnb:ListSolNetworkOperations",
+		func(ctx context.Context, token *string) ([]tnbtypes.ListSolNetworkOperationsInfo, *string, error) {
+			out, err := client.ListSolNetworkOperations(ctx, &tnb.ListSolNetworkOperationsInput{MaxResults: sdkaws.Int32(tnbPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.NetworkOperations, out.NextToken, nil
+		},
+		func(o tnbtypes.ListSolNetworkOperationsInfo) (*store.Resource, string, string) {
+			return tnbRow(acct, region, scanID, TypeTnbNetworkOperation, "network operations", o.Arn, o.Id, string(o.OperationState), o)
+		},
+		tags, p)
 }
