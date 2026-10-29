@@ -23,7 +23,7 @@ func init() {
 }
 
 // noopCasesFieldOptionHierarchy only carries the EdgeDecl metadata: the
-// field → option contains edges come from childFanOut in
+// field → option contains edges come from storeChildrenEachParent in
 // scanCasesFieldOptions.
 func noopCasesFieldOptionHierarchy(_ *account, _ *store.Store) error {
 	return nil
