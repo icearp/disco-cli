@@ -2,11 +2,13 @@ package aws
 
 import (
 	"context"
-	"fmt"
+	"slices"
 	"time"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/resiliencehubv2"
+	rhv2types "github.com/aws/aws-sdk-go-v2/service/resiliencehubv2/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -34,50 +36,36 @@ type resilienceHubV2API interface {
 	ListUserJourneys(context.Context, *resiliencehubv2.ListUserJourneysInput, ...func(*resiliencehubv2.Options)) (*resiliencehubv2.ListUserJourneysOutput, error)
 	ListServiceFunctions(context.Context, *resiliencehubv2.ListServiceFunctionsInput, ...func(*resiliencehubv2.Options)) (*resiliencehubv2.ListServiceFunctionsOutput, error)
 	ListInputSources(context.Context, *resiliencehubv2.ListInputSourcesInput, ...func(*resiliencehubv2.Options)) (*resiliencehubv2.ListInputSourcesOutput, error)
+	ListTagsForResource(context.Context, *resiliencehubv2.ListTagsForResourceInput, ...func(*resiliencehubv2.Options)) (*resiliencehubv2.ListTagsForResourceOutput, error)
 }
 
-// scanResilienceHubV2 lists policies, services and systems, then fans out
-// tests per service and user journeys per system. ListPolicies doubles as the
-// deployment probe: when it reports the v2 API absent from the region, the
-// remaining phases are skipped. It returns the stored services' ARNs, once
-// their phase has succeeded, for the service-function and input-source
-// fan-outs.
-func scanResilienceHubV2(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) (serviceARNs []string, total, inserted int, err error) {
-	available, t, i, err := scanRHPolicies(ctx, client, acct, region, st, scanID)
-	if err != nil || !available {
-		return nil, t, i, err
-	}
-	total += t
-	inserted += i
+const (
+	rhListPoliciesOp     = "resiliencehub:ListPolicies"
+	rhListServicesOp     = "resiliencehub:ListServices"
+	rhListSystemsOp      = "resiliencehub:ListSystems"
+	rhListTestsOp        = "resiliencehub:ListTests"
+	rhListUserJourneysOp = "resiliencehub:ListUserJourneys"
+)
 
-	serviceARNs, t, i, err = scanRHServices(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return nil, total, inserted, err
+// rhTagsV2 reads a v2 row's tags with the v2 client's ListTagsForResource,
+// which the Service Reference lists for every Resilience Hub type; it is read
+// for policies, services and systems, whose listed elements carry no tags. It
+// is sent the row's NativeID, the ARN its listing returned; the op takes no page
+// token and returns every tag at once. Only rows homed in the scanned
+// account and region are stored (rhHomedHere), so no read is about another
+// account's resource.
+func rhTagsV2(client resilienceHubV2API) rowTagReader {
+	return rowTagReader{
+		op:       rhTagsOp,
+		notFound: rhNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &resiliencehubv2.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
+			if err != nil {
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
+		},
 	}
-	total += t
-	inserted += i
-
-	systemARNs, t, i, err := scanRHSystems(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return serviceARNs, total, inserted, err
-	}
-	total += t
-	inserted += i
-
-	t, i, err = scanRHTests(ctx, client, acct, region, st, scanID, serviceARNs)
-	if err != nil {
-		return serviceARNs, total, inserted, err
-	}
-	total += t
-	inserted += i
-
-	t, i, err = scanRHUserJourneys(ctx, client, acct, region, st, scanID, systemARNs)
-	if err != nil {
-		return serviceARNs, total, inserted, err
-	}
-	total += t
-	inserted += i
-	return serviceARNs, total, inserted, nil
 }
 
 // rhHomedHere reports whether a v2 ARN names a resource of accountID homed
@@ -96,6 +84,20 @@ func rhHomedHere(resourceARN, accountID, region string) bool {
 	return err == nil && a.AccountID == accountID && a.Region == region
 }
 
+// rhHomedPages is page with each page's elements homed elsewhere left out
+// (rhHomedHere), without a warning: they are not this scan's to store. An
+// element without an ARN is kept, so that its row builder warns about it.
+func rhHomedPages[Item any](acct *account, region string, arnOf func(Item) *string, page func(ctx context.Context, token *string) ([]Item, *string, error)) func(ctx context.Context, token *string) ([]Item, *string, error) {
+	return func(ctx context.Context, token *string) ([]Item, *string, error) {
+		items, next, err := page(ctx, token)
+		items = slices.DeleteFunc(items, func(it Item) bool {
+			a := sv(arnOf(it))
+			return a != "" && !rhHomedHere(a, acct.ID, region)
+		})
+		return items, next, err
+	}
+}
+
 func rhResource(acct *account, region, scanID, typ, nativeID, name, status string, createdAt *time.Time, elem any) *store.Resource {
 	r := &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
@@ -111,101 +113,92 @@ func rhResource(acct *account, region, scanID, typ, nativeID, name, status strin
 	return r
 }
 
-// scanRHPolicies reports available=false when its first call shows the v2
-// API is not deployed in region (isOpNotDeployed). The v2 client shares v1's
-// endpoint host, so a region where only v1 is deployed answers with an
-// unrouted-op shape; its gateway message arrives as a NotFoundException.
-// ListPolicies models no not-found error, so any 404 on its first call means
-// the API is absent. That is a sub-feature gap inside a present service, so it
-// is skipped silently rather than failing the whole resilience-hub scan. Once
-// a page has succeeded the API is deployed, and a later failure of any shape
-// is a real error.
-func scanRHPolicies(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) (available bool, total, inserted int, err error) {
-	pager := resiliencehubv2.NewListPoliciesPaginator(client, &resiliencehubv2.ListPoliciesInput{})
-	var batch []*store.Resource
-	for firstPage := true; pager.HasMorePages(); firstPage = false {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if firstPage && isOpNotDeployed(err) {
-				return false, 0, 0, nil
-			}
-			if isAccessDenied(err) {
-				return true, 0, 0, skipIfAccessDenied(st, "resiliencehub:ListPolicies", acct.ID, region, err)
-			}
-			return true, 0, 0, fmt.Errorf("resiliencehub:ListPolicies: %w", err)
-		}
-		for _, p := range out.PolicySummaries {
-			policyARN := sv(p.PolicyArn)
-			if !rhHomedHere(policyARN, acct.ID, region) {
-				continue
-			}
-			batch = append(batch, rhResource(acct, region, scanID, TypeResilienceHubPolicy, policyARN, sv(p.Name), "", p.CreatedAt, p))
-		}
+// scanRHPolicies stores the v2 policies homed here, each page written as
+// soon as its rows' tags are read. It reports absent when its first call
+// shows the v2 API is not deployed in region (isOpNotDeployed). The v2
+// client shares v1's endpoint host, so a region where only v1 is deployed
+// answers with an unrouted-op shape; its gateway message arrives as a
+// NotFoundException. ListPolicies models no not-found error, so any 404 on
+// its first call means the API is absent. That is a sub-feature gap inside a
+// present service, so it is skipped silently rather than failing the whole
+// resilience-hub scan. Once a page has succeeded the API is deployed, and a
+// later failure of any shape is a real error. It reports whether a write
+// failed, after which the scan must stop.
+func scanRHPolicies(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (absent, storeWriteFailed bool) {
+	// firstPageGapPages asks only about the first page's error, so absent
+	// records the first call's answer.
+	notDeployed := func(err error) bool {
+		absent = isOpNotDeployed(err)
+		return absent
 	}
-	total, inserted, err = upsertBatch(st, batch, "resilience-hub policies")
-	return true, total, inserted, err
+	storeWriteFailed = storeTokenPagesTags(ctx, st, acct, region, rhListPoliciesOp,
+		firstPageGapPages(notDeployed, rhHomedPages(acct, region, func(pol rhv2types.PolicySummary) *string { return pol.PolicyArn },
+			func(ctx context.Context, token *string) ([]rhv2types.PolicySummary, *string, error) {
+				out, err := client.ListPolicies(ctx, &resiliencehubv2.ListPoliciesInput{MaxResults: sdkaws.Int32(rhPageLimit), NextToken: token})
+				if err != nil {
+					return nil, nil, err
+				}
+				return out.PolicySummaries, out.NextToken, nil
+			})),
+		func(pol rhv2types.PolicySummary) (*store.Resource, string, string) {
+			return arnRow("policies", pol.PolicyArn, pol.Name,
+				rhResource(acct, region, scanID, TypeResilienceHubPolicy, sv(pol.PolicyArn), sv(pol.Name), "", pol.CreatedAt, pol))
+		},
+		tags, p)
+	return absent, storeWriteFailed
 }
 
-// scanRHServices returns the stored services' ARNs: the parents ListTests,
-// ListServiceFunctions and ListInputSources require.
-func scanRHServices(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := resiliencehubv2.NewListServicesPaginator(client, &resiliencehubv2.ListServicesInput{})
-	var batch []*store.Resource
-	var serviceARNs []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "resiliencehub:ListServices", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("resiliencehub:ListServices: %w", err)
-		}
-		for _, s := range out.ServiceSummaries {
-			serviceARN := sv(s.ServiceArn)
-			if !rhHomedHere(serviceARN, acct.ID, region) {
-				continue
-			}
-			serviceARNs = append(serviceARNs, serviceARN)
-			batch = append(batch, rhResource(acct, region, scanID, TypeResilienceHubService, serviceARN, sv(s.Name), string(s.AssessmentStatus), s.CreatedAt, s))
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "resilience-hub services")
-	return serviceARNs, t, i, err
+// scanRHServices stores the services homed here, each page written as soon
+// as its rows' tags are read, and returns the stored ones keyed by their ARN:
+// the parents ListTests, ListServiceFunctions and ListInputSources require.
+// It reports whether a write failed, after which the scan must stop.
+func scanRHServices(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, rhListServicesOp, "services", "ServiceArn",
+		rhHomedPages(acct, region, func(s rhv2types.ServiceSummary) *string { return s.ServiceArn },
+			func(ctx context.Context, token *string) ([]rhv2types.ServiceSummary, *string, error) {
+				out, err := client.ListServices(ctx, &resiliencehubv2.ListServicesInput{MaxResults: sdkaws.Int32(rhPageLimit), NextToken: token})
+				if err != nil {
+					return nil, nil, err
+				}
+				return out.ServiceSummaries, out.NextToken, nil
+			}),
+		func(s rhv2types.ServiceSummary) (*store.Resource, string, string) {
+			return arnRow("services", s.ServiceArn, s.Name,
+				rhResource(acct, region, scanID, TypeResilienceHubService, sv(s.ServiceArn), sv(s.Name), string(s.AssessmentStatus), s.CreatedAt, s))
+		},
+		func(s rhv2types.ServiceSummary) string { return sv(s.ServiceArn) },
+		tags, p)
 }
 
-// scanRHSystems returns the stored systems' ARNs: the parents
-// ListUserJourneys requires. SystemArn is optional in the summary (SystemId
-// is the required field); a system without one is skipped, as it has neither
-// an ARN identity nor a way to list its user journeys.
-func scanRHSystems(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := resiliencehubv2.NewListSystemsPaginator(client, &resiliencehubv2.ListSystemsInput{})
-	var batch []*store.Resource
-	var systemARNs []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "resiliencehub:ListSystems", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("resiliencehub:ListSystems: %w", err)
-		}
-		for _, s := range out.SystemSummaries {
-			systemARN := sv(s.SystemArn)
-			if !rhHomedHere(systemARN, acct.ID, region) {
-				continue
-			}
-			systemARNs = append(systemARNs, systemARN)
-			batch = append(batch, rhResource(acct, region, scanID, TypeResilienceHubSystem, systemARN, sv(s.Name), "", s.CreatedAt, s))
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "resilience-hub systems")
-	return systemARNs, t, i, err
+// scanRHSystems stores the systems homed here, each page written as soon as
+// its rows' tags are read, and returns the stored ones keyed by their ARN:
+// the parents ListUserJourneys requires. SystemArn is optional in the
+// summary (SystemId is the required field); a system without one has neither
+// an ARN identity nor a way to list its user journeys, so it is not stored
+// and is warned about. It reports whether a write failed, after which the
+// scan must stop.
+func scanRHSystems(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, rhListSystemsOp, "systems", "SystemArn",
+		rhHomedPages(acct, region, func(s rhv2types.SystemSummary) *string { return s.SystemArn },
+			func(ctx context.Context, token *string) ([]rhv2types.SystemSummary, *string, error) {
+				out, err := client.ListSystems(ctx, &resiliencehubv2.ListSystemsInput{MaxResults: sdkaws.Int32(rhPageLimit), NextToken: token})
+				if err != nil {
+					return nil, nil, err
+				}
+				return out.SystemSummaries, out.NextToken, nil
+			}),
+		func(s rhv2types.SystemSummary) (*store.Resource, string, string) {
+			return arnRow("systems", s.SystemArn, s.SystemId,
+				rhResource(acct, region, scanID, TypeResilienceHubSystem, sv(s.SystemArn), sv(s.Name), "", s.CreatedAt, s))
+		},
+		func(s rhv2types.SystemSummary) string { return sv(s.SystemArn) },
+		tags, p)
 }
 
 // A test has no ARN; its NativeID is {serviceARN}/test/{testId}. The summary
 // has no name.
 func scanRHTests(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, serviceARNs []string) (int, int, error) {
-	return childFanOut(ctx, st, acct, region, "resiliencehub:ListTests", rhParents(serviceARNs), isRHParentGone,
+	return childFanOut(ctx, st, acct, region, rhListTestsOp, rhParents(serviceARNs), isRHParentGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			serviceARN := p.arn
 			var rows []*store.Resource
@@ -230,7 +223,7 @@ func scanRHTests(ctx context.Context, client resilienceHubV2API, acct *account, 
 // A user journey has no ARN; its NativeID is
 // {systemARN}/user-journey/{userJourneyId}.
 func scanRHUserJourneys(ctx context.Context, client resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, systemARNs []string) (int, int, error) {
-	return childFanOut(ctx, st, acct, region, "resiliencehub:ListUserJourneys", rhParents(systemARNs), isRHParentGone,
+	return childFanOut(ctx, st, acct, region, rhListUserJourneysOp, rhParents(systemARNs), isRHParentGone,
 		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 			systemARN := p.arn
 			var rows []*store.Resource

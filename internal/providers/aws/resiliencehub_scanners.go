@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/resiliencehub"
@@ -30,217 +29,220 @@ type resilienceHubAPI interface {
 	ListAppAssessments(context.Context, *resiliencehub.ListAppAssessmentsInput, ...func(*resiliencehub.Options)) (*resiliencehub.ListAppAssessmentsOutput, error)
 	ListRecommendationTemplates(context.Context, *resiliencehub.ListRecommendationTemplatesInput, ...func(*resiliencehub.Options)) (*resiliencehub.ListRecommendationTemplatesOutput, error)
 	ListAppInputSources(context.Context, *resiliencehub.ListAppInputSourcesInput, ...func(*resiliencehub.Options)) (*resiliencehub.ListAppInputSourcesOutput, error)
+	ListTagsForResource(context.Context, *resiliencehub.ListTagsForResourceInput, ...func(*resiliencehub.Options)) (*resiliencehub.ListTagsForResourceOutput, error)
 }
 
-// scanResilienceHub discovers Resilience Hub resources from the v1 (app) and v2
-// (service/system) APIs, then the input sources of every app and the functions
-// and input sources of every service those phases stored. The fan-outs run
-// whatever the earlier phases returned, so their failure costs those phases
-// nothing. Every side's transient error is demoted to a warning only beside a
-// hard error: joined, it would be buried in the hard error instead of reported
-// under its op; the counts are summed.
+const (
+	rhListAppsOp                    = "resiliencehub:ListApps"
+	rhListResiliencyPoliciesOp      = "resiliencehub:ListResiliencyPolicies"
+	rhListAppAssessmentsOp          = "resiliencehub:ListAppAssessments"
+	rhListRecommendationTemplatesOp = "resiliencehub:ListRecommendationTemplates"
+	// rhTagsOp is the one IAM action that both SDK clients' ListTagsForResource
+	// call, so their tag denials are one warning.
+	rhTagsOp = "resiliencehub:ListTagsForResource"
+)
+
+// rhNotFound is the not-found code both ListTagsForResource models list: the
+// resource was deleted after it was listed.
+var rhNotFound = []string{"ResourceNotFoundException"}
+
+// scanResilienceHub discovers Resilience Hub resources from the v1 (app) and
+// v2 (service/system) APIs, then the input sources of every app and the
+// functions and input sources of every service those phases stored. Every
+// listing runs as its own phase, one at a time and in that order: a phase's
+// error does not stop the later ones; a failed write and ctx's end do, and so
+// does a first phase that stores nothing and fails only with NXDOMAIN, since
+// the region does not serve the service (runHostPhases). Both APIs are
+// served on the resiliencehub endpoint, so every phase is on one host. A
+// region where only v1 is deployed skips the v2 phases (scanRHPolicies).
+// Apps, resiliency policies, app assessments, recommendation templates, v2
+// policies, services and systems are stored with their tags; both clients'
+// tag denials are one warning for the scan.
 func scanResilienceHub(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := resiliencehub.NewFromConfig(acct.cfg, func(o *resiliencehub.Options) { o.Region = region })
 	v2 := resiliencehubv2.NewFromConfig(acct.cfg, func(o *resiliencehubv2.Options) { o.Region = region })
-	parents, total, inserted, err := scanRHPhases(ctx, client, v2, acct, region, st, scanID)
-	t1, i1, serr := scanRHAppInputSources(ctx, client, acct, region, st, scanID, parents.appARNs)
-	t2, i2, ferr := scanRHServiceFunctions(ctx, v2, acct, region, st, scanID, parents.serviceARNs)
-	t3, i3, ierr := scanRHInputSources(ctx, v2, acct, region, st, scanID, parents.serviceARNs)
-	var errs phaseErrs
-	errs.add("resilience-hub", err)
-	errs.add(rhListAppInputSourcesOp, serr)
-	errs.add(rhListServiceFunctionsOp, ferr)
-	errs.add(rhListInputSourcesOp, ierr)
-	return total + t1 + t2 + t3, inserted + i1 + i2 + i3, errs.join(st, acct, region)
+	tags := rhTags(client).sharingDenials()
+	v2Tags := rhTagsV2(v2)
+	v2Tags.denials = tags.denials
+
+	var (
+		apps, assessments, services, systems []childParent
+		v2Absent                             bool
+	)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "resilience-hub", 0, []hostPhase{
+		{op: rhListAppsOp, run: func(p *phaseTotals) (failed bool) {
+			apps, failed = scanRHApps(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		countedPhase(0, rhListResiliencyPoliciesOp, func() (int, int, error) {
+			return scanRHResiliencyPolicies(ctx, client, acct, region, st, scanID)
+		}),
+		{op: rhListAppAssessmentsOp, run: func(p *phaseTotals) (failed bool) {
+			assessments, failed = scanRHAppAssessments(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		countedPhase(0, rhListRecommendationTemplatesOp, func() (int, int, error) {
+			return scanRHRecommendationTemplates(ctx, client, acct, region, st, scanID, assessments)
+		}),
+		{op: rhListPoliciesOp, run: func(p *phaseTotals) (failed bool) {
+			v2Absent, failed = scanRHPolicies(ctx, v2, acct, region, st, scanID, v2Tags, p)
+			return failed
+		}},
+		// The v2 child phases further down need no gate: with the v2 API
+		// absent they get no services or systems, so they make no call.
+		{op: rhListServicesOp, run: func(p *phaseTotals) (failed bool) {
+			if v2Absent {
+				return false
+			}
+			services, failed = scanRHServices(ctx, v2, acct, region, st, scanID, v2Tags, p)
+			return failed
+		}},
+		{op: rhListSystemsOp, run: func(p *phaseTotals) (failed bool) {
+			if v2Absent {
+				return false
+			}
+			systems, failed = scanRHSystems(ctx, v2, acct, region, st, scanID, v2Tags, p)
+			return failed
+		}},
+		countedPhase(0, rhListTestsOp, func() (int, int, error) {
+			return scanRHTests(ctx, v2, acct, region, st, scanID, childParentIDs(services))
+		}),
+		countedPhase(0, rhListUserJourneysOp, func() (int, int, error) {
+			return scanRHUserJourneys(ctx, v2, acct, region, st, scanID, childParentIDs(systems))
+		}),
+		countedPhase(0, rhListAppInputSourcesOp, func() (int, int, error) {
+			return scanRHAppInputSources(ctx, client, acct, region, st, scanID, childParentIDs(apps))
+		}),
+		countedPhase(0, rhListServiceFunctionsOp, func() (int, int, error) {
+			return scanRHServiceFunctions(ctx, v2, acct, region, st, scanID, childParentIDs(services))
+		}),
+		countedPhase(0, rhListInputSourcesOp, func() (int, int, error) {
+			return scanRHInputSources(ctx, v2, acct, region, st, scanID, childParentIDs(services))
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// rhStoredParents holds the apps and v2 services scanRHPhases upserted this
-// scan: the parents of the fan-outs that follow it.
-type rhStoredParents struct{ appARNs, serviceARNs []string }
-
-// scanRHPhases runs the v1 phases, then the v2 ones, stopping at the first
-// error, and returns the parents stored before it.
-func scanRHPhases(ctx context.Context, client resilienceHubAPI, v2 resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) (parents rhStoredParents, total, inserted int, err error) {
-	appARNs, t, i, ferr := scanRHApps(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return parents, total, inserted, ferr
-	}
-	parents.appARNs = appARNs
-	total += t
-	inserted += i
-
-	t, i, ferr = scanRHResiliencyPolicies(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return parents, total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	assessmentARNs, t, i, ferr := scanRHAppAssessments(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return parents, total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanRHRecommendationTemplates(ctx, client, acct, region, st, scanID, assessmentARNs)
-	if ferr != nil {
-		return parents, total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	// Last, so a v2 failure cannot cost the v1 phases' rows.
-	parents.serviceARNs, t, i, ferr = scanResilienceHubV2(ctx, v2, acct, region, st, scanID)
-	total += t
-	inserted += i
-	return parents, total, inserted, ferr
-}
-
-// scanRHApps returns the apps' ARNs once they are stored: the parents
-// ListAppInputSources requires.
-func scanRHApps(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	var batch []*store.Resource
-	var appARNs []string
-	var nextToken *string
-	for {
-		out, err := client.ListApps(ctx, &resiliencehub.ListAppsInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "resiliencehub:ListApps", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("resiliencehub:ListApps: %w", err)
-		}
-		for _, a := range out.AppSummaries {
-			arn := sv(a.AppArn)
-			if arn == "" {
-				continue
-			}
-			appARNs = append(appARNs, arn)
-			status := string(a.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeResilienceHubApp, NativeID: arn,
-				Name: a.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	t, i, err := upsertBatch(st, batch, "resilience-hub apps")
-	if err != nil {
-		return nil, t, i, err
-	}
-	return appARNs, t, i, nil
-}
-
-func scanRHResiliencyPolicies(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListResiliencyPolicies(ctx, &resiliencehub.ListResiliencyPoliciesInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "resiliencehub:ListResiliencyPolicies", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("resiliencehub:ListResiliencyPolicies: %w", err)
-		}
-		for _, p := range out.ResiliencyPolicies {
-			arn := sv(p.PolicyArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeResilienceHubResiliencyPolicy, NativeID: arn,
-				Name: p.PolicyName, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "resilience-hub resiliency-policies")
-}
-
-// scanRHAppAssessments upserts app-assessments and returns their ARNs — fan-out
-// driver for scanRHRecommendationTemplates, whose ListRecommendationTemplates op
-// requires an assessmentArn (server-required; SDK v2 validator omits it).
-func scanRHAppAssessments(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := resiliencehub.NewListAppAssessmentsPaginator(client, &resiliencehub.ListAppAssessmentsInput{})
-	var batch []*store.Resource
-	var assessmentARNs []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "resiliencehub:ListAppAssessments", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("resiliencehub:ListAppAssessments: %w", err)
-		}
-		for _, a := range out.AssessmentSummaries {
-			arn := sv(a.AssessmentArn)
-			if arn == "" {
-				continue
-			}
-			assessmentARNs = append(assessmentARNs, arn)
-			status := string(a.AssessmentStatus)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeResilienceHubAppAssessment, NativeID: arn,
-				Name: a.AssessmentName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "resilience-hub app-assessments")
-	return assessmentARNs, t, i, err
-}
-
-// scanRHRecommendationTemplates fans out per assessment ARN: ListRecommendationTemplates
-// requires assessmentArn server-side (SDK v2 validator doesn't enforce it) — empty
-// input fails with a garbled "explicit deny on resource: *". No assessmentARNs →
-// zero API calls.
-func scanRHRecommendationTemplates(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string, assessmentARNs []string) (int, int, error) {
-	var batch []*store.Resource
-	for _, assessmentARN := range assessmentARNs {
-		pager := resiliencehub.NewListRecommendationTemplatesPaginator(client, &resiliencehub.ListRecommendationTemplatesInput{AssessmentArn: &assessmentARN})
-		for pager.HasMorePages() {
-			out, err := pager.NextPage(ctx)
+// rhTags reads a v1 row's tags with ListTagsForResource, which the Service
+// Reference lists for every Resilience Hub type. It is read for applications
+// and app assessments, whose listed elements carry no tags; resiliency
+// policies and recommendation templates carry Tags in their listed element.
+// It is sent the row's NativeID, the ARN its listing returned; the op takes
+// no page token and returns every tag at once.
+func rhTags(client resilienceHubAPI) rowTagReader {
+	return rowTagReader{
+		op:       rhTagsOp,
+		notFound: rhNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &resiliencehub.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
 			if err != nil {
-				// Tolerate a per-assessment denial; keep scanning siblings.
-				if isAccessDenied(err) {
-					_ = skipIfAccessDenied(st, "resiliencehub:ListRecommendationTemplates", acct.ID, region, err)
-					break
-				}
-				return 0, 0, fmt.Errorf("resiliencehub:ListRecommendationTemplates: %w", err)
+				return nil, err
 			}
-			for _, rt := range out.RecommendationTemplates {
-				arn := sv(rt.RecommendationTemplateArn)
-				if arn == "" {
-					continue
-				}
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeResilienceHubRecommendationTemplate, NativeID: arn,
-					Name: rt.Name, Region: &region,
-					AttributesJSON: mustJSON(rt), DiscoveredBy: scanID,
-				})
-			}
-		}
+			return mapTagsJSON(out.Tags), nil
+		},
 	}
-	return upsertBatch(st, batch, "resilience-hub recommendation-templates")
+}
+
+// rhRow is the rhResource of a v1 listed element stored under its ARN, named
+// name, with tags (nil for none or not yet read); an element without an ARN
+// is not stored (arnRow), and what names such elements in the listing's
+// warning.
+func rhRow(acct *account, region, scanID, typ, what string, arn, name *string, status string, tags *string, element any) (*store.Resource, string, string) {
+	r := rhResource(acct, region, scanID, typ, sv(arn), sv(name), status, nil, element)
+	r.TagsJSON = tags
+	return arnRow(what, arn, name, r)
+}
+
+// scanRHApps stores the apps, each page written as soon as its rows' tags
+// are read, and returns the stored ones keyed by their ARN: the parents
+// ListAppInputSources requires. It reports whether a write failed, after
+// which the scan must stop.
+func scanRHApps(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, rhListAppsOp, "apps", "AppArn",
+		func(ctx context.Context, token *string) ([]rhtypes.AppSummary, *string, error) {
+			out, err := client.ListApps(ctx, &resiliencehub.ListAppsInput{MaxResults: sdkaws.Int32(rhPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.AppSummaries, out.NextToken, nil
+		},
+		func(a rhtypes.AppSummary) (*store.Resource, string, string) {
+			return rhRow(acct, region, scanID, TypeResilienceHubApp, "apps", a.AppArn, a.Name, string(a.Status), nil, a)
+		},
+		func(a rhtypes.AppSummary) string { return sv(a.AppArn) },
+		tags, p)
+}
+
+// scanRHResiliencyPolicies stores the resiliency policies with the tags their
+// listed element carries, so no tag op is called for them.
+// ListResiliencyPolicies lists the account's own policies; the AWS-suggested
+// ones come from a separate op (ListSuggestedResiliencyPolicies), which is
+// not called.
+func scanRHResiliencyPolicies(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, rhListResiliencyPoliciesOp,
+		func(ctx context.Context, token *string) ([]rhtypes.ResiliencyPolicy, *string, error) {
+			out, err := client.ListResiliencyPolicies(ctx, &resiliencehub.ListResiliencyPoliciesInput{MaxResults: sdkaws.Int32(rhPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ResiliencyPolicies, out.NextToken, nil
+		},
+		func(pol rhtypes.ResiliencyPolicy) (*store.Resource, string, string) {
+			return rhRow(acct, region, scanID, TypeResilienceHubResiliencyPolicy, "resiliency policies", pol.PolicyArn, pol.PolicyName, "", mapTagsJSON(pol.Tags), pol)
+		})
+}
+
+// scanRHAppAssessments stores the app assessments, each page written as soon
+// as its rows' tags are read: every assessment run adds one. It returns the
+// stored ones keyed by their ARN: the parents scanRHRecommendationTemplates
+// requires. It reports whether a write failed, after which the scan must
+// stop.
+func scanRHAppAssessments(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, rhListAppAssessmentsOp, "app assessments", "AssessmentArn",
+		func(ctx context.Context, token *string) ([]rhtypes.AppAssessmentSummary, *string, error) {
+			out, err := client.ListAppAssessments(ctx, &resiliencehub.ListAppAssessmentsInput{MaxResults: sdkaws.Int32(rhPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.AssessmentSummaries, out.NextToken, nil
+		},
+		func(a rhtypes.AppAssessmentSummary) (*store.Resource, string, string) {
+			return rhRow(acct, region, scanID, TypeResilienceHubAppAssessment, "app assessments", a.AssessmentArn, a.AssessmentName, string(a.AssessmentStatus), nil, a)
+		},
+		func(a rhtypes.AppAssessmentSummary) string { return sv(a.AssessmentArn) },
+		tags, p)
+}
+
+// scanRHRecommendationTemplates lists the templates of each assessment the
+// assessment phase stored, the assessments read concurrently, and stores them
+// with the tags their listed element carries, so no tag op is called for
+// them. ListRecommendationTemplates requires assessmentArn server-side (the
+// SDK validator does not enforce it): an empty input fails with a garbled
+// "explicit deny on resource: *", so no assessment means no call. The op
+// models no not-found error, so an assessment deleted since it was listed
+// fails its listing with whatever the service answers, and that error is
+// returned.
+func scanRHRecommendationTemplates(ctx context.Context, client resilienceHubAPI, acct *account, region string, st *store.Store, scanID string, assessments []childParent) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, rhListRecommendationTemplatesOp, nil, childParentIDs(assessments),
+		func(ctx context.Context, assessmentARN string, token *string) ([]rhtypes.RecommendationTemplate, *string, error) {
+			out, err := client.ListRecommendationTemplates(ctx, &resiliencehub.ListRecommendationTemplatesInput{
+				AssessmentArn: &assessmentARN, MaxResults: sdkaws.Int32(rhPageLimit), NextToken: token,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.RecommendationTemplates, out.NextToken, nil
+		},
+		func(_ string, rt rhtypes.RecommendationTemplate) (*store.Resource, string, string) {
+			return rhRow(acct, region, scanID, TypeResilienceHubRecommendationTemplate, "recommendation templates", rt.RecommendationTemplateArn, rt.Name, "", mapTagsJSON(rt.Tags), rt)
+		})
 }
 
 const (
 	rhListAppInputSourcesOp = "resiliencehub:ListAppInputSources"
-	// rhPageLimit is the model's MaxResults cap (range 1..100) for
-	// ListAppInputSources, ListServiceFunctions and ListInputSources.
+	// rhPageLimit is the model's MaxResults cap (range 1..100) of every
+	// Resilience Hub listing read here.
 	rhPageLimit int32 = 100
 	// rhInputSourceAppVersion is the app version whose input sources are
 	// listed. Imports write input sources into the draft

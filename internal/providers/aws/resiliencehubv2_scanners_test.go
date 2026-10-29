@@ -3,8 +3,6 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"maps"
 	"slices"
 	"sync"
 	"testing"
@@ -45,7 +43,8 @@ type rhV2Stub struct {
 	calls []string // first-page calls, keyed like pages
 	// pageErrs fails a key's call for one NextToken, after earlier pages succeed.
 	pageErrs map[string]map[string]error
-	inputs   []any // every call's input, for ops whose input fields are asserted
+	inputs   []any    // every call's input, for ops whose input fields are asserted
+	tagARNs  []string // every ARN ListTagsForResource was sent; it answers no tags
 }
 
 func (s *rhV2Stub) saw(in any) {
@@ -105,6 +104,13 @@ func (s *rhV2Stub) ListInputSources(_ context.Context, in *resiliencehubv2.ListI
 	return rhStubOut[resiliencehubv2.ListInputSourcesOutput](s.page("ListInputSources/"+sdkaws.ToString(in.ServiceArn), in.NextToken))
 }
 
+func (s *rhV2Stub) ListTagsForResource(_ context.Context, in *resiliencehubv2.ListTagsForResourceInput, _ ...func(*resiliencehubv2.Options)) (*resiliencehubv2.ListTagsForResourceOutput, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tagARNs = append(s.tagARNs, sdkaws.ToString(in.ResourceArn))
+	return &resiliencehubv2.ListTagsForResourceOutput{}, nil
+}
+
 // rhV1Stub serves the v1 ListAppInputSources fan-out from rhV2Stub's pages,
 // so the shared child-scanner cases cover it.
 type rhV1Stub struct {
@@ -115,6 +121,12 @@ type rhV1Stub struct {
 func (s rhV1Stub) ListAppInputSources(_ context.Context, in *resiliencehub.ListAppInputSourcesInput, _ ...func(*resiliencehub.Options)) (*resiliencehub.ListAppInputSourcesOutput, error) {
 	s.saw(in)
 	return rhStubOut[resiliencehub.ListAppInputSourcesOutput](s.page("ListAppInputSources/"+sdkaws.ToString(in.AppArn), in.NextToken))
+}
+
+// ListTagsForResource resolves the ambiguity between the two embedded ones
+// (v1's interface, v2's stub); the input-source fan-out never calls it.
+func (rhV1Stub) ListTagsForResource(context.Context, *resiliencehub.ListTagsForResourceInput, ...func(*resiliencehub.Options)) (*resiliencehub.ListTagsForResourceOutput, error) {
+	panic("rhV1Stub: ListTagsForResource is not stubbed")
 }
 
 func (s *rhV2Stub) ListUserJourneys(_ context.Context, in *resiliencehubv2.ListUserJourneysInput, _ ...func(*resiliencehubv2.Options)) (*resiliencehubv2.ListUserJourneysOutput, error) {
@@ -204,10 +216,10 @@ func rhParentCases() []rhParentCase {
 				}
 				return out
 			},
-			scan: func(ctx context.Context, c resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-				_, t, i, err := scanRHPolicies(ctx, c, acct, region, st, scanID)
-				return nil, t, i, err
-			},
+			scan: rhParentRun(func(ctx context.Context, c resilienceHubV2API, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+				_, failed := scanRHPolicies(ctx, c, acct, region, st, scanID, tags, p)
+				return nil, failed
+			}),
 		},
 		{
 			name: "Services", op: "ListServices", typ: TypeResilienceHubService, kind: "service", idKey: "ServiceArn", status: "SUCCESS",
@@ -221,7 +233,7 @@ func rhParentCases() []rhParentCase {
 				}
 				return out
 			},
-			scan: scanRHServices,
+			scan: rhParentRun(scanRHServices),
 		},
 		{
 			name: "Systems", op: "ListSystems", typ: TypeResilienceHubSystem, kind: "system", idKey: "SystemArn",
@@ -234,16 +246,29 @@ func rhParentCases() []rhParentCase {
 				}
 				return out
 			},
-			scan: scanRHSystems,
+			scan: rhParentRun(scanRHSystems),
 		},
+	}
+}
+
+// rhParentRun runs one v2 parent phase alone, its tags read through the
+// client, and returns the ARNs of the parents it stored, its counts and its
+// errors joined as the scan joins them.
+func rhParentRun(run func(context.Context, resilienceHubV2API, *account, string, *store.Store, string, rowTagReader, *phaseTotals) ([]childParent, bool)) func(context.Context, resilienceHubV2API, *account, string, *store.Store, string) ([]string, int, int, error) {
+	return func(ctx context.Context, c resilienceHubV2API, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+		var p phaseTotals
+		parents, _ := run(ctx, c, acct, region, st, scanID, rhTagsV2(c), &p)
+		total, inserted, err := p.result(st, acct, region)
+		return childParentIDs(parents), total, inserted, err
 	}
 }
 
 func (c rhParentCase) returnsParents() bool { return c.typ != TypeResilienceHubPolicy }
 
-// Two pages are both stored; elements owned by another account, homed in
-// another region, or with no ARN are skipped. Services and systems hand their
-// stored ARNs on as fan-out parents.
+// Two pages are both stored and only their rows' tags are read; elements
+// owned by another account or homed in another region are skipped silently,
+// and an element with no ARN is skipped with one warning under the listing.
+// Services and systems hand their stored ARNs on as fan-out parents.
 func TestRHV2ParentScanners_PaginatesHomedRowsOnly(t *testing.T) {
 	for _, c := range rhParentCases() {
 		t.Run(c.name, func(t *testing.T) {
@@ -255,13 +280,25 @@ func TestRHV2ParentScanners_PaginatesHomedRowsOnly(t *testing.T) {
 				"t2": c.page([]string{own2, "", elsewhere}, nil),
 			}}}
 			st := newTestStore(t)
+			warns := rhWarnRecorder(st)
 			parents, total, _, err := c.scan(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
+			if w := warns(); len(w) != 1 || w[0].Service != "resiliencehub:"+c.op {
+				t.Errorf("warnings = %+v; want exactly one for resiliencehub:%s (the element with no ARN)", w, c.op)
+			}
+			if got := slices.Sorted(slices.Values(stub.tagARNs)); !slices.Equal(got, []string{own1, own2}) {
+				t.Errorf("ListTagsForResource ARNs = %v; want %v (the stored rows only)", got, []string{own1, own2})
+			}
 			if err != nil {
 				t.Fatalf("scan: %v", err)
 			}
 			rows := listNetExtraRows(t, st, c.typ)
 			if total != 2 || len(rows) != 2 {
 				t.Fatalf("total = %d, rows = %d; want 2, 2 (other-account, other-region and ARN-less elements skipped)", total, len(rows))
+			}
+			for _, r := range rows {
+				if r.TagsJSON != nil {
+					t.Errorf("%s: TagsJSON = %q; want nil (the tag op answered none)", r.NativeID, *r.TagsJSON)
+				}
 			}
 			for _, skipped := range []string{other, elsewhere} {
 				if _, ok := rows[skipped]; ok {
@@ -324,9 +361,9 @@ func TestRHV2ParentScanners_OtherErrorPropagates(t *testing.T) {
 	}
 }
 
-// An unrouted v2 call in a region where only v1 is deployed skips the whole
-// v2 pass silently: no error, no warning, no further v2 calls.
-func TestScanResilienceHubV2_NotDeployedSkipsV2(t *testing.T) {
+// An unrouted first ListPolicies call in a region where only v1 is deployed
+// reports the v2 API absent, silently: no error, no warning, no row.
+func TestRHV2Policies_NotDeployedReportsAbsent(t *testing.T) {
 	for name, gap := range map[string]error{
 		"UnknownOperationException": apiErr("UnknownOperationException", ""),
 		"NotFoundException":         apiErr("NotFoundException", "Unable to determine service/operation name to be authorized"),
@@ -336,19 +373,19 @@ func TestScanResilienceHubV2_NotDeployedSkipsV2(t *testing.T) {
 			st := newTestStore(t)
 			warns := rhWarnRecorder(st)
 			stub := &rhV2Stub{errs: map[string]error{"ListPolicies": gap}}
-			services, total, _, err := scanResilienceHubV2(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
-			if err != nil || total != 0 || len(services) != 0 || len(warns()) != 0 {
-				t.Fatalf("got (services=%v, total=%d, err=%v, warns=%d); want none, 0, nil, 0", services, total, err, len(warns()))
-			}
-			if !slices.Equal(stub.calls, []string{"ListPolicies"}) {
-				t.Errorf("calls = %v; want only ListPolicies", stub.calls)
+			var p phaseTotals
+			absent, failed := scanRHPolicies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, rhTagsV2(stub), &p)
+			_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
+			if !absent || failed || err != nil || p.total != 0 || len(warns()) != 0 {
+				t.Fatalf("got (absent=%v, failed=%v, total=%d, err=%v, warns=%d); want true, false, 0, nil, 0", absent, failed, p.total, err, len(warns()))
 			}
 		})
 	}
 }
 
 // Once a ListPolicies page has succeeded the v2 API is deployed, so a
-// not-deployed shape on a later page is a real failure, not a skip.
+// not-deployed shape on a later page is a real failure, not a skip, and the
+// first page's row is kept.
 func TestRHV2Policies_NotDeployedShapeAfterFirstPageErrors(t *testing.T) {
 	policyARN := rhARN(testAccountID, "policy", "a")
 	c := rhParentCases()[0]
@@ -356,12 +393,18 @@ func TestRHV2Policies_NotDeployedShapeAfterFirstPageErrors(t *testing.T) {
 		pages:    map[string]map[string]any{"ListPolicies": {"": c.page([]string{policyARN}, sdkaws.String("t2"))}},
 		pageErrs: map[string]map[string]error{"ListPolicies": {"t2": apiErr("UnknownOperationException", "")}},
 	}
-	available, _, _, err := scanRHPolicies(context.Background(), stub, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID)
+	st := newTestStore(t)
+	var p phaseTotals
+	absent, _ := scanRHPolicies(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, rhTagsV2(stub), &p)
+	_, _, err := p.result(st, newTestAccount(testAccountID), testRegion)
 	if !isAPIErrorCode(err, "UnknownOperationException") {
 		t.Errorf("err = %v; want the page-2 UnknownOperationException returned", err)
 	}
-	if !available {
-		t.Error("available = false; want true (page 1 proved the API is deployed)")
+	if absent {
+		t.Error("absent = true; want false (page 1 proved the API is deployed)")
+	}
+	if rows := listNetExtraRows(t, st, TypeResilienceHubPolicy); len(rows) != 1 {
+		t.Errorf("policy rows = %d; want 1 (the first page's)", len(rows))
 	}
 }
 
@@ -579,232 +622,4 @@ func TestRHV2ChildScanners_OtherErrorPropagates(t *testing.T) {
 			}
 		})
 	}
-}
-
-// emptyRHResponses queues one empty page for every op scanResilienceHub calls
-// when no app assessments exist.
-func emptyRHResponses() map[string][]stubCall {
-	return map[string][]stubCall{
-		"ListApps":               {{Output: &resiliencehub.ListAppsOutput{}}},
-		"ListResiliencyPolicies": {{Output: &resiliencehub.ListResiliencyPoliciesOutput{}}},
-		"ListAppAssessments":     {{Output: &resiliencehub.ListAppAssessmentsOutput{}}},
-		"ListPolicies":           {{Output: &resiliencehubv2.ListPoliciesOutput{}}},
-		"ListServices":           {{Output: &resiliencehubv2.ListServicesOutput{}}},
-		"ListSystems":            {{Output: &resiliencehubv2.ListSystemsOutput{}}},
-	}
-}
-
-// v1RHResponses queues one row for every v1 phase and returns the NativeID
-// each type must be stored under.
-func v1RHResponses(responses map[string][]stubCall) map[string]string {
-	appARN := rhARN(testAccountID, "app", "a1")
-	rpARN := rhARN(testAccountID, "resiliency-policy", "rp1")
-	assessmentARN := rhARN(testAccountID, "app-assessment", "as1")
-	rtARN := rhARN(testAccountID, "recommendation-template", "rt1")
-	responses["ListApps"] = []stubCall{{Output: &resiliencehub.ListAppsOutput{
-		AppSummaries: []rhtypes.AppSummary{{AppArn: sdkaws.String(appARN), Name: sdkaws.String("a1")}},
-	}}}
-	responses["ListResiliencyPolicies"] = []stubCall{{Output: &resiliencehub.ListResiliencyPoliciesOutput{
-		ResiliencyPolicies: []rhtypes.ResiliencyPolicy{{PolicyArn: sdkaws.String(rpARN), PolicyName: sdkaws.String("rp1")}},
-	}}}
-	responses["ListAppAssessments"] = []stubCall{{Output: &resiliencehub.ListAppAssessmentsOutput{
-		AssessmentSummaries: []rhtypes.AppAssessmentSummary{{AssessmentArn: sdkaws.String(assessmentARN)}},
-	}}}
-	responses["ListRecommendationTemplates"] = []stubCall{{Output: &resiliencehub.ListRecommendationTemplatesOutput{
-		RecommendationTemplates: []rhtypes.RecommendationTemplate{{RecommendationTemplateArn: sdkaws.String(rtARN), Name: sdkaws.String("rt1")}},
-	}}}
-	responses["ListAppInputSources"] = []stubCall{{Output: &resiliencehub.ListAppInputSourcesOutput{
-		AppInputSources: []rhtypes.AppInputSource{{ImportType: rhtypes.ResourceMappingTypeCfnStack, SourceArn: sdkaws.String(rhCfnStackARN)}},
-	}}}
-	return map[string]string{
-		TypeResilienceHubApp:                    appARN,
-		TypeResilienceHubResiliencyPolicy:       rpARN,
-		TypeResilienceHubAppAssessment:          assessmentARN,
-		TypeResilienceHubRecommendationTemplate: rtARN,
-		TypeResilienceHubAppInputSource:         appARN + "/input-source/" + rhCfnStackARN,
-	}
-}
-
-func assertV1RHRows(t *testing.T, st *store.Store, want map[string]string) {
-	t.Helper()
-	for typ, nativeID := range want {
-		if rows := listNetExtraRows(t, st, typ); len(rows) != 1 || rows[nativeID].Type != typ {
-			t.Errorf("%s rows = %d; want one with NativeID %s (every v1 phase must run, and a v2 failure must not stop the input-source fan-out)", typ, len(rows), nativeID)
-		}
-	}
-}
-
-// v2RHResponses queues one row for every v2 phase and returns the NativeID
-// each type must be stored under.
-func v2RHResponses(responses map[string][]stubCall) map[string]string {
-	policyARN := rhARN(testAccountID, "policy", "pol")
-	serviceARN := rhARN(testAccountID, "service", "svc")
-	systemARN := rhARN(testAccountID, "system", "sys")
-	responses["ListPolicies"] = []stubCall{{Output: &resiliencehubv2.ListPoliciesOutput{
-		PolicySummaries: []rhv2types.PolicySummary{{PolicyArn: sdkaws.String(policyARN), Name: sdkaws.String("pol")}},
-	}}}
-	responses["ListServices"] = []stubCall{{Output: &resiliencehubv2.ListServicesOutput{
-		ServiceSummaries: []rhv2types.ServiceSummary{{ServiceArn: sdkaws.String(serviceARN), Name: sdkaws.String("svc")}},
-	}}}
-	responses["ListSystems"] = []stubCall{{Output: &resiliencehubv2.ListSystemsOutput{
-		SystemSummaries: []rhv2types.SystemSummary{{SystemArn: sdkaws.String(systemARN), SystemId: sdkaws.String("sys"), Name: sdkaws.String("sys")}},
-	}}}
-	responses["ListTests"] = []stubCall{{Output: &resiliencehubv2.ListTestsOutput{
-		Tests: []rhv2types.TestSummary{{TestId: sdkaws.String("t1"), ServiceArn: sdkaws.String(serviceARN)}},
-	}}}
-	responses["ListUserJourneys"] = []stubCall{{Output: &resiliencehubv2.ListUserJourneysOutput{
-		UserJourneySummaries: []rhv2types.UserJourneySummary{{UserJourneyId: sdkaws.String("uj1"), Name: sdkaws.String("uj")}},
-	}}}
-	responses["ListServiceFunctions"] = []stubCall{{Output: &resiliencehubv2.ListServiceFunctionsOutput{
-		ServiceFunctions: []rhv2types.ServiceFunction{{ServiceFunctionId: sdkaws.String("sf1"), ServiceArn: sdkaws.String(serviceARN), Name: sdkaws.String("sf")}},
-	}}}
-	responses["ListInputSources"] = []stubCall{{Output: &resiliencehubv2.ListInputSourcesOutput{
-		InputSourceSummaries: []rhv2types.InputSourceSummary{{InputSourceId: sdkaws.String("is1"), Type: rhv2types.InputSourceTypeCfnStack, CfnStackArn: sdkaws.String(rhCfnStackARN)}},
-	}}}
-	return map[string]string{
-		TypeResilienceHubPolicy:          policyARN,
-		TypeResilienceHubService:         serviceARN,
-		TypeResilienceHubSystem:          systemARN,
-		TypeResilienceHubTest:            serviceARN + "/test/t1",
-		TypeResilienceHubUserJourney:     systemARN + "/user-journey/uj1",
-		TypeResilienceHubServiceFunction: serviceARN + "/service-function/sf1",
-		TypeResilienceHubInputSource:     serviceARN + "/input-source/is1",
-	}
-}
-
-// The top-level scan feeds the apps and services it stores, and the systems
-// it lists, to the child fan-outs.
-func TestScanResilienceHub_StoresEveryPhase(t *testing.T) {
-	responses := emptyRHResponses()
-	want := v1RHResponses(responses)
-	maps.Copy(want, v2RHResponses(responses))
-	st := newTestStore(t)
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
-
-	total, _, err := scanResilienceHub(context.Background(), acct, testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scanResilienceHub: %v", err)
-	}
-	if total != len(want) {
-		t.Errorf("total = %d; want %d (one row per type)", total, len(want))
-	}
-	for typ, nativeID := range want {
-		if rows := listNetExtraRows(t, st, typ); len(rows) != 1 || rows[nativeID].Type != typ {
-			t.Errorf("%s rows = %+v; want one with NativeID %s", typ, rows, nativeID)
-		}
-	}
-}
-
-// The input-source and service-function fan-outs run whatever an earlier phase
-// returned, and every side's error reaches the dispatcher: a transient one
-// demoted to one warning under its op instead of buried in another side's hard
-// error.
-func TestScanResilienceHub_FanOutPhaseErrors(t *testing.T) {
-	throttle := apiErr("ThrottlingException", "Rate exceeded")
-	hard := apiErr("ConflictException", "bad")
-	app, svc, test := TypeResilienceHubApp, TypeResilienceHubService, TypeResilienceHubTest
-	input, fn, svcIn := TypeResilienceHubAppInputSource, TypeResilienceHubServiceFunction, TypeResilienceHubInputSource
-	for _, tc := range []struct {
-		name           string
-		fail           map[string]error
-		warnOp         string
-		stored, absent []string
-	}{
-		{
-			name: "earlier hard error after tests", fail: map[string]error{"ListUserJourneys": hard},
-			stored: []string{app, svc, test, input, fn, svcIn},
-		},
-		{
-			name: "earlier hard error before tests", fail: map[string]error{"ListSystems": hard},
-			stored: []string{app, svc, input, fn, svcIn}, absent: []string{test},
-		},
-		{
-			name: "earlier transient, input sources hard", fail: map[string]error{"ListUserJourneys": throttle, "ListAppInputSources": hard},
-			warnOp: "resilience-hub", stored: []string{app, svc, test, fn, svcIn}, absent: []string{input},
-		},
-		{
-			name: "input sources transient, functions hard", fail: map[string]error{"ListAppInputSources": throttle, "ListServiceFunctions": hard},
-			warnOp: rhListAppInputSourcesOp, stored: []string{app, svc, test, svcIn}, absent: []string{input, fn},
-		},
-		{
-			name: "functions transient, input sources hard", fail: map[string]error{"ListServiceFunctions": throttle, "ListAppInputSources": hard},
-			warnOp: rhListServiceFunctionsOp, stored: []string{app, svc, test, svcIn}, absent: []string{input, fn},
-		},
-		{
-			name: "service input sources transient, functions hard", fail: map[string]error{"ListInputSources": throttle, "ListServiceFunctions": hard},
-			warnOp: rhListInputSourcesOp, stored: []string{app, svc, test, input}, absent: []string{fn, svcIn},
-		},
-		{
-			name: "functions transient, service input sources hard", fail: map[string]error{"ListServiceFunctions": throttle, "ListInputSources": hard},
-			warnOp: rhListServiceFunctionsOp, stored: []string{app, svc, test, input}, absent: []string{fn, svcIn},
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			responses := emptyRHResponses()
-			want := v1RHResponses(responses)
-			maps.Copy(want, v2RHResponses(responses))
-			for op, err := range tc.fail {
-				responses[op] = []stubCall{{Err: err}}
-			}
-			st := newTestStore(t)
-			warns := countOpWarnings(st, tc.warnOp)
-			acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
-
-			_, _, err := scanResilienceHub(context.Background(), acct, testRegion, st, testScanID)
-			if !isAPIErrorCode(err, "ConflictException") {
-				t.Fatalf("err = %v; want the ConflictException returned", err)
-			}
-			if got := classifyServiceError(err); got != outcomeError {
-				t.Errorf("classifyServiceError = %v; want outcomeError", got)
-			}
-			if tc.warnOp != "" && *warns != 1 {
-				t.Errorf("%s warnings = %d; want 1 for the demoted transient", tc.warnOp, *warns)
-			}
-			for _, typ := range tc.stored {
-				if rows := listNetExtraRows(t, st, typ); len(rows) != 1 || rows[want[typ]].Type != typ {
-					t.Errorf("%s rows = %d; want one with NativeID %s", typ, len(rows), want[typ])
-				}
-			}
-			for _, typ := range tc.absent {
-				if rows := listNetExtraRows(t, st, typ); len(rows) != 0 {
-					t.Errorf("%s rows = %d; want none (its phase failed or did not run)", typ, len(rows))
-				}
-			}
-		})
-	}
-}
-
-// A hard v2 failure must not cost the rows of the v1 phases that ran before
-// it; this pins the v2 phases after every v1 one.
-func TestScanResilienceHub_V2ErrorKeepsV1Rows(t *testing.T) {
-	responses := emptyRHResponses()
-	want := v1RHResponses(responses)
-	boom := errors.New("boom")
-	responses["ListPolicies"] = []stubCall{{Err: boom}}
-	st := newTestStore(t)
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
-
-	_, _, err := scanResilienceHub(context.Background(), acct, testRegion, st, testScanID)
-	if !errors.Is(err, boom) {
-		t.Fatalf("want the ListPolicies error to propagate, got %v", err)
-	}
-	assertV1RHRows(t, st, want)
-}
-
-// In a region without the v2 API the scan succeeds with every v1 row and
-// makes no v2 call after ListPolicies: stubResponses fails the test on a call
-// to an op with no queued response.
-func TestScanResilienceHub_V2NotDeployedKeepsV1Rows(t *testing.T) {
-	responses := emptyRHResponses()
-	want := v1RHResponses(responses)
-	responses["ListPolicies"] = []stubCall{{Err: apiErr("UnknownOperationException", "")}}
-	delete(responses, "ListServices")
-	delete(responses, "ListSystems")
-	st := newTestStore(t)
-	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, responses), testRegion)}
-
-	if _, _, err := scanResilienceHub(context.Background(), acct, testRegion, st, testScanID); err != nil {
-		t.Fatalf("scanResilienceHub: %v; want nil (a v2 gap is not a failure)", err)
-	}
-	assertV1RHRows(t, st, want)
 }
