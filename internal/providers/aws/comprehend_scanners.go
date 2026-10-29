@@ -2,10 +2,11 @@ package aws
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/comprehend"
+	comprehendtypes "github.com/aws/aws-sdk-go-v2/service/comprehend/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -37,291 +38,224 @@ func isComprehendNotEnabled(err error) bool {
 	return isAPIErrorWithMessage(err, "NotAuthorizedException", "account is not authorized to make this call")
 }
 
+// isComprehendRegionGap reports a listing this region does not serve this
+// account: Comprehend's per-region feature gap (InvalidRequestException
+// "UNSUPPORTED_OPERATION") or its custom-model surface not enabled
+// (isComprehendNotEnabled). Every listing reads it on its first page as an
+// empty listing (firstPageGapPages), before the denial check that would
+// otherwise claim the NotAuthorizedException.
+func isComprehendRegionGap(err error) bool {
+	return isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") || isComprehendNotEnabled(err)
+}
+
 type comprehendAPI interface {
 	ListDocumentClassifiers(context.Context, *comprehend.ListDocumentClassifiersInput, ...func(*comprehend.Options)) (*comprehend.ListDocumentClassifiersOutput, error)
 	ListEntityRecognizers(context.Context, *comprehend.ListEntityRecognizersInput, ...func(*comprehend.Options)) (*comprehend.ListEntityRecognizersOutput, error)
 	ListEndpoints(context.Context, *comprehend.ListEndpointsInput, ...func(*comprehend.Options)) (*comprehend.ListEndpointsOutput, error)
 	ListFlywheels(context.Context, *comprehend.ListFlywheelsInput, ...func(*comprehend.Options)) (*comprehend.ListFlywheelsOutput, error)
 	ListDatasets(context.Context, *comprehend.ListDatasetsInput, ...func(*comprehend.Options)) (*comprehend.ListDatasetsOutput, error)
+	ListTagsForResource(context.Context, *comprehend.ListTagsForResourceInput, ...func(*comprehend.Options)) (*comprehend.ListTagsForResourceOutput, error)
 }
 
-// scanComprehend discovers Comprehend document classifiers, entity recognizers,
-// real-time inference endpoints, flywheels and flywheel datasets.
-func scanComprehend(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+const (
+	comprehendTagsOp = "comprehend:ListTagsForResource"
+	// comprehendPageCap is the MaxResults maximum of every Comprehend listing
+	// read here (MaxResultsInteger, 1-500).
+	comprehendPageCap = 500
+)
+
+// comprehendNotFound is the not-found code ListDatasets and
+// ListTagsForResource model: a flywheel or resource deleted after it was
+// listed.
+var comprehendNotFound = []string{"ResourceNotFoundException"}
+
+// scanComprehend discovers Comprehend document classifiers, entity
+// recognizers, real-time inference endpoints, flywheels and flywheel
+// datasets, each with its tags (comprehendTags). Every listing runs as its
+// own phase, one at a time and in that order, the datasets last since they
+// are listed per flywheel stored: a phase's error does not stop the later
+// ones; a failed write and ctx's end do, and so does a first phase that
+// stores nothing and fails only with NXDOMAIN, since the region does not
+// serve the service (runHostPhases). The tag reads' denials are one warning
+// for the whole scan.
+func scanComprehend(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := comprehend.NewFromConfig(acct.cfg, func(o *comprehend.Options) { o.Region = region })
-
-	t, i, ferr := scanComprehendDocumentClassifiers(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanComprehendEntityRecognizers(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanComprehendEndpoints(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, flywheelARNs, ferr := scanComprehendFlywheels(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanComprehendDatasets(ctx, client, acct, region, st, scanID, flywheelARNs)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	return total, inserted, nil
+	tags := comprehendTags(client).sharingDenials()
+	var flywheels []childParent
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "comprehend", 0, []hostPhase{
+		{op: "comprehend:ListDocumentClassifiers", run: func(p *phaseTotals) bool {
+			return scanComprehendDocumentClassifiers(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "comprehend:ListEntityRecognizers", run: func(p *phaseTotals) bool {
+			return scanComprehendEntityRecognizers(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "comprehend:ListEndpoints", run: func(p *phaseTotals) bool {
+			return scanComprehendEndpoints(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "comprehend:ListFlywheels", run: func(p *phaseTotals) bool {
+			var failed bool
+			flywheels, failed = scanComprehendFlywheels(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "comprehend:ListDatasets", run: func(p *phaseTotals) bool {
+			return scanComprehendDatasets(ctx, client, acct, region, st, scanID, flywheels, tags, p)
+		}},
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-func scanComprehendDocumentClassifiers(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListDocumentClassifiers(ctx, &comprehend.ListDocumentClassifiersInput{NextToken: nextToken})
-		if err != nil {
-			// Per-region feature gap shape Comprehend uses.
-			if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") {
-				return 0, 0, nil
-			}
-			if isComprehendNotEnabled(err) {
-				return 0, 0, nil
-			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "comprehend:ListDocumentClassifiers", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("comprehend:ListDocumentClassifiers: %w", err)
-		}
-		for _, c := range out.DocumentClassifierPropertiesList {
-			arn := sv(c.DocumentClassifierArn)
-			if arn == "" {
-				continue
-			}
-			status := string(c.Status)
-			label := arn
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeComprehendDocumentClassifier, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "comprehend document-classifiers")
-}
-
-func scanComprehendEntityRecognizers(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListEntityRecognizers(ctx, &comprehend.ListEntityRecognizersInput{NextToken: nextToken})
-		if err != nil {
-			if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") {
-				return 0, 0, nil
-			}
-			if isComprehendNotEnabled(err) {
-				return 0, 0, nil
-			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "comprehend:ListEntityRecognizers", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("comprehend:ListEntityRecognizers: %w", err)
-		}
-		for _, e := range out.EntityRecognizerPropertiesList {
-			arn := sv(e.EntityRecognizerArn)
-			if arn == "" {
-				continue
-			}
-			status := string(e.Status)
-			label := arn
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeComprehendEntityRecognizer, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "comprehend entity-recognizers")
-}
-
-// scanComprehendEndpoints lists real-time inference endpoints and splits them by
-// the model they front: a ModelArn containing ":entity-recognizer/" is an
-// entity-recognizer-endpoint, otherwise a document-classifier-endpoint.
-func scanComprehendEndpoints(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListEndpoints(ctx, &comprehend.ListEndpointsInput{NextToken: nextToken})
-		if err != nil {
-			if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") {
-				return 0, 0, nil
-			}
-			if isComprehendNotEnabled(err) {
-				return 0, 0, nil
-			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "comprehend:ListEndpoints", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("comprehend:ListEndpoints: %w", err)
-		}
-		for _, e := range out.EndpointPropertiesList {
-			arn := sv(e.EndpointArn)
-			if arn == "" {
-				continue
-			}
-			etype := TypeComprehendDocumentClassifierEndpoint
-			if strings.Contains(sv(e.ModelArn), ":entity-recognizer/") {
-				etype = TypeComprehendEntityRecognizerEndpoint
-			}
-			status := string(e.Status)
-			label := arn
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: etype, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "comprehend endpoints")
-}
-
-// scanComprehendFlywheels also returns the listed flywheel ARNs so the dataset
-// phase can fan out over them without listing flywheels a second time.
-func scanComprehendFlywheels(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []string, error) {
-	var batch []*store.Resource
-	var arns []string
-	var nextToken *string
-	for {
-		out, err := client.ListFlywheels(ctx, &comprehend.ListFlywheelsInput{NextToken: nextToken})
-		if err != nil {
-			// Per-region feature gap shape Comprehend uses.
-			if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") {
-				return 0, 0, nil, nil
-			}
-			if isComprehendNotEnabled(err) {
-				return 0, 0, nil, nil
-			}
-			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "comprehend:ListFlywheels", acct.ID, region, err)
-			}
-			return 0, 0, nil, fmt.Errorf("comprehend:ListFlywheels: %w", err)
-		}
-		for _, f := range out.FlywheelSummaryList {
-			arn := sv(f.FlywheelArn)
-			if arn == "" {
-				continue
-			}
-			arns = append(arns, arn)
-			status := string(f.Status)
-			label := arn
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeComprehendFlywheel, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(f), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	total, inserted, err := upsertBatch(st, batch, "comprehend flywheels")
-	if err != nil {
-		return 0, 0, nil, err
-	}
-	return total, inserted, arns, nil
-}
-
-// scanComprehendDatasets lists each flywheel's datasets and closure-wires every
-// dataset to its flywheel. ListDatasets is authorized against the flywheel
-// resource (Service Reference), so it is called per flywheel ARN.
-func scanComprehendDatasets(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string, flywheelARNs []string) (int, int, error) {
-	var batch []*store.Resource
-	var parentARNs []string
-	warnedDenied := false
-flywheels:
-	for _, flywheelARN := range flywheelARNs {
-		pager := comprehend.NewListDatasetsPaginator(client, &comprehend.ListDatasetsInput{FlywheelArn: &flywheelARN})
-		for pager.HasMorePages() {
-			out, err := pager.NextPage(ctx)
+// comprehendTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: the ARN its listing returned. The Service Reference lists every
+// type stored here as a resource of the op (document-classifier,
+// entity-recognizer, both endpoint kinds, flywheel, flywheel-dataset), each
+// type's Create input takes Tags, and the op's model pattern (ComprehendArn)
+// takes a model version's ARN (…/version/<name>) and a dataset's
+// (…/dataset/<name>), the forms the listings return. A model version is its
+// own row under its own ARN, so its tags are read for it alone. The op
+// returns every tag at once. ResourceNotFoundException, its modeled
+// not-found, drops a resource deleted after it was listed.
+func comprehendTags(client comprehendAPI) rowTagReader {
+	return rowTagReader{
+		op:       comprehendTagsOp,
+		notFound: comprehendNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &comprehend.ListTagsForResourceInput{ResourceArn: &arn})
 			if err != nil {
-				// A region-wide gap fails every remaining flywheel the same way;
-				// stop listing but still store what earlier flywheels returned.
-				if isAPIErrorWithMessage(err, "InvalidRequestException", "UNSUPPORTED_OPERATION") || isComprehendNotEnabled(err) {
-					break flywheels
-				}
-				if isAccessDenied(err) {
-					// The action is resource-scoped, so a deny may cover only
-					// some flywheels: warn once, keep listing the others.
-					if !warnedDenied {
-						warnedDenied = true
-						_ = skipIfAccessDenied(st, "comprehend:ListDatasets", acct.ID, region, err)
-					}
-					break
-				}
-				// Flywheel deleted between ListFlywheels and ListDatasets.
-				if isAPIErrorCode(err, "ResourceNotFoundException") {
-					break
-				}
-				return 0, 0, fmt.Errorf("comprehend:ListDatasets %s: %w", flywheelARN, err)
+				return nil, err
 			}
-			for _, d := range out.DatasetPropertiesList {
-				arn := sv(d.DatasetArn)
-				if arn == "" {
-					continue
-				}
-				r := &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeComprehendDataset, NativeID: arn,
-					Name: d.DatasetName, Region: &region, CreatedAt: tp(d.CreationTime),
-					AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-				}
-				if status := string(d.Status); status != "" {
-					r.Status = &status
-				}
-				batch = append(batch, r)
-				parentARNs = append(parentARNs, flywheelARN)
+			return kvTagsJSON(out.Tags, func(t comprehendtypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
+	}
+}
+
+// comprehendRow is the row of a listed model, endpoint or flywheel, stored
+// and named under its ARN with status as its Status; an element without an
+// ARN is not stored (arnRow), and what names such elements in the listing's
+// warning. These elements carry no name of their own.
+func comprehendRow(acct *account, region, scanID, typ, what string, arn *string, status string, element any) (*store.Resource, string, string) {
+	label := sv(arn)
+	return arnRow(what, arn, nil, &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: label,
+		Name: &label, Region: &region, Status: &status,
+		AttributesJSON: mustJSON(element), DiscoveredBy: scanID,
+	})
+}
+
+// scanComprehendDocumentClassifiers stores the document classifiers, one row
+// per model version, each page written as soon as its rows' tags are read.
+// It reports whether a write failed, after which the scan must stop.
+func scanComprehendDocumentClassifiers(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "comprehend:ListDocumentClassifiers",
+		firstPageGapPages(isComprehendRegionGap, func(ctx context.Context, token *string) ([]comprehendtypes.DocumentClassifierProperties, *string, error) {
+			out, err := client.ListDocumentClassifiers(ctx, &comprehend.ListDocumentClassifiersInput{MaxResults: sdkaws.Int32(comprehendPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-		}
-	}
-	total, inserted, err := upsertBatch(st, batch, "comprehend datasets")
-	if err != nil {
-		return 0, 0, err
-	}
-	pairs := make([][2]string, len(batch))
-	for i, r := range batch {
-		pairs[i] = [2]string{r.ID, store.ResourceID("aws", acct.ID, parentARNs[i])}
-	}
-	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return 0, 0, fmt.Errorf("closure comprehend datasets: %w", err)
-	}
-	return total, inserted, nil
+			return out.DocumentClassifierPropertiesList, out.NextToken, nil
+		}),
+		func(c comprehendtypes.DocumentClassifierProperties) (*store.Resource, string, string) {
+			return comprehendRow(acct, region, scanID, TypeComprehendDocumentClassifier, "document classifiers", c.DocumentClassifierArn, string(c.Status), c)
+		},
+		tags, p)
+}
+
+// scanComprehendEntityRecognizers stores the entity recognizers, one row per
+// model version, each page written as soon as its rows' tags are read. It
+// reports whether a write failed, after which the scan must stop.
+func scanComprehendEntityRecognizers(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "comprehend:ListEntityRecognizers",
+		firstPageGapPages(isComprehendRegionGap, func(ctx context.Context, token *string) ([]comprehendtypes.EntityRecognizerProperties, *string, error) {
+			out, err := client.ListEntityRecognizers(ctx, &comprehend.ListEntityRecognizersInput{MaxResults: sdkaws.Int32(comprehendPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.EntityRecognizerPropertiesList, out.NextToken, nil
+		}),
+		func(e comprehendtypes.EntityRecognizerProperties) (*store.Resource, string, string) {
+			return comprehendRow(acct, region, scanID, TypeComprehendEntityRecognizer, "entity recognizers", e.EntityRecognizerArn, string(e.Status), e)
+		},
+		tags, p)
+}
+
+// scanComprehendEndpoints stores the real-time inference endpoints, each
+// page written as soon as its rows' tags are read, split by the model they
+// front: a ModelArn containing ":entity-recognizer/" is an
+// entity-recognizer-endpoint, otherwise a document-classifier-endpoint. It
+// reports whether a write failed, after which the scan must stop.
+func scanComprehendEndpoints(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "comprehend:ListEndpoints",
+		firstPageGapPages(isComprehendRegionGap, func(ctx context.Context, token *string) ([]comprehendtypes.EndpointProperties, *string, error) {
+			out, err := client.ListEndpoints(ctx, &comprehend.ListEndpointsInput{MaxResults: sdkaws.Int32(comprehendPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.EndpointPropertiesList, out.NextToken, nil
+		}),
+		func(e comprehendtypes.EndpointProperties) (*store.Resource, string, string) {
+			typ := TypeComprehendDocumentClassifierEndpoint
+			if strings.Contains(sv(e.ModelArn), ":entity-recognizer/") {
+				typ = TypeComprehendEntityRecognizerEndpoint
+			}
+			return comprehendRow(acct, region, scanID, typ, "endpoints", e.EndpointArn, string(e.Status), e)
+		},
+		tags, p)
+}
+
+// scanComprehendFlywheels stores the flywheels, each page written as soon as
+// its rows' tags are read, and returns those stored, keyed by ARN, so the
+// dataset phase lists their datasets without listing the flywheels again.
+// It reports whether a write failed, after which the scan must stop.
+func scanComprehendFlywheels(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, "comprehend:ListFlywheels", "flywheels", "FlywheelArn",
+		firstPageGapPages(isComprehendRegionGap, func(ctx context.Context, token *string) ([]comprehendtypes.FlywheelSummary, *string, error) {
+			out, err := client.ListFlywheels(ctx, &comprehend.ListFlywheelsInput{MaxResults: sdkaws.Int32(comprehendPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.FlywheelSummaryList, out.NextToken, nil
+		}),
+		func(f comprehendtypes.FlywheelSummary) (*store.Resource, string, string) {
+			return comprehendRow(acct, region, scanID, TypeComprehendFlywheel, "flywheels", f.FlywheelArn, string(f.Status), f)
+		},
+		func(f comprehendtypes.FlywheelSummary) string { return sv(f.FlywheelArn) },
+		tags, p)
+}
+
+// scanComprehendDatasets stores each flywheel's datasets with their tags and
+// records each under its flywheel (storeEachParentTagsUnder): one flywheel's
+// failure costs the others none of theirs. ListDatasets is authorized
+// against the flywheel resource (Service Reference), so a denial may cover
+// only some flywheels and is warned about once. A flywheel deleted before its
+// listing was read (ResourceNotFoundException) is skipped silently; one
+// deleted mid-listing keeps the datasets already read and is warned about
+// once. A first page the region does not serve reads as no datasets
+// (isComprehendRegionGap). It reports
+// whether a write failed, after which the scan must stop.
+func scanComprehendDatasets(ctx context.Context, client comprehendAPI, acct *account, region string, st *store.Store, scanID string, flywheels []childParent, tags rowTagReader, p *phaseTotals) bool {
+	return storeEachParentTagsUnder(ctx, st, acct, region, "comprehend:ListDatasets", comprehendNotFound, flywheels,
+		func(ctx context.Context, flywheelARN string, token *string) ([]comprehendtypes.DatasetProperties, *string, error) {
+			return firstPageGapPages(isComprehendRegionGap, func(ctx context.Context, token *string) ([]comprehendtypes.DatasetProperties, *string, error) {
+				out, err := client.ListDatasets(ctx, &comprehend.ListDatasetsInput{FlywheelArn: &flywheelARN, MaxResults: sdkaws.Int32(comprehendPageCap), NextToken: token})
+				if err != nil {
+					return nil, nil, err
+				}
+				return out.DatasetPropertiesList, out.NextToken, nil
+			})(ctx, token)
+		},
+		func(_ string, d comprehendtypes.DatasetProperties) (*store.Resource, string, string) {
+			r := &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeComprehendDataset, NativeID: sv(d.DatasetArn),
+				Name: d.DatasetName, Region: &region, CreatedAt: tp(d.CreationTime),
+				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+			}
+			if status := string(d.Status); status != "" {
+				r.Status = &status
+			}
+			return arnRow("datasets", d.DatasetArn, d.DatasetName, r)
+		},
+		tags, p)
 }
