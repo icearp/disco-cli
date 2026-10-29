@@ -2,8 +2,7 @@ package aws
 
 import (
 	"context"
-	"errors"
-	"fmt"
+	"slices"
 	"strconv"
 	"sync"
 
@@ -31,14 +30,17 @@ type evsAPI interface {
 	ListEnvironmentConnectors(context.Context, *evs.ListEnvironmentConnectorsInput, ...func(*evs.Options)) (*evs.ListEnvironmentConnectorsOutput, error)
 	ListEnvironmentHosts(context.Context, *evs.ListEnvironmentHostsInput, ...func(*evs.Options)) (*evs.ListEnvironmentHostsOutput, error)
 	ListEnvironmentVlans(context.Context, *evs.ListEnvironmentVlansInput, ...func(*evs.Options)) (*evs.ListEnvironmentVlansOutput, error)
+	ListTagsForResource(context.Context, *evs.ListTagsForResourceInput, ...func(*evs.Options)) (*evs.ListTagsForResourceOutput, error)
 	ListVmEntitlements(context.Context, *evs.ListVmEntitlementsInput, ...func(*evs.Options)) (*evs.ListVmEntitlementsOutput, error)
 }
 
 const (
+	evsListEnvironmentsOp          = "evs:ListEnvironments"
 	evsListEnvironmentConnectorsOp = "evs:ListEnvironmentConnectors"
 	evsListEnvironmentHostsOp      = "evs:ListEnvironmentHosts"
 	evsListEnvironmentVlansOp      = "evs:ListEnvironmentVlans"
 	evsListVMEntitlementsOp        = "evs:ListVmEntitlements"
+	evsTagsOp                      = "evs:ListTagsForResource"
 )
 
 // evsPageLimit is the MaxResults cap the EVS model documents for its list ops.
@@ -52,62 +54,102 @@ func scanEVS(ctx context.Context, acct *account, region string, st *store.Store,
 }
 
 // scanEVSAll runs the environment phase, then the per-environment child phases
-// over the environments it listed, each independent of the others, then the
-// entitlement phase over the connectors the connector phase stored. A failed
-// environment phase stores nothing and lists no parents, so it returns alone.
-// Child phases tally their transient errors per parent, so none of their
-// errors is transient and the join needs no demotion.
+// over the environments it stored, then the entitlement phase over the
+// vCenter connectors the connector phase stored, one at a time: a phase's
+// error does not stop the later ones; a failed write and ctx's end do
+// (runHostPhases).
 func scanEVSAll(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, envs, err := scanEVSEnvironments(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return total, inserted, err
-	}
-	th, ih, herr := scanEVSHosts(ctx, client, acct, region, st, scanID, envs)
-	tv, iv, verr := scanEVSVlans(ctx, client, acct, region, st, scanID, envs)
-	tc, ic, vcenters, cerr := scanEVSConnectors(ctx, client, acct, region, st, scanID, envs)
-	te, ie, eerr := scanEVSVMEntitlements(ctx, client, acct, region, st, scanID, vcenters)
-	return total + th + tv + tc + te, inserted + ih + iv + ic + ie, errors.Join(herr, verr, cerr, eerr)
+	var (
+		envs     []childParent
+		vcenters []evsConnectorParent
+	)
+	return runHostPhases(ctx, st, acct, region, "evs", 0, []hostPhase{
+		{op: evsListEnvironmentsOp, run: func(p *phaseTotals) (failed bool) {
+			envs, failed = scanEVSEnvironments(ctx, client, acct, region, st, scanID, p)
+			return failed
+		}},
+		countedPhase(0, evsListEnvironmentHostsOp, func() (int, int, error) {
+			return scanEVSHosts(ctx, client, acct, region, st, scanID, envs)
+		}),
+		countedPhase(0, evsListEnvironmentVlansOp, func() (int, int, error) {
+			return scanEVSVlans(ctx, client, acct, region, st, scanID, envs)
+		}),
+		countedPhase(0, evsListEnvironmentConnectorsOp, func() (int, int, error) {
+			t, i, found, err := scanEVSConnectors(ctx, client, acct, region, st, scanID, envs)
+			vcenters = found
+			return t, i, err
+		}),
+		countedPhase(0, evsListVMEntitlementsOp, func() (int, int, error) {
+			return scanEVSVMEntitlements(ctx, client, acct, region, st, scanID, vcenters)
+		}),
+	})
 }
 
-// scanEVSEnvironments stores the region's environments and returns those not
-// deleted as the parents of the child phases.
-func scanEVSEnvironments(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, envs []childParent, err error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListEnvironments(ctx, &evs.ListEnvironmentsInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "evs:ListEnvironments", acct.ID, region, err)
+// evsTags reads an environment's tags with ListTagsForResource, sent the row's
+// NativeID, the ARN ListEnvironments returned. The environment is the only
+// EVS type that can carry tags: it is the only resource the Service Reference
+// defines, the op's model ARN pattern accepts only environment ARNs, only
+// CreateEnvironment takes tags, no other response carries them, and
+// TagResource's documentation says an environment's tags do not reach its
+// hosts or VLANs.
+//
+// A DELETED environment is not read and stays untagged: TagResource's
+// documentation says a resource's tags are deleted with it, and the op could
+// answer ResourceNotFoundException, which would drop the listed row.
+func evsTags(client evsAPI) rowTagReader {
+	return rowTagReader{
+		op:       evsTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			if sv(r.Status) == string(evstypes.EnvironmentStateDeleted) {
+				return nil, nil
 			}
-			return 0, 0, nil, fmt.Errorf("evs:ListEnvironments: %w", err)
-		}
-		for _, e := range out.EnvironmentSummaries {
+			out, err := client.ListTagsForResource(ctx, &evs.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
+			if err != nil {
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
+		},
+	}
+}
+
+// scanEVSEnvironments stores the region's environments with their tags, a page
+// at a time, and returns those stored and not deleted as the parents of the
+// child phases. Counts and errors go to p; it reports whether a write failed,
+// after which the scan must stop.
+func scanEVSEnvironments(ctx context.Context, client evsAPI, acct *account, region string, st *store.Store, scanID string, p *phaseTotals) ([]childParent, bool) {
+	deleted := map[string]bool{}
+	parents, failed := storeParentPagesTags(ctx, st, acct, region, evsListEnvironmentsOp, "environments", "EnvironmentId",
+		func(ctx context.Context, token *string) ([]evstypes.EnvironmentSummary, *string, error) {
+			out, err := client.ListEnvironments(ctx, &evs.ListEnvironmentsInput{MaxResults: sdkaws.Int32(evsPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.EnvironmentSummaries, out.NextToken, nil
+		},
+		func(e evstypes.EnvironmentSummary) (*store.Resource, string, string) {
 			arn := sv(e.EnvironmentArn)
-			if arn == "" {
-				continue
+			if e.EnvironmentState == evstypes.EnvironmentStateDeleted {
+				deleted[arn] = true
 			}
-			status := string(e.EnvironmentState)
-			batch = append(batch, &store.Resource{
+			return arnRow("environments", e.EnvironmentArn, e.EnvironmentName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeEVSEnvironment, NativeID: arn,
-				Name: e.EnvironmentName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
+				Name: e.EnvironmentName, Region: &region, Status: nonEmptyPtr(string(e.EnvironmentState)),
+				CreatedAt: tp(e.CreatedAt), AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			})
-			if id := sv(e.EnvironmentId); id != "" && e.EnvironmentState != evstypes.EnvironmentStateDeleted {
-				envs = append(envs, childParent{id: id, arn: arn})
+		},
+		func(e evstypes.EnvironmentSummary) string {
+			// A DELETED environment is dropped from the parents below
+			// whatever its id, so it must not be warned about as one whose
+			// missing id left its children unread.
+			if e.EnvironmentState == evstypes.EnvironmentStateDeleted {
+				return sv(e.EnvironmentArn)
 			}
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	total, inserted, err = upsertBatch(st, batch, "evs environments")
-	if err != nil {
-		return 0, 0, nil, err
-	}
-	return total, inserted, envs, nil
+			return sv(e.EnvironmentId)
+		},
+		evsTags(client), p)
+	return slices.DeleteFunc(parents, func(env childParent) bool { return deleted[env.arn] }), failed
 }
 
 // evsChildNativeID keys an environment child under its environment: hosts,

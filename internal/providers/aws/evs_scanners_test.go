@@ -3,6 +3,8 @@ package aws
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"slices"
 	"testing"
 	"time"
@@ -57,25 +59,58 @@ func evsPage[T any](token *string, first, second []T) ([]T, *string) {
 	return second, nil
 }
 
-// evsHandlers answers every EVS op the scan calls: environments A and B plus a
-// deleted one whose children are never listed. A has two pages of hosts (with
+// evsTestEnvATags are environment A's tags; B and the deleted environment have
+// none.
+var evsTestEnvATags = map[string]string{"team": "vmware", "stage": "prod"}
+
+// evsEnv is a listed environment named after its id.
+func evsEnv(arn, id string, state evstypes.EnvironmentState) evstypes.EnvironmentSummary {
+	return evstypes.EnvironmentSummary{
+		EnvironmentArn: sdkaws.String(arn), EnvironmentId: sdkaws.String(id), EnvironmentName: sdkaws.String("name-" + id),
+		EnvironmentState: state, CreatedAt: &evsCreated, VcfVersion: evstypes.VcfVersionVcf521,
+	}
+}
+
+// evsHandlers answers every EVS op the scan calls: environments A and a
+// deleted one on page one, B on page two; the deleted one's children are
+// never listed. A has two pages of hosts (with
 // a nameless and a deleted host to skip), two pages of VLANs and a vCenter and
 // an SDDC Manager connector; B has one host, no VLANs and a vCenter connector.
 // The vCenter connectors' entitlements are A: two pages, B: one page. Every
-// child call is recorded in calls under its op, keyed by parent id, and fails
-// unless MaxResults is the model's cap.
+// child call is recorded in calls under its op, keyed by parent id, and every
+// tag read under ListTagsForResource, keyed by ARN. Every listing fails unless
+// MaxResults is the model's cap.
 func evsHandlers(calls map[string]*parentCalls) map[string]func(in any) (any, error) {
-	for _, op := range []string{"ListEnvironmentHosts", "ListEnvironmentVlans", "ListEnvironmentConnectors", "ListVmEntitlements"} {
+	for _, op := range []string{"ListEnvironmentHosts", "ListEnvironmentVlans", "ListEnvironmentConnectors", "ListVmEntitlements", "ListTagsForResource"} {
 		calls[op] = &parentCalls{}
 	}
 	badLimit := apiErr("ValidationException", "maxResults must be at most 100")
 	return map[string]func(in any) (any, error){
-		"ListEnvironments": func(any) (any, error) {
-			return &evs.ListEnvironmentsOutput{EnvironmentSummaries: []evstypes.EnvironmentSummary{
-				{EnvironmentArn: sdkaws.String(evsTestEnvA), EnvironmentId: sdkaws.String("env-aaaaaaaaaa"), EnvironmentState: evstypes.EnvironmentStateCreated},
-				{EnvironmentArn: sdkaws.String(evsTestEnvB), EnvironmentId: sdkaws.String("env-bbbbbbbbbb"), EnvironmentState: evstypes.EnvironmentStateCreated},
-				{EnvironmentArn: sdkaws.String(evsTestEnvDel), EnvironmentId: sdkaws.String("env-dddddddddd"), EnvironmentState: evstypes.EnvironmentStateDeleted},
-			}}, nil
+		"ListEnvironments": func(in any) (any, error) {
+			p := in.(*evs.ListEnvironmentsInput)
+			if sdkaws.ToInt32(p.MaxResults) != 100 {
+				return nil, badLimit
+			}
+			var out evs.ListEnvironmentsOutput
+			out.EnvironmentSummaries, out.NextToken = evsPage(p.NextToken,
+				[]evstypes.EnvironmentSummary{
+					evsEnv(evsTestEnvA, "env-aaaaaaaaaa", evstypes.EnvironmentStateCreated),
+					evsEnv(evsTestEnvDel, "env-dddddddddd", evstypes.EnvironmentStateDeleted),
+				},
+				[]evstypes.EnvironmentSummary{evsEnv(evsTestEnvB, "env-bbbbbbbbbb", evstypes.EnvironmentStateCreating)})
+			return &out, nil
+		},
+		"ListTagsForResource": func(in any) (any, error) {
+			arn := sdkaws.ToString(in.(*evs.ListTagsForResourceInput).ResourceArn)
+			calls["ListTagsForResource"].add(arn)
+			switch arn {
+			case evsTestEnvA:
+				return &evs.ListTagsForResourceOutput{Tags: evsTestEnvATags}, nil
+			case evsTestEnvDel:
+				// What EVS may answer for a deleted environment.
+				return nil, evsGone
+			}
+			return &evs.ListTagsForResourceOutput{}, nil
 		},
 		"ListEnvironmentHosts": func(in any) (any, error) {
 			p := in.(*evs.ListEnvironmentHostsInput)
@@ -179,11 +214,36 @@ func evsHandlers(calls map[string]*parentCalls) map[string]func(in any) (any, er
 
 func scanEVSTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in any) (any, error)) (int, error) {
 	t.Helper()
-	acct := newTestAccount(testAccountID)
-	acct.cfg = opStubConfig(handlers, evsDenied)
-	total, _, err := scanEVS(context.Background(), acct, testRegion, st, testScanID)
+	total, _, err := evsScan(context.Background(), st, handlers)
 	return total, err
 }
+
+// evsScan runs the service scan in the test account and region; an op
+// without a handler is denied.
+func evsScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, evsDenied)
+	return scanEVS(ctx, acct, testRegion, st, testScanID)
+}
+
+// evsFailTags makes the tag read of each ARN in fail return its error.
+func evsFailTags(h map[string]func(in any) (any, error), fail map[string]error) {
+	next := h["ListTagsForResource"]
+	h["ListTagsForResource"] = func(in any) (any, error) {
+		if err, ok := fail[sdkaws.ToString(in.(*evs.ListTagsForResourceInput).ResourceArn)]; ok {
+			return nil, err
+		}
+		return next(in)
+	}
+}
+
+// evsTestTotal is every row evsHandlers lists: 3 environments + 3 hosts + 4
+// VLANs + 3 connectors + 3 entitlements.
+const evsTestTotal = 16
+
+// evsTestEnvAChildren is the number of rows listed under environment A: 2
+// hosts, 4 VLANs, 2 connectors and the 2 entitlements of its vCenter one.
+const evsTestEnvAChildren = 10
 
 var evsAllChildRows = map[string][]string{
 	TypeEVSEnvironmentHost:      {evsTestHostA1, evsTestHostA2, evsTestHostB1},
@@ -194,10 +254,15 @@ var evsAllChildRows = map[string][]string{
 
 func TestScanEVS_StoresChildren(t *testing.T) {
 	st := newTestStore(t)
+	listWarns := bacWarnings(st, "evs:ListEnvironments")
+	tagWarns := bacWarnings(st, "evs:ListTagsForResource")
 	calls := map[string]*parentCalls{}
 	total, err := scanEVSTopLevel(t, st, evsHandlers(calls))
 	if err != nil {
 		t.Fatalf("scanEVS: %v", err)
+	}
+	if len(*listWarns) != 0 || len(*tagWarns) != 0 {
+		t.Errorf("warnings: evs:ListEnvironments %v, evs:ListTagsForResource %v; want none", *listWarns, *tagWarns)
 	}
 	// 3 environments + 3 hosts + 4 VLANs + 3 connectors + 3 entitlements
 	if total != 16 {
@@ -217,6 +282,32 @@ func TestScanEVS_StoresChildren(t *testing.T) {
 	wantEnt := []string{"env-aaaaaaaaaa/cnctr-vcaaaaaaaa/WINDOWS_SERVER", "env-bbbbbbbbbb/cnctr-vcbbbbbbbb/WINDOWS_SERVER"}
 	if got := calls["ListVmEntitlements"].distinct(); !slices.Equal(got, wantEnt) {
 		t.Errorf("ListVmEntitlements calls = %v, want %v (vCenter connectors only)", got, wantEnt)
+	}
+
+	envs := rowsByNativeID(t, st, TypeEVSEnvironment)
+	if got, want := nativeIDs(envs), []string{evsTestEnvA, evsTestEnvB, evsTestEnvDel}; !slices.Equal(got, want) {
+		t.Fatalf("environment rows = %v, want %v", got, want)
+	}
+	assertTagsMap(t, envs[evsTestEnvA].TagsJSON, evsTestEnvATags)
+	for _, arn := range []string{evsTestEnvB, evsTestEnvDel} {
+		if tg := envs[arn].TagsJSON; tg != nil {
+			t.Errorf("%s TagsJSON = %q, want nil (no tags)", arn, *tg)
+		}
+	}
+	// The deleted environment is not read: its tags were deleted with it.
+	if got, want := calls["ListTagsForResource"].distinct(), []string{evsTestEnvA, evsTestEnvB}; !slices.Equal(got, want) || len(calls["ListTagsForResource"].ids) != 2 {
+		t.Errorf("ListTagsForResource ARNs = %v, want %v once each", calls["ListTagsForResource"].ids, want)
+	}
+	b := envs[evsTestEnvB]
+	if sv(b.Name) != "name-env-bbbbbbbbbb" || sv(b.Status) != "CREATING" || sv(b.Region) != testRegion || sv(b.CreatedAt) != evsCreated.Format(time.RFC3339) {
+		t.Errorf("environment B row = name %q status %q region %q created %q", sv(b.Name), sv(b.Status), sv(b.Region), sv(b.CreatedAt))
+	}
+	var envAttrs map[string]any
+	if err := json.Unmarshal([]byte(b.AttributesJSON), &envAttrs); err != nil {
+		t.Fatalf("environment B attrs: %v", err)
+	}
+	if envAttrs["EnvironmentId"] != "env-bbbbbbbbbb" || envAttrs["VcfVersion"] != "VCF-5.2.1" {
+		t.Errorf("environment B attrs = %v, want the listed element verbatim", envAttrs)
 	}
 
 	if r := rowsByNativeID(t, st, TypeEVSEnvironmentVlan)[evsTestVlanNoName]; r.Name != nil {
@@ -553,4 +644,384 @@ func TestScanEVS_EnvironmentListErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// An empty environment listing stores nothing, reads no tags and lists no
+// children.
+func TestScanEVS_NoEnvironments(t *testing.T) {
+	st := newTestStore(t)
+	calls := map[string]*parentCalls{}
+	h := evsHandlers(calls)
+	h["ListEnvironments"] = func(any) (any, error) { return &evs.ListEnvironmentsOutput{}, nil }
+	total, inserted, err := evsScan(context.Background(), st, h)
+	if err != nil || total != 0 || inserted != 0 {
+		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
+	}
+	for _, op := range []string{"ListTagsForResource", "ListEnvironmentHosts", "ListEnvironmentVlans", "ListEnvironmentConnectors"} {
+		if n := len(calls[op].ids); n != 0 {
+			t.Errorf("%s called %d times with no environments", op, n)
+		}
+	}
+}
+
+func TestScanEVS_RescanInsertsNone(t *testing.T) {
+	st := newTestStore(t)
+	total, inserted, err := evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{}))
+	if err != nil || total != evsTestTotal || inserted != evsTestTotal {
+		t.Fatalf("first scan = %d, %d, %v; want %d, %d, nil", total, inserted, err, evsTestTotal, evsTestTotal)
+	}
+	total, inserted, err = evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{}))
+	if err != nil || total != evsTestTotal || inserted != 0 {
+		t.Errorf("rescan = %d, %d, %v; want %d, 0, nil", total, inserted, err, evsTestTotal)
+	}
+}
+
+// A failed environment tag read: ResourceNotFoundException (deleted since
+// listing) drops the row and its children silently; a denial keeps the row
+// untagged and warns once under the tag op however many rows it hit; a
+// throttle keeps it and makes the scan partial; any other error keeps it and
+// is returned. The other environments are read and their children listed.
+func TestScanEVS_EnvironmentTagReadFailures(t *testing.T) {
+	throttled := apiErr("ThrottlingException", "slow down")
+	both := []string{"env-aaaaaaaaaa", "env-bbbbbbbbbb"}
+	for _, tc := range []struct {
+		name        string
+		fail        map[string]error
+		outcome     serviceOutcome // -1: no error
+		code        string
+		wantTotal   int
+		wantEnvs    []string
+		wantParents []string
+		wantWarns   int
+	}{
+		{"not found", map[string]error{evsTestEnvA: evsGone}, -1, "", evsTestTotal - 1 - evsTestEnvAChildren, []string{evsTestEnvB, evsTestEnvDel}, []string{"env-bbbbbbbbbb"}, 0},
+		{"denied", map[string]error{evsTestEnvA: evsDenied}, -1, "", evsTestTotal, []string{evsTestEnvA, evsTestEnvB, evsTestEnvDel}, both, 1},
+		{"denied twice", map[string]error{evsTestEnvA: evsDenied, evsTestEnvB: evsDenied}, -1, "", evsTestTotal, []string{evsTestEnvA, evsTestEnvB, evsTestEnvDel}, both, 1},
+		{"throttled", map[string]error{evsTestEnvA: throttled}, outcomeTransient, "ThrottlingException", evsTestTotal, []string{evsTestEnvA, evsTestEnvB, evsTestEnvDel}, both, 0},
+		{"other", map[string]error{evsTestEnvA: evsUnexpected}, outcomeError, "ConflictException", evsTestTotal, []string{evsTestEnvA, evsTestEnvB, evsTestEnvDel}, both, 0},
+		// The throttle is demoted to one warning so the hard error decides the outcome.
+		{"throttled beside other", map[string]error{evsTestEnvA: throttled, evsTestEnvB: evsUnexpected}, outcomeError, "ConflictException", evsTestTotal, []string{evsTestEnvA, evsTestEnvB, evsTestEnvDel}, both, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := bacWarnings(st, "evs:ListTagsForResource")
+			calls := map[string]*parentCalls{}
+			h := evsHandlers(calls)
+			evsFailTags(h, tc.fail)
+
+			total, _, err := evsScan(context.Background(), st, h)
+			if tc.outcome < 0 {
+				if err != nil {
+					t.Fatalf("err = %v, want nil", err)
+				}
+			} else {
+				assertGlueOutcome(t, err, tc.outcome)
+				assertAPICode(t, err, tc.code)
+			}
+			if total != tc.wantTotal {
+				t.Errorf("total = %d, want %d", total, tc.wantTotal)
+			}
+			envs := rowsByNativeID(t, st, TypeEVSEnvironment)
+			if got := nativeIDs(envs); !slices.Equal(got, tc.wantEnvs) {
+				t.Errorf("environment rows = %v, want %v", got, tc.wantEnvs)
+			}
+			for arn := range tc.fail {
+				if r, ok := envs[arn]; ok && r.TagsJSON != nil {
+					t.Errorf("%s TagsJSON = %q, want nil", arn, *r.TagsJSON)
+				}
+			}
+			if got := calls["ListEnvironmentHosts"].distinct(); !slices.Equal(got, tc.wantParents) {
+				t.Errorf("ListEnvironmentHosts parents = %v, want %v", got, tc.wantParents)
+			}
+			if len(*warns) != tc.wantWarns {
+				t.Fatalf("evs:ListTagsForResource warnings = %v, want %d", *warns, tc.wantWarns)
+			}
+			for _, w := range *warns {
+				if w.Scope != testAccountID+"/"+testRegion {
+					t.Errorf("warning scope = %q, want %s/%s", w.Scope, testAccountID, testRegion)
+				}
+			}
+		})
+	}
+}
+
+// A throttled tag read beside a child phase's hard error is demoted to one
+// warning, so the hard error decides the outcome.
+func TestScanEVS_TagThrottleDemotedBesideHardError(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "evs:ListTagsForResource")
+	h := evsHandlers(map[string]*parentCalls{})
+	evsFailTags(h, map[string]error{evsTestEnvA: apiErr("ThrottlingException", "slow down")})
+	hosts := h["ListEnvironmentHosts"]
+	h["ListEnvironmentHosts"] = func(in any) (any, error) {
+		if sdkaws.ToString(in.(*evs.ListEnvironmentHostsInput).EnvironmentId) == "env-bbbbbbbbbb" {
+			return nil, evsUnexpected
+		}
+		return hosts(in)
+	}
+
+	_, _, err := evsScan(context.Background(), st, h)
+	assertGlueOutcome(t, err, outcomeError)
+	assertAPICode(t, err, "ConflictException")
+	if *warns != 1 {
+		t.Errorf("evs:ListTagsForResource warnings = %d, want 1", *warns)
+	}
+}
+
+// A failed environment write stops the scan: no later page or phase runs, and
+// no warning is sent about rows the write lost.
+func TestScanEVS_FailedEnvironmentWriteStopsScan(t *testing.T) {
+	st := newTestStore(t)
+	warns := rhWarnRecorder(st)
+	refuseStoreWrites(t, st, TypeEVSEnvironment)
+	calls := map[string]*parentCalls{}
+	h := evsHandlers(calls)
+	evsFailTags(h, map[string]error{evsTestEnvA: evsDenied})
+	var pages int
+	list := h["ListEnvironments"]
+	h["ListEnvironments"] = func(in any) (any, error) {
+		pages++
+		return list(in)
+	}
+
+	total, _, err := evsScan(context.Background(), st, h)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v, want store.ErrStoreWrite", err)
+	}
+	if total != 0 || pages != 1 {
+		t.Errorf("total = %d, ListEnvironments pages = %d; want 0 and 1", total, pages)
+	}
+	if w := warns(); len(w) != 0 {
+		t.Errorf("warnings = %v, want none", w)
+	}
+	for _, op := range []string{"ListEnvironmentHosts", "ListEnvironmentVlans", "ListEnvironmentConnectors"} {
+		if n := len(calls[op].ids); n != 0 {
+			t.Errorf("%s called %d times after the failed write", op, n)
+		}
+	}
+}
+
+// A failed later page of the environment listing keeps the page before it,
+// whose environments' children are still listed, and is returned.
+func TestScanEVS_EnvironmentListFailureKeepsPage(t *testing.T) {
+	st := newTestStore(t)
+	calls := map[string]*parentCalls{}
+	h := evsHandlers(calls)
+	h["ListEnvironments"] = failOnCall(2, evsBadInput, h["ListEnvironments"])
+
+	total, _, err := evsScan(context.Background(), st, h)
+	assertGlueOutcome(t, err, outcomeError)
+	assertAPICode(t, err, "ValidationException")
+	if want := 2 + evsTestEnvAChildren; total != want {
+		t.Errorf("total = %d, want %d", total, want)
+	}
+	if got, want := nativeIDs(rowsByNativeID(t, st, TypeEVSEnvironment)), []string{evsTestEnvA, evsTestEnvDel}; !slices.Equal(got, want) {
+		t.Errorf("environment rows = %v, want %v", got, want)
+	}
+	if got, want := calls["ListEnvironmentHosts"].distinct(), []string{"env-aaaaaaaaaa"}; !slices.Equal(got, want) {
+		t.Errorf("ListEnvironmentHosts parents = %v, want %v", got, want)
+	}
+}
+
+// A repeated NextToken ends the environment listing as an error, keeping
+// every page read and listing their children.
+func TestScanEVS_RepeatedTokenKeepsPages(t *testing.T) {
+	st := newTestStore(t)
+	h := evsHandlers(map[string]*parentCalls{})
+	list := h["ListEnvironments"]
+	h["ListEnvironments"] = func(in any) (any, error) {
+		out, err := list(in)
+		if err != nil {
+			return nil, err
+		}
+		out.(*evs.ListEnvironmentsOutput).NextToken = sdkaws.String("page2")
+		return out, nil
+	}
+
+	total, _, err := evsScan(context.Background(), st, h)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v, want errRepeatedNextToken", err)
+	}
+	if total != evsTestTotal {
+		t.Errorf("total = %d, want %d", total, evsTestTotal)
+	}
+}
+
+// An environment without an ARN is not stored and not sent to the tag op; one
+// with an ARN but no id is stored with its tags but has no children listed.
+// Each is warned about once under the listing.
+func TestScanEVS_EnvironmentWithoutIdentifiers(t *testing.T) {
+	st := newTestStore(t)
+	warns := bacWarnings(st, "evs:ListEnvironments")
+	calls := map[string]*parentCalls{}
+	h := evsHandlers(calls)
+	noID := "arn:aws:evs:us-east-1:123456789012:environment/env-noidnoidno"
+	noIDTags := map[string]string{"owner": "ops"}
+	tags := h["ListTagsForResource"]
+	h["ListTagsForResource"] = func(in any) (any, error) {
+		out, err := tags(in)
+		if sdkaws.ToString(in.(*evs.ListTagsForResourceInput).ResourceArn) == noID {
+			return &evs.ListTagsForResourceOutput{Tags: noIDTags}, err
+		}
+		return out, err
+	}
+	h["ListEnvironments"] = func(any) (any, error) {
+		return &evs.ListEnvironmentsOutput{EnvironmentSummaries: []evstypes.EnvironmentSummary{
+			evsEnv(evsTestEnvA, "env-aaaaaaaaaa", evstypes.EnvironmentStateCreated),
+			{EnvironmentName: sdkaws.String("no-arn"), EnvironmentId: sdkaws.String("env-noarnnoarn")},
+			{EnvironmentArn: sdkaws.String(noID), EnvironmentName: sdkaws.String("no-id")},
+		}}, nil
+	}
+
+	total, _, err := evsScan(context.Background(), st, h)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if want := 2 + evsTestEnvAChildren; total != want {
+		t.Errorf("total = %d, want %d", total, want)
+	}
+	if got, want := calls["ListTagsForResource"].distinct(), []string{evsTestEnvA, noID}; !slices.Equal(got, want) {
+		t.Errorf("ListTagsForResource ARNs = %v, want %v", got, want)
+	}
+	if got, want := calls["ListEnvironmentHosts"].distinct(), []string{"env-aaaaaaaaaa"}; !slices.Equal(got, want) {
+		t.Errorf("ListEnvironmentHosts parents = %v, want %v", got, want)
+	}
+	if len(*warns) != 2 {
+		t.Errorf("evs:ListEnvironments warnings = %v, want 2 (no ARN, no id)", *warns)
+	}
+	r := rowsByNativeID(t, st, TypeEVSEnvironment)[noID]
+	// An empty EnvironmentState stores no Status, not "".
+	if r.Status != nil {
+		t.Errorf("no-id environment Status = %q, want unset", *r.Status)
+	}
+	assertTagsMap(t, r.TagsJSON, noIDTags)
+}
+
+// A DELETED environment without an id is stored and not warned about: being
+// deleted, not the missing id, is why its children are not read.
+func TestScanEVS_DeletedEnvironmentWithoutIDNotWarned(t *testing.T) {
+	st := newTestStore(t)
+	warns := bacWarnings(st, "evs:ListEnvironments")
+	h := evsHandlers(map[string]*parentCalls{})
+	h["ListEnvironments"] = func(any) (any, error) {
+		return &evs.ListEnvironmentsOutput{EnvironmentSummaries: []evstypes.EnvironmentSummary{
+			{EnvironmentArn: sdkaws.String(evsTestEnvDel), EnvironmentState: evstypes.EnvironmentStateDeleted},
+		}}, nil
+	}
+
+	total, _, err := evsScan(context.Background(), st, h)
+	if err != nil {
+		t.Fatalf("err = %v, want nil", err)
+	}
+	if total != 1 {
+		t.Errorf("total = %d, want 1", total)
+	}
+	if len(*warns) != 0 {
+		t.Errorf("evs:ListEnvironments warnings = %v, want none", *warns)
+	}
+}
+
+// A GovCloud environment's listed ARN reaches the tag op unchanged.
+func TestScanEVS_GovCloudARNReachesTagOp(t *testing.T) {
+	st := newTestStore(t)
+	calls := map[string]*parentCalls{}
+	h := evsHandlers(calls)
+	gov := "arn:aws-us-gov:evs:us-gov-west-1:" + testAccountID + ":environment/env-aaaaaaaaaa"
+	h["ListEnvironments"] = func(any) (any, error) {
+		return &evs.ListEnvironmentsOutput{EnvironmentSummaries: []evstypes.EnvironmentSummary{evsEnv(gov, "env-aaaaaaaaaa", evstypes.EnvironmentStateCreated)}}, nil
+	}
+	h["ListTagsForResource"] = func(in any) (any, error) {
+		calls["ListTagsForResource"].add(sdkaws.ToString(in.(*evs.ListTagsForResourceInput).ResourceArn))
+		return &evs.ListTagsForResourceOutput{Tags: evsTestEnvATags}, nil
+	}
+	acct := newTestAccount(testAccountID)
+	acct.Partition = "aws-us-gov"
+	acct.cfg = opStubConfig(h, evsDenied)
+
+	if _, _, err := scanEVS(context.Background(), acct, "us-gov-west-1", st, testScanID); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if got := calls["ListTagsForResource"].ids; !slices.Equal(got, []string{gov}) {
+		t.Errorf("ListTagsForResource ARNs = %v, want [%s]", got, gov)
+	}
+	assertTagsMap(t, rowsByNativeID(t, st, TypeEVSEnvironment)[gov].TagsJSON, evsTestEnvATags)
+	if _, ok := rowsByNativeID(t, st, TypeEVSEnvironmentHost)[gov+"/host/esx-a1"]; !ok {
+		t.Error("host of the GovCloud environment missing")
+	}
+}
+
+// Once ctx ends during the tag reads, the page is written, no child phase
+// runs, and the stop is one member of the error.
+func TestScanEVS_ContextEndReportedOnce(t *testing.T) {
+	st := newTestStore(t)
+	calls := map[string]*parentCalls{}
+	h := evsHandlers(calls)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	evsFailTags(h, map[string]error{evsTestEnvA: context.Canceled})
+	tags := h["ListTagsForResource"]
+	h["ListTagsForResource"] = func(in any) (any, error) {
+		if sdkaws.ToString(in.(*evs.ListTagsForResourceInput).ResourceArn) == evsTestEnvA {
+			cancel()
+		}
+		return tags(in)
+	}
+
+	_, _, err := evsScan(ctx, st, h)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v, want context.Canceled", err)
+	}
+	stops := 0
+	for _, m := range bacTopMembers(err) {
+		if errors.Is(m, context.Canceled) {
+			stops++
+		}
+	}
+	if stops != 1 {
+		t.Errorf("members carrying the stop = %d, want 1 (err %v)", stops, err)
+	}
+	if _, ok := rowsByNativeID(t, st, TypeEVSEnvironment)[evsTestEnvA]; !ok {
+		t.Error("environment A, whose read the stop cut short, was not kept")
+	}
+	if n := len(calls["ListEnvironmentHosts"].ids); n != 0 {
+		t.Errorf("ListEnvironmentHosts called %d times after the stop", n)
+	}
+}
+
+// An NXDOMAIN after environments were stored is a failure of this scan, not a
+// region gap, and the counts are kept; with nothing stored the region is
+// unavailable.
+func TestScanEVS_NXDOMAIN(t *testing.T) {
+	nx := &net.DNSError{Err: "no such host", Name: "evs.us-east-1.amazonaws.com", IsNotFound: true}
+	t.Run("tag read", func(t *testing.T) {
+		st := newTestStore(t)
+		h := evsHandlers(map[string]*parentCalls{})
+		evsFailTags(h, map[string]error{evsTestEnvA: nx})
+		total, _, err := evsScan(context.Background(), st, h)
+		assertGlueOutcome(t, err, outcomeError)
+		if total != evsTestTotal {
+			t.Errorf("total = %d, want %d", total, evsTestTotal)
+		}
+	})
+	t.Run("later page", func(t *testing.T) {
+		st := newTestStore(t)
+		h := evsHandlers(map[string]*parentCalls{})
+		h["ListEnvironments"] = failOnCall(2, nx, h["ListEnvironments"])
+		total, _, err := evsScan(context.Background(), st, h)
+		assertGlueOutcome(t, err, outcomeError)
+		if want := 2 + evsTestEnvAChildren; total != want {
+			t.Errorf("total = %d, want %d", total, want)
+		}
+	})
+	t.Run("nothing stored", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := rhWarnRecorder(st)
+		acct := newTestAccount(testAccountID)
+		acct.cfg = opStubConfig(nil, nx)
+		_, _, err := scanEVS(context.Background(), acct, testRegion, st, testScanID)
+		assertGlueOutcome(t, err, outcomeUnavailable)
+		if w := warns(); len(w) != 0 {
+			t.Errorf("warnings = %v, want none", w)
+		}
+	})
 }
