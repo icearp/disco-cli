@@ -2,15 +2,12 @@ package aws
 
 import (
 	"context"
-	"fmt"
-	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/rekognition"
 	rekognitiontypes "github.com/aws/aws-sdk-go-v2/service/rekognition/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -32,6 +29,7 @@ type rekognitionAPI interface {
 	ListStreamProcessors(context.Context, *rekognition.ListStreamProcessorsInput, ...func(*rekognition.Options)) (*rekognition.ListStreamProcessorsOutput, error)
 	DescribeProjectVersions(context.Context, *rekognition.DescribeProjectVersionsInput, ...func(*rekognition.Options)) (*rekognition.DescribeProjectVersionsOutput, error)
 	ListProjectPolicies(context.Context, *rekognition.ListProjectPoliciesInput, ...func(*rekognition.Options)) (*rekognition.ListProjectPoliciesOutput, error)
+	ListTagsForResource(context.Context, *rekognition.ListTagsForResourceInput, ...func(*rekognition.Options)) (*rekognition.ListTagsForResourceOutput, error)
 }
 
 // rekDatasetAttrs embeds SDK DatasetMetadata plus the parent ProjectArn, giving
@@ -49,228 +47,246 @@ type rekProjectVersionAttrs struct {
 	ProjectArn string `json:"ProjectArn"`
 }
 
-// scanRekognition discovers Rekognition collections, custom-labels projects
-// (with their versions, datasets and policies), and stream processors. Collections return plain string IDs (synth ARN);
-// projects expose ProjectArn natively; stream processors return only
-// (Name, Status) — synth ARN.
-func scanRekognition(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+const (
+	rekTagsOp                    = "rekognition:ListTagsForResource"
+	rekListCollectionsOp         = "rekognition:ListCollections"
+	rekDescribeProjectsOp        = "rekognition:DescribeProjects"
+	rekDescribeProjectVersionsOp = "rekognition:DescribeProjectVersions"
+	rekListStreamProcessorsOp    = "rekognition:ListStreamProcessors"
+	// rekCollectionPageCap is the model's maximum ListCollections MaxResults.
+	rekCollectionPageCap = 4096
+	// rekProjectPageCap is the model's maximum DescribeProjects and
+	// DescribeProjectVersions MaxResults; a larger value is rejected with a
+	// ValidationException.
+	rekProjectPageCap = 100
+)
+
+// rekGone is the not-found code ListTagsForResource models, and the one
+// DescribeProjectVersions models for a project deleted since it was listed.
+var rekGone = []string{"ResourceNotFoundException"}
+
+// scanRekognition discovers Rekognition collections, Custom Labels projects
+// with the datasets each embeds, their versions and policies, and stream
+// processors. Every listing runs as its own phase, one at a time: a phase's
+// error does not stop the later ones; a failed write and ctx's end do
+// (runHostPhases). The per-project phases read the projects stored this scan.
+// Every type but project policies (no ARN; the Service Reference lists no
+// policy resource) has its tags read per row (rekTags), whose denials are one
+// warning for the scan.
+func scanRekognition(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := rekognition.NewFromConfig(acct.cfg, func(o *rekognition.Options) { o.Region = region })
-	return scanRekognitionAll(ctx, client, acct, region, st, scanID)
+	tags := rekTags(client).sharingDenials()
+	var projects []childParent
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "rekognition", 0, []hostPhase{
+		{op: rekListCollectionsOp, run: func(p *phaseTotals) bool {
+			return scanRekCollections(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: rekDescribeProjectsOp, run: func(p *phaseTotals) (failed bool) {
+			projects, failed = scanRekProjects(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: rekDescribeProjectVersionsOp, run: func(p *phaseTotals) bool {
+			return scanRekProjectVersions(ctx, client, acct, region, st, scanID, projects, tags, p)
+		}},
+		{op: rekListStreamProcessorsOp, run: func(p *phaseTotals) bool {
+			return scanRekStreamProcessors(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, rekProjectPoliciesOp, func() (int, int, error) {
+			return scanRekProjectPolicies(ctx, client, acct, region, st, scanID, projects)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// scanRekognitionAll runs the older phases, which stop at their first hard
-// error, then the project-policy phase over the projects stored before that
-// error, so a failure on either side costs the other no rows. The older side's
-// transient error is demoted to a warning only beside a hard error: joined, it
-// would be buried in the hard error instead of reported under its op.
-func scanRekognitionAll(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, projectARNs, err := scanRekOlderPhases(ctx, client, acct, region, st, scanID)
-	t, i, perr := scanRekProjectPolicies(ctx, client, acct, region, st, scanID, projectARNs)
-	return total + t, inserted + i, demoteBeside(st, "rekognition", acct, region, err, perr)
-}
-
-// scanRekOlderPhases runs the phases that predate project policies
-// sequentially, stopping at the first hard error, and returns the ARNs of the
-// projects stored before it.
-func scanRekOlderPhases(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, projectARNs []string, err error) {
-	t, i, err := scanRekCollections(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return total, inserted, nil, err
-	}
-	total += t
-	inserted += i
-
-	projectARNs, t, i, err = scanRekProjects(ctx, client, acct, region, st, scanID)
-	total += t
-	inserted += i
-	if err != nil {
-		return total, inserted, projectARNs, err
-	}
-
-	t, i, err = scanRekProjectVersions(ctx, client, acct, region, st, scanID, projectARNs)
-	if err != nil {
-		return total, inserted, projectARNs, err
-	}
-	total += t
-	inserted += i
-
-	t, i, err = scanRekStreamProcessors(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return total, inserted, projectARNs, err
-	}
-	total += t
-	inserted += i
-	return total, inserted, projectARNs, nil
-}
-
-func scanRekCollections(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := rekognition.NewListCollectionsPaginator(client, &rekognition.ListCollectionsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "rekognition:ListCollections", acct.ID, region, err)
+// rekTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID. For projects, datasets and project versions that is the ARN their
+// listing returned. Collections and stream processors are listed without one,
+// so it is the ARN built, not read, from the listed id or name in the Service
+// Reference's format (collection/${CollectionId},
+// streamprocessor/${StreamprocessorId}). A stream processor's ARN is returned
+// only by DescribeStreamProcessor and CreateStreamProcessor; building it from
+// the listed Name saves a Describe call per processor, on the assumption,
+// unverified live, that the ARN's StreamprocessorId is the Name. The Service
+// Reference lists all five types under ListTagsForResource, and each type's
+// Create op takes Tags. The op does not page. ResourceNotFoundException, its
+// modeled not-found, drops a resource deleted after it was listed.
+func rekTags(client rekognitionAPI) rowTagReader {
+	return rowTagReader{
+		op:       rekTagsOp,
+		notFound: rekGone,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &rekognition.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
 			}
-			return 0, 0, fmt.Errorf("rekognition:ListCollections: %w", err)
+			return mapTagsJSON(out.Tags), nil
+		},
+	}
+}
+
+// rekCollection is a listed collection, and its stored attributes.
+type rekCollection struct {
+	CollectionID     string `json:"CollectionId"`
+	FaceModelVersion string `json:"FaceModelVersion,omitempty"`
+}
+
+// rekCollections pairs ListCollections' CollectionIds with FaceModelVersions,
+// which the model documents as index-aligned with them. A collection past the
+// end of a shorter FaceModelVersions is kept without a version.
+func rekCollections(out *rekognition.ListCollectionsOutput) []rekCollection {
+	cols := make([]rekCollection, len(out.CollectionIds))
+	for i, id := range out.CollectionIds {
+		cols[i].CollectionID = id
+		if i < len(out.FaceModelVersions) {
+			cols[i].FaceModelVersion = out.FaceModelVersions[i]
 		}
-		for _, id := range out.CollectionIds {
-			if id == "" {
-				continue
+	}
+	return cols
+}
+
+// scanRekCollections stores the collections with their tags, a page at a
+// time. ListCollections returns no ARN; each collection is stored under the
+// ARN built from its id.
+func scanRekCollections(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, rekListCollectionsOp,
+		func(ctx context.Context, token *string) ([]rekCollection, *string, error) {
+			out, err := client.ListCollections(ctx, &rekognition.ListCollectionsInput{MaxResults: sdkaws.Int32(rekCollectionPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			arn := arnFor(acct.partition(), "rekognition", region, acct.ID, "collection/"+id)
-			label := id
-			batch = append(batch, &store.Resource{
+			return rekCollections(out), out.NextToken, nil
+		},
+		func(c rekCollection) (*store.Resource, string, string) {
+			if c.CollectionID == "" {
+				return nil, "collections have no id", noIdentifier
+			}
+			label := c.CollectionID
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRekognitionCollection, NativeID: arn,
+				Type: TypeRekognitionCollection, NativeID: arnFor(acct.partition(), "rekognition", region, acct.ID, "collection/"+c.CollectionID),
 				Name: &label, Region: &region,
-				AttributesJSON: mustJSON(map[string]string{"CollectionId": id}), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "rekognition collections")
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			}, "", ""
+		},
+		tags, p)
 }
 
-// scanRekProjects upserts projects and the datasets embedded in each project's
-// DescribeProjects response (Datasets []DatasetMetadata — no separate list op);
-// returns the project ARNs for the project-version fan-out.
-func scanRekProjects(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := rekognition.NewDescribeProjectsPaginator(client, &rekognition.DescribeProjectsInput{})
-	var batch, datasetBatch []*store.Resource
-	var projectARNs []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isClosedToNewCustomers(err) {
-				return nil, 0, 0, nil
+// scanRekProjects stores the projects with their tags, a page at a time, then
+// the datasets each stored project's element embeds (scanRekDatasets). It
+// returns the stored projects, the parents of the per-project phases, and
+// whether a write failed, after which the scan must stop. Without a Features
+// filter DescribeProjects lists Custom Labels projects only. An account the
+// service is closed to (isClosedToNewCustomers) on the first page has none.
+func scanRekProjects(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	datasets := map[string][]rekognitiontypes.DatasetMetadata{}
+	projects, failed := storeParentPagesTags(ctx, st, acct, region, rekDescribeProjectsOp, "projects", "ProjectArn",
+		firstPageGapPages(isClosedToNewCustomers, func(ctx context.Context, token *string) ([]rekognitiontypes.ProjectDescription, *string, error) {
+			out, err := client.DescribeProjects(ctx, &rekognition.DescribeProjectsInput{MaxResults: sdkaws.Int32(rekProjectPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "rekognition:DescribeProjects", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("rekognition:DescribeProjects: %w", err)
-		}
-		for _, p := range out.ProjectDescriptions {
-			arn := sv(p.ProjectArn)
-			if arn == "" {
-				continue
-			}
-			projectARNs = append(projectARNs, arn)
-			label := arn
-			status := string(p.Status)
-			batch = append(batch, &store.Resource{
+			return out.ProjectDescriptions, out.NextToken, nil
+		}),
+		func(pd rekognitiontypes.ProjectDescription) (*store.Resource, string, string) {
+			arn := sv(pd.ProjectArn)
+			status := string(pd.Status)
+			datasets[arn] = pd.Datasets
+			return arnRow("projects", pd.ProjectArn, nil, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeRekognitionProject, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				Name: &arn, Region: &region, Status: &status, CreatedAt: tp(pd.CreationTimestamp),
+				AttributesJSON: mustJSON(pd), DiscoveredBy: scanID,
 			})
-			for _, ds := range p.Datasets {
-				dsARN := sv(ds.DatasetArn)
-				if dsARN == "" {
-					continue
-				}
-				dsLabel := dsARN
-				dsStatus := string(ds.Status)
-				datasetBatch = append(datasetBatch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeRekognitionDataset, NativeID: dsARN,
-					Name: &dsLabel, Region: &region, Status: &dsStatus,
-					AttributesJSON: mustJSON(rekDatasetAttrs{DatasetMetadata: ds, ProjectArn: arn}), DiscoveredBy: scanID,
-				})
-			}
-		}
+		},
+		func(pd rekognitiontypes.ProjectDescription) string { return sv(pd.ProjectArn) },
+		tags, p)
+	if failed {
+		return nil, true
 	}
-	t, i, err := upsertBatch(st, batch, "rekognition projects")
-	if err != nil {
-		return nil, t, i, err
-	}
-	dt, di, derr := upsertBatch(st, datasetBatch, "rekognition datasets")
-	return projectARNs, t + dt, i + di, derr
+	return projects, scanRekDatasets(ctx, st, acct, region, scanID, projects, datasets, tags, p)
 }
 
-// scanRekProjectVersions fans out DescribeProjectVersions (requires ProjectArn)
-// across projects from scanRekProjects.
-func scanRekProjectVersions(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string, projectARNs []string) (int, int, error) {
-	if len(projectARNs) == 0 {
-		return 0, 0, nil
-	}
-	sem := semaphore.NewWeighted(fanoutMed)
+// scanRekDatasets stores, with their tags, the datasets the DescribeProjects
+// element of each stored project embeds (Datasets): there is no dataset
+// listing. A project holds at most a train and a test dataset (the model's
+// DatasetArn pattern), so they are held until one write. It reports whether
+// the write failed.
+func scanRekDatasets(ctx context.Context, st *store.Store, acct *account, region, scanID string, projects []childParent, datasets map[string][]rekognitiontypes.DatasetMetadata, tags rowTagReader, p *phaseTotals) bool {
 	var (
-		mu    sync.Mutex
-		batch []*store.Resource
+		rows  []*store.Resource
+		skips notStoredSkips
 	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, projARN := range projectARNs {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			pager := rekognition.NewDescribeProjectVersionsPaginator(client, &rekognition.DescribeProjectVersionsInput{ProjectArn: &projARN})
-			for pager.HasMorePages() {
-				out, derr := pager.NextPage(gctx)
-				if derr != nil {
-					if isAccessDenied(derr) {
-						return nil
-					}
-					return fmt.Errorf("rekognition:DescribeProjectVersions %s: %w", projARN, derr)
-				}
-				for _, pv := range out.ProjectVersionDescriptions {
-					arn := sv(pv.ProjectVersionArn)
-					if arn == "" {
-						continue
-					}
-					label := arn
-					status := string(pv.Status)
-					r := &store.Resource{
-						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeRekognitionProjectVersion, NativeID: arn,
-						Name: &label, Region: &region, Status: &status,
-						AttributesJSON: mustJSON(rekProjectVersionAttrs{ProjectVersionDescription: pv, ProjectArn: projARN}), DiscoveredBy: scanID,
-					}
-					mu.Lock()
-					batch = append(batch, r)
-					mu.Unlock()
-				}
-			}
-			return nil
-		})
+	for _, project := range projects {
+		rows = buildListedRows(datasets[project.arn], func(ds rekognitiontypes.DatasetMetadata) (*store.Resource, string, string) {
+			arn := sv(ds.DatasetArn)
+			status := string(ds.Status)
+			return arnRow("datasets", ds.DatasetArn, &project.arn, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRekognitionDataset, NativeID: arn,
+				Name: &arn, Region: &region, Status: &status, CreatedAt: tp(ds.CreationTimestamp),
+				AttributesJSON: mustJSON(rekDatasetAttrs{DatasetMetadata: ds, ProjectArn: project.arn}), DiscoveredBy: scanID,
+			})
+		}, rows, &skips)
 	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	return upsertBatch(st, batch, "rekognition project-versions")
+	return storeRowsTags(ctx, st, acct, region, rekDescribeProjectsOp, rows, nil, func() { skips.warn(st, rekDescribeProjectsOp, acct, region) }, tags, p)
 }
 
-func scanRekStreamProcessors(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := rekognition.NewListStreamProcessorsPaginator(client, &rekognition.ListStreamProcessorsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isClosedToNewCustomers(err) {
-				return 0, 0, nil
+// scanRekProjectVersions stores each project's versions with their tags. A
+// project gains a version per training, so each page is written as soon as
+// its tags are read (storeEachParentPagesTags); one project's failure costs
+// the others none of theirs.
+func scanRekProjectVersions(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string, projects []childParent, tags rowTagReader, p *phaseTotals) bool {
+	return storeEachParentPagesTags(ctx, st, acct, region, rekDescribeProjectVersionsOp, rekGone, projects,
+		func(ctx context.Context, projectARN string, token *string) ([]rekognitiontypes.ProjectVersionDescription, *string, error) {
+			out, err := client.DescribeProjectVersions(ctx, &rekognition.DescribeProjectVersionsInput{ProjectArn: &projectARN, MaxResults: sdkaws.Int32(rekProjectPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "rekognition:ListStreamProcessors", acct.ID, region, err)
+			return out.ProjectVersionDescriptions, out.NextToken, nil
+		},
+		func(projectARN string, pv rekognitiontypes.ProjectVersionDescription) (*store.Resource, string, string) {
+			arn := sv(pv.ProjectVersionArn)
+			status := string(pv.Status)
+			return arnRow("project versions", pv.ProjectVersionArn, &projectARN, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeRekognitionProjectVersion, NativeID: arn,
+				Name: &arn, Region: &region, Status: &status, CreatedAt: tp(pv.CreationTimestamp),
+				AttributesJSON: mustJSON(rekProjectVersionAttrs{ProjectVersionDescription: pv, ProjectArn: projectARN}), DiscoveredBy: scanID,
+			})
+		},
+		tags, p)
+}
+
+// scanRekStreamProcessors stores the stream processors with their tags, a
+// page at a time. ListStreamProcessors returns no ARN; each processor is stored
+// under the ARN built from its name (rekTags). The model sets no maximum
+// MaxResults (its default is 1000), so none is sent. An account the service
+// is closed to (isClosedToNewCustomers) on the first page has none.
+func scanRekStreamProcessors(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, rekListStreamProcessorsOp,
+		firstPageGapPages(isClosedToNewCustomers, func(ctx context.Context, token *string) ([]rekognitiontypes.StreamProcessor, *string, error) {
+			out, err := client.ListStreamProcessors(ctx, &rekognition.ListStreamProcessorsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("rekognition:ListStreamProcessors: %w", err)
-		}
-		for _, sp := range out.StreamProcessors {
+			return out.StreamProcessors, out.NextToken, nil
+		}),
+		func(sp rekognitiontypes.StreamProcessor) (*store.Resource, string, string) {
 			name := sv(sp.Name)
 			if name == "" {
-				continue
+				return nil, "stream processors have no name", noIdentifier
 			}
-			arn := arnFor(acct.partition(), "rekognition", region, acct.ID, "streamprocessor/"+name)
 			status := string(sp.Status)
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRekognitionStreamProcessor, NativeID: arn,
+				Type: TypeRekognitionStreamProcessor, NativeID: arnFor(acct.partition(), "rekognition", region, acct.ID, "streamprocessor/"+name),
 				Name: &name, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(sp), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "rekognition stream-processors")
+			}, "", ""
+		},
+		tags, p)
 }
 
 const rekProjectPoliciesOp = "rekognition:ListProjectPolicies"
@@ -292,13 +308,9 @@ func rekProjectPolicyNativeID(projectARN, policyName string) string {
 // listing) is skipped silently, a denial warns once for the op, a transient
 // error after the SDK's retries is skipped with one warning for all such
 // projects, and anything else fails the phase, storing none of its rows.
-func scanRekProjectPolicies(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string, projectARNs []string) (int, int, error) {
-	parents := make([]childParent, len(projectARNs))
-	for i, arn := range projectARNs {
-		parents[i] = childParent{id: arn, arn: arn}
-	}
+func scanRekProjectPolicies(ctx context.Context, client rekognitionAPI, acct *account, region string, st *store.Store, scanID string, projects []childParent) (int, int, error) {
 	isGone := func(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
-	return childFanOutSkipTransient(ctx, st, acct, region, rekProjectPoliciesOp, parents, isGone, byParentARN, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
+	return childFanOutSkipTransient(ctx, st, acct, region, rekProjectPoliciesOp, projects, isGone, byParentARN, func(ctx context.Context, p childParent) ([]*store.Resource, error) {
 		return listRekProjectPolicies(ctx, client, acct, region, scanID, p.arn)
 	})
 }
