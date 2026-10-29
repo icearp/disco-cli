@@ -204,6 +204,58 @@ func TestUntaggedIfOtherAccount_Outcomes(t *testing.T) {
 	}
 }
 
+// untaggedIfOwnerElsewhere judges a row by the owner account its owner func
+// gives, not by the row's NativeID (always in this account): a denied or
+// not-found read of a row owned by another account becomes no tags and no
+// error; with the owner this account, or none named, the same failures, and
+// any other error, pass through unchanged.
+func TestUntaggedIfOwnerElsewhere_Outcomes(t *testing.T) {
+	const other = "210987654321"
+	denied := apiErr("AccessDeniedException", "denied")
+	gone := apiErr("ResourceNotFoundException", "gone")
+	invalid := apiErr("ValidationException", "bad")
+	tagged := sp(`{"k":"v"}`)
+	for _, c := range []struct {
+		name     string
+		owner    string
+		tags     *string
+		err      error
+		wantTags *string
+		wantErr  error
+	}{
+		{"owner elsewhere denied", other, nil, denied, nil, nil},
+		{"owner elsewhere not found", other, nil, gone, nil, nil},
+		{"owner elsewhere invalid", other, nil, invalid, nil, invalid},
+		{"owner elsewhere tagged", other, tagged, nil, tagged, nil},
+		{"own denied", testAccountID, nil, denied, nil, denied},
+		{"own not found", testAccountID, nil, gone, nil, gone},
+		{"no owner denied", "", nil, denied, nil, denied},
+		{"no owner not found", "", nil, gone, nil, gone},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var asked *store.Resource
+			tags := rowTagReader{
+				op:       "workspaces:DescribeTags",
+				notFound: []string{"ResourceNotFoundException"},
+				read: func(context.Context, *store.Resource) (*string, error) {
+					return c.tags, c.err
+				},
+			}.untaggedIfOwnerElsewhere(testAccountID, func(r *store.Resource) string {
+				asked = r
+				return c.owner
+			})
+			row := &store.Resource{NativeID: arnFor("aws", "workspaces", testRegion, testAccountID, "workspaceimage/wsi-1")}
+			got, err := tags.read(context.Background(), row)
+			if got != c.wantTags || !errors.Is(err, c.wantErr) {
+				t.Errorf("read(owner %q) = %v, %v; want %v, %v", c.owner, sv(got), err, sv(c.wantTags), c.wantErr)
+			}
+			if asked != row {
+				t.Errorf("owner asked about %v; want the row read", asked)
+			}
+		})
+	}
+}
+
 func TestChildFanOutSkipTransient_Outcomes(t *testing.T) {
 	for _, tc := range []struct {
 		name      string

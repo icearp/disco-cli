@@ -1082,11 +1082,14 @@ func (tags rowTagReader) boundedBy(slots chan struct{}) rowTagReader {
 // ARN that does not parse counts as acctID's own. Only isAccessDenied counts as
 // a denial: a reader with rowTagReader.denied codes would still warn on them.
 func otherAccountGap(arn, acctID string, err error, notFound []string) bool {
-	if !isAccessDenied(err) && !isAPIErrorCode(err, notFound...) {
-		return false
-	}
 	a, ok := parseARN(arn)
-	return ok && a.AccountID != acctID
+	return ok && ownerAccountGap(a.AccountID, acctID, err, notFound)
+}
+
+// ownerAccountGap is otherAccountGap given owner, the id of the account that
+// owns the resource, in place of its ARN.
+func ownerAccountGap(owner, acctID string, err error, notFound []string) bool {
+	return (isAccessDenied(err) || isAPIErrorCode(err, notFound...)) && owner != acctID
 }
 
 // untaggedIfOtherAccount is tags for a listing that can return resources
@@ -1098,6 +1101,22 @@ func (tags rowTagReader) untaggedIfOtherAccount(acctID string) rowTagReader {
 	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
 		got, err := own(ctx, r)
 		if otherAccountGap(r.NativeID, acctID, err, tags.notFound) {
+			return nil, nil
+		}
+		return got, err
+	}
+	return tags
+}
+
+// untaggedIfOwnerElsewhere is untaggedIfOtherAccount for a listing whose
+// NativeIDs are all in acctID while its elements name their owner: owner
+// returns the account id a row's element names, empty when it names none,
+// and such a row is taken as acctID's own (its failures warn or drop it).
+func (tags rowTagReader) untaggedIfOwnerElsewhere(acctID string, owner func(*store.Resource) string) rowTagReader {
+	own := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		got, err := own(ctx, r)
+		if o := owner(r); o != "" && ownerAccountGap(o, acctID, err, tags.notFound) {
 			return nil, nil
 		}
 		return got, err

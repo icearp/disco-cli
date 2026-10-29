@@ -264,8 +264,9 @@ func TestScanWorkSpaces_OlderPhaseErrorStillRunsAliasPermissions(t *testing.T) {
 	}
 }
 
-// A failed alias listing hands the permission phase no aliases.
-func TestScanWorkSpaces_FailedAliasListReadsNoPermissions(t *testing.T) {
+// A failed alias listing page keeps the aliases of the page before it, and
+// the permission phase reads those.
+func TestScanWorkSpaces_FailedAliasListKeepsFirstPage(t *testing.T) {
 	st := newTestStore(t)
 	var addInCalls, permCalls parentCalls
 	h := wsAliasHandlers(&addInCalls, &permCalls)
@@ -277,8 +278,11 @@ func TestScanWorkSpaces_FailedAliasListReadsNoPermissions(t *testing.T) {
 	}
 	_, err := scanWorkSpacesTopLevel(t, st, h)
 	assertAPICode(t, err, "ValidationException")
-	if got := permCalls.distinct(); len(got) != 0 {
-		t.Errorf("permissions read for %v, want none: no alias was stored", got)
+	if got := nativeIDs(rowsByNativeID(t, st, TypeWorkSpacesConnectionAlias)); !slices.Equal(got, []string{wsTestAlias1}) {
+		t.Errorf("alias rows = %v, want the first page's [%s]", got, wsTestAlias1)
+	}
+	if got := permCalls.distinct(); !slices.Equal(got, []string{wsTestAliasID1}) {
+		t.Errorf("permissions read for %v, want [%s]", got, wsTestAliasID1)
 	}
 }
 
@@ -286,7 +290,7 @@ func TestScanWorkSpaces_FailedAliasListReadsNoPermissions(t *testing.T) {
 // permission phase's hard error still reaches the dispatcher as a hard error.
 func TestScanWorkSpaces_OlderPhaseTransientDoesNotMaskAliasPermissionError(t *testing.T) {
 	st := newTestStore(t)
-	warns := countOpWarnings(st, "workspaces")
+	warns := countOpWarnings(st, "workspaces:DescribeApplications")
 	var addInCalls, permCalls parentCalls
 	h := wsAliasHandlers(&addInCalls, &permCalls)
 	h["DescribeApplications"] = func(any) (any, error) { return nil, apiErr("ServiceUnavailableException", "try later") }

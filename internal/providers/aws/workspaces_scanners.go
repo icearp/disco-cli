@@ -1,8 +1,10 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"strings"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/workspaces"
@@ -40,11 +42,14 @@ type workSpacesAPI interface {
 	ListAccountLinks(context.Context, *workspaces.ListAccountLinksInput, ...func(*workspaces.Options)) (*workspaces.ListAccountLinksOutput, error)
 	DescribeConnectClientAddIns(context.Context, *workspaces.DescribeConnectClientAddInsInput, ...func(*workspaces.Options)) (*workspaces.DescribeConnectClientAddInsOutput, error)
 	DescribeConnectionAliasPermissions(context.Context, *workspaces.DescribeConnectionAliasPermissionsInput, ...func(*workspaces.Options)) (*workspaces.DescribeConnectionAliasPermissionsOutput, error)
+	DescribeTags(context.Context, *workspaces.DescribeTagsInput, ...func(*workspaces.Options)) (*workspaces.DescribeTagsOutput, error)
 }
 
-// wsPageLimit is the model's cap on MaxResults (Limit, 1-25) for the
-// account-link, client add-in and connection-alias permission lists.
+// wsPageLimit is the model's cap (1-25) on the page size (Limit or
+// MaxResults) the WorkSpaces listings here send.
 const wsPageLimit = 25
+
+const wsTagsOp = "workspaces:DescribeTags"
 
 // scanWorkSpaces discovers WorkSpaces workspaces, connection aliases,
 // workspaces pools, directories, bundles, images, IP groups, applications,
@@ -52,160 +57,187 @@ const wsPageLimit = 25
 // sharing permissions of the account's own connection aliases. Most types
 // synth an ARN from their id; WorkspacesPool exposes PoolArn natively.
 //
-// The older phases (workspaces through applications) stop at their first hard
-// error. The account-link, add-in and alias-permission phases run whatever any
-// other phase returned, so their failure costs no other phase its rows and an
-// older phase's failure does not skip them. Each result has its transient error
-// demoted to a warning only beside a hard error: joined, it would be buried in
-// the hard error instead of reported under its op, and the rest are joined; the
-// counts of all of them are summed. The add-in and alias-permission phases fan
-// out over the directories and aliases stored this scan, so they list none when
-// the older phases stopped before or at the phase that lists their parents.
+// Every listing runs as its own phase, one at a time, in the order below
+// (runHostPhases): a phase's error does not stop the later ones; a failed
+// write and ctx's end do. The add-in and alias-permission phases fan out over
+// the directories and owned aliases their parent phases stored. Workspaces,
+// connection aliases, pools, directories, bundles, images and IP groups have
+// their tags read per row (wsTags), each such listing written a page at a
+// time, and the tag denials of the whole scan are one warning.
 func scanWorkSpaces(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := workspaces.NewFromConfig(acct.cfg, func(o *workspaces.Options) { o.Region = region })
-	total, inserted, parents, err := scanWSOlderPhases(ctx, client, acct, region, st, scanID)
-	var errs phaseErrs
-	errs.add("workspaces", err)
-	for _, phase := range []struct {
-		op  string
-		run func() (int, int, error)
-	}{
-		{"workspaces:ListAccountLinks", func() (int, int, error) { return scanWSAccountLinks(ctx, client, acct, region, st, scanID) }},
-		{"workspaces:DescribeConnectClientAddIns", func() (int, int, error) {
-			return scanWSConnectClientAddIns(ctx, client, acct, region, st, scanID, parents.directories)
+	tags := wsTags(client).sharingDenials()
+	var directories, aliases []childParent
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "workspaces", 0, []hostPhase{
+		{op: "workspaces:DescribeWorkspaces", run: func(p *phaseTotals) bool {
+			return scanWSWorkspaces(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		{wsDescribeAliasPermissionsOp, func() (int, int, error) {
-			return scanWSConnectionAliasPermissions(ctx, client, acct, region, st, scanID, parents.aliases)
+		{op: "workspaces:DescribeConnectionAliases", run: func(p *phaseTotals) (failed bool) {
+			aliases, failed = scanWSConnectionAliases(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
 		}},
-	} {
-		t, i, perr := phase.run()
-		total += t
-		inserted += i
-		errs.add(phase.op, perr)
-	}
-	return total, inserted, errs.join(st, acct, region)
+		{op: "workspaces:DescribeWorkspacesPools", run: func(p *phaseTotals) bool {
+			return scanWSWorkspacesPools(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "workspaces:DescribeWorkspaceDirectories", run: func(p *phaseTotals) (failed bool) {
+			directories, failed = scanWSDirectories(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "workspaces:DescribeWorkspaceBundles", run: func(p *phaseTotals) bool {
+			return scanWSBundles(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "workspaces:DescribeWorkspaceImages", run: func(p *phaseTotals) bool {
+			return scanWSImages(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "workspaces:DescribeIpGroups", run: func(p *phaseTotals) bool {
+			return scanWSIpGroups(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, "workspaces:DescribeApplications", func() (int, int, error) {
+			return scanWSApplications(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "workspaces:ListAccountLinks", func() (int, int, error) {
+			return scanWSAccountLinks(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "workspaces:DescribeConnectClientAddIns", func() (int, int, error) {
+			return scanWSConnectClientAddIns(ctx, client, acct, region, st, scanID, directories)
+		}),
+		countedPhase(0, wsDescribeAliasPermissionsOp, func() (int, int, error) {
+			return scanWSConnectionAliasPermissions(ctx, client, acct, region, st, scanID, aliases)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// wsParents are the parents the older phases stored, for the child phases
-// that fan out over them.
-type wsParents struct {
-	directories []childParent
-	// aliases holds only the connection aliases the account owns.
-	aliases []childParent
-}
-
-// scanWSOlderPhases runs the phases that predate account links and add-ins,
-// stopping at the first hard error. It also returns the parents stored before
-// that error.
-func scanWSOlderPhases(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, parents wsParents, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanWSWorkspaces(ctx, client, acct, region, st, scanID) },
-		func() (t, i int, err error) {
-			t, i, parents.aliases, err = scanWSConnectionAliases(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (int, int, error) { return scanWSWorkspacesPools(ctx, client, acct, region, st, scanID) },
-		func() (t, i int, err error) {
-			t, i, parents.directories, err = scanWSDirectories(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (int, int, error) { return scanWSBundles(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanWSImages(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanWSIpGroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanWSApplications(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, parents, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, parents, nil
-}
-
-func scanWSWorkspaces(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := workspaces.NewDescribeWorkspacesPaginator(client, &workspaces.DescribeWorkspacesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "workspaces:DescribeWorkspaces", acct.ID, region, err)
+// wsTags reads a row's tags with DescribeTags, which takes the resource's id,
+// not its ARN (wsResourceID). Its model documents WorkSpaces, registered
+// directories, images, custom bundles, IP access control groups and connection
+// aliases as the types it takes. Pools are not in that list, which predates
+// them, but CreateWorkspacesPool takes Tags and DescribeTags is the service's
+// only tag read, so pools are read too; that it accepts a pool id is
+// unverified. The op answers with every
+// tag at once (no page token); ResourceNotFoundException is the only error
+// its model lists. A ManagedByProvider row (an AMAZON bundle) is not read:
+// DescribeTags documents custom bundles only.
+func wsTags(client workSpacesAPI) rowTagReader {
+	return rowTagReader{
+		op:       wsTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			if r.ManagedByProvider {
+				return r.TagsJSON, nil
 			}
-			return 0, 0, fmt.Errorf("workspaces:DescribeWorkspaces: %w", err)
-		}
-		for _, w := range out.Workspaces {
+			id := wsResourceID(r.NativeID)
+			out, err := client.DescribeTags(ctx, &workspaces.DescribeTagsInput{ResourceId: &id})
+			if err != nil {
+				return nil, err
+			}
+			return kvTagsJSON(out.TagList, func(t wstypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
+	}
+}
+
+// wsResourceID is the id of the resource a row's NativeID names: the text
+// after its last "/". Every tagged type's NativeID is an ARN ending in
+// <kind>/<id> (the Service Reference's ARN formats, a pool's PoolArn
+// included), and no id pattern in the model allows a "/".
+func wsResourceID(nativeID string) string {
+	return nativeID[strings.LastIndexByte(nativeID, '/')+1:]
+}
+
+// wsOwnedElsewhereTags is tags for a listing whose elements name their owner
+// (OwnerAccountId, model-optional): owners holds it, by NativeID, for the rows
+// of the page being read. An image or connection alias another account
+// shares with this one is stored under this account's ARN form, so its owner
+// is taken from owners: such a row whose read is denied or not found is kept
+// untagged and silent. A row without OwnerAccountId is taken as this
+// account's own.
+func wsOwnedElsewhereTags(tags rowTagReader, acctID string, owners map[string]string) rowTagReader {
+	return tags.untaggedIfOwnerElsewhere(acctID, func(r *store.Resource) string { return owners[r.NativeID] })
+}
+
+// wsRow is a row of a listing whose type has no ARN of its own in the
+// element: its NativeID is arn:{p}:workspaces:{region}:{account}:{kind}/{id}
+// and its Name label, else id.
+func wsRow(acct *account, region, scanID, typ, kind, id, label string, status *string, attrs any) *store.Resource {
+	name := cmp.Or(label, id)
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: arnFor(acct.partition(), "workspaces", region, acct.ID, kind+"/"+id),
+		Name: &name, Region: &region, Status: status,
+		AttributesJSON: mustJSON(attrs), DiscoveredBy: scanID,
+	}
+}
+
+// wsNoID is wsRow's caller's answer for an element without its id: no row,
+// the reason, and the element's label (noIdentifier when empty) as the key
+// naming it in the warning.
+func wsNoID(what, idField, label string) (*store.Resource, string, string) {
+	return nil, what + " have no " + idField, cmp.Or(label, noIdentifier)
+}
+
+func scanWSWorkspaces(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "workspaces:DescribeWorkspaces",
+		func(ctx context.Context, token *string) ([]wstypes.Workspace, *string, error) {
+			out, err := client.DescribeWorkspaces(ctx, &workspaces.DescribeWorkspacesInput{Limit: sdkaws.Int32(wsPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Workspaces, out.NextToken, nil
+		},
+		func(w wstypes.Workspace) (*store.Resource, string, string) {
 			id := sv(w.WorkspaceId)
 			if id == "" {
-				continue
+				return wsNoID("workspaces", "WorkspaceId", sv(w.ComputerName))
 			}
-			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "workspace/"+id)
-			label := id
 			status := string(w.State)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWorkSpacesWorkspace, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "workspaces")
+			return wsRow(acct, region, scanID, TypeWorkSpacesWorkspace, "workspace", id, "", &status, w), "", ""
+		}, tags, p)
 }
 
 // scanWSConnectionAliases also returns the stored aliases whose
 // OwnerAccountId is this account, for the permission phase. The permissions
 // are the grants an alias's owner made, so they belong under the owner's
 // row; whether the list ever returns an alias shared with this account is
-// unverified, and such an alias is not handed on. OwnerAccountId is
+// unverified, and such an alias is not handed on, and its tags are read
+// under otherAccountGap (wsOwnedElsewhereTags). OwnerAccountId is
 // model-optional: an alias without it is not handed on either, and the
 // stored ones are counted in one warning.
-func scanWSConnectionAliases(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
-	var batch []*store.Resource
-	var owned []childParent
+func scanWSConnectionAliases(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (owned []childParent, storeWriteFailed bool) {
+	owners := map[string]string{}
 	noOwner := 0
-	var nextToken *string
-	for {
-		out, err := client.DescribeConnectionAliases(ctx, &workspaces.DescribeConnectionAliasesInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "workspaces:DescribeConnectionAliases", acct.ID, region, err)
+	failed := storeTokenPagesTagsWith(ctx, st, acct, region, "workspaces:DescribeConnectionAliases",
+		func(ctx context.Context, token *string) ([]wstypes.ConnectionAlias, *string, error) {
+			out, err := client.DescribeConnectionAliases(ctx, &workspaces.DescribeConnectionAliasesInput{Limit: sdkaws.Int32(wsPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, nil, fmt.Errorf("workspaces:DescribeConnectionAliases: %w", err)
-		}
-		for _, a := range out.ConnectionAliases {
+			return out.ConnectionAliases, out.NextToken, nil
+		},
+		func(a wstypes.ConnectionAlias) (*store.Resource, string, string) {
 			id := sv(a.AliasId)
 			if id == "" {
-				continue
-			}
-			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "connectionalias/"+id)
-			label := sv(a.ConnectionString)
-			if label == "" {
-				label = id
+				return wsNoID("connection aliases", "AliasId", sv(a.ConnectionString))
 			}
 			status := string(a.State)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWorkSpacesConnectionAlias, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-			switch sv(a.OwnerAccountId) {
-			case acct.ID:
-				owned = append(owned, childParent{id: id, arn: arn})
-			case "":
-				noOwner++
+			r := wsRow(acct, region, scanID, TypeWorkSpacesConnectionAlias, "connectionalias", id, sv(a.ConnectionString), &status, a)
+			owners[r.NativeID] = sv(a.OwnerAccountId)
+			return r, "", ""
+		},
+		tokenPageSteps{stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				switch owners[r.NativeID] {
+				case acct.ID:
+					owned = append(owned, childParent{id: wsResourceID(r.NativeID), arn: r.NativeID})
+				case "":
+					noOwner++
+				}
 			}
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	total, inserted, err := upsertBatch(st, batch, "workspaces connection-aliases")
-	if err != nil {
-		return 0, 0, nil, err
+			clear(owners)
+		}},
+		wsOwnedElsewhereTags(tags, acct.ID, owners), p)
+	if failed {
+		return nil, true
 	}
 	if noOwner > 0 {
 		st.ReportWarning(store.ScanWarning{
@@ -213,196 +245,123 @@ func scanWSConnectionAliases(ctx context.Context, client workSpacesAPI, acct *ac
 			Message: fmt.Sprintf("%d alias(es) with no OwnerAccountId; permissions not read", noOwner),
 		})
 	}
-	return total, inserted, owned, nil
+	return owned, false
 }
 
-func scanWSWorkspacesPools(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.DescribeWorkspacesPools(ctx, &workspaces.DescribeWorkspacesPoolsInput{NextToken: nextToken})
-		if err != nil {
-			// Pools is a per-region sub-feature, and closed to new customers
-			// since 7/30/2026. Both facts arrive as a canned
-			// AccessDeniedException — see isWorkSpacesPoolsGap for the two
-			// phrasings. Silent-skip those; warn on real denials.
-			if isWorkSpacesPoolsGap(err) {
-				return 0, 0, nil
+// scanWSWorkspacesPools stores the workspaces pools under the PoolArn each
+// element carries. Pools is a per-region sub-feature, and closed to new
+// customers since 7/30/2026. Both facts arrive as a canned
+// AccessDeniedException on the first page — see isWorkSpacesPoolsGap for the
+// two phrasings — and read as an empty listing; a real denial warns.
+func scanWSWorkspacesPools(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "workspaces:DescribeWorkspacesPools",
+		firstPageGapPages(isWorkSpacesPoolsGap, func(ctx context.Context, token *string) ([]wstypes.WorkspacesPool, *string, error) {
+			out, err := client.DescribeWorkspacesPools(ctx, &workspaces.DescribeWorkspacesPoolsInput{Limit: sdkaws.Int32(wsPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "workspaces:DescribeWorkspacesPools", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("workspaces:DescribeWorkspacesPools: %w", err)
-		}
-		for _, p := range out.WorkspacesPools {
-			arn := sv(p.PoolArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
+			return out.WorkspacesPools, out.NextToken, nil
+		}),
+		func(pool wstypes.WorkspacesPool) (*store.Resource, string, string) {
+			return arnRow("workspaces pools", pool.PoolArn, pool.PoolName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWorkSpacesWorkspacesPool, NativeID: arn,
-				Name: p.PoolName, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				Type: TypeWorkSpacesWorkspacesPool, NativeID: sv(pool.PoolArn),
+				Name: pool.PoolName, Region: &region,
+				AttributesJSON: mustJSON(pool), DiscoveredBy: scanID,
 			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "workspaces workspaces-pools")
+		}, tags, p)
 }
 
 // scanWSDirectories also returns the stored directories for the client
 // add-in phase.
-func scanWSDirectories(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
-	pager := workspaces.NewDescribeWorkspaceDirectoriesPaginator(client, &workspaces.DescribeWorkspaceDirectoriesInput{})
-	var batch []*store.Resource
-	var parents []childParent
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "workspaces:DescribeWorkspaceDirectories", acct.ID, region, err)
+func scanWSDirectories(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, "workspaces:DescribeWorkspaceDirectories", "directories", "DirectoryId",
+		func(ctx context.Context, token *string) ([]wstypes.WorkspaceDirectory, *string, error) {
+			out, err := client.DescribeWorkspaceDirectories(ctx, &workspaces.DescribeWorkspaceDirectoriesInput{Limit: sdkaws.Int32(wsPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, nil, fmt.Errorf("workspaces:DescribeWorkspaceDirectories: %w", err)
-		}
-		for _, d := range out.Directories {
+			return out.Directories, out.NextToken, nil
+		},
+		func(d wstypes.WorkspaceDirectory) (*store.Resource, string, string) {
 			id := sv(d.DirectoryId)
 			if id == "" {
-				continue
-			}
-			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "directory/"+id)
-			label := sv(d.DirectoryName)
-			if label == "" {
-				label = id
+				return wsNoID("directories", "DirectoryId", sv(d.DirectoryName))
 			}
 			status := string(d.State)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWorkSpacesDirectory, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-			parents = append(parents, childParent{id: id, arn: arn})
-		}
-	}
-	total, inserted, err := upsertBatch(st, batch, "workspaces directories")
-	if err != nil {
-		return 0, 0, nil, err
-	}
-	return total, inserted, parents, nil
+			return wsRow(acct, region, scanID, TypeWorkSpacesDirectory, "directory", id, sv(d.DirectoryName), &status, d), "", ""
+		},
+		func(d wstypes.WorkspaceDirectory) string { return sv(d.DirectoryId) }, tags, p)
 }
 
-// scanWSBundles lists the account's own WorkSpace bundles. DescribeWorkspaceBundles
-// takes no Owner field, so an empty request returns only account-owned bundles
-// (not the AMAZON public catalogue); any AMAZON-owned bundle that surfaces is
-// flagged ManagedByProvider.
-func scanWSBundles(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := workspaces.NewDescribeWorkspaceBundlesPaginator(client, &workspaces.DescribeWorkspaceBundlesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "workspaces:DescribeWorkspaceBundles", acct.ID, region, err)
+// scanWSBundles lists the account's own WorkSpace bundles. The request sets no
+// Owner, which returns only the account's own bundles (Owner=AMAZON would list
+// the public catalogue); any AMAZON-owned bundle that surfaces is flagged
+// ManagedByProvider and has no tags read.
+func scanWSBundles(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "workspaces:DescribeWorkspaceBundles",
+		func(ctx context.Context, token *string) ([]wstypes.WorkspaceBundle, *string, error) {
+			out, err := client.DescribeWorkspaceBundles(ctx, &workspaces.DescribeWorkspaceBundlesInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("workspaces:DescribeWorkspaceBundles: %w", err)
-		}
-		for _, b := range out.Bundles {
+			return out.Bundles, out.NextToken, nil
+		},
+		func(b wstypes.WorkspaceBundle) (*store.Resource, string, string) {
 			id := sv(b.BundleId)
 			if id == "" {
-				continue
+				return wsNoID("bundles", "BundleId", sv(b.Name))
 			}
-			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "workspacebundle/"+id)
-			label := sv(b.Name)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWorkSpacesWorkspaceBundle, NativeID: arn,
-				Name: &label, Region: &region,
-				AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
-				ManagedByProvider: sv(b.Owner) == "AMAZON",
-			})
-		}
-	}
-	return upsertBatch(st, batch, "workspaces workspace-bundles")
+			r := wsRow(acct, region, scanID, TypeWorkSpacesWorkspaceBundle, "workspacebundle", id, sv(b.Name), nil, b)
+			r.ManagedByProvider = sv(b.Owner) == "AMAZON"
+			return r, "", ""
+		}, tags, p)
 }
 
-func scanWSImages(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.DescribeWorkspaceImages(ctx, &workspaces.DescribeWorkspaceImagesInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "workspaces:DescribeWorkspaceImages", acct.ID, region, err)
+// scanWSImages stores the images DescribeWorkspaceImages lists, asked for no
+// ImageType. Whether that includes images other accounts share with this one
+// is unverified; an image whose OwnerAccountId names another account has its
+// tags read under otherAccountGap (wsOwnedElsewhereTags).
+func scanWSImages(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	owners := map[string]string{}
+	return storeTokenPagesTagsWith(ctx, st, acct, region, "workspaces:DescribeWorkspaceImages",
+		func(ctx context.Context, token *string) ([]wstypes.WorkspaceImage, *string, error) {
+			out, err := client.DescribeWorkspaceImages(ctx, &workspaces.DescribeWorkspaceImagesInput{MaxResults: sdkaws.Int32(wsPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("workspaces:DescribeWorkspaceImages: %w", err)
-		}
-		for _, im := range out.Images {
+			return out.Images, out.NextToken, nil
+		},
+		func(im wstypes.WorkspaceImage) (*store.Resource, string, string) {
 			id := sv(im.ImageId)
 			if id == "" {
-				continue
-			}
-			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "workspaceimage/"+id)
-			label := sv(im.Name)
-			if label == "" {
-				label = id
+				return wsNoID("images", "ImageId", sv(im.Name))
 			}
 			status := string(im.State)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWorkSpacesWorkspaceImage, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(im), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "workspaces workspace-images")
+			r := wsRow(acct, region, scanID, TypeWorkSpacesWorkspaceImage, "workspaceimage", id, sv(im.Name), &status, im)
+			owners[r.NativeID] = sv(im.OwnerAccountId)
+			return r, "", ""
+		},
+		tokenPageSteps{stored: func([]*store.Resource) { clear(owners) }},
+		wsOwnedElsewhereTags(tags, acct.ID, owners), p)
 }
 
-func scanWSIpGroups(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.DescribeIpGroups(ctx, &workspaces.DescribeIpGroupsInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "workspaces:DescribeIpGroups", acct.ID, region, err)
+func scanWSIpGroups(ctx context.Context, client workSpacesAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "workspaces:DescribeIpGroups",
+		func(ctx context.Context, token *string) ([]wstypes.WorkspacesIpGroup, *string, error) {
+			out, err := client.DescribeIpGroups(ctx, &workspaces.DescribeIpGroupsInput{MaxResults: sdkaws.Int32(wsPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("workspaces:DescribeIpGroups: %w", err)
-		}
-		for _, g := range out.Result {
+			return out.Result, out.NextToken, nil
+		},
+		func(g wstypes.WorkspacesIpGroup) (*store.Resource, string, string) {
 			id := sv(g.GroupId)
 			if id == "" {
-				continue
+				return wsNoID("IP groups", "GroupId", sv(g.GroupName))
 			}
-			arn := arnFor(acct.partition(), "workspaces", region, acct.ID, "workspaceipgroup/"+id)
-			label := sv(g.GroupName)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWorkSpacesWorkspaceIPGroup, NativeID: arn,
-				Name: &label, Region: &region,
-				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	return upsertBatch(st, batch, "workspaces workspace-ip-groups")
+			return wsRow(acct, region, scanID, TypeWorkSpacesWorkspaceIPGroup, "workspaceipgroup", id, sv(g.GroupName), nil, g), "", ""
+		}, tags, p)
 }
 
 // scanWSApplications lists WorkSpace applications available to the account.

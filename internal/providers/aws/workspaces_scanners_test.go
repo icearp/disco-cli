@@ -63,6 +63,10 @@ func (s *stubWorkSpaces) DescribeConnectionAliasPermissions(context.Context, *wo
 	return &workspaces.DescribeConnectionAliasPermissionsOutput{}, nil
 }
 
+func (s *stubWorkSpaces) DescribeTags(context.Context, *workspaces.DescribeTagsInput, ...func(*workspaces.Options)) (*workspaces.DescribeTagsOutput, error) {
+	return &workspaces.DescribeTagsOutput{}, nil
+}
+
 // The predicate decides whether a DescribeWorkspacesPools refusal reaches the
 // operator, so assert the OUTCOME on the scan rather than the predicate again:
 // both canned availability shapes are silent, a genuine denial warns, and
@@ -96,9 +100,12 @@ func TestScanWSWorkspacesPools_SkipsAvailabilityGapsAndWarnsOnDenial(t *testing.
 			st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
 
 			client := &stubWorkSpaces{poolsErr: apiErr("AccessDeniedException", tc.msg)}
-			_, _, err := scanWSWorkspacesPools(context.Background(), client,
-				newTestAccount(testAccountID), "us-east-1", st, "scan-1")
-			if err != nil {
+			acct := newTestAccount(testAccountID)
+			var p phaseTotals
+			if scanWSWorkspacesPools(context.Background(), client, acct, "us-east-1", st, "scan-1", wsTags(client), &p) {
+				t.Fatal("scanWSWorkspacesPools reported a failed write")
+			}
+			if _, _, err := p.result(st, acct, "us-east-1"); err != nil {
 				t.Fatalf("scanWSWorkspacesPools returned %v; want nil — an access denial must never abort the scan", err)
 			}
 			if got := len(warnings) > 0; got != tc.wantWarn {
@@ -150,6 +157,7 @@ func wsTopLevelHandlers(addInCalls *parentCalls) map[string]func(in any) (any, e
 		"DescribeWorkspaceBundles":  func(any) (any, error) { return &workspaces.DescribeWorkspaceBundlesOutput{}, nil },
 		"DescribeWorkspaceImages":   func(any) (any, error) { return &workspaces.DescribeWorkspaceImagesOutput{}, nil },
 		"DescribeIpGroups":          func(any) (any, error) { return &workspaces.DescribeIpGroupsOutput{}, nil },
+		"DescribeTags":              func(any) (any, error) { return &workspaces.DescribeTagsOutput{}, nil },
 		"DescribeApplications": func(any) (any, error) {
 			return &workspaces.DescribeApplicationsOutput{Applications: []wstypes.WorkSpaceApplication{{ApplicationId: ptrStr("wsa-1")}}}, nil
 		},
@@ -385,12 +393,13 @@ func TestScanWorkSpaces_OlderPhaseErrorStillRunsNewPhases(t *testing.T) {
 	}
 }
 
-// A transient error in an older phase is demoted to a warning so that the
-// account-link phase's hard error still reaches the dispatcher as a hard
-// error, not hidden inside a join the dispatcher would read as transient.
+// A transient error in an older phase is demoted to a warning under its own
+// op so that the account-link phase's hard error still reaches the dispatcher
+// as a hard error, not hidden inside a join the dispatcher would read as
+// transient.
 func TestScanWorkSpaces_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 	st := newTestStore(t)
-	warns := countOpWarnings(st, "workspaces")
+	warns := countOpWarnings(st, "workspaces:DescribeApplications")
 	var addInCalls parentCalls
 	h := wsTopLevelHandlers(&addInCalls)
 	h["DescribeApplications"] = func(any) (any, error) { return nil, apiErr("ServiceUnavailableException", "try later") }
