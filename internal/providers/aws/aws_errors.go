@@ -498,6 +498,11 @@ func isTransientCause(err error) bool {
 		// m2 (the only model with it) answers a slow ListDataSets or
 		// GetDataSetDetails with this 504, which its model marks retryable.
 		"ExecutionTimeoutException",
+		// ELBv2 DescribeTargetHealth's HTTP 500, which its model marks a server
+		// error: the targets' health "could not be retrieved due to an internal
+		// error". The SDK retries a 500, so it reaches us once those retries are
+		// spent. No other model has the code.
+		"HealthUnavailable",
 		// Post-retry throttling exhaust: SDK retryer already burned its budget,
 		// the error reaching us is a momentary TPS pressure spike. Treat as
 		// transient so siblings continue rather than aborting the region.

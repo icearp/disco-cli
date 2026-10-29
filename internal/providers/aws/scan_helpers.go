@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"sync"
 	"sync/atomic"
 
@@ -1254,6 +1256,133 @@ func storeRowsTags(ctx context.Context, st *store.Store, acct *account, region, 
 		tagWarn()
 	})
 	return errs.addPhase(p, tags.op, op, total, inserted, err)
+}
+
+// errTagsNotDescribed is a bulk tag read's result for a resource its
+// successful response did not describe. The bulk ops read here (ELB
+// DescribeTags) document neither that an untagged resource is left out nor
+// that a deleted one is (each models a not-found error for that), so the row
+// is kept untagged and the read reported as failed rather than read as
+// having no tags.
+var errTagsNotDescribed = errors.New("the tag response did not describe this resource")
+
+// errTagsNotFetched is the result for a row whose key no listing handed to
+// fetchBulkTags.
+var errTagsNotFetched = errors.New("no bulk tag read was made for this row")
+
+// bulkRowTags reads tags with op, a bulk tag op that takes up to size keys a
+// call (elasticloadbalancing:DescribeTags takes 20), instead of one call per
+// row. A listing hands each page's keys to fetchBulkTags as soon as the page
+// is listed; bulkTagReader then gives each row (keyed by key) what was read
+// for it, so readRowTags' per-row rules (not found, denial, transient, other
+// error, ctx's end) apply to every row of a failed call unchanged. describe
+// makes one call and returns each key it described with its tags (nil for
+// none). notFound holds the codes op models for a resource that does not
+// exist. Safe for concurrent use: every listing of a scan shares one, whose
+// slots bound all their calls together.
+type bulkRowTags struct {
+	op       string
+	size     int
+	notFound []string
+	key      func(*store.Resource) string
+	describe func(ctx context.Context, keys []string) (map[string]*string, error)
+	slots    chan struct{}
+
+	mu  sync.Mutex // guards got
+	got map[string]rowTagRead
+}
+
+// newBulkRowTags is a bulkRowTags making at most fanoutMed calls at once.
+func newBulkRowTags(op string, size int, notFound []string, key func(*store.Resource) string, describe func(ctx context.Context, keys []string) (map[string]*string, error)) *bulkRowTags {
+	return &bulkRowTags{op: op, size: size, notFound: notFound, key: key, describe: describe, slots: make(chan struct{}, fanoutMed), got: map[string]rowTagRead{}}
+}
+
+// fetchItemTags reads, through b, the tags of the items of one listed page
+// whose key is not empty. Items with an empty key are not sent: the caller's
+// row builder must not store them, or takeBulkTags reports errTagsNotFetched
+// for the row.
+func fetchItemTags[Item any](ctx context.Context, b *bulkRowTags, items []Item, key func(Item) *string) {
+	keys := make([]string, 0, len(items))
+	for _, it := range items {
+		if k := sv(key(it)); k != "" {
+			keys = append(keys, k)
+		}
+	}
+	b.fetchBulkTags(ctx, keys)
+}
+
+// fetchBulkTags reads the tags of keys, b.size at a time, the calls made
+// concurrently, and holds each key's result for bulkTagReader. Keys whose
+// call ctx's end kept from starting hold that stop.
+func (b *bulkRowTags) fetchBulkTags(ctx context.Context, keys []string) {
+	chunks := slices.Collect(slices.Chunk(keys, b.size))
+	reads, stopped := readEachKey(ctx, chunks, b.readBulkChunk)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, got := range reads {
+		maps.Copy(b.got, got)
+	}
+	for _, chunk := range chunks[len(reads):] {
+		for _, k := range chunk {
+			b.got[k] = rowTagRead{err: stopped}
+		}
+	}
+}
+
+// readBulkChunk reads the tags of keys in one call. A not-found error does
+// not say which key was not found, so a call of several keys that fails with
+// one is made again for each key alone: only the resources deleted since they
+// were listed then read as not found, and the others keep their tags.
+func (b *bulkRowTags) readBulkChunk(ctx context.Context, keys []string) map[string]rowTagRead {
+	got, err := b.describeBulkBounded(ctx, keys)
+	out := make(map[string]rowTagRead, len(keys))
+	if len(keys) > 1 && isAPIErrorCode(err, b.notFound...) {
+		for _, k := range keys {
+			maps.Copy(out, b.readBulkChunk(ctx, []string{k}))
+		}
+		return out
+	}
+	for _, k := range keys {
+		tags, described := got[k]
+		switch {
+		case err != nil:
+			out[k] = rowTagRead{err: err}
+		case !described:
+			out[k] = rowTagRead{err: errTagsNotDescribed}
+		default:
+			out[k] = rowTagRead{tags: tags}
+		}
+	}
+	return out
+}
+
+// describeBulkBounded is b.describe holding one of b.slots while it runs.
+func (b *bulkRowTags) describeBulkBounded(ctx context.Context, keys []string) (map[string]*string, error) {
+	select {
+	case b.slots <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	defer func() { <-b.slots }()
+	return b.describe(ctx, keys)
+}
+
+// takeBulkTags returns, and forgets, what fetchBulkTags read for r's key.
+func (b *bulkRowTags) takeBulkTags(_ context.Context, r *store.Resource) (*string, error) {
+	k := b.key(r)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	got, ok := b.got[k]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", errTagsNotFetched, k)
+	}
+	delete(b.got, k)
+	return got.tags, got.err
+}
+
+// bulkTagReader is the rowTagReader giving each row what b read for it.
+func (b *bulkRowTags) bulkTagReader() rowTagReader {
+	return rowTagReader{op: b.op, notFound: b.notFound, read: b.takeBulkTags}
 }
 
 // noIdentifier names, in a warning, a listed element with neither an ARN nor

@@ -815,6 +815,9 @@ func TestEC2ARNIn_ClassicELBReachesScannedVPC(t *testing.T) {
 				"DescribeLoadBalancers": {{Output: &elasticloadbalancing.DescribeLoadBalancersOutput{
 					LoadBalancerDescriptions: []elbtypes.LoadBalancerDescription{{LoadBalancerName: ptrStr("lb-1"), VPCId: ptrStr("vpc-1")}},
 				}}},
+				"DescribeTags": {{Output: &elasticloadbalancing.DescribeTagsOutput{
+					TagDescriptions: []elbtypes.TagDescription{{LoadBalancerName: ptrStr("lb-1")}},
+				}}},
 			}), pf.region))
 			if _, _, err := scanELBClassicLoadBalancers(context.Background(), elbClient, acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanELBClassicLoadBalancers: %v", err)

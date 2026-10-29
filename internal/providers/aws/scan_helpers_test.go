@@ -2886,3 +2886,201 @@ func TestStoreEachParentTagsUnder(t *testing.T) {
 		}
 	})
 }
+
+// bulkTestCalls is a bulk tag op for bulkRowTags tests: it records each
+// call's keys, fails a call with errs of any key it is sent, leaves the keys
+// in missing out of its answer, and tags every other key with its own name.
+type bulkTestCalls struct {
+	mu      sync.Mutex
+	calls   [][]string
+	errs    map[string]error
+	missing map[string]bool
+	b       *bulkRowTags
+}
+
+func newBulkTestCalls() *bulkTestCalls {
+	c := &bulkTestCalls{errs: map[string]error{}, missing: map[string]bool{}}
+	c.b = newBulkRowTags("svc:DescribeTags", 20, []string{"NotFound"},
+		func(r *store.Resource) string { return r.NativeID }, c.describe)
+	return c
+}
+
+func (c *bulkTestCalls) describe(_ context.Context, keys []string) (map[string]*string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls = append(c.calls, slices.Clone(keys))
+	for _, k := range keys {
+		if err := c.errs[k]; err != nil {
+			return nil, err
+		}
+	}
+	got := map[string]*string{}
+	for _, k := range keys {
+		if !c.missing[k] {
+			got[k] = mapTagsJSON(map[string]string{"name": k})
+		}
+	}
+	return got, nil
+}
+
+// take reads key's result through the rowTagReader.
+func (c *bulkTestCalls) take(key string) (*string, error) {
+	return c.b.bulkTagReader().read(context.Background(), &store.Resource{NativeID: key})
+}
+
+func bulkTestKeys(n int) []string {
+	keys := make([]string, n)
+	for i := range keys {
+		keys[i] = fmt.Sprintf("k%02d", i)
+	}
+	return keys
+}
+
+// 45 keys are read in calls of 20, 20 and 5, each key once, every slot
+// given back; each key's tags are handed out once, after which the key
+// reads as not fetched.
+func TestBulkRowTags_ReadsKeysInCallsOfSize(t *testing.T) {
+	c := newBulkTestCalls()
+	keys := bulkTestKeys(45)
+	c.b.fetchBulkTags(context.Background(), keys)
+
+	var sizes []int
+	var sent []string
+	for _, call := range c.calls {
+		sizes = append(sizes, len(call))
+		sent = append(sent, call...)
+	}
+	slices.Sort(sizes)
+	slices.Sort(sent)
+	if !slices.Equal(sizes, []int{5, 20, 20}) {
+		t.Errorf("call sizes = %v; want [5 20 20]", sizes)
+	}
+	if !slices.Equal(sent, keys) {
+		t.Errorf("keys sent = %v; want %v", sent, keys)
+	}
+	if n := len(c.b.slots); n != 0 {
+		t.Errorf("slots held after the reads = %d; want 0", n)
+	}
+	for _, k := range keys {
+		got, err := c.take(k)
+		if err != nil {
+			t.Fatalf("take %s: %v", k, err)
+		}
+		assertTagsMap(t, got, map[string]string{"name": k})
+	}
+	if _, err := c.take(keys[0]); !errors.Is(err, errTagsNotFetched) {
+		t.Errorf("second take err = %v; want errTagsNotFetched", err)
+	}
+}
+
+// fetchItemTags sends only the items with a key.
+func TestFetchItemTags_SkipsEmptyKeys(t *testing.T) {
+	c := newBulkTestCalls()
+	fetchItemTags(context.Background(), c.b, []*string{ptrStr("a"), nil, ptrStr(""), ptrStr("b")}, func(k *string) *string { return k })
+	if want := [][]string{{"a", "b"}}; !slices.EqualFunc(c.calls, want, slices.Equal) {
+		t.Errorf("calls = %v; want %v", c.calls, want)
+	}
+}
+
+// A call failing with a not-found code is made again for each key alone, so
+// only the key not found reads as not found. Any other error is every key's
+// of its call; a key the answer leaves out reads as errTagsNotDescribed; a
+// key never fetched as errTagsNotFetched.
+func TestBulkRowTags_PerKeyResults(t *testing.T) {
+	gone, bad := apiErr("NotFound", "gone"), apiErr("ValidationError", "bad")
+	c := newBulkTestCalls()
+	c.errs["gone"] = gone
+	c.missing["left-out"] = true
+	c.b.fetchBulkTags(context.Background(), []string{"a", "gone", "b", "left-out"})
+	c.errs["bad"] = bad
+	c.b.fetchBulkTags(context.Background(), []string{"c", "bad"})
+
+	wantCalls := [][]string{{"a", "gone", "b", "left-out"}, {"a"}, {"gone"}, {"b"}, {"left-out"}, {"c", "bad"}}
+	if !slices.EqualFunc(c.calls, wantCalls, slices.Equal) {
+		t.Errorf("calls = %v\nwant %v", c.calls, wantCalls)
+	}
+	for _, k := range []string{"a", "b"} {
+		got, err := c.take(k)
+		if err != nil {
+			t.Fatalf("take %s: %v", k, err)
+		}
+		assertTagsMap(t, got, map[string]string{"name": k})
+	}
+	for k, want := range map[string]error{"gone": gone, "left-out": errTagsNotDescribed, "c": bad, "bad": bad, "never": errTagsNotFetched} {
+		if got, err := c.take(k); got != nil || !errors.Is(err, want) {
+			t.Errorf("take %s = %v, %v; want nil, %v", k, got, err, want)
+		}
+	}
+}
+
+// Keys whose call ctx's end kept from starting read as that stop, so
+// readRowTags keeps their rows untagged and reports the stop.
+func TestBulkRowTags_ContextEnded(t *testing.T) {
+	c := newBulkTestCalls()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c.b.fetchBulkTags(ctx, bulkTestKeys(3))
+	if len(c.calls) != 0 {
+		t.Errorf("calls = %v; want none", c.calls)
+	}
+	for _, k := range bulkTestKeys(3) {
+		if _, err := c.take(k); !errors.Is(err, context.Canceled) {
+			t.Errorf("take %s err = %v; want context.Canceled", k, err)
+		}
+	}
+}
+
+// Concurrent fetches share b's fanoutMed slots. Three fetches of fanoutMed
+// one-key calls each wait until fanoutMed calls are in flight; no slot is
+// then free, no more than fanoutMed calls are ever in flight, and every key
+// is read.
+func TestBulkRowTags_FetchesShareFanoutMedSlots(t *testing.T) {
+	var (
+		mu             sync.Mutex
+		inFlight, peak int
+		freeWhenFull   = -1
+		once           sync.Once
+	)
+	full := make(chan struct{})
+	var b *bulkRowTags
+	b = newBulkRowTags("svc:DescribeTags", 1, nil, func(r *store.Resource) string { return r.NativeID },
+		func(_ context.Context, keys []string) (map[string]*string, error) {
+			mu.Lock()
+			inFlight++
+			peak = max(peak, inFlight)
+			if inFlight == fanoutMed {
+				once.Do(func() {
+					freeWhenFull = cap(b.slots) - len(b.slots)
+					close(full)
+				})
+			}
+			mu.Unlock()
+			<-full
+			mu.Lock()
+			inFlight--
+			mu.Unlock()
+			return map[string]*string{keys[0]: mapTagsJSON(map[string]string{"name": keys[0]})}, nil
+		})
+	var keys []string
+	var wg sync.WaitGroup
+	for f := range 3 {
+		fetch := make([]string, fanoutMed)
+		for i := range fetch {
+			fetch[i] = fmt.Sprintf("f%d-k%d", f, i)
+		}
+		keys = append(keys, fetch...)
+		wg.Go(func() { b.fetchBulkTags(context.Background(), fetch) })
+	}
+	wg.Wait()
+
+	if peak != fanoutMed || freeWhenFull != 0 {
+		t.Errorf("peak calls in flight, slots free at fanoutMed = %d, %d; want %d, 0", peak, freeWhenFull, fanoutMed)
+	}
+	for _, k := range keys {
+		got, err := b.bulkTagReader().read(context.Background(), &store.Resource{NativeID: k})
+		if err != nil {
+			t.Fatalf("take %s: %v", k, err)
+		}
+		assertTagsMap(t, got, map[string]string{"name": k})
+	}
+}
