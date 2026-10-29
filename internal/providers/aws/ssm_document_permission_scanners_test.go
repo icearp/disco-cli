@@ -337,22 +337,21 @@ func TestScanSSM_NoDocumentsNoPermissionCalls(t *testing.T) {
 	}
 }
 
-// An older phase's hard error, in scanSSMAll after the documents or in
-// scanSSMExtended, still lets the permission phase describe the stored
-// documents; the error is returned with the counts of every row stored,
-// including those of the phases before the failure.
-func TestScanSSM_OlderPhaseErrorStillDescribesPermissions(t *testing.T) {
+// A phase's hard error stops no later phase: the OpsMetadata listing and the
+// permission phase still run, the latter describing every document stored;
+// the error is returned with the counts of every row stored.
+func TestScanSSM_PhaseErrorStillRunsLaterPhases(t *testing.T) {
 	cases := []struct {
 		failingOp string
 		wantTotal int
 		wantPerms int
 	}{
-		// Only the parameter: no document was stored, so no permission is described.
-		{"ListDocuments", 1, 0},
-		// 1 parameter + 2 documents + 2 permissions.
-		{"DescribePatchBaselines", 5, 2},
-		{"ListAssociations", 5, 2},
-		// Also the OpsMetadata row stored before DescribeActivations.
+		// The parameter and the OpsMetadata row: no document was stored, so
+		// no permission is described.
+		{"ListDocuments", 2, 0},
+		// 1 parameter + 2 documents + 1 OpsMetadata row + 2 permissions.
+		{"DescribePatchBaselines", 6, 2},
+		{"ListAssociations", 6, 2},
 		{"DescribeActivations", 6, 2},
 	}
 	for _, tc := range cases {
@@ -405,7 +404,7 @@ func TestScanSSM_DocumentPermissionErrorKeepsOtherPhases(t *testing.T) {
 // hard error still reaches the dispatcher as a hard error.
 func TestScanSSM_ThrottledOlderPhaseKeepsPermissionHardError(t *testing.T) {
 	st := newTestStore(t)
-	warns := countOpWarnings(st, "ssm")
+	warns := countOpWarnings(st, ssmListAssociationsOp)
 	var calls parentCalls
 	var log opLog
 	h := ssmDocPermHandlers(t, &calls, func(string) error { return apiErr("InvalidPermissionType", "bad") })
@@ -416,6 +415,6 @@ func TestScanSSM_ThrottledOlderPhaseKeepsPermissionHardError(t *testing.T) {
 		t.Errorf("classifyServiceError = %v, want outcomeError", got)
 	}
 	if *warns != 1 {
-		t.Errorf("ssm warnings = %d, want 1 for the demoted throttle", *warns)
+		t.Errorf("%s warnings = %d, want 1 for the demoted throttle", ssmListAssociationsOp, *warns)
 	}
 }

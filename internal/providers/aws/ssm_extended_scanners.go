@@ -1,388 +1,299 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
+	"strings"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"github.com/aws/aws-sdk-go-v2/service/ssm/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanSSMExtended discovers the SSM resource types beyond parameters, documents
-// and patch baselines. Targets and tasks fan out per maintenance window.
+// The SSM resource types beyond parameters, documents and patch baselines;
+// scanSSMAll runs each listing as a phase.
 //
 // AWS::SSM::ResourcePolicy is not enumerable: GetResourcePolicies requires a
 // ResourceArn and SSM exposes no list API for resources that have policies
 // attached. Skipped; it stays an uncovered row in `disco coverage services`.
-func scanSSMExtended(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	t, i, ferr := scanSSMAssociations(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
 
-	windowIDs, t, i, ferr := scanSSMMaintenanceWindows(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, wid := range windowIDs {
-		t, i, ferr = scanSSMMaintenanceWindowTargets(ctx, client, acct, region, st, scanID, wid)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-
-		t, i, ferr = scanSSMMaintenanceWindowTasks(ctx, client, acct, region, st, scanID, wid)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	t, i, ferr = scanSSMResourceDataSync(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanSSMManagedInstances(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanSSMOpsMetadata(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanSSMActivations(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanSSMCloudConnectors(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	return total, inserted, nil
-}
-
-// scanSSMActivations discovers hybrid-node activations. The activation code is
-// returned only by CreateActivation, so the listed element carries no secret.
-// The API returns no ARN and the service authorization reference defines no
-// activation ARN format, so the NativeID is synthesized from the ActivationId:
+// scanSSMActivations discovers hybrid-node activations, their tags from the
+// listed element. The activation code is returned only by CreateActivation,
+// so the listed element carries no secret. The API returns no ARN and the
+// service authorization reference defines no activation ARN format, so the
+// NativeID is synthesized from the ActivationId:
 // arn:{p}:ssm:{region}:{acct}:activation/{ActivationId}.
 func scanSSMActivations(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ssm.NewDescribeActivationsPaginator(client, &ssm.DescribeActivationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssm:DescribeActivations", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, ssmDescribeActivationsOp,
+		func(ctx context.Context, token *string) ([]types.Activation, *string, error) {
+			out, err := client.DescribeActivations(ctx, &ssm.DescribeActivationsInput{MaxResults: sdkaws.Int32(ssmPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ssm:DescribeActivations: %w", err)
-		}
-		for _, a := range out.ActivationList {
+			return out.ActivationList, out.NextToken, nil
+		},
+		func(a types.Activation) (*store.Resource, string, string) {
 			id := sv(a.ActivationId)
 			if id == "" {
-				continue
+				return nil, "activations have no id", cmp.Or(sv(a.DefaultInstanceName), noIdentifier)
 			}
-			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "activation/"+id)
 			status := "active"
 			if a.Expired {
 				status = "expired"
 			}
-			tags := make(map[string]string, len(a.Tags))
-			for _, tg := range a.Tags {
-				tags[sv(tg.Key)] = sv(tg.Value)
-			}
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSSMActivation, NativeID: arn,
+				Type: TypeSSMActivation, NativeID: arnFor(acct.partition(), "ssm", region, acct.ID, "activation/"+id),
 				Name: &id, Region: &region, Status: &status,
 				CreatedAt:      tp(a.CreatedDate),
-				AttributesJSON: mustJSON(a), TagsJSON: mapTagsJSON(tags),
+				AttributesJSON: mustJSON(a), TagsJSON: kvTagsJSON(a.Tags, ssmTagKV),
 				DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ssm activations")
+			}, "", ""
+		})
 }
 
-// scanSSMCloudConnectors discovers cloud connectors. The summary carries no
-// ARN; the NativeID follows the service authorization reference format
-// arn:{p}:ssm:{region}:{acct}:cloud-connector/{CloudConnectorId}.
-func scanSSMCloudConnectors(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ssm.NewListCloudConnectorsPaginator(client, &ssm.ListCloudConnectorsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssm:ListCloudConnectors", acct.ID, region, err)
+// scanSSMCloudConnectors discovers cloud connectors, their tags read by
+// connector id. The summary carries no ARN; the NativeID follows the service
+// authorization reference format
+// arn:{p}:ssm:{region}:{acct}:cloud-connector/{CloudConnectorId}. That
+// ListTagsForResource takes the CloudConnector type by that id is unverified
+// live: AddTagsToResource documents no id form for it, so an
+// InvalidResourceId keeps the row untagged and is an error (ssmTagsOf).
+func scanSSMCloudConnectors(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, ssmListCloudConnectorsOp,
+		func(ctx context.Context, token *string) ([]types.CloudConnectorSummary, *string, error) {
+			out, err := client.ListCloudConnectors(ctx, &ssm.ListCloudConnectorsInput{MaxResults: sdkaws.Int32(ssmCloudConnectorPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ssm:ListCloudConnectors: %w", err)
-		}
-		for _, c := range out.CloudConnectors {
+			return out.CloudConnectors, out.NextToken, nil
+		},
+		func(c types.CloudConnectorSummary) (*store.Resource, string, string) {
 			id := sv(c.CloudConnectorId)
 			if id == "" {
-				continue
+				return nil, "cloud connectors have no id", cmp.Or(sv(c.DisplayName), noIdentifier)
 			}
-			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "cloud-connector/"+id)
-			label := sv(c.DisplayName)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
+			label := cmp.Or(sv(c.DisplayName), id)
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSSMCloudConnector, NativeID: arn,
+				Type: TypeSSMCloudConnector, NativeID: arnFor(acct.partition(), "ssm", region, acct.ID, "cloud-connector/"+id),
 				Name: &label, Region: &region,
 				CreatedAt:      tp(c.CreatedAt),
 				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ssm cloud-connectors")
+			}, "", ""
+		},
+		ssmTagsOf(client, tags, types.ResourceTypeForTaggingCloudConnector, ssmTagID("cloud-connector")), p)
 }
 
 // scanSSMManagedInstances discovers SSM-managed nodes (DescribeInstanceInformation).
 // The API returns no ARN, so the NativeID is synthesized from the instance ID:
-// arn:{p}:ssm:{region}:{acct}:managed-instance/{InstanceId}.
-func scanSSMManagedInstances(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ssm.NewDescribeInstanceInformationPaginator(client, &ssm.DescribeInstanceInformationInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssm:DescribeInstanceInformation", acct.ID, region, err)
+// arn:{p}:ssm:{region}:{acct}:managed-instance/{InstanceId}, the Service
+// Reference's managed-instance format. Only on-premises nodes (mi-…) have
+// their tags read, by that id: the op's ManagedInstance type covers only
+// those (AddTagsToResource). The listing also returns EC2 instances, whose
+// tags are their aws:ec2:instance row's; they are stored untagged and their
+// ids are never sent, since the op would answer InvalidResourceId, which
+// drops a ManagedInstance row as deleted.
+func scanSSMManagedInstances(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, ssmDescribeInstanceInformationOp,
+		func(ctx context.Context, token *string) ([]types.InstanceInformation, *string, error) {
+			out, err := client.DescribeInstanceInformation(ctx, &ssm.DescribeInstanceInformationInput{MaxResults: sdkaws.Int32(ssmPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ssm:DescribeInstanceInformation: %w", err)
-		}
-		for _, in := range out.InstanceInformationList {
+			return out.InstanceInformationList, out.NextToken, nil
+		},
+		func(in types.InstanceInformation) (*store.Resource, string, string) {
 			id := sv(in.InstanceId)
 			if id == "" {
-				continue
+				return nil, "managed nodes have no instance id", cmp.Or(sv(in.ComputerName), noIdentifier)
 			}
-			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "managed-instance/"+id)
-			label := id
-			if cn := sv(in.ComputerName); cn != "" {
-				label = cn
-			}
+			label := cmp.Or(sv(in.ComputerName), id)
 			status := string(in.PingStatus)
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSSMManagedInstance, NativeID: arn,
+				Type: TypeSSMManagedInstance, NativeID: arnFor(acct.partition(), "ssm", region, acct.ID, "managed-instance/"+id),
 				Name: &label, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(in), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ssm managed-instances")
+			}, "", ""
+		},
+		ssmOnPremisesTags(client, tags), p)
 }
 
-// scanSSMOpsMetadata discovers Application Manager OpsMetadata objects.
-func scanSSMOpsMetadata(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ssm.NewListOpsMetadataPaginator(client, &ssm.ListOpsMetadataInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssm:ListOpsMetadata", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("ssm:ListOpsMetadata: %w", err)
+// ssmOnPremisesTags reads the tags of only the rows of on-premises nodes,
+// whose instance ids start "mi-"; any other row gets no tags and nothing is
+// sent. The gate tests the same id that is sent.
+func ssmOnPremisesTags(client ssmAPI, tags rowTagReader) rowTagReader {
+	id := ssmTagID("managed-instance")
+	tags = ssmTagsOf(client, tags, types.ResourceTypeForTaggingManagedInstance, id)
+	read := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		if !strings.HasPrefix(id(r), "mi-") {
+			return nil, nil
 		}
-		for _, o := range out.OpsMetadataList {
-			arn := sv(o.OpsMetadataArn)
-			if arn == "" {
-				continue
+		return read(ctx, r)
+	}
+	return tags
+}
+
+// scanSSMOpsMetadata discovers Application Manager OpsMetadata objects, their
+// tags read by the id AddTagsToResource documents for them: what follows
+// "opsmetadata/" in the ARN.
+func scanSSMOpsMetadata(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, ssmListOpsMetadataOp,
+		func(ctx context.Context, token *string) ([]types.OpsMetadata, *string, error) {
+			out, err := client.ListOpsMetadata(ctx, &ssm.ListOpsMetadataInput{MaxResults: sdkaws.Int32(ssmPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
+			return out.OpsMetadataList, out.NextToken, nil
+		},
+		func(o types.OpsMetadata) (*store.Resource, string, string) {
 			label := sv(o.ResourceId)
-			batch = append(batch, &store.Resource{
+			return arnRow("OpsMetadata objects", o.OpsMetadataArn, o.ResourceId, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSSMOpsMetadata, NativeID: arn,
+				Type: TypeSSMOpsMetadata, NativeID: sv(o.OpsMetadataArn),
 				Name: &label, Region: &region,
 				AttributesJSON: mustJSON(o), DiscoveredBy: scanID,
 			})
-		}
-	}
-	return upsertBatch(st, batch, "ssm opsmetadata")
+		},
+		ssmTagsOf(client, tags, types.ResourceTypeForTaggingOpsmetadata, ssmTagID("opsmetadata")), p)
 }
 
-func scanSSMAssociations(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ssm.NewListAssociationsPaginator(client, &ssm.ListAssociationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssm:ListAssociations", acct.ID, region, err)
+// scanSSMAssociations stores the account's State Manager associations, their
+// tags read by association id. AddTagsToResource documents no id form for
+// associations, so an InvalidResourceId keeps the row untagged and is an
+// error (ssmTagsOf).
+func scanSSMAssociations(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, ssmListAssociationsOp,
+		func(ctx context.Context, token *string) ([]types.Association, *string, error) {
+			out, err := client.ListAssociations(ctx, &ssm.ListAssociationsInput{MaxResults: sdkaws.Int32(ssmPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ssm:ListAssociations: %w", err)
-		}
-		for _, a := range out.Associations {
+			return out.Associations, out.NextToken, nil
+		},
+		func(a types.Association) (*store.Resource, string, string) {
 			id := sv(a.AssociationId)
 			if id == "" {
-				continue
+				return nil, "associations have no id", cmp.Or(sv(a.AssociationName), noIdentifier)
 			}
-			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "association/"+id)
-			label := sv(a.AssociationName)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
+			label := cmp.Or(sv(a.AssociationName), id)
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSSMAssociation, NativeID: arn,
+				Type: TypeSSMAssociation, NativeID: arnFor(acct.partition(), "ssm", region, acct.ID, "association/"+id),
 				Name: &label, Region: &region,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ssm associations")
+			}, "", ""
+		},
+		ssmTagsOf(client, tags, types.ResourceTypeForTaggingAssociation, ssmTagID("association")), p)
 }
 
-func scanSSMMaintenanceWindows(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := ssm.NewDescribeMaintenanceWindowsPaginator(client, &ssm.DescribeMaintenanceWindowsInput{})
-	var batch []*store.Resource
-	var ids []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "ssm:DescribeMaintenanceWindows", acct.ID, region, err)
+// scanSSMMaintenanceWindows stores the maintenance windows, their tags read
+// by window id, and returns those stored, keyed by window id, as the parents
+// of the target and task phases, or storeWriteFailed (and none).
+func scanSSMMaintenanceWindows(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, ssmDescribeMaintenanceWindowsOp, "maintenance windows", "WindowId",
+		func(ctx context.Context, token *string) ([]types.MaintenanceWindowIdentity, *string, error) {
+			out, err := client.DescribeMaintenanceWindows(ctx, &ssm.DescribeMaintenanceWindowsInput{MaxResults: sdkaws.Int32(ssmWindowPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("ssm:DescribeMaintenanceWindows: %w", err)
-		}
-		for _, w := range out.WindowIdentities {
+			return out.WindowIdentities, out.NextToken, nil
+		},
+		func(w types.MaintenanceWindowIdentity) (*store.Resource, string, string) {
 			id := sv(w.WindowId)
 			if id == "" {
-				continue
+				return nil, "maintenance windows have no id", cmp.Or(sv(w.Name), noIdentifier)
 			}
-			ids = append(ids, id)
-			arn := ssmMaintenanceWindowARN(acct.partition(), region, acct.ID, id)
-			label := sv(w.Name)
-			if label == "" {
-				label = id
-			}
-			batch = append(batch, &store.Resource{
+			label := cmp.Or(sv(w.Name), id)
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSSMMaintenanceWindow, NativeID: arn,
+				Type: TypeSSMMaintenanceWindow, NativeID: ssmMaintenanceWindowARN(acct.partition(), region, acct.ID, id),
 				Name: &label, Region: &region,
 				AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "ssm maintenance-windows")
-	return ids, t, i, err
+			}, "", ""
+		},
+		func(w types.MaintenanceWindowIdentity) string { return sv(w.WindowId) },
+		ssmTagsOf(client, tags, types.ResourceTypeForTaggingMaintenanceWindow, ssmTagID("maintenancewindow")), p)
 }
 
-func scanSSMMaintenanceWindowTargets(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, windowID string) (int, int, error) {
-	wid := windowID
-	pager := ssm.NewDescribeMaintenanceWindowTargetsPaginator(client, &ssm.DescribeMaintenanceWindowTargetsInput{WindowId: &wid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssm:DescribeMaintenanceWindowTargets", acct.ID, region, err)
+// scanSSMMaintenanceWindowTargets lists the targets of each window stored
+// this scan, the windows read concurrently (storeTokenEachParent).
+func scanSSMMaintenanceWindowTargets(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, windows []childParent) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, ssmDescribeMaintenanceWindowTargetsOp, ssmWindowNotFound, childParentIDs(windows),
+		func(ctx context.Context, wid string, token *string) ([]types.MaintenanceWindowTarget, *string, error) {
+			out, err := client.DescribeMaintenanceWindowTargets(ctx, &ssm.DescribeMaintenanceWindowTargetsInput{
+				WindowId: &wid, MaxResults: sdkaws.Int32(ssmWindowPageLimit), NextToken: token,
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ssm:DescribeMaintenanceWindowTargets: %w", err)
-		}
-		for _, t := range out.Targets {
+			return out.Targets, out.NextToken, nil
+		},
+		func(wid string, t types.MaintenanceWindowTarget) (*store.Resource, string, string) {
 			tid := sv(t.WindowTargetId)
 			if tid == "" {
-				continue
+				return nil, "maintenance window targets have no id", cmp.Or(sv(t.Name), noIdentifier) + " of window " + wid
 			}
-			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "windowtarget/"+wid+"/"+tid)
-			label := sv(t.Name)
-			if label == "" {
-				label = tid
-			}
-			batch = append(batch, &store.Resource{
+			label := cmp.Or(sv(t.Name), tid)
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSSMMaintenanceWindowTarget, NativeID: arn,
+				Type: TypeSSMMaintenanceWindowTarget, NativeID: arnFor(acct.partition(), "ssm", region, acct.ID, "windowtarget/"+wid+"/"+tid),
 				Name: &label, Region: &region,
 				AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ssm maintenance-window-targets")
+			}, "", ""
+		})
 }
 
-func scanSSMMaintenanceWindowTasks(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, windowID string) (int, int, error) {
-	wid := windowID
-	pager := ssm.NewDescribeMaintenanceWindowTasksPaginator(client, &ssm.DescribeMaintenanceWindowTasksInput{WindowId: &wid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssm:DescribeMaintenanceWindowTasks", acct.ID, region, err)
+// scanSSMMaintenanceWindowTasks lists the tasks of each window stored this
+// scan, the windows read concurrently (storeTokenEachParent).
+func scanSSMMaintenanceWindowTasks(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string, windows []childParent) (int, int, error) {
+	return storeTokenEachParent(ctx, st, acct, region, ssmDescribeMaintenanceWindowTasksOp, ssmWindowNotFound, childParentIDs(windows),
+		func(ctx context.Context, wid string, token *string) ([]types.MaintenanceWindowTask, *string, error) {
+			out, err := client.DescribeMaintenanceWindowTasks(ctx, &ssm.DescribeMaintenanceWindowTasksInput{
+				WindowId: &wid, MaxResults: sdkaws.Int32(ssmWindowPageLimit), NextToken: token,
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ssm:DescribeMaintenanceWindowTasks: %w", err)
-		}
-		for _, t := range out.Tasks {
+			return out.Tasks, out.NextToken, nil
+		},
+		func(wid string, t types.MaintenanceWindowTask) (*store.Resource, string, string) {
 			tid := sv(t.WindowTaskId)
 			if tid == "" {
-				continue
+				return nil, "maintenance window tasks have no id", cmp.Or(sv(t.Name), noIdentifier) + " of window " + wid
 			}
-			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "windowtask/"+wid+"/"+tid)
-			label := sv(t.Name)
-			if label == "" {
-				label = tid
-			}
-			batch = append(batch, &store.Resource{
+			label := cmp.Or(sv(t.Name), tid)
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSSMMaintenanceWindowTask, NativeID: arn,
+				Type: TypeSSMMaintenanceWindowTask, NativeID: arnFor(acct.partition(), "ssm", region, acct.ID, "windowtask/"+wid+"/"+tid),
 				Name: &label, Region: &region,
 				AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ssm maintenance-window-tasks")
+			}, "", ""
+		})
 }
 
 func scanSSMResourceDataSync(ctx context.Context, client ssmAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := ssm.NewListResourceDataSyncPaginator(client, &ssm.ListResourceDataSyncInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ssm:ListResourceDataSync", acct.ID, region, err)
+	return storeTokenList(ctx, st, acct, region, ssmListResourceDataSyncOp,
+		func(ctx context.Context, token *string) ([]types.ResourceDataSyncItem, *string, error) {
+			out, err := client.ListResourceDataSync(ctx, &ssm.ListResourceDataSyncInput{MaxResults: sdkaws.Int32(ssmPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("ssm:ListResourceDataSync: %w", err)
-		}
-		for _, s := range out.ResourceDataSyncItems {
+			return out.ResourceDataSyncItems, out.NextToken, nil
+		},
+		func(s types.ResourceDataSyncItem) (*store.Resource, string, string) {
 			name := sv(s.SyncName)
 			if name == "" {
-				continue
+				return nil, "resource data syncs have no name", noIdentifier
 			}
-			arn := arnFor(acct.partition(), "ssm", region, acct.ID, "resource-data-sync/"+name)
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSSMResourceDataSync, NativeID: arn,
+				Type: TypeSSMResourceDataSync, NativeID: arnFor(acct.partition(), "ssm", region, acct.ID, "resource-data-sync/"+name),
 				Name: &name, Region: &region,
 				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "ssm resource-data-syncs")
+			}, "", ""
+		})
 }

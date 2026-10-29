@@ -51,7 +51,7 @@ func noopSSMDocumentPermissionHierarchy(_ *account, _ *store.Store) error {
 }
 
 // resolveSSMDocumentRequires walks each customer-owned SSM document's
-// `Requires[]` (DocumentDescription field, populated by scanSSMAll's Phase-1
+// `Requires[]` (DocumentDescription field, populated by scanSSMDocuments'
 // DescribeDocument enrichment). Each entry names a sibling document by name
 // or ARN; maps to in-region NativeID and emits a `uses` edge. FK-safe.
 func resolveSSMDocumentRequires(acct *account, st *store.Store) error {
