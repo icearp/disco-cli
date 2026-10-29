@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -45,16 +46,34 @@ type licenseManagerAPI interface {
 	ListLicenseAssetRulesets(context.Context, *licensemanager.ListLicenseAssetRulesetsInput, ...func(*licensemanager.Options)) (*licensemanager.ListLicenseAssetRulesetsOutput, error)
 	ListReceivedLicenses(context.Context, *licensemanager.ListReceivedLicensesInput, ...func(*licensemanager.Options)) (*licensemanager.ListReceivedLicensesOutput, error)
 	ListTokens(context.Context, *licensemanager.ListTokensInput, ...func(*licensemanager.Options)) (*licensemanager.ListTokensOutput, error)
+	ListTagsForResource(context.Context, *licensemanager.ListTagsForResourceInput, ...func(*licensemanager.Options)) (*licensemanager.ListTagsForResourceOutput, error)
 }
 
-// lmPageSize is the maximum MaxResults of ListReceivedLicenses and ListTokens (1-100).
+// lmPageSize is the maximum MaxResults (1-100) of ListLicenses,
+// ListDistributedGrants, ListLicenseManagerReportGenerators,
+// ListReceivedLicenses and ListTokens. ListLicenseConfigurations,
+// ListLicenseAssetGroups and ListLicenseAssetRulesets model no range for it,
+// so they are sent none.
 const lmPageSize = 100
 
 // scanLicenseManager discovers License Manager licenses, grants, license
 // configurations, report generators, asset groups and rulesets, received
 // licenses and tokens. Global service; called once, in its home region
 // (homeRegion; us-east-1 for aws), to avoid duplicate scans across regions.
-func scanLicenseManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (total, inserted int, err error) {
+//
+// Every listing runs as its own phase, one at a time: a phase's error does
+// not stop the later ones; a failed write and ctx's end do, and so does an
+// NXDOMAIN on the first listing with nothing stored, which says the region
+// does not serve License Manager (runHostPhases). Apart from the setup gap
+// below, a listing refused with AuthorizationException or
+// AccessDeniedException is warned about and keeps the pages read before it.
+// Licenses, grants, license configurations, asset groups and asset rulesets
+// are written a page at a time with each row's tags read (lmTags); a report
+// generator carries its tags in the listed element. The tags of received
+// licenses and tokens are not read: the Service Reference lists neither among
+// the types ListTagsForResource accepts. The tag denials of the whole scan are one
+// warning.
+func scanLicenseManager(ctx context.Context, acct *account, _ string, st *store.Store, scanID string) (int, int, error) {
 	region, err := acct.homeRegion("licensemanager")
 	if err != nil {
 		return 0, 0, err
@@ -69,51 +88,58 @@ func scanLicenseManager(ctx context.Context, acct *account, _ string, st *store.
 		o.Retryer = retry.AddWithErrorCodes(o.Retryer, "RateLimitExceededException")
 	})
 
-	// Every phase runs whatever the others returned. A "Service role not
-	// found" denial means License Manager is not set up. It is reported as the
-	// disabled sentinel, which discards the scan's counts, only when nothing
-	// was stored and no phase failed otherwise; else each such phase is warned
-	// about as the partial IAM denial it then is.
-	var errs, notSetUp phaseErrs
-	for _, phase := range []struct {
-		op  string
-		run func() (int, int, error)
-	}{
-		{lmListLicensesOp, func() (int, int, error) { return scanLMLicenses(ctx, client, acct, region, st, scanID) }},
-		{lmListGrantsOp, func() (int, int, error) { return scanLMGrants(ctx, client, acct, region, st, scanID) }},
-		{lmListConfigurationsOp, func() (int, int, error) {
-			return scanLMLicenseConfigurations(ctx, client, acct, region, st, scanID)
-		}},
-		{lmListReportGeneratorsOp, func() (int, int, error) {
-			return scanLMReportGenerators(ctx, client, acct, region, st, scanID)
-		}},
-		{lmListAssetGroupsOp, func() (int, int, error) {
-			return scanLMLicenseAssetGroups(ctx, client, acct, region, st, scanID)
-		}},
-		{lmListAssetRulesetsOp, func() (int, int, error) {
-			return scanLMLicenseAssetRulesets(ctx, client, acct, region, st, scanID)
-		}},
-		{lmListReceivedLicensesOp, func() (int, int, error) {
-			return scanLMReceivedLicenses(ctx, client, acct, region, st, scanID)
-		}},
-		{lmListTokensOp, func() (int, int, error) { return scanLMTokens(ctx, client, acct, region, st, scanID) }},
-	} {
-		t, i, ferr := phase.run()
-		total += t
-		inserted += i
-		if isLicenseManagerNotSetUp(ferr) {
-			notSetUp.add(phase.op, ferr)
-			continue
-		}
-		errs.add(phase.op, ferr)
+	// A "Service role not found" denial on a listing's first page means
+	// License Manager is not set up; the phase records it in notSetUp and
+	// stores nothing. It is reported as the disabled sentinel, which discards
+	// the scan's counts, only when nothing was stored and no phase failed
+	// otherwise; else each such phase is warned about as the partial IAM
+	// denial it then is. The listings read through firstPageGapPages record
+	// it themselves (lmNotSetUpGap); judged records it for the two read
+	// through lmListPhase, which returns it.
+	var notSetUp phaseErrs
+	judged := func(op string, run func() (int, int, error)) hostPhase {
+		return countedPhase(0, op, func() (int, int, error) {
+			t, i, err := run()
+			if isLicenseManagerNotSetUp(err) {
+				notSetUp.add(op, err)
+				return t, i, nil
+			}
+			return t, i, err
+		})
 	}
-	if len(notSetUp) > 0 && total == 0 && len(errs) == 0 {
+	tags := lmTags(client).sharingDenials()
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "license-manager", 0, []hostPhase{
+		{op: lmListLicensesOp, run: func(p *phaseTotals) bool {
+			return scanLMLicenses(ctx, client, acct, region, st, scanID, &notSetUp, tags, p)
+		}},
+		{op: lmListGrantsOp, run: func(p *phaseTotals) bool {
+			return scanLMGrants(ctx, client, acct, region, st, scanID, &notSetUp, tags, p)
+		}},
+		{op: lmListConfigurationsOp, run: func(p *phaseTotals) bool {
+			return scanLMLicenseConfigurations(ctx, client, acct, region, st, scanID, &notSetUp, tags, p)
+		}},
+		countedPhase(0, lmListReportGeneratorsOp, func() (int, int, error) {
+			return scanLMReportGenerators(ctx, client, acct, region, st, scanID, &notSetUp)
+		}),
+		{op: lmListAssetGroupsOp, run: func(p *phaseTotals) bool {
+			return scanLMLicenseAssetGroups(ctx, client, acct, region, st, scanID, &notSetUp, tags, p)
+		}},
+		{op: lmListAssetRulesetsOp, run: func(p *phaseTotals) bool {
+			return scanLMLicenseAssetRulesets(ctx, client, acct, region, st, scanID, &notSetUp, tags, p)
+		}},
+		judged(lmListReceivedLicensesOp, func() (int, int, error) {
+			return scanLMReceivedLicenses(ctx, client, acct, region, st, scanID)
+		}),
+		judged(lmListTokensOp, func() (int, int, error) { return scanLMTokens(ctx, client, acct, region, st, scanID) }),
+	})
+	tags.warnDenials(st, acct, region)
+	if len(notSetUp) > 0 && total == 0 && err == nil {
 		return 0, 0, markServiceDisabled(notSetUp[0].err)
 	}
 	for _, n := range notSetUp {
 		_ = skipIfAccessDenied(st, n.op, acct.ID, region, n.err)
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return total, inserted, err
 }
 
 const (
@@ -125,12 +151,110 @@ const (
 	lmListAssetRulesetsOp    = "license-manager:ListLicenseAssetRulesets"
 	lmListReceivedLicensesOp = "license-manager:ListReceivedLicenses"
 	lmListTokensOp           = "license-manager:ListTokens"
+	lmTagsOp                 = "license-manager:ListTagsForResource"
 )
+
+// lmAuthorizationDenied is License Manager's own code for a caller without
+// permission. Every op this scan calls models it beside AccessDeniedException,
+// and isAccessDenied does not match it, so each listing and the tag read
+// count it as a denial themselves.
+const lmAuthorizationDenied = "AuthorizationException"
+
+func isLMAuthorizationDenied(err error) bool { return isAPIErrorCode(err, lmAuthorizationDenied) }
+
+// lmTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, the ARN its listing returned; the op returns every tag in one
+// response. lmAuthorizationDenied is a denial beside AccessDeniedException.
+// The op models no not-found code, so a resource deleted between its listing
+// and the read keeps its row untagged and fails the read with whatever the
+// service answers.
+func lmTags(client licenseManagerAPI) rowTagReader {
+	return rowTagReader{
+		op:     lmTagsOp,
+		denied: []string{lmAuthorizationDenied},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &licensemanager.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
+			}
+			return kvTagsJSON(out.Tags, lmTagKV), nil
+		},
+	}
+}
+
+func lmTagKV(t lmtypes.Tag) (key, value *string) { return t.Key, t.Value }
+
+// lmUntaggedIfOtherAccount is tags for a listing that can return another
+// account's resources: a read refused for a row whose ARN names another
+// account (otherAccountGap) gives no tags and no error, so the row is kept
+// untagged without a warning. It is untaggedIfOtherAccount with
+// lmAuthorizationDenied counted as a refusal too: otherAccountGap matches
+// only isAccessDenied as a denial and counts the codes it is passed (its
+// notFound) beside it, so the code is passed there.
+func lmUntaggedIfOtherAccount(tags rowTagReader, acctID string) rowTagReader {
+	read := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		got, err := read(ctx, r)
+		if otherAccountGap(r.NativeID, acctID, err, []string{lmAuthorizationDenied}) {
+			return nil, nil
+		}
+		return got, err
+	}
+	return tags
+}
+
+// lmNotSetUpGap reports whether err is the "Service role not found" denial,
+// and records it under op in notSetUp when it is. Through firstPageGapPages,
+// a listing whose first page gets it reads as empty, leaving scanLicenseManager
+// to judge the denial once every phase ran.
+func lmNotSetUpGap(notSetUp *phaseErrs, op string) func(error) bool {
+	return func(err error) bool {
+		if !isLicenseManagerNotSetUp(err) {
+			return false
+		}
+		notSetUp.add(op, err)
+		return true
+	}
+}
+
+// storeLMTagged stores one ARN-keyed License Manager listing a page at a
+// time, each row's tags read through tags (storeTokenPagesTags). A "Service
+// role not found" denial on its first page is recorded in notSetUp
+// (lmNotSetUpGap). An lmAuthorizationDenied refusal ends the listing,
+// keeping the pages read before it, with one warning (listDenial); what
+// names the listed items. It reports whether a write failed.
+func storeLMTagged[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op, what string, notSetUp *phaseErrs,
+	page func(ctx context.Context, token *string) ([]Item, *string, error),
+	row func(Item) (*store.Resource, string, string),
+	tags rowTagReader, p *phaseTotals,
+) (storeWriteFailed bool) {
+	d := listDenial{isDenied: isLMAuthorizationDenied, unread: what + " on later pages"}
+	storeWriteFailed = storeTokenPagesTags(ctx, st, acct, region, op, deniedPages(&d, firstPageGapPages(lmNotSetUpGap(notSetUp, op), page)), row, tags, p)
+	// No storeWriteFailed guard: each page is written before the next is
+	// asked for, so a failed write ends the listing before any denial, and a
+	// denial yields an empty last page that writes nothing.
+	d.warn(st, op, acct, region)
+	return storeWriteFailed
+}
+
+// lmARNRow is the row of a listed item keyed by its ARN, or no row and the
+// reason when the item has no ARN (arnRow). what names the listing's items.
+func lmARNRow(acct *account, scanID, what, rtype string, arn, name, status *string, attrs any) (*store.Resource, string, string) {
+	return arnRow(what, arn, name, &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: rtype, NativeID: sv(arn),
+		Name: name, Region: regionGlobal, Status: status,
+		AttributesJSON: mustJSON(attrs), DiscoveredBy: scanID,
+	})
+}
 
 // lmListPhase stores one License Manager listing. page reads the page after
 // token and returns its rows and the next token. The pages read before an
 // error are stored. A "Service role not found" denial on the first page is
-// returned for scanLicenseManager to judge; any other denial warns. Any other
+// returned for scanLicenseManager to judge; any other denial, an
+// lmAuthorizationDenied refusal included, warns. Any other
 // error, and a repeated token, is returned with the stored pages' counts.
 func lmListPhase(st *store.Store, acct *account, region, op string, page func(token *string) ([]*store.Resource, *string, error)) (int, int, error) {
 	var (
@@ -143,7 +267,7 @@ func lmListPhase(st *store.Store, acct *account, region, op string, page func(to
 		if token == nil && isLicenseManagerNotSetUp(err) {
 			return 0, 0, err
 		}
-		if isAccessDenied(err) {
+		if isAccessDenied(err) || isLMAuthorizationDenied(err) {
 			_ = skipIfAccessDenied(st, op, acct.ID, region, err)
 			break
 		}
@@ -254,116 +378,108 @@ func scanLMTokens(ctx context.Context, client licenseManagerAPI, acct *account, 
 	return total, inserted, err
 }
 
-// lmAppendARNRow appends the row of a listed item keyed by its ARN, or tallies
-// the item under its name in arnless when it has no ARN.
-func lmAppendARNRow(rows []*store.Resource, acct *account, scanID, rtype string, arn, name, status *string, attrs any, arnless *skipTally) []*store.Resource {
-	if sv(arn) == "" {
-		arnless.skipped(fmt.Sprintf("%q", sv(name)), nil)
-		return rows
-	}
-	return append(rows, &store.Resource{
-		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-		Type: rtype, NativeID: *arn,
-		Name: name, Region: regionGlobal, Status: status,
-		AttributesJSON: mustJSON(attrs), DiscoveredBy: scanID,
-	})
+func scanLMLicenses(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string, notSetUp *phaseErrs, tags rowTagReader, p *phaseTotals) bool {
+	return storeLMTagged(ctx, st, acct, region, lmListLicensesOp, "licenses", notSetUp,
+		func(ctx context.Context, token *string) ([]lmtypes.License, *string, error) {
+			out, err := client.ListLicenses(ctx, &licensemanager.ListLicensesInput{MaxResults: sdkaws.Int32(lmPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Licenses, out.NextToken, nil
+		},
+		func(l lmtypes.License) (*store.Resource, string, string) {
+			status := string(l.Status)
+			return lmARNRow(acct, scanID, "licenses", TypeLicenseManagerLicense, l.LicenseArn, l.LicenseName, &status, l)
+		}, tags, p)
 }
 
-// scanLMARNList is lmListPhase for a listing whose items are keyed by their
-// ARN. list reads the page after token and tallies the items without an ARN
-// in arnless; they are warned about once, naming kind.
-func scanLMARNList(st *store.Store, acct *account, region, op, kind string, list func(token *string, arnless *skipTally) ([]*store.Resource, *string, error)) (int, int, error) {
-	var arnless skipTally
-	total, inserted, err := lmListPhase(st, acct, region, op, func(token *string) ([]*store.Resource, *string, error) {
-		return list(token, &arnless)
-	})
-	warnNotStored(st, op, acct, region, &arnless, kind+" have no ARN")
+func scanLMGrants(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string, notSetUp *phaseErrs, tags rowTagReader, p *phaseTotals) bool {
+	return storeLMTagged(ctx, st, acct, region, lmListGrantsOp, "grants", notSetUp,
+		func(ctx context.Context, token *string) ([]lmtypes.Grant, *string, error) {
+			out, err := client.ListDistributedGrants(ctx, &licensemanager.ListDistributedGrantsInput{MaxResults: sdkaws.Int32(lmPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Grants, out.NextToken, nil
+		},
+		func(g lmtypes.Grant) (*store.Resource, string, string) {
+			status := string(g.GrantStatus)
+			return lmARNRow(acct, scanID, "grants", TypeLicenseManagerGrant, g.GrantArn, g.GrantName, &status, g)
+		}, tags, p)
+}
+
+// scanLMLicenseConfigurations stores the license configurations. A license
+// configuration can be shared through AWS RAM and carries its
+// OwnerAccountId, so the listing may return another account's (unverified
+// live); such a row's tag read refused with AccessDeniedException or
+// AuthorizationException keeps it untagged without a warning
+// (lmUntaggedIfOtherAccount).
+func scanLMLicenseConfigurations(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string, notSetUp *phaseErrs, tags rowTagReader, p *phaseTotals) bool {
+	return storeLMTagged(ctx, st, acct, region, lmListConfigurationsOp, "license configurations", notSetUp,
+		func(ctx context.Context, token *string) ([]lmtypes.LicenseConfiguration, *string, error) {
+			out, err := client.ListLicenseConfigurations(ctx, &licensemanager.ListLicenseConfigurationsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.LicenseConfigurations, out.NextToken, nil
+		},
+		func(c lmtypes.LicenseConfiguration) (*store.Resource, string, string) {
+			status := sv(c.Status)
+			return lmARNRow(acct, scanID, "license configurations", TypeLicenseManagerLicenseConfiguration, c.LicenseConfigurationArn, c.Name, &status, c)
+		}, lmUntaggedIfOtherAccount(tags, acct.ID), p)
+}
+
+// scanLMReportGenerators stores the report generators with the tags their
+// listed element carries, so no tag read is made. An lmAuthorizationDenied
+// refusal ends the listing, keeping the pages read before it, and is warned
+// about once they are written (listDenial).
+func scanLMReportGenerators(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string, notSetUp *phaseErrs) (int, int, error) {
+	d := listDenial{isDenied: isLMAuthorizationDenied, unread: "report generators on later pages"}
+	total, inserted, err := storeTokenList(ctx, st, acct, region, lmListReportGeneratorsOp,
+		deniedPages(&d, firstPageGapPages(lmNotSetUpGap(notSetUp, lmListReportGeneratorsOp), func(ctx context.Context, token *string) ([]lmtypes.ReportGenerator, *string, error) {
+			out, err := client.ListLicenseManagerReportGenerators(ctx, &licensemanager.ListLicenseManagerReportGeneratorsInput{MaxResults: sdkaws.Int32(lmPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ReportGenerators, out.NextToken, nil
+		})),
+		func(g lmtypes.ReportGenerator) (*store.Resource, string, string) {
+			r, why, key := lmARNRow(acct, scanID, "report generators", TypeLicenseManagerReportGenerator, g.LicenseManagerReportGeneratorArn, g.ReportGeneratorName, nil, g)
+			if r != nil {
+				r.TagsJSON = kvTagsJSON(g.Tags, lmTagKV)
+			}
+			return r, why, key
+		})
+	if !errors.Is(err, store.ErrStoreWrite) {
+		d.warn(st, lmListReportGeneratorsOp, acct, region)
+	}
 	return total, inserted, err
 }
 
-func scanLMLicenses(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	return scanLMARNList(st, acct, region, lmListLicensesOp, "licenses", func(token *string, arnless *skipTally) ([]*store.Resource, *string, error) {
-		out, err := client.ListLicenses(ctx, &licensemanager.ListLicensesInput{NextToken: token})
-		if err != nil {
-			return nil, nil, err
-		}
-		var rows []*store.Resource
-		for _, l := range out.Licenses {
-			status := string(l.Status)
-			rows = lmAppendARNRow(rows, acct, scanID, TypeLicenseManagerLicense, l.LicenseArn, l.LicenseName, &status, l, arnless)
-		}
-		return rows, out.NextToken, nil
-	})
+func scanLMLicenseAssetGroups(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string, notSetUp *phaseErrs, tags rowTagReader, p *phaseTotals) bool {
+	return storeLMTagged(ctx, st, acct, region, lmListAssetGroupsOp, "license asset groups", notSetUp,
+		func(ctx context.Context, token *string) ([]lmtypes.LicenseAssetGroup, *string, error) {
+			out, err := client.ListLicenseAssetGroups(ctx, &licensemanager.ListLicenseAssetGroupsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.LicenseAssetGroups, out.NextToken, nil
+		},
+		func(g lmtypes.LicenseAssetGroup) (*store.Resource, string, string) {
+			return lmARNRow(acct, scanID, "license asset groups", TypeLicenseManagerLicenseAssetGroup, g.LicenseAssetGroupArn, g.Name, nil, g)
+		}, tags, p)
 }
 
-func scanLMGrants(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	return scanLMARNList(st, acct, region, lmListGrantsOp, "grants", func(token *string, arnless *skipTally) ([]*store.Resource, *string, error) {
-		out, err := client.ListDistributedGrants(ctx, &licensemanager.ListDistributedGrantsInput{NextToken: token})
-		if err != nil {
-			return nil, nil, err
-		}
-		var rows []*store.Resource
-		for _, g := range out.Grants {
-			status := string(g.GrantStatus)
-			rows = lmAppendARNRow(rows, acct, scanID, TypeLicenseManagerGrant, g.GrantArn, g.GrantName, &status, g, arnless)
-		}
-		return rows, out.NextToken, nil
-	})
-}
-
-func scanLMLicenseConfigurations(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	return scanLMARNList(st, acct, region, lmListConfigurationsOp, "license configurations", func(token *string, arnless *skipTally) ([]*store.Resource, *string, error) {
-		out, err := client.ListLicenseConfigurations(ctx, &licensemanager.ListLicenseConfigurationsInput{NextToken: token})
-		if err != nil {
-			return nil, nil, err
-		}
-		var rows []*store.Resource
-		for _, c := range out.LicenseConfigurations {
-			status := sv(c.Status)
-			rows = lmAppendARNRow(rows, acct, scanID, TypeLicenseManagerLicenseConfiguration, c.LicenseConfigurationArn, c.Name, &status, c, arnless)
-		}
-		return rows, out.NextToken, nil
-	})
-}
-
-func scanLMReportGenerators(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	return scanLMARNList(st, acct, region, lmListReportGeneratorsOp, "report generators", func(token *string, arnless *skipTally) ([]*store.Resource, *string, error) {
-		out, err := client.ListLicenseManagerReportGenerators(ctx, &licensemanager.ListLicenseManagerReportGeneratorsInput{NextToken: token})
-		if err != nil {
-			return nil, nil, err
-		}
-		var rows []*store.Resource
-		for _, g := range out.ReportGenerators {
-			rows = lmAppendARNRow(rows, acct, scanID, TypeLicenseManagerReportGenerator, g.LicenseManagerReportGeneratorArn, g.ReportGeneratorName, nil, g, arnless)
-		}
-		return rows, out.NextToken, nil
-	})
-}
-
-func scanLMLicenseAssetGroups(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	return scanLMARNList(st, acct, region, lmListAssetGroupsOp, "license asset groups", func(token *string, arnless *skipTally) ([]*store.Resource, *string, error) {
-		out, err := client.ListLicenseAssetGroups(ctx, &licensemanager.ListLicenseAssetGroupsInput{NextToken: token})
-		if err != nil {
-			return nil, nil, err
-		}
-		var rows []*store.Resource
-		for _, g := range out.LicenseAssetGroups {
-			rows = lmAppendARNRow(rows, acct, scanID, TypeLicenseManagerLicenseAssetGroup, g.LicenseAssetGroupArn, g.Name, nil, g, arnless)
-		}
-		return rows, out.NextToken, nil
-	})
-}
-
-func scanLMLicenseAssetRulesets(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	return scanLMARNList(st, acct, region, lmListAssetRulesetsOp, "license asset rulesets", func(token *string, arnless *skipTally) ([]*store.Resource, *string, error) {
-		out, err := client.ListLicenseAssetRulesets(ctx, &licensemanager.ListLicenseAssetRulesetsInput{NextToken: token})
-		if err != nil {
-			return nil, nil, err
-		}
-		var rows []*store.Resource
-		for _, rs := range out.LicenseAssetRulesets {
-			rows = lmAppendARNRow(rows, acct, scanID, TypeLicenseManagerLicenseAssetRuleset, rs.LicenseAssetRulesetArn, rs.Name, nil, rs, arnless)
-		}
-		return rows, out.NextToken, nil
-	})
+func scanLMLicenseAssetRulesets(ctx context.Context, client licenseManagerAPI, acct *account, region string, st *store.Store, scanID string, notSetUp *phaseErrs, tags rowTagReader, p *phaseTotals) bool {
+	return storeLMTagged(ctx, st, acct, region, lmListAssetRulesetsOp, "license asset rulesets", notSetUp,
+		func(ctx context.Context, token *string) ([]lmtypes.LicenseAssetRuleset, *string, error) {
+			out, err := client.ListLicenseAssetRulesets(ctx, &licensemanager.ListLicenseAssetRulesetsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.LicenseAssetRulesets, out.NextToken, nil
+		},
+		func(rs lmtypes.LicenseAssetRuleset) (*store.Resource, string, string) {
+			return lmARNRow(acct, scanID, "license asset rulesets", TypeLicenseManagerLicenseAssetRuleset, rs.LicenseAssetRulesetArn, rs.Name, nil, rs)
+		}, tags, p)
 }
