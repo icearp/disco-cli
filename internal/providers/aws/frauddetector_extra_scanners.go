@@ -93,19 +93,6 @@ func fdChildRow(acct *account, region, scanID, typ, arn, name, status string, it
 	return r
 }
 
-// fdRecordUnder records each row a per-parent phase stored under its parent,
-// whose ARN parentOf holds. It reports whether the closure write failed.
-func fdRecordUnder(st *store.Store, acct *account, op string, stored []*store.Resource, parentOf map[*store.Resource]string, p *phaseTotals) bool {
-	pairs := make([][2]string, 0, len(stored))
-	for _, r := range stored {
-		pairs = append(pairs, [2]string{r.ID, store.ResourceID("aws", acct.ID, parentOf[r])})
-	}
-	if err := st.RecordHierarchyBatch(pairs); err != nil {
-		return p.addPhase(op, 0, 0, fmt.Errorf("closure %s: %w", op, err))
-	}
-	return false
-}
-
 const fdGetDetectorVersionOp = "frauddetector:GetDetectorVersion"
 
 // fdVersionFailure is a GetDetectorVersion call that failed for another
@@ -206,7 +193,7 @@ func scanFDDetectorVersions(ctx context.Context, client fraudDetectorAPI, acct *
 		transient = fmt.Errorf("%s: %d detector version(s) not read, first %s: %w", fdGetDetectorVersionOp, t.count, t.first, t.err)
 	}
 	if !stop {
-		stop = fdRecordUnder(st, acct, op, stored, parentOf, p)
+		stop = recordUnderParents(st, acct, op, stored, parentOf, p)
 	}
 	if stop {
 		// Joined into the failed write's error, as rowTagErrs.addPhase does:
@@ -265,5 +252,5 @@ func scanFDModelVersions(ctx context.Context, client fraudDetectorAPI, acct *acc
 	if stop {
 		return true
 	}
-	return fdRecordUnder(st, acct, op, stored, parentOf, p)
+	return recordUnderParents(st, acct, op, stored, parentOf, p)
 }

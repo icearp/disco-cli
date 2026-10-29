@@ -2749,3 +2749,140 @@ func TestArnRow(t *testing.T) {
 		}
 	}
 }
+
+// recordUnderParents records each stored row under the parent parentOf names
+// and nothing else; a failed closure write is reported under op as a store
+// write failure, which stops the scanner.
+func TestRecordUnderParents(t *testing.T) {
+	stored := func(t *testing.T, st *store.Store) ([]*store.Resource, map[*store.Resource]string) {
+		t.Helper()
+		// A declared contains pair, so newTestStore's cleanup accepts it.
+		var rows []*store.Resource
+		for i, id := range []string{"parent-a", "parent-b", "child-1", "child-2"} {
+			r, _, _ := tagTestRow(id)
+			r.Type = TypeAppIntegrationsApplication
+			if i >= 2 {
+				r.Type = TypeAppIntegrationsApplicationAssociation
+			}
+			rows = append(rows, r)
+		}
+		if _, err := st.UpsertResources(rows); err != nil {
+			t.Fatalf("upsert: %v", err)
+		}
+		return rows[2:], map[*store.Resource]string{rows[2]: "parent-a", rows[3]: "parent-b"}
+	}
+	t.Run("recorded", func(t *testing.T) {
+		st := newTestStore(t)
+		children, parentOf := stored(t, st)
+		var p phaseTotals
+		if recordUnderParents(st, newTestAccount(testAccountID), tagTestListOp, children, parentOf, &p) {
+			t.Fatal("reported a failed write")
+		}
+		if len(p.errs) != 0 {
+			t.Fatalf("errs = %v; want none", p.errs)
+		}
+		assertContainsNative(t, st, "parent-a", "child-1")
+		assertContainsNative(t, st, "parent-b", "child-2")
+		rels, err := st.RelationshipsFrom(store.ResourceID("aws", testAccountID, "parent-a"), store.RelContains)
+		if err != nil || len(rels) != 1 {
+			t.Errorf("parent-a contains %v (err %v); want only child-1", rels, err)
+		}
+	})
+	t.Run("closure write fails", func(t *testing.T) {
+		st := newTestStore(t)
+		children, parentOf := stored(t, st)
+		refuseClosureWrites(t, st)
+		var p phaseTotals
+		if !recordUnderParents(st, newTestAccount(testAccountID), tagTestListOp, children, parentOf, &p) {
+			t.Fatal("did not report the failed write")
+		}
+		if len(p.errs) != 1 || p.errs[0].op != tagTestListOp || !errors.Is(p.errs[0].err, store.ErrStoreWrite) {
+			t.Errorf("errs = %v; want one store write failure under %s", p.errs, tagTestListOp)
+		}
+		if p.total != 0 {
+			t.Errorf("total = %d; want 0: the rows were counted by their own write", p.total)
+		}
+	})
+}
+
+// storeEachParentTagsUnder records each stored child under the ARN of the
+// parent whose id it was listed under. A parent deleted before its listing
+// returned anything is skipped silently; one deleted mid-listing keeps the
+// rows read and warns once under op. A failed row write stops it with
+// nothing recorded.
+func TestStoreEachParentTagsUnder(t *testing.T) {
+	gone := apiErr("ResourceNotFoundException", "gone")
+	parents := []childParent{{id: "a-id", arn: "parent-a"}, {id: "b-id", arn: "parent-b"}, {id: "c-id", arn: "parent-c"}}
+	page := func(_ context.Context, parent string, token *string) ([]string, *string, error) {
+		switch {
+		case parent == "a-id":
+			return []string{"child-1"}, nil, nil
+		case parent == "b-id" && token == nil:
+			return []string{"child-2"}, ptrStr("p2"), nil
+		}
+		return nil, nil, gone
+	}
+	row := func(_ string, id string) (*store.Resource, string, string) {
+		r, why, key := tagTestRow(id)
+		r.Type = TypeAppIntegrationsApplicationAssociation
+		return r, why, key
+	}
+	// The parents are stored, as types with a declared contains pair, so
+	// newTestStore's cleanup accepts the closure.
+	storeParents := func(t *testing.T, st *store.Store) {
+		t.Helper()
+		var rows []*store.Resource
+		for _, pa := range parents {
+			r, _, _ := tagTestRow(pa.arn)
+			r.Type = TypeAppIntegrationsApplication
+			rows = append(rows, r)
+		}
+		if _, err := st.UpsertResources(rows); err != nil {
+			t.Fatalf("upsert: %v", err)
+		}
+	}
+	t.Run("recorded", func(t *testing.T) {
+		st := newTestStore(t)
+		storeParents(t, st)
+		warns := rhWarnRecorder(st)
+		var p phaseTotals
+		if storeEachParentTagsUnder(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, []string{"ResourceNotFoundException"}, parents[:2], page, row, tagTestReader(nil), &p) {
+			t.Fatal("reported a failed write")
+		}
+		if total, _, err := p.result(st, newTestAccount(testAccountID), testRegion); err != nil || total != 2 {
+			t.Fatalf("total, err = %d, %v; want 2, nil", total, err)
+		}
+		assertContainsNative(t, st, "parent-a", "child-1")
+		assertContainsNative(t, st, "parent-b", "child-2")
+		if w := warns(); len(w) != 1 || w[0].Service != tagTestListOp {
+			t.Errorf("warnings = %v; want one under %s, for parent-b", w, tagTestListOp)
+		}
+	})
+	t.Run("parent gone before its listing", func(t *testing.T) {
+		st := newTestStore(t)
+		storeParents(t, st)
+		warns := rhWarnRecorder(st)
+		var p phaseTotals
+		if storeEachParentTagsUnder(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, []string{"ResourceNotFoundException"}, []childParent{parents[0], parents[2]}, page, row, tagTestReader(nil), &p) {
+			t.Fatal("reported a failed write")
+		}
+		if total, _, err := p.result(st, newTestAccount(testAccountID), testRegion); err != nil || total != 1 {
+			t.Fatalf("total, err = %d, %v; want 1, nil", total, err)
+		}
+		if w := warns(); len(w) != 0 {
+			t.Errorf("warnings = %v; want none for a parent gone before its listing returned anything", w)
+		}
+	})
+	t.Run("failed write", func(t *testing.T) {
+		st := newTestStore(t)
+		storeParents(t, st)
+		refuseStoreWrites(t, st, TypeAppIntegrationsApplicationAssociation)
+		var p phaseTotals
+		if !storeEachParentTagsUnder(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, []string{"ResourceNotFoundException"}, parents, page, row, tagTestReader(nil), &p) {
+			t.Fatal("did not report the failed write")
+		}
+		if len(p.errs) != 1 || !errors.Is(p.errs[0].err, store.ErrStoreWrite) {
+			t.Errorf("errs = %v; want one store write failure", p.errs)
+		}
+	})
+}

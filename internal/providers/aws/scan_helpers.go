@@ -1721,6 +1721,54 @@ func warnNoChildID(st *store.Store, op string, acct *account, region string, t *
 	})
 }
 
+// recordUnderParents records each row a per-parent phase stored under its parent,
+// whose ARN parentOf holds. It reports whether the closure write failed.
+func recordUnderParents(st *store.Store, acct *account, op string, stored []*store.Resource, parentOf map[*store.Resource]string, p *phaseTotals) bool {
+	pairs := make([][2]string, 0, len(stored))
+	for _, r := range stored {
+		pairs = append(pairs, [2]string{r.ID, store.ResourceID("aws", acct.ID, parentOf[r])})
+	}
+	if err := st.RecordHierarchyBatch(pairs); err != nil {
+		return p.addPhase(op, 0, 0, fmt.Errorf("closure %s: %w", op, err))
+	}
+	return false
+}
+
+// storeEachParentTagsUnder is storeEachParentTags with each stored row then
+// recorded under the ARN of the parent it was listed under
+// (recordUnderParents). The rows are held until one write: one parent's
+// failure costs the others none of theirs; a parent notFound reports is
+// skipped silently when none of its listing was read, and warned about once
+// under op with the others like it when it was deleted mid-listing; a denied
+// parent warns once under op; any other error is returned after the rows are
+// stored. Those warnings go out before the hierarchy is recorded, and concern
+// rows already written. It reports whether a write failed, after which the
+// scanner must stop.
+func storeEachParentTagsUnder[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound []string, parents []childParent,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (*store.Resource, string, string),
+	tags rowTagReader, p *phaseTotals,
+) (storeWriteFailed bool) {
+	arnOf := make(map[string]string, len(parents))
+	for _, pa := range parents {
+		arnOf[pa.id] = pa.arn
+	}
+	parentOf := map[*store.Resource]string{}
+	stored, failed := storeEachParentTags(ctx, st, acct, region, op, notFound, parents, page,
+		func(parent string, it Item) (*store.Resource, string, string) {
+			r, why, key := row(parent, it)
+			if r != nil {
+				parentOf[r] = arnOf[parent]
+			}
+			return r, why, key
+		}, tags, p)
+	if failed {
+		return true
+	}
+	return recordUnderParents(st, acct, op, stored, parentOf, p)
+}
+
 // phaseTotals sums the counts of a scanner's independent phases and collects
 // their errors, so every phase runs and only a store write failure stops the
 // scanner.
