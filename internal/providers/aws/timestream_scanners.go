@@ -5,10 +5,13 @@ import (
 	"errors"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/timestreaminfluxdb"
 	timestreaminfluxdbtypes "github.com/aws/aws-sdk-go-v2/service/timestreaminfluxdb/types"
 	"github.com/aws/aws-sdk-go-v2/service/timestreamquery"
+	timestreamquerytypes "github.com/aws/aws-sdk-go-v2/service/timestreamquery/types"
 	"github.com/aws/aws-sdk-go-v2/service/timestreamwrite"
+	timestreamwritetypes "github.com/aws/aws-sdk-go-v2/service/timestreamwrite/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -37,11 +40,13 @@ func init() {
 type tsWriteAPI interface {
 	ListDatabases(context.Context, *timestreamwrite.ListDatabasesInput, ...func(*timestreamwrite.Options)) (*timestreamwrite.ListDatabasesOutput, error)
 	ListTables(context.Context, *timestreamwrite.ListTablesInput, ...func(*timestreamwrite.Options)) (*timestreamwrite.ListTablesOutput, error)
+	ListTagsForResource(context.Context, *timestreamwrite.ListTagsForResourceInput, ...func(*timestreamwrite.Options)) (*timestreamwrite.ListTagsForResourceOutput, error)
 }
 
 type tsQueryAPI interface {
 	ListScheduledQueries(context.Context, *timestreamquery.ListScheduledQueriesInput, ...func(*timestreamquery.Options)) (*timestreamquery.ListScheduledQueriesOutput, error)
 	DescribeScheduledQuery(context.Context, *timestreamquery.DescribeScheduledQueryInput, ...func(*timestreamquery.Options)) (*timestreamquery.DescribeScheduledQueryOutput, error)
+	ListTagsForResource(context.Context, *timestreamquery.ListTagsForResourceInput, ...func(*timestreamquery.Options)) (*timestreamquery.ListTagsForResourceOutput, error)
 }
 
 type tsInfluxAPI interface {
@@ -51,275 +56,446 @@ type tsInfluxAPI interface {
 	GetDbCluster(context.Context, *timestreaminfluxdb.GetDbClusterInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.GetDbClusterOutput, error)
 	GetDbInstance(context.Context, *timestreaminfluxdb.GetDbInstanceInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.GetDbInstanceOutput, error)
 	ListDbBackups(context.Context, *timestreaminfluxdb.ListDbBackupsInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.ListDbBackupsOutput, error)
+	ListTagsForResource(context.Context, *timestreaminfluxdb.ListTagsForResourceInput, ...func(*timestreaminfluxdb.Options)) (*timestreaminfluxdb.ListTagsForResourceOutput, error)
 }
+
+// The hosts scanTimestream calls, one per SDK package.
+const (
+	tsWriteHost = iota
+	tsQueryHost
+	tsInfluxHost
+	tsHostCount
+)
+
+// tsNoPrimaryHost is passed to runHostPhases as the primary host and names
+// none, so no single host's NXDOMAIN on its first phase reports the region
+// unavailable. Timestream for LiveAnalytics (the write and query hosts) and
+// Timestream for InfluxDB are separate products: the SDK endpoint tables list
+// regions for the first only, so neither can be shown to be served wherever
+// the other is. With the write host primary, a region serving InfluxDB alone
+// would fail the scan once InfluxDB stored rows; with the InfluxDB host
+// primary, a region serving LiveAnalytics alone would. scanTimestream reports
+// the region unavailable itself when every host answers NXDOMAIN.
+const tsNoPrimaryHost = -1
+
+const (
+	tsTagsOp       = "timestream:ListTagsForResource"
+	tsInfluxTagsOp = "timestream-influxdb:ListTagsForResource"
+	// tsWritePageCap is the model's MaxResults cap (1 to 20) of ListDatabases
+	// and ListTables.
+	tsWritePageCap = 20
+	// tsScheduledQueryPageCap is the model's MaxResults cap (1 to 1000) of
+	// ListScheduledQueries.
+	tsScheduledQueryPageCap = 1000
+	// tsQueryTagPageCap is the model's MaxResults cap (1 to 200) of the query
+	// endpoint's ListTagsForResource.
+	tsQueryTagPageCap = 200
+	// tsInfluxPageCap is the model's MaxResults cap (1 to 100) of
+	// ListDbClusters and ListDbInstances.
+	tsInfluxPageCap = 100
+)
+
+// tsNotFound is the not-found code that each op reading a listed resource
+// models: both ListTagsForResource ops of LiveAnalytics, DescribeScheduledQuery,
+// GetDbCluster, GetDbInstance and the InfluxDB ListTagsForResource.
+var tsNotFound = []string{"ResourceNotFoundException"}
+
+var (
+	// errTSNoScheduledQueryBody is the error of a DescribeScheduledQuery
+	// response that lacks its model-required ScheduledQuery.
+	errTSNoScheduledQueryBody = errors.New("DescribeScheduledQuery response has no ScheduledQuery")
+	// errTSInfluxNoID is the error of a cluster or instance listed without its
+	// model-required id, which its Get takes.
+	errTSInfluxNoID = errors.New("the listed summary has no id to read its details by")
+)
 
 // scanTimestream discovers Timestream resources across three SDK clients:
 // timestreamwrite (Database, Table), timestreamquery (ScheduledQuery), and
 // timestreaminfluxdb (DbCluster, DbInstance, DbParameterGroup, DbBackup).
-func scanTimestream(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// Every listing runs as its own phase, one at a time, in the order below
+// (runHostPhases): a phase's error does not stop the later ones; a failed
+// write and ctx's end do. Databases, tables, scheduled queries, clusters and
+// instances have their tags read per row, written a page at a time; the tag
+// denials of each product are one warning for the scan.
+//
+// The closed-to-new-customers state covers Timestream for LiveAnalytics
+// only: the first LiveAnalytics listing refused so on its first page skips
+// the later LiveAnalytics listings. InfluxDB is a separate product on this
+// service entry, so it is scanned anyway, and the not-entitled sentinel is
+// returned only when nothing was found and nothing failed. A region where the
+// first listing of every host answers NXDOMAIN serves neither product and is
+// reported unavailable.
+func scanTimestream(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	wc := timestreamwrite.NewFromConfig(acct.cfg, func(o *timestreamwrite.Options) { o.Region = region })
 	qc := timestreamquery.NewFromConfig(acct.cfg, func(o *timestreamquery.Options) { o.Region = region })
 	ic := timestreaminfluxdb.NewFromConfig(acct.cfg, func(o *timestreaminfluxdb.Options) { o.Region = region })
+	liveTags := tsLiveTags(wc, qc).sharingDenials()
+	influxTags := tsInfluxTags(ic).sharingDenials()
 
-	// The closed-to-new-customers state covers Timestream for LiveAnalytics
-	// only; InfluxDB is a separate product on this service entry, so it is
-	// scanned anyway, and the sentinel is returned only when nothing was found.
-	var notEntitled error
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanTSDatabases(ctx, wc, acct, region, st, scanID) },
-		func() (int, int, error) { return scanTSTables(ctx, wc, acct, region, st, scanID) },
-		func() (int, int, error) { return scanTSScheduledQueries(ctx, qc, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if errors.Is(perr, errServiceNotEntitled) {
-			notEntitled = perr
-			break
+	var closed error
+	isClosed := func(err error) bool {
+		if isTimestreamLiveAnalyticsClosed(err) {
+			closed = err
+			return true
 		}
-		if perr != nil {
-			return total, inserted, perr
+		return false
+	}
+	// absent holds, by host, the NXDOMAIN its first listing failed with alone,
+	// storing nothing (hostAbsentAfter): runHostPhases drops it (tsNoPrimaryHost).
+	absent := map[int]error{}
+	firstOfHost := func(ph hostPhase) hostPhase {
+		run := ph.run
+		ph.run = func(p *phaseTotals) bool {
+			total, errs := p.total, len(p.errs)
+			failed := run(p)
+			if hostAbsentAfter(p, total, errs) {
+				absent[ph.host] = p.errs[errs].err
+			}
+			return failed
 		}
-		total += t
-		inserted += i
+		return ph
 	}
-	it, ii, ierr := scanTSInflux(ctx, ic, acct, region, st, scanID)
-	total += it
-	inserted += ii
-	if notEntitled != nil && total == 0 && ierr == nil {
-		return 0, 0, notEntitled
+	var clusters, instances map[string]string
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "timestream", tsNoPrimaryHost, []hostPhase{
+		firstOfHost(hostPhase{op: "timestream:ListDatabases", host: tsWriteHost, run: func(p *phaseTotals) bool {
+			return scanTSDatabases(ctx, wc, acct, region, st, scanID, isClosed, liveTags, p)
+		}}),
+		{op: "timestream:ListTables", host: tsWriteHost, run: func(p *phaseTotals) bool {
+			if closed != nil {
+				return false
+			}
+			return scanTSTables(ctx, wc, acct, region, st, scanID, isClosed, liveTags, p)
+		}},
+		firstOfHost(hostPhase{op: "timestream:ListScheduledQueries", host: tsQueryHost, run: func(p *phaseTotals) bool {
+			if closed != nil {
+				return false
+			}
+			return scanTSScheduledQueries(ctx, qc, acct, region, st, scanID, isClosed, liveTags, p)
+		}}),
+		firstOfHost(hostPhase{op: "timestream-influxdb:ListDbClusters", host: tsInfluxHost, run: func(p *phaseTotals) (failed bool) {
+			clusters, failed = scanTSInfluxClusters(ctx, ic, acct, region, st, scanID, influxTags, p)
+			return failed
+		}}),
+		{op: "timestream-influxdb:ListDbInstances", host: tsInfluxHost, run: func(p *phaseTotals) (failed bool) {
+			instances, failed = scanTSInfluxInstances(ctx, ic, acct, region, st, scanID, influxTags, p)
+			return failed
+		}},
+		countedPhase(tsInfluxHost, "timestream:ListDbParameterGroups", func() (int, int, error) {
+			return scanTSInfluxParameterGroups(ctx, ic, acct, region, st, scanID)
+		}),
+		countedPhase(tsInfluxHost, "timestream:ListDbBackups", func() (int, int, error) {
+			return scanTSInfluxBackups(ctx, ic, tsInfluxBackupSources(clusters, instances), acct, region, st, scanID)
+		}),
+	})
+	liveTags.warnDenials(st, acct, region)
+	influxTags.warnDenials(st, acct, region)
+	if closed != nil && total == 0 && err == nil {
+		return 0, 0, markServiceNotEntitled(closed)
 	}
-	return total, inserted, ierr
+	if len(absent) == tsHostCount && err == nil {
+		return 0, 0, markServiceUnavailable(absent[tsWriteHost])
+	}
+	return total, inserted, err
 }
 
-// scanTSInflux runs every Timestream for InfluxDB phase even when an earlier
-// one fails, so one phase's error costs no other phase its rows. Backups list
-// the whole region and use the clusters and instances only for their contains
-// pairs.
-func scanTSInflux(ctx context.Context, client tsInfluxAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	clusterARNs, ct, ci, cerr := scanTSInfluxClusters(ctx, client, acct, region, st, scanID)
-	instanceARNs, nt, ni, nerr := scanTSInfluxInstances(ctx, client, acct, region, st, scanID)
-	pt, pi, perr := scanTSInfluxParameterGroups(ctx, client, acct, region, st, scanID)
-	// A backup summary names its source by Id alone, not by kind, so an Id
-	// both a cluster and an instance carry gets no pair rather than a guess.
-	parentARNs := make(map[string]string, len(clusterARNs)+len(instanceARNs))
-	for id, arn := range clusterARNs {
-		if _, both := instanceARNs[id]; !both {
-			parentARNs[id] = arn
+// tsInfluxBackupSources maps the Id of each cluster and instance stored this
+// scan to its ARN, for the backups that name their source by Id alone. A
+// backup summary does not say which kind its source is, so an Id both a
+// cluster and an instance carry gets no pair rather than a guess.
+func tsInfluxBackupSources(clusters, instances map[string]string) map[string]string {
+	sources := make(map[string]string, len(clusters)+len(instances))
+	for id, arn := range clusters {
+		if _, both := instances[id]; !both {
+			sources[id] = arn
 		}
 	}
-	for id, arn := range instanceARNs {
-		if _, both := clusterARNs[id]; !both {
-			parentARNs[id] = arn
+	for id, arn := range instances {
+		if _, both := clusters[id]; !both {
+			sources[id] = arn
 		}
 	}
-	bt, bi, berr := scanTSInfluxBackups(ctx, client, parentARNs, acct, region, st, scanID)
-	return ct + nt + pt + bt, ci + ni + pi + bi, errors.Join(cerr, nerr, perr, berr)
+	return sources
 }
 
-func scanTSDatabases(ctx context.Context, client tsWriteAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := timestreamwrite.NewListDatabasesPaginator(client, &timestreamwrite.ListDatabasesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
+// tsLiveTags reads a Timestream for LiveAnalytics row's tags with
+// ListTagsForResource, sent the row's NativeID, the ARN its listing returned:
+// a scheduled query's on the query endpoint ("all tags on a Timestream query
+// resource"), a database's or table's on the write endpoint. Both are the one
+// IAM action, so one reader keeps their denials to one warning. The write op
+// returns every tag in one response; the query op pages, and every page is
+// read. ResourceNotFoundException, the not-found both model, means the
+// resource was deleted after it was listed.
+func tsLiveTags(wc tsWriteAPI, qc tsQueryAPI) rowTagReader {
+	return rowTagReader{
+		op:       tsTagsOp,
+		notFound: tsNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			if r.Type == TypeTimestreamScheduledQuery {
+				return tsQueryTagsJSON(ctx, qc, r.NativeID)
+			}
+			return tsWriteTagsJSON(ctx, wc, r.NativeID)
+		},
+	}
+}
+
+// tsQueryTagsJSON reads every page of the query endpoint's ListTagsForResource
+// for arn. A failed page, a repeated token included, returns no tags.
+func tsQueryTagsJSON(ctx context.Context, client tsQueryAPI, arn string) (*string, error) {
+	tags, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]timestreamquerytypes.Tag, *string, error) {
+		out, err := client.ListTagsForResource(ctx, &timestreamquery.ListTagsForResourceInput{
+			ResourceARN: &arn, MaxResults: sdkaws.Int32(tsQueryTagPageCap), NextToken: token,
+		})
 		if err != nil {
-			if isTimestreamLiveAnalyticsClosed(err) {
-				return 0, 0, markServiceNotEntitled(err)
-			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "timestream:ListDatabases", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("timestream:ListDatabases: %w", err)
+			return nil, nil, err
 		}
-		for _, d := range out.Databases {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
+		return out.Tags, out.NextToken, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return kvTagsJSON(tags, func(t timestreamquerytypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+}
+
+// tsWriteTagsJSON reads the write endpoint's ListTagsForResource for arn.
+func tsWriteTagsJSON(ctx context.Context, client tsWriteAPI, arn string) (*string, error) {
+	out, err := client.ListTagsForResource(ctx, &timestreamwrite.ListTagsForResourceInput{ResourceARN: &arn})
+	if err != nil {
+		return nil, err
+	}
+	return kvTagsJSON(out.Tags, func(t timestreamwritetypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+}
+
+// tsInfluxTags reads an InfluxDB row's tags with ListTagsForResource, sent
+// the row's NativeID, the ARN its listing returned. The op returns every tag
+// in one response; ResourceNotFoundException, the one error it models, means
+// the resource was deleted after it was listed.
+func tsInfluxTags(client tsInfluxAPI) rowTagReader {
+	return rowTagReader{
+		op:       tsInfluxTagsOp,
+		notFound: tsNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &timestreaminfluxdb.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
 			}
-			batch = append(batch, &store.Resource{
+			return mapTagsJSON(out.Tags), nil
+		},
+	}
+}
+
+// scanTSDatabases stores the databases a page at a time with their tags. A
+// first page refused because LiveAnalytics is closed to the account
+// (isClosed) stores nothing and is not an error.
+func scanTSDatabases(ctx context.Context, client tsWriteAPI, acct *account, region string, st *store.Store, scanID string, isClosed func(error) bool, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "timestream:ListDatabases",
+		firstPageGapPages(isClosed, func(ctx context.Context, token *string) ([]timestreamwritetypes.Database, *string, error) {
+			out, err := client.ListDatabases(ctx, &timestreamwrite.ListDatabasesInput{MaxResults: sdkaws.Int32(tsWritePageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Databases, out.NextToken, nil
+		}),
+		func(d timestreamwritetypes.Database) (*store.Resource, string, string) {
+			return arnRow("databases", d.Arn, d.DatabaseName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTimestreamDatabase, NativeID: arn,
+				Type: TypeTimestreamDatabase, NativeID: sv(d.Arn),
 				Name: d.DatabaseName, Region: &region,
 				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
 			})
-		}
-	}
-	return upsertBatch(st, batch, "timestream databases")
+		}, tags, p)
 }
 
-func scanTSTables(ctx context.Context, client tsWriteAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := timestreamwrite.NewListTablesPaginator(client, &timestreamwrite.ListTablesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isTimestreamLiveAnalyticsClosed(err) {
-				return 0, 0, markServiceNotEntitled(err)
+// scanTSTables stores the tables of every database, listed in one unfiltered
+// ListTables, a page at a time with their tags. A first page refused because
+// LiveAnalytics is closed to the account (isClosed) stores nothing and is not
+// an error.
+func scanTSTables(ctx context.Context, client tsWriteAPI, acct *account, region string, st *store.Store, scanID string, isClosed func(error) bool, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "timestream:ListTables",
+		firstPageGapPages(isClosed, func(ctx context.Context, token *string) ([]timestreamwritetypes.Table, *string, error) {
+			out, err := client.ListTables(ctx, &timestreamwrite.ListTablesInput{MaxResults: sdkaws.Int32(tsWritePageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "timestream:ListTables", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("timestream:ListTables: %w", err)
-		}
-		for _, t := range out.Tables {
-			arn := sv(t.Arn)
-			if arn == "" {
-				continue
-			}
+			return out.Tables, out.NextToken, nil
+		}),
+		func(t timestreamwritetypes.Table) (*store.Resource, string, string) {
 			status := string(t.TableStatus)
-			batch = append(batch, &store.Resource{
+			return arnRow("tables", t.Arn, t.TableName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTimestreamTable, NativeID: arn,
+				Type: TypeTimestreamTable, NativeID: sv(t.Arn),
 				Name: t.TableName, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(t), DiscoveredBy: scanID,
 			})
-		}
-	}
-	return upsertBatch(st, batch, "timestream tables")
+		}, tags, p)
 }
 
-func scanTSScheduledQueries(ctx context.Context, client tsQueryAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := timestreamquery.NewListScheduledQueriesPaginator(client, &timestreamquery.ListScheduledQueriesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isTimestreamLiveAnalyticsClosed(err) {
-				return 0, 0, markServiceNotEntitled(err)
+// scanTSScheduledQueries stores the scheduled queries a page at a time with
+// their tags, each row the query's DescribeScheduledQuery body (KmsKeyId,
+// ScheduledQueryExecutionRoleArn, ErrorReportConfiguration and
+// NotificationConfiguration are absent from the list summary). A
+// DescribeScheduledQuery ResourceNotFoundException drops a query deleted since
+// it was listed; any other failure, a response without its model-required
+// ScheduledQuery included, keeps the summary as the row (rowDetailReader). A
+// first page refused because LiveAnalytics is closed to the account
+// (isClosed) stores nothing and is not an error.
+func scanTSScheduledQueries(ctx context.Context, client tsQueryAPI, acct *account, region string, st *store.Store, scanID string, isClosed func(error) bool, tags rowTagReader, p *phaseTotals) bool {
+	steps := tokenPageSteps{details: rowDetailReader{
+		op: "timestream:DescribeScheduledQuery", what: "scheduled queries", notFound: tsNotFound,
+		get: func(ctx context.Context, r *store.Resource) (any, error) {
+			arn := r.NativeID
+			out, err := client.DescribeScheduledQuery(ctx, &timestreamquery.DescribeScheduledQueryInput{ScheduledQueryArn: &arn})
+			if err != nil {
+				return nil, err
 			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "timestream:ListScheduledQueries", acct.ID, region, err)
+			if out.ScheduledQuery == nil {
+				return nil, errTSNoScheduledQueryBody
 			}
-			return 0, 0, fmt.Errorf("timestream:ListScheduledQueries: %w", err)
-		}
-		for _, q := range out.ScheduledQueries {
-			arn := sv(q.Arn)
-			if arn == "" {
-				continue
+			return out.ScheduledQuery, nil
+		},
+	}}
+	return storeTokenPagesTagsWith(ctx, st, acct, region, "timestream:ListScheduledQueries",
+		firstPageGapPages(isClosed, func(ctx context.Context, token *string) ([]timestreamquerytypes.ScheduledQuery, *string, error) {
+			out, err := client.ListScheduledQueries(ctx, &timestreamquery.ListScheduledQueriesInput{MaxResults: sdkaws.Int32(tsScheduledQueryPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
+			return out.ScheduledQueries, out.NextToken, nil
+		}),
+		func(q timestreamquerytypes.ScheduledQuery) (*store.Resource, string, string) {
 			state := string(q.State)
-			// Enrich with DescribeScheduledQuery body — KmsKeyId,
-			// ScheduledQueryExecutionRoleArn, ErrorReportConfiguration, and
-			// NotificationConfiguration are absent from the list-summary.
-			attrs := mustJSON(q)
-			qarn := arn
-			dout, derr := client.DescribeScheduledQuery(ctx, &timestreamquery.DescribeScheduledQueryInput{ScheduledQueryArn: &qarn})
-			if derr != nil {
-				if isAccessDenied(derr) {
-					_ = skipIfAccessDenied(st, "timestream:DescribeScheduledQuery", acct.ID, region, derr)
-				}
-			} else if dout != nil && dout.ScheduledQuery != nil {
-				attrs = mustJSON(dout.ScheduledQuery)
-			}
-			batch = append(batch, &store.Resource{
+			return arnRow("scheduled queries", q.Arn, q.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTimestreamScheduledQuery, NativeID: arn,
+				Type: TypeTimestreamScheduledQuery, NativeID: sv(q.Arn),
 				Name: q.Name, Region: &region, Status: &state,
-				AttributesJSON: attrs, DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(q), DiscoveredBy: scanID,
 			})
-		}
-	}
-	return upsertBatch(st, batch, "timestream scheduled-queries")
+		}, steps, tags, p)
 }
 
-// scanTSInfluxClusters returns the ARN of each stored row keyed by its Id, the
-// form a backup's DbResourceId names its source by.
-func scanTSInfluxClusters(ctx context.Context, client tsInfluxAPI, acct *account, region string, st *store.Store, scanID string) (map[string]string, int, int, error) {
-	pager := timestreaminfluxdb.NewListDbClustersPaginator(client, &timestreaminfluxdb.ListDbClustersInput{})
-	var batch []*store.Resource
+// scanTSInfluxClusters stores the clusters a page at a time with their tags,
+// each row the cluster's GetDbCluster output (VpcSubnetIds,
+// VpcSecurityGroupIds, InfluxAuthParametersSecretArn and
+// LogDeliveryConfiguration are absent from the list summary). A GetDbCluster
+// ResourceNotFoundException drops a cluster deleted since it was listed; any
+// other failure, a summary without its model-required Id included, keeps the
+// summary as the row (rowDetailReader). It returns the ARN of each stored row
+// keyed by its Id, the form a backup's DbResourceId names its source by, and
+// whether a write failed.
+func scanTSInfluxClusters(ctx context.Context, client tsInfluxAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (map[string]string, bool) {
+	// ids maps each row of the page in flight to its cluster Id. The row
+	// builder fills it and the reads only look entries up; it is emptied
+	// before the next page is fetched, which follows that page's write.
+	ids := map[*store.Resource]string{}
 	arnByID := map[string]string{}
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "timestream:ListDbClusters", acct.ID, region, err)
+	steps := tokenPageSteps{
+		details: rowDetailReader{
+			op: "timestream-influxdb:GetDbCluster", what: "cluster(s)", notFound: tsNotFound,
+			get: func(ctx context.Context, r *store.Resource) (any, error) {
+				id := ids[r]
+				if id == "" {
+					return nil, errTSInfluxNoID
+				}
+				out, err := client.GetDbCluster(ctx, &timestreaminfluxdb.GetDbClusterInput{DbClusterId: &id})
+				if err != nil {
+					return nil, err
+				}
+				return out, nil
+			},
+		},
+		stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				if id := ids[r]; id != "" {
+					arnByID[id] = r.NativeID
+				}
 			}
-			return nil, 0, 0, fmt.Errorf("timestream:ListDbClusters: %w", err)
-		}
-		for _, c := range out.Items {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
+		},
+	}
+	failed := storeTokenPagesTagsWith(ctx, st, acct, region, "timestream-influxdb:ListDbClusters",
+		func(ctx context.Context, token *string) ([]timestreaminfluxdbtypes.DbClusterSummary, *string, error) {
+			clear(ids)
+			out, err := client.ListDbClusters(ctx, &timestreaminfluxdb.ListDbClustersInput{MaxResults: sdkaws.Int32(tsInfluxPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
+			return out.Items, out.NextToken, nil
+		},
+		func(c timestreaminfluxdbtypes.DbClusterSummary) (*store.Resource, string, string) {
 			status := string(c.Status)
-			// Enrich with GetDbCluster body — VpcSubnetIds, VpcSecurityGroupIds,
-			// InfluxAuthParametersSecretArn, LogDeliveryConfiguration are absent
-			// from the list-summary.
-			attrs := mustJSON(c)
-			cid := c.Id
-			if cid != nil {
-				arnByID[*cid] = arn
-				gout, gerr := client.GetDbCluster(ctx, &timestreaminfluxdb.GetDbClusterInput{DbClusterId: cid})
-				if gerr != nil {
-					if isAccessDenied(gerr) {
-						_ = skipIfAccessDenied(st, "timestream:GetDbCluster", acct.ID, region, gerr)
-					}
-				} else if gout != nil {
-					attrs = mustJSON(gout)
-				}
-			}
-			batch = append(batch, &store.Resource{
+			r, why, key := arnRow("clusters", c.Arn, c.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTimestreamInfluxDBCluster, NativeID: arn,
+				Type: TypeTimestreamInfluxDBCluster, NativeID: sv(c.Arn),
 				Name: c.Name, Region: &region, Status: &status,
-				AttributesJSON: attrs, DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "timestream influx-db-clusters")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return arnByID, t, i, nil
+			if r != nil {
+				ids[r] = sv(c.Id)
+			}
+			return r, why, key
+		}, steps, tags, p)
+	return arnByID, failed
 }
 
-// scanTSInfluxInstances returns the ARN of each stored row keyed by its Id, the
-// form a backup's DbResourceId names its source by.
-func scanTSInfluxInstances(ctx context.Context, client tsInfluxAPI, acct *account, region string, st *store.Store, scanID string) (map[string]string, int, int, error) {
-	pager := timestreaminfluxdb.NewListDbInstancesPaginator(client, &timestreaminfluxdb.ListDbInstancesInput{})
-	var batch []*store.Resource
+// scanTSInfluxInstances stores the instances a page at a time with their
+// tags, each row the instance's GetDbInstance output (VpcSubnetIds,
+// VpcSecurityGroupIds, InfluxAuthParametersSecretArn and
+// LogDeliveryConfiguration are absent from the list summary). A GetDbInstance
+// ResourceNotFoundException drops an instance deleted since it was listed;
+// any other failure, a summary without its model-required Id included, keeps
+// the summary as the row (rowDetailReader). It returns the ARN of each stored
+// row keyed by its Id, the form a backup's DbResourceId names its source by,
+// and whether a write failed.
+func scanTSInfluxInstances(ctx context.Context, client tsInfluxAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (map[string]string, bool) {
+	// ids maps each row of the page in flight to its instance Id, as in
+	// scanTSInfluxClusters.
+	ids := map[*store.Resource]string{}
 	arnByID := map[string]string{}
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "timestream:ListDbInstances", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("timestream:ListDbInstances: %w", err)
-		}
-		for _, inst := range out.Items {
-			arn := sv(inst.Arn)
-			if arn == "" {
-				continue
-			}
-			status := string(inst.Status)
-			// Enrich with GetDbInstance body — VpcSubnetIds, VpcSecurityGroupIds,
-			// InfluxAuthParametersSecretArn, LogDeliveryConfiguration are absent
-			// from the list-summary.
-			attrs := mustJSON(inst)
-			iid := inst.Id
-			if iid != nil {
-				arnByID[*iid] = arn
-				gout, gerr := client.GetDbInstance(ctx, &timestreaminfluxdb.GetDbInstanceInput{Identifier: iid})
-				if gerr != nil {
-					if isAccessDenied(gerr) {
-						_ = skipIfAccessDenied(st, "timestream:GetDbInstance", acct.ID, region, gerr)
-					}
-				} else if gout != nil {
-					attrs = mustJSON(gout)
+	steps := tokenPageSteps{
+		details: rowDetailReader{
+			op: "timestream-influxdb:GetDbInstance", what: "instance(s)", notFound: tsNotFound,
+			get: func(ctx context.Context, r *store.Resource) (any, error) {
+				id := ids[r]
+				if id == "" {
+					return nil, errTSInfluxNoID
+				}
+				out, err := client.GetDbInstance(ctx, &timestreaminfluxdb.GetDbInstanceInput{Identifier: &id})
+				if err != nil {
+					return nil, err
+				}
+				return out, nil
+			},
+		},
+		stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				if id := ids[r]; id != "" {
+					arnByID[id] = r.NativeID
 				}
 			}
-			batch = append(batch, &store.Resource{
+		},
+	}
+	failed := storeTokenPagesTagsWith(ctx, st, acct, region, "timestream-influxdb:ListDbInstances",
+		func(ctx context.Context, token *string) ([]timestreaminfluxdbtypes.DbInstanceSummary, *string, error) {
+			clear(ids)
+			out, err := client.ListDbInstances(ctx, &timestreaminfluxdb.ListDbInstancesInput{MaxResults: sdkaws.Int32(tsInfluxPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
+		},
+		func(inst timestreaminfluxdbtypes.DbInstanceSummary) (*store.Resource, string, string) {
+			status := string(inst.Status)
+			r, why, key := arnRow("instances", inst.Arn, inst.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeTimestreamInfluxDBInstance, NativeID: arn,
+				Type: TypeTimestreamInfluxDBInstance, NativeID: sv(inst.Arn),
 				Name: inst.Name, Region: &region, Status: &status,
-				AttributesJSON: attrs, DiscoveredBy: scanID,
+				AttributesJSON: mustJSON(inst), DiscoveredBy: scanID,
 			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "timestream influx-db-instances")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return arnByID, t, i, nil
+			if r != nil {
+				ids[r] = sv(inst.Id)
+			}
+			return r, why, key
+		}, steps, tags, p)
+	return arnByID, failed
 }
 
 func scanTSInfluxParameterGroups(ctx context.Context, client tsInfluxAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

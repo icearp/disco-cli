@@ -2584,7 +2584,7 @@ func runHostPhases(ctx context.Context, st *store.Store, acct *account, region, 
 		if ph.run(&p) {
 			break
 		}
-		if !ran[ph.host] && p.total == total && onlyDNSNotFound(p.errs[errs:]) {
+		if !ran[ph.host] && hostAbsentAfter(&p, total, errs) {
 			gone[ph.host] = true
 			if ph.host != primary {
 				p.errs = p.errs[:errs]
@@ -2594,6 +2594,15 @@ func runHostPhases(ctx context.Context, st *store.Store, acct *account, region, 
 	}
 	p.foldStop(ctx, service, notRun)
 	return p.resultLateNXDOMAIN(st, acct, region)
+}
+
+// hostAbsentAfter reports whether the phase that started at total rows and
+// errs errors left its host unserved in this region: it stored nothing and
+// failed only with NXDOMAIN. runHostPhases skips such a host's later phases;
+// a scanner that must know which hosts were absent calls it too, so both read
+// a host's absence the same way.
+func hostAbsentAfter(p *phaseTotals, total, errs int) bool {
+	return p.total == total && onlyDNSNotFound(p.errs[errs:])
 }
 
 // onlyDNSNotFound reports whether errs is not empty and every one is an
