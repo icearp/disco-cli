@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"testing"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -14,6 +15,32 @@ import (
 	smithymw "github.com/aws/smithy-go/middleware"
 	"github.com/icearp/disco-cli/store"
 )
+
+// gsPage is one ListSatellites response; err replaces it.
+type gsPage struct {
+	satellites []gstypes.SatelliteListItem
+	err        error
+}
+
+// gsStub serves pages in order (NextToken is the next page's index).
+type gsStub struct {
+	pages []gsPage
+}
+
+func (s *gsStub) page(token *string) (gsPage, *string, error) {
+	i := 0
+	if token != nil {
+		var err error
+		if i, err = strconv.Atoi(*token); err != nil {
+			return gsPage{}, nil, err
+		}
+	}
+	var next *string
+	if i+1 < len(s.pages) {
+		next = sdkaws.String(strconv.Itoa(i + 1))
+	}
+	return s.pages[i], next, nil
+}
 
 // gsSatelliteARN is region-less, as ListSatellites returns it.
 func gsSatelliteARN(id string) string {
@@ -50,7 +77,7 @@ func TestScanGSSatellites_PaginatesAndSkipsARNless(t *testing.T) {
 	if err != nil || total != 2 {
 		t.Fatalf("scanGSSatellites = (%d, %v); want (2, nil)", total, err)
 	}
-	rows := gsRowsByNativeID(t, st, TypeGroundStationSatellite)
+	rows := rowsByNativeID(t, st, TypeGroundStationSatellite)
 	if len(rows) != 2 {
 		t.Errorf("stored %d satellites; want 2 (ARN-less skipped)", len(rows))
 	}
@@ -110,7 +137,7 @@ func TestGroundStationSatellites_OneRowAcrossRegions(t *testing.T) {
 		}
 	}
 
-	rows := gsRowsByNativeID(t, st, TypeGroundStationSatellite)
+	rows := rowsByNativeID(t, st, TypeGroundStationSatellite)
 	r, ok := rows[gsSatelliteARN("s")]
 	if len(rows) != 1 || !ok {
 		t.Fatalf("stored %d satellites (found %v); want 1 under %s", len(rows), ok, gsSatelliteARN("s"))
@@ -121,5 +148,44 @@ func TestGroundStationSatellites_OneRowAcrossRegions(t *testing.T) {
 	versions, err := st.GetResourceVersions(store.ResourceID("aws", testAccountID, gsSatelliteARN("s")))
 	if err != nil || len(versions) != 1 {
 		t.Errorf("GetResourceVersions = %d versions (err %v); want 1", len(versions), err)
+	}
+}
+
+func TestScanGSSatellites_Empty(t *testing.T) {
+	st := newTestStore(t)
+	total, _, err := scanGSSatellites(context.Background(), &gsStub{pages: []gsPage{{}}}, newTestAccount(testAccountID), st, testScanID)
+	if err != nil || total != 0 {
+		t.Fatalf("scan = (%d, %v); want (0, nil)", total, err)
+	}
+	if rows := rowsByNativeID(t, st, TypeGroundStationSatellite); len(rows) != 0 {
+		t.Errorf("stored %d rows; want 0", len(rows))
+	}
+}
+
+func TestScanGSSatellites_AccessDeniedKeepsEarlierPages(t *testing.T) {
+	st := newTestStore(t)
+	warnings := 0
+	st.OnWarn = func(store.ScanWarning) { warnings++ }
+	stub := &gsStub{pages: []gsPage{
+		{satellites: []gstypes.SatelliteListItem{gsSatellite("a")}},
+		{err: apiErr("AccessDeniedException", "User: x is not authorized to perform: groundstation:List")},
+	}}
+	total, _, err := scanGSSatellites(context.Background(), stub, newTestAccount(testAccountID), st, testScanID)
+	if err != nil || total != 1 {
+		t.Fatalf("scan = (%d, %v); want (1, nil)", total, err)
+	}
+	if warnings != 1 {
+		t.Errorf("warnings = %d; want 1", warnings)
+	}
+	if rows := rowsByNativeID(t, st, TypeGroundStationSatellite); len(rows) != 1 {
+		t.Errorf("stored %d rows; want the 1 from the page before the denial", len(rows))
+	}
+}
+
+func TestScanGSSatellites_OtherErrorPropagates(t *testing.T) {
+	st := newTestStore(t)
+	_, _, err := scanGSSatellites(context.Background(), &gsStub{pages: []gsPage{{err: apiErr("InvalidParameterException", "bad")}}}, newTestAccount(testAccountID), st, testScanID)
+	if !isAPIErrorCode(err, "InvalidParameterException") {
+		t.Fatalf("err = %v; want InvalidParameterException", err)
 	}
 }
