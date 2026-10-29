@@ -1,12 +1,15 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"maps"
 	"net"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -70,7 +73,7 @@ func seedLogGroupClasses(t *testing.T, st *store.Store, classes map[string]logsT
 	if _, err := st.UpsertResources(batch); err != nil {
 		t.Fatalf("seed log groups: %v", err)
 	}
-	groups, err := loadLogGroupsForRegion(acct, testRegion, st)
+	groups, err := loadLogGroupsForRegion(acct, testRegion, st, testScanID, false)
 	if err != nil {
 		t.Fatalf("load log groups: %v", err)
 	}
@@ -791,4 +794,849 @@ func TestScanLogsS3TableSources_IntegrationsNXDOMAINAfterPageIsAnError(t *testin
 	if got := classifyServiceError(err); err == nil || got != outcomeError {
 		t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
 	}
+}
+
+// --- tags ---
+
+const (
+	// logsTestListed is the rows of the tagged listings: two per listing,
+	// one per page.
+	logsTestListed = 2 * 8
+	// logsTestTotal adds one log stream per log group.
+	logsTestTotal   = logsTestListed + 2
+	logsTestOldScan = "an-earlier-scan"
+)
+
+var logsThrottle = apiErr("ThrottlingException", "Rate exceeded")
+
+// logsKind is one listing whose rows carry tags: the SDK op, the type it
+// stores, the ARN resource type of its rows, the input field that sets its
+// page size and the size every call must send, whether the scan reads the
+// row's tags with ListTagsForResource (else the element carries them), and
+// page, which builds the op's output holding one element named name under
+// arn, carrying tags, with next.
+type logsKind struct {
+	op, typ, arnType, sizeField string
+	size                        int32
+	tagRead                     bool
+	page                        func(arn, name *string, tags map[string]string, next *string) any
+}
+
+func (k logsKind) name(suffix string) string { return k.arnType + "-" + suffix }
+
+// arnIn is the row's ARN in the Service Reference's format.
+func (k logsKind) arnIn(partition, region, suffix string) string {
+	return "arn:" + partition + ":logs:" + region + ":" + testAccountID + ":" + k.arnType + ":" + k.name(suffix)
+}
+
+func (k logsKind) arn(suffix string) string { return k.arnIn("aws", testRegion, suffix) }
+
+// logsWildcard is arn with the ":*" DescribeLogGroups appends to a log
+// group's Arn.
+func logsWildcard(arn *string) *string {
+	if arn == nil {
+		return nil
+	}
+	return sdkaws.String(*arn + ":*")
+}
+
+func logsKinds() []logsKind {
+	return []logsKind{
+		{"DescribeLogGroups", TypeLogsLogGroup, "log-group", "Limit", 50, true, func(arn, name *string, _ map[string]string, next *string) any {
+			return &cwlogs.DescribeLogGroupsOutput{NextToken: next, LogGroups: []logsTypes.LogGroup{{Arn: logsWildcard(arn), LogGroupArn: arn, LogGroupName: name}}}
+		}},
+		{"DescribeDeliveries", TypeLogsDelivery, "delivery", "Limit", 50, false, func(arn, name *string, tags map[string]string, next *string) any {
+			return &cwlogs.DescribeDeliveriesOutput{NextToken: next, Deliveries: []logsTypes.Delivery{{Arn: arn, DeliverySourceName: name, Tags: tags}}}
+		}},
+		{"DescribeDeliveryDestinations", TypeLogsDeliveryDest, "delivery-destination", "Limit", 50, false, func(arn, name *string, tags map[string]string, next *string) any {
+			return &cwlogs.DescribeDeliveryDestinationsOutput{NextToken: next, DeliveryDestinations: []logsTypes.DeliveryDestination{{Arn: arn, Name: name, Tags: tags}}}
+		}},
+		{"DescribeDeliverySources", TypeLogsDeliverySource, "delivery-source", "Limit", 50, false, func(arn, name *string, tags map[string]string, next *string) any {
+			return &cwlogs.DescribeDeliverySourcesOutput{NextToken: next, DeliverySources: []logsTypes.DeliverySource{{Arn: arn, Name: name, Tags: tags}}}
+		}},
+		{"DescribeDestinations", TypeLogsDestination, "destination", "Limit", 50, true, func(arn, name *string, _ map[string]string, next *string) any {
+			return &cwlogs.DescribeDestinationsOutput{NextToken: next, Destinations: []logsTypes.Destination{{Arn: arn, DestinationName: name}}}
+		}},
+		{"ListLogAnomalyDetectors", TypeLogsLogAnomalyDetector, "anomaly-detector", "Limit", 50, true, func(arn, name *string, _ map[string]string, next *string) any {
+			return &cwlogs.ListLogAnomalyDetectorsOutput{NextToken: next, AnomalyDetectors: []logsTypes.AnomalyDetector{{AnomalyDetectorArn: arn, DetectorName: name}}}
+		}},
+		{"ListScheduledQueries", TypeLogsScheduledQuery, "scheduled-query", "MaxResults", 1000, true, func(arn, name *string, _ map[string]string, next *string) any {
+			return &cwlogs.ListScheduledQueriesOutput{NextToken: next, ScheduledQueries: []logsTypes.ScheduledQuerySummary{{ScheduledQueryArn: arn, Name: name}}}
+		}},
+		{"DescribeLookupTables", TypeLogsLookupTable, "lookup-table", "MaxResults", 100, true, func(arn, name *string, _ map[string]string, next *string) any {
+			return &cwlogs.DescribeLookupTablesOutput{NextToken: next, LookupTables: []logsTypes.LookupTable{{LookupTableArn: arn, LookupTableName: name}}}
+		}},
+	}
+}
+
+func logsKindOf(t *testing.T, op string) logsKind {
+	t.Helper()
+	for _, k := range logsKinds() {
+		if k.op == op {
+			return k
+		}
+	}
+	t.Fatalf("%s is no tagged logs listing", op)
+	return logsKind{}
+}
+
+// logsPageSize is the page size in sent in field, a pointer or not; 0 for
+// none.
+func logsPageSize(in any, field string) int32 {
+	if p := bacField[*int32](in, field); p != nil {
+		return *p
+	}
+	return bacField[int32](in, field)
+}
+
+// logsCalls records the calls of a scan in partition and region, and
+// answers ListTagsForResource with tags, or errs, by ARN.
+type logsCalls struct {
+	partition, region string
+	mu                sync.Mutex
+	ops               map[string]int
+	inputs            map[string][]any
+	tagARNs           []string
+	streamGroups      []string
+	tags              map[string]map[string]string
+	errs              map[string]error
+}
+
+// newLogsCalls tags the "tagged" row of every kind with its type, in the
+// listing's element or for ListTagsForResource.
+func newLogsCalls(partition, region string) *logsCalls {
+	c := &logsCalls{partition: partition, region: region, ops: map[string]int{}, inputs: map[string][]any{}, tags: map[string]map[string]string{}, errs: map[string]error{}}
+	for _, k := range logsKinds() {
+		if k.tagRead {
+			c.tags[c.arn(k, "tagged")] = map[string]string{"type": k.typ}
+		}
+	}
+	return c
+}
+
+func (c *logsCalls) arn(k logsKind, suffix string) string {
+	return k.arnIn(c.partition, c.region, suffix)
+}
+
+func (c *logsCalls) record(op string, in any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ops[op]++
+	c.inputs[op] = append(c.inputs[op], in)
+}
+
+func (c *logsCalls) count(op string) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.ops[op]
+}
+
+func (c *logsCalls) listTags(in any) (any, error) {
+	arn := sv(in.(*cwlogs.ListTagsForResourceInput).ResourceArn)
+	c.record("ListTagsForResource", in)
+	c.mu.Lock()
+	c.tagARNs = append(c.tagARNs, arn)
+	err, tags := c.errs[arn], c.tags[arn]
+	c.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	return &cwlogs.ListTagsForResourceOutput{Tags: tags}, nil
+}
+
+// twoPages answers k's op with "tagged" on the first page and "bare" on the
+// second; a kind whose element carries its tags gives "tagged" the tag type=<its type>.
+func (c *logsCalls) twoPages(k logsKind) func(any) (any, error) {
+	return func(in any) (any, error) {
+		c.record(k.op, in)
+		suffix, next := "tagged", sdkaws.String("t2")
+		if bacField[*string](in, "NextToken") != nil {
+			suffix, next = "bare", nil
+		}
+		var tags map[string]string
+		if suffix == "tagged" && !k.tagRead {
+			tags = map[string]string{"type": k.typ}
+		}
+		arn, name := c.arn(k, suffix), k.name(suffix)
+		return k.page(&arn, &name, tags, next), nil
+	}
+}
+
+// logsTagHandlers answers every op the scan calls: each tagged kind in two
+// pages, one log stream per log group, and no rows for every other listing
+// (GetTransformer is denied, which the scan skips silently).
+func logsTagHandlers(c *logsCalls) map[string]func(in any) (any, error) {
+	empty := func(op string, out any) func(any) (any, error) {
+		return func(in any) (any, error) {
+			c.record(op, in)
+			return out, nil
+		}
+	}
+	h := map[string]func(in any) (any, error){
+		"ListTagsForResource":         c.listTags,
+		"DescribeAccountPolicies":     empty("DescribeAccountPolicies", &cwlogs.DescribeAccountPoliciesOutput{}),
+		"ListIntegrations":            empty("ListIntegrations", &cwlogs.ListIntegrationsOutput{}),
+		"DescribeMetricFilters":       empty("DescribeMetricFilters", &cwlogs.DescribeMetricFiltersOutput{}),
+		"DescribeQueryDefinitions":    empty("DescribeQueryDefinitions", &cwlogs.DescribeQueryDefinitionsOutput{}),
+		"DescribeResourcePolicies":    empty("DescribeResourcePolicies", &cwlogs.DescribeResourcePoliciesOutput{}),
+		"DescribeSubscriptionFilters": empty("DescribeSubscriptionFilters", &cwlogs.DescribeSubscriptionFiltersOutput{}),
+		"DescribeIndexPolicies":       empty("DescribeIndexPolicies", &cwlogs.DescribeIndexPoliciesOutput{}),
+		"ListSyslogConfigurations":    empty("ListSyslogConfigurations", &cwlogs.ListSyslogConfigurationsOutput{}),
+		"ListS3TableIntegrations":     empty("ListS3TableIntegrations", &observabilityadmin.ListS3TableIntegrationsOutput{}),
+		"DescribeLogStreams": func(in any) (any, error) {
+			c.record("DescribeLogStreams", in)
+			group := sv(in.(*cwlogs.DescribeLogStreamsInput).LogGroupName)
+			c.mu.Lock()
+			c.streamGroups = append(c.streamGroups, group)
+			c.mu.Unlock()
+			return &cwlogs.DescribeLogStreamsOutput{LogStreams: []logsTypes.LogStream{{LogStreamName: sdkaws.String("s1")}}}, nil
+		},
+	}
+	for _, k := range logsKinds() {
+		h[k.op] = c.twoPages(k)
+	}
+	return h
+}
+
+// logsScan runs the scan's real entry point against handlers; every op they
+// do not answer is denied.
+func logsScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, logsDenied)
+	return scanLogs(ctx, acct, testRegion, st, testScanID)
+}
+
+// logsTagReadARNs is the ARN of every row whose tags the fixture's scan
+// reads, sorted.
+func logsTagReadARNs(c *logsCalls) []string {
+	var arns []string
+	for _, k := range logsKinds() {
+		if k.tagRead {
+			arns = append(arns, c.arn(k, "tagged"), c.arn(k, "bare"))
+		}
+	}
+	slices.Sort(arns)
+	return arns
+}
+
+// Every tagged listing stores both its pages, each row under its ARN (a log
+// group's without the ":*" its Arn carries), named by its name (a delivery by
+// its source's), in the region, with the listed element as attributes and no
+// status or creation time. Its tags come from ListTagsForResource, sent
+// exactly the ARNs of the log groups, destinations, anomaly detectors,
+// scheduled queries and lookup tables, or from the element for the three
+// delivery types; nil for a resource without tags. Log streams are stored
+// untagged and never sent to the tag op. Every listing sends its page cap.
+func TestScanLogs_StoresTagsOfEveryType(t *testing.T) {
+	st := newTestStore(t)
+	warns := rhWarnRecorder(st)
+	calls := newLogsCalls("aws", testRegion)
+
+	total, inserted, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != logsTestTotal || inserted != logsTestTotal {
+		t.Errorf("total, inserted = %d, %d; want %d, %d", total, inserted, logsTestTotal, logsTestTotal)
+	}
+	if w := warns(); len(w) != 0 {
+		t.Errorf("warnings = %v; want none", w)
+	}
+	for _, k := range logsKinds() {
+		rows := rowsByNativeID(t, st, k.typ)
+		if len(rows) != 2 {
+			t.Errorf("%s rows = %v; want 2", k.typ, nativeIDs(rows))
+		}
+		for _, suffix := range []string{"tagged", "bare"} {
+			arn := k.arn(suffix)
+			r, ok := rows[arn]
+			if !ok {
+				t.Errorf("%s %s missing", k.typ, arn)
+				continue
+			}
+			if sv(r.Name) != k.name(suffix) || sv(r.Region) != testRegion || r.Status != nil || r.CreatedAt != nil || r.ManagedByProvider {
+				t.Errorf("%s Name, Region, Status, CreatedAt, Managed = %q, %q, %v, %v, %v; want %q, %q, no status, no creation time, false",
+					arn, sv(r.Name), sv(r.Region), r.Status, r.CreatedAt, r.ManagedByProvider, k.name(suffix), testRegion)
+			}
+			if k.typ == TypeLogsLogGroup && !strings.Contains(r.AttributesJSON, `"Arn":"`+arn+`:*"`) {
+				t.Errorf("%s attrs = %s; want the listed element, its Arn ending in :*", arn, r.AttributesJSON)
+			}
+			if !strings.Contains(r.AttributesJSON, `"`+arn+`"`) || !strings.Contains(r.AttributesJSON, `"`+k.name(suffix)+`"`) {
+				t.Errorf("%s attrs = %s; want the listed element", arn, r.AttributesJSON)
+			}
+			if suffix == "tagged" {
+				assertTagsMap(t, r.TagsJSON, map[string]string{"type": k.typ})
+			} else if r.TagsJSON != nil {
+				t.Errorf("%s TagsJSON = %q; want nil", arn, *r.TagsJSON)
+			}
+		}
+		if n := calls.count(k.op); n != 2 {
+			t.Errorf("%s calls = %d; want 2", k.op, n)
+		}
+		for _, in := range calls.inputs[k.op] {
+			if got := logsPageSize(in, k.sizeField); got != k.size {
+				t.Errorf("%s %s = %d; want %d", k.op, k.sizeField, got, k.size)
+			}
+		}
+	}
+	streams := rowsByNativeID(t, st, TypeLogsLogStream)
+	if len(streams) != 2 {
+		t.Errorf("log streams = %v; want one per log group", nativeIDs(streams))
+	}
+	for id, r := range streams {
+		if r.TagsJSON != nil {
+			t.Errorf("log stream %s TagsJSON = %q; want nil", id, *r.TagsJSON)
+		}
+	}
+	if got := slices.Sorted(slices.Values(calls.tagARNs)); !slices.Equal(got, logsTagReadARNs(calls)) {
+		t.Errorf("ListTagsForResource ARNs = %v\nwant %v", got, logsTagReadARNs(calls))
+	}
+}
+
+// A rescan stores the same rows without inserting any.
+func TestScanLogs_RescanInsertsNone(t *testing.T) {
+	st := newTestStore(t)
+	if _, _, err := logsScan(context.Background(), st, logsTagHandlers(newLogsCalls("aws", testRegion))); err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+	total, inserted, err := logsScan(context.Background(), st, logsTagHandlers(newLogsCalls("aws", testRegion)))
+	if err != nil {
+		t.Fatalf("rescan: %v", err)
+	}
+	if total != logsTestTotal || inserted != 0 {
+		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, logsTestTotal)
+	}
+}
+
+// A failed tag read: ResourceNotFoundException, the op's only modeled
+// not-found code, drops the row silently (a log group's stream is then not
+// listed); a denial keeps the row untagged and warns once under
+// logs:ListTagsForResource; a throttle keeps it and is transient; any other
+// error keeps it and is an error.
+func TestScanLogs_TagReadFailures(t *testing.T) {
+	type tagCase struct {
+		name      string
+		k         logsKind
+		err       error
+		outcome   serviceOutcome // -1: no error
+		code      string
+		wantTotal int
+		wantKept  bool
+		wantWarns int
+	}
+	var cases []tagCase
+	for _, k := range logsKinds() {
+		if !k.tagRead {
+			continue
+		}
+		gone := logsTestTotal - 1
+		if k.typ == TypeLogsLogGroup {
+			gone--
+		}
+		cases = append(cases,
+			tagCase{k.typ + "/not found", k, logsGone, -1, "", gone, false, 0},
+			tagCase{k.typ + "/denied", k, logsDenied, -1, "", logsTestTotal, true, 1},
+			tagCase{k.typ + "/transient", k, logsThrottle, outcomeTransient, "ThrottlingException", logsTestTotal, true, 0},
+			tagCase{k.typ + "/other error", k, logsBadArg, outcomeError, "InvalidParameterException", logsTestTotal, true, 0},
+		)
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := rhWarnRecorder(st)
+			calls := newLogsCalls("aws", testRegion)
+			arn := c.k.arn("tagged")
+			calls.errs[arn] = c.err
+
+			total, _, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+			if c.outcome < 0 {
+				if err != nil {
+					t.Fatalf("err = %v; want nil", err)
+				}
+			} else {
+				assertGlueOutcome(t, err, c.outcome)
+				assertAPICode(t, err, c.code)
+			}
+			if total != c.wantTotal {
+				t.Errorf("total = %d; want %d", total, c.wantTotal)
+			}
+			r, ok := rowsByNativeID(t, st, c.k.typ)[arn]
+			if ok != c.wantKept {
+				t.Fatalf("row stored = %v; want %v", ok, c.wantKept)
+			}
+			if ok && r.TagsJSON != nil {
+				t.Errorf("TagsJSON = %q; want nil", *r.TagsJSON)
+			}
+			w := warns()
+			if len(w) != c.wantWarns {
+				t.Fatalf("warnings = %v; want %d", w, c.wantWarns)
+			}
+			for _, x := range w {
+				if x.Service != logsTagsOp || x.Scope != testAccountID+"/"+testRegion || !strings.Contains(x.Message, arn) {
+					t.Errorf("warning %+v; want one under %s in %s/%s naming %s", x, logsTagsOp, testAccountID, testRegion, arn)
+				}
+			}
+		})
+	}
+}
+
+// The per-group listings (phase 2) read only the log groups this scan
+// stored: not one an earlier scan stored and this one did not list, nor one
+// whose tag read found it deleted.
+func TestScanLogs_PerGroupPhaseReadsGroupsStoredThisScan(t *testing.T) {
+	st := newTestStore(t)
+	seedOldLogGroup(t, st)
+	calls := newLogsCalls("aws", testRegion)
+	k := logsKindOf(t, "DescribeLogGroups")
+	calls.errs[k.arn("tagged")] = logsGone
+
+	if _, _, err := logsScan(context.Background(), st, logsTagHandlers(calls)); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if got, want := calls.streamGroups, []string{k.name("bare")}; !slices.Equal(got, want) {
+		t.Errorf("DescribeLogStreams log groups = %v; want %v", got, want)
+	}
+}
+
+// seedOldLogGroup stores log group "old" as an earlier scan found it.
+func seedOldLogGroup(t *testing.T, st *store.Store) {
+	t.Helper()
+	insertTestScan(t, st, logsTestOldScan, "completed")
+	acct := newTestAccount(testAccountID)
+	region := testRegion
+	if _, err := st.UpsertResources([]*store.Resource{{
+		Provider: "aws", AccountID: testAccountID, AccountName: &acct.Name,
+		Type: TypeLogsLogGroup, NativeID: lgTestARN("old"), Name: ptrStr("old"), Region: &region,
+		AttributesJSON: mustJSON(logsTypes.LogGroup{LogGroupName: ptrStr("old")}), DiscoveredBy: logsTestOldScan,
+	}}); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+}
+
+// A denied DescribeLogGroups confirms none of the groups after the denied
+// page, so the per-group phase reads every group stored for the region: one
+// an earlier scan stored still has its stream listed and stored, beside the
+// group of a page read before the denial.
+func TestScanLogs_DeniedLogGroupsReadsStoredGroups(t *testing.T) {
+	k := logsKindOf(t, "DescribeLogGroups")
+	for call, want := range map[int][]string{1: {"old"}, 2: {k.name("tagged"), "old"}} {
+		t.Run(fmt.Sprintf("page%d", call), func(t *testing.T) {
+			st := newTestStore(t)
+			seedOldLogGroup(t, st)
+			calls := newLogsCalls("aws", testRegion)
+			handlers := logsTagHandlers(calls)
+			handlers[k.op] = failOnCall(call, logsDenied, handlers[k.op])
+
+			if _, _, err := logsScan(context.Background(), st, handlers); err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			got := slices.Sorted(slices.Values(calls.streamGroups))
+			if !slices.Equal(got, want) {
+				t.Errorf("DescribeLogStreams log groups = %v; want %v", got, want)
+			}
+			if _, ok := rowsByNativeID(t, st, TypeLogsLogStream)["old/stream/s1"]; !ok {
+				t.Error("stream of the earlier scan's log group not stored")
+			}
+		})
+	}
+}
+
+// Only a denial lifts the per-group phase to every stored group: after any
+// other DescribeLogGroups error the phase still reads only the groups this
+// scan stored, so an earlier scan's group gets no stream listing.
+func TestScanLogs_FailedLogGroupsReadsGroupsStoredThisScan(t *testing.T) {
+	k := logsKindOf(t, "DescribeLogGroups")
+	for call, want := range map[int][]string{1: nil, 2: {k.name("tagged")}} {
+		t.Run(fmt.Sprintf("page%d", call), func(t *testing.T) {
+			st := newTestStore(t)
+			seedOldLogGroup(t, st)
+			calls := newLogsCalls("aws", testRegion)
+			handlers := logsTagHandlers(calls)
+			handlers[k.op] = failOnCall(call, logsBadArg, handlers[k.op])
+
+			_, _, err := logsScan(context.Background(), st, handlers)
+			assertGlueOutcome(t, err, outcomeError)
+			assertAPICode(t, err, "InvalidParameterException")
+			if got := calls.streamGroups; !slices.Equal(got, want) {
+				t.Errorf("DescribeLogStreams log groups = %v; want %v", got, want)
+			}
+			if _, ok := rowsByNativeID(t, st, TypeLogsLogStream)["old/stream/s1"]; ok {
+				t.Error("stream of the earlier scan's log group stored; want none")
+			}
+		})
+	}
+}
+
+// A failed read of the log groups the per-group phase needs stops the scan
+// as a store failure, not as a transient one a rescan fixes: no per-group
+// listing and no later phase runs.
+func TestScanLogs_LogGroupLoadFailureStopsScan(t *testing.T) {
+	st := newTestStore(t)
+	calls := newLogsCalls("aws", testRegion)
+	handlers := logsTagHandlers(calls)
+	// The last phase-1 listing drops the table the load reads.
+	handlers["DescribeLookupTables"] = func(any) (any, error) {
+		if _, err := st.DB().Exec(`ALTER TABLE resources RENAME TO resources_gone`); err != nil {
+			t.Errorf("rename resources: %v", err)
+		}
+		return &cwlogs.DescribeLookupTablesOutput{}, nil
+	}
+
+	_, _, err := logsScan(context.Background(), st, handlers)
+	if !errors.Is(err, errStoreRead) {
+		t.Fatalf("err = %v; want errStoreRead", err)
+	}
+	assertGlueOutcome(t, err, outcomeError)
+	for _, op := range []string{"DescribeLogStreams", "ListSyslogConfigurations", "ListS3TableIntegrations"} {
+		if n := calls.count(op); n != 0 {
+			t.Errorf("%s called %d times after the failed read; want 0", op, n)
+		}
+	}
+}
+
+// A delivery without an ARN is warned about under its Id, not under its
+// source's name, which many deliveries share.
+func TestScanLogs_DeliveryWithoutARNWarnsByID(t *testing.T) {
+	st := newTestStore(t)
+	warns := rhWarnRecorder(st)
+	handlers := logsTagHandlers(newLogsCalls("aws", testRegion))
+	handlers["DescribeDeliveries"] = func(any) (any, error) {
+		return &cwlogs.DescribeDeliveriesOutput{Deliveries: []logsTypes.Delivery{{Id: sdkaws.String("d-1"), DeliverySourceName: sdkaws.String("src")}}}, nil
+	}
+
+	if _, _, err := logsScan(context.Background(), st, handlers); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	w := warns()
+	if len(w) != 1 || w[0].Service != "logs:DescribeDeliveries" || !strings.HasSuffix(w[0].Message, " d-1") {
+		t.Errorf("warnings = %+v; want one under logs:DescribeDeliveries naming d-1", w)
+	}
+}
+
+// Denied tag reads in two listings send one warning for the whole scan,
+// under the tag op, naming the first denied row; the rows are kept untagged.
+func TestScanLogs_TagDenialsWarnOncePerScan(t *testing.T) {
+	st := newTestStore(t)
+	warnings := bacWarnings(st, logsTagsOp)
+	calls := newLogsCalls("aws", testRegion)
+	denied := []string{"DescribeDestinations", "DescribeLookupTables"}
+	for _, op := range denied {
+		k := logsKindOf(t, op)
+		calls.errs[k.arn("tagged")] = logsDenied
+		calls.errs[k.arn("bare")] = logsDenied
+	}
+
+	total, _, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != logsTestTotal {
+		t.Errorf("total = %d; want %d", total, logsTestTotal)
+	}
+	first := logsKindOf(t, "DescribeDestinations").arn("tagged")
+	if len(*warnings) != 1 || (*warnings)[0].Scope != testAccountID+"/"+testRegion || !strings.Contains((*warnings)[0].Message, first) {
+		t.Fatalf("%s warnings = %v; want 1 in %s/%s naming %s", logsTagsOp, *warnings, testAccountID, testRegion, first)
+	}
+	for _, op := range denied {
+		k := logsKindOf(t, op)
+		for _, arn := range []string{k.arn("tagged"), k.arn("bare")} {
+			if r, ok := rowsByNativeID(t, st, k.typ)[arn]; !ok || r.TagsJSON != nil {
+				t.Errorf("%s stored %v; want stored untagged", arn, ok)
+			}
+		}
+	}
+}
+
+// A throttled tag read beside a hard failure of the same op is demoted to one
+// warning, so the hard error decides the outcome.
+func TestScanLogs_TagThrottleDemotedBesideHardError(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, logsTagsOp)
+	calls := newLogsCalls("aws", testRegion)
+	calls.errs[logsKindOf(t, "DescribeDestinations").arn("tagged")] = logsThrottle
+	calls.errs[logsKindOf(t, "DescribeLookupTables").arn("bare")] = logsBadArg
+
+	_, _, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+	assertGlueOutcome(t, err, outcomeError)
+	assertAPICode(t, err, "InvalidParameterException")
+	if *warns != 1 {
+		t.Errorf("%s warnings = %d; want 1", logsTagsOp, *warns)
+	}
+}
+
+// A failed write stops the scan: no later phase runs and no warning is sent
+// about rows the write lost; the phases before it keep their rows. That
+// holds for a failed write in the per-group phase too.
+func TestScanLogs_FailedWriteStopsScan(t *testing.T) {
+	t.Run("destinations", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := rhWarnRecorder(st)
+		refuseStoreWrites(t, st, TypeLogsDestination)
+		calls := newLogsCalls("aws", testRegion)
+		k := logsKindOf(t, "DescribeDestinations")
+		calls.errs[k.arn("tagged")] = logsDenied
+
+		total, _, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+		if !errors.Is(err, store.ErrStoreWrite) {
+			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
+		}
+		if w := warns(); len(w) != 0 {
+			t.Errorf("warnings = %v; want none", w)
+		}
+		if n := calls.count(k.op); n != 1 {
+			t.Errorf("%s called %d times; want 1, none after the failed write", k.op, n)
+		}
+		for _, op := range []string{"ListIntegrations", "ListLogAnomalyDetectors", "DescribeLookupTables", "DescribeLogStreams", "ListSyslogConfigurations"} {
+			if n := calls.count(op); n != 0 {
+				t.Errorf("%s called %d times after the failed write; want 0", op, n)
+			}
+		}
+		// The log groups and the three delivery types (2 each) ran before it.
+		if total != 4*2 {
+			t.Errorf("total = %d; want %d", total, 4*2)
+		}
+	})
+	t.Run("log streams", func(t *testing.T) {
+		st := newTestStore(t)
+		refuseStoreWrites(t, st, TypeLogsLogStream)
+		calls := newLogsCalls("aws", testRegion)
+
+		_, _, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+		if !errors.Is(err, store.ErrStoreWrite) {
+			t.Fatalf("err = %v; want store.ErrStoreWrite", err)
+		}
+		for _, op := range []string{"ListSyslogConfigurations", "ListS3TableIntegrations"} {
+			if n := calls.count(op); n != 0 {
+				t.Errorf("%s called %d times after the failed write; want 0", op, n)
+			}
+		}
+	})
+}
+
+// A listing's failed page keeps the page read before it, and its error does
+// not stop the later listings: the log group of the first page still has its
+// stream listed, and the last phase-1 listing stores its rows.
+func TestScanLogs_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	for _, op := range []string{"DescribeLogGroups", "DescribeDeliveries", "ListScheduledQueries"} {
+		t.Run(op, func(t *testing.T) {
+			st := newTestStore(t)
+			calls := newLogsCalls("aws", testRegion)
+			handlers := logsTagHandlers(calls)
+			k := logsKindOf(t, op)
+			handlers[k.op] = failOnCall(2, logsBadArg, handlers[k.op])
+
+			total, _, err := logsScan(context.Background(), st, handlers)
+			assertGlueOutcome(t, err, outcomeError)
+			assertAPICode(t, err, "InvalidParameterException")
+			lost := 1
+			if k.typ == TypeLogsLogGroup {
+				lost++ // the second group's stream
+			}
+			if total != logsTestTotal-lost {
+				t.Errorf("total = %d; want %d", total, logsTestTotal-lost)
+			}
+			if _, ok := rowsByNativeID(t, st, k.typ)[k.arn("tagged")]; !ok {
+				t.Error("row from the page before the failure missing")
+			}
+			if got := len(rowsByNativeID(t, st, TypeLogsLookupTable)); got != 2 {
+				t.Errorf("lookup tables (the last phase-1 listing) = %d; want 2", got)
+			}
+			if _, ok := rowsByNativeID(t, st, TypeLogsLogStream)[logsKindOf(t, "DescribeLogGroups").name("tagged")+"/stream/s1"]; !ok {
+				t.Error("first log group's stream missing: the per-group phase did not run")
+			}
+		})
+	}
+}
+
+// A denied listing warns once under its op; a denial on a later page keeps
+// the page read before it. Every later listing still runs.
+func TestScanLogs_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	for _, op := range []string{"DescribeDestinations", "DescribeDeliverySources"} {
+		for _, call := range []int{1, 2} {
+			t.Run(fmt.Sprintf("%s/page%d", op, call), func(t *testing.T) {
+				st := newTestStore(t)
+				warns := rhWarnRecorder(st)
+				handlers := logsTagHandlers(newLogsCalls("aws", testRegion))
+				k := logsKindOf(t, op)
+				handlers[k.op] = failOnCall(call, logsDenied, handlers[k.op])
+
+				total, _, err := logsScan(context.Background(), st, handlers)
+				if err != nil {
+					t.Fatalf("err = %v; want nil", err)
+				}
+				if want := logsTestTotal - 2 + call - 1; total != want {
+					t.Errorf("total = %d; want %d", total, want)
+				}
+				if w := warns(); len(w) != 1 || w[0].Service != "logs:"+k.op {
+					t.Errorf("warnings = %v; want one under logs:%s", w, k.op)
+				}
+				if got := len(rowsByNativeID(t, st, TypeLogsLookupTable)); got != 2 {
+					t.Errorf("lookup tables (a later listing) = %d; want 2", got)
+				}
+			})
+		}
+	}
+}
+
+// A repeated token ends a listing as an error, keeping its pages.
+func TestScanLogs_RepeatedTokenKeepsPages(t *testing.T) {
+	for _, k := range logsKinds() {
+		t.Run(k.op, func(t *testing.T) {
+			st := newTestStore(t)
+			calls := newLogsCalls("aws", testRegion)
+			handlers := logsTagHandlers(calls)
+			handlers[k.op] = func(in any) (any, error) {
+				suffix := "tagged"
+				if bacField[*string](in, "NextToken") != nil {
+					suffix = "bare"
+				}
+				arn, name := k.arn(suffix), k.name(suffix)
+				return k.page(&arn, &name, nil, sdkaws.String("same")), nil
+			}
+			total, _, err := logsScan(context.Background(), st, handlers)
+			if !errors.Is(err, errRepeatedNextToken) {
+				t.Fatalf("err = %v; want errRepeatedNextToken", err)
+			}
+			if total != logsTestTotal {
+				t.Errorf("total = %d; want %d", total, logsTestTotal)
+			}
+			if got := len(rowsByNativeID(t, st, k.typ)); got != 2 {
+				t.Errorf("%s rows = %d; want both pages' 2", k.typ, got)
+			}
+		})
+	}
+}
+
+// An element without an ARN is not stored, is not sent to the tag op, and is
+// warned about once under its listing, named by its name or by the fallback
+// text when it has none.
+func TestScanLogs_ElementWithoutARNWarns(t *testing.T) {
+	for _, k := range logsKinds() {
+		for _, name := range []string{"x-1", ""} {
+			t.Run(k.op+"/"+cmp.Or(name, "unnamed"), func(t *testing.T) {
+				st := newTestStore(t)
+				warns := rhWarnRecorder(st)
+				calls := newLogsCalls("aws", testRegion)
+				handlers := logsTagHandlers(calls)
+				handlers[k.op] = func(any) (any, error) { return k.page(nil, &name, nil, nil), nil }
+
+				total, _, err := logsScan(context.Background(), st, handlers)
+				if err != nil {
+					t.Fatalf("scan: %v", err)
+				}
+				lost := 2
+				if k.typ == TypeLogsLogGroup {
+					lost += 2 // their streams
+				}
+				if want := logsTestTotal - lost; total != want {
+					t.Errorf("total = %d; want %d", total, want)
+				}
+				w := warns()
+				if len(w) != 1 {
+					t.Fatalf("warnings = %v; want 1", w)
+				}
+				key := cmp.Or(name, logsNoIdentifier)
+				if w[0].Service != "logs:"+k.op || !strings.Contains(w[0].Message, key) || w[0].Scope != testAccountID+"/"+testRegion {
+					t.Errorf("warning %+v; want one under logs:%s naming %q in %s/%s", w[0], k.op, key, testAccountID, testRegion)
+				}
+				if slices.Contains(calls.tagARNs, "") {
+					t.Error("an empty ARN was sent to ListTagsForResource")
+				}
+			})
+		}
+	}
+}
+
+// Rows of the aws-us-gov and aws-cn partitions reach the tag op under their
+// listed ARNs unchanged.
+func TestScanLogs_TagReadsKeepPartitionARNs(t *testing.T) {
+	for _, partition := range []string{"aws-us-gov", "aws-cn"} {
+		t.Run(partition, func(t *testing.T) {
+			st := newTestStore(t)
+			acct := partitionAccount(partition)
+			region := acct.Regions[0]
+			calls := newLogsCalls(partition, region)
+			acct.cfg = opStubConfig(logsTagHandlers(calls), logsDenied)
+			if _, _, err := scanLogs(context.Background(), acct, region, st, testScanID); err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			if got := slices.Sorted(slices.Values(calls.tagARNs)); !slices.Equal(got, logsTagReadARNs(calls)) {
+				t.Errorf("ListTagsForResource ARNs = %v\nwant %v", got, logsTagReadARNs(calls))
+			}
+			k := logsKindOf(t, "DescribeLogGroups")
+			assertTagsMap(t, rowsByNativeID(t, st, k.typ)[calls.arn(k, "tagged")].TagsJSON, map[string]string{"type": k.typ})
+		})
+	}
+}
+
+// Once ctx ends no further phase starts, and the stop is one member of the
+// error, although the phase in flight saw it in its listing.
+func TestScanLogs_ContextEndReportedOnce(t *testing.T) {
+	st := newTestStore(t)
+	calls := newLogsCalls("aws", testRegion)
+	handlers := logsTagHandlers(calls)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	k := logsKindOf(t, "DescribeDestinations")
+	list := handlers[k.op]
+	handlers[k.op] = func(in any) (any, error) {
+		if bacField[*string](in, "NextToken") != nil {
+			cancel()
+			return nil, context.Canceled
+		}
+		return list(in)
+	}
+
+	_, _, err := logsScan(ctx, st, handlers)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v; want context.Canceled", err)
+	}
+	stops := 0
+	for _, m := range bacTopMembers(err) {
+		if errors.Is(m, context.Canceled) {
+			stops++
+		}
+	}
+	if stops != 1 {
+		t.Errorf("members carrying the stop = %d; want 1 (err %v)", stops, err)
+	}
+	for _, op := range []string{"ListIntegrations", "DescribeLogStreams"} {
+		if n := calls.count(op); n != 0 {
+			t.Errorf("%s called %d times after the stop; want 0", op, n)
+		}
+	}
+}
+
+// An NXDOMAIN after rows were stored is a failure of this scan, not a region
+// gap: the counts are kept. With nothing stored it stays region-unavailable.
+func TestScanLogs_NXDOMAIN(t *testing.T) {
+	nx := &net.DNSError{Err: "no such host", Name: "logs.us-east-1.amazonaws.com", IsNotFound: true}
+	t.Run("a listing after others stored rows", func(t *testing.T) {
+		st := newTestStore(t)
+		handlers := logsTagHandlers(newLogsCalls("aws", testRegion))
+		handlers["DescribeLookupTables"] = func(any) (any, error) { return nil, nx }
+		total, _, err := logsScan(context.Background(), st, handlers)
+		assertGlueOutcome(t, err, outcomeError)
+		if total != logsTestTotal-2 {
+			t.Errorf("total = %d; want the %d other rows counted", total, logsTestTotal-2)
+		}
+	})
+	t.Run("tag read after the listing", func(t *testing.T) {
+		st := newTestStore(t)
+		calls := newLogsCalls("aws", testRegion)
+		calls.errs[logsKindOf(t, "DescribeLogGroups").arn("bare")] = nx
+		_, _, err := logsScan(context.Background(), st, logsTagHandlers(calls))
+		assertGlueOutcome(t, err, outcomeError)
+	})
+	t.Run("nothing stored", func(t *testing.T) {
+		st := newTestStore(t)
+		warns := rhWarnRecorder(st)
+		acct := newTestAccount(testAccountID)
+		acct.cfg = opStubConfig(nil, nx)
+		_, _, err := scanLogs(context.Background(), acct, testRegion, st, testScanID)
+		assertGlueOutcome(t, err, outcomeUnavailable)
+		if w := warns(); len(w) != 0 {
+			t.Errorf("warnings = %v; want none", w)
+		}
+	})
 }

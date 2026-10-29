@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -69,6 +70,7 @@ type cwlogsAPI interface {
 	DescribeIndexPolicies(context.Context, *cwlogs.DescribeIndexPoliciesInput, ...func(*cwlogs.Options)) (*cwlogs.DescribeIndexPoliciesOutput, error)
 	ListSyslogConfigurations(context.Context, *cwlogs.ListSyslogConfigurationsInput, ...func(*cwlogs.Options)) (*cwlogs.ListSyslogConfigurationsOutput, error)
 	ListSourcesForS3TableIntegration(context.Context, *cwlogs.ListSourcesForS3TableIntegrationInput, ...func(*cwlogs.Options)) (*cwlogs.ListSourcesForS3TableIntegrationOutput, error)
+	ListTagsForResource(context.Context, *cwlogs.ListTagsForResourceInput, ...func(*cwlogs.Options)) (*cwlogs.ListTagsForResourceOutput, error)
 }
 
 // logsS3TableIntegrationLister lists the S3 Table integrations whose sources
@@ -80,66 +82,154 @@ type logsS3TableIntegrationLister interface {
 // scanLogs discovers all CloudWatch Logs resources in one region: phase 1
 // scans independent resources, phase 2 scans per-log-group resources that
 // depend on phase 1's log groups being in the DB first, and phase 3 scans
-// syslog configurations and S3 Table integration sources.
-func scanLogs(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// syslog configurations and S3 Table integration sources. The phases run in
+// that order, one listing of phase 1 at a time (runHostPhases): a listing's
+// error does not stop the later ones; a failed write and ctx's end do. The
+// tag denials of the whole scan are one warning (sharingDenials).
+func scanLogs(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := cwlogs.NewFromConfig(acct.cfg, func(o *cwlogs.Options) { o.Region = region })
-
-	type subFn func(context.Context, cwlogsAPI, *account, string, *store.Store, string) (int, int, error)
-
-	// Phase 1: independent scanners — run sequentially.
-	phase1 := []subFn{
-		scanLogsLogGroups,
-		scanLogsAccountPolicies,
-		scanLogsDeliveries,
-		scanLogsDeliveryDestinations,
-		scanLogsDeliverySources,
-		scanLogsDestinations,
-		scanLogsIntegrations,
-		scanLogsLogAnomalyDetectors,
-		scanLogsMetricFilters,
-		scanLogsQueryDefinitions,
-		scanLogsResourcePolicies,
-		scanLogsScheduledQueries,
-		scanLogsLookupTables,
-	}
-	for _, fn := range phase1 {
-		t, i, e := fn(ctx, client, acct, region, st, scanID)
-		if e != nil {
-			return total, inserted, e
-		}
-		total += t
-		inserted += i
-	}
-
-	groups, err := loadLogGroupsForRegion(acct, region, st)
-	if err != nil {
-		return total, inserted, fmt.Errorf("load log groups for phase 2: %w", err)
-	}
-	var errs phaseErrs
-	t2, n2 := scanLogsPerGroup(ctx, client, acct, region, groups, st, scanID, &errs)
-	total += t2
-	inserted += n2
-
-	// Phase 3 runs after phase 2 and joins its errors with phase 2's, so a
-	// failure here cannot stop any earlier scan.
 	obs := observabilityadmin.NewFromConfig(acct.cfg, func(o *observabilityadmin.Options) { o.Region = region })
-	for _, phase := range []struct {
-		op string
-		fn func() (int, int, error)
-	}{
-		{"logs:ListSyslogConfigurations", func() (int, int, error) {
+	tags := logsTags(client).sharingDenials()
+
+	var (
+		groups       []store.Resource
+		groupsDenied bool
+	)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "logs", 0, []hostPhase{
+		{op: logsDescribeLogGroupsOp, run: func(p *phaseTotals) bool {
+			return scanLogsLogGroups(ctx, client, acct, region, st, scanID, tags, &groupsDenied, p)
+		}},
+		countedPhase(0, "logs:DescribeAccountPolicies", func() (int, int, error) {
+			return scanLogsAccountPolicies(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, logsDescribeDeliveriesOp, func() (int, int, error) {
+			return scanLogsDeliveries(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, logsDescribeDeliveryDestinationsOp, func() (int, int, error) {
+			return scanLogsDeliveryDestinations(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, logsDescribeDeliverySourcesOp, func() (int, int, error) {
+			return scanLogsDeliverySources(ctx, client, acct, region, st, scanID)
+		}),
+		{op: logsDescribeDestinationsOp, run: func(p *phaseTotals) bool {
+			return scanLogsDestinations(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, "logs:ListIntegrations", func() (int, int, error) {
+			return scanLogsIntegrations(ctx, client, acct, region, st, scanID)
+		}),
+		{op: logsListLogAnomalyDetectorsOp, run: func(p *phaseTotals) bool {
+			return scanLogsLogAnomalyDetectors(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, "logs:DescribeMetricFilters", func() (int, int, error) {
+			return scanLogsMetricFilters(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "logs:DescribeQueryDefinitions", func() (int, int, error) {
+			return scanLogsQueryDefinitions(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "logs:DescribeResourcePolicies", func() (int, int, error) {
+			return scanLogsResourcePolicies(ctx, client, acct, region, st, scanID)
+		}),
+		{op: logsListScheduledQueriesOp, run: func(p *phaseTotals) bool {
+			return scanLogsScheduledQueries(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: logsDescribeLookupTablesOp, run: func(p *phaseTotals) bool {
+			return scanLogsLookupTables(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "logs:DescribeLogStreams", run: func(p *phaseTotals) bool {
+			var err error
+			if groups, err = loadLogGroupsForRegion(acct, region, st, scanID, groupsDenied); err != nil {
+				// The later phases need these rows, and the store failed to read
+				// them, so the scan stops as it would on a failed write.
+				p.errs.add("logs", storeReadError("load log groups for phase 2", err))
+				return true
+			}
+			t, n, err := scanLogsPerGroup(ctx, client, acct, region, groups, st, scanID)
+			return addOpErrsPhase(p, "logs:DescribeLogStreams", t, n, err)
+		}},
+		countedPhase(0, "logs:ListSyslogConfigurations", func() (int, int, error) {
 			return scanLogsSyslogConfigurations(ctx, client, acct, region, groups, st, scanID)
-		}},
-		{"logs:ListSourcesForS3TableIntegration", func() (int, int, error) {
+		}),
+		countedPhase(0, "logs:ListSourcesForS3TableIntegration", func() (int, int, error) {
 			return scanLogsS3TableSources(ctx, client, obs, acct, region, st, scanID)
-		}},
-	} {
-		t, i, e := phase.fn()
-		total += t
-		inserted += i
-		errs.add(phase.op, e)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
+}
+
+// Op labels of the listings whose rows carry tags.
+const (
+	logsDescribeLogGroupsOp            = "logs:DescribeLogGroups"
+	logsDescribeDeliveriesOp           = "logs:DescribeDeliveries"
+	logsDescribeDeliveryDestinationsOp = "logs:DescribeDeliveryDestinations"
+	logsDescribeDeliverySourcesOp      = "logs:DescribeDeliverySources"
+	logsDescribeDestinationsOp         = "logs:DescribeDestinations"
+	logsListLogAnomalyDetectorsOp      = "logs:ListLogAnomalyDetectors"
+	logsListScheduledQueriesOp         = "logs:ListScheduledQueries"
+	logsDescribeLookupTablesOp         = "logs:DescribeLookupTables"
+	logsTagsOp                         = "logs:ListTagsForResource"
+)
+
+// Page sizes: each listing's model maximum.
+const (
+	// logsDescribePageSize is the maximum limit of DescribeLogGroups,
+	// DescribeDestinations and the three delivery listings (DescribeLimit,
+	// 1-50) and of ListLogAnomalyDetectors (1-50).
+	logsDescribePageSize = 50
+	// logsLookupTablesPageSize is DescribeLookupTables' maximum maxResults.
+	logsLookupTablesPageSize = 100
+	// logsScheduledQueriesPageSize is ListScheduledQueries' maximum
+	// maxResults (1-1000).
+	logsScheduledQueriesPageSize = 1000
+)
+
+// logsNoIdentifier names, in a warning, a listed element with neither an
+// ARN nor a name.
+const logsNoIdentifier = "(an element with no identifier)"
+
+// logsTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: the ARN its listing returned, a log group's without the ":*"
+// DescribeLogGroups appends to its Arn (the form the op documents, and the
+// element's LogGroupArn). ListTagsForResource returns every tag in one
+// response, and models ResourceNotFoundException for a resource deleted
+// since it was listed.
+//
+// The Service Reference lists log groups, destinations, anomaly detectors
+// and lookup tables under ListTagsForResource. It omits scheduled queries,
+// which are read too: its TagResource entry lists them, CreateScheduledQuery
+// takes tags, and no other op returns their tags. Whether the op accepts
+// their ARNs is unverified. Log streams are not read: no tagging op lists
+// them and CreateLogStream takes no tags.
+//
+// The op models its resourceArn as ^[\w+=/:,.@-]*$ (1-1011 characters). A
+// log group's name may hold '#' (^[\.\-_/#A-Za-z0-9]+$) and a destination's
+// almost any character but ':' and '*' (^[^:*]*$), so the ARN of such a row
+// is outside that pattern; whether the service rejects it is unverified. The
+// SDK does not check the pattern, so the call is made either way.
+func logsTags(client cwlogsAPI) rowTagReader {
+	return rowTagReader{
+		op:       logsTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &cwlogs.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
+		},
 	}
-	return total, inserted, errs.join(st, acct, region)
+}
+
+// logsRow returns r, the row of a listed element stored under its ARN, or no
+// row when arn is empty: one empty NativeID would merge every such element
+// into one resource. what names the elements in the warning, name the
+// element.
+func logsRow(what, arn, name string, r *store.Resource) (*store.Resource, string, string) {
+	if arn == "" {
+		return nil, what + " have no ARN", cmp.Or(name, logsNoIdentifier)
+	}
+	return r, "", ""
 }
 
 // scanLogsPerGroup runs the per-log-group scanners (phase 2) concurrently.
@@ -150,10 +240,11 @@ func scanLogs(ctx context.Context, acct *account, region string, st *store.Store
 // SDK's retries is warned about and skipped (scanLogsIndexPolicies).
 // The scanners share one ListResources load of the region's log-group set
 // (else loadLogGroupsForRegion runs once per scanner for the same rows).
-// Each scanner adds its error to errs under its own op for scanLogs to join.
-func scanLogsPerGroup(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string, errs *phaseErrs) (total, inserted int) {
+// Each scanner's error is returned under its own op (opErrs) for scanLogs to
+// join.
+func scanLogsPerGroup(ctx context.Context, client cwlogsAPI, acct *account, region string, groups []store.Resource, st *store.Store, scanID string) (int, int, error) {
 	if len(groups) == 0 {
-		return 0, 0
+		return 0, 0, nil
 	}
 
 	phase2 := []struct {
@@ -174,22 +265,20 @@ func scanLogsPerGroup(ctx context.Context, client cwlogsAPI, acct *account, regi
 		}},
 	}
 	var (
-		t2, n2 atomic.Int64
-		errMu  sync.Mutex
-		wg     sync.WaitGroup
+		p  phaseTotals
+		mu sync.Mutex
+		wg sync.WaitGroup
 	)
 	for _, phase := range phase2 {
 		wg.Go(func() {
-			tt, nn, e := phase.fn()
-			t2.Add(int64(tt))
-			n2.Add(int64(nn))
-			errMu.Lock()
-			errs.add(phase.op, e)
-			errMu.Unlock()
+			t, n, err := phase.fn()
+			mu.Lock()
+			p.addPhase(phase.op, t, n, err)
+			mu.Unlock()
 		})
 	}
 	wg.Wait()
-	return int(t2.Load()), int(n2.Load())
+	return opErrsResult(&p)
 }
 
 // logGroupARN strips the trailing ":*" the CloudWatch Logs API appends to log
@@ -200,45 +289,31 @@ func logGroupARN(arn *string) string {
 
 // --- Phase 1 scanners ---
 
-// scanLogsLogGroups discovers all CloudWatch Logs log groups in the region.
-// DescribeLogGroups doesn't return tags inline (needs a separate
-// ListTagsForResource call); tag fetching is skipped to keep scanning fast.
-func scanLogsLogGroups(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cwlogs.NewDescribeLogGroupsPaginator(client, &cwlogs.DescribeLogGroupsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "logs:DescribeLogGroups", acct.ID, region, err)
+// scanLogsLogGroups stores the region's log groups a page at a time, each
+// with its tags (logsTags). DescribeLogGroups returns no tags. It sets
+// *denied when a page was denied. Counts and errors go to p; it reports
+// whether a write failed.
+func scanLogsLogGroups(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, denied *bool, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, logsDescribeLogGroupsOp,
+		func(ctx context.Context, token *string) ([]logsTypes.LogGroup, *string, error) {
+			out, err := client.DescribeLogGroups(ctx, &cwlogs.DescribeLogGroupsInput{Limit: sdkaws.Int32(logsDescribePageSize), NextToken: token})
+			if err != nil {
+				if isAccessDenied(err) {
+					*denied = true
+				}
+				return nil, nil, err
 			}
-			return total, inserted, fmt.Errorf("logs:DescribeLogGroups: %w", err)
-		}
-		var batch []*store.Resource
-		for _, g := range page.LogGroups {
+			return out.LogGroups, out.NextToken, nil
+		},
+		func(g logsTypes.LogGroup) (*store.Resource, string, string) {
 			name := sv(g.LogGroupName)
 			nativeID := logGroupARN(g.Arn)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeLogsLogGroup,
-				NativeID:       nativeID,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(g),
-				DiscoveredBy:   scanID,
+			return logsRow("log groups", nativeID, name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLogsLogGroup, NativeID: nativeID, Name: &name, Region: &region,
+				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
 			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert log groups: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
+		}, tags, p)
 }
 
 // scanLogsAccountPolicies discovers all CloudWatch Logs account-level policies.
@@ -290,160 +365,89 @@ func scanLogsAccountPolicies(ctx context.Context, client cwlogsAPI, acct *accoun
 	return
 }
 
-// scanLogsDeliveries discovers all CloudWatch Logs deliveries in the region.
-func scanLogsDeliveries(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cwlogs.NewDescribeDeliveriesPaginator(client, &cwlogs.DescribeDeliveriesInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "logs:DescribeDeliveries", acct.ID, region, err)
+// scanLogsDeliveries stores the region's deliveries with the tags each
+// element carries.
+func scanLogsDeliveries(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, logsDescribeDeliveriesOp,
+		func(ctx context.Context, token *string) ([]logsTypes.Delivery, *string, error) {
+			out, err := client.DescribeDeliveries(ctx, &cwlogs.DescribeDeliveriesInput{Limit: sdkaws.Int32(logsDescribePageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return total, inserted, fmt.Errorf("logs:DescribeDeliveries: %w", err)
-		}
-		var batch []*store.Resource
-		for _, d := range page.Deliveries {
-			arn := sv(d.Arn)
+			return out.Deliveries, out.NextToken, nil
+		},
+		func(d logsTypes.Delivery) (*store.Resource, string, string) {
 			name := sv(d.DeliverySourceName) // human-readable name
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeLogsDelivery,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(d),
-				DiscoveredBy:   scanID,
+			return logsRow("deliveries", sv(d.Arn), cmp.Or(sv(d.Id), name), &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLogsDelivery, NativeID: sv(d.Arn), Name: &name, Region: &region,
+				AttributesJSON: mustJSON(d), TagsJSON: mapTagsJSON(d.Tags), DiscoveredBy: scanID,
 			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert deliveries: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
+		})
 }
 
-// scanLogsDeliveryDestinations discovers all CloudWatch Logs delivery destinations.
-func scanLogsDeliveryDestinations(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cwlogs.NewDescribeDeliveryDestinationsPaginator(client, &cwlogs.DescribeDeliveryDestinationsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "logs:DescribeDeliveryDestinations", acct.ID, region, err)
+// scanLogsDeliveryDestinations stores the region's delivery destinations with
+// the tags each element carries.
+func scanLogsDeliveryDestinations(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, logsDescribeDeliveryDestinationsOp,
+		func(ctx context.Context, token *string) ([]logsTypes.DeliveryDestination, *string, error) {
+			out, err := client.DescribeDeliveryDestinations(ctx, &cwlogs.DescribeDeliveryDestinationsInput{Limit: sdkaws.Int32(logsDescribePageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return total, inserted, fmt.Errorf("logs:DescribeDeliveryDestinations: %w", err)
-		}
-		var batch []*store.Resource
-		for _, d := range page.DeliveryDestinations {
-			arn := sv(d.Arn)
+			return out.DeliveryDestinations, out.NextToken, nil
+		},
+		func(d logsTypes.DeliveryDestination) (*store.Resource, string, string) {
 			name := sv(d.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeLogsDeliveryDest,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(d),
-				DiscoveredBy:   scanID,
+			return logsRow("delivery destinations", sv(d.Arn), name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLogsDeliveryDest, NativeID: sv(d.Arn), Name: &name, Region: &region,
+				AttributesJSON: mustJSON(d), TagsJSON: mapTagsJSON(d.Tags), DiscoveredBy: scanID,
 			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert delivery destinations: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
+		})
 }
 
-// scanLogsDeliverySources discovers all CloudWatch Logs delivery sources.
-func scanLogsDeliverySources(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cwlogs.NewDescribeDeliverySourcesPaginator(client, &cwlogs.DescribeDeliverySourcesInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "logs:DescribeDeliverySources", acct.ID, region, err)
+// scanLogsDeliverySources stores the region's delivery sources with the tags
+// each element carries.
+func scanLogsDeliverySources(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, logsDescribeDeliverySourcesOp,
+		func(ctx context.Context, token *string) ([]logsTypes.DeliverySource, *string, error) {
+			out, err := client.DescribeDeliverySources(ctx, &cwlogs.DescribeDeliverySourcesInput{Limit: sdkaws.Int32(logsDescribePageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return total, inserted, fmt.Errorf("logs:DescribeDeliverySources: %w", err)
-		}
-		var batch []*store.Resource
-		for _, s := range page.DeliverySources {
-			arn := sv(s.Arn)
+			return out.DeliverySources, out.NextToken, nil
+		},
+		func(s logsTypes.DeliverySource) (*store.Resource, string, string) {
 			name := sv(s.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeLogsDeliverySource,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(s),
-				DiscoveredBy:   scanID,
+			return logsRow("delivery sources", sv(s.Arn), name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLogsDeliverySource, NativeID: sv(s.Arn), Name: &name, Region: &region,
+				AttributesJSON: mustJSON(s), TagsJSON: mapTagsJSON(s.Tags), DiscoveredBy: scanID,
 			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return total, inserted, fmt.Errorf("upsert delivery sources: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
+		})
 }
 
-// scanLogsDestinations discovers all CloudWatch Logs cross-account destinations.
-func scanLogsDestinations(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cwlogs.NewDescribeDestinationsPaginator(client, &cwlogs.DescribeDestinationsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "logs:DescribeDestinations", acct.ID, region, err)
-			}
-			return total, inserted, fmt.Errorf("logs:DescribeDestinations: %w", err)
-		}
-		var batch []*store.Resource
-		for _, d := range page.Destinations {
-			arn := sv(d.Arn)
-			name := sv(d.DestinationName)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeLogsDestination,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(d),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+// scanLogsDestinations stores the region's cross-account destinations a page
+// at a time, each with its tags (logsTags). Counts and errors go to p; it
+// reports whether a write failed.
+func scanLogsDestinations(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, logsDescribeDestinationsOp,
+		func(ctx context.Context, token *string) ([]logsTypes.Destination, *string, error) {
+			out, err := client.DescribeDestinations(ctx, &cwlogs.DescribeDestinationsInput{Limit: sdkaws.Int32(logsDescribePageSize), NextToken: token})
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert destinations: %w", err)
+				return nil, nil, err
 			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
+			return out.Destinations, out.NextToken, nil
+		},
+		func(d logsTypes.Destination) (*store.Resource, string, string) {
+			name := sv(d.DestinationName)
+			return logsRow("destinations", sv(d.Arn), name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLogsDestination, NativeID: sv(d.Arn), Name: &name, Region: &region,
+				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+			})
+		}, tags, p)
 }
 
 // scanLogsIntegrations discovers all CloudWatch Logs integrations, fetching
@@ -514,43 +518,26 @@ func scanLogsIntegrations(ctx context.Context, client cwlogsAPI, acct *account, 
 	return 0, 0, nil
 }
 
-// scanLogsLogAnomalyDetectors discovers all CloudWatch Logs anomaly detectors.
-func scanLogsLogAnomalyDetectors(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cwlogs.NewListLogAnomalyDetectorsPaginator(client, &cwlogs.ListLogAnomalyDetectorsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "logs:ListLogAnomalyDetectors", acct.ID, region, err)
-			}
-			return total, inserted, fmt.Errorf("logs:ListLogAnomalyDetectors: %w", err)
-		}
-		var batch []*store.Resource
-		for _, d := range page.AnomalyDetectors {
-			arn := sv(d.AnomalyDetectorArn)
-			name := sv(d.DetectorName)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeLogsLogAnomalyDetector,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(d),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+// scanLogsLogAnomalyDetectors stores the region's log anomaly detectors a
+// page at a time, each with its tags (logsTags). Counts and errors go to p;
+// it reports whether a write failed.
+func scanLogsLogAnomalyDetectors(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, logsListLogAnomalyDetectorsOp,
+		func(ctx context.Context, token *string) ([]logsTypes.AnomalyDetector, *string, error) {
+			out, err := client.ListLogAnomalyDetectors(ctx, &cwlogs.ListLogAnomalyDetectorsInput{Limit: sdkaws.Int32(logsDescribePageSize), NextToken: token})
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert log anomaly detectors: %w", err)
+				return nil, nil, err
 			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
+			return out.AnomalyDetectors, out.NextToken, nil
+		},
+		func(d logsTypes.AnomalyDetector) (*store.Resource, string, string) {
+			name := sv(d.DetectorName)
+			return logsRow("log anomaly detectors", sv(d.AnomalyDetectorArn), name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLogsLogAnomalyDetector, NativeID: sv(d.AnomalyDetectorArn), Name: &name, Region: &region,
+				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+			})
+		}, tags, p)
 }
 
 // scanLogsMetricFilters discovers all CloudWatch Logs metric filters in the
@@ -701,105 +688,70 @@ func scanLogsResourcePolicies(ctx context.Context, client cwlogsAPI, acct *accou
 	return
 }
 
-// scanLogsLookupTables discovers all CloudWatch Logs lookup tables in the
-// region; DescribeLookupTables has no SDK paginator, so use a manual
-// NextToken loop.
-func scanLogsLookupTables(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var nextToken *string
-	for {
-		out, err := client.DescribeLookupTables(ctx, &cwlogs.DescribeLookupTablesInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "logs:DescribeLookupTables", acct.ID, region, err)
-			}
-			return total, inserted, fmt.Errorf("logs:DescribeLookupTables: %w", err)
-		}
-		var batch []*store.Resource
-		for _, lt := range out.LookupTables {
-			arn := sv(lt.LookupTableArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeLogsLookupTable,
-				NativeID:       arn,
-				Name:           lt.LookupTableName,
-				Region:         &region,
-				AttributesJSON: mustJSON(lt),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+// scanLogsLookupTables stores the region's lookup tables a page at a time,
+// each with its tags (logsTags). DescribeLookupTables has no SDK paginator.
+// Counts and errors go to p; it reports whether a write failed.
+func scanLogsLookupTables(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, logsDescribeLookupTablesOp,
+		func(ctx context.Context, token *string) ([]logsTypes.LookupTable, *string, error) {
+			out, err := client.DescribeLookupTables(ctx, &cwlogs.DescribeLookupTablesInput{MaxResults: logsLookupTablesPageSize, NextToken: token})
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert lookup tables: %w", err)
+				return nil, nil, err
 			}
-			total += len(batch)
-			inserted += n
-		}
-		nextToken = out.NextToken
-		if nextToken == nil {
-			break
-		}
-	}
-	return
+			return out.LookupTables, out.NextToken, nil
+		},
+		func(lt logsTypes.LookupTable) (*store.Resource, string, string) {
+			return logsRow("lookup tables", sv(lt.LookupTableArn), sv(lt.LookupTableName), &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLogsLookupTable, NativeID: sv(lt.LookupTableArn), Name: lt.LookupTableName, Region: &region,
+				AttributesJSON: mustJSON(lt), DiscoveredBy: scanID,
+			})
+		}, tags, p)
 }
 
-// scanLogsScheduledQueries discovers all CloudWatch Logs Insights Live Tail
-// scheduled queries in the region.
-func scanLogsScheduledQueries(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cwlogs.NewListScheduledQueriesPaginator(client, &cwlogs.ListScheduledQueriesInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return total, inserted, skipIfAccessDenied(st, "logs:ListScheduledQueries", acct.ID, region, err)
-			}
-			return total, inserted, fmt.Errorf("logs:ListScheduledQueries: %w", err)
-		}
-		var batch []*store.Resource
-		for _, q := range page.ScheduledQueries {
-			arn := sv(q.ScheduledQueryArn)
-			name := sv(q.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeLogsScheduledQuery,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(q),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+// scanLogsScheduledQueries stores the region's scheduled queries a page at a
+// time, each with its tags (logsTags). Counts and errors go to p; it reports
+// whether a write failed.
+func scanLogsScheduledQueries(ctx context.Context, client cwlogsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, logsListScheduledQueriesOp,
+		func(ctx context.Context, token *string) ([]logsTypes.ScheduledQuerySummary, *string, error) {
+			out, err := client.ListScheduledQueries(ctx, &cwlogs.ListScheduledQueriesInput{MaxResults: sdkaws.Int32(logsScheduledQueriesPageSize), NextToken: token})
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert scheduled queries: %w", err)
+				return nil, nil, err
 			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return
+			return out.ScheduledQueries, out.NextToken, nil
+		},
+		func(q logsTypes.ScheduledQuerySummary) (*store.Resource, string, string) {
+			name := sv(q.Name)
+			return logsRow("scheduled queries", sv(q.ScheduledQueryArn), name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLogsScheduledQuery, NativeID: sv(q.ScheduledQueryArn), Name: &name, Region: &region,
+				AttributesJSON: mustJSON(q), DiscoveredBy: scanID,
+			})
+		}, tags, p)
 }
 
 // --- Phase 2 helpers ---
 
-// loadLogGroupsForRegion loads all log-group resources for the account and
-// region, for use by per-log-group Phase 2 scanners.
-func loadLogGroupsForRegion(acct *account, region string, st *store.Store) ([]store.Resource, error) {
-	return st.ListResources(store.ResourceFilter{
+// loadLogGroupsForRegion loads the log groups scan scanID stored for the
+// account and region, for use by per-log-group Phase 2 scanners. A group
+// stored by an earlier scan and not listed by this one (deleted since, or
+// dropped as not found by its tag read) is not loaded, unless listDenied: a
+// denied DescribeLogGroups confirms none of the groups after the denied page,
+// so every group stored for the region is loaded rather than none of them.
+func loadLogGroupsForRegion(acct *account, region string, st *store.Store, scanID string, listDenied bool) ([]store.Resource, error) {
+	f := store.ResourceFilter{
 		Providers: []string{"aws"},
 		AccountID: acct.ID,
 		Types:     []string{TypeLogsLogGroup},
 		Regions:   []string{region},
+		SeenBy:    scanID,
 		Limit:     util.AllResources,
-	})
+	}
+	if listDenied {
+		f.SeenBy = ""
+	}
+	return st.ListResources(f)
 }
 
 // --- Phase 2 scanners ---
