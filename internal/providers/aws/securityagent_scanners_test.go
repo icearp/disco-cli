@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
+	"net"
 	"slices"
 	"strings"
 	"sync"
@@ -623,6 +625,7 @@ func saTopLevelHandlers() map[string]func(in any) (any, error) {
 	var lists, members, resources parentCalls
 	var gets batchCalls
 	h := saPentestHandlers(&lists, &gets, nil)
+	h["ListTagsForResource"] = func(any) (any, error) { return &securityagent.ListTagsForResourceOutput{}, nil }
 	h["ListAgentSpaces"] = func(in any) (any, error) {
 		if in.(*securityagent.ListAgentSpacesInput).NextToken == nil {
 			return &securityagent.ListAgentSpacesOutput{AgentSpaceSummaries: []satypes.AgentSpaceSummary{{AgentSpaceId: ptrStr("s1"), Name: ptrStr("one")}}, NextToken: ptrStr("p2")}, nil
@@ -760,13 +763,15 @@ func TestScanSASecurityRequirementPacks_ReturnsCustomerManaged(t *testing.T) {
 				{PackId: ptrStr("pk2"), ManagementType: satypes.ManagementTypeCustomerManaged},
 			}}, nil
 		},
+		"ListTagsForResource": func(any) (any, error) { return &securityagent.ListTagsForResourceOutput{}, nil },
 	})
-	packs, total, _, err := scanSASecurityRequirementPacks(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scanSASecurityRequirementPacks: %v", err)
+	var p phaseTotals
+	packs, failed := scanSASecurityRequirementPacks(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saTags(client), &p)
+	if failed || len(p.errs) != 0 {
+		t.Fatalf("scanSASecurityRequirementPacks failed = %v, errs = %v", failed, p.errs)
 	}
-	if !slices.Equal(packs, saPacks) || total != 3 {
-		t.Errorf("packs = %v, total = %d; want %v, 3", packs, total, saPacks)
+	if !slices.Equal(packs, saPacks) || p.total != 3 {
+		t.Errorf("packs = %v, total = %d; want %v, 3", packs, p.total, saPacks)
 	}
 	if r := rowsByNativeID(t, st, TypeSecurityAgentSecurityRequirementPack)["arn:aws:securityagent:us-east-1:123456789012:security-requirement-pack/aws1"]; !r.ManagedByProvider {
 		t.Errorf("AWS-managed pack not flagged provider-managed")
@@ -892,5 +897,781 @@ func TestScanSASecurityRequirements_Errors(t *testing.T) {
 		client := saClient(saRequirementHandlers(map[string]error{"pk2": saConflict}, nil))
 		_, _, err := scanSASecurityRequirements(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, saPacks)
 		assertAPICode(t, err, "ConflictException")
+	})
+}
+
+// The tag fixture: each region-wide listing serves a "t" element on its first
+// page and a "b" element on its second; the pack listing's second page also
+// holds the AWS-managed pack aws-pk. Every "t" resource has tags: the private
+// connection's come on its listed element, every other type's from
+// ListTagsForResource. The per-parent listings find nothing.
+const (
+	saTagSpaceT  = "arn:aws:securityagent:us-east-1:123456789012:agent-space/s-t"
+	saTagSpaceB  = "arn:aws:securityagent:us-east-1:123456789012:agent-space/s-b"
+	saTagAppT    = "arn:aws:securityagent:us-east-1:123456789012:application/a-t"
+	saTagAppB    = "arn:aws:securityagent:us-east-1:123456789012:application/a-b"
+	saTagDomainT = "arn:aws:securityagent:us-east-1:123456789012:target-domain/td-t"
+	saTagDomainB = "arn:aws:securityagent:us-east-1:123456789012:target-domain/td-b"
+	saTagIntegT  = "arn:aws:securityagent:us-east-1:123456789012:integration/i-t"
+	saTagIntegB  = "arn:aws:securityagent:us-east-1:123456789012:integration/i-b"
+	saTagConnT   = "arn:aws:securityagent:us-east-1:123456789012:private-connection/pc-t"
+	saTagConnB   = "arn:aws:securityagent:us-east-1:123456789012:private-connection/pc-b"
+	saTagPackT   = "arn:aws:securityagent:us-east-1:123456789012:security-requirement-pack/pk-t"
+	saTagPackB   = "arn:aws:securityagent:us-east-1:123456789012:security-requirement-pack/pk-b"
+	saTagPackAWS = "arn:aws:securityagent:us-east-1:123456789012:security-requirement-pack/aws-pk"
+	// saTagRows is every row the fixture stores: 2 of each of the six
+	// region-wide types plus the AWS-managed pack.
+	saTagRows = 13
+)
+
+var (
+	saThrottled = apiErr("ThrottlingException", "slow down")
+	// saTagReadARNs is every ARN the fixture sends ListTagsForResource: not
+	// the private connections, whose element carries their tags, nor the
+	// AWS-managed pack.
+	saTagReadARNs = []string{saTagSpaceT, saTagSpaceB, saTagAppT, saTagAppB, saTagDomainT, saTagDomainB, saTagIntegT, saTagIntegB, saTagPackT, saTagPackB}
+)
+
+func saTagSpace(n string) satypes.AgentSpaceSummary {
+	s := satypes.AgentSpaceSummary{AgentSpaceId: ptrStr("s-" + n), Name: ptrStr("space " + n)}
+	if n == "t" {
+		s.CreatedAt = &saCreated
+	}
+	return s
+}
+
+func saTagApp(n string) satypes.ApplicationSummary {
+	return satypes.ApplicationSummary{ApplicationId: ptrStr("a-" + n), ApplicationName: ptrStr("app " + n), Domain: ptrStr(n + ".app.example")}
+}
+
+func saTagDomain(n string) satypes.TargetDomainSummary {
+	d := satypes.TargetDomainSummary{TargetDomainId: ptrStr("td-" + n), DomainName: ptrStr(n + ".example.com")}
+	if n == "t" {
+		d.VerificationStatus = satypes.TargetDomainStatusVerified
+	}
+	return d
+}
+
+func saTagIntegration(n string) satypes.IntegrationSummary {
+	return satypes.IntegrationSummary{IntegrationId: ptrStr("i-" + n), DisplayName: ptrStr("integration " + n), Provider: satypes.ProviderGithub}
+}
+
+func saTagConnection(n string) satypes.PrivateConnectionSummary {
+	c := satypes.PrivateConnectionSummary{Name: ptrStr("pc-" + n), Type: satypes.PrivateConnectionTypeServiceManaged}
+	if n == "t" {
+		c.Status = satypes.PrivateConnectionStatusActive
+		c.Tags = map[string]string{"type": TypeSecurityAgentPrivateConnection}
+	}
+	return c
+}
+
+func saTagPack(id string, mt satypes.ManagementType) satypes.SecurityRequirementPackSummary {
+	p := satypes.SecurityRequirementPackSummary{PackId: ptrStr(id), Name: ptrStr("pack " + id), ManagementType: mt}
+	if id != "pk-b" {
+		p.Status = satypes.SecurityRequirementPackStatusEnabled
+		p.CreatedAt = &saCreated
+	}
+	return p
+}
+
+// saTagWant is one row the fixture stores, as the scan must store it.
+type saTagWant struct {
+	typ, arn, name  string
+	status, created *string
+	managed         bool
+	attrs           string
+	tags            map[string]string
+}
+
+func saTagWants() []saTagWant {
+	created := ptrStr("2026-09-01T12:00:00Z")
+	tagged := func(typ string) map[string]string { return map[string]string{"type": typ} }
+	return []saTagWant{
+		{TypeSecurityAgentAgentSpace, saTagSpaceT, "space t", nil, created, false, mustJSON(saTagSpace("t")), tagged(TypeSecurityAgentAgentSpace)},
+		{TypeSecurityAgentAgentSpace, saTagSpaceB, "space b", nil, nil, false, mustJSON(saTagSpace("b")), nil},
+		{TypeSecurityAgentApplication, saTagAppT, "app t", nil, nil, false, mustJSON(saTagApp("t")), tagged(TypeSecurityAgentApplication)},
+		{TypeSecurityAgentApplication, saTagAppB, "app b", nil, nil, false, mustJSON(saTagApp("b")), nil},
+		{TypeSecurityAgentTargetDomain, saTagDomainT, "t.example.com", ptrStr("VERIFIED"), nil, false, mustJSON(saTagDomain("t")), tagged(TypeSecurityAgentTargetDomain)},
+		{TypeSecurityAgentTargetDomain, saTagDomainB, "b.example.com", nil, nil, false, mustJSON(saTagDomain("b")), nil},
+		{TypeSecurityAgentIntegration, saTagIntegT, "integration t", nil, nil, false, mustJSON(saTagIntegration("t")), tagged(TypeSecurityAgentIntegration)},
+		{TypeSecurityAgentIntegration, saTagIntegB, "integration b", nil, nil, false, mustJSON(saTagIntegration("b")), nil},
+		{TypeSecurityAgentPrivateConnection, saTagConnT, "pc-t", ptrStr("ACTIVE"), nil, false, mustJSON(saTagConnection("t")), tagged(TypeSecurityAgentPrivateConnection)},
+		{TypeSecurityAgentPrivateConnection, saTagConnB, "pc-b", nil, nil, false, mustJSON(saTagConnection("b")), nil},
+		{TypeSecurityAgentSecurityRequirementPack, saTagPackT, "pack pk-t", ptrStr("ENABLED"), created, false, mustJSON(saTagPack("pk-t", satypes.ManagementTypeCustomerManaged)), tagged(TypeSecurityAgentSecurityRequirementPack)},
+		{TypeSecurityAgentSecurityRequirementPack, saTagPackB, "pack pk-b", nil, nil, false, mustJSON(saTagPack("pk-b", satypes.ManagementTypeCustomerManaged)), nil},
+		{TypeSecurityAgentSecurityRequirementPack, saTagPackAWS, "pack aws-pk", ptrStr("ENABLED"), created, true, mustJSON(saTagPack("aws-pk", satypes.ManagementTypeAwsManaged)), nil},
+	}
+}
+
+// saTagCalls records the stubbed calls, the parent each per-parent listing
+// was sent, and answers ListTagsForResource from tags and errs, keyed by ARN.
+type saTagCalls struct {
+	*bacCalls
+	parents map[string]*parentCalls
+}
+
+func newSATagCalls() *saTagCalls {
+	c := &saTagCalls{bacCalls: newBACCalls(), parents: map[string]*parentCalls{}}
+	for _, w := range saTagWants() {
+		if w.tags != nil && w.typ != TypeSecurityAgentPrivateConnection {
+			c.tags[w.arn] = w.tags
+		}
+	}
+	return c
+}
+
+func (c *saTagCalls) listTags(in any) (any, error) {
+	c.called("ListTagsForResource", in)
+	arn := sv(in.(*securityagent.ListTagsForResourceInput).ResourceArn)
+	c.mu.Lock()
+	c.tagARNs = append(c.tagARNs, arn)
+	err, tags := c.errs[arn], c.tags[arn]
+	c.mu.Unlock()
+	if err != nil {
+		return nil, err
+	}
+	return &securityagent.ListTagsForResourceOutput{Tags: tags}, nil
+}
+
+// twoPages answers op with "t" on the first page and "b" on the second.
+func (c *saTagCalls) twoPages(op string, out func(n string, next *string) any) func(any) (any, error) {
+	return c.answer(op, func(in any) any {
+		if bacField[*string](in, "NextToken") == nil {
+			return out("t", ptrStr("p2"))
+		}
+		return out("b", nil)
+	})
+}
+
+// noChildren answers a per-parent listing with out(), recording the parent
+// named by field (and, for memberships, the application). out builds a new
+// output per call: the SDK writes ResultMetadata into it, and the parents'
+// calls run concurrently.
+func (c *saTagCalls) noChildren(op, field string, out func() any) func(any) (any, error) {
+	c.parents[op] = &parentCalls{}
+	return func(in any) (any, error) {
+		c.called(op, in)
+		parent := sv(bacField[*string](in, field))
+		if app := bacField[*string](in, "ApplicationId"); app != nil {
+			parent += "/" + *app
+		}
+		c.parents[op].add(parent)
+		return out(), nil
+	}
+}
+
+func saTagHandlers(c *saTagCalls) map[string]func(in any) (any, error) {
+	return map[string]func(in any) (any, error){
+		"ListTagsForResource": c.listTags,
+		"ListAgentSpaces": c.twoPages("ListAgentSpaces", func(n string, next *string) any {
+			return &securityagent.ListAgentSpacesOutput{AgentSpaceSummaries: []satypes.AgentSpaceSummary{saTagSpace(n)}, NextToken: next}
+		}),
+		"ListApplications": c.twoPages("ListApplications", func(n string, next *string) any {
+			return &securityagent.ListApplicationsOutput{ApplicationSummaries: []satypes.ApplicationSummary{saTagApp(n)}, NextToken: next}
+		}),
+		"ListTargetDomains": c.twoPages("ListTargetDomains", func(n string, next *string) any {
+			return &securityagent.ListTargetDomainsOutput{TargetDomainSummaries: []satypes.TargetDomainSummary{saTagDomain(n)}, NextToken: next}
+		}),
+		"ListIntegrations": c.twoPages("ListIntegrations", func(n string, next *string) any {
+			return &securityagent.ListIntegrationsOutput{IntegrationSummaries: []satypes.IntegrationSummary{saTagIntegration(n)}, NextToken: next}
+		}),
+		"ListPrivateConnections": c.twoPages("ListPrivateConnections", func(n string, next *string) any {
+			return &securityagent.ListPrivateConnectionsOutput{PrivateConnections: []satypes.PrivateConnectionSummary{saTagConnection(n)}, NextToken: next}
+		}),
+		"ListSecurityRequirementPacks": c.twoPages("ListSecurityRequirementPacks", func(n string, next *string) any {
+			packs := []satypes.SecurityRequirementPackSummary{saTagPack("pk-"+n, satypes.ManagementTypeCustomerManaged)}
+			if n == "b" {
+				packs = append(packs, saTagPack("aws-pk", satypes.ManagementTypeAwsManaged))
+			}
+			return &securityagent.ListSecurityRequirementPacksOutput{SecurityRequirementPackSummaries: packs, NextToken: next}
+		}),
+		"ListPentests":             c.noChildren("ListPentests", "AgentSpaceId", func() any { return &securityagent.ListPentestsOutput{} }),
+		"ListCodeReviews":          c.noChildren("ListCodeReviews", "AgentSpaceId", func() any { return &securityagent.ListCodeReviewsOutput{} }),
+		"ListThreatModels":         c.noChildren("ListThreatModels", "AgentSpaceId", func() any { return &securityagent.ListThreatModelsOutput{} }),
+		"ListMemberships":          c.noChildren("ListMemberships", "AgentSpaceId", func() any { return &securityagent.ListMembershipsOutput{} }),
+		"ListIntegratedResources":  c.noChildren("ListIntegratedResources", "AgentSpaceId", func() any { return &securityagent.ListIntegratedResourcesOutput{} }),
+		"ListSecurityRequirements": c.noChildren("ListSecurityRequirements", "PackId", func() any { return &securityagent.ListSecurityRequirementsOutput{} }),
+	}
+}
+
+// saTagScan runs the scan's real entry point against handlers; every op they
+// do not answer is denied.
+func saTagScan(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, saDenied)
+	return scanSecurityAgent(ctx, acct, testRegion, st, testScanID)
+}
+
+func saRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, bool) {
+	t.Helper()
+	r, ok := rowsByNativeID(t, st, typ)[arn]
+	return r, ok
+}
+
+func saSamePtr(a, b *string) bool { return (a == nil) == (b == nil) && sv(a) == sv(b) }
+
+// Every row keeps the base scan's identity, Name, Status and attributes and
+// gains the element's CreatedAt where it has one. The private connection
+// stores the tags its element carries; every other type the tags
+// ListTagsForResource returns for its ARN, built from the listed id, nil for
+// a resource without tags. The AWS-managed pack is not read and stored
+// without tags. Every listing page is read without a page size (the model
+// gives no range), and each per-parent listing is sent each stored parent;
+// only customer-managed packs have their requirements listed.
+func TestScanSecurityAgent_StoresTagsOfEveryType(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	calls := newSATagCalls()
+
+	total, inserted, err := saTagScan(context.Background(), st, saTagHandlers(calls))
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != saTagRows || inserted != saTagRows || countStoredRows(t, st) != saTagRows {
+		t.Errorf("total, inserted, stored = %d, %d, %d; want %d", total, inserted, countStoredRows(t, st), saTagRows)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0", *warns)
+	}
+	for _, want := range saTagWants() {
+		r, ok := saRowOf(t, st, want.typ, want.arn)
+		if !ok {
+			t.Errorf("%s %s not stored", want.typ, want.arn)
+			continue
+		}
+		if want.tags != nil {
+			assertTagsMap(t, r.TagsJSON, want.tags)
+		} else if r.TagsJSON != nil {
+			t.Errorf("%s TagsJSON = %s; want nil", want.arn, *r.TagsJSON)
+		}
+		if sv(r.Name) != want.name || sv(r.Region) != testRegion || r.ManagedByProvider != want.managed {
+			t.Errorf("%s Name, Region, managed = %v, %v, %v; want %s, %s, %v", want.arn, sv(r.Name), sv(r.Region), r.ManagedByProvider, want.name, testRegion, want.managed)
+		}
+		if !saSamePtr(r.Status, want.status) || !saSamePtr(r.CreatedAt, want.created) {
+			t.Errorf("%s Status, CreatedAt = %v, %v; want %v, %v", want.arn, r.Status, r.CreatedAt, want.status, want.created)
+		}
+		if r.AttributesJSON != want.attrs {
+			t.Errorf("%s attributes = %s; want %s", want.arn, r.AttributesJSON, want.attrs)
+		}
+	}
+	if got, want := slices.Sorted(slices.Values(calls.tagARNs)), slices.Sorted(slices.Values(saTagReadARNs)); !slices.Equal(got, want) {
+		t.Errorf("ListTagsForResource ARNs = %v; want %v", got, want)
+	}
+	for _, op := range []string{"ListAgentSpaces", "ListApplications", "ListTargetDomains", "ListIntegrations", "ListPrivateConnections", "ListSecurityRequirementPacks"} {
+		if n, caps := calls.count(op), calls.maxResults[op]; n != 2 || len(caps) != 0 {
+			t.Errorf("%s calls, MaxResults = %d, %v; want 2, none sent", op, n, caps)
+		}
+	}
+	spaces := []string{"s-b", "s-t"}
+	for op, want := range map[string][]string{
+		"ListPentests":             spaces,
+		"ListCodeReviews":          spaces,
+		"ListThreatModels":         spaces,
+		"ListIntegratedResources":  spaces,
+		"ListMemberships":          {"s-b/a-b", "s-b/a-t", "s-t/a-b", "s-t/a-t"},
+		"ListSecurityRequirements": {"pk-b", "pk-t"},
+	} {
+		if got := calls.parents[op].distinct(); !slices.Equal(got, want) {
+			t.Errorf("%s parents = %v; want %v", op, got, want)
+		}
+	}
+}
+
+// An aws-us-gov account scanned in us-gov-west-1 sends the tag op the ARNs
+// built in the account's partition and region.
+func TestScanSecurityAgent_GovCloudARNsReachTagOp(t *testing.T) {
+	const (
+		govRegion = "us-gov-west-1"
+		space     = "arn:aws-us-gov:securityagent:us-gov-west-1:123456789012:agent-space/s-gov"
+		app       = "arn:aws-us-gov:securityagent:us-gov-west-1:123456789012:application/a-gov"
+		domain    = "arn:aws-us-gov:securityagent:us-gov-west-1:123456789012:target-domain/td-gov"
+		integ     = "arn:aws-us-gov:securityagent:us-gov-west-1:123456789012:integration/i-gov"
+		pack      = "arn:aws-us-gov:securityagent:us-gov-west-1:123456789012:security-requirement-pack/pk-gov"
+	)
+	st := newTestStore(t)
+	calls := newSATagCalls()
+	h := saTagHandlers(calls)
+	h["ListAgentSpaces"] = calls.answer("ListAgentSpaces", func(any) any {
+		return &securityagent.ListAgentSpacesOutput{AgentSpaceSummaries: []satypes.AgentSpaceSummary{{AgentSpaceId: ptrStr("s-gov")}}}
+	})
+	h["ListApplications"] = calls.answer("ListApplications", func(any) any {
+		return &securityagent.ListApplicationsOutput{ApplicationSummaries: []satypes.ApplicationSummary{{ApplicationId: ptrStr("a-gov")}}}
+	})
+	h["ListTargetDomains"] = calls.answer("ListTargetDomains", func(any) any {
+		return &securityagent.ListTargetDomainsOutput{TargetDomainSummaries: []satypes.TargetDomainSummary{{TargetDomainId: ptrStr("td-gov")}}}
+	})
+	h["ListIntegrations"] = calls.answer("ListIntegrations", func(any) any {
+		return &securityagent.ListIntegrationsOutput{IntegrationSummaries: []satypes.IntegrationSummary{{IntegrationId: ptrStr("i-gov")}}}
+	})
+	h["ListPrivateConnections"] = calls.answer("ListPrivateConnections", func(any) any { return &securityagent.ListPrivateConnectionsOutput{} })
+	h["ListSecurityRequirementPacks"] = calls.answer("ListSecurityRequirementPacks", func(any) any {
+		return &securityagent.ListSecurityRequirementPacksOutput{SecurityRequirementPackSummaries: []satypes.SecurityRequirementPackSummary{{PackId: ptrStr("pk-gov"), ManagementType: satypes.ManagementTypeCustomerManaged}}}
+	})
+	want := []string{app, space, integ, pack, domain}
+	for _, arn := range want {
+		calls.tags[arn] = map[string]string{"env": "gov"}
+	}
+	acct := partitionAccount("aws-us-gov")
+	acct.cfg = opStubConfig(h, saDenied)
+
+	total, _, err := scanSecurityAgent(context.Background(), acct, govRegion, st, testScanID)
+	if err != nil || total != len(want) {
+		t.Fatalf("scan = %d, %v; want %d, nil", total, err, len(want))
+	}
+	if got, want := slices.Sorted(slices.Values(calls.tagARNs)), slices.Sorted(slices.Values(want)); !slices.Equal(got, want) {
+		t.Errorf("ListTagsForResource ARNs = %v; want %v", got, want)
+	}
+	for _, c := range []struct{ typ, arn string }{
+		{TypeSecurityAgentAgentSpace, space},
+		{TypeSecurityAgentApplication, app},
+		{TypeSecurityAgentTargetDomain, domain},
+		{TypeSecurityAgentIntegration, integ},
+		{TypeSecurityAgentSecurityRequirementPack, pack},
+	} {
+		r, ok := saRowOf(t, st, c.typ, c.arn)
+		if !ok {
+			t.Fatalf("%s %s not stored", c.typ, c.arn)
+		}
+		assertTagsMap(t, r.TagsJSON, map[string]string{"env": "gov"})
+		if sv(r.Region) != govRegion {
+			t.Errorf("%s Region = %v; want %s", c.arn, sv(r.Region), govRegion)
+		}
+	}
+}
+
+// Empty listings store nothing, make no per-parent listing, read no tags and
+// report nothing.
+func TestScanSecurityAgent_EmptyListings(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	calls := newSATagCalls()
+	h := saTagHandlers(calls)
+	for op, out := range map[string]any{
+		"ListAgentSpaces":              &securityagent.ListAgentSpacesOutput{},
+		"ListApplications":             &securityagent.ListApplicationsOutput{},
+		"ListTargetDomains":            &securityagent.ListTargetDomainsOutput{},
+		"ListIntegrations":             &securityagent.ListIntegrationsOutput{},
+		"ListPrivateConnections":       &securityagent.ListPrivateConnectionsOutput{},
+		"ListSecurityRequirementPacks": &securityagent.ListSecurityRequirementPacksOutput{},
+	} {
+		h[op] = calls.answer(op, func(any) any { return out })
+	}
+
+	total, inserted, err := saTagScan(context.Background(), st, h)
+	if err != nil || total != 0 || inserted != 0 {
+		t.Fatalf("scan = %d, %d, %v; want 0, 0, nil", total, inserted, err)
+	}
+	if *warns != 0 || len(calls.tagARNs) != 0 {
+		t.Errorf("warnings, tag reads = %d, %v; want 0, none", *warns, calls.tagARNs)
+	}
+	for op := range calls.parents {
+		if n := calls.count(op); n != 0 {
+			t.Errorf("%s called %d times with no parent", op, n)
+		}
+	}
+}
+
+// A rescan stores the same rows without inserting any.
+func TestScanSecurityAgent_RescanInsertsNone(t *testing.T) {
+	st := newTestStore(t)
+	if _, _, err := saTagScan(context.Background(), st, saTagHandlers(newSATagCalls())); err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+	total, inserted, err := saTagScan(context.Background(), st, saTagHandlers(newSATagCalls()))
+	if err != nil {
+		t.Fatalf("rescan: %v", err)
+	}
+	if total != saTagRows || inserted != 0 {
+		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, saTagRows)
+	}
+}
+
+// A failed tag read keeps the row without tags: a denial warns once under
+// securityagent:ListTagsForResource, a throttle after retries is a transient
+// error, and any other code a hard one. The op models no not-found, so a
+// ResourceNotFoundException is a hard error too and the row is kept.
+func TestScanSecurityAgent_TagReadFailures(t *testing.T) {
+	for _, target := range []struct{ typ, arn string }{
+		{TypeSecurityAgentAgentSpace, saTagSpaceT},
+		{TypeSecurityAgentApplication, saTagAppT},
+		{TypeSecurityAgentTargetDomain, saTagDomainT},
+		{TypeSecurityAgentIntegration, saTagIntegT},
+		{TypeSecurityAgentSecurityRequirementPack, saTagPackT},
+	} {
+		t.Run(target.typ, func(t *testing.T) {
+			for _, c := range []struct {
+				name      string
+				err       error
+				outcome   serviceOutcome
+				code      string
+				wantWarns int
+			}{
+				{"denied", saDenied, 0, "", 1},
+				{"not found", saGone, outcomeError, "ResourceNotFoundException", 0},
+				{"other error", saConflict, outcomeError, "ConflictException", 0},
+				{"transient", saThrottled, outcomeTransient, "ThrottlingException", 0},
+			} {
+				t.Run(c.name, func(t *testing.T) {
+					st := newTestStore(t)
+					warnings := bacWarnings(st, saTagsOp)
+					calls := newSATagCalls()
+					calls.errs[target.arn] = c.err
+
+					total, _, err := saTagScan(context.Background(), st, saTagHandlers(calls))
+					if c.outcome == 0 && err != nil {
+						t.Fatalf("err = %v; want nil", err)
+					}
+					if c.outcome != 0 {
+						assertGlueOutcome(t, err, c.outcome)
+						assertAPICode(t, err, c.code)
+					}
+					r, ok := saRowOf(t, st, target.typ, target.arn)
+					if !ok {
+						t.Fatal("row not stored; want it kept")
+					}
+					if r.TagsJSON != nil {
+						t.Errorf("TagsJSON = %q; want nil", *r.TagsJSON)
+					}
+					if stored := countStoredRows(t, st); total != saTagRows || stored != saTagRows {
+						t.Errorf("total, stored = %d, %d; want %d", total, stored, saTagRows)
+					}
+					if len(*warnings) != c.wantWarns {
+						t.Fatalf("%s warnings = %v; want %d", saTagsOp, *warnings, c.wantWarns)
+					}
+					for _, w := range *warnings {
+						if w.Scope != testAccountID+"/"+testRegion {
+							t.Errorf("warning Scope = %q; want %s/%s", w.Scope, testAccountID, testRegion)
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
+// Denied tag reads in several phases are one warning for the scan.
+func TestScanSecurityAgent_TagDenialsWarnOnce(t *testing.T) {
+	st := newTestStore(t)
+	warnings := bacWarnings(st, saTagsOp)
+	calls := newSATagCalls()
+	denied := []struct{ typ, arn string }{
+		{TypeSecurityAgentAgentSpace, saTagSpaceT},
+		{TypeSecurityAgentApplication, saTagAppB},
+		{TypeSecurityAgentTargetDomain, saTagDomainB},
+		{TypeSecurityAgentIntegration, saTagIntegB},
+		{TypeSecurityAgentSecurityRequirementPack, saTagPackT},
+	}
+	for _, d := range denied {
+		calls.errs[d.arn] = saDenied
+	}
+
+	total, _, err := saTagScan(context.Background(), st, saTagHandlers(calls))
+	if err != nil || total != saTagRows {
+		t.Fatalf("scan = %d, %v; want %d, nil", total, err, saTagRows)
+	}
+	if len(*warnings) != 1 || (*warnings)[0].Scope != testAccountID+"/"+testRegion {
+		t.Errorf("%s warnings = %v; want one, scoped %s/%s", saTagsOp, *warnings, testAccountID, testRegion)
+	}
+	for _, d := range denied {
+		if r, ok := saRowOf(t, st, d.typ, d.arn); !ok || r.TagsJSON != nil {
+			t.Errorf("%s stored %v, TagsJSON %v; want it kept without tags", d.arn, ok, r.TagsJSON)
+		}
+	}
+}
+
+// A throttled tag read beside a hard failure of the same op is demoted to
+// one warning, so the hard error decides the outcome.
+func TestScanSecurityAgent_TagThrottleDemotedBesideHardError(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, saTagsOp)
+	calls := newSATagCalls()
+	calls.errs[saTagSpaceT] = saThrottled
+	calls.errs[saTagPackB] = saConflict
+
+	_, _, err := saTagScan(context.Background(), st, saTagHandlers(calls))
+	assertGlueOutcome(t, err, outcomeError)
+	assertAPICode(t, err, "ConflictException")
+	if *warns != 1 {
+		t.Errorf("%s warnings = %d; want 1", saTagsOp, *warns)
+	}
+}
+
+// saPhaseOps is every listing of the scan, in the order it runs them.
+var saPhaseOps = []string{
+	"ListAgentSpaces", "ListApplications", "ListPentests", "ListTargetDomains", "ListIntegrations", "ListPrivateConnections",
+	"ListSecurityRequirementPacks", "ListCodeReviews", "ListThreatModels", "ListMemberships", "ListIntegratedResources", "ListSecurityRequirements",
+}
+
+// A failed write of any region-wide type stops the scan before any later
+// listing and sends no warning about the rows it lost, their denied tag
+// reads included.
+func TestScanSecurityAgent_FailedWriteStopsWithoutWarning(t *testing.T) {
+	for _, c := range []struct {
+		typ, op, deniedARN string
+	}{
+		{TypeSecurityAgentAgentSpace, "ListAgentSpaces", saTagSpaceT},
+		{TypeSecurityAgentApplication, "ListApplications", saTagAppT},
+		{TypeSecurityAgentTargetDomain, "ListTargetDomains", saTagDomainT},
+		{TypeSecurityAgentIntegration, "ListIntegrations", saTagIntegT},
+		{TypeSecurityAgentPrivateConnection, "ListPrivateConnections", ""},
+		{TypeSecurityAgentSecurityRequirementPack, "ListSecurityRequirementPacks", saTagPackT},
+	} {
+		t.Run(c.typ, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countWarnings(st)
+			refuseStoreWrites(t, st, c.typ)
+			calls := newSATagCalls()
+			if c.deniedARN != "" {
+				calls.errs[c.deniedARN] = saDenied
+			}
+			h := saTagHandlers(calls)
+			if c.typ == TypeSecurityAgentPrivateConnection {
+				// A nameless element would warn once its listing's rows are stored.
+				h["ListPrivateConnections"] = calls.answer("ListPrivateConnections", func(any) any {
+					return &securityagent.ListPrivateConnectionsOutput{PrivateConnections: []satypes.PrivateConnectionSummary{saTagConnection("t"), {}}}
+				})
+			}
+
+			_, _, err := saTagScan(context.Background(), st, h)
+			if !errors.Is(err, store.ErrStoreWrite) {
+				t.Fatalf("err = %v; want store.ErrStoreWrite", err)
+			}
+			if *warns != 0 {
+				t.Errorf("warnings = %d; want 0", *warns)
+			}
+			for _, op := range saPhaseOps[slices.Index(saPhaseOps, c.op)+1:] {
+				if n := calls.count(op); n != 0 {
+					t.Errorf("%s called %d times after the failed write", op, n)
+				}
+			}
+		})
+	}
+}
+
+// A listing's failed page keeps the pages read before it, and its rows are
+// still parents; no listing's failure stops the phases after it.
+func TestScanSecurityAgent_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	calls := newSATagCalls()
+	h := saTagHandlers(calls)
+	pageTwo := apiErr("InvalidPaginationTokenException", "page 2")
+	for _, op := range []string{"ListAgentSpaces", "ListApplications", "ListTargetDomains", "ListIntegrations", "ListPrivateConnections", "ListSecurityRequirementPacks"} {
+		h[op] = failOnCall(2, pageTwo, h[op])
+	}
+
+	total, _, err := saTagScan(context.Background(), st, h)
+	assertGlueOutcome(t, err, outcomeError)
+	assertAPICode(t, err, "InvalidPaginationTokenException")
+	if n := len(bacTopMembers(err)); n != 6 {
+		t.Errorf("error members = %d; want one per failed listing, 6 (err %v)", n, err)
+	}
+	var want []string
+	for _, w := range saTagWants() {
+		if strings.HasSuffix(w.arn, "-t") {
+			want = append(want, w.arn)
+		}
+	}
+	if stored := countStoredRows(t, st); total != len(want) || stored != len(want) {
+		t.Errorf("total, stored = %d, %d; want %d", total, stored, len(want))
+	}
+	for _, w := range saTagWants() {
+		if _, ok := saRowOf(t, st, w.typ, w.arn); ok != slices.Contains(want, w.arn) {
+			t.Errorf("%s stored = %v; want %v", w.arn, ok, slices.Contains(want, w.arn))
+		}
+	}
+	for op, want := range map[string][]string{
+		"ListThreatModels":         {"s-t"},
+		"ListMemberships":          {"s-t/a-t"},
+		"ListSecurityRequirements": {"pk-t"},
+	} {
+		if got := calls.parents[op].distinct(); !slices.Equal(got, want) {
+			t.Errorf("%s parents = %v; want %v", op, got, want)
+		}
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0", *warns)
+	}
+}
+
+// A repeated token ends the listing as an error, keeping its pages.
+func TestScanSecurityAgent_RepeatedTokenKeepsPages(t *testing.T) {
+	// out builds a new output per call: the SDK writes ResultMetadata into it.
+	for _, c := range []struct {
+		op, typ, arn string
+		out          func() any
+	}{
+		{"ListAgentSpaces", TypeSecurityAgentAgentSpace, saTagSpaceT, func() any {
+			return &securityagent.ListAgentSpacesOutput{AgentSpaceSummaries: []satypes.AgentSpaceSummary{saTagSpace("t")}, NextToken: ptrStr("same")}
+		}},
+		{"ListApplications", TypeSecurityAgentApplication, saTagAppT, func() any {
+			return &securityagent.ListApplicationsOutput{ApplicationSummaries: []satypes.ApplicationSummary{saTagApp("t")}, NextToken: ptrStr("same")}
+		}},
+		{"ListTargetDomains", TypeSecurityAgentTargetDomain, saTagDomainT, func() any {
+			return &securityagent.ListTargetDomainsOutput{TargetDomainSummaries: []satypes.TargetDomainSummary{saTagDomain("t")}, NextToken: ptrStr("same")}
+		}},
+		{"ListIntegrations", TypeSecurityAgentIntegration, saTagIntegT, func() any {
+			return &securityagent.ListIntegrationsOutput{IntegrationSummaries: []satypes.IntegrationSummary{saTagIntegration("t")}, NextToken: ptrStr("same")}
+		}},
+		{"ListPrivateConnections", TypeSecurityAgentPrivateConnection, saTagConnT, func() any {
+			return &securityagent.ListPrivateConnectionsOutput{PrivateConnections: []satypes.PrivateConnectionSummary{saTagConnection("t")}, NextToken: ptrStr("same")}
+		}},
+		{"ListSecurityRequirementPacks", TypeSecurityAgentSecurityRequirementPack, saTagPackT, func() any {
+			return &securityagent.ListSecurityRequirementPacksOutput{SecurityRequirementPackSummaries: []satypes.SecurityRequirementPackSummary{saTagPack("pk-t", satypes.ManagementTypeCustomerManaged)}, NextToken: ptrStr("same")}
+		}},
+	} {
+		t.Run(c.op, func(t *testing.T) {
+			st := newTestStore(t)
+			h := saTagHandlers(newSATagCalls())
+			h[c.op] = func(any) (any, error) { return c.out(), nil }
+
+			_, _, err := saTagScan(context.Background(), st, h)
+			if !errors.Is(err, errRepeatedNextToken) {
+				t.Fatalf("err = %v; want errRepeatedNextToken", err)
+			}
+			if _, ok := saRowOf(t, st, c.typ, c.arn); !ok {
+				t.Errorf("%s from the pages read missing", c.arn)
+			}
+		})
+	}
+}
+
+// Elements listed without their identifier are not stored or read and are
+// warned about once per listing, under a key that is never empty.
+func TestScanSecurityAgent_UnstorableItemsWarn(t *testing.T) {
+	for _, c := range []struct {
+		name, op, key string
+		out           any
+	}{
+		{"agent space without id", "ListAgentSpaces", "first space x", &securityagent.ListAgentSpacesOutput{AgentSpaceSummaries: []satypes.AgentSpaceSummary{{Name: ptrStr("space x")}}}},
+		{"application without id", "ListApplications", "first (an element with no identifier)", &securityagent.ListApplicationsOutput{ApplicationSummaries: []satypes.ApplicationSummary{{}}}},
+		{"target domain without id", "ListTargetDomains", "first x.example.com", &securityagent.ListTargetDomainsOutput{TargetDomainSummaries: []satypes.TargetDomainSummary{{DomainName: ptrStr("x.example.com")}}}},
+		{"integration without id", "ListIntegrations", "first integration x", &securityagent.ListIntegrationsOutput{IntegrationSummaries: []satypes.IntegrationSummary{{DisplayName: ptrStr("integration x")}}}},
+		{"private connection without name", "ListPrivateConnections", "first (an element with no identifier)", &securityagent.ListPrivateConnectionsOutput{PrivateConnections: []satypes.PrivateConnectionSummary{{Status: satypes.PrivateConnectionStatusActive}}}},
+		{"pack without id", "ListSecurityRequirementPacks", "first pack x", &securityagent.ListSecurityRequirementPacksOutput{SecurityRequirementPackSummaries: []satypes.SecurityRequirementPackSummary{{Name: ptrStr("pack x")}}}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countWarnings(st)
+			warnings := bacWarnings(st, "securityagent:"+c.op)
+			calls := newSATagCalls()
+			h := saTagHandlers(calls)
+			h[c.op] = func(any) (any, error) { return c.out, nil }
+
+			total, _, err := saTagScan(context.Background(), st, h)
+			if err != nil {
+				t.Fatalf("err = %v; want nil", err)
+			}
+			if *warns != 1 || len(*warnings) != 1 || !strings.HasSuffix((*warnings)[0].Message, c.key) {
+				t.Errorf("warnings = %d, under the op %v; want one ending %q", *warns, *warnings, c.key)
+			}
+			lost := 2
+			if c.op == "ListSecurityRequirementPacks" {
+				lost = 3
+			}
+			if want := saTagRows - lost; total != want {
+				t.Errorf("total = %d; want %d", total, want)
+			}
+		})
+	}
+}
+
+// A denied listing warns once under its own op and costs no other phase its
+// rows; denied agent spaces leave the per-space phases no parent.
+func TestScanSecurityAgent_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	for _, c := range []struct {
+		op   string
+		lost int
+	}{
+		{"ListAgentSpaces", 2},
+		{"ListApplications", 2},
+		{"ListTargetDomains", 2},
+		{"ListIntegrations", 2},
+		{"ListPrivateConnections", 2},
+		{"ListSecurityRequirementPacks", 3},
+	} {
+		t.Run(c.op, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countWarnings(st)
+			opWarns := countOpWarnings(st, "securityagent:"+c.op)
+			calls := newSATagCalls()
+			h := saTagHandlers(calls)
+			h[c.op] = func(any) (any, error) { return nil, saDenied }
+
+			total, _, err := saTagScan(context.Background(), st, h)
+			if err != nil {
+				t.Fatalf("err = %v; want nil", err)
+			}
+			if *warns != 1 || *opWarns != 1 {
+				t.Errorf("warnings = %d (securityagent:%s: %d); want 1 under the op", *warns, c.op, *opWarns)
+			}
+			want := saTagRows - c.lost
+			if stored := countStoredRows(t, st); total != want || stored != want {
+				t.Errorf("total = %d, stored rows = %d; want %d", total, stored, want)
+			}
+			if c.op == "ListAgentSpaces" && calls.count("ListPentests")+calls.count("ListIntegratedResources") != 0 {
+				t.Error("per-space listings called with no agent space read")
+			}
+		})
+	}
+}
+
+// Once ctx ends no further phase starts, and the stop is reported once.
+func TestScanSecurityAgent_ContextEndStopsOnce(t *testing.T) {
+	st := newTestStore(t)
+	calls := newSATagCalls()
+	h := saTagHandlers(calls)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	h["ListTargetDomains"] = func(any) (any, error) {
+		cancel()
+		return nil, context.Canceled
+	}
+
+	_, _, err := saTagScan(ctx, st, h)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v; want context.Canceled", err)
+	}
+	stops := 0
+	for _, m := range bacTopMembers(err) {
+		if errors.Is(m, context.Canceled) {
+			stops++
+		}
+	}
+	if stops != 1 {
+		t.Errorf("members carrying the stop = %d; want 1 (err %v)", stops, err)
+	}
+	for _, op := range saPhaseOps[slices.Index(saPhaseOps, "ListTargetDomains")+1:] {
+		if n := calls.count(op); n != 0 {
+			t.Errorf("%s called %d times after ctx ended", op, n)
+		}
+	}
+}
+
+// A region without Security Agent (NXDOMAIN on the first listing, nothing
+// stored) is unavailable and makes no other listing. An NXDOMAIN after rows
+// were stored is a failure of this scan: the counts are kept.
+func TestScanSecurityAgent_Unreachable(t *testing.T) {
+	nx := &net.DNSError{Err: "no such host", Name: "securityagent.us-east-1.amazonaws.com", IsNotFound: true}
+	t.Run("endpoint absent", func(t *testing.T) {
+		st := newTestStore(t)
+		calls := newSATagCalls()
+		h := saTagHandlers(calls)
+		h["ListAgentSpaces"] = func(any) (any, error) { return nil, nx }
+		total, _, err := saTagScan(context.Background(), st, h)
+		assertGlueOutcome(t, err, outcomeUnavailable)
+		if total != 0 || calls.count("ListApplications") != 0 {
+			t.Errorf("total, ListApplications calls = %d, %d; want 0, 0", total, calls.count("ListApplications"))
+		}
+	})
+	t.Run("tag read after rows were listed", func(t *testing.T) {
+		st := newTestStore(t)
+		calls := newSATagCalls()
+		calls.errs[saTagIntegB] = nx
+		total, _, err := saTagScan(context.Background(), st, saTagHandlers(calls))
+		assertGlueOutcome(t, err, outcomeError)
+		if total != saTagRows {
+			t.Errorf("total = %d; want %d", total, saTagRows)
+		}
 	})
 }

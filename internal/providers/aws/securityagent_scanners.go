@@ -1,8 +1,8 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -61,216 +61,297 @@ type securityAgentAPI interface {
 	ListSecurityRequirementPacks(context.Context, *securityagent.ListSecurityRequirementPacksInput, ...func(*securityagent.Options)) (*securityagent.ListSecurityRequirementPacksOutput, error)
 	ListSecurityRequirements(context.Context, *securityagent.ListSecurityRequirementsInput, ...func(*securityagent.Options)) (*securityagent.ListSecurityRequirementsOutput, error)
 	BatchGetSecurityRequirements(context.Context, *securityagent.BatchGetSecurityRequirementsInput, ...func(*securityagent.Options)) (*securityagent.BatchGetSecurityRequirementsOutput, error)
+	ListTagsForResource(context.Context, *securityagent.ListTagsForResourceInput, ...func(*securityagent.Options)) (*securityagent.ListTagsForResourceOutput, error)
 }
+
+const (
+	saTagsOp                   = "securityagent:ListTagsForResource"
+	saListAgentSpacesOp        = "securityagent:ListAgentSpaces"
+	saListApplicationsOp       = "securityagent:ListApplications"
+	saListTargetDomainsOp      = "securityagent:ListTargetDomains"
+	saListIntegrationsOp       = "securityagent:ListIntegrations"
+	saListPrivateConnectionsOp = "securityagent:ListPrivateConnections"
+	saListPacksOp              = "securityagent:ListSecurityRequirementPacks"
+)
 
 // scanSecurityAgent discovers Security Agent agent spaces, applications,
 // target domains, integrations, private connections and requirement packs, the
-// requirements of customer-managed packs, and under each agent space its pentests, code reviews, threat models,
-// memberships and integrated resources. The APIs return no ARNs; each NativeID
-// is synthesized per (account, region, kind, id). Phases are independent: every
-// phase runs even when an earlier one failed, and their errors are joined.
+// requirements of customer-managed packs, and under each agent space its
+// pentests, code reviews, threat models, memberships and integrated resources.
+// The APIs return no ARNs; each NativeID is synthesized per (account, region,
+// kind, id).
 func scanSecurityAgent(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	return scanSecurityAgentAll(ctx, securityagent.NewFromConfig(acct.cfg, func(o *securityagent.Options) { o.Region = region }), acct, region, st, scanID)
 }
 
-func scanSecurityAgentAll(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var errs []error
-	add := func(t, i int, err error) {
-		total += t
-		inserted += i
-		if err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	spaces, t, i, ferr := scanSAAgentSpaces(ctx, client, acct, region, st, scanID)
-	add(t, i, ferr)
-	appIDs, t, i, ferr := scanSAApplications(ctx, client, acct, region, st, scanID)
-	add(t, i, ferr)
-	add(scanSAPentests(ctx, client, acct, region, st, scanID, spaces))
-	add(scanSATargetDomains(ctx, client, acct, region, st, scanID))
-	add(scanSAIntegrations(ctx, client, acct, region, st, scanID))
-	add(scanSAPrivateConnections(ctx, client, acct, region, st, scanID))
-	packs, t, i, ferr := scanSASecurityRequirementPacks(ctx, client, acct, region, st, scanID)
-	add(t, i, ferr)
-	add(scanSACodeReviews(ctx, client, acct, region, st, scanID, spaces))
-	add(scanSAThreatModels(ctx, client, acct, region, st, scanID, spaces))
-	add(scanSAMemberships(ctx, client, acct, region, st, scanID, spaces, appIDs))
-	add(scanSAIntegratedResources(ctx, client, acct, region, st, scanID, spaces))
-	add(scanSASecurityRequirements(ctx, client, acct, region, st, scanID, packs))
-	return total, inserted, errors.Join(errs...)
+// scanSecurityAgentAll runs every listing as its own phase, one at a time: a
+// phase's error does not stop the later ones; a failed write and ctx's end do,
+// and so does an NXDOMAIN of the first listing with nothing stored (the region
+// does not serve the service) (runHostPhases). The per-parent phases get the parents stored this scan.
+// The agent space, application, target domain, integration and pack rows have
+// their tags read per row (saTags), whose denials are one warning for the
+// scan; private connections are listed with theirs.
+func scanSecurityAgentAll(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	tags := saTags(client).sharingDenials()
+	var spaces, apps, packs []childParent
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "securityagent", 0, []hostPhase{
+		{op: saListAgentSpacesOp, run: func(p *phaseTotals) (failed bool) {
+			spaces, failed = scanSAAgentSpaces(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: saListApplicationsOp, run: func(p *phaseTotals) (failed bool) {
+			apps, failed = scanSAApplications(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		countedPhase(0, "securityagent:ListPentests", func() (int, int, error) {
+			return scanSAPentests(ctx, client, acct, region, st, scanID, spaces)
+		}),
+		{op: saListTargetDomainsOp, run: func(p *phaseTotals) bool {
+			return scanSATargetDomains(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: saListIntegrationsOp, run: func(p *phaseTotals) bool {
+			return scanSAIntegrations(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, saListPrivateConnectionsOp, func() (int, int, error) {
+			return scanSAPrivateConnections(ctx, client, acct, region, st, scanID)
+		}),
+		{op: saListPacksOp, run: func(p *phaseTotals) (failed bool) {
+			packs, failed = scanSASecurityRequirementPacks(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		countedPhase(0, "securityagent:ListCodeReviews", func() (int, int, error) {
+			return scanSACodeReviews(ctx, client, acct, region, st, scanID, spaces)
+		}),
+		countedPhase(0, "securityagent:ListThreatModels", func() (int, int, error) {
+			return scanSAThreatModels(ctx, client, acct, region, st, scanID, spaces)
+		}),
+		countedPhase(0, "securityagent:ListMemberships", func() (int, int, error) {
+			return scanSAMemberships(ctx, client, acct, region, st, scanID, spaces, childParentIDs(apps))
+		}),
+		countedPhase(0, "securityagent:ListIntegratedResources", func() (int, int, error) {
+			return scanSAIntegratedResources(ctx, client, acct, region, st, scanID, spaces)
+		}),
+		countedPhase(0, "securityagent:ListSecurityRequirements", func() (int, int, error) {
+			return scanSASecurityRequirements(ctx, client, acct, region, st, scanID, packs)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-func scanSAIntegrations(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := securityagent.NewListIntegrationsPaginator(client, &securityagent.ListIntegrationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "securityagent:ListIntegrations", acct.ID, region, err)
+// saTags reads a row's tags with ListTagsForResource, sent the row's NativeID:
+// the listings return no ARN, so it is the ARN built from the listed id in the
+// Service Reference's format (agent-space/${AgentId},
+// application/${ApplicationId}, …), on the assumption, unverified live, that
+// the ARN's id is the id the listing returns. The Service Reference lists
+// agent spaces, applications, integrations, private connections, requirement
+// packs and target domains under ListTagsForResource, and each one's Create op
+// takes Tags; private connections are listed with their tags, so they are not
+// read here. An AWS-managed pack is AWS-authored, and it is not known whether
+// ListTagsForResource accepts the ARN built for it under this account
+// (unverified live), so no read is made and the row is stored without tags. The op does not page and models no error, so a
+// resource deleted after it was listed is not dropped: whatever the service
+// answers for it keeps the row untagged, and that error is returned.
+func saTags(client securityAgentAPI) rowTagReader {
+	return rowTagReader{
+		op: saTagsOp,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			if r.ManagedByProvider {
+				return nil, nil
 			}
-			return 0, 0, fmt.Errorf("securityagent:ListIntegrations: %w", err)
-		}
-		for _, in := range out.IntegrationSummaries {
-			id := sv(in.IntegrationId)
-			if id == "" {
-				continue
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &securityagent.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
 			}
-			arn := arnFor(acct.partition(), "securityagent", region, acct.ID, "integration/"+id)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSecurityAgentIntegration, NativeID: arn,
-				Name: in.DisplayName, Region: &region,
-				AttributesJSON: mustJSON(in), DiscoveredBy: scanID,
-			})
-		}
+			return mapTagsJSON(out.Tags), nil
+		},
 	}
-	return upsertBatch(st, batch, "securityagent integrations")
-}
-
-func scanSAPrivateConnections(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := securityagent.NewListPrivateConnectionsPaginator(client, &securityagent.ListPrivateConnectionsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "securityagent:ListPrivateConnections", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("securityagent:ListPrivateConnections: %w", err)
-		}
-		for _, c := range out.PrivateConnections {
-			name := sv(c.Name)
-			if name == "" {
-				continue
-			}
-			arn := arnFor(acct.partition(), "securityagent", region, acct.ID, "private-connection/"+name)
-			nm := name
-			status := string(c.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSecurityAgentPrivateConnection, NativeID: arn,
-				Name: &nm, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "securityagent private-connections")
-}
-
-// scanSASecurityRequirementPacks stores every pack and returns the
-// customer-managed ones, whose requirements the customer writes. The
-// requirements of any other pack (AWS_MANAGED) are AWS-authored, not customer
-// configuration, so they are not scanned.
-func scanSASecurityRequirementPacks(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	pager := securityagent.NewListSecurityRequirementPacksPaginator(client, &securityagent.ListSecurityRequirementPacksInput{})
-	var batch []*store.Resource
-	var customer []childParent
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "securityagent:ListSecurityRequirementPacks", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("securityagent:ListSecurityRequirementPacks: %w", err)
-		}
-		for _, p := range out.SecurityRequirementPackSummaries {
-			id := sv(p.PackId)
-			if id == "" {
-				continue
-			}
-			arn := arnFor(acct.partition(), "securityagent", region, acct.ID, "security-requirement-pack/"+id)
-			if p.ManagementType == satypes.ManagementTypeCustomerManaged {
-				customer = append(customer, childParent{id: id, arn: arn})
-			}
-			status := string(p.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSecurityAgentSecurityRequirementPack, NativeID: arn,
-				Name: p.Name, Region: &region, Status: &status,
-				ManagedByProvider: p.ManagementType == satypes.ManagementTypeAwsManaged,
-				AttributesJSON:    mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "securityagent security-requirement-packs")
-	if err != nil {
-		return nil, t, i, err
-	}
-	return customer, t, i, nil
 }
 
 func saAgentSpaceARN(partition, region, accountID, id string) string {
 	return arnFor(partition, "securityagent", region, accountID, "agent-space/"+id)
 }
 
-func scanSAAgentSpaces(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	pager := securityagent.NewListAgentSpacesPaginator(client, &securityagent.ListAgentSpacesInput{})
-	var batch []*store.Resource
-	var spaces []childParent
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "securityagent:ListAgentSpaces", acct.ID, region, err)
+// scanSAAgentSpaces stores the agent spaces with their tags, a page at a
+// time, and returns the stored ones, the parents of the per-space phases, and
+// whether a write failed. The listing models no page size range, so none is
+// sent.
+func scanSAAgentSpaces(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, saListAgentSpacesOp, "agent spaces", "AgentSpaceId",
+		func(ctx context.Context, token *string) ([]satypes.AgentSpaceSummary, *string, error) {
+			out, err := client.ListAgentSpaces(ctx, &securityagent.ListAgentSpacesInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("securityagent:ListAgentSpaces: %w", err)
-		}
-		for _, s := range out.AgentSpaceSummaries {
+			return out.AgentSpaceSummaries, out.NextToken, nil
+		},
+		func(s satypes.AgentSpaceSummary) (*store.Resource, string, string) {
 			id := sv(s.AgentSpaceId)
 			if id == "" {
-				continue
+				return nil, "agent spaces have no id", cmp.Or(sv(s.Name), noIdentifier)
 			}
-			arn := saAgentSpaceARN(acct.partition(), region, acct.ID, id)
-			spaces = append(spaces, childParent{id: id, arn: arn})
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSecurityAgentAgentSpace, NativeID: arn,
-				Name: s.Name, Region: &region,
+				Type: TypeSecurityAgentAgentSpace, NativeID: saAgentSpaceARN(acct.partition(), region, acct.ID, id),
+				Name: s.Name, Region: &region, CreatedAt: tp(s.CreatedAt),
 				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "securityagent agent-spaces")
-	if err != nil {
-		return nil, t, i, err
-	}
-	return spaces, t, i, nil
+			}, "", ""
+		},
+		func(s satypes.AgentSpaceSummary) string { return sv(s.AgentSpaceId) },
+		tags, p)
 }
 
-func scanSAApplications(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := securityagent.NewListApplicationsPaginator(client, &securityagent.ListApplicationsInput{})
-	var batch []*store.Resource
-	var ids []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "securityagent:ListApplications", acct.ID, region, err)
+// scanSAApplications stores the applications with their tags, a page at a
+// time, and returns the stored ones, whose ids the membership phase pairs
+// with each agent space, and whether a write failed.
+func scanSAApplications(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, saListApplicationsOp, "applications", "ApplicationId",
+		func(ctx context.Context, token *string) ([]satypes.ApplicationSummary, *string, error) {
+			out, err := client.ListApplications(ctx, &securityagent.ListApplicationsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("securityagent:ListApplications: %w", err)
-		}
-		for _, a := range out.ApplicationSummaries {
+			return out.ApplicationSummaries, out.NextToken, nil
+		},
+		func(a satypes.ApplicationSummary) (*store.Resource, string, string) {
 			id := sv(a.ApplicationId)
 			if id == "" {
-				continue
+				return nil, "applications have no id", cmp.Or(sv(a.ApplicationName), noIdentifier)
 			}
-			ids = append(ids, id)
-			arn := arnFor(acct.partition(), "securityagent", region, acct.ID, "application/"+id)
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSecurityAgentApplication, NativeID: arn,
+				Type: TypeSecurityAgentApplication, NativeID: arnFor(acct.partition(), "securityagent", region, acct.ID, "application/"+id),
 				Name: a.ApplicationName, Region: &region,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "securityagent applications")
-	if err != nil {
-		return nil, t, i, err
-	}
-	return ids, t, i, nil
+			}, "", ""
+		},
+		func(a satypes.ApplicationSummary) string { return sv(a.ApplicationId) },
+		tags, p)
+}
+
+// scanSATargetDomains stores the target domains with their tags, a page at a
+// time, and reports whether a write failed.
+func scanSATargetDomains(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, saListTargetDomainsOp,
+		func(ctx context.Context, token *string) ([]satypes.TargetDomainSummary, *string, error) {
+			out, err := client.ListTargetDomains(ctx, &securityagent.ListTargetDomainsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.TargetDomainSummaries, out.NextToken, nil
+		},
+		func(d satypes.TargetDomainSummary) (*store.Resource, string, string) {
+			id := sv(d.TargetDomainId)
+			if id == "" {
+				return nil, "target domains have no id", cmp.Or(sv(d.DomainName), noIdentifier)
+			}
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSecurityAgentTargetDomain, NativeID: arnFor(acct.partition(), "securityagent", region, acct.ID, "target-domain/"+id),
+				Name: d.DomainName, Region: &region, Status: nonEmptyPtr(string(d.VerificationStatus)),
+				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+			}, "", ""
+		},
+		tags, p)
+}
+
+// scanSAIntegrations stores the integrations with their tags, a page at a
+// time, and reports whether a write failed.
+func scanSAIntegrations(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, saListIntegrationsOp,
+		func(ctx context.Context, token *string) ([]satypes.IntegrationSummary, *string, error) {
+			out, err := client.ListIntegrations(ctx, &securityagent.ListIntegrationsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.IntegrationSummaries, out.NextToken, nil
+		},
+		func(in satypes.IntegrationSummary) (*store.Resource, string, string) {
+			id := sv(in.IntegrationId)
+			if id == "" {
+				return nil, "integrations have no id", cmp.Or(sv(in.DisplayName), noIdentifier)
+			}
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSecurityAgentIntegration, NativeID: arnFor(acct.partition(), "securityagent", region, acct.ID, "integration/"+id),
+				Name: in.DisplayName, Region: &region,
+				AttributesJSON: mustJSON(in), DiscoveredBy: scanID,
+			}, "", ""
+		},
+		tags, p)
+}
+
+// scanSAPrivateConnections stores the private connections with the tags their
+// listed element carries, so no tag read is made.
+func scanSAPrivateConnections(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	return storeTokenList(ctx, st, acct, region, saListPrivateConnectionsOp,
+		func(ctx context.Context, token *string) ([]satypes.PrivateConnectionSummary, *string, error) {
+			out, err := client.ListPrivateConnections(ctx, &securityagent.ListPrivateConnectionsInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.PrivateConnections, out.NextToken, nil
+		},
+		func(c satypes.PrivateConnectionSummary) (*store.Resource, string, string) {
+			if sv(c.Name) == "" {
+				return nil, "private connections have no name", noIdentifier
+			}
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSecurityAgentPrivateConnection, NativeID: arnFor(acct.partition(), "securityagent", region, acct.ID, "private-connection/"+*c.Name),
+				Name: c.Name, Region: &region, Status: nonEmptyPtr(string(c.Status)),
+				TagsJSON:       mapTagsJSON(c.Tags),
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			}, "", ""
+		})
+}
+
+// scanSASecurityRequirementPacks stores every pack, a page at a time, with the
+// tags of the customer-managed ones (an AWS-managed pack is stored untagged,
+// see saTags), and returns the stored customer-managed ones, whose requirements the
+// customer writes, and whether a write failed. The requirements of any other
+// pack (AWS_MANAGED) are AWS-authored, not customer configuration, so they
+// are not scanned.
+func scanSASecurityRequirementPacks(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	var customer []childParent
+	customerIDs := map[*store.Resource]string{}
+	failed := storeTokenPagesTagsWith(ctx, st, acct, region, saListPacksOp,
+		func(ctx context.Context, token *string) ([]satypes.SecurityRequirementPackSummary, *string, error) {
+			out, err := client.ListSecurityRequirementPacks(ctx, &securityagent.ListSecurityRequirementPacksInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.SecurityRequirementPackSummaries, out.NextToken, nil
+		},
+		func(pk satypes.SecurityRequirementPackSummary) (*store.Resource, string, string) {
+			id := sv(pk.PackId)
+			if id == "" {
+				return nil, "requirement packs have no id", cmp.Or(sv(pk.Name), noIdentifier)
+			}
+			r := &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSecurityAgentSecurityRequirementPack, NativeID: arnFor(acct.partition(), "securityagent", region, acct.ID, "security-requirement-pack/"+id),
+				Name: pk.Name, Region: &region, Status: nonEmptyPtr(string(pk.Status)), CreatedAt: tp(pk.CreatedAt),
+				ManagedByProvider: pk.ManagementType == satypes.ManagementTypeAwsManaged,
+				AttributesJSON:    mustJSON(pk), DiscoveredBy: scanID,
+			}
+			if pk.ManagementType == satypes.ManagementTypeCustomerManaged {
+				customerIDs[r] = id
+			}
+			return r, "", ""
+		},
+		tokenPageSteps{stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				if id, ok := customerIDs[r]; ok {
+					customer = append(customer, childParent{id: id, arn: r.NativeID})
+				}
+			}
+			// Only one page's rows stay reachable, as storeParentPagesTags does.
+			clear(customerIDs)
+		}},
+		tags, p)
+	return customer, failed
 }
 
 func neverSkipSA(error) bool { return false }
@@ -715,33 +796,4 @@ func scanSAIntegratedResources(ctx context.Context, client securityAgentAPI, acc
 		}
 		return rows, nil
 	})
-}
-
-func scanSATargetDomains(ctx context.Context, client securityAgentAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := securityagent.NewListTargetDomainsPaginator(client, &securityagent.ListTargetDomainsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "securityagent:ListTargetDomains", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("securityagent:ListTargetDomains: %w", err)
-		}
-		for _, d := range out.TargetDomainSummaries {
-			id := sv(d.TargetDomainId)
-			if id == "" {
-				continue
-			}
-			arn := arnFor(acct.partition(), "securityagent", region, acct.ID, "target-domain/"+id)
-			status := string(d.VerificationStatus)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSecurityAgentTargetDomain, NativeID: arn,
-				Name: d.DomainName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "securityagent target-domains")
 }
