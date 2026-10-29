@@ -105,9 +105,10 @@ func ebTemplate(app, name string) ebtypes.ConfigurationSettingsDescription {
 }
 
 // ebHandlers serves three applications (web: base, prod/v2; worker: "" and
-// w1; bare: none), one row for each older phase, and each template's
-// settings; prod/v2's response also carries an element without a name and
-// one naming another template, both of which must be dropped.
+// w1; bare: none), one row for each older phase, each template's settings,
+// and no tags for any resource; prod/v2's response also carries an element
+// without a name and one naming another template, both of which must be
+// dropped.
 // templateCalls records "app/template" per DescribeConfigurationSettings call.
 func ebHandlers(templateCalls *parentCalls) map[string]func(in any) (any, error) {
 	return map[string]func(in any) (any, error){
@@ -120,18 +121,21 @@ func ebHandlers(templateCalls *parentCalls) map[string]func(in any) (any, error)
 		},
 		"DescribeEnvironments": func(any) (any, error) {
 			return &elasticbeanstalk.DescribeEnvironmentsOutput{Environments: []ebtypes.EnvironmentDescription{
-				{EnvironmentArn: sdkaws.String(ebTestEnv), EnvironmentName: sdkaws.String("web-prod"), ApplicationName: sdkaws.String("web")},
+				{EnvironmentArn: sdkaws.String(ebTestEnv), EnvironmentName: sdkaws.String("web-prod"), ApplicationName: sdkaws.String("web"), Status: ebtypes.EnvironmentStatusReady},
 			}}, nil
 		},
 		"DescribeApplicationVersions": func(any) (any, error) {
 			return &elasticbeanstalk.DescribeApplicationVersionsOutput{ApplicationVersions: []ebtypes.ApplicationVersionDescription{
-				{ApplicationVersionArn: sdkaws.String(ebTestVersion), VersionLabel: sdkaws.String("v1")},
+				{ApplicationVersionArn: sdkaws.String(ebTestVersion), VersionLabel: sdkaws.String("v1"), Status: ebtypes.ApplicationVersionStatusProcessed, DateCreated: &ebCreated},
 			}}, nil
 		},
 		"ListPlatformVersions": func(any) (any, error) {
 			return &elasticbeanstalk.ListPlatformVersionsOutput{PlatformSummaryList: []ebtypes.PlatformSummary{
-				{PlatformArn: sdkaws.String(ebTestPlatform)},
+				{PlatformArn: sdkaws.String(ebTestPlatform), PlatformStatus: ebtypes.PlatformStatusReady},
 			}}, nil
+		},
+		"ListTagsForResource": func(any) (any, error) {
+			return &elasticbeanstalk.ListTagsForResourceOutput{}, nil
 		},
 		"DescribeConfigurationSettings": func(in any) (any, error) {
 			p := in.(*elasticbeanstalk.DescribeConfigurationSettingsInput)
@@ -330,27 +334,33 @@ func TestScanElasticBeanstalk_ApplicationsWithoutTemplates(t *testing.T) {
 	}
 }
 
-// A template denied, answering InvalidParameterValue (deleted since listing)
-// or failing transiently after retries drops only itself, with one warning
-// per reason however many templates hit it. Any other error fails the
-// phase (childFanOut stores none of its rows) and is returned as a hard error;
-// the older phases' rows stay.
+// A denied template drops only itself, with one warning however many
+// templates are denied. Any other error drops only its template and is
+// returned after the others are stored: no row can stand in for a template
+// not described. InvalidParameterValue, which a template deleted since
+// listing may answer, is such an error: the op models no not-found code.
+// Transient errors after retries are one error apart from the hard ones, so
+// that beside a hard error they are demoted to one warning. The older
+// phases' rows stay.
 func TestScanElasticBeanstalk_FailedTemplate(t *testing.T) {
 	throttled := apiErr("ThrottlingException", "slow down")
+	const noErr serviceOutcome = -1
 	for _, tc := range []struct {
 		name      string
 		fail      map[string]error
-		wantCode  string // "" means the scan returns nil
+		outcome   serviceOutcome
+		wantCode  string
 		wantRows  []string
 		wantWarns int
 	}{
-		{"denied everywhere", map[string]error{"base": ebDenied, "prod/v2": ebDenied, "w1": ebDenied}, "", nil, 1},
-		{"denied once", map[string]error{"base": ebDenied}, "", []string{ebTestTplProd, ebTestTplWorker1}, 1},
-		{"throttled everywhere", map[string]error{"base": throttled, "prod/v2": throttled, "w1": throttled}, "", nil, 1},
-		{"throttled once", map[string]error{"w1": throttled}, "", []string{ebTestTplBase, ebTestTplProd}, 1},
-		{"other error", map[string]error{"base": ebBadInput}, "TooManyBucketsException", nil, 0},
-		{"gone once", map[string]error{"prod/v2": ebGone}, "", []string{ebTestTplBase, ebTestTplWorker1}, 1},
-		{"gone everywhere", map[string]error{"base": ebGone, "prod/v2": ebGone, "w1": ebGone}, "", nil, 1},
+		{"denied everywhere", map[string]error{"base": ebDenied, "prod/v2": ebDenied, "w1": ebDenied}, noErr, "", nil, 1},
+		{"denied once", map[string]error{"base": ebDenied}, noErr, "", []string{ebTestTplProd, ebTestTplWorker1}, 1},
+		{"throttled everywhere", map[string]error{"base": throttled, "prod/v2": throttled, "w1": throttled}, outcomeTransient, "ThrottlingException", nil, 0},
+		{"throttled once", map[string]error{"w1": throttled}, outcomeTransient, "ThrottlingException", []string{ebTestTplBase, ebTestTplProd}, 0},
+		{"throttled beside other error", map[string]error{"w1": throttled, "base": ebBadInput}, outcomeError, "TooManyBucketsException", []string{ebTestTplProd}, 1},
+		{"other error", map[string]error{"base": ebBadInput}, outcomeError, "TooManyBucketsException", []string{ebTestTplProd, ebTestTplWorker1}, 0},
+		{"gone once", map[string]error{"prod/v2": ebGone}, outcomeError, "InvalidParameterValue", []string{ebTestTplBase, ebTestTplWorker1}, 0},
+		{"gone everywhere", map[string]error{"base": ebGone, "prod/v2": ebGone, "w1": ebGone}, outcomeError, "InvalidParameterValue", nil, 0},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -365,15 +375,13 @@ func TestScanElasticBeanstalk_FailedTemplate(t *testing.T) {
 				return next(in)
 			}
 			_, err := scanEBTopLevel(t, st, h)
-			if tc.wantCode == "" {
+			if tc.outcome == noErr {
 				if err != nil {
 					t.Fatalf("err = %v, want nil", err)
 				}
 			} else {
+				assertGlueOutcome(t, err, tc.outcome)
 				assertAPICode(t, err, tc.wantCode)
-				if got := classifyServiceError(err); got != outcomeError {
-					t.Errorf("classifyServiceError(%v) = %v, want outcomeError", err, got)
-				}
 			}
 			if got := nativeIDs(rowsByNativeID(t, st, TypeBeanstalkConfigurationTemplate)); !slices.Equal(got, tc.wantRows) {
 				t.Errorf("template rows = %v, want %v", got, tc.wantRows)
@@ -383,6 +391,28 @@ func TestScanElasticBeanstalk_FailedTemplate(t *testing.T) {
 			}
 			assertEBOlderRows(t, st)
 		})
+	}
+}
+
+// An application's empty template name is not described and is warned
+// about once under DescribeApplications, which listed it, naming the
+// application; its other templates are stored.
+func TestScanElasticBeanstalk_EmptyTemplateNameWarns(t *testing.T) {
+	st := newTestStore(t)
+	warns := rhWarnRecorder(st)
+	var calls parentCalls
+	if _, err := scanEBTopLevel(t, st, ebHandlers(&calls)); err != nil {
+		t.Fatalf("scanElasticBeanstalk: %v", err)
+	}
+	if slices.Contains(calls.distinct(), "worker/") {
+		t.Error("the empty template name was described")
+	}
+	w := warns()
+	if len(w) != 1 || w[0].Service != "elasticbeanstalk:DescribeApplications" || w[0].Scope != testAccountID+"/"+testRegion || !strings.Contains(w[0].Message, ebTestAppWorker) {
+		t.Errorf("warnings = %v, want 1 under elasticbeanstalk:DescribeApplications in %s/%s naming %s", w, testAccountID, testRegion, ebTestAppWorker)
+	}
+	if _, ok := rowsByNativeID(t, st, TypeBeanstalkConfigurationTemplate)[ebTestTplWorker1]; !ok {
+		t.Error("worker's named template w1 missing")
 	}
 }
 
@@ -404,11 +434,12 @@ func TestScanElasticBeanstalk_OlderPhaseErrorStillRunsTemplates(t *testing.T) {
 	}
 }
 
-// A transient error in an older phase is demoted to one warning so that the
-// template phase's hard error still reaches the dispatcher as a hard error.
+// A transient error in an older phase is demoted to one warning under its
+// own op so that the template phase's hard error still reaches the
+// dispatcher as a hard error.
 func TestScanElasticBeanstalk_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 	st := newTestStore(t)
-	warns := countOpWarnings(st, "elasticbeanstalk")
+	warns := countOpWarnings(st, "elasticbeanstalk:ListPlatformVersions")
 	var calls parentCalls
 	h := ebHandlers(&calls)
 	h["ListPlatformVersions"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }

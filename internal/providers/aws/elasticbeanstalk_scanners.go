@@ -2,9 +2,10 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk"
+	ebtypes "github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -28,57 +29,102 @@ type elasticbeanstalkAPI interface {
 	DescribeApplicationVersions(context.Context, *elasticbeanstalk.DescribeApplicationVersionsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.DescribeApplicationVersionsOutput, error)
 	ListPlatformVersions(context.Context, *elasticbeanstalk.ListPlatformVersionsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.ListPlatformVersionsOutput, error)
 	DescribeConfigurationSettings(context.Context, *elasticbeanstalk.DescribeConfigurationSettingsInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.DescribeConfigurationSettingsOutput, error)
+	ListTagsForResource(context.Context, *elasticbeanstalk.ListTagsForResourceInput, ...func(*elasticbeanstalk.Options)) (*elasticbeanstalk.ListTagsForResourceOutput, error)
 }
+
+const (
+	beanstalkTagsOp = "elasticbeanstalk:ListTagsForResource"
+	// beanstalkInsufficientPrivileges is the 403 ListTagsForResource and
+	// ListPlatformVersions model for a caller without the privileges they
+	// need; isAccessDenied does not match it.
+	beanstalkInsufficientPrivileges = "InsufficientPrivilegesException"
+	// beanstalkMaxRecords is the top of the MaxRecords range the model gives
+	// DescribeEnvironments and DescribeApplicationVersions; sent no
+	// MaxRecords, they return every element in one response.
+	beanstalkMaxRecords int32 = 1000
+)
 
 // scanElasticBeanstalk discovers Beanstalk applications, environments,
 // application versions, custom platform versions and saved configuration
-// templates in one region.
-// DescribeApplications returns the full list in a single call (no
-// pagination — small per-account quota); environments use manual NextToken
-// pagination (no SDK paginator). Per-phase AccessDenied tolerated.
-// Configuration templates have no list API: their names come from each
-// application's ConfigurationTemplates[] (scanBeanstalkConfigurationTemplates).
-// Solution stacks are an AWS catalog. The AWS-managed platform
-// catalogue is excluded by filtering ListPlatformVersions to
-// PlatformOwner=self (custom platforms only).
+// templates in one region. Solution stacks are not scanned: they are AWS's
+// catalog of platforms, whose ARNs name no account, not account resources.
 func scanElasticBeanstalk(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := elasticbeanstalk.NewFromConfig(acct.cfg, func(o *elasticbeanstalk.Options) { o.Region = region })
 	return scanElasticBeanstalkAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanElasticBeanstalkAll runs the older phases, which stop at their first hard
-// error, then the configuration-template phase over the applications stored
-// before that error, so a failure on either side costs the other no rows. The
-// older side's transient error is demoted to a warning only beside a hard
-// error: joined, it would be buried in the hard error instead of reported under
-// its op. The template phase tallies its own transient errors per template.
+// scanElasticBeanstalkAll runs each listing as its own phase, one at a time,
+// in the order below: a phase's error does not stop the later ones; a failed
+// write and ctx's end do (runHostPhases). The configuration-template phase
+// runs last, over the applications the first phase stored. Every row has its
+// tags read (beanstalkTagReader), and the tag denials of the whole scan are
+// one warning.
 func scanElasticBeanstalkAll(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, apps, err := scanBeanstalkOlderPhases(ctx, client, acct, region, st, scanID)
-	t, i, terr := scanBeanstalkConfigurationTemplates(ctx, client, acct, region, st, scanID, apps)
-	return total + t, inserted + i, demoteBeside(st, "elasticbeanstalk", acct, region, err, terr)
+	tags := beanstalkTagReader(client).sharingDenials()
+	var apps []beanstalkApplication
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "elasticbeanstalk", 0, []hostPhase{
+		{op: "elasticbeanstalk:DescribeApplications", run: func(p *phaseTotals) bool {
+			var failed bool
+			apps, failed = scanBeanstalkApplications(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "elasticbeanstalk:DescribeEnvironments", run: func(p *phaseTotals) bool {
+			return scanBeanstalkEnvironments(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "elasticbeanstalk:DescribeApplicationVersions", run: func(p *phaseTotals) bool {
+			return scanBeanstalkApplicationVersions(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "elasticbeanstalk:ListPlatformVersions", run: func(p *phaseTotals) bool {
+			return scanBeanstalkPlatforms(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: beanstalkDescribeConfigurationSettingsOp, run: func(p *phaseTotals) bool {
+			return scanBeanstalkConfigurationTemplates(ctx, client, acct, region, st, scanID, apps, tags, p)
+		}},
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// scanBeanstalkOlderPhases runs the phases that predate configuration
-// templates, stopping at the first hard error, and returns the applications
-// scanBeanstalkApplications stored.
-func scanBeanstalkOlderPhases(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, apps []beanstalkApplication, err error) {
-	total, inserted, apps, err = scanBeanstalkApplications(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return total, inserted, apps, err
+// beanstalkTagReader reads a row's tags with ListTagsForResource, sent the
+// row's NativeID: the ARN its listing returned, or for a configuration
+// template the ARN beanstalkTemplateARN builds. The Service Reference lists
+// every type read here under ListTagsForResource. The op returns every tag in
+// one response (it takes no page token). beanstalkInsufficientPrivileges
+// counts as a denial.
+//
+// A terminated environment or a deleted platform version is not read and
+// keeps the TagsJSON its builder set: the listings return such rows, and if
+// the op answered one with ResourceNotFoundException (unverified live), the
+// row would be dropped although its listing returned it.
+func beanstalkTagReader(client elasticbeanstalkAPI) rowTagReader {
+	return rowTagReader{
+		op:       beanstalkTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		denied:   []string{beanstalkInsufficientPrivileges},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			if beanstalkRowDeleted(r) {
+				return r.TagsJSON, nil
+			}
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &elasticbeanstalk.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
+			}
+			return kvTagsJSON(out.ResourceTags, func(t ebtypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
 	}
-	for _, scan := range []func(context.Context, elasticbeanstalkAPI, *account, string, *store.Store, string) (int, int, error){
-		scanBeanstalkEnvironments,
-		scanBeanstalkApplicationVersions,
-		scanBeanstalkPlatforms,
-	} {
-		t, i, ferr := scan(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, apps, ferr
-		}
-		total += t
-		inserted += i
+}
+
+// beanstalkRowDeleted reports whether r's status says its resource is gone:
+// an environment Terminated, a platform version Deleted.
+func beanstalkRowDeleted(r *store.Resource) bool {
+	switch r.Type {
+	case TypeBeanstalkEnvironment:
+		return sv(r.Status) == string(ebtypes.EnvironmentStatusTerminated)
+	case TypeBeanstalkPlatform:
+		return sv(r.Status) == string(ebtypes.PlatformStatusDeleted)
 	}
-	return total, inserted, apps, nil
+	return false
 }
 
 // beanstalkApplication is an application row stored this scan, with the
@@ -89,92 +135,70 @@ type beanstalkApplication struct {
 }
 
 // scanBeanstalkApplications stores the region's applications and returns
-// them; it returns none unless the upsert succeeded.
-func scanBeanstalkApplications(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, apps []beanstalkApplication, err error) {
-	out, perr := client.DescribeApplications(ctx, &elasticbeanstalk.DescribeApplicationsInput{})
-	if perr != nil {
-		if isAccessDenied(perr) {
-			_ = skipIfAccessDenied(st, "elasticbeanstalk:DescribeApplications", acct.ID, region, perr)
-			return 0, 0, nil, nil
-		}
-		return 0, 0, nil, fmt.Errorf("elasticbeanstalk:DescribeApplications: %w", perr)
+// those stored with a name, the parents of the configuration templates.
+// DescribeApplications returns every application in one response (it takes
+// no page token).
+func scanBeanstalkApplications(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (apps []beanstalkApplication, storeWriteFailed bool) {
+	templates := map[string][]string{}
+	parents, failed := storeParentPagesTags(ctx, st, acct, region, "elasticbeanstalk:DescribeApplications", "applications", "ApplicationName",
+		func(ctx context.Context, _ *string) ([]ebtypes.ApplicationDescription, *string, error) {
+			out, err := client.DescribeApplications(ctx, &elasticbeanstalk.DescribeApplicationsInput{})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Applications, nil, nil
+		},
+		func(a ebtypes.ApplicationDescription) (*store.Resource, string, string) {
+			name := sv(a.ApplicationName)
+			r, why, key := arnRow("applications", a.ApplicationArn, a.ApplicationName, &store.Resource{
+				Provider:       "aws",
+				AccountID:      acct.ID,
+				AccountName:    &acct.Name,
+				Type:           TypeBeanstalkApplication,
+				NativeID:       sv(a.ApplicationArn),
+				Name:           &name,
+				Region:         &region,
+				AttributesJSON: mustJSON(a),
+				DiscoveredBy:   scanID,
+			})
+			if r != nil {
+				templates[r.NativeID] = a.ConfigurationTemplates
+			}
+			return r, why, key
+		},
+		func(a ebtypes.ApplicationDescription) string { return sv(a.ApplicationName) },
+		tags, p)
+	for _, pa := range parents {
+		apps = append(apps, beanstalkApplication{arn: pa.arn, name: pa.id, templates: templates[pa.arn]})
 	}
-	if len(out.Applications) == 0 {
-		return 0, 0, nil, nil
-	}
-	batch := make([]*store.Resource, 0, len(out.Applications))
-	for _, a := range out.Applications {
-		arn := sv(a.ApplicationArn)
-		if arn == "" {
-			continue
-		}
-		name := sv(a.ApplicationName)
-		apps = append(apps, beanstalkApplication{arn: arn, name: name, templates: a.ConfigurationTemplates})
-		batch = append(batch, &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeBeanstalkApplication,
-			NativeID:       arn,
-			Name:           &name,
-			Region:         &region,
-			AttributesJSON: mustJSON(a),
-			DiscoveredBy:   scanID,
-		})
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, nil, fmt.Errorf("upsert beanstalk applications: %w", uerr)
-	}
-	return len(batch), n, apps, nil
+	return apps, failed
 }
 
-func scanBeanstalkEnvironments(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, perr := client.DescribeEnvironments(ctx, &elasticbeanstalk.DescribeEnvironmentsInput{NextToken: nextToken})
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "elasticbeanstalk:DescribeEnvironments", acct.ID, region, perr)
-				return 0, 0, nil
+func scanBeanstalkEnvironments(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	return storeTokenPagesTags(ctx, st, acct, region, "elasticbeanstalk:DescribeEnvironments",
+		func(ctx context.Context, token *string) ([]ebtypes.EnvironmentDescription, *string, error) {
+			out, err := client.DescribeEnvironments(ctx, &elasticbeanstalk.DescribeEnvironmentsInput{
+				MaxRecords: sdkaws.Int32(beanstalkMaxRecords), NextToken: token,
+			})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("elasticbeanstalk:DescribeEnvironments: %w", perr)
-		}
-		for _, e := range out.Environments {
-			arn := sv(e.EnvironmentArn)
-			if arn == "" {
-				continue
-			}
+			return out.Environments, out.NextToken, nil
+		},
+		func(e ebtypes.EnvironmentDescription) (*store.Resource, string, string) {
 			name := sv(e.EnvironmentName)
 			status := string(e.Status)
-			batch = append(batch, &store.Resource{
+			return arnRow("environments", e.EnvironmentArn, e.EnvironmentName, &store.Resource{
 				Provider:       "aws",
 				AccountID:      acct.ID,
 				AccountName:    &acct.Name,
 				Type:           TypeBeanstalkEnvironment,
-				NativeID:       arn,
+				NativeID:       sv(e.EnvironmentArn),
 				Name:           &name,
 				Region:         &region,
 				Status:         &status,
 				AttributesJSON: mustJSON(e),
 				DiscoveredBy:   scanID,
 			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert beanstalk environments: %w", uerr)
-	}
-	return len(batch), n, nil
+		}, tags, p)
 }

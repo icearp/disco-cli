@@ -2,9 +2,12 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk"
+	ebtypes "github.com/aws/aws-sdk-go-v2/service/elasticbeanstalk/types"
 	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
@@ -70,24 +73,30 @@ type beanstalkTemplate struct{ appName, name string }
 
 // scanBeanstalkConfigurationTemplates stores each saved configuration
 // template of the applications scanBeanstalkApplications stored, one row per
-// template holding its DescribeConfigurationSettings description, under its
-// application. Per template: InvalidParameterValue is skipped with one
-// warning for all such templates (the op models no not-found error; a
-// template or application deleted since listing is expected to answer with
-// that code, unverified), a denial warns once for the op, a transient error
-// after the SDK's retries is skipped with one warning for all such templates,
-// a response without the requested template is skipped with one warning for
-// all such templates, and anything else fails the phase, storing none of its
-// rows.
-func scanBeanstalkConfigurationTemplates(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string, apps []beanstalkApplication) (int, int, error) {
-	var parents []childParent
+// template holding its DescribeConfigurationSettings description and the tags
+// read through the tags reader, under its application. The templates are
+// described concurrently, and one template's failure costs the others none of
+// their rows (storeEachParentTagsUnder). Per template: a denial warns once
+// for the op; a response without the requested template is skipped with one
+// warning for all such templates; a transient error after the SDK's retries
+// is returned as one error for all such templates, apart from the hard ones
+// so that it is demoted beside them (phaseErrs.join); any other error is
+// returned after the other templates are stored: an application lists only
+// its templates' names, so no row can stand in for a template not described.
+// The op models no not-found error, so a template or application deleted
+// since listing, which may answer InvalidParameterValue, fails like any
+// other error. An empty template name is not described and is warned about
+// once under the listing that returned it.
+func scanBeanstalkConfigurationTemplates(ctx context.Context, client elasticbeanstalkAPI, acct *account, region string, st *store.Store, scanID string, apps []beanstalkApplication, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
+	var (
+		parents []childParent
+		unnamed skipTally
+	)
 	templates := map[string]beanstalkTemplate{}
 	for _, a := range apps {
-		if a.name == "" {
-			continue
-		}
 		for _, name := range a.templates {
 			if name == "" {
+				unnamed.skipped(a.arn, nil)
 				continue
 			}
 			arn := beanstalkTemplateARN(acct.partition(), region, acct.ID, a.name, name)
@@ -95,48 +104,69 @@ func scanBeanstalkConfigurationTemplates(ctx context.Context, client elasticbean
 			templates[arn] = beanstalkTemplate{appName: a.name, name: name}
 		}
 	}
-	var gone, unmatched skipTally
-	never := func(error) bool { return false }
-	total, inserted, err := childFanOutSkipTransient(ctx, st, acct, region, beanstalkDescribeConfigurationSettingsOp, parents, never, byParentID,
-		func(ctx context.Context, p childParent) ([]*store.Resource, error) {
-			rows, err := describeBeanstalkTemplate(ctx, client, acct, region, scanID, p.id, templates[p.id])
-			if gone.dropCode("InvalidParameterValue", p.id, err) {
-				return nil, nil
+	// The describes run concurrently, so each tally keeps its smallest ARN.
+	var unmatched, throttled skipTally
+	failed := storeEachParentTagsUnder(ctx, st, acct, region, beanstalkDescribeConfigurationSettingsOp, nil, parents,
+		func(ctx context.Context, arn string, _ *string) ([]ebtypes.ConfigurationSettingsDescription, *string, error) {
+			got, err := describeBeanstalkTemplate(ctx, client, templates[arn])
+			switch {
+			case isDemotableTransient(err):
+				throttled.skippedLeast(arn, err)
+				return nil, nil, nil
+			case err == nil && len(got) == 0:
+				unmatched.skippedLeast(arn, nil)
 			}
-			if err == nil && len(rows) == 0 {
-				unmatched.skipped(p.id, nil)
-			}
-			return rows, err
+			return got, nil, err
+		},
+		func(arn string, d ebtypes.ConfigurationSettingsDescription) (*store.Resource, string, string) {
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeBeanstalkConfigurationTemplate, NativeID: arn,
+				Name: d.TemplateName, Region: &region, CreatedAt: tp(d.DateCreated),
+				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+			}, "", ""
+		}, tags, p)
+	var transient error
+	if throttled.count > 0 {
+		transient = fmt.Errorf("%s: %d template(s) not described, so not stored, first %s: %w",
+			beanstalkDescribeConfigurationSettingsOp, throttled.count, throttled.first, throttled.err)
+	}
+	if failed {
+		// A failed write sends no warning, so the transient error joins the
+		// write's, the last error the failed write added to p, rather than
+		// standing beside it to be demoted to one.
+		if transient != nil {
+			last := &p.errs[len(p.errs)-1]
+			last.err = errors.Join(last.err, transient)
+		}
+		return true
+	}
+	p.errs.add(beanstalkDescribeConfigurationSettingsOp, transient)
+	if unnamed.count > 0 {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: "elasticbeanstalk:DescribeApplications", Scope: acct.ID + "/" + region,
+			Message: fmt.Sprintf("%d configuration template name(s) were listed empty by their application, so those templates were not stored; first application %s", unnamed.count, unnamed.first),
 		})
-	gone.warnCode(st, beanstalkDescribeConfigurationSettingsOp, acct, region, "InvalidParameterValue",
-		"template(s)", "a template or its application may have been deleted since listing")
+	}
 	if unmatched.count > 0 {
 		st.ReportWarning(store.ScanWarning{
 			Provider: "aws", Service: beanstalkDescribeConfigurationSettingsOp, Scope: acct.ID + "/" + region,
 			Message: fmt.Sprintf("%d template(s) not stored: the response held no settings description with the requested TemplateName, first %s", unmatched.count, unmatched.first),
 		})
 	}
-	return total, inserted, err
+	return false
 }
 
-func describeBeanstalkTemplate(ctx context.Context, client elasticbeanstalkAPI, acct *account, region, scanID, arn string, t beanstalkTemplate) ([]*store.Resource, error) {
+// describeBeanstalkTemplate returns the settings descriptions
+// DescribeConfigurationSettings returns for t that name t.
+func describeBeanstalkTemplate(ctx context.Context, client elasticbeanstalkAPI, t beanstalkTemplate) ([]ebtypes.ConfigurationSettingsDescription, error) {
 	out, err := client.DescribeConfigurationSettings(ctx, &elasticbeanstalk.DescribeConfigurationSettingsInput{
 		ApplicationName: &t.appName, TemplateName: &t.name,
 	})
 	if err != nil {
 		return nil, err
 	}
-	var rows []*store.Resource
-	for _, d := range out.ConfigurationSettings {
-		if sv(d.TemplateName) != t.name {
-			continue
-		}
-		rows = append(rows, &store.Resource{
-			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-			Type: TypeBeanstalkConfigurationTemplate, NativeID: arn,
-			Name: d.TemplateName, Region: &region, CreatedAt: tp(d.DateCreated),
-			AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-		})
-	}
-	return rows, nil
+	return slices.DeleteFunc(out.ConfigurationSettings, func(d ebtypes.ConfigurationSettingsDescription) bool {
+		return sv(d.TemplateName) != t.name
+	}), nil
 }
