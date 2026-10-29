@@ -41,7 +41,7 @@ func init() {
 
 // noopGACustomRoutingHierarchy only carries the EdgeDecl metadata: the
 // scanner records the accelerator→listener→endpoint-group contains pairs
-// itself (childFanOut in scanGACustomRoutingListeners and
+// itself (storeChildrenEachParent in scanGACustomRoutingListeners and
 // scanGACustomRoutingEndpointGroups).
 func noopGACustomRoutingHierarchy(_ *account, _ *store.Store) error {
 	return nil
