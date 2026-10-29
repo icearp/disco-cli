@@ -2563,6 +2563,120 @@ func TestStoreEachParentPagesTagsWith_StoredGetsWrittenRows(t *testing.T) {
 	}
 }
 
+// storeEachParentPages writes each parent's page before it lists the next,
+// and reads no tags.
+func TestStoreEachParentPages_PageByPage(t *testing.T) {
+	st := newTestStore(t)
+	warns := countWarnings(st)
+	var (
+		mu           sync.Mutex
+		storedBefore = map[string]bool{} // whether page 1 was stored when page 2 was listed
+	)
+	pt := &pagesTest{stored1: map[string]bool{}, before: func(_ context.Context, parent string, page int) {
+		if page != 2 {
+			return
+		}
+		stored := rowsByNativeIDNoFail(st)[parent+"-1"] != nil
+		mu.Lock()
+		storedBefore[parent] = stored
+		mu.Unlock()
+	}}
+	var p phaseTotals
+	acct := newTestAccount(testAccountID)
+	stop := storeEachParentPages(context.Background(), st, acct, testRegion, tagTestListOp, nil, pagesTestParents(2), pt.page(st),
+		func(_ string, id string) (*store.Resource, string, string) { return tagTestRow(id) }, &p)
+	total, inserted, err := p.result(st, acct, testRegion)
+	if stop || err != nil {
+		t.Fatalf("stop, err = %v, %v; want false, nil", stop, err)
+	}
+	if total != 4 || inserted != 4 {
+		t.Errorf("total, inserted = %d, %d; want 4, 4", total, inserted)
+	}
+	if !storedBefore["p0"] || !storedBefore["p1"] {
+		t.Errorf("page 1 stored before page 2 was listed = %v; want true for p0 and p1", storedBefore)
+	}
+	if *warns != 0 {
+		t.Errorf("warnings = %d; want 0", *warns)
+	}
+}
+
+// nestedPagesTestPage lists p1's page ["p1-a", "p1-b"] and then an empty
+// second page, and p0's one page ["p0-a", "p0-b", "p0-c"] only once p1's
+// second page is asked for, so after p1's first page is written: the pages
+// are written in the order opposite to their keys'.
+func nestedPagesTestPage() func(context.Context, string, *string) ([]string, *string, error) {
+	p1Written := make(chan struct{})
+	return func(_ context.Context, parent string, token *string) ([]string, *string, error) {
+		switch {
+		case parent == "p1" && token == nil:
+			return []string{"p1-a", "p1-b"}, nonEmptyPtr("2"), nil
+		case parent == "p1":
+			close(p1Written)
+			return nil, nil, nil
+		}
+		select {
+		case <-p1Written:
+		case <-time.After(5 * time.Second):
+		}
+		return []string{"p0-a", "p0-b", "p0-c"}, nil, nil
+	}
+}
+
+// The rows stored become parents sorted by ARN, and the one warning about
+// rows without a key names the least of them, whatever order the pages were
+// written in; a row its tag read finds gone is not a parent. After a failed
+// write it returns no parents and sends no warning, though a page written
+// before it held a row without a key.
+func TestStoreNestedParentPagesTags_Parents(t *testing.T) {
+	for _, c := range []struct {
+		name      string
+		refuse    bool
+		want      []childParent
+		wantWarns int
+	}{
+		{"writes succeed", false, []childParent{{id: "id-p0-a", arn: "p0-a"}, {id: "id-p1-a", arn: "p1-a"}}, 1},
+		{"write fails", true, nil, 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			if c.refuse {
+				if _, err := st.DB().Exec(`CREATE TRIGGER refuse_p0 BEFORE INSERT ON resources
+					WHEN NEW.native_id = 'p0-a'
+					BEGIN SELECT RAISE(ABORT, 'test: write refused'); END`); err != nil {
+					t.Fatalf("create trigger: %v", err)
+				}
+			}
+			warns := bacWarnings(st, tagTestListOp)
+			tags := pagesTestTags(map[string]error{"p0-c": tagTestNotFound})
+			tags.notFound = []string{"ResourceNotFoundException"}
+			var p phaseTotals
+			got, stop := storeNestedParentPagesTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, "proxies", "Id", nil,
+				pagesTestParents(2), nestedPagesTestPage(),
+				func(_ string, id string) (*store.Resource, string, string) { return tagTestRow(id) },
+				// The "-b" rows have no key.
+				func(id string) string {
+					if strings.HasSuffix(id, "-b") {
+						return ""
+					}
+					return "id-" + id
+				},
+				tags, &p)
+			if stop != c.refuse {
+				t.Fatalf("stop = %v; want %v", stop, c.refuse)
+			}
+			if !slices.Equal(got, c.want) {
+				t.Errorf("parents = %v; want %v", got, c.want)
+			}
+			if len(*warns) != c.wantWarns {
+				t.Fatalf("%s warnings = %v; want %d", tagTestListOp, *warns, c.wantWarns)
+			}
+			if c.wantWarns > 0 && !strings.Contains((*warns)[0].Message, "p0-b") {
+				t.Errorf("warning %q; want it to name p0-b first", (*warns)[0].Message)
+			}
+		})
+	}
+}
+
 // skippedLeast names the smallest key first, whatever the order of the
 // calls.
 func TestSkipTally_SkippedLeast(t *testing.T) {

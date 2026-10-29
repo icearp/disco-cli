@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -2284,7 +2285,8 @@ func storeEachParentPagesTagsSkip[Item any](
 // for a phase whose rows are the parents of a later one: a row dropped as
 // not found, or lost to a failed write, never reaches it. It runs while the
 // phase holds its write lock, so its calls never overlap, but the pages of
-// different parents reach it in no fixed order.
+// different parents reach it in no fixed order. A tags without read reads
+// no tags (storeEachParentPages).
 func storeEachParentPagesTagsWith[Item any](
 	ctx context.Context, st *store.Store, acct *account, region, op string, notFound []string, parents []childParent,
 	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
@@ -2305,7 +2307,10 @@ func storeEachParentPagesTagsWith[Item any](
 		defer mu.Unlock()
 		return werr != nil
 	}
-	tags = tags.boundedBy(make(chan struct{}, fanoutMed))
+	untagged := tags.read == nil
+	if !untagged {
+		tags = tags.boundedBy(make(chan struct{}, fanoutMed))
+	}
 	results, stopped := readEachKey(phaseCtx, parents, func(ctx context.Context, parent childParent) *parentPages {
 		r := &parentPages{out: parentOutcomes{op: op, notFound: notFound, skip: skip}}
 		readAny := false
@@ -2318,8 +2323,13 @@ func storeEachParentPagesTagsWith[Item any](
 		}, func(items []Item) error {
 			readAny = readAny || len(items) > 0
 			rows := buildListedRows(items, func(it Item) (*store.Resource, string, string) { return row(parent.id, it) }, nil, &r.out.skips)
-			var pageTally rowTagTally
-			rows, h := pageTally.read(ctx, tags, rows)
+			var (
+				pageTally rowTagTally
+				h         error
+			)
+			if !untagged {
+				rows, h = pageTally.read(ctx, tags, rows)
+			}
 			// The check and the write hold mu together, so no page is written
 			// once another's write failed (SQLite serialises the writes
 			// anyway). No test pins the lock: nothing runs between the check
@@ -2370,6 +2380,90 @@ func storeEachParentPagesTagsWith[Item any](
 	out.warn(st, acct, region)
 	tally.warn(st, tags, acct, region)
 	return errs.addPhase(p, tags.op, op, total, inserted, errors.Join(out.errs...))
+}
+
+// storeEachParentPages is storeEachParentPagesTags for rows that have no
+// tags to read: each parent's pages are written as they are read, so at most
+// one page per parent read is held, rather than every parent's rows until
+// one write at the end (storeTokenEachParent). Counts and errors go to p; it
+// reports whether a write failed, after which the scanner must stop.
+func storeEachParentPages[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op string, notFound []string, parents []childParent,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (*store.Resource, string, string),
+	p *phaseTotals,
+) (storeWriteFailed bool) {
+	return storeEachParentPagesTagsWith(ctx, st, acct, region, op, notFound, parents, page, row, nil, nil, rowTagReader{}, p)
+}
+
+// nestedParentKeys is parentKeys for storeEachParentPagesTagsWith, whose rows
+// are built concurrently and whose pages, of different parents, are written
+// in no fixed order: mu guards keys, and noID names its least key first
+// (skipTally.skippedLeast), so its warning does not depend on that order.
+// Unlike parentKeys.add, addNestedParents cannot clear every key: another
+// parent's page may be built and not yet written. A row the tag reader drops
+// as not found never reaches it, so its key stays until the phase ends; only
+// resources deleted during the scan are dropped so.
+type nestedParentKeys[Item any] struct {
+	key     func(Item) string
+	mu      sync.Mutex
+	keys    map[*store.Resource]string
+	parents []childParent
+	noID    skipTally
+}
+
+// keyNestedRow is row with the key of each row it builds recorded.
+func (k *nestedParentKeys[Item]) keyNestedRow(row func(parent string, it Item) (*store.Resource, string, string)) func(parent string, it Item) (*store.Resource, string, string) {
+	return func(parent string, it Item) (*store.Resource, string, string) {
+		r, why, key := row(parent, it)
+		if r != nil {
+			k.mu.Lock()
+			k.keys[r] = k.key(it)
+			k.mu.Unlock()
+		}
+		return r, why, key
+	}
+}
+
+// addNestedParents makes the written rows parents, or tallies those with an
+// empty key, and forgets their keys.
+func (k *nestedParentKeys[Item]) addNestedParents(rows []*store.Resource) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	for _, r := range rows {
+		if id := k.keys[r]; id != "" {
+			k.parents = append(k.parents, childParent{id: id, arn: r.NativeID})
+		} else {
+			k.noID.skippedLeast(r.NativeID, nil)
+		}
+		delete(k.keys, r)
+	}
+}
+
+// storeNestedParentPagesTags is storeParentPagesTags for rows listed per
+// parent (storeEachParentPagesTagsWith): each page is written as soon as its
+// rows' tags are read, and the rows stored become the parents of a later
+// phase, sorted by ARN, those with an empty key warned about once after
+// every write succeeded. A row dropped as not found is not a parent. Counts
+// and errors go to p as rowTagErrs.addPhase says. It returns the parents, or
+// storeWriteFailed (and none) when a write failed, after which the scanner
+// must stop.
+func storeNestedParentPagesTags[Item any](
+	ctx context.Context, st *store.Store, acct *account, region, op, what, idField string, notFound []string, parents []childParent,
+	page func(ctx context.Context, parent string, token *string) ([]Item, *string, error),
+	row func(parent string, it Item) (*store.Resource, string, string),
+	key func(Item) string,
+	tags rowTagReader, p *phaseTotals,
+) (nested []childParent, storeWriteFailed bool) {
+	keys := nestedParentKeys[Item]{key: key, keys: map[*store.Resource]string{}}
+	if storeEachParentPagesTagsWith(ctx, st, acct, region, op, notFound, parents, page, keys.keyNestedRow(row), nil, keys.addNestedParents, tags, p) {
+		return nil, true
+	}
+	warnNoChildID(st, op, acct, region, &keys.noID, what, idField)
+	// A later phase tallies its parents' outcomes in parent order
+	// (parentOutcomes), so this order sets the "first" its warnings name.
+	slices.SortFunc(keys.parents, func(a, b childParent) int { return strings.Compare(a.arn, b.arn) })
+	return keys.parents, false
 }
 
 // parentPages is what storeEachParentPagesTags gathered from one parent.
