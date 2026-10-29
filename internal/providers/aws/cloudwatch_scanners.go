@@ -3,14 +3,12 @@ package aws
 import (
 	"context"
 	"fmt"
-	"sync"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
 	cwtypes "github.com/aws/aws-sdk-go-v2/service/cloudwatch/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
 )
 
 func init() {
@@ -18,7 +16,6 @@ func init() {
 	registerType(restype.Descriptor{Type: TypeCloudWatchCompositeAlarm, Service: "cloudwatch"})
 	registerType(restype.Descriptor{Type: TypeCloudWatchAlarmMuteRule, Service: "cloudwatch"})
 	registerType(restype.Descriptor{Type: TypeCloudWatchAnomalyDetector, Service: "cloudwatch"})
-	registerType(restype.Descriptor{Type: TypeCloudWatchDashboard, Service: "cloudwatch"})
 	registerType(restype.Descriptor{Type: TypeCloudWatchInsightRule, Service: "cloudwatch"})
 	registerType(restype.Descriptor{Type: TypeCloudWatchMetricStream, Service: "cloudwatch"})
 	registerType(restype.Descriptor{Type: TypeCloudWatchOTelEnrichment, Service: "cloudwatch", Untaggable: true})
@@ -28,8 +25,27 @@ func init() {
 	})
 }
 
+const (
+	cwDescribeAlarmsOp     = "cloudwatch:DescribeAlarms"
+	cwListAlarmMuteRulesOp = "cloudwatch:ListAlarmMuteRules"
+	cwDescribeInsightOp    = "cloudwatch:DescribeInsightRules"
+	cwListMetricStreamsOp  = "cloudwatch:ListMetricStreams"
+	cwGetMetricStreamOp    = "cloudwatch:GetMetricStream"
+	cwTagsOp               = "cloudwatch:ListTagsForResource"
+	// cwRecordPageLimit is the model's cap on the MaxRecords of
+	// DescribeAlarms and ListAlarmMuteRules (range 1..100).
+	cwRecordPageLimit int32 = 100
+	// cwResultPageLimit is the model's cap on the MaxResults of
+	// DescribeInsightRules and ListMetricStreams (range 1..500).
+	cwResultPageLimit int32 = 500
+)
+
+// cwNotFound is the code ListTagsForResource and GetMetricStream model for a
+// resource that does not exist.
+var cwNotFound = []string{"ResourceNotFoundException"}
+
 // cloudwatchAPI is the narrow set of CloudWatch operations called by the
-// scanCloudWatch sub-phases.
+// scanCloudWatch sub-phases and scanCWDashboards.
 type cloudwatchAPI interface {
 	DescribeAlarms(context.Context, *cloudwatch.DescribeAlarmsInput, ...func(*cloudwatch.Options)) (*cloudwatch.DescribeAlarmsOutput, error)
 	ListAlarmMuteRules(context.Context, *cloudwatch.ListAlarmMuteRulesInput, ...func(*cloudwatch.Options)) (*cloudwatch.ListAlarmMuteRulesOutput, error)
@@ -40,134 +56,131 @@ type cloudwatchAPI interface {
 	ListMetricStreams(context.Context, *cloudwatch.ListMetricStreamsInput, ...func(*cloudwatch.Options)) (*cloudwatch.ListMetricStreamsOutput, error)
 	GetMetricStream(context.Context, *cloudwatch.GetMetricStreamInput, ...func(*cloudwatch.Options)) (*cloudwatch.GetMetricStreamOutput, error)
 	GetOTelEnrichment(context.Context, *cloudwatch.GetOTelEnrichmentInput, ...func(*cloudwatch.Options)) (*cloudwatch.GetOTelEnrichmentOutput, error)
+	ListTagsForResource(context.Context, *cloudwatch.ListTagsForResourceInput, ...func(*cloudwatch.Options)) (*cloudwatch.ListTagsForResourceOutput, error)
 }
 
-// scanCloudWatch discovers all CloudWatch resources in one region by calling
-// each sub-scanner in sequence and accumulating the totals.
-func scanCloudWatch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanCloudWatch discovers the CloudWatch resources of one region. Every
+// listing runs as its own phase, one at a time, in the order below
+// (runHostPhases): a phase's error does not stop the later ones; a failed
+// write and ctx's end do. The alarm, alarm mute rule, insight rule and metric
+// stream listings are written a page at a time with each row's tags read
+// (cwTags), and the tag denials of the whole scan are one warning. Dashboards
+// are global and scanned once per account (scanCloudWatchDashboards).
+func scanCloudWatch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := cloudwatch.NewFromConfig(acct.cfg, func(o *cloudwatch.Options) { o.Region = region })
-	type subFn func(context.Context, cloudwatchAPI, *account, string, *store.Store, string) (int, int, error)
-	fns := []subFn{
-		scanCWAlarms,
-		scanCWAlarmMuteRules,
-		scanCWAnomalyDetectors,
-		scanCWDashboards,
-		scanCWInsightRules,
-		scanCWMetricStreams,
-		scanCWOTelEnrichment,
-	}
-	for _, fn := range fns {
-		t, i, err := fn(ctx, client, acct, region, st, scanID)
-		if err != nil {
-			return total, inserted, err
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
-}
-
-// scanCWAlarms discovers CloudWatch metric and composite alarms. DescribeAlarms
-// returns both; split into separate disco resource types for correct
-// gap-analysis and filtering.
-func scanCWAlarms(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cloudwatch.NewDescribeAlarmsPaginator(client, &cloudwatch.DescribeAlarmsInput{
-		AlarmTypes: []cwtypes.AlarmType{
-			cwtypes.AlarmTypeMetricAlarm,
-			cwtypes.AlarmTypeCompositeAlarm,
-		},
+	tags := cwTags(client).sharingDenials()
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "cloudwatch", 0, []hostPhase{
+		{op: cwDescribeAlarmsOp, run: func(p *phaseTotals) bool {
+			return scanCWAlarms(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: cwListAlarmMuteRulesOp, run: func(p *phaseTotals) bool {
+			return scanCWAlarmMuteRules(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, "cloudwatch:DescribeAnomalyDetectors", func() (int, int, error) {
+			return scanCWAnomalyDetectors(ctx, client, acct, region, st, scanID)
+		}),
+		{op: cwDescribeInsightOp, run: func(p *phaseTotals) bool {
+			return scanCWInsightRules(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: cwListMetricStreamsOp, run: func(p *phaseTotals) bool {
+			return scanCWMetricStreams(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, "cloudwatch:GetOTelEnrichment", func() (int, int, error) {
+			return scanCWOTelEnrichment(ctx, client, acct, region, st, scanID)
+		}),
 	})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "cloudwatch:DescribeAlarms", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("cloudwatch:DescribeAlarms: %w", err)
-		}
-		var batch []*store.Resource
-		for _, a := range page.MetricAlarms {
-			arn := sv(a.AlarmArn)
-			name := sv(a.AlarmName)
-			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeCloudWatchAlarm,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(a),
-				DiscoveredBy:   scanID,
-			}
-			batch = append(batch, r)
-		}
-		for _, a := range page.CompositeAlarms {
-			arn := sv(a.AlarmArn)
-			name := sv(a.AlarmName)
-			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeCloudWatchCompositeAlarm,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(a),
-				DiscoveredBy:   scanID,
-			}
-			batch = append(batch, r)
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return 0, 0, fmt.Errorf("upsert CloudWatch alarms: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return total, inserted, nil
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// scanCWAlarmMuteRules discovers CloudWatch alarm mute rules. Mute rules are
-// not paginated via a SDK Paginator type; we iterate manually using NextToken.
-func scanCWAlarmMuteRules(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cloudwatch.NewListAlarmMuteRulesPaginator(client, &cloudwatch.ListAlarmMuteRulesInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "cloudwatch:ListAlarmMuteRules", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("cloudwatch:ListAlarmMuteRules: %w", err)
-		}
-		var batch []*store.Resource
-		for _, m := range page.AlarmMuteRuleSummaries {
-			arn := sv(m.AlarmMuteRuleArn)
-			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeCloudWatchAlarmMuteRule,
-				NativeID:       arn,
-				Name:           &arn,
-				Region:         &region,
-				AttributesJSON: mustJSON(m),
-				DiscoveredBy:   scanID,
-			}
-			batch = append(batch, r)
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+// cwTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: the ARN its listing returned, or for an insight rule the ARN
+// built in the Service Reference's format. The op returns every tag in one
+// response (it takes no page token); ResourceNotFoundException, which it
+// models, means the resource was deleted after it was listed.
+//
+// The reads are one call per row; an account can hold thousands of alarms.
+// The phases run one at a time and readRowTags reads fanoutMed rows at a
+// time, so at most fanoutMed tag reads are in flight per scanCloudWatch or
+// scanCloudWatchDashboards call.
+func cwTags(client cloudwatchAPI) rowTagReader {
+	return rowTagReader{
+		op:       cwTagsOp,
+		notFound: cwNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &cloudwatch.ListTagsForResourceInput{ResourceARN: &arn})
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert CloudWatch alarm mute rules: %w", err)
+				return nil, err
 			}
-			total += len(batch)
-			inserted += n
-		}
+			return kvTagsJSON(out.Tags, func(t cwtypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
 	}
-	return total, inserted, nil
+}
+
+// cwListedAlarm is one alarm DescribeAlarms listed: a metric alarm or a
+// composite alarm (body), stored as typ.
+type cwListedAlarm struct {
+	typ       string
+	arn, name *string
+	body      any
+}
+
+// scanCWAlarms stores the metric and composite alarms under their ARNs.
+// DescribeAlarms returns both; they are stored as separate disco types for
+// gap analysis and filtering. Both carry an ARN the Service Reference's
+// alarm resource describes, and the tag op takes it.
+func scanCWAlarms(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, cwDescribeAlarmsOp,
+		func(ctx context.Context, token *string) ([]cwListedAlarm, *string, error) {
+			out, err := client.DescribeAlarms(ctx, &cloudwatch.DescribeAlarmsInput{
+				AlarmTypes: []cwtypes.AlarmType{cwtypes.AlarmTypeMetricAlarm, cwtypes.AlarmTypeCompositeAlarm},
+				MaxRecords: sdkaws.Int32(cwRecordPageLimit),
+				NextToken:  token,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			alarms := make([]cwListedAlarm, 0, len(out.MetricAlarms)+len(out.CompositeAlarms))
+			for _, a := range out.MetricAlarms {
+				alarms = append(alarms, cwListedAlarm{TypeCloudWatchAlarm, a.AlarmArn, a.AlarmName, a})
+			}
+			for _, a := range out.CompositeAlarms {
+				alarms = append(alarms, cwListedAlarm{TypeCloudWatchCompositeAlarm, a.AlarmArn, a.AlarmName, a})
+			}
+			return alarms, out.NextToken, nil
+		},
+		func(a cwListedAlarm) (*store.Resource, string, string) {
+			name := sv(a.name)
+			return arnRow("alarms", a.arn, a.name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: a.typ, NativeID: sv(a.arn),
+				Name: &name, Region: &region,
+				AttributesJSON: mustJSON(a.body), DiscoveredBy: scanID,
+			})
+		}, tags, p)
+}
+
+// scanCWAlarmMuteRules stores the alarm mute rules under their ARNs. The
+// summary carries no name, so the ARN names the row.
+func scanCWAlarmMuteRules(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, cwListAlarmMuteRulesOp,
+		func(ctx context.Context, token *string) ([]cwtypes.AlarmMuteRuleSummary, *string, error) {
+			out, err := client.ListAlarmMuteRules(ctx, &cloudwatch.ListAlarmMuteRulesInput{MaxRecords: sdkaws.Int32(cwRecordPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.AlarmMuteRuleSummaries, out.NextToken, nil
+		},
+		func(m cwtypes.AlarmMuteRuleSummary) (*store.Resource, string, string) {
+			arn := sv(m.AlarmMuteRuleArn)
+			return arnRow("alarm mute rules", m.AlarmMuteRuleArn, nil, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCloudWatchAlarmMuteRule, NativeID: arn,
+				Name: &arn, Region: &region,
+				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
+			})
+		}, tags, p)
 }
 
 // scanCWAnomalyDetectors discovers CloudWatch anomaly detection models.
@@ -227,174 +240,73 @@ func anomalyDetectorID(d cwtypes.AnomalyDetector) string {
 	return "unknown"
 }
 
-// scanCWDashboards discovers CloudWatch dashboards and fetches their body via
-// GetDashboard concurrently (one goroutine per dashboard in each page).
-func scanCWDashboards(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cloudwatch.NewListDashboardsPaginator(client, &cloudwatch.ListDashboardsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "cloudwatch:ListDashboards", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("cloudwatch:ListDashboards: %w", err)
-		}
-		// Fetch each dashboard body concurrently.
-		var (
-			mu    sync.Mutex
-			batch []*store.Resource
-		)
-		g, gctx := errgroup.WithContext(ctx)
-		for _, entry := range page.DashboardEntries {
-			g.Go(func() error {
-				out, err := client.GetDashboard(gctx, &cloudwatch.GetDashboardInput{
-					DashboardName: entry.DashboardName,
-				})
-				if err != nil {
-					if isAccessDenied(err) {
-						return nil // skip individual inaccessible dashboards
-					}
-					return fmt.Errorf("cloudwatch:GetDashboard %s: %w", sv(entry.DashboardName), err)
-				}
-				arn := sv(out.DashboardArn)
-				name := sv(out.DashboardName)
-				r := &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeCloudWatchDashboard,
-					NativeID:       arn,
-					Name:           &name,
-					Region:         &region,
-					AttributesJSON: mustJSON(out),
-					DiscoveredBy:   scanID,
-				}
-				mu.Lock()
-				batch = append(batch, r)
-				mu.Unlock()
-				return nil
-			})
-		}
-		if err := g.Wait(); err != nil {
-			return 0, 0, err
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+// scanCWInsightRules stores the Contributor Insights rules. The API returns
+// no ARN, so a rule is stored under the ARN the Service Reference defines
+// for it (insight-rule/<name>): the bare name is unique only per account and
+// region. A rule without a name has no such ARN and is not stored.
+//
+// Rules with ManagedRule set (created from a service's template with
+// PutManagedInsightRules) are read like the others: that op takes Tags and
+// its doc says to change an existing rule's tags with TagResource.
+// Unverified live.
+func scanCWInsightRules(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, cwDescribeInsightOp,
+		func(ctx context.Context, token *string) ([]cwtypes.InsightRule, *string, error) {
+			out, err := client.DescribeInsightRules(ctx, &cloudwatch.DescribeInsightRulesInput{MaxResults: sdkaws.Int32(cwResultPageLimit), NextToken: token})
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert CloudWatch dashboards: %w", err)
+				return nil, nil, err
 			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return total, inserted, nil
-}
-
-// scanCWInsightRules discovers CloudWatch Contributor Insights rules.
-// InsightRules are identified by name; there is no ARN exposed in the API.
-func scanCWInsightRules(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cloudwatch.NewDescribeInsightRulesPaginator(client, &cloudwatch.DescribeInsightRulesInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "cloudwatch:DescribeInsightRules", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("cloudwatch:DescribeInsightRules: %w", err)
-		}
-		var batch []*store.Resource
-		for _, rule := range page.InsightRules {
+			return out.InsightRules, out.NextToken, nil
+		},
+		func(rule cwtypes.InsightRule) (*store.Resource, string, string) {
 			name := sv(rule.Name)
-			// Region+account-qualified synthetic ARN: the bare rule name is unique
-			// only per (account, region), so it must carry region to be a global id.
-			nativeID := arnFor(acct.partition(), "cloudwatch", region, acct.ID, "insight-rule/"+name)
-			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeCloudWatchInsightRule,
-				NativeID:       nativeID,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(rule),
-				DiscoveredBy:   scanID,
+			if name == "" {
+				return nil, "insight rules have no name", noIdentifier
 			}
-			batch = append(batch, r)
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
-			if err != nil {
-				return 0, 0, fmt.Errorf("upsert CloudWatch insight rules: %w", err)
-			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return total, inserted, nil
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type:     TypeCloudWatchInsightRule,
+				NativeID: arnFor(acct.partition(), "cloudwatch", region, acct.ID, "insight-rule/"+name),
+				Name:     &name, Region: &region,
+				AttributesJSON: mustJSON(rule), DiscoveredBy: scanID,
+			}, "", ""
+		}, tags, p)
 }
 
-// scanCWMetricStreams discovers CloudWatch metric streams and fetches their
-// full configuration via GetMetricStream concurrently (one goroutine per
-// stream in each page).
-func scanCWMetricStreams(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := cloudwatch.NewListMetricStreamsPaginator(client, &cloudwatch.ListMetricStreamsInput{})
-	for pager.HasMorePages() {
-		page, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "cloudwatch:ListMetricStreams", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("cloudwatch:ListMetricStreams: %w", err)
-		}
-		// Fetch each stream's full detail concurrently.
-		var (
-			mu    sync.Mutex
-			batch []*store.Resource
-		)
-		g, gctx := errgroup.WithContext(ctx)
-		for _, entry := range page.Entries {
-			g.Go(func() error {
-				out, err := client.GetMetricStream(gctx, &cloudwatch.GetMetricStreamInput{
-					Name: entry.Name,
-				})
-				if err != nil {
-					if isAccessDenied(err) {
-						return nil
-					}
-					return fmt.Errorf("cloudwatch:GetMetricStream %s: %w", sv(entry.Name), err)
-				}
-				arn := sv(out.Arn)
-				name := sv(out.Name)
-				r := &store.Resource{
-					Provider:       "aws",
-					AccountID:      acct.ID,
-					AccountName:    &acct.Name,
-					Type:           TypeCloudWatchMetricStream,
-					NativeID:       arn,
-					Name:           &name,
-					Region:         &region,
-					AttributesJSON: mustJSON(out),
-					DiscoveredBy:   scanID,
-				}
-				mu.Lock()
-				batch = append(batch, r)
-				mu.Unlock()
-				return nil
-			})
-		}
-		if err := g.Wait(); err != nil {
-			return 0, 0, err
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+// scanCWMetricStreams stores the metric streams under their ARNs, a page at
+// a time, each row's attributes replaced with its GetMetricStream body
+// (RoleArn, IncludeFilters, StatisticsConfigurations). A stream
+// GetMetricStream no longer finds was deleted since the listing and is
+// dropped; any other failure keeps the MetricStreamEntry as the row
+// (rowDetailReader). Name comes from the MetricStreamEntry.
+func scanCWMetricStreams(ctx context.Context, client cloudwatchAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	steps := tokenPageSteps{details: rowDetailReader{
+		op: cwGetMetricStreamOp, what: "metric stream(s)", notFound: cwNotFound,
+		get: func(ctx context.Context, r *store.Resource) (any, error) {
+			out, err := client.GetMetricStream(ctx, &cloudwatch.GetMetricStreamInput{Name: r.Name})
 			if err != nil {
-				return 0, 0, fmt.Errorf("upsert CloudWatch metric streams: %w", err)
+				return nil, err
 			}
-			total += len(batch)
-			inserted += n
-		}
-	}
-	return total, inserted, nil
+			return out, nil
+		},
+	}}
+	return storeTokenPagesTagsWith(ctx, st, acct, region, cwListMetricStreamsOp,
+		func(ctx context.Context, token *string) ([]cwtypes.MetricStreamEntry, *string, error) {
+			out, err := client.ListMetricStreams(ctx, &cloudwatch.ListMetricStreamsInput{MaxResults: sdkaws.Int32(cwResultPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Entries, out.NextToken, nil
+		},
+		func(m cwtypes.MetricStreamEntry) (*store.Resource, string, string) {
+			name := sv(m.Name)
+			return arnRow("metric streams", m.Arn, m.Name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCloudWatchMetricStream, NativeID: sv(m.Arn),
+				Name: &name, Region: &region,
+				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
+			})
+		}, steps, tags, p)
 }
 
 // scanCWOTelEnrichment discovers the singleton OTel enrichment configuration

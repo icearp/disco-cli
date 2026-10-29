@@ -144,9 +144,10 @@ var commercialPins = map[string]string{
 }
 
 // commercialOncePins is commercialPins for the onceRegion callers: the region
-// each dedupe gate ran its once-per-account call in for an aws account at the
-// Phase 1 commit.
+// each dedupe gate runs its once-per-account call in for an aws account (for
+// the callers of the Phase 1 commit, where they ran it then).
 var commercialOncePins = map[string]string{
+	"cloudwatch":    "us-east-1",
 	"directconnect": "us-east-1",
 	"ec2":           "us-east-1",
 	"groundstation": "us-west-2",
@@ -363,9 +364,10 @@ func TestPartitionHomeOf(t *testing.T) {
 	}
 }
 
-// commercialGlobalCallRegions is where each global scanner called for an aws
-// account at the Phase 1 commit, when the base config region is none of
-// these; a scanner absent here calls the config region.
+// commercialGlobalCallRegions is where each global scanner calls for an aws
+// account when the base config region is none of these (for the scanners of
+// the Phase 1 commit, where they called then); a scanner absent here calls
+// the config region.
 var commercialGlobalCallRegions = map[string]string{
 	"aws:aco-automation":             "us-east-1",
 	"aws:artifact":                   "us-east-1",
@@ -377,6 +379,7 @@ var commercialGlobalCallRegions = map[string]string{
 	"aws:ce":                         "us-east-1",
 	"aws:chatbot":                    "us-east-2",
 	"aws:cloudfront":                 "us-east-1",
+	"aws:cloudwatch-dashboards":      "us-east-1",
 	"aws:cur":                        "us-east-1",
 	"aws:devicefarm":                 "us-west-2",
 	"aws:global-accelerator":         "us-west-2",

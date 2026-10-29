@@ -30,6 +30,7 @@ var expectedAWSServices = []string{
 	"aws:apigatewayv2",
 	"aws:cloudfront",
 	"aws:cloudwatch",
+	"aws:cloudwatch-dashboards",
 	"aws:logs",
 	"aws:dynamodb",
 	"aws:ec2",
