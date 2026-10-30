@@ -1,11 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"errors"
-	"fmt"
+	"strings"
 	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/lexmodelsv2"
 	lextypes "github.com/aws/aws-sdk-go-v2/service/lexmodelsv2/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -41,210 +42,301 @@ type lexAPI interface {
 	ListIntents(context.Context, *lexmodelsv2.ListIntentsInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.ListIntentsOutput, error)
 	ListSlotTypes(context.Context, *lexmodelsv2.ListSlotTypesInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.ListSlotTypesOutput, error)
 	ListSlots(context.Context, *lexmodelsv2.ListSlotsInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.ListSlotsOutput, error)
+	ListTagsForResource(context.Context, *lexmodelsv2.ListTagsForResourceInput, ...func(*lexmodelsv2.Options)) (*lexmodelsv2.ListTagsForResourceOutput, error)
+}
+
+const (
+	lexTagsOp     = "lexmodelsv2:ListTagsForResource"
+	lexListBotsOp = "lexmodelsv2:ListBots"
+)
+
+// lexNotFound is the not-found code DescribeBot, DescribeResourcePolicy and
+// ListTagsForResource model: a resource deleted after it was listed, or, for
+// DescribeResourcePolicy, a bot without a policy. The list ops model none.
+var lexNotFound = []string{"ResourceNotFoundException"}
+
+// lexARN is the ARN of a Lex V2 resource, arn:{partition}:lex:{region}:
+// {account}:{resource}. The list ops return ids, not ARNs, so every Lex
+// NativeID is built here: the bot, bot alias and test set ARNs below are the
+// Service Reference's ARN formats for those resources, and the other
+// NativeIDs extend the bot's.
+func lexARN(partition, region, accountID, resource string) string {
+	return arnFor(partition, "lex", region, accountID, resource)
+}
+
+func lexBotARN(partition, region, accountID, botID string) string {
+	return lexARN(partition, region, accountID, "bot/"+botID)
+}
+
+func lexBotAliasARN(partition, region, accountID, botID, aliasID string) string {
+	return lexARN(partition, region, accountID, "bot-alias/"+botID+"/"+aliasID)
+}
+
+func lexTestSetARN(partition, region, accountID, testSetID string) string {
+	return lexARN(partition, region, accountID, "test-set/"+testSetID)
+}
+
+// lexBotIDOf is the bot id in a bot row's NativeID, lexBotARN's
+// ".../bot/{id}"; a bot id holds no "/" (model pattern ^[0-9a-zA-Z]+$).
+func lexBotIDOf(botARN string) string {
+	_, id, _ := strings.Cut(botARN, ":bot/")
+	return id
+}
+
+// lexNoID is the outcome of a listed element without the id its NativeID is
+// built from: it is not stored, since one empty id would merge every such
+// element into one resource, and is warned about under why, named by key.
+func lexNoID(why, key string) (*store.Resource, string, string) {
+	return nil, why, cmp.Or(key, noIdentifier)
 }
 
 // scanLex discovers Lex V2 bots, aliases, versions, per-bot resource policies,
-// test sets, and the DRAFT version's locales, intents, slot types and slots.
-// List APIs return only IDs; ARNs synthesized per AWS Lex shape.
-func scanLex(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// test sets, and the DRAFT version's locales, intents, slot types and slots,
+// with the tags of the bots, aliases and test sets (lexTags). Every listing
+// runs as its own phase, one at a time and in that order: the per-bot phases
+// read the bots the first phase stored, and each DRAFT model phase the
+// parents an earlier one stored. A phase's error does not stop the later
+// ones; a failed write and ctx's end do, and so does a first phase that
+// stores nothing and fails only with NXDOMAIN, since the region does not
+// serve Lex (runHostPhases). The tag reads' denials are one warning for the
+// whole scan.
+func scanLex(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := lexmodelsv2.NewFromConfig(acct.cfg, func(o *lexmodelsv2.Options) { o.Region = region })
-
-	bots, t, i, ferr := scanLexBots(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, b := range bots {
-		t, i, ferr = scanLexBotAliases(ctx, client, acct, region, st, scanID, b.id)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-
-		t, i, ferr = scanLexBotVersions(ctx, client, acct, region, st, scanID, b.id)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-
-		t, i, ferr = scanLexResourcePolicy(ctx, client, acct, region, st, scanID, b.arn)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	t, i, ferr = scanLexTestSets(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanLexDraftModel(ctx, client, acct, region, st, scanID, bots)
-	total += t
-	inserted += i
-	return total, inserted, ferr
+	tags := lexTags(client).sharingDenials()
+	var (
+		bots    []childParent
+		locales []lexLocale
+		intents []lexIntent
+	)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "lex", 0, []hostPhase{
+		{op: lexListBotsOp, run: func(p *phaseTotals) bool {
+			var failed bool
+			bots, failed = scanLexBots(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "lexmodelsv2:ListBotAliases", run: func(p *phaseTotals) bool {
+			return scanLexBotAliases(ctx, client, acct, region, st, scanID, bots, tags, p)
+		}},
+		{op: "lexmodelsv2:ListBotVersions", run: func(p *phaseTotals) bool {
+			return scanLexBotVersions(ctx, client, acct, region, st, scanID, bots, p)
+		}},
+		{op: "lexmodelsv2:DescribeResourcePolicy", run: func(p *phaseTotals) bool {
+			return scanLexResourcePolicies(ctx, client, acct, region, st, scanID, bots, p)
+		}},
+		{op: "lexmodelsv2:ListTestSets", run: func(p *phaseTotals) bool {
+			return scanLexTestSets(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, "lexmodelsv2:ListBotLocales", func() (t, i int, err error) {
+			locales, t, i, err = scanLexBotLocales(ctx, client, acct, region, st, scanID, bots)
+			return t, i, err
+		}),
+		countedPhase(0, "lexmodelsv2:ListSlotTypes", func() (int, int, error) {
+			return scanLexSlotTypes(ctx, client, acct, region, st, scanID, locales)
+		}),
+		countedPhase(0, "lexmodelsv2:ListIntents", func() (t, i int, err error) {
+			intents, t, i, err = scanLexIntents(ctx, client, acct, region, st, scanID, locales)
+			return t, i, err
+		}),
+		countedPhase(0, "lexmodelsv2:ListSlots", func() (int, int, error) {
+			return scanLexSlots(ctx, client, acct, region, st, scanID, intents)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// scanLexTestSets discovers Lex V2 test sets. TestSetSummary carries only
-// TestSetId (no ARN), so the NativeID is synthesized per AWS Lex shape.
-func scanLexTestSets(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := lexmodelsv2.NewListTestSetsPaginator(client, &lexmodelsv2.ListTestSetsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lexmodelsv2:ListTestSets", acct.ID, region, err)
+// lexTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: the ARN lexARN builds from the listed ids. The Service Reference
+// lists the bot, bot alias and test set resources on the op, in those ARN
+// formats, and CreateBot (BotTags, and TestBotAliasTags for the test alias it
+// creates), CreateBotAlias and StartTestSetGeneration take tags. The op
+// returns every tag at once. ResourceNotFoundException, its modeled
+// not-found, drops a resource deleted after it was listed.
+//
+// The other types get no tag read: the Service Reference lists bot versions
+// on neither the op nor TagResource, whose doc names only bots, aliases and
+// channels, and CreateBotVersion takes no tags; the op lists no locale,
+// intent, slot type, slot or resource policy resource (the Service
+// Reference's intent and slot type versions have Lex V1 ARNs).
+func lexTags(client lexAPI) rowTagReader {
+	return rowTagReader{
+		op:       lexTagsOp,
+		notFound: lexNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &lexmodelsv2.ListTagsForResourceInput{ResourceARN: &arn})
+			if err != nil {
+				return nil, err
 			}
-			return 0, 0, fmt.Errorf("lexmodelsv2:ListTestSets: %w", err)
-		}
-		for _, ts := range out.TestSets {
-			id := sv(ts.TestSetId)
-			if id == "" {
-				continue
-			}
-			arn := arnFor(acct.partition(), "lex", region, acct.ID, "test-set/"+id)
-			status := string(ts.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLexTestSet, NativeID: arn,
-				Name: ts.TestSetName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(ts), DiscoveredBy: scanID,
-			})
-		}
+			return mapTagsJSON(out.Tags), nil
+		},
 	}
-	return upsertBatch(st, batch, "lex test-sets")
 }
 
-func scanLexBots(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	pager := lexmodelsv2.NewListBotsPaginator(client, &lexmodelsv2.ListBotsInput{})
-	var batch []*store.Resource
-	var bots []childParent
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "lexmodelsv2:ListBots", acct.ID, region, err)
+// scanLexBots stores the bots a page at a time, each row's attributes
+// replaced with its DescribeBot body, which carries what BotSummary lacks
+// (RoleArn, which resolveLexBotRole reads, DataPrivacy, BotMembers). A bot
+// DescribeBot no longer finds was deleted since the listing and is dropped;
+// any other failure keeps the BotSummary as the row (rowDetailReader). Name
+// and Status come from the BotSummary. It returns the bots stored, as the
+// parents of the per-bot and DRAFT model phases, and reports whether a write
+// failed, after which the scan must stop.
+func scanLexBots(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (bots []childParent, storeWriteFailed bool) {
+	steps := tokenPageSteps{
+		details: rowDetailReader{
+			op: "lexmodelsv2:DescribeBot", what: "bots", notFound: lexNotFound,
+			get: func(ctx context.Context, r *store.Resource) (any, error) {
+				id := lexBotIDOf(r.NativeID)
+				out, err := client.DescribeBot(ctx, &lexmodelsv2.DescribeBotInput{BotId: &id})
+				if err != nil {
+					return nil, err
+				}
+				return out, nil
+			},
+		},
+		stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				bots = append(bots, childParent{id: lexBotIDOf(r.NativeID), arn: r.NativeID})
 			}
-			return nil, 0, 0, fmt.Errorf("lexmodelsv2:ListBots: %w", err)
-		}
-		for _, b := range out.BotSummaries {
+		},
+	}
+	failed := storeTokenPagesTagsWith(ctx, st, acct, region, lexListBotsOp,
+		func(ctx context.Context, token *string) ([]lextypes.BotSummary, *string, error) {
+			out, err := client.ListBots(ctx, &lexmodelsv2.ListBotsInput{MaxResults: sdkaws.Int32(lexMaxPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.BotSummaries, out.NextToken, nil
+		},
+		func(b lextypes.BotSummary) (*store.Resource, string, string) {
 			id := sv(b.BotId)
 			if id == "" {
-				continue
+				return lexNoID("bots have no BotId", sv(b.BotName))
 			}
-			arn := arnFor(acct.partition(), "lex", region, acct.ID, "bot/"+id)
-			bots = append(bots, childParent{id: id, arn: arn})
 			status := string(b.BotStatus)
-			// Enrich via DescribeBot — list returns BotSummary (skeleton);
-			// RoleArn lives on DescribeBotOutput. Fall back to summary on error.
-			var attrsJSON string
-			bid := id
-			if dout, derr := client.DescribeBot(ctx, &lexmodelsv2.DescribeBotInput{BotId: &bid}); derr == nil {
-				attrsJSON = mustJSON(dout)
-			} else {
-				attrsJSON = mustJSON(b)
-			}
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLexBot, NativeID: arn,
+				Type: TypeLexBot, NativeID: lexBotARN(acct.partition(), region, acct.ID, id),
 				Name: b.BotName, Region: &region, Status: &status,
-				AttributesJSON: attrsJSON, DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "lex bots")
-	return bots, t, i, err
+				AttributesJSON: mustJSON(b), DiscoveredBy: scanID,
+			}, "", ""
+		}, steps, tags, p)
+	return bots, failed
 }
 
-func scanLexBotAliases(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, botID string) (int, int, error) {
-	bid := botID
-	pager := lexmodelsv2.NewListBotAliasesPaginator(client, &lexmodelsv2.ListBotAliasesInput{BotId: &bid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lexmodelsv2:ListBotAliases", acct.ID, region, err)
+// scanLexBotAliases stores each bot's aliases, the test alias TSTALIASID
+// included, with their tags; one bot's failure costs the others none of
+// theirs (storeEachParentPagesTags). ListBotAliases models no not-found, so
+// a bot deleted since it was listed fails the phase. It reports whether a
+// write failed, after which the scan must stop.
+func scanLexBotAliases(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, bots []childParent, tags rowTagReader, p *phaseTotals) bool {
+	return storeEachParentPagesTags(ctx, st, acct, region, "lexmodelsv2:ListBotAliases", nil, bots,
+		func(ctx context.Context, botID string, token *string) ([]lextypes.BotAliasSummary, *string, error) {
+			out, err := client.ListBotAliases(ctx, &lexmodelsv2.ListBotAliasesInput{BotId: &botID, MaxResults: sdkaws.Int32(lexMaxPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("lexmodelsv2:ListBotAliases: %w", err)
-		}
-		for _, a := range out.BotAliasSummaries {
-			aid := sv(a.BotAliasId)
-			if aid == "" {
-				continue
+			return out.BotAliasSummaries, out.NextToken, nil
+		},
+		func(botID string, a lextypes.BotAliasSummary) (*store.Resource, string, string) {
+			aliasID := sv(a.BotAliasId)
+			if aliasID == "" {
+				return lexNoID("bot aliases have no BotAliasId", cmp.Or(sv(a.BotAliasName), noIdentifier)+" of bot "+botID)
 			}
-			arn := arnFor(acct.partition(), "lex", region, acct.ID, "bot-alias/"+bid+"/"+aid)
 			status := string(a.BotAliasStatus)
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLexBotAlias, NativeID: arn,
+				Type: TypeLexBotAlias, NativeID: lexBotAliasARN(acct.partition(), region, acct.ID, botID, aliasID),
 				Name: a.BotAliasName, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "lex bot-aliases")
+			}, "", ""
+		}, tags, p)
 }
 
-func scanLexBotVersions(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, botID string) (int, int, error) {
-	bid := botID
-	pager := lexmodelsv2.NewListBotVersionsPaginator(client, &lexmodelsv2.ListBotVersionsInput{BotId: &bid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "lexmodelsv2:ListBotVersions", acct.ID, region, err)
+// scanLexBotVersions stores each bot's versions; one bot's failure costs the
+// others none of theirs (storeEachParentPages). ListBotVersions models no
+// not-found, so a bot deleted since it was listed fails the phase. It
+// reports whether a write failed, after which the scan must stop.
+func scanLexBotVersions(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, bots []childParent, p *phaseTotals) bool {
+	return storeEachParentPages(ctx, st, acct, region, "lexmodelsv2:ListBotVersions", nil, bots,
+		func(ctx context.Context, botID string, token *string) ([]lextypes.BotVersionSummary, *string, error) {
+			out, err := client.ListBotVersions(ctx, &lexmodelsv2.ListBotVersionsInput{BotId: &botID, MaxResults: sdkaws.Int32(lexMaxPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("lexmodelsv2:ListBotVersions: %w", err)
-		}
-		for _, v := range out.BotVersionSummaries {
+			return out.BotVersionSummaries, out.NextToken, nil
+		},
+		func(botID string, v lextypes.BotVersionSummary) (*store.Resource, string, string) {
 			ver := sv(v.BotVersion)
 			if ver == "" {
-				continue
+				return lexNoID("bot versions have no BotVersion", "a version of bot "+botID)
 			}
-			arn := lexBotVersionNativeID(acct.partition(), region, acct.ID, bid, ver)
-			label := ver
 			status := string(v.BotStatus)
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeLexBotVersion, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
+				Type: TypeLexBotVersion, NativeID: lexBotVersionNativeID(acct.partition(), region, acct.ID, botID, ver),
+				Name: &ver, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "lex bot-versions")
+			}, "", ""
+		}, p)
 }
 
-func scanLexResourcePolicy(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, botARN string) (int, int, error) {
-	out, err := client.DescribeResourcePolicy(ctx, &lexmodelsv2.DescribeResourcePolicyInput{ResourceArn: &botARN})
-	if err != nil {
-		if isAccessDenied(err) || isAPIErrorCode(err, "ResourceNotFoundException") {
-			return 0, 0, nil
-		}
-		return 0, 0, fmt.Errorf("lexmodelsv2:DescribeResourcePolicy: %w", err)
-	}
-	if sv(out.Policy) == "" {
-		return 0, 0, nil
-	}
-	arn := botARN + "/policy"
-	label := "policy"
-	r := &store.Resource{
-		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-		Type: TypeLexResourcePolicy, NativeID: arn,
-		Name: &label, Region: &region,
-		AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
-	}
-	return upsertBatch(st, []*store.Resource{r}, "lex resource-policies")
+// scanLexResourcePolicies stores each bot's resource policy, read with one
+// DescribeResourcePolicy call per bot (storeEachParentPages, each bot's
+// "listing" that one call): a bot without a policy
+// (ResourceNotFoundException, or an empty Policy) has no row, a denied bot
+// is warned about once, and any other error is returned after the other
+// bots' policies are stored. It reports whether a write failed, after which
+// the scan must stop.
+func scanLexResourcePolicies(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, bots []childParent, p *phaseTotals) bool {
+	return storeEachParentPages(ctx, st, acct, region, "lexmodelsv2:DescribeResourcePolicy", lexNotFound, bots,
+		func(ctx context.Context, botID string, _ *string) ([]*lexmodelsv2.DescribeResourcePolicyOutput, *string, error) {
+			arn := lexBotARN(acct.partition(), region, acct.ID, botID)
+			out, err := client.DescribeResourcePolicy(ctx, &lexmodelsv2.DescribeResourcePolicyInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, nil, err
+			}
+			if sv(out.Policy) == "" {
+				return nil, nil, nil
+			}
+			return []*lexmodelsv2.DescribeResourcePolicyOutput{out}, nil, nil
+		},
+		func(botID string, out *lexmodelsv2.DescribeResourcePolicyOutput) (*store.Resource, string, string) {
+			label := "policy"
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLexResourcePolicy, NativeID: lexBotARN(acct.partition(), region, acct.ID, botID) + "/policy",
+				Name: &label, Region: &region,
+				AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
+			}, "", ""
+		}, p)
+}
+
+// scanLexTestSets stores the test sets, each page written as soon as its
+// rows' tags are read. It reports whether a write failed, after which the
+// scan must stop.
+func scanLexTestSets(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "lexmodelsv2:ListTestSets",
+		func(ctx context.Context, token *string) ([]lextypes.TestSetSummary, *string, error) {
+			out, err := client.ListTestSets(ctx, &lexmodelsv2.ListTestSetsInput{MaxResults: sdkaws.Int32(lexMaxPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.TestSets, out.NextToken, nil
+		},
+		func(ts lextypes.TestSetSummary) (*store.Resource, string, string) {
+			id := sv(ts.TestSetId)
+			if id == "" {
+				return lexNoID("test sets have no TestSetId", sv(ts.TestSetName))
+			}
+			status := string(ts.Status)
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeLexTestSet, NativeID: lexTestSetARN(acct.partition(), region, acct.ID, id),
+				Name: ts.TestSetName, Region: &region, Status: &status,
+				AttributesJSON: mustJSON(ts), DiscoveredBy: scanID,
+			}, "", ""
+		}, tags, p)
 }
 
 // lexDraftVersion is the only bot version whose model is listed. Numbered
@@ -253,12 +345,12 @@ func scanLexResourcePolicy(ctx context.Context, client lexAPI, acct *account, re
 // of scope.
 const lexDraftVersion = "DRAFT"
 
-// lexMaxPageSize is the documented MaxResults cap of the locale, intent, slot
-// type and slot list ops.
+// lexMaxPageSize is the cap of the MaxResults shape (1-1000) every Lex V2
+// list op read here takes.
 const lexMaxPageSize = 1000
 
 func lexBotVersionNativeID(partition, region, accountID, botID, version string) string {
-	return arnFor(partition, "lex", region, accountID, "bot/"+botID+"/version/"+version)
+	return lexBotARN(partition, region, accountID, botID) + "/version/" + version
 }
 
 func lexBotLocaleNativeID(partition, region, accountID, botID, localeID string) string {
@@ -284,29 +376,6 @@ type lexLocale struct{ botID, botARN, localeID, nativeID string }
 // lexIntent is a DRAFT intent stored this scan: ListSlots keys on all three
 // ids, nativeID is its row's NativeID.
 type lexIntent struct{ botID, localeID, intentID, nativeID string }
-
-// scanLexDraftModel stores the DRAFT locales of the given bots, then each
-// locale's slot types and intents, then each intent's slots. The slot type
-// and intent phases are independent, so one failing does not stop the other.
-func scanLexDraftModel(ctx context.Context, client lexAPI, acct *account, region string, st *store.Store, scanID string, bots []childParent) (total, inserted int, err error) {
-	locales, total, inserted, err := scanLexBotLocales(ctx, client, acct, region, st, scanID, bots)
-	if err != nil {
-		return total, inserted, err
-	}
-	t, i, slotTypeErr := scanLexSlotTypes(ctx, client, acct, region, st, scanID, locales)
-	total += t
-	inserted += i
-	intents, t, i, intentErr := scanLexIntents(ctx, client, acct, region, st, scanID, locales)
-	total += t
-	inserted += i
-	if intentErr != nil {
-		return total, inserted, errors.Join(slotTypeErr, intentErr)
-	}
-	t, i, slotErr := scanLexSlots(ctx, client, acct, region, st, scanID, intents)
-	total += t
-	inserted += i
-	return total, inserted, errors.Join(slotTypeErr, slotErr)
-}
 
 // lexWarnParentGone is the isSkip of the four DRAFT model list ops. None of
 // them models a not-found code and none was seen live, so a

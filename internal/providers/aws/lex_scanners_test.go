@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"maps"
+	"net"
+	"path"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -595,5 +598,863 @@ func TestScanLex_DraftModelPhaseErrors(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+var lxThrottle = &smithy.GenericAPIError{Code: "ThrottlingException", Message: "slow down"}
+
+// lxTagFixture answers every op of a scan and records its calls. ListBots
+// lists B1, then B2 and a bot without an id; ListTestSets T1, then T2 and one
+// without an id or a name; B1's aliases are TSTALIASID, then AL1 and one without an id,
+// and B2's TSTALIASID; each bot has version 1, and B1 one without an id too;
+// B1 has a resource policy and B2 none; no bot has a DRAFT locale. The bot B1, its alias AL1 and the test set
+// T1 are tagged with {"id": <their id>}; the other rows have no tags. Every
+// alias, version and test set and every DescribeBot body carries a
+// CreationDateTime, which no row stores as CreatedAt. errs
+// fails a call: "<Op>/<key>", where key is the ARN for ListTagsForResource,
+// the bot id for DescribeBot, ListBotVersions and DescribeResourcePolicy, and
+// the bot id or page token, then "/" and the token for a later page, for the
+// paged listings (ListBots and ListTestSets have no bot id: "p2" is their
+// second page). Handlers run on fan-out goroutines, so mu guards the state
+// they share.
+type lxTagFixture struct {
+	partition, region string
+	mu                sync.Mutex
+	errs              map[string]error
+	tagARNs           []string
+	keys              map[string][]string
+	maxResults        map[string][]int32
+}
+
+const lxTagTotal = 10 // 2 bots, 3 aliases, 2 versions, 1 policy, 2 test sets
+
+func newLXTagFixture(partition, region string) *lxTagFixture {
+	return &lxTagFixture{partition: partition, region: region, errs: map[string]error{}, keys: map[string][]string{}, maxResults: map[string][]int32{}}
+}
+
+// arn is the fixture's ARN of resource, built independently of lexARN.
+func (f *lxTagFixture) arn(resource string) string {
+	return "arn:" + f.partition + ":lex:" + f.region + ":" + testAccountID + ":" + resource
+}
+
+// taggedARNs is the ARN of every row whose tags the scan reads, sorted.
+func (f *lxTagFixture) taggedARNs() []string {
+	return slices.Sorted(slices.Values([]string{
+		f.arn("bot/B1"), f.arn("bot/B2"),
+		f.arn("bot-alias/B1/TSTALIASID"), f.arn("bot-alias/B1/AL1"), f.arn("bot-alias/B2/TSTALIASID"),
+		f.arn("test-set/T1"), f.arn("test-set/T2"),
+	}))
+}
+
+// call records op's call under key with in's MaxResults and returns the
+// error errs holds for it.
+func (f *lxTagFixture) call(op, key string, in any) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.keys[op] = append(f.keys[op], key)
+	if n := bacField[*int32](in, "MaxResults"); n != nil {
+		f.maxResults[op] = append(f.maxResults[op], *n)
+	}
+	return f.errs[op+"/"+key]
+}
+
+func (f *lxTagFixture) called(op string) []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Sorted(slices.Values(f.keys[op]))
+}
+
+func (f *lxTagFixture) sortedTagARNs() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Sorted(slices.Values(f.tagARNs))
+}
+
+// pageKey is a paged listing's errs key: key, then "/" and the token for a
+// later page.
+func lxPageKey(key string, token *string) string {
+	if token == nil {
+		return key
+	}
+	return strings.TrimPrefix(key+"/"+*token, "/")
+}
+
+func (f *lxTagFixture) handlers() map[string]func(in any) (any, error) {
+	return map[string]func(in any) (any, error){
+		"ListBots": func(in any) (any, error) {
+			req := in.(*lexmodelsv2.ListBotsInput)
+			if err := f.call("ListBots", lxPageKey("", req.NextToken), in); err != nil {
+				return nil, err
+			}
+			if req.NextToken == nil {
+				return &lexmodelsv2.ListBotsOutput{BotSummaries: []lextypes.BotSummary{
+					{BotId: ptrStr("B1"), BotName: ptrStr("bot-1"), BotStatus: lextypes.BotStatusAvailable},
+				}, NextToken: ptrStr("p2")}, nil
+			}
+			return &lexmodelsv2.ListBotsOutput{BotSummaries: []lextypes.BotSummary{
+				{BotId: ptrStr("B2"), BotName: ptrStr("bot-2"), BotStatus: lextypes.BotStatusAvailable},
+				{BotName: ptrStr("nameless")},
+			}}, nil
+		},
+		"DescribeBot": func(in any) (any, error) {
+			id := sv(in.(*lexmodelsv2.DescribeBotInput).BotId)
+			if err := f.call("DescribeBot", id, in); err != nil {
+				return nil, err
+			}
+			return &lexmodelsv2.DescribeBotOutput{
+				BotId: &id, BotName: ptrStr("described-" + id), BotStatus: lextypes.BotStatusAvailable, CreationDateTime: &lxCreated,
+				RoleArn: ptrStr("arn:" + f.partition + ":iam::" + testAccountID + ":role/lex-" + id),
+			}, nil
+		},
+		"ListBotAliases": func(in any) (any, error) {
+			req := in.(*lexmodelsv2.ListBotAliasesInput)
+			id := sv(req.BotId)
+			if err := f.call("ListBotAliases", lxPageKey(id, req.NextToken), in); err != nil {
+				return nil, err
+			}
+			alias := func(aliasID string) lextypes.BotAliasSummary {
+				return lextypes.BotAliasSummary{BotAliasId: nonEmptyPtr(aliasID), BotAliasName: ptrStr("alias-" + aliasID), BotAliasStatus: lextypes.BotAliasStatusAvailable, BotVersion: ptrStr("1"), CreationDateTime: &lxCreated}
+			}
+			if id != "B1" {
+				return &lexmodelsv2.ListBotAliasesOutput{BotAliasSummaries: []lextypes.BotAliasSummary{alias("TSTALIASID")}}, nil
+			}
+			if req.NextToken == nil {
+				return &lexmodelsv2.ListBotAliasesOutput{BotAliasSummaries: []lextypes.BotAliasSummary{alias("TSTALIASID")}, NextToken: ptrStr("p2")}, nil
+			}
+			return &lexmodelsv2.ListBotAliasesOutput{BotAliasSummaries: []lextypes.BotAliasSummary{alias("AL1"), alias("")}}, nil
+		},
+		"ListBotVersions": func(in any) (any, error) {
+			id := sv(in.(*lexmodelsv2.ListBotVersionsInput).BotId)
+			if err := f.call("ListBotVersions", id, in); err != nil {
+				return nil, err
+			}
+			out := &lexmodelsv2.ListBotVersionsOutput{BotVersionSummaries: []lextypes.BotVersionSummary{
+				{BotVersion: ptrStr("1"), BotName: ptrStr("bot-" + id), BotStatus: lextypes.BotStatusAvailable, CreationDateTime: &lxCreated},
+			}}
+			if id == "B1" {
+				out.BotVersionSummaries = append(out.BotVersionSummaries, lextypes.BotVersionSummary{BotName: ptrStr("bot-B1"), CreationDateTime: &lxCreated})
+			}
+			return out, nil
+		},
+		"DescribeResourcePolicy": func(in any) (any, error) {
+			arn := sv(in.(*lexmodelsv2.DescribeResourcePolicyInput).ResourceArn)
+			id := lexBotIDOf(arn)
+			if err := f.call("DescribeResourcePolicy", id, in); err != nil {
+				return nil, err
+			}
+			if id != "B1" {
+				return nil, lxGone
+			}
+			return &lexmodelsv2.DescribeResourcePolicyOutput{ResourceArn: &arn, Policy: ptrStr(`{"Version":"2012-10-17"}`), RevisionId: ptrStr("r1")}, nil
+		},
+		"ListTestSets": func(in any) (any, error) {
+			req := in.(*lexmodelsv2.ListTestSetsInput)
+			if err := f.call("ListTestSets", lxPageKey("", req.NextToken), in); err != nil {
+				return nil, err
+			}
+			if req.NextToken == nil {
+				return &lexmodelsv2.ListTestSetsOutput{TestSets: []lextypes.TestSetSummary{
+					{TestSetId: ptrStr("T1"), TestSetName: ptrStr("ts-1"), Status: lextypes.TestSetStatusReady, Modality: lextypes.TestSetModalityText, CreationDateTime: &lxCreated},
+				}, NextToken: ptrStr("p2")}, nil
+			}
+			return &lexmodelsv2.ListTestSetsOutput{TestSets: []lextypes.TestSetSummary{
+				{TestSetId: ptrStr("T2"), TestSetName: ptrStr("ts-2"), Status: lextypes.TestSetStatusReady, CreationDateTime: &lxCreated},
+				{Status: lextypes.TestSetStatusReady, CreationDateTime: &lxCreated},
+			}}, nil
+		},
+		"ListTagsForResource": func(in any) (any, error) {
+			arn := sv(in.(*lexmodelsv2.ListTagsForResourceInput).ResourceARN)
+			f.mu.Lock()
+			f.tagARNs = append(f.tagARNs, arn)
+			err := f.errs["ListTagsForResource/"+arn]
+			f.mu.Unlock()
+			if err != nil {
+				return nil, err
+			}
+			for _, id := range []string{"bot/B1", "bot-alias/B1/AL1", "test-set/T1"} {
+				if arn == f.arn(id) {
+					return &lexmodelsv2.ListTagsForResourceOutput{Tags: map[string]string{"id": path.Base(id)}}, nil
+				}
+			}
+			return &lexmodelsv2.ListTagsForResourceOutput{}, nil
+		},
+		"ListBotLocales": func(any) (any, error) { return &lexmodelsv2.ListBotLocalesOutput{}, nil },
+	}
+}
+
+// scan runs the scan's real entry point against f in f's partition and
+// region; every op f does not answer is denied.
+func (f *lxTagFixture) scan(ctx context.Context, st *store.Store) (int, int, error) {
+	acct := newTestAccount(testAccountID)
+	acct.Partition = f.partition
+	acct.cfg = opStubConfig(f.handlers(), lxDenied)
+	return scanLex(ctx, acct, f.region, st, testScanID)
+}
+
+func lxWarnOps(w []store.ScanWarning) []string {
+	ops := make([]string, len(w))
+	for i, x := range w {
+		ops[i] = x.Service
+	}
+	return slices.Sorted(slices.Values(ops))
+}
+
+// lxNoIDKeys is the key each warning names as its first element, by op: the
+// text after "; first ".
+func lxNoIDKeys(w []store.ScanWarning) map[string]string {
+	keys := make(map[string]string, len(w))
+	for _, x := range w {
+		_, key, _ := strings.Cut(x.Message, "; first ")
+		keys[x.Service] = key
+	}
+	return keys
+}
+
+// Every row is stored under the ARN built from its listed ids, and the bots,
+// aliases and test sets with the tags ListTagsForResource returns (nil for
+// none): the op is sent exactly their ARNs, never a version's or a policy's.
+// Each bot's attributes are its DescribeBot body, its name and status its
+// summary's. Elements without an id warn once per listing, named by their
+// name, their bot, or noIdentifier when they have neither. Every listing
+// sends MaxResults 1000.
+func TestScanLex_StoresTagsOfTaggedTypes(t *testing.T) {
+	st := newTestStore(t)
+	warns := rhWarnRecorder(st)
+	f := newLXTagFixture("aws", testRegion)
+
+	total, inserted, err := f.scan(context.Background(), st)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != lxTagTotal || inserted != lxTagTotal {
+		t.Errorf("total, inserted = %d, %d; want %d, %d", total, inserted, lxTagTotal, lxTagTotal)
+	}
+	if got, want := f.sortedTagARNs(), f.taggedARNs(); !slices.Equal(got, want) {
+		t.Errorf("ListTagsForResource ARNs = %v\nwant %v", got, want)
+	}
+	wantIDs := map[string][]string{
+		TypeLexBot:            {f.arn("bot/B1"), f.arn("bot/B2")},
+		TypeLexBotAlias:       {f.arn("bot-alias/B1/AL1"), f.arn("bot-alias/B1/TSTALIASID"), f.arn("bot-alias/B2/TSTALIASID")},
+		TypeLexBotVersion:     {f.arn("bot/B1/version/1"), f.arn("bot/B2/version/1")},
+		TypeLexResourcePolicy: {f.arn("bot/B1/policy")},
+		TypeLexTestSet:        {f.arn("test-set/T1"), f.arn("test-set/T2")},
+	}
+	rows := map[string]map[string]store.Resource{}
+	for typ, want := range wantIDs {
+		rows[typ] = rowsByNativeID(t, st, typ)
+		if got := slices.Sorted(maps.Keys(rows[typ])); !slices.Equal(got, want) {
+			t.Errorf("%s rows = %v; want %v", typ, got, want)
+		}
+	}
+	for typ, tagged := range map[string]string{TypeLexBot: "bot/B1", TypeLexBotAlias: "bot-alias/B1/AL1", TypeLexTestSet: "test-set/T1"} {
+		for id, r := range rows[typ] {
+			if id == f.arn(tagged) {
+				assertTagsMap(t, r.TagsJSON, map[string]string{"id": path.Base(tagged)})
+			} else if r.TagsJSON != nil {
+				t.Errorf("%s TagsJSON = %q; want nil", id, *r.TagsJSON)
+			}
+		}
+	}
+	for _, typ := range []string{TypeLexBotVersion, TypeLexResourcePolicy} {
+		for id, r := range rows[typ] {
+			if r.TagsJSON != nil {
+				t.Errorf("%s TagsJSON = %q; want nil", id, *r.TagsJSON)
+			}
+		}
+	}
+	for _, c := range []struct {
+		typ, id, name, status, attr string
+	}{
+		{TypeLexBot, "bot/B1", "bot-1", "Available", `"RoleArn":"arn:aws:iam::123456789012:role/lex-B1"`},
+		{TypeLexBotAlias, "bot-alias/B1/AL1", "alias-AL1", "Available", `"BotVersion":"1"`},
+		{TypeLexBotVersion, "bot/B2/version/1", "1", "Available", `"BotName":"bot-B2"`},
+		{TypeLexResourcePolicy, "bot/B1/policy", "policy", "", `"RevisionId":"r1"`},
+		{TypeLexTestSet, "test-set/T1", "ts-1", "Ready", `"Modality":"Text"`},
+	} {
+		r := rows[c.typ][f.arn(c.id)]
+		if sv(r.Name) != c.name || sv(r.Status) != c.status || sv(r.Region) != testRegion || !strings.Contains(r.AttributesJSON, c.attr) {
+			t.Errorf("%s name/status/region = %q/%q/%q, attrs %s; want %q/%q/%q, %s", c.id, sv(r.Name), sv(r.Status), sv(r.Region), r.AttributesJSON, c.name, c.status, testRegion, c.attr)
+		}
+		if r.CreatedAt != nil {
+			t.Errorf("%s CreatedAt = %q; want nil", c.id, *r.CreatedAt)
+		}
+	}
+	if p := rows[TypeLexResourcePolicy][f.arn("bot/B1/policy")]; p.Status != nil {
+		t.Errorf("policy Status = %q; want nil", *p.Status)
+	}
+	for op, want := range map[string][]int32{
+		"ListBots": {1000, 1000}, "ListBotAliases": {1000, 1000, 1000}, "ListBotVersions": {1000, 1000}, "ListTestSets": {1000, 1000},
+	} {
+		if got := f.maxResults[op]; !slices.Equal(got, want) {
+			t.Errorf("%s MaxResults = %v; want %v", op, got, want)
+		}
+	}
+	wantKeys := map[string]string{
+		lexListBotsOp:                 "nameless",
+		"lexmodelsv2:ListBotAliases":  "alias- of bot B1",
+		"lexmodelsv2:ListBotVersions": "a version of bot B1",
+		"lexmodelsv2:ListTestSets":    noIdentifier,
+	}
+	if w := warns(); len(w) != len(wantKeys) || !maps.Equal(lxNoIDKeys(w), wantKeys) {
+		t.Errorf("warnings = %v; want one per listing with an element without an id, naming %v", w, wantKeys)
+	}
+}
+
+// A test set without an id is named in its listing's warning by its name, and
+// an alias with neither an id nor a name by noIdentifier and its bot. Each
+// case replaces the listing's second page, which only B1's aliases have.
+func TestScanLex_NoIDKeys(t *testing.T) {
+	for _, c := range []struct {
+		op, handler, want string
+		page              any
+	}{
+		{
+			"lexmodelsv2:ListTestSets", "ListTestSets", "ts-x",
+			&lexmodelsv2.ListTestSetsOutput{TestSets: []lextypes.TestSetSummary{{TestSetName: ptrStr("ts-x")}}},
+		},
+		{
+			"lexmodelsv2:ListBotAliases", "ListBotAliases", noIdentifier + " of bot B1",
+			&lexmodelsv2.ListBotAliasesOutput{BotAliasSummaries: []lextypes.BotAliasSummary{{BotAliasStatus: lextypes.BotAliasStatusAvailable}}},
+		},
+	} {
+		t.Run(c.op, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := rhWarnRecorder(st)
+			f := newLXTagFixture("aws", testRegion)
+			handlers := f.handlers()
+			first := handlers[c.handler]
+			handlers[c.handler] = func(in any) (any, error) {
+				if bacField[*string](in, "NextToken") == nil {
+					return first(in)
+				}
+				return c.page, nil
+			}
+			acct := newTestAccount(testAccountID)
+			acct.cfg = opStubConfig(handlers, lxDenied)
+
+			if _, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID); err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			if got := lxNoIDKeys(warns())[c.op]; got != c.want {
+				t.Errorf("%s warning key = %q; want %q", c.op, got, c.want)
+			}
+		})
+	}
+}
+
+// A rescan stores the same rows and inserts none.
+func TestScanLex_RescanInsertsNone(t *testing.T) {
+	st := newTestStore(t)
+	f := newLXTagFixture("aws", testRegion)
+	if _, _, err := f.scan(context.Background(), st); err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+	total, inserted, err := f.scan(context.Background(), st)
+	if err != nil || total != lxTagTotal || inserted != 0 {
+		t.Errorf("rescan total, inserted, err = %d, %d, %v; want %d, 0, nil", total, inserted, err, lxTagTotal)
+	}
+}
+
+// With no bots and no test sets, no per-bot op and no tag read is called.
+func TestScanLex_EmptyListings(t *testing.T) {
+	st := newTestStore(t)
+	f := newLXTagFixture("aws", testRegion)
+	handlers := f.handlers()
+	handlers["ListBots"] = func(in any) (any, error) {
+		if err := f.call("ListBots", "", in); err != nil {
+			return nil, err
+		}
+		return &lexmodelsv2.ListBotsOutput{}, nil
+	}
+	handlers["ListTestSets"] = func(in any) (any, error) {
+		if err := f.call("ListTestSets", "", in); err != nil {
+			return nil, err
+		}
+		return &lexmodelsv2.ListTestSetsOutput{}, nil
+	}
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, lxDenied)
+
+	total, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
+	if err != nil || total != 0 {
+		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
+	}
+	for _, op := range []string{"ListBots", "ListTestSets"} {
+		if got := f.called(op); len(got) != 1 {
+			t.Errorf("%s calls = %v; want 1", op, got)
+		}
+	}
+	for _, op := range []string{"DescribeBot", "ListBotAliases", "ListBotVersions", "DescribeResourcePolicy"} {
+		if got := f.called(op); len(got) != 0 {
+			t.Errorf("%s calls = %v; want none", op, got)
+		}
+	}
+	if got := f.sortedTagARNs(); len(got) != 0 {
+		t.Errorf("ListTagsForResource ARNs = %v; want none", got)
+	}
+}
+
+// A failed tag read. ResourceNotFoundException is modeled, so a resource
+// deleted since it was listed is dropped silently, and a bot dropped so is no
+// parent of the per-bot phases. A denial keeps the row untagged and warns
+// once under the tag op with the scan's scope; a throttle keeps it and is
+// transient; any other error keeps it and is an error. Every listing with an
+// element without an id warns about it, B1's aliases and versions only when
+// B1 is stored.
+func TestScanLex_TagReadFailures(t *testing.T) {
+	const (
+		aliases  = "lexmodelsv2:ListBotAliases"
+		versions = "lexmodelsv2:ListBotVersions"
+		sets     = "lexmodelsv2:ListTestSets"
+	)
+	for _, c := range []struct {
+		name      string
+		resource  string
+		typ       string
+		err       error
+		outcome   serviceOutcome // -1: no error
+		code      string
+		wantTotal int
+		warnOps   []string // sorted
+	}{
+		{"bot/not found", "bot/B1", TypeLexBot, lxGone, -1, "", lxTagTotal - 5, []string{lexListBotsOp, sets}},
+		{"bot/denied", "bot/B1", TypeLexBot, lxDenied, -1, "", lxTagTotal, []string{aliases, versions, lexListBotsOp, lexTagsOp, sets}},
+		{"bot alias/not found", "bot-alias/B1/AL1", TypeLexBotAlias, lxGone, -1, "", lxTagTotal - 1, []string{aliases, versions, lexListBotsOp, sets}},
+		{"bot alias/transient", "bot-alias/B1/AL1", TypeLexBotAlias, lxThrottle, outcomeTransient, "ThrottlingException", lxTagTotal, []string{aliases, versions, lexListBotsOp, sets}},
+		{"test set/not found", "test-set/T1", TypeLexTestSet, lxGone, -1, "", lxTagTotal - 1, []string{aliases, versions, lexListBotsOp, sets}},
+		{"test set/other error", "test-set/T1", TypeLexTestSet, lxBadInput, outcomeError, "ValidationException", lxTagTotal, []string{aliases, versions, lexListBotsOp, sets}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := rhWarnRecorder(st)
+			f := newLXTagFixture("aws", testRegion)
+			arn := f.arn(c.resource)
+			f.errs["ListTagsForResource/"+arn] = c.err
+
+			total, _, err := f.scan(context.Background(), st)
+			if c.outcome < 0 {
+				if err != nil {
+					t.Fatalf("err = %v; want nil", err)
+				}
+			} else {
+				assertGlueOutcome(t, err, c.outcome)
+				assertAPICode(t, err, c.code)
+			}
+			if total != c.wantTotal {
+				t.Errorf("total = %d; want %d", total, c.wantTotal)
+			}
+			r, kept := rowsByNativeID(t, st, c.typ)[arn]
+			if wantKept := c.err != lxGone; kept != wantKept {
+				t.Fatalf("row stored = %v; want %v", kept, wantKept)
+			}
+			if kept && r.TagsJSON != nil {
+				t.Errorf("TagsJSON = %q; want nil", *r.TagsJSON)
+			}
+			w := warns()
+			if got := lxWarnOps(w); !slices.Equal(got, c.warnOps) {
+				t.Fatalf("warnings = %v; want ops %v", w, c.warnOps)
+			}
+			for _, x := range w {
+				if x.Scope != testAccountID+"/"+testRegion {
+					t.Errorf("warning Scope %q; want %s/%s", x.Scope, testAccountID, testRegion)
+				}
+			}
+		})
+	}
+}
+
+// A bot whose tag read finds it deleted is no parent: its aliases, versions
+// and policy are not read.
+func TestScanLex_BotGoneHasNoChildren(t *testing.T) {
+	st := newTestStore(t)
+	f := newLXTagFixture("aws", testRegion)
+	f.errs["ListTagsForResource/"+f.arn("bot/B1")] = lxGone
+
+	if _, _, err := f.scan(context.Background(), st); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	for _, op := range []string{"ListBotAliases", "ListBotVersions", "DescribeResourcePolicy"} {
+		if got := slices.Compact(f.called(op)); !slices.Equal(got, []string{"B2"}) {
+			t.Errorf("%s keys = %v; want [B2]", op, got)
+		}
+	}
+}
+
+// Denied tag reads in three phases send one warning for the whole scan; the
+// rows are kept.
+func TestScanLex_TagDenialsWarnOncePerScan(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, lexTagsOp)
+	f := newLXTagFixture("aws", testRegion)
+	for _, r := range []string{"bot/B2", "bot-alias/B2/TSTALIASID", "test-set/T2"} {
+		f.errs["ListTagsForResource/"+f.arn(r)] = lxDenied
+	}
+
+	total, _, err := f.scan(context.Background(), st)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != lxTagTotal || *warns != 1 {
+		t.Errorf("total = %d, %s warnings = %d; want %d, 1", total, lexTagsOp, *warns, lxTagTotal)
+	}
+}
+
+// A throttled tag read beside a hard failure of the same op is demoted to
+// one warning, so the hard error decides the outcome.
+func TestScanLex_TagThrottleDemotedBesideHardError(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, lexTagsOp)
+	f := newLXTagFixture("aws", testRegion)
+	f.errs["ListTagsForResource/"+f.arn("bot-alias/B1/AL1")] = lxThrottle
+	f.errs["ListTagsForResource/"+f.arn("test-set/T1")] = lxBadInput
+
+	_, _, err := f.scan(context.Background(), st)
+	assertGlueOutcome(t, err, outcomeError)
+	assertAPICode(t, err, "ValidationException")
+	if *warns != 1 {
+		t.Errorf("%s warnings = %d; want 1", lexTagsOp, *warns)
+	}
+}
+
+// A failed DescribeBot. ResourceNotFoundException is modeled, so a bot
+// deleted since it was listed is dropped silently, with no tag read and no
+// children. Any other failure keeps the BotSummary as the row, its tags read:
+// a denial warns once under DescribeBot, a throttle is transient, and any
+// other error is an error.
+func TestScanLex_DescribeBotFailures(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		err     error
+		outcome serviceOutcome // -1: no error
+		code    string
+		warn    bool
+	}{
+		{"not found", lxGone, -1, "", false},
+		{"denied", lxDenied, -1, "", true},
+		{"transient", lxThrottle, outcomeTransient, "ThrottlingException", false},
+		{"other error", lxBadInput, outcomeError, "ValidationException", false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "lexmodelsv2:DescribeBot")
+			f := newLXTagFixture("aws", testRegion)
+			f.errs["DescribeBot/B1"] = c.err
+
+			total, _, err := f.scan(context.Background(), st)
+			if c.outcome < 0 {
+				if err != nil {
+					t.Fatalf("err = %v; want nil", err)
+				}
+			} else {
+				assertGlueOutcome(t, err, c.outcome)
+				assertAPICode(t, err, c.code)
+			}
+			b1 := f.arn("bot/B1")
+			r, kept := rowsByNativeID(t, st, TypeLexBot)[b1]
+			tagRead := slices.Contains(f.sortedTagARNs(), b1)
+			if c.err == lxGone {
+				if kept || tagRead || total != lxTagTotal-5 {
+					t.Errorf("stored = %v, tags read = %v, total = %d; want neither, total %d", kept, tagRead, total, lxTagTotal-5)
+				}
+				return
+			}
+			if !kept || !tagRead || total != lxTagTotal {
+				t.Fatalf("stored = %v, tags read = %v, total = %d; want both, total %d", kept, tagRead, total, lxTagTotal)
+			}
+			if sv(r.Name) != "bot-1" || strings.Contains(r.AttributesJSON, "RoleArn") || !strings.Contains(r.AttributesJSON, `"BotName":"bot-1"`) {
+				t.Errorf("name = %q, attrs = %s; want the BotSummary", sv(r.Name), r.AttributesJSON)
+			}
+			assertTagsMap(t, r.TagsJSON, map[string]string{"id": "B1"})
+			if want := map[bool]int{true: 1, false: 0}[c.warn]; *warns != want {
+				t.Errorf("DescribeBot warnings = %d; want %d", *warns, want)
+			}
+		})
+	}
+}
+
+// One bot's failed per-bot listing keeps the other bot's rows and the pages
+// read before it, and stops no later phase: a denial warns once under its op,
+// any other error is returned, ResourceNotFoundException from ListBotAliases
+// or ListBotVersions included, since neither op models it. A bot without a
+// policy has no row and no warning. warns counts the op's warnings: a
+// denial's, plus one for B1's alias without an id when B1's second alias page
+// is read.
+func TestScanLex_PerBotFailureKeepsSiblingsAndLaterPhases(t *testing.T) {
+	for _, c := range []struct {
+		op, key  string
+		err      error
+		typ      string
+		wantRows []string // resources stored of typ
+		warns    int
+	}{
+		{"ListBotAliases", "B1/p2", lxBadInput, TypeLexBotAlias, []string{"bot-alias/B1/TSTALIASID", "bot-alias/B2/TSTALIASID"}, 0},
+		{"ListBotAliases", "B2", lxDenied, TypeLexBotAlias, []string{"bot-alias/B1/AL1", "bot-alias/B1/TSTALIASID"}, 2},
+		{"ListBotAliases", "B2", lxGone, TypeLexBotAlias, []string{"bot-alias/B1/AL1", "bot-alias/B1/TSTALIASID"}, 1},
+		{"ListBotVersions", "B1", lxBadInput, TypeLexBotVersion, []string{"bot/B2/version/1"}, 0},
+		{"ListBotVersions", "B1", lxDenied, TypeLexBotVersion, []string{"bot/B2/version/1"}, 1},
+		{"ListBotVersions", "B1", lxGone, TypeLexBotVersion, []string{"bot/B2/version/1"}, 0},
+		{"DescribeResourcePolicy", "B1", lxDenied, TypeLexResourcePolicy, nil, 1},
+		{"DescribeResourcePolicy", "B1", lxBadInput, TypeLexResourcePolicy, nil, 0},
+	} {
+		code := c.err.(*smithy.GenericAPIError).Code
+		t.Run(c.op+"/"+c.key+"/"+code, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := countOpWarnings(st, "lexmodelsv2:"+c.op)
+			f := newLXTagFixture("aws", testRegion)
+			f.errs[c.op+"/"+c.key] = c.err
+
+			_, _, err := f.scan(context.Background(), st)
+			denied := c.err == lxDenied
+			if denied {
+				if err != nil {
+					t.Fatalf("err = %v; want nil", err)
+				}
+			} else {
+				assertAPICode(t, err, code)
+			}
+			if *warns != c.warns {
+				t.Errorf("%s warnings = %d; want %d", c.op, *warns, c.warns)
+			}
+			want := make([]string, len(c.wantRows))
+			for i, r := range c.wantRows {
+				want[i] = f.arn(r)
+			}
+			if got := slices.Sorted(maps.Keys(rowsByNativeID(t, st, c.typ))); !slices.Equal(got, want) {
+				t.Errorf("%s rows = %v; want %v", c.typ, got, want)
+			}
+			if n := len(rowsByNativeID(t, st, TypeLexTestSet)); n != 2 {
+				t.Errorf("test set rows = %d; want 2, the phase after the failure", n)
+			}
+		})
+	}
+}
+
+// A failed later page of ListBots or ListTestSets keeps the page read before
+// it, is returned, and stops no later phase. A denied ListBots is warned
+// about under its op instead, and the later phases run.
+func TestScanLex_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	for _, c := range []struct {
+		name, key string
+		err       error
+		wantBots  []string
+		wantSets  []string
+	}{
+		{"bots later page", "ListBots/p2", lxBadInput, []string{"bot/B1"}, []string{"test-set/T1", "test-set/T2"}},
+		{"bots denied", "ListBots/", lxDenied, nil, []string{"test-set/T1", "test-set/T2"}},
+		{"test sets later page", "ListTestSets/p2", lxBadInput, []string{"bot/B1", "bot/B2"}, []string{"test-set/T1"}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := rhWarnRecorder(st)
+			f := newLXTagFixture("aws", testRegion)
+			f.errs[c.key] = c.err
+			var locales parentCalls
+			handlers := f.handlers()
+			handlers["ListBotLocales"] = lxLocalesHandler(&locales, nil)
+			acct := newTestAccount(testAccountID)
+			acct.cfg = opStubConfig(handlers, lxDenied)
+
+			_, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
+			denied := c.err == lxDenied
+			if denied {
+				if err != nil {
+					t.Fatalf("err = %v; want nil", err)
+				}
+				if !slices.Contains(lxWarnOps(warns()), lexListBotsOp) {
+					t.Errorf("warnings = %v; want one under %s", warns(), lexListBotsOp)
+				}
+			} else {
+				assertAPICode(t, err, "ValidationException")
+			}
+			for typ, resources := range map[string][]string{TypeLexBot: c.wantBots, TypeLexTestSet: c.wantSets} {
+				want := make([]string, len(resources))
+				for i, r := range resources {
+					want[i] = f.arn(r)
+				}
+				if got := slices.Sorted(maps.Keys(rowsByNativeID(t, st, typ))); !slices.Equal(got, want) {
+					t.Errorf("%s rows = %v; want %v", typ, got, want)
+				}
+			}
+			wantLocaleBots := make([]string, len(c.wantBots))
+			for i, b := range c.wantBots {
+				wantLocaleBots[i] = path.Base(b)
+			}
+			if got := locales.distinct(); !slices.Equal(got, wantLocaleBots) {
+				t.Errorf("ListBotLocales bots = %v; want %v, the bots stored", got, wantLocaleBots)
+			}
+		})
+	}
+}
+
+// An NXDOMAIN from the first ListBots page, with nothing stored, is a region
+// that does not serve Lex: the scan is unavailable there and runs no later
+// phase. Once bots are stored, a later phase's NXDOMAIN is a failure of this
+// scan instead, and the stored rows keep their counts.
+func TestScanLex_NXDOMAIN(t *testing.T) {
+	nx := &net.DNSError{Err: "no such host", Name: "models-v2-lex.us-east-1.amazonaws.com", IsNotFound: true}
+	t.Run("nothing stored", func(t *testing.T) {
+		st := newTestStore(t)
+		f := newLXTagFixture("aws", testRegion)
+		f.errs["ListBots/"] = nx
+
+		total, _, err := f.scan(context.Background(), st)
+		assertGlueOutcome(t, err, outcomeUnavailable)
+		if total != 0 {
+			t.Errorf("total = %d; want 0", total)
+		}
+		if got := f.called("ListTestSets"); len(got) != 0 {
+			t.Errorf("ListTestSets calls = %v; want none once the region proved unavailable", got)
+		}
+	})
+	t.Run("after bots were stored", func(t *testing.T) {
+		st := newTestStore(t)
+		f := newLXTagFixture("aws", testRegion)
+		f.errs["ListTestSets/"] = nx
+
+		total, _, err := f.scan(context.Background(), st)
+		assertGlueOutcome(t, err, outcomeError)
+		if want := lxTagTotal - 2; total != want {
+			t.Errorf("total = %d; want the %d rows stored before the test sets", total, want)
+		}
+		if n := len(rowsByNativeID(t, st, TypeLexBot)); n != 2 {
+			t.Errorf("bot rows = %d; want 2", n)
+		}
+	})
+}
+
+// Once ctx ends, the stop is one member of the error, although the phase in
+// flight saw it in its listing; the later phases are not run, and the rows
+// stored before it are kept.
+func TestScanLex_ContextEndReportedOnce(t *testing.T) {
+	st := newTestStore(t)
+	f := newLXTagFixture("aws", testRegion)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var locales parentCalls
+	handlers := f.handlers()
+	handlers["ListTestSets"] = func(any) (any, error) {
+		cancel()
+		return nil, context.Canceled
+	}
+	handlers["ListBotLocales"] = lxLocalesHandler(&locales, nil)
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, lxDenied)
+
+	total, _, err := scanLex(ctx, acct, testRegion, st, testScanID)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v; want context.Canceled", err)
+	}
+	stops := 0
+	for _, m := range bacTopMembers(err) {
+		if errors.Is(m, context.Canceled) {
+			stops++
+		}
+	}
+	if stops != 1 {
+		t.Errorf("members carrying the stop = %d; want 1 (err %v)", stops, err)
+	}
+	if want := lxTagTotal - 2; total != want {
+		t.Errorf("total = %d; want the %d rows stored before ctx ended", total, want)
+	}
+	if got := locales.distinct(); len(got) != 0 {
+		t.Errorf("ListBotLocales bots = %v; want none after ctx ended", got)
+	}
+}
+
+// A repeated NextToken ends the bot listing with errRepeatedNextToken after
+// its first page is stored.
+func TestScanLex_RepeatedBotToken(t *testing.T) {
+	st := newTestStore(t)
+	f := newLXTagFixture("aws", testRegion)
+	handlers := f.handlers()
+	handlers["ListBots"] = func(any) (any, error) {
+		return &lexmodelsv2.ListBotsOutput{BotSummaries: []lextypes.BotSummary{{BotId: ptrStr("B1"), BotName: ptrStr("bot-1")}}, NextToken: ptrStr("same")}, nil
+	}
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, lxDenied)
+
+	_, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v; want errRepeatedNextToken", err)
+	}
+	if got := slices.Sorted(maps.Keys(rowsByNativeID(t, st, TypeLexBot))); !slices.Equal(got, []string{f.arn("bot/B1")}) {
+		t.Errorf("bot rows = %v; want [%s]", got, f.arn("bot/B1"))
+	}
+}
+
+// A failed write stops the scan: no warning about the rows it lost (a denied
+// tag read among them), no later phase runs, and the bots stay stored.
+func TestScanLex_FailedWriteStopsScan(t *testing.T) {
+	st := newTestStore(t)
+	warns := rhWarnRecorder(st)
+	refuseStoreWrites(t, st, TypeLexBotAlias)
+	f := newLXTagFixture("aws", testRegion)
+	f.errs["ListTagsForResource/"+f.arn("bot-alias/B2/TSTALIASID")] = lxDenied
+
+	total, _, err := f.scan(context.Background(), st)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
+	}
+	if got, want := lxWarnOps(warns()), []string{lexListBotsOp}; !slices.Equal(got, want) {
+		t.Errorf("warnings = %v; want only the bot listing's, sent before the failed write", warns())
+	}
+	for _, op := range []string{"ListBotVersions", "DescribeResourcePolicy", "ListTestSets"} {
+		if got := f.called(op); len(got) != 0 {
+			t.Errorf("%s calls = %v; want none after the failed write", op, got)
+		}
+	}
+	if n := len(rowsByNativeID(t, st, TypeLexBot)); total != 2 || n != 2 {
+		t.Errorf("total = %d, bot rows = %d; want 2, 2", total, n)
+	}
+}
+
+// A GovCloud or China ARN reaches the tag op unchanged and is the row's
+// NativeID.
+func TestScanLex_TagReadsKeepPartitionARNs(t *testing.T) {
+	for _, c := range partitionFixtures {
+		t.Run(c.partition, func(t *testing.T) {
+			st := newTestStore(t)
+			f := newLXTagFixture(c.partition, c.region)
+			if _, _, err := f.scan(context.Background(), st); err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			if got, want := f.sortedTagARNs(), f.taggedARNs(); !slices.Equal(got, want) {
+				t.Errorf("ListTagsForResource ARNs = %v\nwant %v", got, want)
+			}
+			for typ, resource := range map[string]string{TypeLexBot: "bot/B1", TypeLexBotAlias: "bot-alias/B1/AL1", TypeLexTestSet: "test-set/T1"} {
+				assertTagsMap(t, rowsByNativeID(t, st, typ)[f.arn(resource)].TagsJSON, map[string]string{"id": path.Base(resource)})
+			}
+			for typ, resource := range map[string]string{TypeLexBotVersion: "bot/B1/version/1", TypeLexResourcePolicy: "bot/B1/policy"} {
+				if _, ok := rowsByNativeID(t, st, typ)[f.arn(resource)]; !ok {
+					t.Errorf("%s row %s missing", typ, f.arn(resource))
+				}
+			}
+		})
+	}
+}
+
+// A bot whose DescribeResourcePolicy returns an empty Policy has no policy
+// row, and no warning.
+func TestScanLex_EmptyPolicyHasNoRow(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, "lexmodelsv2:DescribeResourcePolicy")
+	f := newLXTagFixture("aws", testRegion)
+	handlers := f.handlers()
+	describe := handlers["DescribeResourcePolicy"]
+	handlers["DescribeResourcePolicy"] = func(in any) (any, error) {
+		req := in.(*lexmodelsv2.DescribeResourcePolicyInput)
+		if lexBotIDOf(sv(req.ResourceArn)) == "B2" {
+			return &lexmodelsv2.DescribeResourcePolicyOutput{ResourceArn: req.ResourceArn}, nil
+		}
+		return describe(in)
+	}
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(handlers, lxDenied)
+
+	if _, _, err := scanLex(context.Background(), acct, testRegion, st, testScanID); err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if got, want := slices.Sorted(maps.Keys(rowsByNativeID(t, st, TypeLexResourcePolicy))), []string{f.arn("bot/B1/policy")}; !slices.Equal(got, want) || *warns != 0 {
+		t.Errorf("policy rows = %v, warnings = %d; want %v, 0", got, *warns, want)
 	}
 }
