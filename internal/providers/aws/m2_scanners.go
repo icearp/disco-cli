@@ -30,154 +30,170 @@ type m2API interface {
 	ListEnvironments(context.Context, *m2.ListEnvironmentsInput, ...func(*m2.Options)) (*m2.ListEnvironmentsOutput, error)
 	ListDeployments(context.Context, *m2.ListDeploymentsInput, ...func(*m2.Options)) (*m2.ListDeploymentsOutput, error)
 	ListDataSets(context.Context, *m2.ListDataSetsInput, ...func(*m2.Options)) (*m2.ListDataSetsOutput, error)
+	ListTagsForResource(context.Context, *m2.ListTagsForResourceInput, ...func(*m2.Options)) (*m2.ListTagsForResourceOutput, error)
 }
+
+const (
+	m2ListApplicationsOp = "m2:ListApplications"
+	m2ListEnvironmentsOp = "m2:ListEnvironments"
+	m2ListDeploymentsOp  = "m2:ListDeployments"
+	m2ListDataSetsOp     = "m2:ListDataSets"
+	m2TagsOp             = "m2:ListTagsForResource"
+	// m2PageCap is the maxResults cap (MaxResults, 1-2000) of every m2
+	// listing read here.
+	m2PageCap = 2000
+)
+
+// m2NotFound is the not-found code ListDeployments and ListTagsForResource
+// model: an application or resource deleted after it was listed.
+var m2NotFound = []string{"ResourceNotFoundException"}
 
 // scanM2 discovers M2 (Mainframe Modernization) applications, environments,
 // and per-application deployments and data sets. Applications and
-// environments are keyed by their ARNs; deployments and data sets have none
-// and are keyed by the parent application's ARN plus a path.
+// environments are keyed by their ARNs and carry their tags; deployments and
+// data sets have no ARN and are keyed by the parent application's ARN plus a
+// path.
 func scanM2(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := m2.NewFromConfig(acct.cfg, func(o *m2.Options) { o.Region = region })
 	return scanM2All(ctx, client, acct, region, st, scanID)
 }
 
-// scanM2All runs the older phases, then the data set phase over the
-// applications they stored. When an older phase after the application phase
-// fails, the data set phase still runs over every stored application; when the
-// data set phase fails, the older phases' rows and counts are kept. The data
-// set phase tallies its transient errors per application, so only the older
-// phases' error is demoted, and only beside a hard error.
+// scanM2All runs every listing as its own phase, one at a time and in this
+// order: applications, environments, then each stored application's
+// deployments and data sets. A phase's error does not stop the later ones; a
+// failed write and ctx's end do, and so does an application phase that
+// stores nothing and fails only with NXDOMAIN, since the region does not
+// serve the service (runHostPhases). The tag reads' denials are one warning
+// for the whole scan.
 func scanM2All(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, apps, err := scanM2OlderPhases(ctx, client, acct, region, st, scanID)
-	td, id, derr := scanM2Datasets(ctx, client, acct, region, st, scanID, apps)
-	return total + td, inserted + id, demoteBeside(st, "m2", acct, region, err, derr)
-}
-
-// scanM2OlderPhases runs the phases that predate the data set phase, stopping
-// at the first hard error. It returns the applications scanM2Applications
-// stored, or none when that phase failed.
-func scanM2OlderPhases(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string) (total, inserted int, apps []childParent, err error) {
-	apps, t, i, ferr := scanM2Applications(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, nil, ferr
-	}
-	total += t
-	inserted += i
-
-	t, i, ferr = scanM2Environments(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, apps, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, a := range apps {
-		t, i, ferr = scanM2Deployments(ctx, client, acct, region, st, scanID, a.id, a.arn)
-		if ferr != nil {
-			return total, inserted, apps, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, apps, nil
-}
-
-func scanM2Applications(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	pager := m2.NewListApplicationsPaginator(client, &m2.ListApplicationsInput{})
-	var batch []*store.Resource
+	tags := m2Tags(client).sharingDenials()
 	var apps []childParent
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "m2:ListApplications", acct.ID, region, err)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "m2", 0, []hostPhase{
+		{op: m2ListApplicationsOp, run: func(p *phaseTotals) bool {
+			var failed bool
+			apps, failed = scanM2Applications(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: m2ListEnvironmentsOp, run: func(p *phaseTotals) bool {
+			return scanM2Environments(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, m2ListDeploymentsOp, func() (int, int, error) {
+			return scanM2Deployments(ctx, client, acct, region, st, scanID, apps)
+		}),
+		countedPhase(0, m2ListDataSetsOp, func() (int, int, error) {
+			return scanM2Datasets(ctx, client, acct, region, st, scanID, apps)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
+}
+
+// m2Tags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: the ARN its listing returned. Only applications and environments
+// are read: TagResource and the Service Reference's tag condition keys cover
+// those two (its ListTagsForResource entry names no resource at all), their
+// Create inputs take Tags, and deployments and data sets have no ARN to send.
+// The op returns every tag at once. ResourceNotFoundException, its modeled
+// not-found, drops a resource deleted after it was listed.
+func m2Tags(client m2API) rowTagReader {
+	return rowTagReader{
+		op:       m2TagsOp,
+		notFound: m2NotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &m2.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("m2:ListApplications: %w", err)
-		}
-		for _, a := range out.Applications {
-			arn := sv(a.ApplicationArn)
-			id := sv(a.ApplicationId)
-			if arn == "" || id == "" {
-				continue
+			return mapTagsJSON(out.Tags), nil
+		},
+	}
+}
+
+// scanM2Applications stores the applications, each page written as soon as
+// its rows' tags are read, and returns those stored with an ApplicationId,
+// which the deployment and data set listings key on. It reports whether a
+// write failed, after which the scan must stop.
+func scanM2Applications(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, m2ListApplicationsOp, "applications", "ApplicationId",
+		func(ctx context.Context, token *string) ([]m2types.ApplicationSummary, *string, error) {
+			out, err := client.ListApplications(ctx, &m2.ListApplicationsInput{MaxResults: sdkaws.Int32(m2PageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			apps = append(apps, childParent{id: id, arn: arn})
+			return out.Applications, out.NextToken, nil
+		},
+		func(a m2types.ApplicationSummary) (*store.Resource, string, string) {
 			status := string(a.Status)
-			batch = append(batch, &store.Resource{
+			return arnRow("applications", a.ApplicationArn, a.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeM2Application, NativeID: arn,
+				Type: TypeM2Application, NativeID: sv(a.ApplicationArn),
 				Name: a.Name, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "m2 applications")
-	return apps, t, i, err
+		},
+		func(a m2types.ApplicationSummary) string { return sv(a.ApplicationId) },
+		tags, p)
 }
 
-func scanM2Environments(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := m2.NewListEnvironmentsPaginator(client, &m2.ListEnvironmentsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "m2:ListEnvironments", acct.ID, region, err)
+// scanM2Environments stores the runtime environments, each page written as
+// soon as its rows' tags are read. It reports whether a write failed, after
+// which the scan must stop.
+func scanM2Environments(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, m2ListEnvironmentsOp,
+		func(ctx context.Context, token *string) ([]m2types.EnvironmentSummary, *string, error) {
+			out, err := client.ListEnvironments(ctx, &m2.ListEnvironmentsInput{MaxResults: sdkaws.Int32(m2PageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("m2:ListEnvironments: %w", err)
-		}
-		for _, e := range out.Environments {
-			arn := sv(e.EnvironmentArn)
-			if arn == "" {
-				continue
-			}
+			return out.Environments, out.NextToken, nil
+		},
+		func(e m2types.EnvironmentSummary) (*store.Resource, string, string) {
 			status := string(e.Status)
-			batch = append(batch, &store.Resource{
+			return arnRow("environments", e.EnvironmentArn, e.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeM2Environment, NativeID: arn,
+				Type: TypeM2Environment, NativeID: sv(e.EnvironmentArn),
 				Name: e.Name, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			})
-		}
-	}
-	return upsertBatch(st, batch, "m2 environments")
+		},
+		tags, p)
 }
 
-func scanM2Deployments(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string, appID, appARN string) (int, int, error) {
-	aid := appID
-	pager := m2.NewListDeploymentsPaginator(client, &m2.ListDeploymentsInput{ApplicationId: &aid})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "m2:ListDeployments", acct.ID, region, err)
+// scanM2Deployments stores each application's deployments, the applications
+// listed concurrently (storeTokenEachParent): one application's failure costs
+// the others none of theirs, and the pages it read before failing are kept.
+// An application deleted before its listing was read
+// (ResourceNotFoundException) is skipped silently, and one deleted
+// mid-listing keeps the deployments already read and is warned about; a
+// denial warns once; any other error is returned after the rows are stored.
+func scanM2Deployments(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string, apps []childParent) (int, int, error) {
+	arnOf := make(map[string]string, len(apps))
+	for _, a := range apps {
+		arnOf[a.id] = a.arn
+	}
+	return storeTokenEachParent(ctx, st, acct, region, m2ListDeploymentsOp, m2NotFound, childParentIDs(apps),
+		func(ctx context.Context, appID string, token *string) ([]m2types.DeploymentSummary, *string, error) {
+			out, err := client.ListDeployments(ctx, &m2.ListDeploymentsInput{ApplicationId: &appID, MaxResults: sdkaws.Int32(m2PageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("m2:ListDeployments: %w", err)
-		}
-		for _, d := range out.Deployments {
+			return out.Deployments, out.NextToken, nil
+		},
+		func(appID string, d m2types.DeploymentSummary) (*store.Resource, string, string) {
 			did := sv(d.DeploymentId)
 			if did == "" {
-				continue
+				return nil, "deployments have no DeploymentId", "a deployment of " + arnOf[appID]
 			}
-			arn := appARN + "/deployment/" + did
-			label := did
 			status := string(d.Status)
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeM2Deployment, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
+				Type: TypeM2Deployment, NativeID: arnOf[appID] + "/deployment/" + did,
+				Name: &did, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "m2 deployments")
+			}, "", ""
+		})
 }
-
-const (
-	m2ListDataSetsOp = "m2:ListDataSets"
-	// m2DataSetsPageLimit is the model's maxResults cap for ListDataSets.
-	m2DataSetsPageLimit = 2000
-)
 
 // m2DatasetNativeID keys a data set under its application: ListDataSets
 // returns no ARN, and the Service Reference defines ARNs only for
@@ -227,14 +243,14 @@ func isM2PageSizeRejected(err error) bool {
 // storeM2Datasets stores one application's data sets a page at a time.
 func storeM2Datasets(ctx context.Context, client m2API, acct *account, region string, st *store.Store, scanID string, app childParent) (total, inserted int, err error) {
 	pager := m2.NewListDataSetsPaginator(client, &m2.ListDataSetsInput{ApplicationId: sdkaws.String(app.id)},
-		func(o *m2.ListDataSetsPaginatorOptions) { o.Limit = m2DataSetsPageLimit })
+		func(o *m2.ListDataSetsPaginatorOptions) { o.Limit = m2PageCap })
 	parentID := store.ResourceID("aws", acct.ID, app.arn)
 	for pager.HasMorePages() {
 		out, err := pager.NextPage(ctx)
 		if isM2PageSizeRejected(err) {
 			// %v, not %w: through the chain, the not-ready skip would match
 			// the ValidationException and warn about an error disco caused.
-			return total, inserted, fmt.Errorf("%s rejected page size %d: %v", m2ListDataSetsOp, m2DataSetsPageLimit, err)
+			return total, inserted, fmt.Errorf("%s rejected page size %d: %v", m2ListDataSetsOp, m2PageCap, err)
 		}
 		if err != nil {
 			return total, inserted, err
