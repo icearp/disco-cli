@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	rsstypes "github.com/aws/aws-sdk-go-v2/service/redshiftserverless/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -40,158 +41,182 @@ type redshiftServerlessAPI interface {
 	ListScheduledActions(context.Context, *redshiftserverless.ListScheduledActionsInput, ...func(*redshiftserverless.Options)) (*redshiftserverless.ListScheduledActionsOutput, error)
 	ListSnapshotCopyConfigurations(context.Context, *redshiftserverless.ListSnapshotCopyConfigurationsInput, ...func(*redshiftserverless.Options)) (*redshiftserverless.ListSnapshotCopyConfigurationsOutput, error)
 	ListUsageLimits(context.Context, *redshiftserverless.ListUsageLimitsInput, ...func(*redshiftserverless.Options)) (*redshiftserverless.ListUsageLimitsOutput, error)
+	ListTagsForResource(context.Context, *redshiftserverless.ListTagsForResourceInput, ...func(*redshiftserverless.Options)) (*redshiftserverless.ListTagsForResourceOutput, error)
 }
 
+const (
+	rssTagsOp = "redshiftserverless:ListTagsForResource"
+	// rssPageCap is the maxResults cap (1-100) the model sets on the tagged
+	// listings.
+	rssPageCap = 100
+)
+
 // scanRedshiftServerless discovers Redshift Serverless namespaces, workgroups
-// and their satellites. The namespace and workgroup phases hand their
-// name→ARN lists on to the children keyed by those names; the newer phases
-// run after every established one so their errors cannot cost those rows.
+// and their satellites.
 func scanRedshiftServerless(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
 	client := redshiftserverless.NewFromConfig(acct.cfg, func(o *redshiftserverless.Options) { o.Region = region })
 	return scanRSSPhases(ctx, client, acct, region, st, scanID)
 }
 
-func scanRSSPhases(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanRSSPhases runs every listing as its own phase, one at a time, in the
+// order below: a phase's error does not stop the later ones; a failed write
+// and ctx's end do (runHostPhases). The namespace and workgroup phases hand
+// the parents they stored, by name, to the scheduled-action and
+// custom-domain phases. The namespace, snapshot and workgroup listings write
+// a page at a time with each row's tags read (rssTags); the tag denials of
+// the whole scan are one warning.
+//
+// Recovery points are not tag-read, although the Service Reference lists
+// them for TagResource: ListTagsForResource takes the resource's ARN, and a
+// listed RecoveryPoint carries no ARN member (only its id and its
+// namespace's ARN). Their NativeID is a built ARN whose resource segment,
+// "recovery-point/", is not the Service Reference's "recoverypoint/", so it
+// is no ARN to send either. Snapshots differ in exactly this: each listed
+// snapshot carries its SnapshotArn.
+func scanRSSPhases(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	tags := rssTags(client).sharingDenials()
 	var namespaces, workgroups []childParent
-	for _, phase := range []func() (int, int, error){
-		func() (t, i int, err error) {
-			t, i, namespaces, err = scanRSSNamespaces(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (int, int, error) { return scanRSSSnapshots(ctx, client, acct, region, st, scanID) },
-		func() (t, i int, err error) {
-			t, i, workgroups, err = scanRSSWorkgroups(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (int, int, error) { return scanRSSEndpointAccess(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanRSSRecoveryPoints(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanRSSManagedWorkgroups(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanRSSReservations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "redshift-serverless", 0, []hostPhase{
+		{op: "redshiftserverless:ListNamespaces", run: func(p *phaseTotals) (failed bool) {
+			namespaces, failed = scanRSSNamespaces(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "redshiftserverless:ListSnapshots", run: func(p *phaseTotals) bool {
+			return scanRSSSnapshots(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "redshiftserverless:ListWorkgroups", run: func(p *phaseTotals) (failed bool) {
+			workgroups, failed = scanRSSWorkgroups(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		countedPhase(0, "redshiftserverless:ListEndpointAccess", func() (int, int, error) {
+			return scanRSSEndpointAccess(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "redshiftserverless:ListRecoveryPoints", func() (int, int, error) {
+			return scanRSSRecoveryPoints(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "redshiftserverless:ListManagedWorkgroups", func() (int, int, error) {
+			return scanRSSManagedWorkgroups(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "redshiftserverless:ListReservations", func() (int, int, error) {
+			return scanRSSReservations(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "redshiftserverless:ListSnapshotCopyConfigurations", func() (int, int, error) {
 			return scanRSSSnapshotCopyConfigurations(ctx, client, acct, region, st, scanID)
-		},
-		func() (int, int, error) { return scanRSSUsageLimits(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+		}),
+		countedPhase(0, "redshiftserverless:ListUsageLimits", func() (int, int, error) {
+			return scanRSSUsageLimits(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "redshiftserverless:ListScheduledActions", func() (int, int, error) {
 			return scanRSSScheduledActions(ctx, client, acct, region, st, scanID, namespaces)
-		},
-		func() (int, int, error) {
+		}),
+		countedPhase(0, "redshiftserverless:ListCustomDomainAssociations", func() (int, int, error) {
 			return scanRSSCustomDomainAssociations(ctx, client, acct, region, st, scanID, workgroups)
-		},
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-func scanRSSNamespaces(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
-	pager := redshiftserverless.NewListNamespacesPaginator(client, &redshiftserverless.ListNamespacesInput{})
-	var (
-		batch   []*store.Resource
-		parents []childParent
-	)
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "redshiftserverless:ListNamespaces", acct.ID, region, err)
+// rssTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, the ARN its listing returned. The op returns every tag in one
+// response (it takes no page token). ResourceNotFoundException is the one
+// not-found code the op models.
+func rssTags(client redshiftServerlessAPI) rowTagReader {
+	return rowTagReader{
+		op:       rssTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &redshiftserverless.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
 			}
-			return 0, 0, nil, fmt.Errorf("redshiftserverless:ListNamespaces: %w", err)
-		}
-		for _, n := range out.Namespaces {
-			arn := sv(n.NamespaceArn)
-			if arn == "" {
-				continue
+			return kvTagsJSON(out.Tags, func(t rsstypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
+	}
+}
+
+// scanRSSNamespaces stores the region's namespaces and returns those stored
+// with a name, the key the scheduled actions name their namespace by.
+func scanRSSNamespaces(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, "redshiftserverless:ListNamespaces", "namespaces", "NamespaceName",
+		func(ctx context.Context, token *string) ([]rsstypes.Namespace, *string, error) {
+			out, err := client.ListNamespaces(ctx, &redshiftserverless.ListNamespacesInput{NextToken: token, MaxResults: sdkaws.Int32(rssPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			// A nameless parent would key "" and adopt every child whose parent
-			// name is missing.
-			if name := sv(n.NamespaceName); name != "" {
-				parents = append(parents, childParent{id: name, arn: arn})
-			}
+			return out.Namespaces, out.NextToken, nil
+		},
+		func(n rsstypes.Namespace) (*store.Resource, string, string) {
 			status := string(n.Status)
-			batch = append(batch, &store.Resource{
+			return arnRow("namespaces", n.NamespaceArn, n.NamespaceName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftServerlessNamespace, NativeID: arn,
-				Name: n.NamespaceName, Region: &region, Status: &status,
+				Type: TypeRedshiftServerlessNamespace, NativeID: sv(n.NamespaceArn),
+				Name: n.NamespaceName, Region: &region, Status: &status, CreatedAt: tp(n.CreationDate),
 				AttributesJSON: mustJSON(n), DiscoveredBy: scanID,
 			})
-		}
-	}
-	total, inserted, err := upsertBatch(st, batch, "redshiftserverless namespaces")
-	if err != nil {
-		return 0, 0, nil, err
-	}
-	return total, inserted, parents, nil
+		},
+		func(n rsstypes.Namespace) string { return sv(n.NamespaceName) },
+		tags, p)
 }
 
-func scanRSSSnapshots(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := redshiftserverless.NewListSnapshotsPaginator(client, &redshiftserverless.ListSnapshotsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "redshiftserverless:ListSnapshots", acct.ID, region, err)
+// scanRSSSnapshots stores the region's snapshots. ListSnapshots takes an
+// ownerAccount filter, a snapshot names its OwnerAccount, and GetSnapshot's
+// ownerAccount names a snapshot shared from another account, so the listing
+// may return a snapshot another account owns. Its tag read may then be
+// refused or reported not found while the snapshot exists, so such a row is
+// kept untagged (untaggedIfOtherAccount on the ARN's account). Whether
+// ListSnapshots returns other accounts' snapshots when no filter is sent, and
+// how ListTagsForResource answers for them, is unverified.
+func scanRSSSnapshots(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "redshiftserverless:ListSnapshots",
+		func(ctx context.Context, token *string) ([]rsstypes.Snapshot, *string, error) {
+			out, err := client.ListSnapshots(ctx, &redshiftserverless.ListSnapshotsInput{NextToken: token, MaxResults: sdkaws.Int32(rssPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("redshiftserverless:ListSnapshots: %w", err)
-		}
-		for _, s := range out.Snapshots {
-			arn := sv(s.SnapshotArn)
-			if arn == "" {
-				continue
-			}
+			return out.Snapshots, out.NextToken, nil
+		},
+		func(s rsstypes.Snapshot) (*store.Resource, string, string) {
 			status := string(s.Status)
-			batch = append(batch, &store.Resource{
+			return arnRow("snapshots", s.SnapshotArn, s.SnapshotName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftServerlessSnapshot, NativeID: arn,
-				Name: s.SnapshotName, Region: &region, Status: &status,
+				Type: TypeRedshiftServerlessSnapshot, NativeID: sv(s.SnapshotArn),
+				Name: s.SnapshotName, Region: &region, Status: &status, CreatedAt: tp(s.SnapshotCreateTime),
 				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
 			})
-		}
-	}
-	return upsertBatch(st, batch, "redshiftserverless snapshots")
+		}, tags.untaggedIfOtherAccount(acct.ID), p)
 }
 
-func scanRSSWorkgroups(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, []childParent, error) {
-	pager := redshiftserverless.NewListWorkgroupsPaginator(client, &redshiftserverless.ListWorkgroupsInput{})
-	var (
-		batch   []*store.Resource
-		parents []childParent
-	)
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, nil, skipIfAccessDenied(st, "redshiftserverless:ListWorkgroups", acct.ID, region, err)
+// scanRSSWorkgroups stores the region's workgroups and returns those stored
+// with a name, the key the custom domain associations name their workgroup
+// by. ListWorkgroups takes an ownerAccount filter, which the model ties to
+// cross-account endpoint access (CreateEndpointAccess and ListEndpointAccess
+// take the same ownerAccount), so the listing may return a workgroup another
+// account owns. Such a row's tag read is handled as scanRSSSnapshots handles
+// another account's snapshot. Whether ListWorkgroups returns other accounts'
+// workgroups when no filter is sent, and how ListTagsForResource answers for
+// them, is unverified.
+func scanRSSWorkgroups(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, "redshiftserverless:ListWorkgroups", "workgroups", "WorkgroupName",
+		func(ctx context.Context, token *string) ([]rsstypes.Workgroup, *string, error) {
+			out, err := client.ListWorkgroups(ctx, &redshiftserverless.ListWorkgroupsInput{NextToken: token, MaxResults: sdkaws.Int32(rssPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, nil, fmt.Errorf("redshiftserverless:ListWorkgroups: %w", err)
-		}
-		for _, w := range out.Workgroups {
-			arn := sv(w.WorkgroupArn)
-			if arn == "" {
-				continue
-			}
-			if name := sv(w.WorkgroupName); name != "" {
-				parents = append(parents, childParent{id: name, arn: arn})
-			}
+			return out.Workgroups, out.NextToken, nil
+		},
+		func(w rsstypes.Workgroup) (*store.Resource, string, string) {
 			status := string(w.Status)
-			batch = append(batch, &store.Resource{
+			return arnRow("workgroups", w.WorkgroupArn, w.WorkgroupName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeRedshiftServerlessWorkgroup, NativeID: arn,
-				Name: w.WorkgroupName, Region: &region, Status: &status,
+				Type: TypeRedshiftServerlessWorkgroup, NativeID: sv(w.WorkgroupArn),
+				Name: w.WorkgroupName, Region: &region, Status: &status, CreatedAt: tp(w.CreationDate),
 				AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
 			})
-		}
-	}
-	total, inserted, err := upsertBatch(st, batch, "redshiftserverless workgroups")
-	if err != nil {
-		return 0, 0, nil, err
-	}
-	return total, inserted, parents, nil
+		},
+		func(w rsstypes.Workgroup) string { return sv(w.WorkgroupName) },
+		tags.untaggedIfOtherAccount(acct.ID), p)
 }
 
 func scanRSSEndpointAccess(ctx context.Context, client redshiftServerlessAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
