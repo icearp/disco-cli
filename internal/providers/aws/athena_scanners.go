@@ -13,8 +13,6 @@ import (
 	athenatypes "github.com/aws/aws-sdk-go-v2/service/athena/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -38,6 +36,7 @@ type athenaAPI interface {
 	ListDataCatalogs(context.Context, *athena.ListDataCatalogsInput, ...func(*athena.Options)) (*athena.ListDataCatalogsOutput, error)
 	GetDataCatalog(context.Context, *athena.GetDataCatalogInput, ...func(*athena.Options)) (*athena.GetDataCatalogOutput, error)
 	ListCapacityReservations(context.Context, *athena.ListCapacityReservationsInput, ...func(*athena.Options)) (*athena.ListCapacityReservationsOutput, error)
+	ListTagsForResource(context.Context, *athena.ListTagsForResourceInput, ...func(*athena.Options)) (*athena.ListTagsForResourceOutput, error)
 	ListNamedQueries(context.Context, *athena.ListNamedQueriesInput, ...func(*athena.Options)) (*athena.ListNamedQueriesOutput, error)
 	BatchGetNamedQuery(context.Context, *athena.BatchGetNamedQueryInput, ...func(*athena.Options)) (*athena.BatchGetNamedQueryOutput, error)
 	ListPreparedStatements(context.Context, *athena.ListPreparedStatementsInput, ...func(*athena.Options)) (*athena.ListPreparedStatementsOutput, error)
@@ -45,129 +44,138 @@ type athenaAPI interface {
 	ListNotebookMetadata(context.Context, *athena.ListNotebookMetadataInput, ...func(*athena.Options)) (*athena.ListNotebookMetadataOutput, error)
 }
 
+const (
+	athenaListWorkGroupsOp           = "athena:ListWorkGroups"
+	athenaGetWorkGroupOp             = "athena:GetWorkGroup"
+	athenaListDataCatalogsOp         = "athena:ListDataCatalogs"
+	athenaGetDataCatalogOp           = "athena:GetDataCatalog"
+	athenaListCapacityReservationsOp = "athena:ListCapacityReservations"
+	athenaTagsOp                     = "athena:ListTagsForResource"
+	athenaListNamedQueriesOp         = "athena:ListNamedQueries"
+	athenaBatchGetNamedQueryOp       = "athena:BatchGetNamedQuery"
+	athenaListPreparedStatementsOp   = "athena:ListPreparedStatements"
+	athenaBatchGetPreparedStmtOp     = "athena:BatchGetPreparedStatement"
+)
+
+// athenaListPageCap is the model's cap on MaxResults of ListWorkGroups,
+// ListDataCatalogs and ListCapacityReservations (50 each).
+const athenaListPageCap = 50
+
+// athenaTagsPageSize is ListTagsForResource's MaxResults: the model sets a
+// minimum of 75 and no maximum.
+const athenaTagsPageSize = 75
+
+// athenaGlueCatalog is the name ListDataCatalogs gives the account's AWS Glue
+// Data Catalog.
+const athenaGlueCatalog = "AwsDataCatalog"
+
 func athenaCapacityReservationARN(partition, region, accountID, name string) string {
 	return arnFor(partition, "athena", region, accountID, "capacity-reservation/"+name)
 }
 
-// scanAthena discovers Athena workgroups, data catalogs, capacity reservations,
-// each workgroup's saved (named) queries + prepared statements, and the
-// notebooks of each Apache Spark enabled workgroup, per region.
-// Workgroup/catalog phases List (paginator, name-only) → fan-out Get for the
-// full body (errgroup + fanoutMed); the saved-query phases reuse the workgroup
-// names to drive per-workgroup List + BatchGet.
-//
-// The older phases stop at their first hard error. The notebook phase runs
-// whatever they returned, over the Spark workgroups stored before any failure,
-// so its failure costs no other phase its rows and theirs does not skip it. The
-// older phases' transient error is demoted to a warning only beside a hard
-// error: joined, it would be buried in the hard error instead of reported under
-// its op (the notebook phase already warns on its own); the counts are summed.
+// scanAthena discovers Athena workgroups, data catalogs, capacity
+// reservations, each workgroup's saved (named) queries and prepared
+// statements, and the notebooks of each Apache Spark enabled workgroup, per
+// region. Every listing runs as its own phase, one at a time: a phase's error
+// does not stop the later ones; a failed write and ctx's end do; a region
+// whose workgroup listing finds no endpoint runs no other phase
+// (runHostPhases). The saved-query and notebook phases read the workgroups
+// the workgroup phase stored. Workgroups, data catalogs and capacity
+// reservations, the types Athena tags, have their tags read per row
+// (athenaTags), and the tag denials of the whole scan are one warning.
 func scanAthena(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := athena.NewFromConfig(acct.cfg, func(o *athena.Options) { o.Region = region })
-	total, inserted, sparkWorkGroups, err := scanAthenaOlderPhases(ctx, client, acct, region, st, scanID)
-	t, i, nerr := scanAthenaNotebooks(ctx, client, acct, region, st, scanID, sparkWorkGroups)
-	return total + t, inserted + i, demoteBeside(st, "athena", acct, region, err, nerr)
+	tags := athenaTags(client).sharingDenials()
+	var workGroups athenaWorkGroupParents
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "athena", 0, []hostPhase{
+		{op: athenaListWorkGroupsOp, run: func(p *phaseTotals) bool {
+			return scanAthenaWorkGroups(ctx, client, acct, region, st, scanID, tags, &workGroups, p)
+		}},
+		{op: athenaListDataCatalogsOp, run: func(p *phaseTotals) bool {
+			return scanAthenaDataCatalogs(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: athenaListCapacityReservationsOp, run: func(p *phaseTotals) bool {
+			return scanAthenaCapacityReservations(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: athenaListNamedQueriesOp, run: func(p *phaseTotals) bool {
+			return scanAthenaNamedQueries(ctx, client, acct, region, st, scanID, workGroups.names, p)
+		}},
+		{op: athenaListPreparedStatementsOp, run: func(p *phaseTotals) bool {
+			return scanAthenaPreparedStatements(ctx, client, acct, region, st, scanID, workGroups.names, p)
+		}},
+		countedPhase(0, athenaNotebookOp, func() (int, int, error) {
+			return scanAthenaNotebooks(ctx, client, acct, region, st, scanID, workGroups.spark)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// scanAthenaOlderPhases runs the phases that predate notebooks, stopping at
-// the first hard error. It also returns the Spark enabled workgroups stored.
-func scanAthenaOlderPhases(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, sparkWorkGroups []childParent, err error) {
-	var wgNames []string
-	{
-		t, i, names, spark, ferr := scanAthenaWorkGroups(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, nil, ferr
-		}
-		wgNames, sparkWorkGroups = names, spark
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanAthenaDataCatalogs(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, sparkWorkGroups, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanAthenaCapacityReservations(ctx, client, acct, region, st, scanID)
-		if ferr != nil {
-			return total, inserted, sparkWorkGroups, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	// Saved-SQL artefacts run last: a named-query / prepared-statement fetch
-	// error must not blank the higher-value workgroup / catalog / capacity rows.
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) {
-			return scanAthenaNamedQueries(ctx, client, acct, region, st, scanID, wgNames)
-		},
-		func() (int, int, error) {
-			return scanAthenaPreparedStatements(ctx, client, acct, region, st, scanID, wgNames)
-		},
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, sparkWorkGroups, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	return total, inserted, sparkWorkGroups, nil
-}
-
-// scanAthenaCapacityReservations enumerates Athena capacity reservations
-// (account-scoped per region). NativeID synthesized via
-// athenaCapacityReservationARN since ListCapacityReservations does not
-// surface an ARN field.
-func scanAthenaCapacityReservations(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := athena.NewListCapacityReservationsPaginator(client, &athena.ListCapacityReservationsInput{})
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return total, inserted, skipIfAccessDenied(st, "athena:ListCapacityReservations", acct.ID, region, perr)
+// athenaTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, the ARN built from its listed name in the Service Reference's
+// format for its type; the Service Reference lists workgroup, datacatalog
+// and capacity-reservation under the op. Every page is read.
+// ResourceNotFoundException, the op's only modeled not-found, drops a
+// resource deleted after it was listed. The listings read here take no
+// owner and return this account's own resources.
+//
+// A ManagedByProvider row (AwsDataCatalog) is not read: whether the op
+// accepts its ARN is unverified, a refusal would fail every scan (every
+// region lists it), and a not-found answer would drop the row. Such a row
+// keeps the TagsJSON its builder set.
+func athenaTags(client athenaAPI) rowTagReader {
+	return rowTagReader{
+		op:       athenaTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			if r.ManagedByProvider {
+				return r.TagsJSON, nil
 			}
-			return total, inserted, fmt.Errorf("athena:ListCapacityReservations: %w", perr)
-		}
-		batch := make([]*store.Resource, 0, len(out.CapacityReservations))
-		for _, c := range out.CapacityReservations {
-			cname := sv(c.Name)
-			if cname == "" {
-				continue
-			}
-			arn := athenaCapacityReservationARN(acct.partition(), region, acct.ID, cname)
-			status := string(c.Status)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeAthenaCapacityReservation,
-				NativeID:       arn,
-				Name:           &cname,
-				Region:         &region,
-				Status:         &status,
-				CreatedAt:      tp(c.CreationTime),
-				AttributesJSON: mustJSON(c),
-				DiscoveredBy:   scanID,
+			arn := r.NativeID
+			tags, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]athenatypes.Tag, *string, error) {
+				out, err := client.ListTagsForResource(ctx, &athena.ListTagsForResourceInput{
+					ResourceARN: &arn, MaxResults: sdkaws.Int32(athenaTagsPageSize), NextToken: token,
+				})
+				if err != nil {
+					return nil, nil, err
+				}
+				return out.Tags, out.NextToken, nil
 			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
 			if err != nil {
-				return total, inserted, fmt.Errorf("upsert athena capacity-reservations: %w", err)
+				return nil, err
 			}
-			total += len(batch)
-			inserted += n
-		}
+			return kvTagsJSON(tags, func(t athenatypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
 	}
-	return total, inserted, nil
+}
+
+// scanAthenaCapacityReservations stores the capacity reservations under the
+// ARN built from each listed name (ListCapacityReservations returns none), a
+// page at a time, the element verbatim as the attributes.
+func scanAthenaCapacityReservations(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, athenaListCapacityReservationsOp,
+		func(ctx context.Context, token *string) ([]athenatypes.CapacityReservation, *string, error) {
+			out, err := client.ListCapacityReservations(ctx, &athena.ListCapacityReservationsInput{
+				MaxResults: sdkaws.Int32(athenaListPageCap), NextToken: token,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.CapacityReservations, out.NextToken, nil
+		},
+		func(c athenatypes.CapacityReservation) (*store.Resource, string, string) {
+			name := sv(c.Name)
+			if name == "" {
+				return nil, "capacity reservations have no name", noIdentifier
+			}
+			status := string(c.Status)
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAthenaCapacityReservation, NativeID: athenaCapacityReservationARN(acct.partition(), region, acct.ID, name),
+				Name: &name, Region: &region, Status: &status, CreatedAt: tp(c.CreationTime),
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			}, "", ""
+		}, tags, p)
 }
 
 func athenaWorkGroupARN(partition, region, accountID, name string) string {
@@ -178,97 +186,98 @@ func athenaDataCatalogARN(partition, region, accountID, name string) string {
 	return arnFor(partition, "athena", region, accountID, "datacatalog/"+name)
 }
 
-// isAthenaSparkWorkGroup reports whether wg runs Apache Spark rather than
-// Athena SQL. Notebooks exist only in Spark enabled workgroups, and the
-// effective engine version is the workgroup field that tells the two apart: a
-// Spark workgroup's names Spark ("PySpark engine version 3"), a SQL
-// workgroup's does not ("Athena engine version 3").
-func isAthenaSparkWorkGroup(wg *athenatypes.WorkGroup) bool {
-	if wg.Configuration == nil || wg.Configuration.EngineVersion == nil {
-		return false
-	}
-	return strings.Contains(sv(wg.Configuration.EngineVersion.EffectiveEngineVersion), "Spark")
+// isAthenaSparkWorkGroup reports whether a workgroup whose engine version is
+// v runs Apache Spark rather than Athena SQL. Notebooks exist only in Spark
+// enabled workgroups, and the effective engine version is the workgroup field
+// that tells the two apart: a Spark workgroup's names Spark ("PySpark engine
+// version 3"), a SQL workgroup's does not ("Athena engine version 3"). Both
+// WorkGroupSummary and the GetWorkGroup body carry it.
+func isAthenaSparkWorkGroup(v *athenatypes.EngineVersion) bool {
+	return v != nil && strings.Contains(sv(v.EffectiveEngineVersion), "Spark")
 }
 
-// scanAthenaWorkGroups stores every workgroup and returns the names listed
-// and the Spark enabled workgroups stored.
-func scanAthenaWorkGroups(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, names []string, spark []childParent, err error) {
-	pager := athena.NewListWorkGroupsPaginator(client, &athena.ListWorkGroupsInput{})
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "athena:ListWorkGroups", acct.ID, region, perr)
-				return 0, 0, nil, nil, nil
-			}
-			return 0, 0, nil, nil, fmt.Errorf("athena:ListWorkGroups: %w", perr)
-		}
-		for _, w := range out.WorkGroups {
-			if w.Name != nil {
-				names = append(names, *w.Name)
-			}
-		}
-	}
-	if len(names) == 0 {
-		return 0, 0, nil, nil, nil
-	}
+// athenaWorkGroupParents is what the workgroup phase hands the later phases:
+// the names of the workgroups it stored, and the stored workgroups whose
+// engine version names Spark.
+type athenaWorkGroupParents struct {
+	names []string
+	spark []childParent
+}
 
-	sem := semaphore.NewWeighted(fanoutMed)
+// scanAthenaWorkGroups stores the workgroups under the ARN built from each
+// listed name, a page at a time, each row's attributes replaced with its
+// GetWorkGroup body, and adds the stored ones to parents. GetWorkGroup
+// models no not-found error, so any failed read keeps the WorkGroupSummary
+// as the row, a denial warned about and any other error returned
+// (rowDetailReader). A workgroup deleted after the listing fails that read
+// with an error that is returned, and its row is then dropped when its tag
+// read answers ResourceNotFoundException (athenaTags). Whether a workgroup
+// runs Spark is read from its summary's engine version, or from its body's
+// once the body is read.
+func scanAthenaWorkGroups(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, parents *athenaWorkGroupParents, p *phaseTotals) bool {
 	var (
 		mu    sync.Mutex
-		batch []*store.Resource
+		spark = map[string]bool{}
 	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, name := range names {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, names, nil, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			out, derr := client.GetWorkGroup(gctx, &athena.GetWorkGroupInput{WorkGroup: &name})
-			if derr != nil {
-				if isAccessDenied(derr) {
-					return nil
+	steps := tokenPageSteps{
+		details: rowDetailReader{
+			op: athenaGetWorkGroupOp, what: "workgroup(s)",
+			get: func(ctx context.Context, r *store.Resource) (any, error) {
+				out, err := client.GetWorkGroup(ctx, &athena.GetWorkGroupInput{WorkGroup: r.Name})
+				if err != nil {
+					return nil, err
 				}
-				return fmt.Errorf("athena:GetWorkGroup %s: %w", name, derr)
+				if out.WorkGroup == nil {
+					return nil, nil
+				}
+				var engine *athenatypes.EngineVersion
+				if out.WorkGroup.Configuration != nil {
+					engine = out.WorkGroup.Configuration.EngineVersion
+				}
+				mu.Lock()
+				spark[r.NativeID] = isAthenaSparkWorkGroup(engine)
+				mu.Unlock()
+				return out.WorkGroup, nil
+			},
+		},
+		stored: func(rows []*store.Resource) {
+			mu.Lock()
+			defer mu.Unlock()
+			for _, r := range rows {
+				parents.names = append(parents.names, sv(r.Name))
+				if spark[r.NativeID] {
+					parents.spark = append(parents.spark, childParent{id: sv(r.Name), arn: r.NativeID})
+				}
 			}
-			if out.WorkGroup == nil {
-				return nil
+		},
+	}
+	return storeTokenPagesTagsWith(ctx, st, acct, region, athenaListWorkGroupsOp,
+		func(ctx context.Context, token *string) ([]athenatypes.WorkGroupSummary, *string, error) {
+			out, err := client.ListWorkGroups(ctx, &athena.ListWorkGroupsInput{
+				MaxResults: sdkaws.Int32(athenaListPageCap), NextToken: token,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.WorkGroups, out.NextToken, nil
+		},
+		func(w athenatypes.WorkGroupSummary) (*store.Resource, string, string) {
+			name := sv(w.Name)
+			if name == "" {
+				return nil, "workgroups have no name", noIdentifier
 			}
 			arn := athenaWorkGroupARN(acct.partition(), region, acct.ID, name)
-			status := string(out.WorkGroup.State)
-			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeAthenaWorkgroup,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				Status:         &status,
-				AttributesJSON: mustJSON(out.WorkGroup),
-				DiscoveredBy:   scanID,
-			}
 			mu.Lock()
-			batch = append(batch, r)
-			if isAthenaSparkWorkGroup(out.WorkGroup) {
-				spark = append(spark, childParent{id: name, arn: arn})
-			}
+			spark[arn] = isAthenaSparkWorkGroup(w.EngineVersion)
 			mu.Unlock()
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, names, nil, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, names, nil, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, names, nil, fmt.Errorf("upsert athena workgroups: %w", uerr)
-	}
-	return len(batch), n, names, spark, nil
+			status := string(w.State)
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAthenaWorkgroup, NativeID: arn,
+				Name: &name, Region: &region, Status: &status, CreatedAt: tp(w.CreationTime),
+				AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
+			}, "", ""
+		}, steps, tags, p)
 }
 
 const athenaNotebookOp = "athena:ListNotebookMetadata"
@@ -286,8 +295,8 @@ var (
 )
 
 // isAthenaNotFound matches Athena's not-found answer, an InvalidRequestException
-// saying "... not found" (observed on GetDataCatalog; Athena's read ops model
-// no not-found error).
+// saying "... not found" (observed on GetDataCatalog; GetWorkGroup and
+// GetDataCatalog model no not-found error).
 func isAthenaNotFound(err error) bool {
 	return isAPIErrorWithMessage(err, "InvalidRequestException", "not found")
 }
@@ -379,9 +388,10 @@ func listAthenaNotebooks(ctx context.Context, client athenaAPI, acct *account, r
 }
 
 // scanAthenaNamedQueries lists each workgroup's saved (named) queries and
-// batch-fetches their bodies. Named queries carry no AWS-issued ARN; synthesize
+// batch-fetches their bodies, adding its counts and its error, under the op
+// that failed, to p. Named queries carry no AWS-issued ARN; synthesize
 // {workgroupARN}/named-query/{id}.
-func scanAthenaNamedQueries(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string, workgroups []string) (total, inserted int, err error) {
+func scanAthenaNamedQueries(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string, workgroups []string, p *phaseTotals) (storeWriteFailed bool) {
 	var batch []*store.Resource
 	for _, wg := range workgroups {
 		var ids []string
@@ -390,10 +400,11 @@ func scanAthenaNamedQueries(ctx context.Context, client athenaAPI, acct *account
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {
 				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "athena:ListNamedQueries", acct.ID, region, perr)
+					_ = skipIfAccessDenied(st, athenaListNamedQueriesOp, acct.ID, region, perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("athena:ListNamedQueries: %w", perr)
+				p.errs.add(athenaListNamedQueriesOp, fmt.Errorf("%s: %w", athenaListNamedQueriesOp, perr))
+				return false
 			}
 			ids = append(ids, out.NamedQueryIds...)
 		}
@@ -401,10 +412,11 @@ func scanAthenaNamedQueries(ctx context.Context, client athenaAPI, acct *account
 			out, derr := client.BatchGetNamedQuery(ctx, &athena.BatchGetNamedQueryInput{NamedQueryIds: chunk})
 			if derr != nil {
 				if isAccessDenied(derr) {
-					_ = skipIfAccessDenied(st, "athena:BatchGetNamedQuery", acct.ID, region, derr)
+					_ = skipIfAccessDenied(st, athenaBatchGetNamedQueryOp, acct.ID, region, derr)
 					break
 				}
-				return 0, 0, fmt.Errorf("athena:BatchGetNamedQuery: %w", derr)
+				p.errs.add(athenaBatchGetNamedQueryOp, fmt.Errorf("%s: %w", athenaBatchGetNamedQueryOp, derr))
+				return false
 			}
 			for _, q := range out.NamedQueries {
 				id := sv(q.NamedQueryId)
@@ -421,12 +433,14 @@ func scanAthenaNamedQueries(ctx context.Context, client athenaAPI, acct *account
 			}
 		}
 	}
-	return upsertBatch(st, batch, "athena named-queries")
+	total, inserted, err := upsertBatch(st, batch, "athena named-queries")
+	return p.addPhase(athenaListNamedQueriesOp, total, inserted, err)
 }
 
 // scanAthenaPreparedStatements lists each workgroup's prepared statements and
-// batch-fetches their bodies. NativeID {workgroupARN}/prepared-statement/{name}.
-func scanAthenaPreparedStatements(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string, workgroups []string) (total, inserted int, err error) {
+// batch-fetches their bodies, adding its counts and its error, under the op
+// that failed, to p. NativeID {workgroupARN}/prepared-statement/{name}.
+func scanAthenaPreparedStatements(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string, workgroups []string, p *phaseTotals) (storeWriteFailed bool) {
 	var batch []*store.Resource
 	for _, wg := range workgroups {
 		var names []string
@@ -435,10 +449,11 @@ func scanAthenaPreparedStatements(ctx context.Context, client athenaAPI, acct *a
 			out, perr := pager.NextPage(ctx)
 			if perr != nil {
 				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "athena:ListPreparedStatements", acct.ID, region, perr)
+					_ = skipIfAccessDenied(st, athenaListPreparedStatementsOp, acct.ID, region, perr)
 					break
 				}
-				return 0, 0, fmt.Errorf("athena:ListPreparedStatements: %w", perr)
+				p.errs.add(athenaListPreparedStatementsOp, fmt.Errorf("%s: %w", athenaListPreparedStatementsOp, perr))
+				return false
 			}
 			for _, s := range out.PreparedStatements {
 				if s.StatementName != nil {
@@ -454,10 +469,11 @@ func scanAthenaPreparedStatements(ctx context.Context, client athenaAPI, acct *a
 			})
 			if derr != nil {
 				if isAccessDenied(derr) {
-					_ = skipIfAccessDenied(st, "athena:BatchGetPreparedStatement", acct.ID, region, derr)
+					_ = skipIfAccessDenied(st, athenaBatchGetPreparedStmtOp, acct.ID, region, derr)
 					break
 				}
-				return 0, 0, fmt.Errorf("athena:BatchGetPreparedStatement: %w", derr)
+				p.errs.add(athenaBatchGetPreparedStmtOp, fmt.Errorf("%s: %w", athenaBatchGetPreparedStmtOp, derr))
+				return false
 			}
 			for _, s := range out.PreparedStatements {
 				name := sv(s.StatementName)
@@ -474,85 +490,64 @@ func scanAthenaPreparedStatements(ctx context.Context, client athenaAPI, acct *a
 			}
 		}
 	}
-	return upsertBatch(st, batch, "athena prepared-statements")
+	total, inserted, err := upsertBatch(st, batch, "athena prepared-statements")
+	return p.addPhase(athenaListPreparedStatementsOp, total, inserted, err)
 }
 
-func scanAthenaDataCatalogs(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	pager := athena.NewListDataCatalogsPaginator(client, &athena.ListDataCatalogsInput{})
-	var names []string
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "athena:ListDataCatalogs", acct.ID, region, perr)
-				return 0, 0, nil
+// scanAthenaDataCatalogs stores the data catalogs under the ARN built from
+// each listed name, a page at a time, each row's attributes replaced with its
+// GetDataCatalog body. GetDataCatalog models no not-found error, so a failed
+// read keeps the DataCatalogSummary as the row, and a catalog deleted after
+// the listing is dropped only when its tag read answers
+// ResourceNotFoundException, as scanAthenaWorkGroups says.
+//
+// AwsDataCatalog, Athena's name for the account's AWS Glue Data Catalog, is
+// listed without a CreateDataCatalog call and holds no Athena setting:
+// GetDataCatalog rejects it with InvalidRequestException (aws/CLAUDE.md
+// "List returns entry, Get rejects it"), which would fail every scan. Its
+// row is its DataCatalogSummary, ManagedByProvider, and neither its body nor
+// its tags are read (athenaTags).
+func scanAthenaDataCatalogs(ctx context.Context, client athenaAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	steps := tokenPageSteps{details: rowDetailReader{
+		op: athenaGetDataCatalogOp, what: "data catalog(s)",
+		get: func(ctx context.Context, r *store.Resource) (any, error) {
+			if r.ManagedByProvider {
+				return nil, nil
 			}
-			return 0, 0, fmt.Errorf("athena:ListDataCatalogs: %w", perr)
-		}
-		for _, d := range out.DataCatalogsSummary {
-			if d.CatalogName != nil {
-				names = append(names, *d.CatalogName)
-			}
-		}
-	}
-	if len(names) == 0 {
-		return 0, 0, nil
-	}
-
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, name := range names {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			out, derr := client.GetDataCatalog(gctx, &athena.GetDataCatalogInput{Name: &name})
-			if derr != nil {
-				if isAccessDenied(derr) || isAPIErrorCode(derr, "InvalidRequestException") {
-					// AwsDataCatalog (the implicit Glue Data Catalog) is
-					// returned by ListDataCatalogs but rejected by
-					// GetDataCatalog with InvalidRequestException — no
-					// per-catalog config to fetch. Skip preserves sibling
-					// totals.
-					return nil
-				}
-				return fmt.Errorf("athena:GetDataCatalog %s: %w", name, derr)
+			out, err := client.GetDataCatalog(ctx, &athena.GetDataCatalogInput{Name: r.Name})
+			if err != nil {
+				return nil, err
 			}
 			if out.DataCatalog == nil {
-				return nil
+				return nil, nil
 			}
-			arn := athenaDataCatalogARN(acct.partition(), region, acct.ID, name)
+			return out.DataCatalog, nil
+		},
+	}}
+	return storeTokenPagesTagsWith(ctx, st, acct, region, athenaListDataCatalogsOp,
+		func(ctx context.Context, token *string) ([]athenatypes.DataCatalogSummary, *string, error) {
+			out, err := client.ListDataCatalogs(ctx, &athena.ListDataCatalogsInput{
+				MaxResults: sdkaws.Int32(athenaListPageCap), NextToken: token,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.DataCatalogsSummary, out.NextToken, nil
+		},
+		func(d athenatypes.DataCatalogSummary) (*store.Resource, string, string) {
+			name := sv(d.CatalogName)
+			if name == "" {
+				return nil, "data catalogs have no name", noIdentifier
+			}
 			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeAthenaDataCatalog,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(out.DataCatalog),
-				DiscoveredBy:   scanID,
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAthenaDataCatalog, NativeID: athenaDataCatalogARN(acct.partition(), region, acct.ID, name),
+				Name: &name, Region: &region, ManagedByProvider: name == athenaGlueCatalog,
+				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
 			}
-			mu.Lock()
-			batch = append(batch, r)
-			mu.Unlock()
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return 0, 0, werr
-	}
-	if len(batch) == 0 {
-		return 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert athena data catalogs: %w", uerr)
-	}
-	return len(batch), n, nil
+			if s := string(d.Status); s != "" {
+				r.Status = &s
+			}
+			return r, "", ""
+		}, steps, tags, p)
 }

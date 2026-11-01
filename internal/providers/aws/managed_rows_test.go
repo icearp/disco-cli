@@ -107,11 +107,15 @@ func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
 		{
 			name: "athena primary workgroup", typ: TypeAthenaWorkgroup,
 			handlers: handlers{
-				"ListWorkGroups": ret(&athena.ListWorkGroupsOutput{WorkGroups: []athenatypes.WorkGroupSummary{{Name: sdkaws.String("primary")}}}),
-				"GetWorkGroup":   ret(&athena.GetWorkGroupOutput{WorkGroup: &athenatypes.WorkGroup{Name: sdkaws.String("primary"), State: athenatypes.WorkGroupStateEnabled}}),
+				"ListWorkGroups":      ret(&athena.ListWorkGroupsOutput{WorkGroups: []athenatypes.WorkGroupSummary{{Name: sdkaws.String("primary")}}}),
+				"GetWorkGroup":        ret(&athena.GetWorkGroupOutput{WorkGroup: &athenatypes.WorkGroup{Name: sdkaws.String("primary"), State: athenatypes.WorkGroupStateEnabled}}),
+				"ListTagsForResource": ret(&athena.ListTagsForResourceOutput{}),
 			},
 			run: func(ctx context.Context, cfg sdkaws.Config, acct *account, st *store.Store) error {
-				_, _, _, _, err := scanAthenaWorkGroups(ctx, athena.NewFromConfig(cfg), acct, testRegion, st, testScanID)
+				client := athena.NewFromConfig(cfg)
+				var p phaseTotals
+				scanAthenaWorkGroups(ctx, client, acct, testRegion, st, testScanID, athenaTags(client), &athenaWorkGroupParents{}, &p)
+				_, _, err := p.result(st, acct, testRegion)
 				return err
 			},
 		},
