@@ -5,81 +5,81 @@ import (
 	"errors"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/wafv2"
 	"github.com/aws/aws-sdk-go-v2/service/wafv2/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanWAFv2ScopeExtended discovers per-scope logging configurations, regex
-// pattern sets, managed rule sets and web-ACL associations. Every phase, and
-// the association listing of every web ACL, runs whatever the others
-// returned; the counts are every row stored and the errors join through
-// phaseErrs. WebACLAssociation rows are synthesized per (web ACL ARN,
-// associated resource ARN); LoggingConfig and RegexPatternSet expose native
-// ARNs.
-func scanWAFv2ScopeExtended(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string, webACLARNs []string) (total, inserted int, err error) {
-	var errs phaseErrs
-	add := func(op string, t, i int, err error) {
-		total += t
-		inserted += i
-		errs.add(op, err)
+// wafv2ExtendedPhases is one scope's logging-configuration, regex pattern
+// set and managed rule set phases and, for the REGIONAL scope, the web-ACL
+// association phase, which lists the associations of *webACLARNs, the web
+// ACLs an earlier phase of the scope stored. Regex pattern sets are stored
+// with their tags (wafv2Tags); the Service Reference lists none of the other
+// types under ListTagsForResource. WebACLAssociation
+// rows are synthesized per (web ACL ARN, associated resource ARN);
+// LoggingConfig and RegexPatternSet expose native ARNs.
+func wafv2ExtendedPhases(ctx context.Context, client wafv2API, acct *account, region string, scope types.Scope, st *store.Store, scanID string, tags rowTagReader, webACLARNs *[]string) []hostPhase {
+	phases := []hostPhase{
+		countedPhase(0, "wafv2:ListLoggingConfigurations", func() (int, int, error) {
+			return scanWAFv2Summaries(st, acct, region, scanID, scope, "wafv2:ListLoggingConfigurations", "logging configurations", TypeWAFv2LoggingConfiguration,
+				func(marker *string) ([]wafv2Listed, *string, error) {
+					out, err := client.ListLoggingConfigurations(ctx, &wafv2.ListLoggingConfigurationsInput{Scope: scope, NextMarker: marker})
+					if err != nil {
+						return nil, nil, err
+					}
+					items := make([]wafv2Listed, len(out.LoggingConfigurations))
+					for i, c := range out.LoggingConfigurations {
+						items[i].attrs = c
+						// A configuration is keyed by the web ACL it belongs to; one
+						// without that ARN is left without one, so it is not stored.
+						if arn := sv(c.ResourceArn); arn != "" {
+							// NativeID must differ from the WebACL ARN (== ResourceArn) or the two
+							// would share one identity; suffix keeps it distinct + parent-derivable.
+							id := arn + "/logging-configuration"
+							items[i].arn, items[i].name = &id, c.ResourceArn
+						}
+					}
+					return items, out.NextMarker, nil
+				})
+		}),
+		{op: wafv2ListRegexPatternSetsOp, run: func(p *phaseTotals) bool {
+			return storeWAFv2Tagged(ctx, st, acct, region, scanID, scope, wafv2ListRegexPatternSetsOp, "regex pattern sets", TypeWAFv2RegexPatternSet,
+				func(ctx context.Context, marker *string) ([]types.RegexPatternSetSummary, *string, error) {
+					out, err := client.ListRegexPatternSets(ctx, &wafv2.ListRegexPatternSetsInput{Scope: scope, Limit: sdkaws.Int32(wafv2PageCap), NextMarker: marker})
+					if err != nil {
+						return nil, nil, err
+					}
+					return out.RegexPatternSets, out.NextMarker, nil
+				},
+				func(s types.RegexPatternSetSummary) (arn, name *string) { return s.ARN, s.Name },
+				tags, p)
+		}},
+		// Managed rule sets are owned only by AWS Marketplace managed-rule-group
+		// sellers; most accounts list none.
+		countedPhase(0, "wafv2:ListManagedRuleSets", func() (int, int, error) {
+			return scanWAFv2Summaries(st, acct, region, scanID, scope, "wafv2:ListManagedRuleSets", "managed rule sets", TypeWAFv2ManagedRuleSet,
+				func(marker *string) ([]wafv2Listed, *string, error) {
+					out, err := client.ListManagedRuleSets(ctx, &wafv2.ListManagedRuleSetsInput{Scope: scope, NextMarker: marker})
+					if err != nil {
+						return nil, nil, err
+					}
+					items := make([]wafv2Listed, len(out.ManagedRuleSets))
+					for i, m := range out.ManagedRuleSets {
+						items[i] = wafv2Listed{m.ARN, m.Name, m}
+					}
+					return items, out.NextMarker, nil
+				})
+		}),
 	}
-	t, i, err := scanWAFv2Summaries(st, acct, region, scanID, scope, "wafv2:ListLoggingConfigurations", "logging configurations", TypeWAFv2LoggingConfiguration,
-		func(marker *string) ([]wafv2Listed, *string, error) {
-			out, err := client.ListLoggingConfigurations(ctx, &wafv2.ListLoggingConfigurationsInput{Scope: scope, NextMarker: marker})
-			if err != nil {
-				return nil, nil, err
-			}
-			items := make([]wafv2Listed, len(out.LoggingConfigurations))
-			for i, c := range out.LoggingConfigurations {
-				items[i].attrs = c
-				// A configuration is keyed by the web ACL it belongs to; one
-				// without that ARN is left without one, so it is not stored.
-				if arn := sv(c.ResourceArn); arn != "" {
-					// NativeID must differ from the WebACL ARN (== ResourceArn) or the two
-					// would share one identity; suffix keeps it distinct + parent-derivable.
-					id := arn + "/logging-configuration"
-					items[i].arn, items[i].name = &id, c.ResourceArn
-				}
-			}
-			return items, out.NextMarker, nil
-		})
-	add("wafv2:ListLoggingConfigurations", t, i, err)
-	t, i, err = scanWAFv2Summaries(st, acct, region, scanID, scope, "wafv2:ListRegexPatternSets", "regex pattern sets", TypeWAFv2RegexPatternSet,
-		func(marker *string) ([]wafv2Listed, *string, error) {
-			out, err := client.ListRegexPatternSets(ctx, &wafv2.ListRegexPatternSetsInput{Scope: scope, NextMarker: marker})
-			if err != nil {
-				return nil, nil, err
-			}
-			items := make([]wafv2Listed, len(out.RegexPatternSets))
-			for i, r := range out.RegexPatternSets {
-				items[i] = wafv2Listed{r.ARN, r.Name, r}
-			}
-			return items, out.NextMarker, nil
-		})
-	add("wafv2:ListRegexPatternSets", t, i, err)
-	// Managed rule sets are owned only by AWS Marketplace managed-rule-group
-	// sellers; most accounts list none.
-	t, i, err = scanWAFv2Summaries(st, acct, region, scanID, scope, "wafv2:ListManagedRuleSets", "managed rule sets", TypeWAFv2ManagedRuleSet,
-		func(marker *string) ([]wafv2Listed, *string, error) {
-			out, err := client.ListManagedRuleSets(ctx, &wafv2.ListManagedRuleSetsInput{Scope: scope, NextMarker: marker})
-			if err != nil {
-				return nil, nil, err
-			}
-			items := make([]wafv2Listed, len(out.ManagedRuleSets))
-			for i, m := range out.ManagedRuleSets {
-				items[i] = wafv2Listed{m.ARN, m.Name, m}
-			}
-			return items, out.NextMarker, nil
-		})
-	add("wafv2:ListManagedRuleSets", t, i, err)
 	// Web-ACL associations only meaningful for REGIONAL scope (CloudFront
 	// distributions associate via dedicated APIs, not ListResourcesForWebACL).
 	if scope == types.ScopeRegional {
-		t, i, err = scanWAFv2WebACLAssociations(ctx, client, acct, region, st, scanID, webACLARNs)
-		add("wafv2:ListResourcesForWebACL", t, i, err)
+		phases = append(phases, countedPhase(0, "wafv2:ListResourcesForWebACL", func() (int, int, error) {
+			return scanWAFv2WebACLAssociations(ctx, client, acct, region, st, scanID, *webACLARNs)
+		}))
 	}
-	return total, inserted, errs.join(st, acct, region)
+	return phases
 }
 
 // wafv2RegionalResourceTypes are the ResourceType values ListResourcesForWebACL

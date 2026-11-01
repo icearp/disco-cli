@@ -750,7 +750,6 @@ func TestTransientDemotersAreKnown(t *testing.T) {
 			"organizations_scanners.go:scanOrgAccounts":                 true,
 			"pipes_scanners.go:scanPipes":                               true,
 			"securityhub_scanners.go:warn":                              true,
-			"wafv2_scanners.go:scanWAFv2WebACLs":                        true,
 			"wafv2_extended_scanners.go:scanWAFv2WebACLAssociations":    true,
 		},
 	}

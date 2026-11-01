@@ -7,6 +7,7 @@ import (
 	"maps"
 	"net"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -40,11 +41,14 @@ func (c *wafAPIKeyCalls) add(in *wafv2.ListAPIKeysInput) {
 	c.ins = append(c.ins, *in)
 }
 
-// wafv2Handlers answers every older WAFv2 phase with an empty listing and
-// ListAPIKeys with two REGIONAL pages (one element without a key) and one
-// CLOUDFRONT page.
+// wafv2Handlers answers every older WAFv2 phase with an empty listing,
+// ListTagsForResource with no tags, and ListAPIKeys with two REGIONAL pages
+// (one element without a key) and one CLOUDFRONT page.
 func wafv2Handlers(calls *wafAPIKeyCalls) map[string]func(in any) (any, error) {
 	return map[string]func(in any) (any, error){
+		"ListTagsForResource": func(in any) (any, error) {
+			return &wafv2.ListTagsForResourceOutput{TagInfoForResource: &types.TagInfoForResource{ResourceARN: in.(*wafv2.ListTagsForResourceInput).ResourceARN}}, nil
+		},
 		"ListWebACLs":               func(any) (any, error) { return &wafv2.ListWebACLsOutput{}, nil },
 		"ListRuleGroups":            func(any) (any, error) { return &wafv2.ListRuleGroupsOutput{}, nil },
 		"ListIPSets":                func(any) (any, error) { return &wafv2.ListIPSetsOutput{}, nil },
@@ -376,15 +380,16 @@ func TestScanWAFv2_APIKeyAndOlderPhasesIndependent(t *testing.T) {
 		h["ListManagedRuleSets"] = func(any) (any, error) { return nil, apiErr("ServiceUnavailable", "try later") }
 		h["ListAPIKeys"] = func(any) (any, error) { return nil, apiErr("WAFInvalidParameterException", "bad") }
 		st := newTestStore(t)
-		warns := countOpWarnings(st, "wafv2")
+		warns := countOpWarnings(st, "wafv2:ListManagedRuleSets")
 		acct := newTestAccount(testAccountID)
 		acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
 		_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
 		if got := classifyServiceError(err); got != outcomeError {
 			t.Errorf("classifyServiceError(%v) = %v; want outcomeError", err, got)
 		}
-		if *warns != 1 {
-			t.Errorf("wafv2 warnings = %d; want 1 for the demoted transient", *warns)
+		// One per scope, each under the op that failed.
+		if *warns != 2 {
+			t.Errorf("wafv2:ListManagedRuleSets warnings = %d; want 2 demoted transients (one per scope)", *warns)
 		}
 	})
 
@@ -434,10 +439,10 @@ func wafWithACLs(h map[string]func(in any) (any, error), fail map[string]error) 
 	h["ListResourcesForWebACL"] = func(any) (any, error) { return &wafv2.ListResourcesForWebACLOutput{}, nil }
 }
 
-// A denied or transient GetWebACL keeps the web ACL as its ListWebACLs summary,
-// warning once per cause; an ACL GetWebACL no longer finds is not stored; any
-// other error fails the scan after the other ACLs are stored and the scope's
-// later phases have run.
+// A failed GetWebACL keeps the web ACL as its ListWebACLs summary, except for
+// an ACL GetWebACL no longer finds, which is not stored: a denial warns once;
+// a transient failure, or any other error, is returned after the other ACLs
+// are stored and the scope's later phases have run.
 func TestScanWAFv2_GetWebACLErrors(t *testing.T) {
 	arn, withACLs := wafACLARN, wafWithACLs
 	cases := []struct {
@@ -445,12 +450,28 @@ func TestScanWAFv2_GetWebACLErrors(t *testing.T) {
 		fail      map[string]error
 		wantACLs  []string // a * suffix marks the summary kept
 		wantWarns int
-		wantCode  string
+		wantErr   func(error) bool // nil: the scan succeeds
 	}{
-		{"denied", map[string]error{"a": apiErr("AccessDeniedException", "not authorized to perform: wafv2:GetWebACL")}, []string{"a*", "b"}, 1, ""},
-		{"transient", map[string]error{"a": apiErr("ThrottlingException", "Rate exceeded")}, []string{"a*", "b"}, 1, ""},
-		{"gone", map[string]error{"a": apiErr("WAFNonexistentItemException", "gone")}, []string{"b"}, 0, ""},
-		{"other error", map[string]error{"a": apiErr("WAFInvalidParameterException", "bad")}, []string{"b"}, 0, "WAFInvalidParameterException"},
+		{"denied", map[string]error{"a": apiErr("AccessDeniedException", "not authorized to perform: wafv2:GetWebACL")}, []string{"a*", "b"}, 1, nil},
+		{
+			"transient",
+			map[string]error{"a": apiErr("ThrottlingException", "Rate exceeded")},
+			[]string{"a*", "b"},
+			0,
+			func(err error) bool {
+				return classifyServiceError(err) == outcomeTransient && isAPIErrorCode(err, "ThrottlingException")
+			},
+		},
+		{"gone", map[string]error{"a": apiErr("WAFNonexistentItemException", "gone")}, []string{"b"}, 0, nil},
+		{
+			"other error",
+			map[string]error{"a": apiErr("WAFInvalidParameterException", "bad")},
+			[]string{"a*", "b"},
+			0,
+			func(err error) bool {
+				return classifyServiceError(err) == outcomeError && isAPIErrorCode(err, "WAFInvalidParameterException")
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -471,10 +492,11 @@ func TestScanWAFv2_GetWebACLErrors(t *testing.T) {
 			acct := newTestAccount(testAccountID)
 			acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
 			_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
-			if tc.wantCode != "" {
-				assertAPICode(t, err, tc.wantCode)
-			} else if err != nil {
+			if tc.wantErr == nil && err != nil {
 				t.Fatalf("scanWAFv2: %v", err)
+			}
+			if tc.wantErr != nil && !tc.wantErr(err) {
+				t.Errorf("scanWAFv2 err = %v; not the wanted error", err)
 			}
 			if *warns != tc.wantWarns {
 				t.Errorf("wafv2:GetWebACL warnings = %d, want %d", *warns, tc.wantWarns)
@@ -919,16 +941,20 @@ func TestScanWAFv2_AssociationTypeFailureKeepsOtherTypes(t *testing.T) {
 	}
 }
 
-// A web ACL whose stored shape has no ARN, the summary kept for a denied
-// GetWebACL or the GetWebACL body, is not stored under an empty NativeID: it is
-// warned about once under the op that returned it, and its sibling is stored.
+// A web ACL listed without an ARN is not stored under an empty NativeID: it
+// is warned about once under ListWebACLs, is not read with GetWebACL or
+// ListTagsForResource, and its sibling is stored. A GetWebACL body without
+// an ARN does not change the row's NativeID, which is always the summary's.
 func TestScanWAFv2_ARNlessWebACLWarns(t *testing.T) {
 	cases := []struct {
-		name, op string
-		summary  bool // the summary lacks the ARN, else the body does
+		name       string
+		summary    bool // the summary lacks the ARN, else the body does
+		wantGets   []string
+		wantStored []string // also the ARNs whose tags are read
+		wantWarns  int      // ListWebACLs warnings
 	}{
-		{"summary", "wafv2:ListWebACLs", true},
-		{"body", "wafv2:GetWebACL", false},
+		{"summary", true, []string{"b"}, []string{wafACLARN("b")}, 1},
+		{"body", false, []string{"a", "b"}, []string{wafACLARN("a"), wafACLARN("b")}, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -947,14 +973,19 @@ func TestScanWAFv2_ARNlessWebACLWarns(t *testing.T) {
 				}
 				return out, nil
 			}
+			var gets, tagged parentCalls
 			h["GetWebACL"] = func(in any) (any, error) {
-				if sv(in.(*wafv2.GetWebACLInput).Name) != "a" {
+				name := sv(in.(*wafv2.GetWebACLInput).Name)
+				gets.add(name)
+				if name != "a" {
 					return get(in)
 				}
-				if tc.summary {
-					return nil, apiErr("AccessDeniedException", "not authorized to perform: wafv2:GetWebACL")
-				}
 				return &wafv2.GetWebACLOutput{WebACL: &types.WebACL{Name: sdkaws.String("a"), Id: sdkaws.String("1")}}, nil
+			}
+			tags := h["ListTagsForResource"]
+			h["ListTagsForResource"] = func(in any) (any, error) {
+				tagged.add(sv(in.(*wafv2.ListTagsForResourceInput).ResourceARN))
+				return tags(in)
 			}
 			st := newTestStore(t)
 			warns := map[string]int{}
@@ -969,13 +1000,16 @@ func TestScanWAFv2_ARNlessWebACLWarns(t *testing.T) {
 			if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
 				t.Fatalf("scanWAFv2: %v", err)
 			}
-			if got := nativeIDs(rowsByNativeID(t, st, TypeWAFv2WebACL)); !slices.Equal(got, []string{wafACLARN("b")}) {
-				t.Errorf("web ACLs = %q, want only %s", got, wafACLARN("b"))
+			if stored := nativeIDs(rowsByNativeID(t, st, TypeWAFv2WebACL)); !slices.Equal(stored, tc.wantStored) {
+				t.Errorf("web ACLs = %q, want %q", stored, tc.wantStored)
 			}
-			// No "stored as their summary" warning for the denied GetWebACL in
-			// the summary case: that summary was not stored.
-			want := map[string]int{"wafv2:ListWebACLs": 0, "wafv2:GetWebACL": 0}
-			want[tc.op]++
+			if names := gets.distinct(); !slices.Equal(names, tc.wantGets) {
+				t.Errorf("GetWebACL names = %q, want %q", names, tc.wantGets)
+			}
+			if arns := tagged.distinct(); !slices.Equal(arns, tc.wantStored) {
+				t.Errorf("ListTagsForResource ARNs = %q, want %q", arns, tc.wantStored)
+			}
+			want := map[string]int{"wafv2:ListWebACLs": tc.wantWarns, "wafv2:GetWebACL": 0}
 			for op, n := range want {
 				if warns[op] != n {
 					t.Errorf("%s warnings = %d, want %d", op, warns[op], n)
@@ -1065,7 +1099,7 @@ func TestScanWAFv2_ARNlessSummariesWarn(t *testing.T) {
 }
 
 // A GetWebACL that succeeds without a WebACL keeps the ACL as its summary,
-// warning once, instead of panicking.
+// instead of panicking, and the scan returns errWAFv2NoWebACLBody.
 func TestScanWAFv2_GetWebACLWithoutBodyKeepsSummary(t *testing.T) {
 	var calls wafAPIKeyCalls
 	h := wafv2Handlers(&calls)
@@ -1081,8 +1115,8 @@ func TestScanWAFv2_GetWebACLWithoutBodyKeepsSummary(t *testing.T) {
 	warns := countOpWarnings(st, "wafv2:GetWebACL")
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-	if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); err != nil {
-		t.Fatalf("scanWAFv2: %v", err)
+	if _, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID); !errors.Is(err, errWAFv2NoWebACLBody) {
+		t.Fatalf("scanWAFv2 err = %v; want errWAFv2NoWebACLBody", err)
 	}
 	rows := rowsByNativeID(t, st, TypeWAFv2WebACL)
 	if got := nativeIDs(rows); !slices.Equal(got, []string{wafACLARN("a"), wafACLARN("b")}) {
@@ -1095,8 +1129,8 @@ func TestScanWAFv2_GetWebACLWithoutBodyKeepsSummary(t *testing.T) {
 	if summary.LockToken == nil {
 		t.Errorf("a attrs = %s, want its ListWebACLs summary", rows[wafACLARN("a")].AttributesJSON)
 	}
-	if *warns != 1 {
-		t.Errorf("wafv2:GetWebACL warnings = %d, want 1", *warns)
+	if *warns != 0 {
+		t.Errorf("wafv2:GetWebACL warnings = %d, want 0: the error is returned", *warns)
 	}
 }
 
@@ -1198,16 +1232,16 @@ func TestScanWAFv2_ExtendedPhasesIndependent(t *testing.T) {
 	}
 }
 
-// wafPaged answers a regional listing's first call with first; a later call,
-// counted in later, fails with err or, when err is nil, gets repeat, a page
-// that repeats the marker it was sent. From the third later call on it gets
-// empty, so a listing that does not stop ends fast instead of looping. Other
-// scopes get empty.
-func wafPaged[In any](regional func(In) bool, sent func(In) *string, first, repeat, empty any, err error, later *atomic.Int32) func(any) (any, error) {
+// wafPaged answers the first call of the listing inScope picks with first; a
+// later call, counted in later, fails with err or, when err is nil, gets
+// repeat, a page that repeats the marker it was sent. From the third later
+// call on it gets empty, so a listing that does not stop ends fast instead of
+// looping. The other scope's listing gets empty.
+func wafPaged[In any](inScope func(In) bool, sent func(In) *string, first, repeat, empty any, err error, later *atomic.Int32) func(any) (any, error) {
 	return func(in any) (any, error) {
 		i := in.(In)
 		switch {
-		case !regional(i):
+		case !inScope(i):
 			return empty, nil
 		case sent(i) == nil:
 			return first, nil
@@ -1221,79 +1255,122 @@ func wafPaged[In any](regional func(In) bool, sent func(In) *string, first, repe
 	}
 }
 
-// A listing whose second page repeats the marker it was sent, or fails, keeps
-// the first page's item and returns the error.
+// A listing of either scope whose second page repeats the marker it was
+// sent, or fails, keeps the first page's item, and the repeating page's item,
+// and returns the error, naming the scope that failed.
 func TestScanWAFv2_LaterPageFailureKeepsEarlierPages(t *testing.T) {
 	m1 := sdkaws.String("m1")
 	cases := []struct {
 		op      string
-		handler func(err error, later *atomic.Int32) func(any) (any, error)
+		handler func(scope types.Scope, err error, later *atomic.Int32) func(any) (any, error)
 		typ     string
-		id      string
+		// first is the first page's item, repeated the item of the page that
+		// repeats its marker.
+		first, repeated string
 	}{
-		{"ListWebACLs", func(err error, later *atomic.Int32) func(any) (any, error) {
-			return wafPaged(func(i *wafv2.ListWebACLsInput) bool { return i.Scope == types.ScopeRegional },
+		{"ListWebACLs", func(scope types.Scope, err error, later *atomic.Int32) func(any) (any, error) {
+			acl := func(name string) types.WebACLSummary {
+				return types.WebACLSummary{ARN: sdkaws.String(wafACLARN(name)), Name: sdkaws.String(name), Id: sdkaws.String("1")}
+			}
+			return wafPaged(func(i *wafv2.ListWebACLsInput) bool { return i.Scope == scope },
 				func(i *wafv2.ListWebACLsInput) *string { return i.NextMarker },
-				&wafv2.ListWebACLsOutput{WebACLs: []types.WebACLSummary{{ARN: sdkaws.String(wafACLARN("a")), Name: sdkaws.String("a"), Id: sdkaws.String("1")}}, NextMarker: m1},
-				&wafv2.ListWebACLsOutput{NextMarker: m1}, &wafv2.ListWebACLsOutput{}, err, later)
-		}, TypeWAFv2WebACL, wafACLARN("a")},
-		{"ListRuleGroups", func(err error, later *atomic.Int32) func(any) (any, error) {
-			return wafPaged(func(i *wafv2.ListRuleGroupsInput) bool { return i.Scope == types.ScopeRegional },
+				&wafv2.ListWebACLsOutput{WebACLs: []types.WebACLSummary{acl("a")}, NextMarker: m1},
+				&wafv2.ListWebACLsOutput{WebACLs: []types.WebACLSummary{acl("b")}, NextMarker: m1}, &wafv2.ListWebACLsOutput{}, err, later)
+		}, TypeWAFv2WebACL, wafACLARN("a"), wafACLARN("b")},
+		{"ListRuleGroups", func(scope types.Scope, err error, later *atomic.Int32) func(any) (any, error) {
+			rg := func(name string) types.RuleGroupSummary {
+				return types.RuleGroupSummary{ARN: sdkaws.String(wafv2RegionalTestARN("rulegroup", name)), Name: sdkaws.String(name)}
+			}
+			return wafPaged(func(i *wafv2.ListRuleGroupsInput) bool { return i.Scope == scope },
 				func(i *wafv2.ListRuleGroupsInput) *string { return i.NextMarker },
-				&wafv2.ListRuleGroupsOutput{RuleGroups: []types.RuleGroupSummary{{ARN: sdkaws.String(wafv2RegionalTestARN("rulegroup", "rg")), Name: sdkaws.String("rg")}}, NextMarker: m1},
-				&wafv2.ListRuleGroupsOutput{NextMarker: m1}, &wafv2.ListRuleGroupsOutput{}, err, later)
-		}, TypeWAFv2RuleGroup, wafv2RegionalTestARN("rulegroup", "rg")},
-		{"ListLoggingConfigurations", func(err error, later *atomic.Int32) func(any) (any, error) {
-			return wafPaged(func(i *wafv2.ListLoggingConfigurationsInput) bool { return i.Scope == types.ScopeRegional },
+				&wafv2.ListRuleGroupsOutput{RuleGroups: []types.RuleGroupSummary{rg("rg")}, NextMarker: m1},
+				&wafv2.ListRuleGroupsOutput{RuleGroups: []types.RuleGroupSummary{rg("rg2")}, NextMarker: m1}, &wafv2.ListRuleGroupsOutput{}, err, later)
+		}, TypeWAFv2RuleGroup, wafv2RegionalTestARN("rulegroup", "rg"), wafv2RegionalTestARN("rulegroup", "rg2")},
+		{"ListIPSets", func(scope types.Scope, err error, later *atomic.Int32) func(any) (any, error) {
+			ip := func(name string) types.IPSetSummary {
+				return types.IPSetSummary{ARN: sdkaws.String(wafv2RegionalTestARN("ipset", name)), Name: sdkaws.String(name)}
+			}
+			return wafPaged(func(i *wafv2.ListIPSetsInput) bool { return i.Scope == scope },
+				func(i *wafv2.ListIPSetsInput) *string { return i.NextMarker },
+				&wafv2.ListIPSetsOutput{IPSets: []types.IPSetSummary{ip("ip")}, NextMarker: m1},
+				&wafv2.ListIPSetsOutput{IPSets: []types.IPSetSummary{ip("ip2")}, NextMarker: m1}, &wafv2.ListIPSetsOutput{}, err, later)
+		}, TypeWAFv2IPSet, wafv2RegionalTestARN("ipset", "ip"), wafv2RegionalTestARN("ipset", "ip2")},
+		{"ListLoggingConfigurations", func(scope types.Scope, err error, later *atomic.Int32) func(any) (any, error) {
+			lc := func(name string) types.LoggingConfiguration {
+				return types.LoggingConfiguration{ResourceArn: sdkaws.String(wafACLARN(name))}
+			}
+			return wafPaged(func(i *wafv2.ListLoggingConfigurationsInput) bool { return i.Scope == scope },
 				func(i *wafv2.ListLoggingConfigurationsInput) *string { return i.NextMarker },
-				&wafv2.ListLoggingConfigurationsOutput{LoggingConfigurations: []types.LoggingConfiguration{{ResourceArn: sdkaws.String(wafACLARN("a"))}}, NextMarker: m1},
-				&wafv2.ListLoggingConfigurationsOutput{NextMarker: m1}, &wafv2.ListLoggingConfigurationsOutput{}, err, later)
-		}, TypeWAFv2LoggingConfiguration, wafACLARN("a") + "/logging-configuration"},
-		{"ListRegexPatternSets", func(err error, later *atomic.Int32) func(any) (any, error) {
-			return wafPaged(func(i *wafv2.ListRegexPatternSetsInput) bool { return i.Scope == types.ScopeRegional },
+				&wafv2.ListLoggingConfigurationsOutput{LoggingConfigurations: []types.LoggingConfiguration{lc("a")}, NextMarker: m1},
+				&wafv2.ListLoggingConfigurationsOutput{LoggingConfigurations: []types.LoggingConfiguration{lc("b")}, NextMarker: m1}, &wafv2.ListLoggingConfigurationsOutput{}, err, later)
+		}, TypeWAFv2LoggingConfiguration, wafACLARN("a") + "/logging-configuration", wafACLARN("b") + "/logging-configuration"},
+		{"ListRegexPatternSets", func(scope types.Scope, err error, later *atomic.Int32) func(any) (any, error) {
+			rx := func(name string) types.RegexPatternSetSummary {
+				return types.RegexPatternSetSummary{ARN: sdkaws.String(wafv2RegionalTestARN("regexpatternset", name)), Name: sdkaws.String(name)}
+			}
+			return wafPaged(func(i *wafv2.ListRegexPatternSetsInput) bool { return i.Scope == scope },
 				func(i *wafv2.ListRegexPatternSetsInput) *string { return i.NextMarker },
-				&wafv2.ListRegexPatternSetsOutput{RegexPatternSets: []types.RegexPatternSetSummary{{ARN: sdkaws.String(wafv2RegionalTestARN("regexpatternset", "rx")), Name: sdkaws.String("rx")}}, NextMarker: m1},
-				&wafv2.ListRegexPatternSetsOutput{NextMarker: m1}, &wafv2.ListRegexPatternSetsOutput{}, err, later)
-		}, TypeWAFv2RegexPatternSet, wafv2RegionalTestARN("regexpatternset", "rx")},
-		{"ListManagedRuleSets", func(err error, later *atomic.Int32) func(any) (any, error) {
-			return wafPaged(func(i *wafv2.ListManagedRuleSetsInput) bool { return i.Scope == types.ScopeRegional },
+				&wafv2.ListRegexPatternSetsOutput{RegexPatternSets: []types.RegexPatternSetSummary{rx("rx")}, NextMarker: m1},
+				&wafv2.ListRegexPatternSetsOutput{RegexPatternSets: []types.RegexPatternSetSummary{rx("rx2")}, NextMarker: m1}, &wafv2.ListRegexPatternSetsOutput{}, err, later)
+		}, TypeWAFv2RegexPatternSet, wafv2RegionalTestARN("regexpatternset", "rx"), wafv2RegionalTestARN("regexpatternset", "rx2")},
+		{"ListManagedRuleSets", func(scope types.Scope, err error, later *atomic.Int32) func(any) (any, error) {
+			mrs := func(name string) types.ManagedRuleSetSummary {
+				return types.ManagedRuleSetSummary{ARN: sdkaws.String(wafv2RegionalTestARN("managedruleset", name)), Name: sdkaws.String(name)}
+			}
+			return wafPaged(func(i *wafv2.ListManagedRuleSetsInput) bool { return i.Scope == scope },
 				func(i *wafv2.ListManagedRuleSetsInput) *string { return i.NextMarker },
-				&wafv2.ListManagedRuleSetsOutput{ManagedRuleSets: []types.ManagedRuleSetSummary{{ARN: sdkaws.String(wafv2RegionalTestARN("managedruleset", "m")), Name: sdkaws.String("m")}}, NextMarker: m1},
-				&wafv2.ListManagedRuleSetsOutput{NextMarker: m1}, &wafv2.ListManagedRuleSetsOutput{}, err, later)
-		}, TypeWAFv2ManagedRuleSet, wafv2RegionalTestARN("managedruleset", "m")},
+				&wafv2.ListManagedRuleSetsOutput{ManagedRuleSets: []types.ManagedRuleSetSummary{mrs("m")}, NextMarker: m1},
+				&wafv2.ListManagedRuleSetsOutput{ManagedRuleSets: []types.ManagedRuleSetSummary{mrs("m2")}, NextMarker: m1}, &wafv2.ListManagedRuleSetsOutput{}, err, later)
+		}, TypeWAFv2ManagedRuleSet, wafv2RegionalTestARN("managedruleset", "m"), wafv2RegionalTestARN("managedruleset", "m2")},
 	}
-	for _, tc := range cases {
-		for _, fail := range []struct {
-			name    string
-			err     error
-			wantErr func(error) bool
-		}{
-			{"repeated marker", nil, func(err error) bool { return errors.Is(err, errRepeatedNextToken) }},
-			{"error", apiErr("WAFInvalidParameterException", "bad"), func(err error) bool { return isAPIErrorCode(err, "WAFInvalidParameterException") }},
-		} {
-			t.Run(tc.op+"/"+fail.name, func(t *testing.T) {
-				var calls wafAPIKeyCalls
-				h := wafv2Handlers(&calls)
-				h["GetWebACL"] = func(any) (any, error) {
-					return &wafv2.GetWebACLOutput{WebACL: &types.WebACL{ARN: sdkaws.String(wafACLARN("a")), Name: sdkaws.String("a"), Id: sdkaws.String("1")}}, nil
-				}
-				h["ListResourcesForWebACL"] = func(any) (any, error) { return &wafv2.ListResourcesForWebACLOutput{}, nil }
-				var later atomic.Int32
-				h[tc.op] = tc.handler(fail.err, &later)
-				st := newTestStore(t)
-				acct := newTestAccount(testAccountID)
-				acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
-				_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
-				if !fail.wantErr(err) {
-					t.Errorf("err = %v, want the second page's failure", err)
-				}
-				if n := later.Load(); n != 1 {
-					t.Errorf("regional %s calls after the first page = %d, want 1", tc.op, n)
-				}
-				if _, ok := rowsByNativeID(t, st, tc.typ)[tc.id]; !ok {
-					t.Errorf("%s from the first page not stored", tc.id)
-				}
-			})
+	for _, scope := range []types.Scope{types.ScopeRegional, types.ScopeCloudfront} {
+		for _, tc := range cases {
+			for _, fail := range []struct {
+				name    string
+				err     error
+				wantErr func(error) bool
+			}{
+				{"repeated marker", nil, func(err error) bool { return errors.Is(err, errRepeatedNextToken) }},
+				{"error", apiErr("WAFInvalidParameterException", "bad"), func(err error) bool { return isAPIErrorCode(err, "WAFInvalidParameterException") }},
+			} {
+				t.Run(string(scope)+"/"+tc.op+"/"+fail.name, func(t *testing.T) {
+					var calls wafAPIKeyCalls
+					h := wafv2Handlers(&calls)
+					h["GetWebACL"] = func(in any) (any, error) {
+						name := sv(in.(*wafv2.GetWebACLInput).Name)
+						return &wafv2.GetWebACLOutput{WebACL: &types.WebACL{ARN: sdkaws.String(wafACLARN(name)), Name: &name, Id: sdkaws.String("1")}}, nil
+					}
+					h["ListResourcesForWebACL"] = func(any) (any, error) { return &wafv2.ListResourcesForWebACLOutput{}, nil }
+					var later atomic.Int32
+					h[tc.op] = tc.handler(scope, fail.err, &later)
+					st := newTestStore(t)
+					acct := newTestAccount(testAccountID)
+					acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
+					_, _, err := scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+					if !fail.wantErr(err) {
+						t.Errorf("err = %v, want the second page's failure", err)
+					}
+					// One member: a repeated marker is reported once, scoped,
+					// not again by the pager's own unscoped guard.
+					if n := len(bacTopMembers(err)); n != 1 {
+						t.Errorf("error members = %d, want 1: %v", n, err)
+					}
+					var inScope wafv2ScopeError
+					if !errors.As(err, &inScope) || inScope.scope != scope {
+						t.Errorf("err = %v, want it to name scope %s", err, scope)
+					}
+					if n := later.Load(); n != 1 {
+						t.Errorf("%s %s calls after the first page = %d, want 1", scope, tc.op, n)
+					}
+					want := []string{tc.first}
+					if fail.err == nil {
+						want = append(want, tc.repeated)
+					}
+					if got := nativeIDs(rowsByNativeID(t, st, tc.typ)); !slices.Equal(got, want) {
+						t.Errorf("%s rows = %v, want %v", tc.typ, got, want)
+					}
+				})
+			}
 		}
 	}
 }
@@ -1433,4 +1510,651 @@ func TestScanWAFv2_CloudFrontScopeOnlyInCloudFrontHome(t *testing.T) {
 			}
 		})
 	}
+}
+
+// wafTagged is one listed item of the tag tests: its type, its ARN's kind
+// and scope segments, name and id. A name ending in "-bare" has no tags.
+type wafTagged struct {
+	typ, kind, seg, name, id string
+}
+
+func (w wafTagged) scope() types.Scope {
+	if w.seg == "global" {
+		return types.ScopeCloudfront
+	}
+	return types.ScopeRegional
+}
+
+func (w wafTagged) arn() string {
+	return "arn:aws:wafv2:" + testRegion + ":" + testAccountID + ":" + w.seg + "/" + w.kind + "/" + w.name + "/" + w.id
+}
+
+// wafTaggedItems are, per taggable type, one tagged and one untagged
+// REGIONAL item, and one CLOUDFRONT web ACL.
+var wafTaggedItems = []wafTagged{
+	{TypeWAFv2WebACL, "webacl", "regional", "a", "11111111-0000-0000-0000-000000000001"},
+	{TypeWAFv2WebACL, "webacl", "regional", "a-bare", "11111111-0000-0000-0000-000000000002"},
+	{TypeWAFv2WebACL, "webacl", "global", "cf", "11111111-0000-0000-0000-000000000003"},
+	{TypeWAFv2RuleGroup, "rulegroup", "regional", "rg", "1"},
+	{TypeWAFv2RuleGroup, "rulegroup", "regional", "rg-bare", "2"},
+	{TypeWAFv2IPSet, "ipset", "regional", "ip", "1"},
+	{TypeWAFv2IPSet, "ipset", "regional", "ip-bare", "2"},
+	{TypeWAFv2RegexPatternSet, "regexpatternset", "regional", "rx", "1"},
+	{TypeWAFv2RegexPatternSet, "regexpatternset", "regional", "rx-bare", "2"},
+}
+
+// wafTaggedTotal is every row a scan of wafTagHandlers stores: the tagged
+// items, one logging configuration, one managed rule set, the ALB
+// association of each regional web ACL and three API keys.
+const wafTaggedTotal = 9 + 1 + 1 + 2 + 3
+
+// wafTagWant is the tags wafTagHandlers' default answer gives item.
+func wafTagWant(w wafTagged) map[string]string {
+	if strings.HasSuffix(w.name, "-bare") {
+		return nil
+	}
+	return map[string]string{"team": w.name, "env": "prod"}
+}
+
+// wafTagCalls records the inputs the tag tests check.
+type wafTagCalls struct {
+	mu     sync.Mutex
+	tags   []wafv2.ListTagsForResourceInput
+	gets   []wafv2.GetWebACLInput
+	limits map[string][]int32 // list op -> Limit sent on each call
+}
+
+func (c *wafTagCalls) limit(op string, l *int32) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.limits == nil {
+		c.limits = map[string][]int32{}
+	}
+	c.limits[op] = append(c.limits[op], sdkaws.ToInt32(l))
+}
+
+func (c *wafTagCalls) tagARNs() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var arns []string
+	for _, in := range c.tags {
+		arns = append(arns, sv(in.ResourceARN))
+	}
+	slices.Sort(arns)
+	return arns
+}
+
+// wafTagHandlers lists items of each type in their scope, with the extended
+// listings of wafExtendedLists and the API keys of wafv2Handlers, and answers
+// ListTagsForResource with tags (nil: wafTagWant). Every input is recorded
+// in rec.
+func wafTagHandlers(items []wafTagged, rec *wafTagCalls, tags func(in *wafv2.ListTagsForResourceInput) (any, error)) map[string]func(in any) (any, error) {
+	var keys wafAPIKeyCalls
+	h := wafv2Handlers(&keys)
+	wafExtendedLists(h)
+	of := func(typ string, scope types.Scope) []wafTagged {
+		return slices.DeleteFunc(slices.Clone(items), func(w wafTagged) bool { return w.typ != typ || w.scope() != scope })
+	}
+	byName, byARN := map[string]wafTagged{}, map[string]wafTagged{}
+	for _, w := range items {
+		byName[w.typ+"/"+w.name] = w
+		byARN[w.arn()] = w
+	}
+	h["ListWebACLs"] = func(in any) (any, error) {
+		i := in.(*wafv2.ListWebACLsInput)
+		rec.limit("ListWebACLs", i.Limit)
+		out := &wafv2.ListWebACLsOutput{}
+		for _, w := range of(TypeWAFv2WebACL, i.Scope) {
+			out.WebACLs = append(out.WebACLs, types.WebACLSummary{ARN: sdkaws.String(w.arn()), Name: sdkaws.String(w.name), Id: sdkaws.String(w.id), LockToken: sdkaws.String("lock-" + w.name)})
+		}
+		return out, nil
+	}
+	h["GetWebACL"] = func(in any) (any, error) {
+		i := in.(*wafv2.GetWebACLInput)
+		rec.mu.Lock()
+		rec.gets = append(rec.gets, *i)
+		rec.mu.Unlock()
+		w := byName[TypeWAFv2WebACL+"/"+sv(i.Name)]
+		return &wafv2.GetWebACLOutput{WebACL: &types.WebACL{ARN: sdkaws.String(w.arn()), Name: i.Name, Id: i.Id, Description: sdkaws.String("body of " + w.name)}}, nil
+	}
+	h["ListRuleGroups"] = func(in any) (any, error) {
+		i := in.(*wafv2.ListRuleGroupsInput)
+		rec.limit("ListRuleGroups", i.Limit)
+		out := &wafv2.ListRuleGroupsOutput{}
+		for _, w := range of(TypeWAFv2RuleGroup, i.Scope) {
+			out.RuleGroups = append(out.RuleGroups, types.RuleGroupSummary{ARN: sdkaws.String(w.arn()), Name: sdkaws.String(w.name), Id: sdkaws.String(w.id), LockToken: sdkaws.String("lock-" + w.name)})
+		}
+		return out, nil
+	}
+	h["ListIPSets"] = func(in any) (any, error) {
+		i := in.(*wafv2.ListIPSetsInput)
+		rec.limit("ListIPSets", i.Limit)
+		out := &wafv2.ListIPSetsOutput{}
+		for _, w := range of(TypeWAFv2IPSet, i.Scope) {
+			out.IPSets = append(out.IPSets, types.IPSetSummary{ARN: sdkaws.String(w.arn()), Name: sdkaws.String(w.name), Id: sdkaws.String(w.id), LockToken: sdkaws.String("lock-" + w.name)})
+		}
+		return out, nil
+	}
+	h["ListRegexPatternSets"] = func(in any) (any, error) {
+		i := in.(*wafv2.ListRegexPatternSetsInput)
+		rec.limit("ListRegexPatternSets", i.Limit)
+		out := &wafv2.ListRegexPatternSetsOutput{}
+		for _, w := range of(TypeWAFv2RegexPatternSet, i.Scope) {
+			out.RegexPatternSets = append(out.RegexPatternSets, types.RegexPatternSetSummary{ARN: sdkaws.String(w.arn()), Name: sdkaws.String(w.name), Id: sdkaws.String(w.id), LockToken: sdkaws.String("lock-" + w.name)})
+		}
+		return out, nil
+	}
+	h["ListTagsForResource"] = func(in any) (any, error) {
+		i := in.(*wafv2.ListTagsForResourceInput)
+		rec.mu.Lock()
+		rec.tags = append(rec.tags, *i)
+		rec.mu.Unlock()
+		if tags != nil {
+			return tags(i)
+		}
+		w, ok := byARN[sv(i.ResourceARN)]
+		if !ok {
+			return nil, apiErr("WAFInvalidParameterException", "not a listed item")
+		}
+		return wafTagsOut(i, wafTagWant(w)), nil
+	}
+	return h
+}
+
+// wafTagsOut is a ListTagsForResource answer for in with tags, sorted by key.
+func wafTagsOut(in *wafv2.ListTagsForResourceInput, tags map[string]string) *wafv2.ListTagsForResourceOutput {
+	info := &types.TagInfoForResource{ResourceARN: in.ResourceARN}
+	for _, k := range slices.Sorted(maps.Keys(tags)) {
+		info.TagList = append(info.TagList, types.Tag{Key: sdkaws.String(k), Value: sdkaws.String(tags[k])})
+	}
+	return &wafv2.ListTagsForResourceOutput{TagInfoForResource: info}
+}
+
+// wafTagScan runs scanWAFv2 in testRegion over h and returns its result and
+// the warnings it sent.
+func wafTagScan(t *testing.T, st *store.Store, h map[string]func(in any) (any, error)) (warns func() []store.ScanWarning, total, inserted int, err error) {
+	t.Helper()
+	var (
+		mu   sync.Mutex
+		sent []store.ScanWarning
+	)
+	st.OnWarn = func(w store.ScanWarning) {
+		mu.Lock()
+		sent = append(sent, w)
+		mu.Unlock()
+	}
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
+	total, inserted, err = scanWAFv2(context.Background(), acct, testRegion, st, testScanID)
+	return func() []store.ScanWarning {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(sent)
+	}, total, inserted, err
+}
+
+// wafWarnings is the warnings sent under op.
+func wafWarnings(ws []store.ScanWarning, op string) []store.ScanWarning {
+	return slices.DeleteFunc(ws, func(w store.ScanWarning) bool { return w.Service != op })
+}
+
+// Every taggable type, in both scopes, is stored with the tags
+// ListTagsForResource returns for the ARN its listing returned, and with
+// none when it has none; no other type is sent to the tag op. Each listing
+// and tag read sends Limit 100, the model's cap, and GetWebACL is sent the
+// summary's Id, Name and scope. A rescan inserts nothing.
+func TestScanWAFv2_TagsStoredPerType(t *testing.T) {
+	var rec wafTagCalls
+	h := wafTagHandlers(wafTaggedItems, &rec, nil)
+	st := newTestStore(t)
+	warns, total, inserted, err := wafTagScan(t, st, h)
+	if err != nil {
+		t.Fatalf("scanWAFv2: %v", err)
+	}
+	if total != wafTaggedTotal || inserted != wafTaggedTotal {
+		t.Errorf("total, inserted = %d, %d; want %d, %d", total, inserted, wafTaggedTotal, wafTaggedTotal)
+	}
+	// The one warning is wafv2Handlers' keyless API key.
+	if w := warns(); len(w) != 1 || w[0].Service != wafv2ListAPIKeysOp {
+		t.Errorf("warnings = %+v; want only the keyless API key's", w)
+	}
+	var wantARNs []string
+	for _, w := range wafTaggedItems {
+		wantARNs = append(wantARNs, w.arn())
+		r, ok := rowsByNativeID(t, st, w.typ)[w.arn()]
+		if !ok {
+			t.Errorf("%s not stored", w.arn())
+			continue
+		}
+		if want := wafTagWant(w); want == nil {
+			if r.TagsJSON != nil {
+				t.Errorf("%s TagsJSON = %s; want nil", w.arn(), *r.TagsJSON)
+			}
+		} else {
+			assertTagsMap(t, r.TagsJSON, want)
+		}
+		if sv(r.Name) != w.name || sv(r.Region) != testRegion || r.Status != nil || r.CreatedAt != nil {
+			t.Errorf("%s Name, Region, Status, CreatedAt = %q, %q, %v, %v; want %q, %q, nil, nil", w.arn(), sv(r.Name), sv(r.Region), r.Status, r.CreatedAt, w.name, testRegion)
+		}
+		if acct := newTestAccount(testAccountID); r.Provider != "aws" || r.AccountID != acct.ID || sv(r.AccountName) != acct.Name {
+			t.Errorf("%s Provider, AccountID, AccountName = %q, %q, %q; want aws, %q, %q", w.arn(), r.Provider, r.AccountID, sv(r.AccountName), acct.ID, acct.Name)
+		}
+		var attrs struct {
+			ID                     *string `json:"Id"`
+			LockToken, Description *string
+		}
+		if err := json.Unmarshal([]byte(r.AttributesJSON), &attrs); err != nil {
+			t.Fatal(err)
+		}
+		// A web ACL's attributes are its GetWebACL body, the others' their summary.
+		want := struct{ id, lock, desc string }{w.id, "lock-" + w.name, ""}
+		if w.typ == TypeWAFv2WebACL {
+			want.lock, want.desc = "", "body of "+w.name
+		}
+		if sv(attrs.ID) != want.id || sv(attrs.LockToken) != want.lock || sv(attrs.Description) != want.desc {
+			t.Errorf("%s attrs = %s; want Id %q, LockToken %q, Description %q", w.arn(), r.AttributesJSON, want.id, want.lock, want.desc)
+		}
+	}
+	slices.Sort(wantARNs)
+	if got := rec.tagARNs(); !slices.Equal(got, wantARNs) {
+		t.Errorf("ListTagsForResource ARNs = %q; want each of %q once", got, wantARNs)
+	}
+	for _, in := range rec.tags {
+		if sdkaws.ToInt32(in.Limit) != 100 || in.NextMarker != nil {
+			t.Errorf("ListTagsForResource %s Limit, NextMarker = %v, %v; want 100, nil", sv(in.ResourceARN), sdkaws.ToInt32(in.Limit), in.NextMarker)
+		}
+	}
+	for _, op := range []string{"ListWebACLs", "ListRuleGroups", "ListIPSets", "ListRegexPatternSets"} {
+		if got := rec.limits[op]; !slices.Equal(got, []int32{100, 100}) {
+			t.Errorf("%s Limits = %v; want [100 100] (one call per scope)", op, got)
+		}
+	}
+	var gets []string
+	for _, in := range rec.gets {
+		gets = append(gets, string(in.Scope)+" "+sv(in.Name)+" "+sv(in.Id))
+	}
+	slices.Sort(gets)
+	wantGets := []string{
+		"CLOUDFRONT cf 11111111-0000-0000-0000-000000000003",
+		"REGIONAL a 11111111-0000-0000-0000-000000000001",
+		"REGIONAL a-bare 11111111-0000-0000-0000-000000000002",
+	}
+	if !slices.Equal(gets, wantGets) {
+		t.Errorf("GetWebACL inputs = %q; want %q", gets, wantGets)
+	}
+
+	_, total, inserted, err = wafTagScan(t, st, h)
+	if err != nil || total != wafTaggedTotal || inserted != 0 {
+		t.Errorf("rescan = %d, %d, %v; want %d, 0, nil", total, inserted, err, wafTaggedTotal)
+	}
+}
+
+// Web ACLs listed on a later ListWebACLs page are read with GetWebACL by
+// their own Id, Name and scope, stored as their bodies, and have their
+// associations listed and stored, like the first page's.
+func TestScanWAFv2_WebACLsAcrossPages(t *testing.T) {
+	var keys wafAPIKeyCalls
+	h := wafv2Handlers(&keys)
+	h["ListWebACLs"] = func(in any) (any, error) {
+		i := in.(*wafv2.ListWebACLsInput)
+		acl := func(name string) types.WebACLSummary {
+			return types.WebACLSummary{ARN: sdkaws.String(wafACLARN(name)), Name: sdkaws.String(name), Id: sdkaws.String("id-" + name)}
+		}
+		switch {
+		case i.Scope != types.ScopeRegional:
+			return &wafv2.ListWebACLsOutput{}, nil
+		case i.NextMarker == nil:
+			return &wafv2.ListWebACLsOutput{WebACLs: []types.WebACLSummary{acl("a")}, NextMarker: sdkaws.String("m1")}, nil
+		default:
+			return &wafv2.ListWebACLsOutput{WebACLs: []types.WebACLSummary{acl("b")}}, nil
+		}
+	}
+	var gets parentCalls
+	h["GetWebACL"] = func(in any) (any, error) {
+		i := in.(*wafv2.GetWebACLInput)
+		gets.add(string(i.Scope) + " " + sv(i.Name) + " " + sv(i.Id))
+		return &wafv2.GetWebACLOutput{WebACL: &types.WebACL{ARN: sdkaws.String(wafACLARN(sv(i.Name))), Name: i.Name, Id: i.Id, Description: sdkaws.String("body of " + sv(i.Name))}}, nil
+	}
+	var listed parentCalls
+	h["ListResourcesForWebACL"] = func(in any) (any, error) {
+		listed.add(sv(in.(*wafv2.ListResourcesForWebACLInput).WebACLArn))
+		return wafALBAssociation(in)
+	}
+	st := newTestStore(t)
+	if _, _, _, err := wafTagScan(t, st, h); err != nil {
+		t.Fatalf("scanWAFv2: %v", err)
+	}
+	if got, want := gets.distinct(), []string{"REGIONAL a id-a", "REGIONAL b id-b"}; !slices.Equal(got, want) {
+		t.Errorf("GetWebACL inputs = %q; want %q", got, want)
+	}
+	acls := rowsByNativeID(t, st, TypeWAFv2WebACL)
+	if got, want := nativeIDs(acls), []string{wafACLARN("a"), wafACLARN("b")}; !slices.Equal(got, want) {
+		t.Fatalf("web ACL rows = %v; want %v", got, want)
+	}
+	for _, name := range []string{"a", "b"} {
+		var body types.WebACL
+		if err := json.Unmarshal([]byte(acls[wafACLARN(name)].AttributesJSON), &body); err != nil {
+			t.Fatal(err)
+		}
+		if sv(body.Id) != "id-"+name || sv(body.Description) != "body of "+name {
+			t.Errorf("%s attrs Id, Description = %q, %q; want its GetWebACL body", name, sv(body.Id), sv(body.Description))
+		}
+	}
+	if got, want := listed.distinct(), []string{wafACLARN("a"), wafACLARN("b")}; !slices.Equal(got, want) {
+		t.Errorf("ListResourcesForWebACL called for %v; want %v", got, want)
+	}
+	var wantAssoc []string
+	for _, name := range []string{"a", "b"} {
+		a := wafACLARN(name)
+		wantAssoc = append(wantAssoc, a+"/association/"+a+"-alb")
+	}
+	if got := nativeIDs(rowsByNativeID(t, st, TypeWAFv2WebACLAssociation)); !slices.Equal(got, wantAssoc) {
+		t.Errorf("associations = %v; want %v", got, wantAssoc)
+	}
+}
+
+// Once ctx ends during the first page's tag reads, that page is stored
+// without tags, no later phase starts, and the stop is the error's one
+// member, reported under wafv2 with the phases not run, although the listing
+// and each tag read saw it too.
+func TestScanWAFv2_ContextEndStopsOnce(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var rec wafTagCalls
+	h := wafTagHandlers(wafTaggedItems, &rec, func(*wafv2.ListTagsForResourceInput) (any, error) {
+		cancel()
+		return nil, context.Canceled
+	})
+	var ruleGroups atomic.Int32
+	h["ListRuleGroups"] = func(any) (any, error) {
+		ruleGroups.Add(1)
+		return &wafv2.ListRuleGroupsOutput{}, nil
+	}
+	st := newTestStore(t)
+	acct := newTestAccount(testAccountID)
+	acct.cfg = opStubConfig(h, apiErr("AccessDeniedException", "unstubbed op"))
+	total, _, err := scanWAFv2(ctx, acct, testRegion, st, testScanID)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v; want context.Canceled", err)
+	}
+	if n := len(bacTopMembers(err)); n != 1 {
+		t.Errorf("error members = %d; want 1 (err %v)", n, err)
+	}
+	// Every phase but the REGIONAL web ACLs: 6 more per scope, the
+	// REGIONAL associations and both scopes' API keys.
+	if !strings.Contains(err.Error(), "wafv2: 14 phases not run") {
+		t.Errorf("err = %v; want it to say wafv2: 14 phases not run", err)
+	}
+	if total != 2 {
+		t.Errorf("total = %d; want the 2 REGIONAL web ACLs of the page in flight", total)
+	}
+	rows := rowsByNativeID(t, st, TypeWAFv2WebACL)
+	var stored []string
+	for _, w := range wafTaggedItems[:2] {
+		stored = append(stored, w.arn())
+		if r, ok := rows[w.arn()]; ok && r.TagsJSON != nil {
+			t.Errorf("%s TagsJSON = %s; want nil", w.arn(), *r.TagsJSON)
+		}
+	}
+	slices.Sort(stored)
+	if got := nativeIDs(rows); !slices.Equal(got, stored) {
+		t.Errorf("web ACL rows = %v; want %v", got, stored)
+	}
+	if n := ruleGroups.Load(); n != 0 {
+		t.Errorf("ListRuleGroups calls = %d; want none after ctx ended", n)
+	}
+}
+
+// A resource's tags are read across every page of ListTagsForResource; a
+// repeated NextMarker, or a response without TagInfoForResource, keeps the
+// row without tags and returns the error.
+func TestScanWAFv2_TagPages(t *testing.T) {
+	rg := wafTaggedItems[3]
+	page := func(in *wafv2.ListTagsForResourceInput, tags map[string]string, next *string) (any, error) {
+		out := wafTagsOut(in, tags)
+		out.NextMarker = next
+		return out, nil
+	}
+	cases := []struct {
+		name     string
+		page2    func(in *wafv2.ListTagsForResourceInput) (any, error)
+		wantTags map[string]string
+		wantErr  error
+	}{
+		{"two pages", func(in *wafv2.ListTagsForResourceInput) (any, error) {
+			return page(in, map[string]string{"env": "prod"}, nil)
+		}, map[string]string{"team": "rg", "env": "prod"}, nil},
+		{"repeated marker", func(in *wafv2.ListTagsForResourceInput) (any, error) {
+			return page(in, nil, sdkaws.String("t1"))
+		}, nil, errRepeatedNextToken},
+		{"no tag info", func(*wafv2.ListTagsForResourceInput) (any, error) {
+			return &wafv2.ListTagsForResourceOutput{}, nil
+		}, nil, errWAFv2NoTagInfo},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var rec wafTagCalls
+			calls := 0 // the pages of one resource are read in turn
+			h := wafTagHandlers([]wafTagged{rg}, &rec, func(in *wafv2.ListTagsForResourceInput) (any, error) {
+				if calls++; calls > 3 {
+					t.Errorf("ListTagsForResource called %d times; the read must stop by page 2", calls)
+					return nil, apiErr("StubCallLimit", "stub call limit")
+				}
+				if in.NextMarker == nil {
+					return page(in, map[string]string{"team": "rg"}, sdkaws.String("t1"))
+				}
+				if sv(in.NextMarker) != "t1" || sdkaws.ToInt32(in.Limit) != 100 {
+					t.Errorf("page 2 NextMarker, Limit = %q, %d; want t1, 100", sv(in.NextMarker), sdkaws.ToInt32(in.Limit))
+				}
+				return tc.page2(in)
+			})
+			st := newTestStore(t)
+			_, _, _, err := wafTagScan(t, st, h)
+			if tc.wantErr == nil && err != nil {
+				t.Fatalf("scanWAFv2: %v", err)
+			}
+			if !errors.Is(err, tc.wantErr) {
+				t.Errorf("err = %v; want %v", err, tc.wantErr)
+			}
+			r, ok := rowsByNativeID(t, st, TypeWAFv2RuleGroup)[rg.arn()]
+			switch {
+			case !ok:
+				t.Fatalf("rule group %s not stored", rg.arn())
+			case tc.wantTags == nil && r.TagsJSON != nil:
+				t.Errorf("TagsJSON = %s; want nil", *r.TagsJSON)
+			case tc.wantTags != nil:
+				assertTagsMap(t, r.TagsJSON, tc.wantTags)
+			}
+		})
+	}
+}
+
+// A failed tag read keeps the row without tags, except for a resource
+// ListTagsForResource no longer finds, which is not stored (and a web ACL
+// so dropped has no associations listed): denials, in any type and scope,
+// are one warning for the scan; a transient failure is returned as one, and
+// demoted to a warning beside a hard error; any other error is returned.
+func TestScanWAFv2_TagReadErrors(t *testing.T) {
+	a, cf, rg, ip := wafTaggedItems[0], wafTaggedItems[2], wafTaggedItems[3], wafTaggedItems[5]
+	denied := apiErr("AccessDeniedException", "not authorized to perform: wafv2:ListTagsForResource")
+	throttled := apiErr("ThrottlingException", "Rate exceeded")
+	cases := []struct {
+		name      string
+		fail      map[string]error // by ARN
+		dropped   []wafTagged
+		wantTotal int
+		wantErr   func(error) bool // nil: the scan succeeds
+		wantWarns int              // warnings under wafv2:ListTagsForResource
+	}{
+		{"denied", map[string]error{a.arn(): denied, cf.arn(): denied, rg.arn(): denied}, nil, wafTaggedTotal, nil, 1},
+		// a's association row goes with it.
+		{"gone", map[string]error{a.arn(): apiErr("WAFNonexistentItemException", "gone"), rg.arn(): apiErr("WAFNonexistentItemException", "gone")}, []wafTagged{a, rg}, wafTaggedTotal - 3, nil, 0},
+		{
+			"other error",
+			map[string]error{rg.arn(): apiErr("WAFInvalidOperationException", "bad")},
+			nil, wafTaggedTotal,
+			func(err error) bool {
+				return classifyServiceError(err) == outcomeError && isAPIErrorCode(err, "WAFInvalidOperationException")
+			}, 0,
+		},
+		{
+			"transient",
+			map[string]error{rg.arn(): throttled},
+			nil, wafTaggedTotal,
+			func(err error) bool {
+				return classifyServiceError(err) == outcomeTransient && isAPIErrorCode(err, "ThrottlingException")
+			}, 0,
+		},
+		{
+			"transient beside other error",
+			map[string]error{rg.arn(): throttled, ip.arn(): apiErr("WAFInvalidOperationException", "bad")},
+			nil, wafTaggedTotal,
+			func(err error) bool {
+				return classifyServiceError(err) == outcomeError && isAPIErrorCode(err, "WAFInvalidOperationException") && !isAPIErrorCode(err, "ThrottlingException")
+			}, 1,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var (
+				rec    wafTagCalls
+				listed parentCalls
+			)
+			h := wafTagHandlers(wafTaggedItems, &rec, nil)
+			ok := h["ListTagsForResource"]
+			h["ListTagsForResource"] = func(in any) (any, error) {
+				if err := tc.fail[sv(in.(*wafv2.ListTagsForResourceInput).ResourceARN)]; err != nil {
+					return nil, err
+				}
+				return ok(in)
+			}
+			h["ListResourcesForWebACL"] = func(in any) (any, error) {
+				listed.add(sv(in.(*wafv2.ListResourcesForWebACLInput).WebACLArn))
+				return wafALBAssociation(in)
+			}
+			st := newTestStore(t)
+			warns, total, _, err := wafTagScan(t, st, h)
+			if tc.wantErr == nil && err != nil {
+				t.Fatalf("scanWAFv2: %v", err)
+			}
+			if tc.wantErr != nil && !tc.wantErr(err) {
+				t.Errorf("err = %v; not the wanted error", err)
+			}
+			if total != tc.wantTotal {
+				t.Errorf("total = %d; want %d", total, tc.wantTotal)
+			}
+			for _, w := range wafTaggedItems {
+				r, stored := rowsByNativeID(t, st, w.typ)[w.arn()]
+				if wantStored := !slices.Contains(tc.dropped, w); stored != wantStored {
+					t.Errorf("%s stored = %v; want %v", w.arn(), stored, wantStored)
+					continue
+				}
+				if _, failed := tc.fail[w.arn()]; stored && failed && r.TagsJSON != nil {
+					t.Errorf("%s TagsJSON = %s; want nil after a failed read", w.arn(), *r.TagsJSON)
+				}
+			}
+			var wantListed []string
+			for _, w := range wafTaggedItems[:2] {
+				if !slices.Contains(tc.dropped, w) {
+					wantListed = append(wantListed, w.arn())
+				}
+			}
+			slices.Sort(wantListed)
+			if got := listed.distinct(); !slices.Equal(got, wantListed) {
+				t.Errorf("ListResourcesForWebACL called for %q; want %q", got, wantListed)
+			}
+			ws := wafWarnings(warns(), "wafv2:ListTagsForResource")
+			if len(ws) != tc.wantWarns {
+				t.Fatalf("wafv2:ListTagsForResource warnings = %+v; want %d", ws, tc.wantWarns)
+			}
+			for _, w := range ws {
+				if w.Scope != testAccountID+"/"+testRegion {
+					t.Errorf("warning Scope = %q; want %s/%s", w.Scope, testAccountID, testRegion)
+				}
+			}
+		})
+	}
+}
+
+// A tag read denied before a failed write sends no warning: the row it
+// names was never stored.
+func TestScanWAFv2_TagDenialAfterFailedWriteNotWarned(t *testing.T) {
+	st, closeStore := openClosingStore(t)
+	var rec wafTagCalls
+	h := wafTagHandlers(wafTaggedItems[3:4], &rec, func(*wafv2.ListTagsForResourceInput) (any, error) {
+		closeStore()
+		return nil, apiErr("AccessDeniedException", "not authorized to perform: wafv2:ListTagsForResource")
+	})
+	warns, _, _, err := wafTagScan(t, st, h)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Errorf("err = %v; want the store write failure", err)
+	}
+	if ws := wafWarnings(warns(), "wafv2:ListTagsForResource"); len(ws) != 0 {
+		t.Errorf("wafv2:ListTagsForResource warnings = %+v; want none", ws)
+	}
+}
+
+// GetWebACL denied in both scopes is one warning for the scan, and every
+// ACL is kept as its summary.
+func TestScanWAFv2_GetWebACLDenialsOneWarning(t *testing.T) {
+	var rec wafTagCalls
+	h := wafTagHandlers(wafTaggedItems, &rec, nil)
+	h["GetWebACL"] = func(any) (any, error) {
+		return nil, apiErr("AccessDeniedException", "not authorized to perform: wafv2:GetWebACL")
+	}
+	st := newTestStore(t)
+	warns, _, _, err := wafTagScan(t, st, h)
+	if err != nil {
+		t.Fatalf("scanWAFv2: %v", err)
+	}
+	if ws := wafWarnings(warns(), "wafv2:GetWebACL"); len(ws) != 1 {
+		t.Errorf("wafv2:GetWebACL warnings = %+v; want 1", ws)
+	}
+	rows := rowsByNativeID(t, st, TypeWAFv2WebACL)
+	for _, w := range wafTaggedItems[:3] {
+		var summary types.WebACLSummary
+		if err := json.Unmarshal([]byte(rows[w.arn()].AttributesJSON), &summary); err != nil {
+			t.Fatal(err)
+		}
+		if sv(summary.LockToken) != "lock-"+w.name {
+			t.Errorf("%s attrs = %s; want its summary", w.arn(), rows[w.arn()].AttributesJSON)
+		}
+	}
+}
+
+// In GovCloud the ARN a listing returns reaches ListTagsForResource
+// unchanged.
+func TestScanWAFv2_GovCloudARNSentUnchanged(t *testing.T) {
+	const region = "us-gov-west-1"
+	govARN := "arn:aws-us-gov:wafv2:" + region + ":" + testAccountID + ":regional/rulegroup/rg/1"
+	var sent parentCalls
+	st := newTestStore(t)
+	acct := testAccountIn("aws-us-gov")
+	acct.cfg = opStubConfig(map[string]func(in any) (any, error){
+		"ListRuleGroups": func(in any) (any, error) {
+			return &wafv2.ListRuleGroupsOutput{RuleGroups: []types.RuleGroupSummary{{ARN: sdkaws.String(govARN), Name: sdkaws.String("rg")}}}, nil
+		},
+		"ListTagsForResource": func(in any) (any, error) {
+			i := in.(*wafv2.ListTagsForResourceInput)
+			sent.add(sv(i.ResourceARN))
+			return wafTagsOut(i, map[string]string{"team": "gov"}), nil
+		},
+		"ListWebACLs":               func(any) (any, error) { return &wafv2.ListWebACLsOutput{}, nil },
+		"ListIPSets":                func(any) (any, error) { return &wafv2.ListIPSetsOutput{}, nil },
+		"ListLoggingConfigurations": func(any) (any, error) { return &wafv2.ListLoggingConfigurationsOutput{}, nil },
+		"ListRegexPatternSets":      func(any) (any, error) { return &wafv2.ListRegexPatternSetsOutput{}, nil },
+		"ListManagedRuleSets":       func(any) (any, error) { return &wafv2.ListManagedRuleSetsOutput{}, nil },
+		"ListAPIKeys":               func(any) (any, error) { return &wafv2.ListAPIKeysOutput{}, nil },
+	}, apiErr("AccessDeniedException", "unstubbed op"))
+	if _, _, err := scanWAFv2(context.Background(), acct, region, st, testScanID); err != nil {
+		t.Fatalf("scanWAFv2: %v", err)
+	}
+	if got := sent.distinct(); !slices.Equal(got, []string{govARN}) {
+		t.Errorf("ListTagsForResource ARNs = %q; want [%s]", got, govARN)
+	}
+	r, ok := rowsByNativeID(t, st, TypeWAFv2RuleGroup)[govARN]
+	if !ok {
+		t.Fatalf("rule group %s not stored", govARN)
+	}
+	assertTagsMap(t, r.TagsJSON, map[string]string{"team": "gov"})
 }
