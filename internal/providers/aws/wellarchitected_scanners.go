@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/wellarchitected"
 	wellarchitectedtypes "github.com/aws/aws-sdk-go-v2/service/wellarchitected/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -53,6 +54,7 @@ type wellArchitectedAPI interface {
 	ListLenses(context.Context, *wellarchitected.ListLensesInput, ...func(*wellarchitected.Options)) (*wellarchitected.ListLensesOutput, error)
 	ListProfiles(context.Context, *wellarchitected.ListProfilesInput, ...func(*wellarchitected.Options)) (*wellarchitected.ListProfilesOutput, error)
 	ListReviewTemplates(context.Context, *wellarchitected.ListReviewTemplatesInput, ...func(*wellarchitected.Options)) (*wellarchitected.ListReviewTemplatesOutput, error)
+	ListTagsForResource(context.Context, *wellarchitected.ListTagsForResourceInput, ...func(*wellarchitected.Options)) (*wellarchitected.ListTagsForResourceOutput, error)
 	ListWorkloadShares(context.Context, *wellarchitected.ListWorkloadSharesInput, ...func(*wellarchitected.Options)) (*wellarchitected.ListWorkloadSharesOutput, error)
 	ListLensReviews(context.Context, *wellarchitected.ListLensReviewsInput, ...func(*wellarchitected.Options)) (*wellarchitected.ListLensReviewsOutput, error)
 	ListLensShares(context.Context, *wellarchitected.ListLensSharesInput, ...func(*wellarchitected.Options)) (*wellarchitected.ListLensSharesOutput, error)
@@ -63,21 +65,37 @@ type wellArchitectedAPI interface {
 	ListAgentGoals(context.Context, *wellarchitected.ListAgentGoalsInput, ...func(*wellarchitected.Options)) (*wellarchitected.ListAgentGoalsOutput, error)
 }
 
-// waParents are the parents the list phases hand to the child phases. Shares
-// are listed only on what this account owns: a workload, profile or template
-// shared in from another account, and every AWS-official or shared-in lens,
-// has no shares this account can list.
+const (
+	waListWorkloadsOp       = "wellarchitected:ListWorkloads"
+	waListLensesOp          = "wellarchitected:ListLenses"
+	waListProfilesOp        = "wellarchitected:ListProfiles"
+	waListReviewTemplatesOp = "wellarchitected:ListReviewTemplates"
+	waTagsOp                = "wellarchitected:ListTagsForResource"
+	// waToolPageCap is the MaxResults maximum the model documents for
+	// ListWorkloads, ListLenses, ListProfiles and ListReviewTemplates.
+	waToolPageCap = 50
+)
+
+// waParents are the parents the list phases hand to the child phases: only
+// rows they stored. Shares are listed only on what this account owns: a
+// workload, profile or template shared in from another account, and every
+// AWS-official or shared-in lens, has no shares this account can list.
 type waParents struct {
 	workloads, ownedWorkloads, ownedLenses, ownedProfiles, ownedTemplates []childParent
 }
 
-// scanWellArchitected discovers the Well-Architected Tool resources, then the
-// Well-Architected Agent's profiles and the contexts and goals of each. Every
-// phase runs whatever the phases before it returned, so one phase's error
-// cannot cost another's rows, and the errors are joined by phaseErrs. A
-// transient tool or profile error alone marks the scan partial; beside a hard
-// error it is demoted to a warning: joined, it would be buried in the hard
-// error instead of reported under its op. The context and goal phases skip a
+// scanWellArchitected discovers the Well-Architected Tool's workloads, lenses,
+// profiles and review templates with their tags (waTags), then the lens
+// reviews of each workload and the shares of each owned workload, custom
+// lens, profile and review template, then the Well-Architected Agent's
+// profiles and the contexts and goals of each. Every listing runs as its own
+// phase, one at a time and in that order: a child phase reads the parents its
+// parent phase stored. A phase's error does not stop the later ones; a failed
+// write and ctx's end do, and so does a first phase that stores nothing and
+// fails only with NXDOMAIN, since the region does not serve the service
+// (runHostPhases). A transient error alone marks the scan partial; beside a
+// hard error it is demoted to a warning under its op. The tag reads' denials
+// are one warning for the whole scan. The context and goal phases skip a
 // transient parent themselves, so their errors are never transient.
 //
 // Not scanned: answers, check details/summaries, lens-review improvements and
@@ -86,213 +104,261 @@ type waParents struct {
 // agent's recommendations and recommendation generations.
 func scanWellArchitected(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := wellarchitected.NewFromConfig(acct.cfg, func(o *wellarchitected.Options) { o.Region = region })
-	total, inserted, err := scanWAToolPhases(ctx, client, acct, region, st, scanID)
-	pt, pi, profiles, perr := scanWAAgentProfiles(ctx, client, acct, region, st, scanID)
-	ct, ci, cerr := scanWAAgentContexts(ctx, client, profiles, acct, region, st, scanID)
-	gt, gi, gerr := scanWAAgentGoals(ctx, client, profiles, acct, region, st, scanID)
-	var errs phaseErrs
-	errs.add("wellarchitected", err)
-	errs.add("wellarchitected:ListAgentProfiles", perr)
-	errs.add("wellarchitected agent contexts", cerr)
-	errs.add("wellarchitected agent goals", gerr)
-	return total + pt + ct + gt, inserted + pi + ci + gi, errs.join(st, acct, region)
-}
-
-// scanWAToolPhases discovers workloads, lenses, profiles and review templates,
-// then the lens reviews of each workload and the shares of each owned
-// workload, custom lens, profile and review template. Phases run in order and
-// a phase error stops them with the rows counted so far; the child phases run
-// last so their errors cannot cost the parent rows.
-func scanWAToolPhases(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var p waParents
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanWAWorkloads(ctx, client, acct, region, st, scanID, &p) },
-		func() (int, int, error) { return scanWALenses(ctx, client, acct, region, st, scanID, &p) },
-		func() (int, int, error) { return scanWAProfiles(ctx, client, acct, region, st, scanID, &p) },
-		func() (int, int, error) { return scanWAReviewTemplates(ctx, client, acct, region, st, scanID, &p) },
-		func() (int, int, error) { return scanWALensReviews(ctx, client, p.workloads, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanWAWorkloadShares(ctx, client, p.ownedWorkloads, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
-			return scanWALensShares(ctx, client, p.ownedLenses, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
-			return scanWAProfileShares(ctx, client, p.ownedProfiles, acct, region, st, scanID)
-		},
-		func() (int, int, error) {
-			return scanWATemplateShares(ctx, client, p.ownedTemplates, acct, region, st, scanID)
-		},
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
-}
-
-func scanWAWorkloads(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string, p *waParents) (int, int, error) {
-	pager := wellarchitected.NewListWorkloadsPaginator(client, &wellarchitected.ListWorkloadsInput{})
+	tags := waTags(client).sharingDenials()
 	var (
-		batch      []*store.Resource
-		all, owned []childParent
+		p        waParents
+		profiles []childParent
 	)
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "wellarchitected:ListWorkloads", acct.ID, region, err)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "wellarchitected", 0, []hostPhase{
+		{op: waListWorkloadsOp, run: func(pt *phaseTotals) bool {
+			return scanWAWorkloads(ctx, client, acct, region, st, scanID, tags, pt, &p)
+		}},
+		{op: waListLensesOp, run: func(pt *phaseTotals) bool {
+			return scanWALenses(ctx, client, acct, region, st, scanID, tags, pt, &p)
+		}},
+		{op: waListProfilesOp, run: func(pt *phaseTotals) bool {
+			return scanWAProfiles(ctx, client, acct, region, st, scanID, tags, pt, &p)
+		}},
+		{op: waListReviewTemplatesOp, run: func(pt *phaseTotals) bool {
+			return scanWAReviewTemplates(ctx, client, acct, region, st, scanID, tags, pt, &p)
+		}},
+		countedPhase(0, "wellarchitected:ListLensReviews", func() (int, int, error) {
+			return scanWALensReviews(ctx, client, p.workloads, acct, region, st, scanID)
+		}),
+		countedPhase(0, "wellarchitected:ListWorkloadShares", func() (int, int, error) {
+			return scanWAWorkloadShares(ctx, client, p.ownedWorkloads, acct, region, st, scanID)
+		}),
+		countedPhase(0, "wellarchitected:ListLensShares", func() (int, int, error) {
+			return scanWALensShares(ctx, client, p.ownedLenses, acct, region, st, scanID)
+		}),
+		countedPhase(0, "wellarchitected:ListProfileShares", func() (int, int, error) {
+			return scanWAProfileShares(ctx, client, p.ownedProfiles, acct, region, st, scanID)
+		}),
+		countedPhase(0, "wellarchitected:ListTemplateShares", func() (int, int, error) {
+			return scanWATemplateShares(ctx, client, p.ownedTemplates, acct, region, st, scanID)
+		}),
+		{op: "wellarchitected:ListAgentProfiles", run: func(pt *phaseTotals) bool {
+			t, i, listed, perr := scanWAAgentProfiles(ctx, client, acct, region, st, scanID)
+			profiles = listed
+			return pt.addPhase("wellarchitected:ListAgentProfiles", t, i, perr)
+		}},
+		countedPhase(0, "wellarchitected:ListAgentContexts", func() (int, int, error) {
+			return scanWAAgentContexts(ctx, client, profiles, acct, region, st, scanID)
+		}),
+		countedPhase(0, "wellarchitected:ListAgentGoals", func() (int, int, error) {
+			return scanWAAgentGoals(ctx, client, profiles, acct, region, st, scanID)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
+}
+
+// waTags reads the tags of a workload, custom lens, profile or review
+// template with ListTagsForResource, sent the row's NativeID: the ARN its
+// listing returned. The op documents its WorkloadArn input as any of those
+// four ARNs, the Service Reference lists their resources on it and on
+// TagResource, and CreateWorkload, ImportLens, CreateProfile and
+// CreateReviewTemplate take Tags. The op returns every tag at once.
+// ResourceNotFoundException, the one client error its model lists, drops a
+// resource deleted after it was listed.
+//
+// Agent profiles are not read: their list element carries Tags, stored as
+// listed. Agent contexts and goals, lens reviews and shares are no Service
+// Reference resource, and their create ops take no tags.
+func waTags(client wellArchitectedAPI) rowTagReader {
+	return rowTagReader{
+		op:       waTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &wellarchitected.ListTagsForResourceInput{WorkloadArn: &arn})
+			if err != nil {
+				return nil, err
 			}
-			return 0, 0, fmt.Errorf("wellarchitected:ListWorkloads: %w", err)
-		}
-		for _, w := range out.WorkloadSummaries {
-			arn := sv(w.WorkloadArn)
-			if arn == "" {
-				continue
+			return mapTagsJSON(out.Tags), nil
+		},
+	}
+}
+
+// Each list phase below keeps, by ARN, the elements of the page being
+// stored: its row builder records them, its tag reads and its stored step
+// read them, and storeTokenPagesTagsWith runs those one after another for
+// each page, so no read overlaps a write. The stored step then clears them,
+// so one page is held at a time. Each element names its owner (Owner, an
+// account id): a resource shared in from another account is its owner's, so
+// a denied or not-found tag read of it keeps the row untagged and silent
+// (untaggedIfOwnerElsewhere).
+
+// scanWAWorkloads stores the workloads a page at a time with their tags. The
+// workloads stored become the parents of the lens-review phase, and those
+// this account owns the parents of the share phase; one stored without the
+// WorkloadId those ops key on is warned about. It reports whether a write
+// failed, after which the scan must stop.
+func scanWAWorkloads(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals, parents *waParents) (storeWriteFailed bool) {
+	listed := map[string]wellarchitectedtypes.WorkloadSummary{}
+	var noID skipTally
+	failed := storeTokenPagesTagsWith(ctx, st, acct, region, waListWorkloadsOp,
+		func(ctx context.Context, token *string) ([]wellarchitectedtypes.WorkloadSummary, *string, error) {
+			out, err := client.ListWorkloads(ctx, &wellarchitected.ListWorkloadsInput{MaxResults: sdkaws.Int32(waToolPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			batch = append(batch, &store.Resource{
+			return out.WorkloadSummaries, out.NextToken, nil
+		},
+		func(w wellarchitectedtypes.WorkloadSummary) (*store.Resource, string, string) {
+			listed[sv(w.WorkloadArn)] = w
+			return arnRow("workloads", w.WorkloadArn, w.WorkloadName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWellArchitectedWorkload, NativeID: arn,
+				Type: TypeWellArchitectedWorkload, NativeID: sv(w.WorkloadArn),
 				Name: w.WorkloadName, Region: &region,
 				AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
 			})
-			// The child list ops key on WorkloadId, not the ARN.
-			id := sv(w.WorkloadId)
-			if id == "" {
-				continue
+		},
+		tokenPageSteps{stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				w := listed[r.NativeID]
+				id := sv(w.WorkloadId)
+				if id == "" {
+					noID.skipped(r.NativeID, nil)
+					continue
+				}
+				parents.workloads = append(parents.workloads, childParent{id: id, arn: r.NativeID})
+				if sv(w.Owner) == acct.ID {
+					parents.ownedWorkloads = append(parents.ownedWorkloads, childParent{id: id, arn: r.NativeID})
+				}
 			}
-			all = append(all, childParent{id: id, arn: arn})
-			if sv(w.Owner) == acct.ID {
-				owned = append(owned, childParent{id: id, arn: arn})
-			}
-		}
+			clear(listed)
+		}},
+		tags.untaggedIfOwnerElsewhere(acct.ID, func(r *store.Resource) string { return sv(listed[r.NativeID].Owner) }), p)
+	// Like the listing's own warnings (storeTokenPagesTagsWith), this one is
+	// sent only when every write succeeded.
+	if !failed {
+		warnNoChildID(st, waListWorkloadsOp, acct, region, &noID, "workloads", "WorkloadId")
 	}
-	total, inserted, err := upsertBatch(st, batch, "wellarchitected workloads")
-	if err != nil {
-		return 0, 0, err
-	}
-	p.workloads, p.ownedWorkloads = all, owned
-	return total, inserted, nil
+	return failed
 }
 
-func scanWALenses(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string, p *waParents) (int, int, error) {
-	pager := wellarchitected.NewListLensesPaginator(client, &wellarchitected.ListLensesInput{})
-	var (
-		batch []*store.Resource
-		owned []childParent
-	)
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "wellarchitected:ListLenses", acct.ID, region, err)
+// scanWALenses stores the lenses a page at a time. A lens with Owner "AWS" is
+// ManagedByProvider: an AWS-official lens is assumed to carry that Owner,
+// which is not verified against the live service (the model types Owner as a
+// 12-digit account id). Every lens but an AWS-official one has its tags read
+// (waLensTags). The custom lenses this account created and stored become the
+// parents of the share phase, ListLensShares taking the ARN as the alias. It
+// reports whether a write failed, after which the scan must stop.
+func scanWALenses(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals, parents *waParents) (storeWriteFailed bool) {
+	listed := map[string]wellarchitectedtypes.LensSummary{}
+	return storeTokenPagesTagsWith(ctx, st, acct, region, waListLensesOp,
+		func(ctx context.Context, token *string) ([]wellarchitectedtypes.LensSummary, *string, error) {
+			out, err := client.ListLenses(ctx, &wellarchitected.ListLensesInput{MaxResults: sdkaws.Int32(waToolPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("wellarchitected:ListLenses: %w", err)
-		}
-		for _, l := range out.LensSummaries {
-			arn := sv(l.LensArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
+			return out.LensSummaries, out.NextToken, nil
+		},
+		func(l wellarchitectedtypes.LensSummary) (*store.Resource, string, string) {
+			listed[sv(l.LensArn)] = l
+			return arnRow("lenses", l.LensArn, l.LensName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWellArchitectedLens, NativeID: arn,
+				Type: TypeWellArchitectedLens, NativeID: sv(l.LensArn),
 				Name: l.LensName, Region: &region,
 				ManagedByProvider: sv(l.Owner) == "AWS",
 				AttributesJSON:    mustJSON(l), DiscoveredBy: scanID,
 			})
-			// Only a custom lens this account created can be shared; ListLensShares
-			// takes its ARN as the alias.
-			if l.LensType == wellarchitectedtypes.LensTypeCustomSelf {
-				owned = append(owned, childParent{id: arn, arn: arn})
+		},
+		tokenPageSteps{stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				if listed[r.NativeID].LensType == wellarchitectedtypes.LensTypeCustomSelf {
+					parents.ownedLenses = append(parents.ownedLenses, childParent{id: r.NativeID, arn: r.NativeID})
+				}
 			}
-		}
-	}
-	total, inserted, err := upsertBatch(st, batch, "wellarchitected lenses")
-	if err != nil {
-		return 0, 0, err
-	}
-	p.ownedLenses = owned
-	return total, inserted, nil
+			clear(listed)
+		}},
+		waLensTags(tags, acct.ID, listed), p)
 }
 
-func scanWAProfiles(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string, p *waParents) (int, int, error) {
-	pager := wellarchitected.NewListProfilesPaginator(client, &wellarchitected.ListProfilesInput{})
-	var (
-		batch []*store.Resource
-		owned []childParent
-	)
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "wellarchitected:ListProfiles", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("wellarchitected:ListProfiles: %w", err)
+// waLensTags is tags for the lenses of the page being stored, listed by ARN.
+// An AWS-official lens (LensType AWS_OFFICIAL) keeps no tags and costs no
+// call: the op documents custom lens ARNs only, and an official lens is not
+// the customer's to tag. Every other lens is read, one with no LensType
+// included, since the model does not require LensType and skipping such a
+// lens would leave a custom lens untagged without a word. A shared-in custom
+// lens is its owner's (untaggedIfOwnerElsewhere).
+func waLensTags(tags rowTagReader, acctID string, listed map[string]wellarchitectedtypes.LensSummary) rowTagReader {
+	read := tags.read
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		if listed[r.NativeID].LensType == wellarchitectedtypes.LensTypeAwsOfficial {
+			return nil, nil
 		}
-		for _, pr := range out.ProfileSummaries {
-			arn := sv(pr.ProfileArn)
-			if arn == "" {
-				continue
+		return read(ctx, r)
+	}
+	return tags.untaggedIfOwnerElsewhere(acctID, func(r *store.Resource) string { return sv(listed[r.NativeID].Owner) })
+}
+
+// scanWAProfiles stores the profiles a page at a time with their tags; those
+// this account owns and stored become the parents of the share phase. It
+// reports whether a write failed, after which the scan must stop.
+func scanWAProfiles(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals, parents *waParents) (storeWriteFailed bool) {
+	listed := map[string]wellarchitectedtypes.ProfileSummary{}
+	return storeTokenPagesTagsWith(ctx, st, acct, region, waListProfilesOp,
+		func(ctx context.Context, token *string) ([]wellarchitectedtypes.ProfileSummary, *string, error) {
+			out, err := client.ListProfiles(ctx, &wellarchitected.ListProfilesInput{MaxResults: sdkaws.Int32(waToolPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			batch = append(batch, &store.Resource{
+			return out.ProfileSummaries, out.NextToken, nil
+		},
+		func(pr wellarchitectedtypes.ProfileSummary) (*store.Resource, string, string) {
+			listed[sv(pr.ProfileArn)] = pr
+			return arnRow("profiles", pr.ProfileArn, pr.ProfileName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWellArchitectedProfile, NativeID: arn,
+				Type: TypeWellArchitectedProfile, NativeID: sv(pr.ProfileArn),
 				Name: pr.ProfileName, Region: &region,
 				AttributesJSON: mustJSON(pr), DiscoveredBy: scanID,
 			})
-			if sv(pr.Owner) == acct.ID {
-				owned = append(owned, childParent{id: arn, arn: arn})
+		},
+		tokenPageSteps{stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				if sv(listed[r.NativeID].Owner) == acct.ID {
+					parents.ownedProfiles = append(parents.ownedProfiles, childParent{id: r.NativeID, arn: r.NativeID})
+				}
 			}
-		}
-	}
-	total, inserted, err := upsertBatch(st, batch, "wellarchitected profiles")
-	if err != nil {
-		return 0, 0, err
-	}
-	p.ownedProfiles = owned
-	return total, inserted, nil
+			clear(listed)
+		}},
+		tags.untaggedIfOwnerElsewhere(acct.ID, func(r *store.Resource) string { return sv(listed[r.NativeID].Owner) }), p)
 }
 
-func scanWAReviewTemplates(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string, p *waParents) (int, int, error) {
-	pager := wellarchitected.NewListReviewTemplatesPaginator(client, &wellarchitected.ListReviewTemplatesInput{})
-	var (
-		batch []*store.Resource
-		owned []childParent
-	)
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "wellarchitected:ListReviewTemplates", acct.ID, region, err)
+// scanWAReviewTemplates stores the review templates a page at a time with
+// their tags; those this account owns and stored become the parents of the
+// share phase. It reports whether a write failed, after which the scan must
+// stop.
+func scanWAReviewTemplates(ctx context.Context, client wellArchitectedAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals, parents *waParents) (storeWriteFailed bool) {
+	listed := map[string]wellarchitectedtypes.ReviewTemplateSummary{}
+	return storeTokenPagesTagsWith(ctx, st, acct, region, waListReviewTemplatesOp,
+		func(ctx context.Context, token *string) ([]wellarchitectedtypes.ReviewTemplateSummary, *string, error) {
+			out, err := client.ListReviewTemplates(ctx, &wellarchitected.ListReviewTemplatesInput{MaxResults: sdkaws.Int32(waToolPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("wellarchitected:ListReviewTemplates: %w", err)
-		}
-		for _, r := range out.ReviewTemplates {
-			arn := sv(r.TemplateArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
+			return out.ReviewTemplates, out.NextToken, nil
+		},
+		func(r wellarchitectedtypes.ReviewTemplateSummary) (*store.Resource, string, string) {
+			listed[sv(r.TemplateArn)] = r
+			return arnRow("review templates", r.TemplateArn, r.TemplateName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeWellArchitectedReviewTemplate, NativeID: arn,
+				Type: TypeWellArchitectedReviewTemplate, NativeID: sv(r.TemplateArn),
 				Name: r.TemplateName, Region: &region,
 				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
-			if sv(r.Owner) == acct.ID {
-				owned = append(owned, childParent{id: arn, arn: arn})
+		},
+		tokenPageSteps{stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				if sv(listed[r.NativeID].Owner) == acct.ID {
+					parents.ownedTemplates = append(parents.ownedTemplates, childParent{id: r.NativeID, arn: r.NativeID})
+				}
 			}
-		}
-	}
-	total, inserted, err := upsertBatch(st, batch, "wellarchitected review-templates")
-	if err != nil {
-		return 0, 0, err
-	}
-	p.ownedTemplates = owned
-	return total, inserted, nil
+			clear(listed)
+		}},
+		tags.untaggedIfOwnerElsewhere(acct.ID, func(r *store.Resource) string { return sv(listed[r.NativeID].Owner) }), p)
 }
 
 // isWAParentGone matches the not-found every child list op models, returned

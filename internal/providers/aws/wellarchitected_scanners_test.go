@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -35,160 +36,6 @@ func waStubClient(handlers map[string]func(in any) (any, error)) *wellarchitecte
 }
 
 func waARN(kind, id string) string { return waTestARNPrefix + kind + "/" + id }
-
-// waListCase drives one of the four parent list phases: page one holds an
-// owned item, page two a foreign one and an ARN-less one.
-type waListCase struct {
-	op, typ   string
-	handler   func(in any) (any, error)
-	ownedARN  string
-	otherARN  string
-	allParent func(*waParents) []childParent
-	owned     func(*waParents) []childParent
-	run       func(context.Context, wellArchitectedAPI, *store.Store, *waParents) (int, error)
-}
-
-func waListCases() []waListCase {
-	acct := newTestAccount(testAccountID)
-	return []waListCase{
-		{
-			op: "ListWorkloads", typ: TypeWellArchitectedWorkload,
-			ownedARN: waARN("workload", "w1"), otherARN: waARN("workload", "w2"),
-			handler: func(in any) (any, error) {
-				if in.(*wellarchitected.ListWorkloadsInput).NextToken == nil {
-					return &wellarchitected.ListWorkloadsOutput{NextToken: ptrStr("p2"), WorkloadSummaries: []watypes.WorkloadSummary{
-						{WorkloadArn: ptrStr(waARN("workload", "w1")), WorkloadId: ptrStr("w1"), Owner: ptrStr(testAccountID)},
-					}}, nil
-				}
-				return &wellarchitected.ListWorkloadsOutput{WorkloadSummaries: []watypes.WorkloadSummary{
-					{WorkloadArn: ptrStr(waARN("workload", "w2")), WorkloadId: ptrStr("w2"), Owner: ptrStr(waForeignOwner)},
-					{WorkloadId: ptrStr("no-arn"), Owner: ptrStr(testAccountID)},
-				}}, nil
-			},
-			allParent: func(p *waParents) []childParent { return p.workloads },
-			owned:     func(p *waParents) []childParent { return p.ownedWorkloads },
-			run: func(ctx context.Context, c wellArchitectedAPI, st *store.Store, p *waParents) (int, error) {
-				total, _, err := scanWAWorkloads(ctx, c, acct, testRegion, st, testScanID, p)
-				return total, err
-			},
-		},
-		{
-			op: "ListLenses", typ: TypeWellArchitectedLens,
-			ownedARN: waARN("lens", "custom1"), otherARN: "arn:aws:wellarchitected::aws:lens/serverless",
-			handler: func(in any) (any, error) {
-				if in.(*wellarchitected.ListLensesInput).NextToken == nil {
-					return &wellarchitected.ListLensesOutput{NextToken: ptrStr("p2"), LensSummaries: []watypes.LensSummary{
-						{LensArn: ptrStr(waARN("lens", "custom1")), LensType: watypes.LensTypeCustomSelf, Owner: ptrStr(testAccountID)},
-					}}, nil
-				}
-				return &wellarchitected.ListLensesOutput{LensSummaries: []watypes.LensSummary{
-					{LensArn: ptrStr("arn:aws:wellarchitected::aws:lens/serverless"), LensType: watypes.LensTypeAwsOfficial, Owner: ptrStr("AWS")},
-					{LensType: watypes.LensTypeCustomSelf},
-				}}, nil
-			},
-			owned: func(p *waParents) []childParent { return p.ownedLenses },
-			run: func(ctx context.Context, c wellArchitectedAPI, st *store.Store, p *waParents) (int, error) {
-				total, _, err := scanWALenses(ctx, c, acct, testRegion, st, testScanID, p)
-				return total, err
-			},
-		},
-		{
-			op: "ListProfiles", typ: TypeWellArchitectedProfile,
-			ownedARN: waARN("profile", "pr1"), otherARN: waARN("profile", "pr2"),
-			handler: func(in any) (any, error) {
-				if in.(*wellarchitected.ListProfilesInput).NextToken == nil {
-					return &wellarchitected.ListProfilesOutput{NextToken: ptrStr("p2"), ProfileSummaries: []watypes.ProfileSummary{
-						{ProfileArn: ptrStr(waARN("profile", "pr1")), Owner: ptrStr(testAccountID)},
-					}}, nil
-				}
-				return &wellarchitected.ListProfilesOutput{ProfileSummaries: []watypes.ProfileSummary{
-					{ProfileArn: ptrStr(waARN("profile", "pr2")), Owner: ptrStr(waForeignOwner)},
-					{Owner: ptrStr(testAccountID)},
-				}}, nil
-			},
-			owned: func(p *waParents) []childParent { return p.ownedProfiles },
-			run: func(ctx context.Context, c wellArchitectedAPI, st *store.Store, p *waParents) (int, error) {
-				total, _, err := scanWAProfiles(ctx, c, acct, testRegion, st, testScanID, p)
-				return total, err
-			},
-		},
-		{
-			op: "ListReviewTemplates", typ: TypeWellArchitectedReviewTemplate,
-			ownedARN: waARN("review-template", "t1"), otherARN: waARN("review-template", "t2"),
-			handler: func(in any) (any, error) {
-				if in.(*wellarchitected.ListReviewTemplatesInput).NextToken == nil {
-					return &wellarchitected.ListReviewTemplatesOutput{NextToken: ptrStr("p2"), ReviewTemplates: []watypes.ReviewTemplateSummary{
-						{TemplateArn: ptrStr(waARN("review-template", "t1")), Owner: ptrStr(testAccountID)},
-					}}, nil
-				}
-				return &wellarchitected.ListReviewTemplatesOutput{ReviewTemplates: []watypes.ReviewTemplateSummary{
-					{TemplateArn: ptrStr(waARN("review-template", "t2")), Owner: ptrStr(waForeignOwner)},
-					{Owner: ptrStr(testAccountID)},
-				}}, nil
-			},
-			owned: func(p *waParents) []childParent { return p.ownedTemplates },
-			run: func(ctx context.Context, c wellArchitectedAPI, st *store.Store, p *waParents) (int, error) {
-				total, _, err := scanWAReviewTemplates(ctx, c, acct, testRegion, st, testScanID, p)
-				return total, err
-			},
-		},
-	}
-}
-
-func TestScanWAListPhases_StoreEveryPageAndHandOwnedParents(t *testing.T) {
-	for _, c := range waListCases() {
-		t.Run(c.op, func(t *testing.T) {
-			st := newTestStore(t)
-			var p waParents
-			total, err := c.run(context.Background(), waStubClient(map[string]func(any) (any, error){c.op: c.handler}), st, &p)
-			if err != nil {
-				t.Fatalf("scan: %v", err)
-			}
-			rows := rowsByNativeID(t, st, c.typ)
-			_, okOwned := rows[c.ownedARN]
-			_, okOther := rows[c.otherARN]
-			if total != 2 || len(rows) != 2 || !okOwned || !okOther {
-				t.Fatalf("total = %d, rows = %v, want %s and %s", total, rows, c.ownedARN, c.otherARN)
-			}
-			if got := c.owned(&p); len(got) != 1 || got[0].arn != c.ownedARN {
-				t.Errorf("owned parents = %v, want only %s", got, c.ownedARN)
-			}
-			if c.allParent != nil {
-				want := []childParent{{id: "w1", arn: waARN("workload", "w1")}, {id: "w2", arn: waARN("workload", "w2")}}
-				if got := c.allParent(&p); !slices.Equal(got, want) {
-					t.Errorf("all workloads = %v, want %v", got, want)
-				}
-			}
-		})
-	}
-}
-
-// A denial on a later page drops the phase's rows, so it must hand no parents
-// either: a child under a parent with no stored row has nowhere to hang.
-func TestScanWAListPhases_DeniedPageHandsNoParents(t *testing.T) {
-	for _, c := range waListCases() {
-		t.Run(c.op, func(t *testing.T) {
-			st := newTestStore(t)
-			warns := countOpWarnings(st, "wellarchitected:"+c.op)
-			first := true
-			client := waStubClient(map[string]func(any) (any, error){c.op: func(in any) (any, error) {
-				if first {
-					first = false
-					return c.handler(in)
-				}
-				return nil, waDenied
-			}})
-			var p waParents
-			total, err := c.run(context.Background(), client, st, &p)
-			if err != nil || total != 0 || *warns != 1 {
-				t.Fatalf("total = %d, err = %v, warnings = %d; want 0, nil, 1", total, err, *warns)
-			}
-			if len(p.workloads)+len(p.ownedWorkloads)+len(p.ownedLenses)+len(p.ownedProfiles)+len(p.ownedTemplates) != 0 {
-				t.Errorf("parents = %+v, want none", p)
-			}
-		})
-	}
-}
 
 // waItem is one child element a stub page returns.
 type waItem struct{ id, name, status string }
@@ -520,6 +367,7 @@ func waServiceHandlers() map[string]func(any) (any, error) {
 			id, with, status := share("ts1")
 			return &wellarchitected.ListTemplateSharesOutput{TemplateShareSummaries: []watypes.TemplateShareSummary{{ShareId: id, SharedWith: with, Status: status}}}, nil
 		},
+		"ListTagsForResource": func(any) (any, error) { return &wellarchitected.ListTagsForResourceOutput{}, nil },
 	}
 }
 
@@ -778,7 +626,7 @@ func TestScanWellArchitected_StoresAgentProfilesWithToolRows(t *testing.T) {
 // agent phase stored are still counted.
 func TestScanWellArchitected_ThrottledToolPhaseKeepsCounts(t *testing.T) {
 	st := newTestStore(t)
-	warns := countOpWarnings(st, "wellarchitected")
+	warns := countOpWarnings(st, "wellarchitected:ListTemplateShares")
 	h := waAgentServiceHandlers()
 	h["ListTemplateShares"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "Rate exceeded") }
 	acct := newTestAccount(testAccountID)
@@ -846,7 +694,7 @@ func TestScanWellArchitected_AgentProfilesIndependentOfToolPhases(t *testing.T) 
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
-			toolWarns := countOpWarnings(st, "wellarchitected")
+			toolWarns := countOpWarnings(st, "wellarchitected:"+tc.toolOp)
 			h := waAgentServiceHandlers()
 			if tc.toolOp != "" {
 				h[tc.toolOp] = func(any) (any, error) { return nil, tc.toolErr }
@@ -1214,7 +1062,7 @@ func TestScanWellArchitected_AgentChildPhaseErrors(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
-			warns := countOpWarnings(st, "wellarchitected")
+			warns := countOpWarnings(st, "wellarchitected:ListTemplateShares")
 			h := waAgentServiceHandlers()
 			h[tc.failing] = func(any) (any, error) { return nil, waBadInput }
 			if tc.throttleTool {
@@ -1237,6 +1085,707 @@ func TestScanWellArchitected_AgentChildPhaseErrors(t *testing.T) {
 			}
 			if _, ok := rowsByNativeID(t, st, tc.sibType)[waARN("agent-profile", "ap1")+tc.sibling]; !ok {
 				t.Errorf("sibling %s row lost", tc.sibType)
+			}
+		})
+	}
+}
+
+// waTotal is the rows waFixture's scan stores: 3 workloads, 4 lenses, 2
+// profiles and 2 review templates.
+const waTotal = 11
+
+var waThrottle = apiErr("ThrottlingException", "Rate exceeded")
+
+// waFixture answers every op of a Well-Architected scan and records its
+// calls. Each tool listing has two pages: page one holds an item this account
+// owns (w1, custom1, pr1, t1), page two one another account owns (w2, the
+// shared-in lens shared1, pr2, t2). Page two of every tool listing also holds
+// an element named "nameless" without an ARN (a CUSTOM_SELF one for
+// ListLenses). Page two of ListWorkloads also holds w3, this account's but
+// with no WorkloadId; page two of ListLenses also holds the AWS-official lens
+// serverless and custom2, this account's with no LensType. w1, custom1, pr1
+// and t1 are tagged {"id": <their id>}; the
+// other rows have no tags. The child listings and ListAgentProfiles answer
+// empty. errs fails a call: "<Op>/<key>", where key is "" or "p2" for the
+// two pages of a tool listing, the ARN for ListTagsForResource, the parent
+// key for a child listing and "" for ListAgentProfiles. Handlers run on
+// fan-out goroutines, so mu guards the state they share.
+type waFixture struct {
+	partition, region string
+	mu                sync.Mutex
+	errs              map[string]error
+	keys              map[string][]string
+	maxResults        map[string][]int32
+}
+
+func newWAFixture(partition, region string) *waFixture {
+	return &waFixture{partition: partition, region: region, errs: map[string]error{}, keys: map[string][]string{}, maxResults: map[string][]int32{}}
+}
+
+// arn is the fixture's ARN of a resource owner owns, built independently of
+// the scanner.
+func (f *waFixture) arn(owner, kind, id string) string {
+	return "arn:" + f.partition + ":wellarchitected:" + f.region + ":" + owner + ":" + kind + "/" + id
+}
+
+func (f *waFixture) own(kind, id string) string     { return f.arn(testAccountID, kind, id) }
+func (f *waFixture) foreign(kind, id string) string { return f.arn(waForeignOwner, kind, id) }
+
+// official is the ARN form the SDK documents for an AWS-official lens.
+func (f *waFixture) official() string {
+	return "arn:" + f.partition + ":wellarchitected::aws:lens/serverless"
+}
+
+// call records op's call under key with in's MaxResults and returns the
+// error errs holds for it.
+func (f *waFixture) call(op, key string, in any) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.keys[op] = append(f.keys[op], key)
+	if n := bacField[*int32](in, "MaxResults"); n != nil {
+		f.maxResults[op] = append(f.maxResults[op], *n)
+	}
+	return f.errs[op+"/"+key]
+}
+
+func (f *waFixture) called(op string) []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Sorted(slices.Values(f.keys[op]))
+}
+
+func (f *waFixture) pageCaps(op string) []int32 {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.maxResults[op])
+}
+
+// waPage answers page one (token nil) with first and NextToken p2, and page
+// two with second.
+func waPage[Out any](token *string, first, second func(next *string) Out) Out {
+	if token == nil {
+		return first(ptrStr("p2"))
+	}
+	return second(nil)
+}
+
+func (f *waFixture) handlers() map[string]func(in any) (any, error) {
+	child := func(op string, key func(in any) *string, out any) func(in any) (any, error) {
+		return func(in any) (any, error) {
+			return out, f.call(op, sv(key(in)), in)
+		}
+	}
+	return map[string]func(in any) (any, error){
+		"ListWorkloads": func(in any) (any, error) {
+			req := in.(*wellarchitected.ListWorkloadsInput)
+			if err := f.call("ListWorkloads", sv(req.NextToken), in); err != nil {
+				return nil, err
+			}
+			return waPage(req.NextToken, func(next *string) *wellarchitected.ListWorkloadsOutput {
+				return &wellarchitected.ListWorkloadsOutput{NextToken: next, WorkloadSummaries: []watypes.WorkloadSummary{
+					{WorkloadArn: ptrStr(f.own("workload", "w1")), WorkloadId: ptrStr("w1"), WorkloadName: ptrStr("w-one"), Owner: ptrStr(testAccountID), ImprovementStatus: watypes.WorkloadImprovementStatusNotStarted},
+				}}
+			}, func(next *string) *wellarchitected.ListWorkloadsOutput {
+				return &wellarchitected.ListWorkloadsOutput{NextToken: next, WorkloadSummaries: []watypes.WorkloadSummary{
+					{WorkloadArn: ptrStr(f.foreign("workload", "w2")), WorkloadId: ptrStr("w2"), WorkloadName: ptrStr("w-two"), Owner: ptrStr(waForeignOwner)},
+					{WorkloadArn: ptrStr(f.own("workload", "w3")), WorkloadName: ptrStr("w-three"), Owner: ptrStr(testAccountID)},
+					{WorkloadName: ptrStr("nameless"), Owner: ptrStr(testAccountID)},
+				}}
+			}), nil
+		},
+		"ListLenses": func(in any) (any, error) {
+			req := in.(*wellarchitected.ListLensesInput)
+			if err := f.call("ListLenses", sv(req.NextToken), in); err != nil {
+				return nil, err
+			}
+			return waPage(req.NextToken, func(next *string) *wellarchitected.ListLensesOutput {
+				return &wellarchitected.ListLensesOutput{NextToken: next, LensSummaries: []watypes.LensSummary{
+					{LensArn: ptrStr(f.own("lens", "custom1")), LensName: ptrStr("custom-one"), LensType: watypes.LensTypeCustomSelf, LensStatus: watypes.LensStatusCurrent, Owner: ptrStr(testAccountID)},
+				}}
+			}, func(next *string) *wellarchitected.ListLensesOutput {
+				return &wellarchitected.ListLensesOutput{NextToken: next, LensSummaries: []watypes.LensSummary{
+					{LensArn: ptrStr(f.official()), LensName: ptrStr("Serverless Lens"), LensType: watypes.LensTypeAwsOfficial, Owner: ptrStr("AWS")},
+					{LensArn: ptrStr(f.foreign("lens", "shared1")), LensName: ptrStr("shared-one"), LensType: watypes.LensTypeCustomShared, Owner: ptrStr(waForeignOwner)},
+					{LensArn: ptrStr(f.own("lens", "custom2")), LensName: ptrStr("custom-two"), Owner: ptrStr(testAccountID)},
+					{LensName: ptrStr("nameless"), LensType: watypes.LensTypeCustomSelf, Owner: ptrStr(testAccountID)},
+				}}
+			}), nil
+		},
+		"ListProfiles": func(in any) (any, error) {
+			req := in.(*wellarchitected.ListProfilesInput)
+			if err := f.call("ListProfiles", sv(req.NextToken), in); err != nil {
+				return nil, err
+			}
+			return waPage(req.NextToken, func(next *string) *wellarchitected.ListProfilesOutput {
+				return &wellarchitected.ListProfilesOutput{NextToken: next, ProfileSummaries: []watypes.ProfileSummary{
+					{ProfileArn: ptrStr(f.own("profile", "pr1")), ProfileName: ptrStr("profile-one"), ProfileVersion: ptrStr("v1"), Owner: ptrStr(testAccountID)},
+				}}
+			}, func(next *string) *wellarchitected.ListProfilesOutput {
+				return &wellarchitected.ListProfilesOutput{NextToken: next, ProfileSummaries: []watypes.ProfileSummary{
+					{ProfileArn: ptrStr(f.foreign("profile", "pr2")), ProfileName: ptrStr("profile-two"), Owner: ptrStr(waForeignOwner)},
+					{ProfileName: ptrStr("nameless"), Owner: ptrStr(testAccountID)},
+				}}
+			}), nil
+		},
+		"ListReviewTemplates": func(in any) (any, error) {
+			req := in.(*wellarchitected.ListReviewTemplatesInput)
+			if err := f.call("ListReviewTemplates", sv(req.NextToken), in); err != nil {
+				return nil, err
+			}
+			return waPage(req.NextToken, func(next *string) *wellarchitected.ListReviewTemplatesOutput {
+				return &wellarchitected.ListReviewTemplatesOutput{NextToken: next, ReviewTemplates: []watypes.ReviewTemplateSummary{
+					{TemplateArn: ptrStr(f.own("review-template", "t1")), TemplateName: ptrStr("template-one"), UpdateStatus: watypes.ReviewTemplateUpdateStatusCurrent, Owner: ptrStr(testAccountID)},
+				}}
+			}, func(next *string) *wellarchitected.ListReviewTemplatesOutput {
+				return &wellarchitected.ListReviewTemplatesOutput{NextToken: next, ReviewTemplates: []watypes.ReviewTemplateSummary{
+					{TemplateArn: ptrStr(f.foreign("review-template", "t2")), TemplateName: ptrStr("template-two"), Owner: ptrStr(waForeignOwner)},
+					{TemplateName: ptrStr("nameless"), Owner: ptrStr(testAccountID)},
+				}}
+			}), nil
+		},
+		"ListTagsForResource": func(in any) (any, error) {
+			arn := sv(in.(*wellarchitected.ListTagsForResourceInput).WorkloadArn)
+			if err := f.call("ListTagsForResource", arn, in); err != nil {
+				return nil, err
+			}
+			for _, r := range [][2]string{{"workload", "w1"}, {"lens", "custom1"}, {"profile", "pr1"}, {"review-template", "t1"}} {
+				if arn == f.own(r[0], r[1]) {
+					return &wellarchitected.ListTagsForResourceOutput{Tags: map[string]string{"id": r[1]}}, nil
+				}
+			}
+			return &wellarchitected.ListTagsForResourceOutput{}, nil
+		},
+		"ListLensReviews":    child("ListLensReviews", func(in any) *string { return in.(*wellarchitected.ListLensReviewsInput).WorkloadId }, &wellarchitected.ListLensReviewsOutput{}),
+		"ListWorkloadShares": child("ListWorkloadShares", func(in any) *string { return in.(*wellarchitected.ListWorkloadSharesInput).WorkloadId }, &wellarchitected.ListWorkloadSharesOutput{}),
+		"ListLensShares":     child("ListLensShares", func(in any) *string { return in.(*wellarchitected.ListLensSharesInput).LensAlias }, &wellarchitected.ListLensSharesOutput{}),
+		"ListProfileShares":  child("ListProfileShares", func(in any) *string { return in.(*wellarchitected.ListProfileSharesInput).ProfileArn }, &wellarchitected.ListProfileSharesOutput{}),
+		"ListTemplateShares": child("ListTemplateShares", func(in any) *string { return in.(*wellarchitected.ListTemplateSharesInput).TemplateArn }, &wellarchitected.ListTemplateSharesOutput{}),
+		"ListAgentProfiles":  child("ListAgentProfiles", func(any) *string { return nil }, &wellarchitected.ListAgentProfilesOutput{}),
+	}
+}
+
+// taggedARNs is the ARN of every row whose tags the scan reads, sorted: every
+// row but the AWS-official lens's. No element without an ARN is a row, so
+// none sends the op an empty ARN.
+func (f *waFixture) taggedARNs() []string {
+	return slices.Sorted(slices.Values([]string{
+		f.own("workload", "w1"), f.foreign("workload", "w2"), f.own("workload", "w3"),
+		f.own("lens", "custom1"), f.foreign("lens", "shared1"), f.own("lens", "custom2"),
+		f.own("profile", "pr1"), f.foreign("profile", "pr2"),
+		f.own("review-template", "t1"), f.foreign("review-template", "t2"),
+	}))
+}
+
+// scanWith runs the scan's real entry point against handlers in f's
+// partition and region; every op handlers does not answer is denied.
+func (f *waFixture) scanWith(ctx context.Context, st *store.Store, handlers map[string]func(in any) (any, error)) (int, int, error) {
+	acct := newTestAccount(testAccountID)
+	acct.Partition = f.partition
+	acct.cfg = opStubConfig(handlers, waDenied)
+	return scanWellArchitected(ctx, acct, f.region, st, testScanID)
+}
+
+func (f *waFixture) scan(ctx context.Context, st *store.Store) (int, int, error) {
+	return f.scanWith(ctx, st, f.handlers())
+}
+
+// waListOps are the tool listings, each read in two pages.
+var waListOps = []string{"ListWorkloads", "ListLenses", "ListProfiles", "ListReviewTemplates"}
+
+// waFixtureWarnOps are the warnings f's scan sends unprompted, sorted: each
+// tool listing's element without an ARN, and w3, stored without the
+// WorkloadId its children are listed by.
+var waFixtureWarnOps = []string{waListLensesOp, waListProfilesOp, waListReviewTemplatesOp, waListWorkloadsOp, waListWorkloadsOp}
+
+// Every row is stored under the ARN its listing returned, with the tags
+// ListTagsForResource returns (nil for none). The op is sent exactly those
+// ARNs, the AWS-official lens's excepted, which is ManagedByProvider and
+// costs no call; custom2, with no LensType, is read. Name comes from the list element and the attributes are
+// the element; no row has a Status or CreatedAt. The stored workloads are
+// the lens-review parents, and only what this account owns (Owner, or
+// CUSTOM_SELF for a lens) is a share parent; w3, stored without a
+// WorkloadId, is no parent and is warned about, as is each listing's element
+// without an ARN. Every tool listing (ListWorkloads, ListLenses,
+// ListProfiles, ListReviewTemplates) sends MaxResults 50.
+func TestScanWA_StoresTagsOfTaggedTypes(t *testing.T) {
+	st := newTestStore(t)
+	warns := rhWarnRecorder(st)
+	f := newWAFixture("aws", testRegion)
+
+	total, inserted, err := f.scan(context.Background(), st)
+	if err != nil || total != waTotal || inserted != waTotal {
+		t.Fatalf("total, inserted, err = %d, %d, %v; want %d, %d, nil", total, inserted, err, waTotal, waTotal)
+	}
+	if got, want := f.called("ListTagsForResource"), f.taggedARNs(); !slices.Equal(got, want) {
+		t.Errorf("ListTagsForResource ARNs = %v\nwant %v", got, want)
+	}
+	for _, op := range waListOps {
+		if got := f.pageCaps(op); !slices.Equal(got, []int32{50, 50}) {
+			t.Errorf("%s MaxResults = %v; want [50 50]", op, got)
+		}
+	}
+	for _, c := range []struct {
+		typ, arn, name string
+		tags           map[string]string
+		managed        bool
+	}{
+		{TypeWellArchitectedWorkload, f.own("workload", "w1"), "w-one", map[string]string{"id": "w1"}, false},
+		{TypeWellArchitectedWorkload, f.foreign("workload", "w2"), "w-two", nil, false},
+		{TypeWellArchitectedWorkload, f.own("workload", "w3"), "w-three", nil, false},
+		{TypeWellArchitectedLens, f.own("lens", "custom1"), "custom-one", map[string]string{"id": "custom1"}, false},
+		{TypeWellArchitectedLens, f.official(), "Serverless Lens", nil, true},
+		{TypeWellArchitectedLens, f.foreign("lens", "shared1"), "shared-one", nil, false},
+		{TypeWellArchitectedLens, f.own("lens", "custom2"), "custom-two", nil, false},
+		{TypeWellArchitectedProfile, f.own("profile", "pr1"), "profile-one", map[string]string{"id": "pr1"}, false},
+		{TypeWellArchitectedProfile, f.foreign("profile", "pr2"), "profile-two", nil, false},
+		{TypeWellArchitectedReviewTemplate, f.own("review-template", "t1"), "template-one", map[string]string{"id": "t1"}, false},
+		{TypeWellArchitectedReviewTemplate, f.foreign("review-template", "t2"), "template-two", nil, false},
+	} {
+		r, ok := rowsByNativeID(t, st, c.typ)[c.arn]
+		if !ok {
+			t.Errorf("%s: no row %s", c.typ, c.arn)
+			continue
+		}
+		if sv(r.Name) != c.name || sv(r.Region) != testRegion || r.Status != nil || r.CreatedAt != nil || r.ManagedByProvider != c.managed {
+			t.Errorf("%s name/region/status/created/managed = %q/%q/%v/%v/%v; want %q/%s/nil/nil/%v",
+				c.arn, sv(r.Name), sv(r.Region), r.Status, r.CreatedAt, r.ManagedByProvider, c.name, testRegion, c.managed)
+		}
+		if c.tags == nil {
+			if r.TagsJSON != nil {
+				t.Errorf("%s TagsJSON = %q; want nil", c.arn, *r.TagsJSON)
+			}
+		} else {
+			assertTagsMap(t, r.TagsJSON, c.tags)
+		}
+	}
+	for _, c := range []struct {
+		typ, arn string
+		into     any
+		check    func(any) bool
+	}{
+		{TypeWellArchitectedWorkload, f.own("workload", "w1"), &watypes.WorkloadSummary{}, func(v any) bool {
+			w := v.(*watypes.WorkloadSummary)
+			return sv(w.WorkloadId) == "w1" && w.ImprovementStatus == watypes.WorkloadImprovementStatusNotStarted
+		}},
+		{TypeWellArchitectedLens, f.own("lens", "custom1"), &watypes.LensSummary{}, func(v any) bool {
+			l := v.(*watypes.LensSummary)
+			return l.LensType == watypes.LensTypeCustomSelf && l.LensStatus == watypes.LensStatusCurrent
+		}},
+		{TypeWellArchitectedProfile, f.own("profile", "pr1"), &watypes.ProfileSummary{}, func(v any) bool {
+			return sv(v.(*watypes.ProfileSummary).ProfileVersion) == "v1"
+		}},
+		{TypeWellArchitectedReviewTemplate, f.own("review-template", "t1"), &watypes.ReviewTemplateSummary{}, func(v any) bool {
+			return v.(*watypes.ReviewTemplateSummary).UpdateStatus == watypes.ReviewTemplateUpdateStatusCurrent
+		}},
+	} {
+		if err := json.Unmarshal([]byte(rowsByNativeID(t, st, c.typ)[c.arn].AttributesJSON), c.into); err != nil || !c.check(c.into) {
+			t.Errorf("%s attributes = %+v (%v); want the list element", c.arn, c.into, err)
+		}
+	}
+	for op, want := range map[string][]string{
+		"ListLensReviews":    {"w1", "w2"},
+		"ListWorkloadShares": {"w1"},
+		"ListLensShares":     {f.own("lens", "custom1")},
+		"ListProfileShares":  {f.own("profile", "pr1")},
+		"ListTemplateShares": {f.own("review-template", "t1")},
+	} {
+		if got := f.called(op); !slices.Equal(got, want) {
+			t.Errorf("%s keys = %v; want %v", op, got, want)
+		}
+	}
+	w := warns()
+	if got := lxWarnOps(w); !slices.Equal(got, waFixtureWarnOps) {
+		t.Errorf("warnings = %v; want ops %v", w, waFixtureWarnOps)
+	}
+}
+
+func TestScanWA_RescanInsertsNone(t *testing.T) {
+	st := newTestStore(t)
+	f := newWAFixture("aws", testRegion)
+	if _, _, err := f.scan(context.Background(), st); err != nil {
+		t.Fatalf("first scan: %v", err)
+	}
+	total, inserted, err := f.scan(context.Background(), st)
+	if err != nil || total != waTotal || inserted != 0 {
+		t.Errorf("rescan total, inserted, err = %d, %d, %v; want %d, 0, nil", total, inserted, err, waTotal)
+	}
+}
+
+// With every tool listing empty, no tag read and no child listing is made.
+func TestScanWA_EmptyListings(t *testing.T) {
+	st := newTestStore(t)
+	f := newWAFixture("aws", testRegion)
+	handlers := f.handlers()
+	handlers["ListWorkloads"] = func(in any) (any, error) {
+		return &wellarchitected.ListWorkloadsOutput{}, f.call("ListWorkloads", "", in)
+	}
+	handlers["ListLenses"] = func(in any) (any, error) {
+		return &wellarchitected.ListLensesOutput{}, f.call("ListLenses", "", in)
+	}
+	handlers["ListProfiles"] = func(in any) (any, error) {
+		return &wellarchitected.ListProfilesOutput{}, f.call("ListProfiles", "", in)
+	}
+	handlers["ListReviewTemplates"] = func(in any) (any, error) {
+		return &wellarchitected.ListReviewTemplatesOutput{}, f.call("ListReviewTemplates", "", in)
+	}
+
+	total, _, err := f.scanWith(context.Background(), st, handlers)
+	if err != nil || total != 0 {
+		t.Errorf("total, err = %d, %v; want 0, nil", total, err)
+	}
+	for _, op := range waListOps {
+		if got := f.called(op); len(got) != 1 {
+			t.Errorf("%s calls = %v; want 1", op, got)
+		}
+	}
+	for _, op := range []string{"ListTagsForResource", "ListLensReviews", "ListWorkloadShares", "ListLensShares", "ListProfileShares", "ListTemplateShares"} {
+		if got := f.called(op); len(got) != 0 {
+			t.Errorf("%s calls = %v; want none", op, got)
+		}
+	}
+}
+
+// A failed tag read of this account's resource: ResourceNotFoundException is
+// modeled, so a resource deleted since it was listed is dropped silently and
+// is no parent of a child listing; a denial keeps the row untagged and warns once under the tag
+// op with the scan's scope; a throttle keeps it and is transient; any other
+// error keeps it and is an error. A resource another account owns (Owner)
+// whose read is denied or not found is kept untagged and silent.
+func TestScanWA_TagReadFailures(t *testing.T) {
+	f0 := newWAFixture("aws", testRegion)
+	for _, c := range []struct {
+		name, arn, typ string
+		err            error
+		outcome        serviceOutcome // -1: no error
+		code           string
+		wantTotal      int
+		extraWarn      bool
+		children       map[string][]string // the keys of each child listing named
+	}{
+		{"workload/not found", f0.own("workload", "w1"), TypeWellArchitectedWorkload, waGone, -1, "", waTotal - 1, false, map[string][]string{"ListLensReviews": {"w2"}, "ListWorkloadShares": nil}},
+		{"lens/not found", f0.own("lens", "custom1"), TypeWellArchitectedLens, waGone, -1, "", waTotal - 1, false, map[string][]string{"ListLensShares": nil}},
+		{"profile/not found", f0.own("profile", "pr1"), TypeWellArchitectedProfile, waGone, -1, "", waTotal - 1, false, map[string][]string{"ListProfileShares": nil}},
+		{"review template/not found", f0.own("review-template", "t1"), TypeWellArchitectedReviewTemplate, waGone, -1, "", waTotal - 1, false, map[string][]string{"ListTemplateShares": nil}},
+		{"lens/denied", f0.own("lens", "custom1"), TypeWellArchitectedLens, waDenied, -1, "", waTotal, true, nil},
+		{"profile/transient", f0.own("profile", "pr1"), TypeWellArchitectedProfile, waThrottle, outcomeTransient, "ThrottlingException", waTotal, false, nil},
+		{"review template/other error", f0.own("review-template", "t1"), TypeWellArchitectedReviewTemplate, waBadInput, outcomeError, "ValidationException", waTotal, false, nil},
+		{"shared workload/denied", f0.foreign("workload", "w2"), TypeWellArchitectedWorkload, waDenied, -1, "", waTotal, false, nil},
+		{"shared lens/not found", f0.foreign("lens", "shared1"), TypeWellArchitectedLens, waGone, -1, "", waTotal, false, nil},
+		{"shared profile/not found", f0.foreign("profile", "pr2"), TypeWellArchitectedProfile, waGone, -1, "", waTotal, false, nil},
+		{"shared review template/denied", f0.foreign("review-template", "t2"), TypeWellArchitectedReviewTemplate, waDenied, -1, "", waTotal, false, nil},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := rhWarnRecorder(st)
+			f := newWAFixture("aws", testRegion)
+			f.errs["ListTagsForResource/"+c.arn] = c.err
+
+			total, _, err := f.scan(context.Background(), st)
+			if c.outcome < 0 {
+				if err != nil {
+					t.Fatalf("err = %v; want nil", err)
+				}
+			} else {
+				assertGlueOutcome(t, err, c.outcome)
+				assertAPICode(t, err, c.code)
+			}
+			if total != c.wantTotal {
+				t.Errorf("total = %d; want %d", total, c.wantTotal)
+			}
+			r, kept := rowsByNativeID(t, st, c.typ)[c.arn]
+			if wantKept := c.wantTotal == waTotal; kept != wantKept {
+				t.Fatalf("row stored = %v; want %v", kept, wantKept)
+			}
+			if kept && r.TagsJSON != nil {
+				t.Errorf("TagsJSON = %q; want nil", *r.TagsJSON)
+			}
+			wantWarns := slices.Clone(waFixtureWarnOps)
+			if c.extraWarn {
+				wantWarns = slices.Sorted(slices.Values(append(wantWarns, waTagsOp)))
+			}
+			w := warns()
+			if got := lxWarnOps(w); !slices.Equal(got, wantWarns) {
+				t.Fatalf("warnings = %v; want ops %v", w, wantWarns)
+			}
+			for _, x := range w {
+				if x.Scope != testAccountID+"/"+testRegion {
+					t.Errorf("warning Scope %q; want %s/%s", x.Scope, testAccountID, testRegion)
+				}
+			}
+			for op, want := range c.children {
+				if got := f.called(op); !slices.Equal(got, want) {
+					t.Errorf("%s keys = %v; want %v, the dropped row no parent", op, got, want)
+				}
+			}
+		})
+	}
+}
+
+// Denied tag reads in every tool listing send one warning for the whole
+// scan; the rows are kept.
+func TestScanWA_TagDenialsWarnOncePerScan(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, waTagsOp)
+	f := newWAFixture("aws", testRegion)
+	for _, r := range [][2]string{{"workload", "w1"}, {"lens", "custom1"}, {"profile", "pr1"}, {"review-template", "t1"}} {
+		f.errs["ListTagsForResource/"+f.own(r[0], r[1])] = waDenied
+	}
+
+	total, _, err := f.scan(context.Background(), st)
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	if total != waTotal || *warns != 1 {
+		t.Errorf("total = %d, %s warnings = %d; want %d, 1", total, waTagsOp, *warns, waTotal)
+	}
+}
+
+// A throttled tag read beside a hard failure of the same op is demoted to
+// one warning, so the hard error decides the outcome.
+func TestScanWA_TagThrottleDemotedBesideHardError(t *testing.T) {
+	st := newTestStore(t)
+	warns := countOpWarnings(st, waTagsOp)
+	f := newWAFixture("aws", testRegion)
+	f.errs["ListTagsForResource/"+f.own("workload", "w1")] = waThrottle
+	f.errs["ListTagsForResource/"+f.own("review-template", "t1")] = waBadInput
+
+	_, _, err := f.scan(context.Background(), st)
+	assertGlueOutcome(t, err, outcomeError)
+	assertAPICode(t, err, "ValidationException")
+	if *warns != 1 {
+		t.Errorf("%s warnings = %d; want 1", waTagsOp, *warns)
+	}
+}
+
+// A tool listing failing on its second page keeps its first page and every
+// later phase runs: a hard error is returned, a denial warns once. A failing
+// first page costs that listing only.
+func TestScanWA_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	for _, c := range []struct {
+		name, key string
+		err       error
+		wantTotal int
+		wantWarns []string
+	}{
+		{"later page error", "ListWorkloads/p2", waBadInput, waTotal - 2, []string{waListLensesOp, waListProfilesOp, waListReviewTemplatesOp}},
+		{"later page denial", "ListWorkloads/p2", waDenied, waTotal - 2, []string{waListLensesOp, waListProfilesOp, waListReviewTemplatesOp, waListWorkloadsOp}},
+		{"first page error", "ListLenses/", waBadInput, waTotal - 4, []string{waListProfilesOp, waListReviewTemplatesOp, waListWorkloadsOp, waListWorkloadsOp}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			st := newTestStore(t)
+			warns := rhWarnRecorder(st)
+			f := newWAFixture("aws", testRegion)
+			f.errs[c.key] = c.err
+
+			total, _, err := f.scan(context.Background(), st)
+			if c.err == waDenied {
+				if err != nil {
+					t.Fatalf("err = %v; want nil", err)
+				}
+			} else {
+				assertGlueOutcome(t, err, outcomeError)
+				assertAPICode(t, err, "ValidationException")
+			}
+			if total != c.wantTotal {
+				t.Errorf("total = %d; want %d", total, c.wantTotal)
+			}
+			if got := lxWarnOps(warns()); !slices.Equal(got, c.wantWarns) {
+				t.Errorf("warning ops = %v; want %v", got, c.wantWarns)
+			}
+			if c.key == "ListWorkloads/p2" {
+				if got := storedNativeIDs(t, st, TypeWellArchitectedWorkload); !slices.Equal(got, []string{f.own("workload", "w1")}) {
+					t.Errorf("workload rows = %v; want page one's w1", got)
+				}
+				if got := f.called("ListLensReviews"); !slices.Equal(got, []string{"w1"}) {
+					t.Errorf("ListLensReviews keys = %v; want [w1]", got)
+				}
+			}
+			if got := len(rowsByNativeID(t, st, TypeWellArchitectedReviewTemplate)); got != 2 {
+				t.Errorf("review template rows = %d; want 2 from the last tool listing", got)
+			}
+		})
+	}
+}
+
+// A repeated NextToken ends the listing with errRepeatedNextToken after its
+// first page is stored.
+func TestScanWA_RepeatedToken(t *testing.T) {
+	st := newTestStore(t)
+	f := newWAFixture("aws", testRegion)
+	handlers := f.handlers()
+	handlers["ListReviewTemplates"] = func(in any) (any, error) {
+		if err := f.call("ListReviewTemplates", "", in); err != nil {
+			return nil, err
+		}
+		return &wellarchitected.ListReviewTemplatesOutput{NextToken: ptrStr("same"), ReviewTemplates: []watypes.ReviewTemplateSummary{
+			{TemplateArn: ptrStr(f.own("review-template", "t1")), Owner: ptrStr(testAccountID)},
+		}}, nil
+	}
+
+	_, _, err := f.scanWith(context.Background(), st, handlers)
+	if !errors.Is(err, errRepeatedNextToken) {
+		t.Fatalf("err = %v; want errRepeatedNextToken", err)
+	}
+	if got := len(f.called("ListReviewTemplates")); got != 2 {
+		t.Errorf("ListReviewTemplates calls = %d; want 2", got)
+	}
+	if got := storedNativeIDs(t, st, TypeWellArchitectedReviewTemplate); !slices.Equal(got, []string{f.own("review-template", "t1")}) {
+		t.Errorf("review template rows = %v; want [t1]", got)
+	}
+}
+
+func TestScanWA_NXDOMAIN(t *testing.T) {
+	nx := &net.DNSError{Err: "no such host", Name: "wellarchitected.us-east-1.amazonaws.com", IsNotFound: true}
+	t.Run("nothing stored", func(t *testing.T) {
+		st := newTestStore(t)
+		f := newWAFixture("aws", testRegion)
+		f.errs["ListWorkloads/"] = nx
+
+		total, _, err := f.scan(context.Background(), st)
+		assertGlueOutcome(t, err, outcomeUnavailable)
+		if total != 0 {
+			t.Errorf("total = %d; want 0", total)
+		}
+		if got := f.called("ListLenses"); len(got) != 0 {
+			t.Errorf("ListLenses calls = %v; want none once the region proved unavailable", got)
+		}
+	})
+	t.Run("after workloads were stored", func(t *testing.T) {
+		st := newTestStore(t)
+		f := newWAFixture("aws", testRegion)
+		f.errs["ListLenses/"] = nx
+
+		total, _, err := f.scan(context.Background(), st)
+		assertGlueOutcome(t, err, outcomeError)
+		if want := waTotal - 4; total != want {
+			t.Errorf("total = %d; want the %d rows stored but the lenses", total, want)
+		}
+	})
+}
+
+// Once ctx ends, the stop is one member of the error, although the phase in
+// flight saw it in its listing; the later phases are not run, and the rows
+// stored before it are kept.
+func TestScanWA_ContextEndReportedOnce(t *testing.T) {
+	st := newTestStore(t)
+	f := newWAFixture("aws", testRegion)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	handlers := f.handlers()
+	handlers["ListProfiles"] = func(any) (any, error) {
+		cancel()
+		return nil, context.Canceled
+	}
+
+	total, _, err := f.scanWith(ctx, st, handlers)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("err = %v; want context.Canceled", err)
+	}
+	stops := 0
+	for _, m := range bacTopMembers(err) {
+		if errors.Is(m, context.Canceled) {
+			stops++
+		}
+	}
+	if stops != 1 {
+		t.Errorf("members carrying the stop = %d; want 1 (err %v)", stops, err)
+	}
+	if total != 7 {
+		t.Errorf("total = %d; want the 7 workloads and lenses stored before ctx ended", total)
+	}
+	if got := f.called("ListReviewTemplates"); len(got) != 0 {
+		t.Errorf("ListReviewTemplates calls = %v; want none after ctx ended", got)
+	}
+}
+
+// A failed write stops the scan: no warning about the rows it lost (custom1's
+// denied tag read among them), no later phase runs, and the rows of the
+// phases before it stay stored.
+func TestScanWA_FailedWriteStopsScan(t *testing.T) {
+	st := newTestStore(t)
+	warns := rhWarnRecorder(st)
+	refuseStoreWrites(t, st, TypeWellArchitectedLens)
+	f := newWAFixture("aws", testRegion)
+	f.errs["ListTagsForResource/"+f.own("lens", "custom1")] = waDenied
+
+	total, _, err := f.scan(context.Background(), st)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
+	}
+	if got, want := lxWarnOps(warns()), []string{waListWorkloadsOp, waListWorkloadsOp}; !slices.Equal(got, want) {
+		t.Errorf("warning ops = %v; want %v, those sent before the failed write", got, want)
+	}
+	for _, op := range []string{"ListProfiles", "ListReviewTemplates", "ListLensReviews", "ListAgentProfiles"} {
+		if got := f.called(op); len(got) != 0 {
+			t.Errorf("%s calls = %v; want none after the failed write", op, got)
+		}
+	}
+	if n := len(rowsByNativeID(t, st, TypeWellArchitectedWorkload)); n != 3 || total != 3 {
+		t.Errorf("workload rows, total = %d, %d; want 3, 3", n, total)
+	}
+}
+
+// A workload stored without a WorkloadId on page one is not warned about
+// when page two's write fails: no warning follows a failed write.
+func TestScanWA_FailedWorkloadWriteSendsNoChildIDWarning(t *testing.T) {
+	st := newTestStore(t)
+	warns := rhWarnRecorder(st)
+	f := newWAFixture("aws", testRegion)
+	refused := f.own("workload", "w1")
+	if _, err := st.DB().Exec(`CREATE TRIGGER refuse_w1 BEFORE INSERT ON resources
+		WHEN NEW.native_id = '` + refused + `'
+		BEGIN SELECT RAISE(ABORT, 'test: write refused'); END`); err != nil {
+		t.Fatalf("create trigger: %v", err)
+	}
+	handlers := f.handlers()
+	handlers["ListWorkloads"] = func(in any) (any, error) {
+		req := in.(*wellarchitected.ListWorkloadsInput)
+		if err := f.call("ListWorkloads", sv(req.NextToken), in); err != nil {
+			return nil, err
+		}
+		return waPage(req.NextToken, func(next *string) *wellarchitected.ListWorkloadsOutput {
+			return &wellarchitected.ListWorkloadsOutput{NextToken: next, WorkloadSummaries: []watypes.WorkloadSummary{
+				{WorkloadArn: ptrStr(f.own("workload", "w3")), WorkloadName: ptrStr("w-three"), Owner: ptrStr(testAccountID)},
+			}}
+		}, func(next *string) *wellarchitected.ListWorkloadsOutput {
+			return &wellarchitected.ListWorkloadsOutput{NextToken: next, WorkloadSummaries: []watypes.WorkloadSummary{
+				{WorkloadArn: ptrStr(refused), WorkloadId: ptrStr("w1"), Owner: ptrStr(testAccountID)},
+			}}
+		}), nil
+	}
+
+	total, _, err := f.scanWith(context.Background(), st, handlers)
+	if !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("err = %v; want store.ErrStoreWrite", err)
+	}
+	if got := storedNativeIDs(t, st, TypeWellArchitectedWorkload); total != 1 || !slices.Equal(got, []string{f.own("workload", "w3")}) {
+		t.Errorf("total, workload rows = %d, %v; want 1, page one's w3", total, got)
+	}
+	if w := warns(); len(w) != 0 {
+		t.Errorf("warnings = %v; want none after the failed write", w)
+	}
+}
+
+// A GovCloud or China ARN reaches the tag op unchanged and is the row's
+// NativeID.
+func TestScanWA_TagReadsKeepPartitionARNs(t *testing.T) {
+	for _, c := range partitionFixtures {
+		t.Run(c.partition, func(t *testing.T) {
+			st := newTestStore(t)
+			f := newWAFixture(c.partition, c.region)
+			if _, _, err := f.scan(context.Background(), st); err != nil {
+				t.Fatalf("scan: %v", err)
+			}
+			if got, want := f.called("ListTagsForResource"), f.taggedARNs(); !slices.Equal(got, want) {
+				t.Errorf("ListTagsForResource ARNs = %v\nwant %v", got, want)
+			}
+			for typ, r := range map[string][2]string{
+				TypeWellArchitectedWorkload:       {"workload", "w1"},
+				TypeWellArchitectedLens:           {"lens", "custom1"},
+				TypeWellArchitectedProfile:        {"profile", "pr1"},
+				TypeWellArchitectedReviewTemplate: {"review-template", "t1"},
+			} {
+				assertTagsMap(t, rowsByNativeID(t, st, typ)[f.own(r[0], r[1])].TagsJSON, map[string]string{"id": r[1]})
 			}
 		})
 	}
