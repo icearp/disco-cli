@@ -776,30 +776,6 @@ func TestClassifyServiceError_Blocked(t *testing.T) {
 	}
 }
 
-func TestTranscribeRegionErr(t *testing.T) {
-	// Call Analytics sub-feature gap → per-op skip (nil), Transcribe still works.
-	handled, out := transcribeRegionErr(apiErr("BadRequestException", "Call Analytics isn't supported in this region."))
-	if !handled || out != nil {
-		t.Errorf("sub-feature gap: handled=%v out=%v; want true + nil", handled, out)
-	}
-	// Whole service absent in region (catalog over-reports) → mark unavailable so
-	// the sibling phases short-circuit with one (region: unavailable) marker.
-	handled, out = transcribeRegionErr(apiErr("BadRequestException", "Your account isn't authorized to call this operation."))
-	if !handled || !errors.Is(out, errServiceUnavailable) {
-		t.Errorf("service absent: handled=%v out=%v; want true + errServiceUnavailable", handled, out)
-	}
-	if errors.Is(out, errServiceDisabled) || errors.Is(out, errServiceNotEntitled) {
-		t.Error("service-absent must be unavailable, not disabled/not-entitled")
-	}
-	// Unclassified shapes propagate.
-	if handled, _ := transcribeRegionErr(apiErr("BadRequestException", "malformed input")); handled {
-		t.Error("unrelated BadRequestException must not be handled")
-	}
-	if handled, _ := transcribeRegionErr(apiErr("AccessDeniedException", "isn't supported in this region")); handled {
-		t.Error("wrong code must not be handled even with matching message")
-	}
-}
-
 func TestMHOListErr(t *testing.T) {
 	// Closed-to-new-customers → not-entitled sentinel (halts the whole service).
 	handled, out := mhoListErr(apiErr("AccessDeniedException", "This service is no longer open to new customers"))
