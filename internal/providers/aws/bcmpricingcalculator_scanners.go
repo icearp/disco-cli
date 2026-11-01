@@ -1,11 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bcmpricingcalculator"
 	bcmpctypes "github.com/aws/aws-sdk-go-v2/service/bcmpricingcalculator/types"
 	"github.com/icearp/disco-cli/internal/restype"
@@ -64,6 +65,7 @@ type bcmPricingCalculatorAPI interface {
 	ListBillScenarioCommitmentModifications(context.Context, *bcmpricingcalculator.ListBillScenarioCommitmentModificationsInput, ...func(*bcmpricingcalculator.Options)) (*bcmpricingcalculator.ListBillScenarioCommitmentModificationsOutput, error)
 	ListBillScenarioUsageModifications(context.Context, *bcmpricingcalculator.ListBillScenarioUsageModificationsInput, ...func(*bcmpricingcalculator.Options)) (*bcmpricingcalculator.ListBillScenarioUsageModificationsOutput, error)
 	ListWorkloadEstimateUsage(context.Context, *bcmpricingcalculator.ListWorkloadEstimateUsageInput, ...func(*bcmpricingcalculator.Options)) (*bcmpricingcalculator.ListWorkloadEstimateUsageOutput, error)
+	ListTagsForResource(context.Context, *bcmpricingcalculator.ListTagsForResourceInput, ...func(*bcmpricingcalculator.Options)) (*bcmpricingcalculator.ListTagsForResourceOutput, error)
 }
 
 // bcmPricingCalculatorNativeID synthesizes the canonical ARN for a pricing-
@@ -74,202 +76,239 @@ func bcmPricingCalculatorNativeID(partition, acct, kind, id string) string {
 	return arnFor(partition, "bcm-pricing-calculator", "", acct, kind+"/"+id)
 }
 
-// bcmPCListErr classifies a BCM Pricing Calculator List* page error into the
-// value a phase returns: markServiceDisabled when the account hasn't enabled
-// Cost Explorer (self-enableable → (account: disabled)); markServiceNotEntitled
-// for the payer-only topology gate (member account can't self-enable →
-// (account: not entitled)); nil for the migration-required IAM deny and the
-// soft access-denied skip (orchestrator continues to next phase); or a
-// wrapped fatal error otherwise.
-func bcmPCListErr(st *store.Store, op, acctID, region string, perr error) error {
-	switch {
-	case isCostExplorerNotEnabled(perr):
-		return markServiceDisabled(perr)
-	case isPayerAccountOnly(perr):
-		return markServiceNotEntitled(perr)
-	case isMigrationRequiredIAMDeny(perr):
-		return nil
-	case isAccessDenied(perr):
-		return skipIfAccessDenied(st, op, acctID, region, perr)
-	default:
-		return fmt.Errorf("%s: %w", op, perr)
+const (
+	bcmPCBillScenariosOp     = "bcmpricingcalculator:ListBillScenarios"
+	bcmPCBillEstimatesOp     = "bcmpricingcalculator:ListBillEstimates"
+	bcmPCWorkloadEstimatesOp = "bcmpricingcalculator:ListWorkloadEstimates"
+	bcmPCTagsOp              = "bcmpricingcalculator:ListTagsForResource"
+	// bcmPCParentPageLimit is the model's MaxResults cap (1-25) for
+	// ListBillScenarios, ListBillEstimates and ListWorkloadEstimates.
+	bcmPCParentPageLimit = 25
+)
+
+// bcmPCTags reads a bill scenario's, bill estimate's or workload estimate's
+// tags with ListTagsForResource, sent the row's NativeID: the listings return
+// no ARN, so it is the ARN built in the Service Reference's format
+// (bcmPricingCalculatorNativeID). The model marks those three resources
+// taggable and each one's Create input takes Tags. The Service Reference's
+// TagResource lists only bill scenarios and workload estimates, so how the op
+// answers a bill-estimate ARN is unverified live. The child types stored here
+// are not taggable resources in the model, so they are not read.
+// ResourceNotFoundException, the op's modeled not-found, drops a resource
+// deleted, or expired, after it was listed.
+func bcmPCTags(client bcmPricingCalculatorAPI) rowTagReader {
+	return rowTagReader{
+		op:       bcmPCTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &bcmpricingcalculator.ListTagsForResourceInput{Arn: sdkaws.String(r.NativeID)})
+			if err != nil {
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
+		},
+	}
+}
+
+// bcmPCGate is the account-level refusal one of the bill-scenario,
+// bill-estimate and workload-estimate listings met, under the op that met it:
+// the account has not enabled Cost Explorer, which it can do itself
+// (markServiceDisabled), or is a member account where only payer and regular
+// accounts may list (markServiceNotEntitled). err is nil when none did.
+type bcmPCGate struct {
+	op  string
+	err error
+}
+
+// bcmPCGatedPages is page with an account-level refusal recorded in gate and
+// ending the listing without an error, keeping the pages read before it. The
+// migration-required IAM deny on the first page reads as an empty listing,
+// without a warning (isMigrationRequiredIAMDeny says why); after a page was
+// read it is returned, and warned about as a denial (firstPageGapPages).
+func bcmPCGatedPages[Item any](gate *bcmPCGate, op string, page func(ctx context.Context, token *string) ([]Item, *string, error)) func(ctx context.Context, token *string) ([]Item, *string, error) {
+	page = firstPageGapPages(isMigrationRequiredIAMDeny, page)
+	return func(ctx context.Context, token *string) ([]Item, *string, error) {
+		items, next, err := page(ctx, token)
+		// Cost Explorer's refusal is an AccessDeniedException, so it is
+		// matched before the listing reads err as a denial.
+		switch {
+		case isCostExplorerNotEnabled(err):
+			*gate = bcmPCGate{op, markServiceDisabled(err)}
+		case isPayerAccountOnly(err):
+			*gate = bcmPCGate{op, markServiceNotEntitled(err)}
+		default:
+			return items, next, err
+		}
+		return nil, nil, nil
 	}
 }
 
 // scanBcmPricingCalculator discovers the account's pricing-calculator
-// artifacts.
+// artifacts. Every listing runs as its own phase, one at a time: a phase's
+// error does not stop the later ones; a failed write and ctx's end do, and
+// so does an NXDOMAIN of the first listing with nothing stored
+// (runHostPhases). The child phases get the bill scenarios and workload
+// estimates stored this scan. Bill scenarios, bill estimates and workload
+// estimates have their tags read per row (bcmPCTags), whose denials are one
+// warning for the scan.
 //
-// The bill-scenario, bill-estimate and workload-estimate phases stop at their
-// first hard error. The three child phases run whatever those returned, over
-// the scenarios and workload estimates stored before a failure, so their
-// failure costs no other phase its rows and an older phase's failure does not
-// skip them. The older phases' transient error is demoted to a warning only
-// beside a hard error: joined, it would be buried in the hard error instead of
-// reported under its op; the child phases never return one (bcmPCChildFanOut
-// tallies them). The errors are joined and the counts of all phases summed.
-//
-// An older phase's disabled / not-entitled sentinel is returned alone when
-// nothing was stored. After rows were stored it becomes a warning instead,
-// because the dispatcher discards a sentinel's counts and ranks it above a
-// hard error, which would hide both the rows and a child phase's failure.
+// An account-level refusal (bcmPCGate) skips the bill-scenario,
+// bill-estimate and workload-estimate listings after the one that met it;
+// the child phases still run. It is returned alone when nothing was stored
+// and nothing else failed. Otherwise it is a warning, because the dispatcher
+// discards a sentinel's counts and ranks it above a hard error, which would
+// hide both the rows and the other failures.
 func scanBcmPricingCalculator(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, st *store.Store, scanID string) (int, int, error) {
 	region := bcmPricingCalculatorRegion
-	total, inserted, scenarios, workloads, err := scanBcmPCOlderPhases(ctx, client, acct, region, st, scanID)
-	if errors.Is(err, errServiceDisabled) || errors.Is(err, errServiceNotEntitled) {
-		if total == 0 {
-			return 0, 0, err
-		}
-		warnBcmPCOlderPhasesGated(st, acct.ID, region, err)
-		err = nil
-	}
-	var errs phaseErrs
-	errs.add("bcmpricingcalculator", err)
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) {
+	tags := bcmPCTags(client).sharingDenials()
+	var (
+		gate                 bcmPCGate
+		scenarios, workloads []childParent
+	)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "bcmpricingcalculator", 0, []hostPhase{
+		{op: bcmPCBillScenariosOp, run: func(p *phaseTotals) (failed bool) {
+			scenarios, failed = scanBcmPricingCalculatorBillScenarios(ctx, client, acct, region, st, scanID, &gate, tags, p)
+			return failed
+		}},
+		{op: bcmPCBillEstimatesOp, run: func(p *phaseTotals) bool {
+			if gate.err != nil {
+				return false
+			}
+			return scanBcmPricingCalculatorBillEstimates(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}},
+		{op: bcmPCWorkloadEstimatesOp, run: func(p *phaseTotals) (failed bool) {
+			if gate.err != nil {
+				return false
+			}
+			workloads, failed = scanBcmPricingCalculatorWorkloadEstimates(ctx, client, acct, region, st, scanID, &gate, tags, p)
+			return failed
+		}},
+		countedPhase(0, bcmPCCommitmentModOp, func() (int, int, error) {
 			return scanBcmPCCommitmentModifications(ctx, client, acct, region, st, scanID, scenarios)
-		},
-		func() (int, int, error) {
+		}),
+		countedPhase(0, bcmPCUsageModOp, func() (int, int, error) {
 			return scanBcmPCUsageModifications(ctx, client, acct, region, st, scanID, scenarios)
-		},
-		func() (int, int, error) {
+		}),
+		countedPhase(0, bcmPCWorkloadUsageOp, func() (int, int, error) {
 			return scanBcmPCWorkloadEstimateUsage(ctx, client, acct, region, st, scanID, workloads)
-		},
-	} {
-		t, i, perr := phase()
-		total += t
-		inserted += i
-		errs.add("bcmpricingcalculator", perr)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	if gate.err == nil {
+		return total, inserted, err
 	}
-	return total, inserted, errs.join(st, acct, region)
+	if total == 0 && err == nil {
+		return 0, 0, gate.err
+	}
+	warnBcmPCGated(st, acct.ID, region, gate)
+	return total, inserted, err
 }
 
-// warnBcmPCOlderPhasesGated records that an older phase was refused as
-// disabled or not entitled after an earlier one stored rows, so that phase and
-// the older phases after it were not scanned.
-func warnBcmPCOlderPhasesGated(st *store.Store, accountID, region string, err error) {
+// warnBcmPCGated records that gate.op's listing was refused for the account
+// after rows were stored or another call failed, so it and the bill-scenario,
+// bill-estimate and workload-estimate listings after it were not read in
+// full.
+func warnBcmPCGated(st *store.Store, accountID, region string, gate bcmPCGate) {
 	st.ReportWarning(store.ScanWarning{
 		Provider: "aws",
-		Service:  "bcmpricingcalculator",
+		Service:  gate.op,
 		Scope:    accountID + "/" + region,
-		Message:  "a bill-estimate or workload-estimate listing was refused after earlier phases stored rows; that phase and the phases after it were not scanned: " + err.Error(),
+		Message:  "the account refused this listing after rows were stored or another call failed, so it and any later bill-scenario, bill-estimate or workload-estimate listing were not read in full: " + gate.err.Error(),
 	})
 }
 
-// scanBcmPCOlderPhases runs the phases that predate the child phases, stopping
-// at the first hard error. It also returns the bill scenarios and workload
-// estimates stored.
-func scanBcmPCOlderPhases(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, scenarios, workloads []childParent, err error) {
-	scenarios, total, inserted, err = scanBcmPricingCalculatorBillScenarios(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return total, inserted, nil, nil, err
-	}
-	t, i, err := scanBcmPricingCalculatorBillEstimates(ctx, client, acct, region, st, scanID)
-	total += t
-	inserted += i
-	if err != nil {
-		return total, inserted, scenarios, nil, err
-	}
-	workloads, t, i, err = scanBcmPricingCalculatorWorkloadEstimates(ctx, client, acct, region, st, scanID)
-	return total + t, inserted + i, scenarios, workloads, err
-}
-
-func scanBcmPricingCalculatorBillScenarios(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	pager := bcmpricingcalculator.NewListBillScenariosPaginator(client, &bcmpricingcalculator.ListBillScenariosInput{})
-	var (
-		rows    []*store.Resource
-		parents []childParent
-	)
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			return nil, 0, 0, bcmPCListErr(st, "bcmpricingcalculator:ListBillScenarios", acct.ID, region, perr)
-		}
-		for _, s := range out.Items {
+// scanBcmPricingCalculatorBillScenarios stores the bill scenarios with their
+// tags, a page at a time, and returns those stored as the parents of the
+// scenario child phases. It reports whether a write failed, after which the
+// scan must stop.
+func scanBcmPricingCalculatorBillScenarios(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string, gate *bcmPCGate, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, bcmPCBillScenariosOp, "bill scenarios", "Id",
+		bcmPCGatedPages(gate, bcmPCBillScenariosOp, func(ctx context.Context, token *string) ([]bcmpctypes.BillScenarioSummary, *string, error) {
+			out, err := client.ListBillScenarios(ctx, &bcmpricingcalculator.ListBillScenariosInput{MaxResults: sdkaws.Int32(bcmPCParentPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
+		}),
+		func(s bcmpctypes.BillScenarioSummary) (*store.Resource, string, string) {
 			id := sv(s.Id)
 			if id == "" {
-				continue
+				return nil, "bill scenarios have no Id", cmp.Or(sv(s.Name), noIdentifier)
 			}
 			name := sv(s.Name)
 			status := string(s.Status)
-			arn := bcmPricingCalculatorNativeID(acct.partition(), acct.ID, "bill-scenario", id)
-			parents = append(parents, childParent{id: id, arn: arn})
-			rows = append(rows, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeBcmPricingCalculatorBillScenario,
-				NativeID: arn,
+				NativeID: bcmPricingCalculatorNativeID(acct.partition(), acct.ID, "bill-scenario", id),
 				Name:     &name, Region: regionGlobal, Status: &status, CreatedAt: tp(s.CreatedAt),
 				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	total, inserted, err := upsertBatch(st, rows, "bcmpricingcalculator bill-scenarios")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return parents, total, inserted, nil
+			}, "", ""
+		},
+		func(s bcmpctypes.BillScenarioSummary) string { return sv(s.Id) },
+		tags, p)
 }
 
-func scanBcmPricingCalculatorBillEstimates(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := bcmpricingcalculator.NewListBillEstimatesPaginator(client, &bcmpricingcalculator.ListBillEstimatesInput{})
-	var rows []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			return 0, 0, bcmPCListErr(st, "bcmpricingcalculator:ListBillEstimates", acct.ID, region, perr)
-		}
-		for _, e := range out.Items {
+// scanBcmPricingCalculatorBillEstimates stores the bill estimates with their
+// tags, a page at a time. It reports whether a write failed, after which the
+// scan must stop.
+func scanBcmPricingCalculatorBillEstimates(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string, gate *bcmPCGate, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, bcmPCBillEstimatesOp,
+		bcmPCGatedPages(gate, bcmPCBillEstimatesOp, func(ctx context.Context, token *string) ([]bcmpctypes.BillEstimateSummary, *string, error) {
+			out, err := client.ListBillEstimates(ctx, &bcmpricingcalculator.ListBillEstimatesInput{MaxResults: sdkaws.Int32(bcmPCParentPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
+		}),
+		func(e bcmpctypes.BillEstimateSummary) (*store.Resource, string, string) {
 			id := sv(e.Id)
 			if id == "" {
-				continue
+				return nil, "bill estimates have no Id", cmp.Or(sv(e.Name), noIdentifier)
 			}
 			name := sv(e.Name)
 			status := string(e.Status)
-			rows = append(rows, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeBcmPricingCalculatorBillEstimate,
 				NativeID: bcmPricingCalculatorNativeID(acct.partition(), acct.ID, "bill-estimate", id),
 				Name:     &name, Region: regionGlobal, Status: &status, CreatedAt: tp(e.CreatedAt),
 				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, rows, "bcmpricingcalculator bill-estimates")
+			}, "", ""
+		},
+		tags, p)
 }
 
-func scanBcmPricingCalculatorWorkloadEstimates(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	pager := bcmpricingcalculator.NewListWorkloadEstimatesPaginator(client, &bcmpricingcalculator.ListWorkloadEstimatesInput{})
-	var (
-		rows    []*store.Resource
-		parents []childParent
-	)
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			return nil, 0, 0, bcmPCListErr(st, "bcmpricingcalculator:ListWorkloadEstimates", acct.ID, region, perr)
-		}
-		for _, e := range out.Items {
+// scanBcmPricingCalculatorWorkloadEstimates stores the workload estimates
+// with their tags, a page at a time, and returns those stored as the parents
+// of the usage phase. It reports whether a write failed, after which the scan
+// must stop.
+func scanBcmPricingCalculatorWorkloadEstimates(ctx context.Context, client bcmPricingCalculatorAPI, acct *account, region string, st *store.Store, scanID string, gate *bcmPCGate, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, bcmPCWorkloadEstimatesOp, "workload estimates", "Id",
+		bcmPCGatedPages(gate, bcmPCWorkloadEstimatesOp, func(ctx context.Context, token *string) ([]bcmpctypes.WorkloadEstimateSummary, *string, error) {
+			out, err := client.ListWorkloadEstimates(ctx, &bcmpricingcalculator.ListWorkloadEstimatesInput{MaxResults: sdkaws.Int32(bcmPCParentPageLimit), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Items, out.NextToken, nil
+		}),
+		func(e bcmpctypes.WorkloadEstimateSummary) (*store.Resource, string, string) {
 			id := sv(e.Id)
 			if id == "" {
-				continue
+				return nil, "workload estimates have no Id", cmp.Or(sv(e.Name), noIdentifier)
 			}
 			name := sv(e.Name)
 			status := string(e.Status)
-			arn := bcmPricingCalculatorNativeID(acct.partition(), acct.ID, "workload-estimate", id)
-			parents = append(parents, childParent{id: id, arn: arn})
-			rows = append(rows, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type:     TypeBcmPricingCalculatorWorkloadEstimate,
-				NativeID: arn,
+				NativeID: bcmPricingCalculatorNativeID(acct.partition(), acct.ID, "workload-estimate", id),
 				Name:     &name, Region: regionGlobal, Status: &status, CreatedAt: tp(e.CreatedAt),
 				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	total, inserted, err := upsertBatch(st, rows, "bcmpricingcalculator workload-estimates")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return parents, total, inserted, nil
+			}, "", ""
+		},
+		func(e bcmpctypes.WorkloadEstimateSummary) string { return sv(e.Id) },
+		tags, p)
 }
 
 const (
@@ -286,7 +325,7 @@ const (
 // isBcmPCChildSkip matches the child-list errors skipped silently for one
 // parent: ResourceNotFoundException (the scenario or estimate was deleted, or
 // expired, after it was listed) and the migration-required IAM deny the parent
-// phases also skip silently (bcmPCListErr).
+// phases skip silently on their first page (bcmPCGatedPages).
 func isBcmPCChildSkip(err error) bool {
 	return isAPIErrorCode(err, "ResourceNotFoundException") || isMigrationRequiredIAMDeny(err)
 }
