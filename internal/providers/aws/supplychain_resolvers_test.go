@@ -15,7 +15,7 @@ func TestResolveSupplyChainInstanceChildren(t *testing.T) {
 	instARN := scnInstanceARN("aws", testRegion, acct.ID, instID)
 	instRowID := upsertTestResource(t, st, "aws", acct.ID, TypeSupplyChainInstance, instARN, testRegion, "{}")
 
-	flowARN := fmt.Sprintf("%s/data-integration-flow/myflow", instARN)
+	flowARN := scnFlowARN("aws", testRegion, acct.ID, instID, "myflow")
 	flowAttrs := fmt.Sprintf(`{"InstanceId":%q,"Name":"myflow"}`, instID)
 	flowID := upsertTestResource(t, st, "aws", acct.ID, TypeSupplyChainDataIntegrationFlow, flowARN, testRegion, flowAttrs)
 

@@ -128,6 +128,7 @@ func TestPerServiceARNHelpers_Partition(t *testing.T) {
 		{"rum app monitor", func(p string) string { return rumAppMonitorARN(p, r, a, "m") }, "arn:aws:rum:us-east-1:123456789012:appmonitor/m"},
 		{"s3 bucket", func(p string) string { return s3BucketARN(p, "b") }, "arn:aws:s3:::b"},
 		{"supply chain instance", func(p string) string { return scnInstanceARN(p, r, a, "i") }, "arn:aws:scn:us-east-1:123456789012:instance/i"},
+		{"supply chain flow", func(p string) string { return scnFlowARN(p, r, a, "i", "f") }, "arn:aws:scn:us-east-1:123456789012:instance/i/data-integration-flows/f"},
 		{"security hub", func(p string) string { return securityHubHubNativeID(p, r, a) }, "arn:aws:securityhub:us-east-1:123456789012:hub/default"},
 		{"service catalog", func(p string) string { return scARN(p, r, a, "tag-option", "t") }, "arn:aws:servicecatalog:us-east-1:123456789012:tag-option/t"},
 		{"service quotas template", func(p string) string { return sqTemplateEntryNativeID(p, r, a, "ec2", "L-1") }, "arn:aws:servicequotas:us-east-1:123456789012:ec2/L-1/request-template"},
