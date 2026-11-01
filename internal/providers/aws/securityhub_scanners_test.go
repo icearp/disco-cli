@@ -270,12 +270,23 @@ func shStandardARN(region string) string {
 }
 
 // The client is pinned to the scanned region, and the new rows sit under the
-// hub.
+// hub. On a fresh store every child phase links under the hub row this scan
+// stored, so the hub phase must run before them.
 func TestScanSecurityHub_StoresNewChildrenInScannedRegion(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var regions parentCalls
-	cfg := opStubConfig(shTopLevelHandlers("eu-west-1"), shDenied)
+	insight := fmt.Sprintf("arn:aws:securityhub:eu-west-1:%s:insight/%s/custom/i1", testAccountID, testAccountID)
+	subscription := fmt.Sprintf("arn:aws:securityhub:eu-west-1:%s:subscription/cis-aws-foundations-benchmark/v/1.2.0", testAccountID)
+	product := fmt.Sprintf("arn:aws:securityhub:eu-west-1:%s:product-subscription/aws/guardduty", testAccountID)
+	handlers := shTopLevelHandlers("eu-west-1")
+	handlers["GetInsights"] = func(any) (any, error) {
+		return &securityhub.GetInsightsOutput{Insights: []securityhubtypes.Insight{{InsightArn: ptrStr(insight), Name: ptrStr("i1")}}}, nil
+	}
+	handlers["ListEnabledProductsForImport"] = func(any) (any, error) {
+		return &securityhub.ListEnabledProductsForImportOutput{ProductSubscriptions: []string{product}}, nil
+	}
+	cfg := opStubConfig(handlers, shDenied)
 	cfg.Region = "ap-southeast-2"
 	acct.cfg = recordCallRegions(cfg, &regions)
 
@@ -301,6 +312,9 @@ func TestScanSecurityHub_StoresNewChildrenInScannedRegion(t *testing.T) {
 	}
 	assertContainsNative(t, st, hub, member)
 	assertContainsNative(t, st, hub, target)
+	assertContainsNative(t, st, hub, insight)
+	assertContainsNative(t, st, hub, subscription)
+	assertContainsNative(t, st, hub, product)
 	control := shControlNativeID("eu-west-1", shCtlS3)
 	assoc := shAssocNativeID("eu-west-1", shCtlS3, shStdCIS)
 	if row, ok := rowsByNativeID(t, st, TypeSecurityHubStandardsControlAssociation)[assoc]; !ok || sv(row.Region) != "eu-west-1" {

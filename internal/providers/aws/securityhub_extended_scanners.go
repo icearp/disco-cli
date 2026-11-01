@@ -1,74 +1,99 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	awsarn "github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/securityhub"
+	securityhubtypes "github.com/aws/aws-sdk-go-v2/service/securityhub/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanSecurityHubExtended adds 11 disco types: V2 hub config, automation
-// rules, configuration policies, finding aggregators, security controls, and
-// standards. Phases tolerate isAccessDenied + isSecurityHubNotEnabled +
-// ResourceNotFoundException. controls are the security-control rows stored,
-// for scanSecurityHubControlAssociations.
-func scanSecurityHubExtended(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, controls []childParent, err error) {
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanSHHubV2(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSHOrgConfig(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSHAggregatorsV2(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSHAutomationRules(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSHAutomationRulesV2(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSHConfigPolicies(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSHConnectorsV2(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSHFindingAggregators(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanSHPolicyAssociations(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
+// shPageLimit is the MaxResults cap the model sets for each tagged listing.
+const shPageLimit = 100
+
+// shExtendedPhases returns the phases of the 11 extended types: V2 hub
+// config, organization configuration, aggregators, automation rules (V1 and
+// V2), configuration policies, connectors, finding aggregators, policy
+// associations, security controls, and standards, for scanSecurityHub to run
+// in this order. The listings without tag reads tolerate isAccessDenied and
+// isSecurityHubNotEnabled; the tagged ones read their rows' tags through tags
+// and write a page at a time (storeTokenPagesTags). The security-control
+// phase sets *controls to the controls it stored, for
+// scanSecurityHubControlAssociations.
+func shExtendedPhases(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, controls *[]childParent) []hostPhase {
+	return []hostPhase{
+		{op: "securityhub:DescribeSecurityHubV2", run: func(p *phaseTotals) bool {
+			return scanSHHubV2(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, "securityhub:DescribeOrganizationConfiguration", func() (int, int, error) {
+			return scanSHOrgConfig(ctx, client, acct, region, st, scanID)
+		}),
+		{op: "securityhub:ListAggregatorsV2", run: func(p *phaseTotals) bool {
+			return scanSHAggregatorsV2(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "securityhub:ListAutomationRules", run: func(p *phaseTotals) bool {
+			return scanSHAutomationRules(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "securityhub:ListAutomationRulesV2", run: func(p *phaseTotals) bool {
+			return scanSHAutomationRulesV2(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "securityhub:ListConfigurationPolicies", run: func(p *phaseTotals) bool {
+			return scanSHConfigPolicies(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "securityhub:ListConnectorsV2", run: func(p *phaseTotals) bool {
+			return scanSHConnectorsV2(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, "securityhub:ListFindingAggregators", func() (int, int, error) {
+			return scanSHFindingAggregators(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "securityhub:ListConfigurationPolicyAssociations", func() (int, int, error) {
+			return scanSHPolicyAssociations(ctx, client, acct, region, st, scanID)
+		}),
+		countedPhase(0, "securityhub:ListSecurityControlDefinitions", func() (int, int, error) {
 			t, i, stored, err := scanSHSecurityControls(ctx, client, acct, region, st, scanID)
-			controls = stored
+			*controls = stored
 			return t, i, err
-		},
-		func() (int, int, error) { return scanSHStandards(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, ferr := phase()
-		if ferr != nil {
-			return total, inserted, nil, ferr
-		}
-		total += t
-		inserted += i
+		}),
+		countedPhase(0, "securityhub:DescribeStandards", func() (int, int, error) {
+			return scanSHStandards(ctx, client, acct, region, st, scanID)
+		}),
 	}
-	return total, inserted, controls, nil
 }
 
 func shSoftSkip(err error) bool {
 	return isAccessDenied(err) || isSecurityHubNotEnabled(err)
 }
 
-func scanSHHubV2(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// scanSHHubV2 stores the region's Security Hub V2 hub. V2 not enabled
+// (isSecurityHubNotEnabled) stores nothing, silently; a denial warns.
+func scanSHHubV2(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	const op = "securityhub:DescribeSecurityHubV2"
 	out, err := client.DescribeSecurityHubV2(ctx, &securityhub.DescribeSecurityHubV2Input{})
-	if err != nil {
-		if shSoftSkip(err) {
-			return 0, 0, nil
+	if isSecurityHubNotEnabled(err) {
+		return false
+	}
+	var (
+		rows  []*store.Resource
+		skips notStoredSkips
+	)
+	if err == nil {
+		name := "hub-v2"
+		r, why, key := arnRow("Security Hub V2 hubs", out.HubV2Arn, &name, &store.Resource{
+			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+			Type: TypeSecurityHubHubV2, NativeID: sv(out.HubV2Arn),
+			Name: &name, Region: &region, AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
+		})
+		if r == nil {
+			skips.skipped(why, key)
+		} else {
+			rows = append(rows, r)
 		}
-		return 0, 0, fmt.Errorf("securityhub:DescribeSecurityHubV2: %w", err)
 	}
-	arn := sv(out.HubV2Arn)
-	if arn == "" {
-		return 0, 0, nil
-	}
-	name := "hub-v2"
-	r := &store.Resource{
-		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-		Type: TypeSecurityHubHubV2, NativeID: arn,
-		Name: &name, Region: &region, AttributesJSON: mustJSON(out), DiscoveredBy: scanID,
-	}
-	n, uerr := st.UpsertResources([]*store.Resource{r})
-	if uerr != nil {
-		return 0, 0, fmt.Errorf("upsert securityhub hub-v2: %w", uerr)
-	}
-	return 1, n, nil
+	return storeRowsTags(ctx, st, acct, region, op, rows, err, func() { skips.warn(st, op, acct, region) }, tags, p)
 }
 
 // scanSHOrgConfig — only org-management account returns valid data;
@@ -95,163 +120,107 @@ func scanSHOrgConfig(ctx context.Context, client securityhubAPI, acct *account, 
 	return 1, n, nil
 }
 
-func scanSHAggregatorsV2(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := securityhub.NewListAggregatorsV2Paginator(client, &securityhub.ListAggregatorsV2Input{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if shSoftSkip(perr) {
-				return 0, 0, nil
+// The tagged listings below share one shape: the first page refused as not
+// enabled (isSecurityHubNotEnabled) is an empty listing; the
+// same answer on a later page follows a page the op served, so it is an
+// error that keeps the pages read (firstPageGapPages). A denied listing warns
+// once and keeps the pages read before it.
+
+func scanSHAggregatorsV2(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "securityhub:ListAggregatorsV2",
+		firstPageGapPages(isSecurityHubNotEnabled, func(ctx context.Context, token *string) ([]securityhubtypes.AggregatorV2, *string, error) {
+			out, err := client.ListAggregatorsV2(ctx, &securityhub.ListAggregatorsV2Input{NextToken: token, MaxResults: sdkaws.Int32(shPageLimit)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("securityhub:ListAggregatorsV2: %w", perr)
-		}
-		for _, a := range out.AggregatorsV2 {
-			arn := sv(a.AggregatorV2Arn)
-			if arn == "" {
-				continue
-			}
-			label := arn
-			batch = append(batch, &store.Resource{
+			return out.AggregatorsV2, out.NextToken, nil
+		}),
+		func(a securityhubtypes.AggregatorV2) (*store.Resource, string, string) {
+			label := sv(a.AggregatorV2Arn)
+			return arnRow("aggregators", a.AggregatorV2Arn, nil, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSecurityHubAggregatorV2, NativeID: arn,
+				Type: TypeSecurityHubAggregatorV2, NativeID: label,
 				Name: &label, Region: &region, AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
-		}
-	}
-	return upsertBatch(st, batch, "securityhub aggregators-v2")
+		}, tags, p)
 }
 
-func scanSHAutomationRules(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.ListAutomationRules(ctx, &securityhub.ListAutomationRulesInput{NextToken: token})
-		if err != nil {
-			if shSoftSkip(err) {
-				return 0, 0, nil
+func scanSHAutomationRules(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "securityhub:ListAutomationRules",
+		firstPageGapPages(isSecurityHubNotEnabled, func(ctx context.Context, token *string) ([]securityhubtypes.AutomationRulesMetadata, *string, error) {
+			out, err := client.ListAutomationRules(ctx, &securityhub.ListAutomationRulesInput{NextToken: token, MaxResults: sdkaws.Int32(shPageLimit)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("securityhub:ListAutomationRules: %w", err)
-		}
-		for _, r := range out.AutomationRulesMetadata {
-			arn := sv(r.RuleArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(r.RuleName)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
+			return out.AutomationRulesMetadata, out.NextToken, nil
+		}),
+		func(r securityhubtypes.AutomationRulesMetadata) (*store.Resource, string, string) {
+			label := cmp.Or(sv(r.RuleName), sv(r.RuleArn))
+			return arnRow("automation rules", r.RuleArn, r.RuleName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSecurityHubAutomationRule, NativeID: arn,
+				Type: TypeSecurityHubAutomationRule, NativeID: sv(r.RuleArn),
 				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	return upsertBatch(st, batch, "securityhub automation-rules")
+		}, tags, p)
 }
 
-func scanSHAutomationRulesV2(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.ListAutomationRulesV2(ctx, &securityhub.ListAutomationRulesV2Input{NextToken: token})
-		if err != nil {
-			if shSoftSkip(err) {
-				return 0, 0, nil
+func scanSHAutomationRulesV2(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "securityhub:ListAutomationRulesV2",
+		firstPageGapPages(isSecurityHubNotEnabled, func(ctx context.Context, token *string) ([]securityhubtypes.AutomationRulesMetadataV2, *string, error) {
+			out, err := client.ListAutomationRulesV2(ctx, &securityhub.ListAutomationRulesV2Input{NextToken: token, MaxResults: sdkaws.Int32(shPageLimit)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("securityhub:ListAutomationRulesV2: %w", err)
-		}
-		for _, r := range out.Rules {
-			arn := sv(r.RuleArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(r.RuleName)
-			if label == "" {
-				label = sv(r.RuleId)
-			}
-			batch = append(batch, &store.Resource{
+			return out.Rules, out.NextToken, nil
+		}),
+		func(r securityhubtypes.AutomationRulesMetadataV2) (*store.Resource, string, string) {
+			label := cmp.Or(sv(r.RuleName), sv(r.RuleId))
+			return arnRow("V2 automation rules", r.RuleArn, &label, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSecurityHubAutomationRuleV2, NativeID: arn,
+				Type: TypeSecurityHubAutomationRuleV2, NativeID: sv(r.RuleArn),
 				Name: &label, Region: &region, AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
 			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	return upsertBatch(st, batch, "securityhub automation-rules-v2")
+		}, tags, p)
 }
 
-func scanSHConfigPolicies(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := securityhub.NewListConfigurationPoliciesPaginator(client, &securityhub.ListConfigurationPoliciesInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if shSoftSkip(perr) {
-				return 0, 0, nil
+// scanSHConfigPolicies stores the configuration policies with one tag read
+// each: no listing or Get returns their tags.
+func scanSHConfigPolicies(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "securityhub:ListConfigurationPolicies",
+		firstPageGapPages(isSecurityHubNotEnabled, func(ctx context.Context, token *string) ([]securityhubtypes.ConfigurationPolicySummary, *string, error) {
+			out, err := client.ListConfigurationPolicies(ctx, &securityhub.ListConfigurationPoliciesInput{NextToken: token, MaxResults: sdkaws.Int32(shPageLimit)})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("securityhub:ListConfigurationPolicies: %w", perr)
-		}
-		for _, p := range out.ConfigurationPolicySummaries {
-			arn := sv(p.Arn)
-			if arn == "" {
-				continue
-			}
-			label := sv(p.Name)
-			if label == "" {
-				label = sv(p.Id)
-			}
-			batch = append(batch, &store.Resource{
+			return out.ConfigurationPolicySummaries, out.NextToken, nil
+		}),
+		func(c securityhubtypes.ConfigurationPolicySummary) (*store.Resource, string, string) {
+			label := cmp.Or(sv(c.Name), sv(c.Id))
+			return arnRow("configuration policies", c.Arn, &label, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSecurityHubConfigurationPolicy, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "securityhub configuration-policies")
-}
-
-func scanSHConnectorsV2(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var token *string
-	for {
-		out, err := client.ListConnectorsV2(ctx, &securityhub.ListConnectorsV2Input{NextToken: token})
-		if err != nil {
-			if shSoftSkip(err) {
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("securityhub:ListConnectorsV2: %w", err)
-		}
-		for _, c := range out.Connectors {
-			arn := sv(c.ConnectorArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(c.Name)
-			if label == "" {
-				label = sv(c.ConnectorId)
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeSecurityHubConnectorV2, NativeID: arn,
+				Type: TypeSecurityHubConfigurationPolicy, NativeID: sv(c.Arn),
 				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
 			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		token = out.NextToken
-	}
-	return upsertBatch(st, batch, "securityhub connectors-v2")
+		}, tags, p)
+}
+
+func scanSHConnectorsV2(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "securityhub:ListConnectorsV2",
+		firstPageGapPages(isSecurityHubNotEnabled, func(ctx context.Context, token *string) ([]securityhubtypes.ConnectorSummary, *string, error) {
+			out, err := client.ListConnectorsV2(ctx, &securityhub.ListConnectorsV2Input{NextToken: token, MaxResults: sdkaws.Int32(shPageLimit)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Connectors, out.NextToken, nil
+		}),
+		func(c securityhubtypes.ConnectorSummary) (*store.Resource, string, string) {
+			label := cmp.Or(sv(c.Name), sv(c.ConnectorId))
+			return arnRow("connectors", c.ConnectorArn, &label, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSecurityHubConnectorV2, NativeID: sv(c.ConnectorArn),
+				Name: &label, Region: &region, AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			})
+		}, tags, p)
 }
 
 func scanSHFindingAggregators(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {

@@ -42,6 +42,7 @@ func init() {
 // scanSecurityHub sub-phases.
 type securityhubAPI interface {
 	DescribeHub(context.Context, *securityhub.DescribeHubInput, ...func(*securityhub.Options)) (*securityhub.DescribeHubOutput, error)
+	ListTagsForResource(context.Context, *securityhub.ListTagsForResourceInput, ...func(*securityhub.Options)) (*securityhub.ListTagsForResourceOutput, error)
 	GetInsights(context.Context, *securityhub.GetInsightsInput, ...func(*securityhub.Options)) (*securityhub.GetInsightsOutput, error)
 	GetEnabledStandards(context.Context, *securityhub.GetEnabledStandardsInput, ...func(*securityhub.Options)) (*securityhub.GetEnabledStandardsOutput, error)
 	ListEnabledProductsForImport(context.Context, *securityhub.ListEnabledProductsForImportInput, ...func(*securityhub.Options)) (*securityhub.ListEnabledProductsForImportOutput, error)
@@ -61,92 +62,69 @@ type securityhubAPI interface {
 	ListStandardsControlAssociations(context.Context, *securityhub.ListStandardsControlAssociationsInput, ...func(*securityhub.Options)) (*securityhub.ListStandardsControlAssociationsOutput, error)
 }
 
-// scanSecurityHub discovers the per-region hub, enabled standards, imported
-// products, and saved insights. Security Hub is regional; accounts without
-// the hub enabled here return InvalidAccessException on every API, so phase
-// 1 sets a `present` flag (mirrors scanMacie) and sibling phases short-circuit
-// when not enabled, avoiding N redundant denied errors.
-func scanSecurityHub(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+const (
+	shDescribeHubOp = "securityhub:DescribeHub"
+	shTagsOp        = "securityhub:ListTagsForResource"
+)
+
+// scanSecurityHub discovers the per-region hub and what it holds. Security
+// Hub is regional; accounts without the hub enabled here return
+// InvalidAccessException on every API, so DescribeHub runs first (mirrors
+// scanMacie): the hub not enabled returns markServiceDisabled, a denied
+// DescribeHub warns once, and either way no other phase runs. Then every
+// listing runs as its own phase, one at a time, in the order below: a
+// phase's error does not stop the later ones; a failed write and ctx's end
+// do (runHostPhases). The hub phase runs first because the insight,
+// standards-subscription, product-subscription, action-target and member
+// phases record their contains rows under the hub row this scan stored.
+// The control-association phase reads the standards subscriptions and
+// security controls stored before it. The hub and the taggable extended
+// types have their tags read per row (shTags), and the tag denials of the
+// whole scan are one warning.
+func scanSecurityHub(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := securityhub.NewFromConfig(acct.cfg, func(o *securityhub.Options) { o.Region = region })
 
-	hubARN, present, t, i, ferr := scanSecurityHubHub(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return 0, 0, ferr
+	hub, err := shHubRow(ctx, client, acct, region, st, scanID)
+	if hub == nil {
+		return 0, 0, err
 	}
-	total += t
-	inserted += i
-	if !present {
-		return total, inserted, nil
+	hubARN := hub.NativeID
+	tags := shTags(client).sharingDenials()
+	var (
+		standards []string
+		controls  []childParent
+	)
+	phases := []hostPhase{
+		{op: shDescribeHubOp, run: func(p *phaseTotals) bool {
+			return storeRowsTags(ctx, st, acct, region, shDescribeHubOp, []*store.Resource{hub}, nil, nil, tags, p)
+		}},
+		countedPhase(0, "securityhub:GetInsights", func() (int, int, error) {
+			return scanSecurityHubInsights(ctx, client, acct, region, hubARN, st, scanID)
+		}),
+		countedPhase(0, "securityhub:GetEnabledStandards", func() (int, int, error) {
+			t, i, stored, err := scanSecurityHubStandards(ctx, client, acct, region, hubARN, st, scanID)
+			standards = stored
+			return t, i, err
+		}),
+		countedPhase(0, "securityhub:ListEnabledProductsForImport", func() (int, int, error) {
+			return scanSecurityHubProducts(ctx, client, acct, region, hubARN, st, scanID)
+		}),
 	}
-
-	{
-		t, i, ferr := scanSecurityHubInsights(ctx, client, acct, region, hubARN, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	var standards []string
-	{
-		t, i, stored, ferr := scanSecurityHubStandards(ctx, client, acct, region, hubARN, st, scanID)
-		standards = stored
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanSecurityHubProducts(ctx, client, acct, region, hubARN, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	var controls []childParent
-	{
-		t, i, stored, ferr := scanSecurityHubExtended(ctx, client, acct, region, st, scanID)
-		controls = stored
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanSecurityHubActionTargets(ctx, client, acct, region, hubARN, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanSecurityHubMembers(ctx, client, acct, region, hubARN, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	{
-		t, i, ferr := scanSecurityHubControlAssociations(ctx, client, acct, region, standards, controls, st, scanID)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	return total, inserted, nil
+	phases = append(phases, shExtendedPhases(ctx, client, acct, region, st, scanID, tags, &controls)...)
+	phases = append(phases,
+		countedPhase(0, "securityhub:DescribeActionTargets", func() (int, int, error) {
+			return scanSecurityHubActionTargets(ctx, client, acct, region, hubARN, st, scanID)
+		}),
+		countedPhase(0, "securityhub:ListMembers", func() (int, int, error) {
+			return scanSecurityHubMembers(ctx, client, acct, region, hubARN, st, scanID)
+		}),
+		countedPhase(0, shListControlAssociationsOp, func() (int, int, error) {
+			return scanSecurityHubControlAssociations(ctx, client, acct, region, standards, controls, st, scanID)
+		}),
+	)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "securityhub", 0, phases)
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
 // isSecurityHubNotEnabled reports whether err means Security Hub isn't
@@ -164,26 +142,57 @@ func securityHubHubNativeID(partition, region, accountID string) string {
 	return arnFor(partition, "securityhub", region, accountID, "hub/default")
 }
 
-func scanSecurityHubHub(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (hubARN string, present bool, total, inserted int, err error) {
-	out, derr := client.DescribeHub(ctx, &securityhub.DescribeHubInput{})
-	if derr != nil {
-		if isAccessDenied(derr) {
-			_ = skipIfAccessDenied(st, "securityhub:DescribeHub", acct.ID, region, derr)
-			return "", false, 0, 0, nil
-		}
-		if isSecurityHubNotEnabled(derr) {
-			return "", false, 0, 0, markServiceDisabled(derr)
-		}
-		return "", false, 0, 0, fmt.Errorf("securityhub:DescribeHub: %w", derr)
+// shTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: the ARN its listing or Describe returned or, for a hub that
+// DescribeHub returned without HubArn, the ARN securityHubHubNativeID builds
+// in the Service Reference's hub format. The op returns every tag in one
+// response (it takes no page token). ResourceNotFoundException, the one
+// not-found code it models, means the resource was deleted (the hub
+// disabled) after it was listed, and drops the row. The hub's children are
+// still stored: linked under the hub row an earlier scan stored or, when
+// there is none, stored unlinked, and the store warns about the missing
+// parent.
+//
+// The Service Reference lists only hub, automation-rule and
+// configuration-policy under ListTagsForResource. Its TagResource and
+// UntagResource entries also list aggregatorv2, automation-rulev2,
+// connectorv2 and hubv2, whose create inputs (CreateAggregatorV2,
+// CreateAutomationRuleV2, CreateConnectorV2, EnableSecurityHubV2) take Tags,
+// and the op takes the same ResourceArn shape as TagResource, so those are
+// read too.
+func shTags(client securityhubAPI) rowTagReader {
+	return rowTagReader{
+		op:       shTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &securityhub.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
+			if err != nil {
+				return nil, err
+			}
+			return mapTagsJSON(out.Tags), nil
+		},
 	}
-	if out == nil {
-		return "", false, 0, 0, nil
+}
+
+// shHubRow returns the region's hub row, built from DescribeHub and not yet
+// stored. A denied DescribeHub warns and returns no row; the hub not enabled
+// returns no row and markServiceDisabled.
+func shHubRow(ctx context.Context, client securityhubAPI, acct *account, region string, st *store.Store, scanID string) (*store.Resource, error) {
+	out, err := client.DescribeHub(ctx, &securityhub.DescribeHubInput{})
+	if err != nil {
+		if isAccessDenied(err) {
+			return nil, skipIfAccessDenied(st, shDescribeHubOp, acct.ID, region, err)
+		}
+		if isSecurityHubNotEnabled(err) {
+			return nil, markServiceDisabled(err)
+		}
+		return nil, fmt.Errorf("%s: %w", shDescribeHubOp, err)
 	}
 	nid := sv(out.HubArn)
 	if nid == "" {
 		nid = securityHubHubNativeID(acct.partition(), region, acct.ID)
 	}
-	r := &store.Resource{
+	return &store.Resource{
 		Provider:       "aws",
 		AccountID:      acct.ID,
 		AccountName:    &acct.Name,
@@ -192,12 +201,7 @@ func scanSecurityHubHub(ctx context.Context, client securityhubAPI, acct *accoun
 		Region:         &region,
 		AttributesJSON: mustJSON(out),
 		DiscoveredBy:   scanID,
-	}
-	n, uerr := st.UpsertResources([]*store.Resource{r})
-	if uerr != nil {
-		return "", false, 0, 0, fmt.Errorf("upsert securityhub hub: %w", uerr)
-	}
-	return nid, true, 1, n, nil
+	}, nil
 }
 
 func scanSecurityHubInsights(ctx context.Context, client securityhubAPI, acct *account, region, hubARN string, st *store.Store, scanID string) (total, inserted int, err error) {
