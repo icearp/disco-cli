@@ -54,6 +54,7 @@ func TestPerServiceARNHelpers_Partition(t *testing.T) {
 		commercial string
 	}{
 		{"aidevops", func(p string) string { return aidevopsARN(p, r, a, "service", "s1") }, "arn:aws:aidevops:us-east-1:123456789012:service/s1"},
+		{"aidevops agent space", func(p string) string { return aidevopsAgentSpaceARN(p, r, a, "s1") }, "arn:aws:aidevops:us-east-1:123456789012:agentspace/s1"},
 		{"appflow connector", func(p string) string { return appflowConnectorNativeID(p, r, a, "l1") }, "arn:aws:appflow:us-east-1:123456789012:connector/l1"},
 		{"app autoscaling target", func(p string) string {
 			return applicationAutoScalingScalableTargetNativeID(p, r, a, "ecs", "service/c/s", "ecs:service:DesiredCount")

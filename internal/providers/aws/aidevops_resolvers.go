@@ -106,7 +106,7 @@ func resolveAidevopsAssociations(acct *account, st *store.Store) error {
 		}
 		region := sv(r.Region)
 		if id := sv(attrs.AgentSpaceID); id != "" {
-			tgt := store.ResourceID("aws", acct.ID, aidevopsARN(acct.partition(), region, acct.ID, "agent-space", id))
+			tgt := store.ResourceID("aws", acct.ID, aidevopsAgentSpaceARN(acct.partition(), region, acct.ID, id))
 			if spaceSet[tgt] {
 				if err := st.UpsertRelationship(r.ID, tgt, store.RelAttachedTo, "directed", nil); err != nil {
 					return fmt.Errorf("upsert aidevops-assoc→agent-space: %w", err)

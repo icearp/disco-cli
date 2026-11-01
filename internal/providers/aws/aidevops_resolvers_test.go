@@ -18,7 +18,7 @@ func TestResolveAidevopsRefs(t *testing.T) {
 	vpcID := "vpc-aaa"
 	vpcRowID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", vpcID), testRegion, "{}")
 
-	spaceNative := aidevopsARN("aws", testRegion, acct.ID, "agent-space", "space-1")
+	spaceNative := aidevopsAgentSpaceARN("aws", testRegion, acct.ID, "space-1")
 	spaceID := upsertTestResource(t, st, "aws", acct.ID, TypeAidevopsAgentSpace, spaceNative, testRegion,
 		fmt.Sprintf(`{"AgentSpaceId":"space-1","KmsKeyArn":%q}`, keyARN))
 
@@ -55,7 +55,7 @@ func TestResolveAidevopsRefs_NoAttrs(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
-	spaceNative := aidevopsARN("aws", testRegion, acct.ID, "agent-space", "space-1")
+	spaceNative := aidevopsAgentSpaceARN("aws", testRegion, acct.ID, "space-1")
 	spaceID := upsertTestResource(t, st, "aws", acct.ID, TypeAidevopsAgentSpace, spaceNative, testRegion, "{}")
 	assocNative := aidevopsARN("aws", testRegion, acct.ID, "association", "assoc-1")
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeAidevopsAssociations, assocNative, testRegion, "{}")

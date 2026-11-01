@@ -1,20 +1,29 @@
 package aws
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent"
 	"github.com/aws/aws-sdk-go-v2/service/devopsagent/document"
 	devopsagenttypes "github.com/aws/aws-sdk-go-v2/service/devopsagent/types"
+	"github.com/icearp/disco-cli/internal/redact"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
 
 func init() {
 	registerType(restype.Descriptor{Type: TypeAidevopsAgentSpace, Service: "aidevops"})
-	registerType(restype.Descriptor{Type: TypeAidevopsService, Service: "aidevops"})
+	// A SigV4 MCP server's custom headers (@sensitive in the model) can carry
+	// an API key or bearer token sent to the server. The header names are
+	// kept, and a value only where its shape is judged safe (a reference, a
+	// boolean); any other value is replaced with a reason-tagged placeholder.
+	registerType(restype.Descriptor{Type: TypeAidevopsService, Service: "aidevops", Redact: []redact.Rule{
+		{Path: "AdditionalServiceDetails.Mcpserversigv4.CustomHeaders.*", Mode: redact.RedactUnlessSafe},
+	}})
 	registerType(restype.Descriptor{Type: TypeAidevopsAssociations, Service: "aidevops", Untaggable: true})
 	registerType(restype.Descriptor{Type: TypeAidevopsPrivateConnection, Service: "aidevops"})
 	registerType(restype.Descriptor{Type: TypeAidevopsAsset, Service: "aidevops", Untaggable: true})
@@ -38,12 +47,31 @@ type aidevopsAPI interface {
 	ListTriggers(context.Context, *devopsagent.ListTriggersInput, ...func(*devopsagent.Options)) (*devopsagent.ListTriggersOutput, error)
 	ListWebhooks(context.Context, *devopsagent.ListWebhooksInput, ...func(*devopsagent.Options)) (*devopsagent.ListWebhooksOutput, error)
 	ListGoals(context.Context, *devopsagent.ListGoalsInput, ...func(*devopsagent.Options)) (*devopsagent.ListGoalsOutput, error)
+	ListTagsForResource(context.Context, *devopsagent.ListTagsForResourceInput, ...func(*devopsagent.Options)) (*devopsagent.ListTagsForResourceOutput, error)
 }
 
-// aidevops resources carry no AWS-issued ARN; NativeIDs are synthesized in the
-// canonical arn:{p}:aidevops:{region}:{account}:{kind}/{id} shape.
+const (
+	aidevopsListAgentSpacesOp        = "aidevops:ListAgentSpaces"
+	aidevopsListServicesOp           = "aidevops:ListServices"
+	aidevopsListPrivateConnectionsOp = "aidevops:ListPrivateConnections"
+	aidevopsTagsOp                   = "aidevops:ListTagsForResource"
+)
+
+// aidevopsARN builds a NativeID as arn:{p}:aidevops:{region}:{account}:{kind}/{id}:
+// no aidevops listing returns an ARN. For agent spaces (aidevopsAgentSpaceARN),
+// services and private connections this is the Service Reference's ARN format,
+// which ListTagsForResource is sent (aidevopsTags). An association's
+// association/{id} is not: the Service Reference nests it under its agent space.
 func aidevopsARN(partition, region, acctID, kind, id string) string {
 	return arnFor(partition, "aidevops", region, acctID, kind+"/"+id)
+}
+
+// aidevopsAgentSpaceARN is an agent space's ARN in the Service Reference's
+// format, agentspace/${AgentSpaceId}; the AgentSpace SDK shape has no ARN
+// field. Assets and triggers stored under it then carry their own Service
+// Reference ARNs (agentspace/${AgentSpaceId}/asset/${AssetId}, …/trigger/…).
+func aidevopsAgentSpaceARN(partition, region, acctID, id string) string {
+	return aidevopsARN(partition, region, acctID, "agentspace", id)
 }
 
 func scanAidevops(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
@@ -51,142 +79,235 @@ func scanAidevops(ctx context.Context, acct *account, region string, st *store.S
 	return scanAidevopsAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanAidevopsAll runs every phase even when an earlier one fails. Assets,
-// triggers and goals are served by the data-plane host (dp.), the rest by the control
-// plane (cp.), so only the first phase's unreachable endpoint speaks for the
-// whole service. The later phases' errors are joined by phaseErrs.
-func scanAidevopsAll(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// scanAidevopsAll runs every listing as its own phase, one at a time: a
+// phase's error does not stop the later ones; a failed write and ctx's end
+// do, and so does an NXDOMAIN of the first listing with nothing stored (the
+// region does not serve the service) (runHostPhases). The per-parent phases
+// get the parents stored this scan. Agent spaces, services and private
+// connections have their tags read per row (aidevopsTags), whose denials are
+// one warning for the scan.
+//
+// Assets, triggers and goals are served by the data-plane host (dp.), the
+// rest by the control plane (cp.), yet every phase runs as host 0: the
+// data-plane phases list only under agent spaces already stored, so a
+// data-plane NXDOMAIN always follows stored rows and is a failure of this
+// scan (resultLateNXDOMAIN). As a host of its own, its first NXDOMAIN would be
+// dropped as a region serving the control plane alone.
+func scanAidevopsAll(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	tags := aidevopsTags(client).sharingDenials()
 	var (
 		spaces       []childParent
 		associations []aidevopsAssociation
-		errs         phaseErrs
 	)
-	for n, phase := range []struct {
-		name string
-		run  func() (int, int, error)
-	}{
-		{"aidevops:ListAgentSpaces", func() (int, int, error) {
-			spaceIDs, t, i, err := scanAidevopsAgentSpaces(ctx, client, acct, region, st, scanID)
-			for _, id := range spaceIDs {
-				spaces = append(spaces, childParent{id: id, arn: aidevopsARN(acct.partition(), region, acct.ID, "agent-space", id)})
-			}
-			return t, i, err
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "aidevops", 0, []hostPhase{
+		{op: aidevopsListAgentSpacesOp, run: func(p *phaseTotals) (failed bool) {
+			spaces, failed = scanAidevopsAgentSpaces(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
 		}},
-		{"aidevops:ListServices", func() (int, int, error) { return scanAidevopsServices(ctx, client, acct, region, st, scanID) }},
-		{"aidevops:ListAssociations", func() (int, int, error) {
+		{op: aidevopsListServicesOp, run: func(p *phaseTotals) bool {
+			return scanAidevopsServices(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, "aidevops:ListAssociations", func() (int, int, error) {
 			var (
 				t, i int
 				err  error
 			)
 			associations, t, i, err = scanAidevopsAssociations(ctx, client, acct, region, st, scanID, spaces)
 			return t, i, err
+		}),
+		{op: aidevopsListPrivateConnectionsOp, run: func(p *phaseTotals) bool {
+			return scanAidevopsPrivateConnections(ctx, client, acct, region, st, scanID, tags, p)
 		}},
-		{"aidevops:ListPrivateConnections", func() (int, int, error) {
-			return scanAidevopsPrivateConnections(ctx, client, acct, region, st, scanID)
-		}},
-		{"aidevops:ListAssets", func() (int, int, error) { return scanAidevopsAssets(ctx, client, acct, region, st, scanID, spaces) }},
-		{"aidevops:ListTriggers", func() (int, int, error) {
+		countedPhase(0, "aidevops:ListAssets", func() (int, int, error) {
+			return scanAidevopsAssets(ctx, client, acct, region, st, scanID, spaces)
+		}),
+		countedPhase(0, "aidevops:ListTriggers", func() (int, int, error) {
 			return scanAidevopsTriggers(ctx, client, acct, region, st, scanID, spaces)
-		}},
-		{"aidevops:ListGoals", func() (int, int, error) { return scanAidevopsGoals(ctx, client, acct, region, st, scanID, spaces) }},
-		{"aidevops:ListWebhooks", func() (int, int, error) {
+		}),
+		countedPhase(0, "aidevops:ListGoals", func() (int, int, error) {
+			return scanAidevopsGoals(ctx, client, acct, region, st, scanID, spaces)
+		}),
+		countedPhase(0, "aidevops:ListWebhooks", func() (int, int, error) {
 			return scanAidevopsWebhooks(ctx, client, acct, region, st, scanID, associations)
-		}},
-	} {
-		t, i, perr := phase.run()
-		if n == 0 && isEndpointUnreachable(perr) {
-			return t, i, perr
-		}
-		total += t
-		inserted += i
-		// The assets phase is the first call to the data-plane host, so
-		// lateNXDOMAIN's "earlier calls to it succeeded" would be false. The
-		// NXDOMAIN is still flattened, or the dispatcher would read the join
-		// as (region: unavailable) and drop the rows already stored.
-		if isDNSNotFound(perr) {
-			perr = fmt.Errorf("%s: endpoint does not resolve: %v", phase.name, perr)
-		}
-		errs.add(phase.name, perr)
-	}
-	return total, inserted, errs.join(st, acct, region)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-func scanAidevopsAgentSpaces(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string) (spaceIDs []string, total, inserted int, err error) {
-	p := devopsagent.NewListAgentSpacesPaginator(client, &devopsagent.ListAgentSpacesInput{})
-	for p.HasMorePages() {
-		page, perr := p.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return spaceIDs, total, inserted, skipIfAccessDenied(st, "aidevops:ListAgentSpaces", acct.ID, region, perr)
+// aidevopsTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: the ARN built in the Service Reference's format, on the
+// assumption, unverified live, that the ARN's id is the id the listing
+// returns. The Service Reference lists agent spaces, services and private
+// connections, and no other type stored here, under ListTagsForResource and
+// TagResource; the op's model ARN pattern accepts those three kinds only, and
+// only their Create (RegisterService for a service) inputs take Tags.
+// ResourceNotFoundException, the op's modeled not-found, drops a resource
+// deleted after it was listed. The model's ARN pattern names the aws
+// partition only; a GovCloud or China ARN is sent in its own partition, and
+// how the op answers it is unverified.
+func aidevopsTags(client aidevopsAPI) rowTagReader {
+	return rowTagReader{
+		op:       aidevopsTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &devopsagent.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
+			if err != nil {
+				return nil, err
 			}
-			return spaceIDs, total, inserted, fmt.Errorf("aidevops:ListAgentSpaces: %w", perr)
-		}
-		batch := make([]*store.Resource, 0, len(page.AgentSpaces))
-		for _, a := range page.AgentSpaces {
+			return mapTagsJSON(out.Tags), nil
+		},
+	}
+}
+
+// scanAidevopsAgentSpaces stores the agent spaces with their tags, a page at
+// a time, and returns those stored as the parents of the per-space phases,
+// each keyed by its AgentSpaceId. It reports whether a write failed, after
+// which the scan must stop.
+func scanAidevopsAgentSpaces(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, aidevopsListAgentSpacesOp, "agent spaces", "AgentSpaceId",
+		func(ctx context.Context, token *string) ([]devopsagenttypes.AgentSpace, *string, error) {
+			out, err := client.ListAgentSpaces(ctx, &devopsagent.ListAgentSpacesInput{MaxResults: sdkaws.Int32(aidevopsPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.AgentSpaces, out.NextToken, nil
+		},
+		func(a devopsagenttypes.AgentSpace) (*store.Resource, string, string) {
 			id := sv(a.AgentSpaceId)
 			if id == "" {
-				continue
+				return nil, "agent spaces have no AgentSpaceId", cmp.Or(sv(a.Name), noIdentifier)
 			}
-			spaceIDs = append(spaceIDs, id)
 			name := sv(a.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeAidevopsAgentSpace,
-				NativeID:       aidevopsARN(acct.partition(), region, acct.ID, "agent-space", id),
-				Name:           &name,
-				Region:         &region,
-				CreatedAt:      tp(a.CreatedAt),
-				AttributesJSON: mustJSON(a),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, i, uerr := upsertBatch(st, batch, "aidevops agent-spaces")
-		total, inserted = total+t, inserted+i
-		if uerr != nil {
-			return spaceIDs, total, inserted, uerr
-		}
-	}
-	return spaceIDs, total, inserted, nil
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAidevopsAgentSpace, NativeID: aidevopsAgentSpaceARN(acct.partition(), region, acct.ID, id),
+				Name: &name, Region: &region, CreatedAt: tp(a.CreatedAt),
+				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
+			}, "", ""
+		},
+		func(a devopsagenttypes.AgentSpace) string { return sv(a.AgentSpaceId) },
+		tags, p)
 }
 
-func scanAidevopsServices(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	p := devopsagent.NewListServicesPaginator(client, &devopsagent.ListServicesInput{})
-	for p.HasMorePages() {
-		page, perr := p.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return total, inserted, skipIfAccessDenied(st, "aidevops:ListServices", acct.ID, region, perr)
+// scanAidevopsServices stores the registered services with their tags, each
+// page written as soon as its tags are read. It reports whether a write
+// failed, after which the scan must stop.
+func scanAidevopsServices(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, aidevopsListServicesOp,
+		func(ctx context.Context, token *string) ([]devopsagenttypes.RegisteredService, *string, error) {
+			out, err := client.ListServices(ctx, &devopsagent.ListServicesInput{MaxResults: sdkaws.Int32(aidevopsPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return total, inserted, fmt.Errorf("aidevops:ListServices: %w", perr)
-		}
-		batch := make([]*store.Resource, 0, len(page.Services))
-		for _, s := range page.Services {
+			return out.Services, out.NextToken, nil
+		},
+		func(s devopsagenttypes.RegisteredService) (*store.Resource, string, string) {
 			id := sv(s.ServiceId)
 			if id == "" {
-				continue
+				return nil, "services have no ServiceId", cmp.Or(sv(s.Name), noIdentifier)
 			}
 			name := sv(s.Name)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeAidevopsService,
-				NativeID:       aidevopsARN(acct.partition(), region, acct.ID, "service", id),
-				Name:           &name,
-				Region:         &region,
-				AttributesJSON: mustJSON(s),
-				DiscoveredBy:   scanID,
-			})
-		}
-		t, i, uerr := upsertBatch(st, batch, "aidevops services")
-		total, inserted = total+t, inserted+i
-		if uerr != nil {
-			return total, inserted, uerr
-		}
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAidevopsService, NativeID: aidevopsARN(acct.partition(), region, acct.ID, "service", id),
+				Name: &name, Region: &region,
+				AttributesJSON: mustJSON(newAidevopsServiceAttrs(s)), DiscoveredBy: scanID,
+			}, "", ""
+		},
+		tags, p)
+}
+
+// aidevopsServiceAttrs is the SDK RegisteredService with its AccessibleResources
+// documents rendered and its AdditionalServiceDetails union, which marshals as
+// an unlabelled {"Value": ...}, keyed by member name. A nil and an empty
+// AccessibleResources stay null and [], as the SDK shape writes them.
+type aidevopsServiceAttrs struct {
+	devopsagenttypes.RegisteredService
+	AccessibleResources      []aidevopsDocumentJSON
+	AdditionalServiceDetails aidevopsServiceDetailsAttrs
+}
+
+func newAidevopsServiceAttrs(s devopsagenttypes.RegisteredService) aidevopsServiceAttrs {
+	out := aidevopsServiceAttrs{RegisteredService: s, AdditionalServiceDetails: flattenAidevopsServiceDetails(s.AdditionalServiceDetails)}
+	if s.AccessibleResources != nil {
+		out.AccessibleResources = make([]aidevopsDocumentJSON, 0, len(s.AccessibleResources))
 	}
-	return total, inserted, nil
+	for _, d := range s.AccessibleResources {
+		out.AccessibleResources = append(out.AccessibleResources, aidevopsDocumentJSON{d})
+	}
+	return out
+}
+
+// aidevopsDocumentJSON renders a Smithy document through smithyDocumentJSON when
+// the row is marshalled, so a document that does not render fails the row's
+// mustJSON, which the store reports as a scan error with the row still
+// written, instead of the row being dropped.
+type aidevopsDocumentJSON struct{ doc document.Interface }
+
+func (d aidevopsDocumentJSON) MarshalJSON() ([]byte, error) {
+	return smithyDocumentJSON(d.doc)
+}
+
+// aidevopsServiceDetailsAttrs holds the one AdditionalServiceDetails member a
+// service carries, under its member name. A member newer than the pinned SDK
+// is kept under UnknownMember with its tag (precedent: acmAcmeEndpointAttrs).
+type aidevopsServiceDetailsAttrs struct {
+	Azuredevops       *devopsagenttypes.RegisteredAzureDevOpsServiceDetails `json:",omitempty"`
+	Azureidentity     *devopsagenttypes.RegisteredAzureIdentityDetails      `json:",omitempty"`
+	Github            *devopsagenttypes.RegisteredGithubServiceDetails      `json:",omitempty"`
+	Gitlab            *devopsagenttypes.RegisteredGitLabServiceDetails      `json:",omitempty"`
+	Mcpserver         *devopsagenttypes.RegisteredMCPServerDetails          `json:",omitempty"`
+	Mcpserverdatadog  *devopsagenttypes.RegisteredMCPServerDetails          `json:",omitempty"`
+	Mcpservergrafana  *devopsagenttypes.RegisteredGrafanaServerDetails      `json:",omitempty"`
+	Mcpservernewrelic *devopsagenttypes.RegisteredNewRelicDetails           `json:",omitempty"`
+	Mcpserversigv4    *devopsagenttypes.RegisteredMCPServerSigV4Details     `json:",omitempty"`
+	Mcpserversplunk   *devopsagenttypes.RegisteredMCPServerDetails          `json:",omitempty"`
+	Pagerduty         *devopsagenttypes.RegisteredPagerDutyDetails          `json:",omitempty"`
+	Remoteagent       *devopsagenttypes.RegisteredRemoteAgentDetails        `json:",omitempty"`
+	Remoteagentsigv4  *devopsagenttypes.RegisteredRemoteAgentSigV4Details   `json:",omitempty"`
+	Servicenow        *devopsagenttypes.RegisteredServiceNowDetails         `json:",omitempty"`
+	Slack             *devopsagenttypes.RegisteredSlackServiceDetails       `json:",omitempty"`
+	UnknownMember     *devopsagenttypes.UnknownUnionMember                  `json:",omitempty"`
+}
+
+func flattenAidevopsServiceDetails(d devopsagenttypes.AdditionalServiceDetails) aidevopsServiceDetailsAttrs {
+	var out aidevopsServiceDetailsAttrs
+	switch m := d.(type) {
+	case *devopsagenttypes.AdditionalServiceDetailsMemberAzuredevops:
+		out.Azuredevops = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberAzureidentity:
+		out.Azureidentity = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberGithub:
+		out.Github = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberGitlab:
+		out.Gitlab = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberMcpserver:
+		out.Mcpserver = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberMcpserverdatadog:
+		out.Mcpserverdatadog = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberMcpservergrafana:
+		out.Mcpservergrafana = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberMcpservernewrelic:
+		out.Mcpservernewrelic = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberMcpserversigv4:
+		out.Mcpserversigv4 = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberMcpserversplunk:
+		out.Mcpserversplunk = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberPagerduty:
+		out.Pagerduty = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberRemoteagent:
+		out.Remoteagent = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberRemoteagentsigv4:
+		out.Remoteagentsigv4 = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberServicenow:
+		out.Servicenow = &m.Value
+	case *devopsagenttypes.AdditionalServiceDetailsMemberSlack:
+		out.Slack = &m.Value
+	case *devopsagenttypes.UnknownUnionMember:
+		out.UnknownMember = m
+	}
+	return out
 }
 
 // aidevopsAssociation is an association listed this scan: ListWebhooks keys
@@ -264,36 +385,32 @@ func scanAidevopsAssociations(ctx context.Context, client aidevopsAPI, acct *acc
 	return associations, total, inserted, nil
 }
 
-// scanAidevopsPrivateConnections: ListPrivateConnections is a single-call list
-// (no paginator / NextToken in the SDK).
-func scanAidevopsPrivateConnections(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	out, perr := client.ListPrivateConnections(ctx, &devopsagent.ListPrivateConnectionsInput{})
-	if perr != nil {
-		if isAccessDenied(perr) {
-			return 0, 0, skipIfAccessDenied(st, "aidevops:ListPrivateConnections", acct.ID, region, perr)
-		}
-		return 0, 0, fmt.Errorf("aidevops:ListPrivateConnections: %w", perr)
-	}
-	batch := make([]*store.Resource, 0, len(out.PrivateConnections))
-	for _, c := range out.PrivateConnections {
-		name := sv(c.Name)
-		if name == "" {
-			continue
-		}
-		n := name
-		batch = append(batch, &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeAidevopsPrivateConnection,
-			NativeID:       aidevopsARN(acct.partition(), region, acct.ID, "private-connection", name),
-			Name:           &n,
-			Region:         &region,
-			AttributesJSON: mustJSON(c),
-			DiscoveredBy:   scanID,
-		})
-	}
-	return upsertBatch(st, batch, "aidevops private-connections")
+// scanAidevopsPrivateConnections stores the private connections with their
+// tags. ListPrivateConnections is a single call: the model gives it no
+// pagination. It reports whether the write failed, after which the scan must
+// stop.
+func scanAidevopsPrivateConnections(ctx context.Context, client aidevopsAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenListTags(ctx, st, acct, region, aidevopsListPrivateConnectionsOp,
+		func(ctx context.Context, _ *string) ([]devopsagenttypes.PrivateConnectionSummary, *string, error) {
+			out, err := client.ListPrivateConnections(ctx, &devopsagent.ListPrivateConnectionsInput{})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.PrivateConnections, nil, nil
+		},
+		func(c devopsagenttypes.PrivateConnectionSummary) (*store.Resource, string, string) {
+			name := sv(c.Name)
+			if name == "" {
+				return nil, "private connections have no Name", cmp.Or(sv(c.HostAddress), noIdentifier)
+			}
+			return &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeAidevopsPrivateConnection, NativeID: aidevopsARN(acct.partition(), region, acct.ID, "private-connection", name),
+				Name: &name, Status: nonEmptyPtr(string(c.Status)), Region: &region,
+				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
+			}, "", ""
+		},
+		tags, p)
 }
 
 // aidevopsPageCap is the documented maxResults ceiling of the aidevops list ops.
