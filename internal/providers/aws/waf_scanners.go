@@ -3,7 +3,6 @@ package aws
 import (
 	"cmp"
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/waf"
 	waftypes "github.com/aws/aws-sdk-go-v2/service/waf/types"
@@ -56,7 +55,8 @@ const (
 	wafPageCap = 100
 )
 
-// wafGone is the not-found code ListTagsForResource models.
+// wafGone is the not-found code both WAF Classic flavours' ListTagsForResource
+// and wafregional's ListResourcesForWebACL model.
 var wafGone = []string{"WAFNonexistentItemException"}
 
 // wafTaggedKinds are the ARN kinds of the WAF Classic resources that take
@@ -66,7 +66,8 @@ var wafGone = []string{"WAFNonexistentItemException"}
 var wafTaggedKinds = map[string]bool{"webacl": true, "rule": true, "rulegroup": true, "ratebasedrule": true}
 
 // wafNoIDReasons says, per ARN kind, why a listed element of that kind
-// without its id is not stored. Every kind wafPhases lists has one.
+// without its id is not stored. Every kind wafPhases and wafRegionalPhases
+// list has one.
 var wafNoIDReasons = map[string]string{
 	"webacl":               "web ACLs have no WebACLId",
 	"rule":                 "rules have no RuleId",
@@ -130,68 +131,100 @@ func scanWAF(ctx context.Context, acct *account, _ string, st *store.Store, scan
 // read, and their denials are one warning for the whole scan.
 func scanWAFClassic(ctx context.Context, client wafAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	tags := wafTags(client).sharingDenials()
-	listings := wafPhases(client)
+	flavour := wafFlavour{svc: "waf", region: regionGlobal, arn: func(kind, id string) string { return wafARN(acct.partition(), acct.ID, kind, id) }}
+	phases := wafListingPhases(ctx, st, acct, region, scanID, flavour, wafPhases(client), tags, nil)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "waf", 0, phases)
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
+}
+
+// wafFlavour is what sets the rows of one WAF Classic flavour apart: svc,
+// the SDK package its ops are reported under; region, the Region its rows
+// are stored with; and arn, which builds a row's ARN from its kind and id.
+type wafFlavour struct {
+	svc    string
+	region *string
+	arn    func(kind, id string) string
+}
+
+// wafListingPhases is one hostPhase per listing of flavour, each reported
+// under flavour.svc and the listing's op. The rows of the types that take
+// tags (wafTaggedKinds) have their tags read through tags, a page written
+// before the next is read; the others are written once their listing ends.
+// webACLs, when set, is given the web ACLs stored, as the parents of a later
+// phase.
+func wafListingPhases(ctx context.Context, st *store.Store, acct *account, region, scanID string, flavour wafFlavour, listings []wafPhase, tags rowTagReader, webACLs *[]childParent) []hostPhase {
 	phases := make([]hostPhase, len(listings))
 	for i, ph := range listings {
-		op := "waf:" + ph.op
-		row := func(it wafItem) (*store.Resource, string, string) { return wafRow(acct, scanID, ph, it) }
+		op := flavour.svc + ":" + ph.op
+		row := func(it wafItem) (*store.Resource, string, string) { return wafRow(acct, scanID, flavour, ph, it) }
 		phases[i] = hostPhase{op: op, run: func(p *phaseTotals) bool {
-			if wafTaggedKinds[ph.kind] {
+			switch {
+			case ph.kind == "webacl" && webACLs != nil:
+				var failed bool
+				*webACLs, failed = storeParentPagesTags(ctx, st, acct, region, op, "web ACLs", "WebACLId", ph.list, row, func(it wafItem) string { return it.id }, tags, p)
+				return failed
+			case wafTaggedKinds[ph.kind]:
 				return storeTokenPagesTags(ctx, st, acct, region, op, ph.list, row, tags, p)
 			}
 			total, inserted, err := storeTokenList(ctx, st, acct, region, op, ph.list, row)
 			return p.addPhase(op, total, inserted, err)
 		}}
 	}
-	total, inserted, err := runHostPhases(ctx, st, acct, region, "waf", 0, phases)
-	tags.warnDenials(st, acct, region)
-	return total, inserted, err
+	return phases
 }
 
-// wafRow is the row of an element ph listed, stored with region "global"
-// under the ARN built from its id, since the listings return none. An element
+// wafRow is the row of an element ph listed, stored under the ARN
+// flavour.arn builds from its id, since the listings return none. An element
 // without an id is not stored: its ARN would name no resource, and every such
 // element would merge into one row.
-func wafRow(acct *account, scanID string, ph wafPhase, it wafItem) (*store.Resource, string, string) {
+func wafRow(acct *account, scanID string, flavour wafFlavour, ph wafPhase, it wafItem) (*store.Resource, string, string) {
 	if it.id == "" {
 		return nil, wafNoIDReasons[ph.kind], cmp.Or(it.name, noIdentifier)
 	}
 	return &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-		Type: ph.discoType, NativeID: wafARN(acct.partition(), acct.ID, ph.kind, it.id),
-		Name: nonEmptyPtr(it.name), Region: regionGlobal, AttributesJSON: mustJSON(it.attrs), DiscoveredBy: scanID,
+		Type: ph.discoType, NativeID: flavour.arn(ph.kind, it.id),
+		Name: nonEmptyPtr(it.name), Region: flavour.region, AttributesJSON: mustJSON(it.attrs), DiscoveredBy: scanID,
 	}, "", ""
 }
 
-// wafTags reads a row's tags with ListTagsForResource, sent the row's
-// NativeID: the ARN wafARN built from the listed id, which is in the Service
-// Reference's ARN format for every type read here. The op pages its tags;
-// every page is read, and a repeated NextMarker fails the read.
-// WAFNonexistentItemException, its modeled not-found, drops a resource
-// deleted after it was listed.
+// wafTags reads a row's tags with the global flavour's ListTagsForResource
+// (wafTagsVia).
 func wafTags(client wafAPI) rowTagReader {
+	return wafTagsVia(wafTagsOp, func(ctx context.Context, arn string, marker *string) ([]waftypes.Tag, *string, error) {
+		out, err := client.ListTagsForResource(ctx, &waf.ListTagsForResourceInput{ResourceARN: &arn, Limit: wafPageCap, NextMarker: marker})
+		if err != nil {
+			return nil, nil, err
+		}
+		// A page without TagInfoForResource is read as holding no tags;
+		// whether the service sends one is unverified live.
+		var page []waftypes.Tag
+		if info := out.TagInfoForResource; info != nil {
+			page = info.TagList
+		}
+		return page, out.NextMarker, nil
+	}, func(t waftypes.Tag) (*string, *string) { return t.Key, t.Value })
+}
+
+// wafTagsVia reads a row's tags with op, a WAF Classic flavour's
+// ListTagsForResource, whose page reads one page of them, sent the row's
+// NativeID: the ARN built from the listed id, which is in the Service
+// Reference's ARN format for every type read here. Every page is read, and a
+// repeated NextMarker fails the read. WAFNonexistentItemException, the op's
+// modeled not-found, drops a resource deleted after it was listed.
+func wafTagsVia[Tag any](op string, page func(ctx context.Context, arn string, marker *string) ([]Tag, *string, error), kv func(Tag) (key, value *string)) rowTagReader {
 	return rowTagReader{
-		op:       wafTagsOp,
+		op:       op,
 		notFound: wafGone,
 		read: func(ctx context.Context, r *store.Resource) (*string, error) {
-			arn := r.NativeID
-			tags, err := readTokenPages(ctx, func(ctx context.Context, marker *string) ([]waftypes.Tag, *string, error) {
-				out, err := client.ListTagsForResource(ctx, &waf.ListTagsForResourceInput{ResourceARN: &arn, Limit: wafPageCap, NextMarker: marker})
-				if err != nil {
-					return nil, nil, err
-				}
-				// A page without TagInfoForResource is read as holding no
-				// tags; whether the service sends one is unverified live.
-				var page []waftypes.Tag
-				if info := out.TagInfoForResource; info != nil {
-					page = info.TagList
-				}
-				return page, out.NextMarker, nil
+			tags, err := readTokenPages(ctx, func(ctx context.Context, marker *string) ([]Tag, *string, error) {
+				return page(ctx, r.NativeID, marker)
 			})
 			if err != nil {
 				return nil, err
 			}
-			return kvTagsJSON(tags, func(t waftypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+			return kvTagsJSON(tags, kv), nil
 		},
 	}
 }
@@ -334,74 +367,4 @@ func wafPhases(c wafAPI) []wafPhase {
 			return items, out.NextMarker, nil
 		}},
 	}
-}
-
-// wafCollect walks the NextMarker pagination loop for one List op, accumulating
-// every page's items.
-func wafCollect(ctx context.Context, page func(ctx context.Context, marker *string) ([]wafItem, *string, error)) ([]wafItem, error) {
-	var out []wafItem
-	var marker *string
-	for {
-		items, next, err := page(ctx, marker)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, items...)
-		if next == nil || sv(next) == "" {
-			return out, nil
-		}
-		marker = next
-	}
-}
-
-// scanWAFPhases runs every phase of the regional WAF Classic flavour
-// (scanWAFRegional; the global flavour runs scanWAFClassic). regionScope tags
-// the warning/error scope; regionPtr is the resource Region column. Returns
-// the scanned web-ACL ids so the caller can fan out ListResourcesForWebACL.
-func scanWAFPhases(ctx context.Context, phases []wafPhase, acct *account, regionScope string, regionPtr *string, st *store.Store, scanID, svcPrefix string, arnFn func(kind, id string) string) (total, inserted int, webACLIDs []string, err error) {
-	for _, ph := range phases {
-		items, lerr := wafCollect(ctx, ph.list)
-		if lerr != nil {
-			if isAccessDenied(lerr) {
-				_ = skipIfAccessDenied(st, svcPrefix+":"+ph.op, acct.ID, regionScope, lerr)
-				continue
-			}
-			return total, inserted, webACLIDs, fmt.Errorf("%s:%s: %w", svcPrefix, ph.op, lerr)
-		}
-		if ph.kind == "webacl" {
-			for _, it := range items {
-				if it.id != "" {
-					webACLIDs = append(webACLIDs, it.id)
-				}
-			}
-		}
-		t, i, uerr := upsertWAFItems(st, acct, scanID, items, ph.discoType, ph.kind, regionPtr, arnFn)
-		if uerr != nil {
-			return total, inserted, webACLIDs, uerr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, webACLIDs, nil
-}
-
-// upsertWAFItems builds + upserts the resource batch for one phase's items.
-func upsertWAFItems(st *store.Store, acct *account, scanID string, items []wafItem, discoType, kind string, regionPtr *string, arnFn func(kind, id string) string) (int, int, error) {
-	batch := make([]*store.Resource, 0, len(items))
-	for _, it := range items {
-		if it.id == "" {
-			continue
-		}
-		res := &store.Resource{
-			Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-			Type: discoType, NativeID: arnFn(kind, it.id),
-			Region: regionPtr, AttributesJSON: mustJSON(it.attrs), DiscoveredBy: scanID,
-		}
-		if it.name != "" {
-			nm := it.name
-			res.Name = &nm
-		}
-		batch = append(batch, res)
-	}
-	return upsertBatch(st, batch, discoType)
 }
