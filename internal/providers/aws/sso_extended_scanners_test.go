@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -517,10 +518,7 @@ func ssoTopLevelResponses() map[string][]stubCall {
 			{Output: &identitystore.ListGroupsOutput{Groups: []istypes.Group{{GroupId: sdkaws.String("g-1")}}}},
 		},
 		"ListGroupMemberships": one(&identitystore.ListGroupMembershipsOutput{}),
-		"ListPermissionSets": {
-			{Output: &ssoadmin.ListPermissionSetsOutput{PermissionSets: []string{ssoTestPermissionSetARN("a")}}},
-			{Output: &ssoadmin.ListPermissionSetsOutput{PermissionSets: []string{ssoTestPermissionSetARN("a")}}},
-		},
+		"ListPermissionSets":   one(&ssoadmin.ListPermissionSetsOutput{PermissionSets: []string{ssoTestPermissionSetARN("a")}}),
 		"DescribePermissionSet": one(&ssoadmin.DescribePermissionSetOutput{PermissionSet: &ssotypes.PermissionSet{
 			PermissionSetArn: sdkaws.String(ssoTestPermissionSetARN("a")), Name: sdkaws.String("Admins"),
 		}}),
@@ -548,16 +546,24 @@ func ssoTopLevelResponses() map[string][]stubCall {
 		"ListApplicationAuthenticationMethods": one(&ssoadmin.ListApplicationAuthenticationMethodsOutput{AuthenticationMethods: []ssotypes.AuthenticationMethodItem{ssoIAMMethod()}}),
 		"ListApplicationGrants":                one(&ssoadmin.ListApplicationGrantsOutput{Grants: []ssotypes.GrantItem{ssoGrant(ssotypes.GrantTypeJwtBearer)}}),
 		"ListRegions":                          one(&ssoadmin.ListRegionsOutput{Regions: []ssotypes.RegionMetadata{ssoRegion("us-east-1", true)}}),
+		// One read each for the instance, permission set, application and issuer.
+		"ListTagsForResource": {
+			{Output: &ssoadmin.ListTagsForResourceOutput{}},
+			{Output: &ssoadmin.ListTagsForResourceOutput{}},
+			{Output: &ssoadmin.ListTagsForResourceOutput{}},
+			{Output: &ssoadmin.ListTagsForResourceOutput{}},
+		},
 	}
 }
 
-// Drives scanSSOAdmin against real SDK clients. Regions and the application
-// children are listed for the instance and applications the scan just stored,
-// after every established phase, so a failure in them keeps the established
-// rows; Regions run first, so an application-phase failure keeps them too.
-// The permission-set policy lists run last, for the permission set stored this
-// scan; each keeps its rows when the other fails, and a throttle on one cannot
-// turn the other's hard error into a transient one.
+// Drives scanSSOAdmin against real SDK clients. Every phase and every
+// listing within one runs whatever an earlier one returned, so a failure
+// costs only the rows of the call that failed: a failed Regions or
+// application-child listing keeps every other row, a failed
+// DescribePermissionSet keeps the permission set as its listed element (its
+// policies still listed). Each policy list keeps its rows when the other
+// fails, and a throttle on one cannot turn the other's hard error into a
+// transient one.
 func TestScanSSOAdmin_NewPhasesWiredAndOrdered(t *testing.T) {
 	type row struct{ typ, nativeID string }
 	app := ssoTestAppARN("a")
@@ -576,13 +582,9 @@ func TestScanSSOAdmin_NewPhasesWiredAndOrdered(t *testing.T) {
 	assignment := row{TypeSSOAccountAssignment, ssoAssignmentNativeID(ps, testTargetAcct, "USER", "u-1")}
 	user := row{TypeIdentityStoreUser, identityStoreUserNativeID(testAccountID, testIdentityID, "u-1")}
 	group := row{TypeIdentityStoreGroup, identityStoreGroupNativeID(testAccountID, testIdentityID, "g-1")}
-	head := []row{permissionSet, assignment, user, group}
-	appRows := []row{application, issuer, scope, method, grant, region}
-	established := slices.Concat(head, appRows)
-	all := append(slices.Clone(established), managed, custom)
-	policies := []row{managed, custom}
-	without := func(rows []row, drop row) []row {
-		return slices.DeleteFunc(slices.Clone(rows), func(r row) bool { return r == drop })
+	all := []row{permissionSet, assignment, user, group, application, issuer, scope, method, grant, region, managed, custom}
+	without := func(drop ...row) []row {
+		return slices.DeleteFunc(slices.Clone(all), func(r row) bool { return slices.Contains(drop, r) })
 	}
 	for _, tc := range []struct {
 		name      string
@@ -591,46 +593,50 @@ func TestScanSSOAdmin_NewPhasesWiredAndOrdered(t *testing.T) {
 		want      []row
 		wantErr   bool
 		warnings  int
-		wantCount int // total and inserted, the instance row included; 0 = unchecked
+		wantCount int // total and inserted, the instance row included
 	}{
 		{name: "all succeed", want: all, wantCount: 13},
+		{name: "regions fail", failOp: "ListRegions", want: without(region), wantErr: true, wantCount: 12},
+		{name: "access scopes fail", failOp: "ListApplicationAccessScopes", want: without(scope), wantErr: true, wantCount: 12},
+		{name: "grants fail", failOp: "ListApplicationGrants", want: without(grant), wantErr: true, wantCount: 12},
+		{name: "application providers fail", failOp: "ListApplicationProviders", want: all, wantErr: true, wantCount: 13},
+		{name: "applications fail", failOp: "ListApplications", want: without(application, scope, method, grant), wantErr: true, wantCount: 9},
+		{name: "trusted token issuers fail", failOp: "ListTrustedTokenIssuers", want: without(issuer), wantErr: true, wantCount: 12},
+		// The fixture has no assignment or access-control config to lose; the
+		// issuer, Regions, application children and policies after them are
+		// still listed.
+		{name: "application assignments fail", failOp: "ListApplicationAssignments", want: all, wantErr: true, wantCount: 13},
+		{name: "access control config fails", failOp: "DescribeInstanceAccessControlAttributeConfiguration", want: all, wantErr: true, wantCount: 13},
 		{
-			name: "regions fail", failOp: "ListRegions", want: slices.Concat(head, []row{application, issuer}, policies), wantErr: true,
-			wantCount: 9, // the application and issuer listed before the failure still count
+			name: "permission set describe fails", failOp: "DescribePermissionSet", want: all, wantErr: true,
+			wantCount: 13, // stored as its listed element, its policies still listed
 		},
-		{name: "access scopes fail", failOp: "ListApplicationAccessScopes", want: slices.Concat(head, []row{application, issuer, region}, policies), wantErr: true},
-		{name: "grants fail", failOp: "ListApplicationGrants", want: slices.Concat(head, []row{application, issuer, region, scope, method}, policies), wantErr: true},
-		{name: "application providers fail", failOp: "ListApplicationProviders", want: slices.Concat(head, policies), wantErr: true, wantCount: 7},
+		{name: "account assignments fail", failOp: "ListAccountsForProvisionedPermissionSet", want: without(assignment), wantErr: true, wantCount: 12},
 		{
-			name: "permission sets fail", failOp: "DescribePermissionSet", want: slices.Concat([]row{assignment, user, group}, appRows), wantErr: true,
-			wantCount: 10, // nothing stored for policies to list; every other phase still runs
-		},
-		{name: "account assignments fail", failOp: "ListAccountsForProvisionedPermissionSet", want: without(all, assignment), wantErr: true, wantCount: 12},
-		{
-			name: "users fail", failOp: "ListUsers", want: without(without(all, user), group), wantErr: true,
+			name: "users fail", failOp: "ListUsers", want: without(user, group), wantErr: true,
 			wantCount: 11, // the phase stops before groups; phases 5 and 6 still run
 		},
 		{
 			name: "users throttled, managed fails", throttle: "ListUsers", failOp: "ListManagedPoliciesInPermissionSet",
-			want: without(without(without(all, user), group), managed), wantErr: true, warnings: 1, wantCount: 10,
+			want: without(user, group, managed), wantErr: true, warnings: 1, wantCount: 10,
 		},
 		{
 			name: "application providers throttled, assignments fail", throttle: "ListApplicationProviders", failOp: "ListAccountsForProvisionedPermissionSet",
-			want: []row{permissionSet, user, group, managed, custom}, wantErr: true, warnings: 1, wantCount: 6,
+			want: without(assignment), wantErr: true, warnings: 1, wantCount: 12,
 		},
 		{
 			name: "assignments throttled, managed fails", throttle: "ListAccountsForProvisionedPermissionSet", failOp: "ListManagedPoliciesInPermissionSet",
-			want: append(without(established, assignment), custom), wantErr: true, warnings: 1, wantCount: 11,
+			want: without(assignment, managed), wantErr: true, warnings: 1, wantCount: 11,
 		},
-		{name: "managed policies fail", failOp: "ListManagedPoliciesInPermissionSet", want: append(slices.Clone(established), custom), wantErr: true},
-		{name: "customer policy references fail", failOp: "ListCustomerManagedPolicyReferencesInPermissionSet", want: append(slices.Clone(established), managed), wantErr: true},
+		{name: "managed policies fail", failOp: "ListManagedPoliciesInPermissionSet", want: without(managed), wantErr: true, wantCount: 12},
+		{name: "customer policy references fail", failOp: "ListCustomerManagedPolicyReferencesInPermissionSet", want: without(custom), wantErr: true, wantCount: 12},
 		{
 			name: "managed throttled, customer fails", throttle: "ListManagedPoliciesInPermissionSet", failOp: "ListCustomerManagedPolicyReferencesInPermissionSet",
-			want: established, wantErr: true, warnings: 1,
+			want: without(managed, custom), wantErr: true, warnings: 1, wantCount: 11,
 		},
 		{
 			name: "customer throttled, managed fails", throttle: "ListCustomerManagedPolicyReferencesInPermissionSet", failOp: "ListManagedPoliciesInPermissionSet",
-			want: established, wantErr: true, warnings: 1,
+			want: without(managed, custom), wantErr: true, warnings: 1, wantCount: 11,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -652,7 +658,7 @@ func TestScanSSOAdmin_NewPhasesWiredAndOrdered(t *testing.T) {
 			}}
 
 			total, inserted, err := scanSSOAdmin(context.Background(), acct, testRegion, st, testScanID)
-			if tc.wantCount != 0 && (total != tc.wantCount || inserted != tc.wantCount) {
+			if total != tc.wantCount || inserted != tc.wantCount {
 				t.Errorf("total=%d inserted=%d, want %d each", total, inserted, tc.wantCount)
 			}
 			if tc.wantErr != isAPIErrorCode(err, failCode) {
@@ -674,11 +680,12 @@ func TestScanSSOAdmin_NewPhasesWiredAndOrdered(t *testing.T) {
 	}
 }
 
-// The policy lists run only for permission sets the scan stored: not for ones
-// whose DescribePermissionSet was denied (one warning for both), nor for one
-// described without an ARN or without a permission set (one not-stored
-// warning), nor for one deleted after the listing (silent). The account
-// assignments fan-out treats a denied or deleted triple the same way.
+// The policy lists run for every permission set the scan stored: those whose
+// DescribePermissionSet was denied (stored as their listed element, one
+// warning for both) and those described without an ARN or without a
+// permission set (stored under their listed ARN), but not for one deleted
+// after the listing (dropped silently). The account assignments fan-out
+// drops a denied triple (one warning) and a deleted one (silent).
 func TestScanSSOAdmin_PolicyListsOnlyForStoredPermissionSets(t *testing.T) {
 	stored, denied, denied2 := ssoTestPermissionSetARN("a"), ssoTestPermissionSetARN("b"), ssoTestPermissionSetARN("f")
 	noARN, noSet, gone := ssoTestPermissionSetARN("c"), ssoTestPermissionSetARN("d"), ssoTestPermissionSetARN("e")
@@ -744,6 +751,7 @@ func TestScanSSOAdmin_PolicyListsOnlyForStoredPermissionSets(t *testing.T) {
 			record("custom", ps)
 			return &ssoadmin.ListCustomerManagedPolicyReferencesInPermissionSetOutput{}, nil
 		},
+		"ListTagsForResource": func(any) (any, error) { return &ssoadmin.ListTagsForResourceOutput{}, nil },
 	}
 	st := newTestStore(t)
 	type tally struct{ denied, other int }
@@ -766,8 +774,8 @@ func TestScanSSOAdmin_PolicyListsOnlyForStoredPermissionSets(t *testing.T) {
 	if _, _, err := scanSSOAdmin(context.Background(), acct, testRegion, st, testScanID); err != nil {
 		t.Fatalf("scanSSOAdmin: %v", err)
 	}
-	if got := *warnings["sso-admin:DescribePermissionSet"]; got != (tally{denied: 1, other: 1}) {
-		t.Errorf("DescribePermissionSet warnings=%+v, want one denial and one not-stored warning", got)
+	if got := *warnings["sso-admin:DescribePermissionSet"]; got != (tally{denied: 1}) {
+		t.Errorf("DescribePermissionSet warnings=%+v, want one denial", got)
 	}
 	if got := *warnings["sso-admin:ListAccountAssignments"]; got != (tally{denied: 1}) {
 		t.Errorf("ListAccountAssignments warnings=%+v, want one denial", got)
@@ -776,41 +784,27 @@ func TestScanSSOAdmin_PolicyListsOnlyForStoredPermissionSets(t *testing.T) {
 	if _, ok := assignments[ssoAssignmentNativeID(stored, okAcct, "USER", "u-1")]; !ok || len(assignments) != 1 {
 		t.Errorf("assignment rows=%v, want only account %s's", assignments, okAcct)
 	}
-	if sets := lmvRows(t, st, TypeSSOPermissionSet); len(sets) != 1 {
-		t.Errorf("permission-set rows=%v, want only %s", sets, stored)
-	} else if _, ok := sets[stored]; !ok {
-		t.Errorf("permission-set rows=%v, want %s", sets, stored)
+	kept := []string{stored, denied, noARN, noSet, denied2}
+	slices.Sort(kept)
+	sets := lmvRows(t, st, TypeSSOPermissionSet)
+	if got := slices.Sorted(maps.Keys(sets)); !slices.Equal(got, kept) {
+		t.Errorf("permission-set rows=%v, want %v", got, kept)
 	}
+	if got := sv(sets[noARN].Name); got != "no-arn" {
+		t.Errorf("%s Name=%q, want the described no-arn", noARN, got)
+	}
+	var want []string
+	for _, ps := range kept {
+		want = append(want, "custom/"+ps, "managed/"+ps)
+	}
+	slices.Sort(want)
 	slices.Sort(calls)
-	if want := []string{"custom/" + stored, "managed/" + stored}; !slices.Equal(calls, want) {
+	if !slices.Equal(calls, want) {
 		t.Errorf("policy calls=%v, want %v", calls, want)
 	}
 	rows := lmvRows(t, st, TypeSSOManagedPolicy)
-	if _, ok := rows[stored+"/managed-policy/arn:aws:iam::aws:policy/AdministratorAccess"]; !ok || len(rows) != 1 {
-		t.Errorf("managed-policy rows=%v, want only the stored permission set's", rows)
-	}
-}
-
-// A DescribePermissionSet answer with no PermissionSet stores nothing and is
-// reported in the not-stored warning, like one without an ARN.
-func TestScanSSOPermissionSets_NoPermissionSetWarns(t *testing.T) {
-	ps := ssoTestPermissionSetARN("d")
-	deny := apiErr("AccessDeniedException", "User: arn:aws:iam::123456789012:role/x is not authorized to perform: sso:List")
-	client := ssoadmin.NewFromConfig(opStubConfig(map[string]func(any) (any, error){
-		"ListPermissionSets":    func(any) (any, error) { return &ssoadmin.ListPermissionSetsOutput{PermissionSets: []string{ps}}, nil },
-		"DescribePermissionSet": func(any) (any, error) { return &ssoadmin.DescribePermissionSetOutput{}, nil },
-	}, deny))
-	st := newTestStore(t)
-	var warnings []store.ScanWarning
-	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
-	instances := []ssotypes.InstanceMetadata{{InstanceArn: sdkaws.String(ssoTestInstanceARN)}}
-
-	sets, total, _, err := scanSSOPermissionSets(context.Background(), client, newTestAccount(testAccountID), testRegion, instances, st, testScanID)
-	if err != nil || total != 0 || len(sets) != 0 {
-		t.Fatalf("sets=%v total=%d err=%v, want none stored and nil", sets, total, err)
-	}
-	if len(warnings) != 1 || warnings[0].Service != "sso-admin:DescribePermissionSet" {
-		t.Errorf("warnings=%v, want one sso-admin:DescribePermissionSet not-stored warning", warnings)
+	if _, ok := rows[stored+"/managed-policy/arn:aws:iam::aws:policy/AdministratorAccess"]; !ok || len(rows) != len(kept) {
+		t.Errorf("managed-policy rows=%v, want one per stored permission set", rows)
 	}
 }
 
@@ -847,6 +841,7 @@ func TestScanSSOAdmin_FanOutThrottleIsTransient(t *testing.T) {
 			"ListCustomerManagedPolicyReferencesInPermissionSet": func(any) (any, error) {
 				return &ssoadmin.ListCustomerManagedPolicyReferencesInPermissionSetOutput{}, nil
 			},
+			"ListTagsForResource": func(any) (any, error) { return &ssoadmin.ListTagsForResourceOutput{}, nil },
 		}
 	}
 	// firstFails answers op's first call with an error of code and the rest with ok.

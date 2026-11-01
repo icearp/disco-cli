@@ -1494,6 +1494,38 @@ func TestStoreTokenPagesTagsWith_DetailsFailedWrite(t *testing.T) {
 	}
 }
 
+// A details reader sharing its denials (sharingDetailDenials) sends no
+// warning from the listings read through it: their denied rows are tallied,
+// every listing's, and warnDetailDenials sends one warning for them all.
+func TestStoreTokenPagesTagsWith_SharedDetailDenials(t *testing.T) {
+	st := newTestStore(t)
+	all := countWarnings(st)
+	detailWarns := countOpWarnings(st, pagesDetailOp)
+	acct := newTestAccount(testAccountID)
+	var stored [][]string
+	steps := pagesDetailSteps(map[string]error{"1-b": tagTestDenied, "3-a": tagTestDenied}, &stored)
+	steps.details = steps.details.sharingDetailDenials()
+	for range 2 {
+		var p phaseTotals
+		if storeTokenPagesTagsWith(context.Background(), st, acct, testRegion, tagTestListOp, (&tokenPagesTest{}).page(st), tagTestRow, steps, pagesTestTags(nil), &p) {
+			t.Fatal("stop = true; want false")
+		}
+		if _, _, err := p.result(st, acct, testRegion); err != nil {
+			t.Fatalf("err = %v; want nil", err)
+		}
+	}
+	if *all != 0 {
+		t.Fatalf("warnings before warnDetailDenials = %d; want 0", *all)
+	}
+	if d := steps.details.denials; d.count != 4 || d.first != "1-b" {
+		t.Errorf("denials tallied = %d, first %q; want 4, first 1-b", d.count, d.first)
+	}
+	steps.details.warnDetailDenials(st, acct, testRegion)
+	if *detailWarns != 1 || *all != 1 {
+		t.Errorf("%s warnings = %d (all %d); want 1", pagesDetailOp, *detailWarns, *all)
+	}
+}
+
 // A row the tag read no longer finds is neither stored nor returned as a
 // parent; a stored row without the child key is warned about and returned as
 // no parent.

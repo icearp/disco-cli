@@ -1508,8 +1508,9 @@ func bodyTagReads(rows []*store.Resource, get func(context.Context, *store.Resou
 }
 
 // storeTokenPagesTagsWith is storeTokenPagesTags with steps run on each
-// page. The detail reads' denials are warned about once for the listing,
-// after every write succeeded, and their errors go to p under
+// page. The detail reads' denials are warned about once for the listing, or
+// added to steps.details.denials when set (sharingDetailDenials), after
+// every write succeeded, and their errors go to p under
 // steps.details.op, hard and transient apart, or are joined into the
 // write's error after a failed write (detailedRows.addPhase).
 func storeTokenPagesTagsWith[Item any](
@@ -2661,12 +2662,38 @@ func readRowDetailsDeniedBy(ctx context.Context, st *store.Store, acct *account,
 
 // rowDetailReader reads, with op, each row's detail body through get, as
 // readRowDetailsDeniedBy says; notFound, isDenied and what are its arguments
-// of those names.
+// of those names. denials, when set, collects the denied rows of every
+// listing read through this reader instead of each listing warning on its
+// own, so that a listing run once per parent warns once for op
+// (warnDetailDenials); nil makes each listing warn.
 type rowDetailReader struct {
 	op, what string
 	notFound []string
 	isDenied func(error) bool
 	get      func(context.Context, *store.Resource) (any, error)
+	denials  *skipTally
+}
+
+// sharingDetailDenials is d with one denial tally for every listing read
+// through it; warnDetailDenials on the result sends the one warning.
+func (d rowDetailReader) sharingDetailDenials() rowDetailReader {
+	d.denials = &skipTally{}
+	return d
+}
+
+// warnDetailDenials warns once under op about every denied row tallied
+// through d.denials, if any; d is a sharingDetailDenials result. The rows
+// were tallied only once their write succeeded.
+func (d rowDetailReader) warnDetailDenials(st *store.Store, acct *account, region string) {
+	warnDeniedDetails(st, d, acct, region, d.denials)
+}
+
+// warnDeniedDetails reports the rows denied tallied, read through d, in one
+// warning, if any.
+func warnDeniedDetails(st *store.Store, d rowDetailReader, acct *account, region string, denied *skipTally) {
+	if denied.count > 0 {
+		_ = skipIfAccessDenied(st, d.op, acct.ID, region, fmt.Errorf("%d %s stored as their list element, first %s: %w", denied.count, d.what, denied.first, denied.err))
+	}
 }
 
 // rowDetailTally carries readRowDetailsDeniedBy's denied and transient rows
@@ -2730,12 +2757,15 @@ func (t *rowDetailTally) transient(d rowDetailReader) error {
 	return nil
 }
 
-// warn reports every denied row in one warning. Call it only once the rows
-// are stored.
+// warn reports every denied row in one warning, or adds them to d.denials
+// when set, for its caller to warn about (warnDetailDenials). Call it only
+// once the rows are stored.
 func (t *rowDetailTally) warn(st *store.Store, d rowDetailReader, acct *account, region string) {
-	if t.denied.count > 0 {
-		_ = skipIfAccessDenied(st, d.op, acct.ID, region, fmt.Errorf("%d %s stored as their list element, first %s: %w", t.denied.count, d.what, t.denied.first, t.denied.err))
+	if d.denials != nil {
+		d.denials.addAll(&t.denied)
+		return
 	}
+	warnDeniedDetails(st, d, acct, region, &t.denied)
 }
 
 // detailedRows replaces each row a listing built with its Get body

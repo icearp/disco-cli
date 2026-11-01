@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	istypes "github.com/aws/aws-sdk-go-v2/service/identitystore/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
@@ -57,6 +58,7 @@ type ssoadminAPI interface {
 	ListRegions(context.Context, *ssoadmin.ListRegionsInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListRegionsOutput, error)
 	ListManagedPoliciesInPermissionSet(context.Context, *ssoadmin.ListManagedPoliciesInPermissionSetInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListManagedPoliciesInPermissionSetOutput, error)
 	ListCustomerManagedPolicyReferencesInPermissionSet(context.Context, *ssoadmin.ListCustomerManagedPolicyReferencesInPermissionSetInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListCustomerManagedPolicyReferencesInPermissionSetOutput, error)
+	ListTagsForResource(context.Context, *ssoadmin.ListTagsForResourceInput, ...func(*ssoadmin.Options)) (*ssoadmin.ListTagsForResourceOutput, error)
 }
 
 // identitystoreAPI is the narrow set of Identity Store operations called by
@@ -67,18 +69,46 @@ type identitystoreAPI interface {
 	ListGroupMemberships(context.Context, *identitystore.ListGroupMembershipsInput, ...func(*identitystore.Options)) (*identitystore.ListGroupMembershipsOutput, error)
 }
 
+const (
+	ssoListInstancesOp         = "sso-admin:ListInstances"
+	ssoListPermissionSetsOp    = "sso-admin:ListPermissionSets"
+	ssoDescribePermissionSetOp = "sso-admin:DescribePermissionSet"
+	ssoTagsOp                  = "ssoadmin:ListTagsForResource"
+)
+
+// ssoPageCap is the MaxResults range's maximum (1-100) the model gives every
+// SSO Admin listing sent one.
+const ssoPageCap = 100
+
+// ssoGone is the not-found code the model lists for DescribePermissionSet,
+// ListTagsForResource and the per-parent listings: the resource was deleted
+// after it was listed.
+var ssoGone = []string{"ResourceNotFoundException"}
+
 // scanSSOAdmin discovers IAM Identity Center (SSO) instances, permission
 // sets, account-assignments, and the connected Identity Store's users +
 // groups. Scoped per region: ListInstances only returns instances reachable
-// from the calling region, so empty regions short-circuit immediately and
-// only the org instance's home region does work.
+// from the calling region, so in a region with none every later phase has
+// nothing to list.
 //
-// Phases (each tolerates AccessDenied via skipIfAccessDenied without
-// barring later phases — non-management accounts hit AccessDenied on
-// every SSO admin op):
-//  1. ListInstances → upsert TypeSSOInstance.
-//  2. Per instance: ListPermissionSets + DescribePermissionSet fan-out.
-//  3. Per (instance, permission-set): ListAccountsForProvisionedPermissionSet
+// Phases, run one at a time in this order (runHostPhases): a phase's error
+// does not stop the later ones; a failed write and ctx's end do, and so does
+// a ListInstances that stores nothing and fails only with NXDOMAIN (the
+// region does not serve SSO Admin). The Identity Store phase runs as part of
+// the same host, not one of its own: it is called only for an instance
+// ListInstances returned, so its NXDOMAIN is a failure of this scan
+// (ssoIdentityStoreDNSFailure), never a region gap. A denied listing of
+// instances, permission sets, applications or trusted token issuers, or a
+// child listing run through childFanOut (a permission set's policies, an
+// application's access scopes, authentication methods and grants, an
+// instance's regions), is warned about and costs only the rows it would have
+// listed and those listed under them. Two denials do not behave so: a denied
+// ListAccountsForProvisionedPermissionSet ends phase 3 storing no assignment
+// at all, and a denied DescribeInstanceAccessControlAttributeConfiguration
+// stores no row and sends no warning.
+//  1. ListInstances → TypeSSOInstance.
+//  2. Per instance: ListPermissionSets + DescribePermissionSet.
+//  3. Per permission set stored in phase 2: ListAccountsForProvisionedPermissionSet
 //     → per account, ListAccountAssignments. Each AccountAssignment becomes
 //     a TypeSSOAccountAssignment with synthesized NativeID (assignments
 //     have no AWS-issued ARN — see aws/CLAUDE.md).
@@ -87,194 +117,242 @@ type identitystoreAPI interface {
 //  5. scanSSOExtended: applications and the other per-instance surfaces.
 //  6. Per permission set stored in phase 2: its AWS managed policies and
 //     customer managed policy references, one row per attachment.
-func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+//
+// Phases 2 and 5 list under the instances phase 1 stored, phases 3 and 6
+// under the permission sets phase 2 stored, and phase 4 under every instance
+// phase 1 listed, stored or not, as each names its Identity Store. The
+// tags of instances, permission sets, applications and trusted token
+// issuers are read per row (ssoTags), their denials warned about once for
+// the scan.
+func scanSSOAdmin(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	ssoClient := ssoadmin.NewFromConfig(acct.cfg, func(o *ssoadmin.Options) { o.Region = region })
-
-	instances, t, i, ferr := scanSSOInstances(ctx, ssoClient, acct, region, st, scanID)
-	if ferr != nil {
-		return 0, 0, ferr
-	}
-	total += t
-	inserted += i
-	if len(instances) == 0 {
-		return total, inserted, nil
-	}
-
-	// Phases 2-6 each run even when an earlier one failed, and keep their
-	// counts when they fail themselves; phase 6 lists only what phase 2 stored.
-	// Their errors are joined by phaseErrs, a transient one demoted only beside
-	// a hard one: joined, it would be buried in the hard error instead of
-	// reported under its op.
-	var errs phaseErrs
-	add := func(service string, t, i int, err error) {
-		total += t
-		inserted += i
-		errs.add(service, err)
-	}
-
-	permissionSets, t, i, ferr := scanSSOPermissionSets(ctx, ssoClient, acct, region, instances, st, scanID)
-	add("sso-admin", t, i, ferr)
-
-	t, i, ferr = scanSSOAccountAssignments(ctx, ssoClient, acct, region, instances, st, scanID)
-	add("sso-admin", t, i, ferr)
-
 	isClient := identitystore.NewFromConfig(acct.cfg, func(o *identitystore.Options) { o.Region = region })
-	t, i, ferr = scanIdentityStoreUsersGroups(ctx, isClient, acct, region, instances, st, scanID)
-	add("identitystore", t, i, ferr)
 
-	t, i, ferr = scanSSOExtended(ctx, ssoClient, acct, region, instances, st, scanID)
-	add("sso-admin", t, i, ferr)
-
-	// scanSSOPermissionSetPolicies joins its two lists through phaseErrs
-	// itself.
-	t, i, ferr = scanSSOPermissionSetPolicies(ctx, ssoClient, acct, region, permissionSets, st, scanID)
-	total += t
-	inserted += i
-	errs.add("sso-admin", ferr)
-
-	return total, inserted, errs.join(st, acct, region)
+	tags := rowTagReader{op: ssoTagsOp, notFound: ssoGone}.sharingDenials()
+	var (
+		listed, instances []ssotypes.InstanceMetadata
+		permissionSets    []ssoPermissionSet
+	)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "sso-admin", 0, []hostPhase{
+		{op: ssoListInstancesOp, run: func(p *phaseTotals) (storeWriteFailed bool) {
+			listed, instances, storeWriteFailed = scanSSOInstances(ctx, ssoClient, acct, region, st, scanID, tags, p)
+			return storeWriteFailed
+		}},
+		{op: ssoListPermissionSetsOp, run: func(p *phaseTotals) (storeWriteFailed bool) {
+			permissionSets, storeWriteFailed = scanSSOPermissionSets(ctx, ssoClient, acct, region, instances, st, scanID, tags, p)
+			return storeWriteFailed
+		}},
+		countedPhase(0, "sso-admin", func() (int, int, error) {
+			return scanSSOAccountAssignments(ctx, ssoClient, acct, region, permissionSets, st, scanID)
+		}),
+		countedPhase(0, "identitystore", func() (int, int, error) {
+			t, i, err := scanIdentityStoreUsersGroups(ctx, isClient, acct, region, listed, st, scanID)
+			return t, i, ssoIdentityStoreDNSFailure(err)
+		}),
+		{op: ssoListApplicationsOp, run: func(p *phaseTotals) bool {
+			return scanSSOExtended(ctx, ssoClient, acct, region, instances, st, scanID, tags, p)
+		}},
+		// scanSSOPermissionSetPolicies joins its two lists through phaseErrs
+		// itself.
+		countedPhase(0, "sso-admin", func() (int, int, error) {
+			return scanSSOPermissionSetPolicies(ctx, ssoClient, acct, region, permissionSets, st, scanID)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-func scanSSOInstances(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string) (instances []ssotypes.InstanceMetadata, total, inserted int, err error) {
-	pager := ssoadmin.NewListInstancesPaginator(client, &ssoadmin.ListInstancesInput{})
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "sso-admin:ListInstances", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("sso-admin:ListInstances: %w", perr)
-		}
-		instances = append(instances, out.Instances...)
+// ssoIdentityStoreDNSFailure is err with an NXDOMAIN flattened to a plain
+// error. The Identity Store is called only for an instance ListInstances just
+// returned in this region, which names that Identity Store, so its host not
+// resolving is a failure of this scan. Kept as NXDOMAIN with no SSO row
+// stored, the dispatcher would report the region unavailable and drop the
+// missing users, groups and memberships without a word; with rows stored,
+// lateNXDOMAIN's message would claim earlier calls to this endpoint that
+// never ran.
+func ssoIdentityStoreDNSFailure(err error) error {
+	if !isDNSNotFound(err) {
+		return err
 	}
-	if len(instances) == 0 {
-		return nil, 0, 0, nil
-	}
+	return fmt.Errorf("identitystore: the Identity Store endpoint did not resolve, although IAM Identity Center listed an instance in this region that names an Identity Store, so its users and groups may be missing; rescan: %v", err)
+}
 
-	batch := make([]*store.Resource, 0, len(instances))
-	for _, in := range instances {
-		batch = append(batch, &store.Resource{
-			Provider:       "aws",
-			AccountID:      acct.ID,
-			AccountName:    &acct.Name,
-			Type:           TypeSSOInstance,
-			NativeID:       sv(in.InstanceArn),
-			Name:           in.Name,
-			Region:         &region,
-			AttributesJSON: mustJSON(in),
-			DiscoveredBy:   scanID,
+// ssoTags is shared (its op, notFound and the scan's one denial tally)
+// reading a row's tags with ListTagsForResource, sent the row's NativeID, the
+// ARN its listing returned, and instanceARN, the ARN of the instance it was
+// listed under, which the model makes optional and every row has. The
+// Service Reference lists all four types read here under
+// ListTagsForResource (Application, Instance, PermissionSet,
+// TrustedTokenIssuer), and the model's TaggableResourceArn pattern matches
+// each one's ARN; CreateInstance, CreatePermissionSet, CreateApplication and
+// CreateTrustedTokenIssuer take Tags. The op pages its tags; every page is
+// read, and a repeated NextToken fails the read. ResourceNotFoundException,
+// its modeled not-found, drops a resource deleted after it was listed.
+//
+// A row can be another account's: an instance listed by a delegated
+// administrator is its owner's, and so is every permission set in it (their
+// ARNs carry no account, so the instance's OwnerAccountId is the owner
+// signal: untaggedIfOwnerElsewhere); an application or trusted token issuer
+// is the account its ARN names (untaggedIfOtherAccount), which need not be
+// the instance owner, since member accounts of an organization instance
+// create applications in it. Each caller gates its rows so: a denied or
+// not-found read of another account's row keeps it untagged without a
+// warning. Whether IAM Identity Center refuses those reads is unverified
+// live.
+func ssoTags(client ssoadminAPI, shared rowTagReader, instanceARN func(*store.Resource) string) rowTagReader {
+	shared.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		arn, instance := r.NativeID, instanceARN(r)
+		tags, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]ssotypes.Tag, *string, error) {
+			out, err := client.ListTagsForResource(ctx, &ssoadmin.ListTagsForResourceInput{ResourceArn: &arn, InstanceArn: &instance, NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Tags, out.NextToken, nil
 		})
+		if err != nil {
+			return nil, err
+		}
+		return kvTagsJSON(tags, func(t ssotypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
 	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return nil, 0, 0, fmt.Errorf("upsert sso instances: %w", uerr)
+	return shared
+}
+
+// ssoTagsUnder is ssoTags for the rows listed under the instance instanceARN.
+func ssoTagsUnder(client ssoadminAPI, shared rowTagReader, instanceARN string) rowTagReader {
+	return ssoTags(client, shared, func(*store.Resource) string { return instanceARN })
+}
+
+// scanSSOInstances stores the region's instances with their tags. It returns
+// every instance listed, the pages read before a failed one included, and
+// those stored: an instance listed without an InstanceArn is not stored
+// (warned about), nor one deleted before its tag read. It reports whether
+// the write failed, after which the scan must stop.
+func scanSSOInstances(ctx context.Context, client ssoadminAPI, acct *account, region string, st *store.Store, scanID string, shared rowTagReader, p *phaseTotals) (listed, stored []ssotypes.InstanceMetadata, storeWriteFailed bool) {
+	// Written by the listing's row builds, read only by the tag reads after
+	// them.
+	byARN := map[string]ssotypes.InstanceMetadata{}
+	tags := ssoTags(client, shared, func(r *store.Resource) string { return r.NativeID }).
+		untaggedIfOwnerElsewhere(acct.ID, func(r *store.Resource) string { return sv(byARN[r.NativeID].OwnerAccountId) })
+	parents, failed := storeParentListTags(ctx, st, acct, region, ssoListInstancesOp, "instances", "InstanceArn",
+		func(ctx context.Context, token *string) ([]ssotypes.InstanceMetadata, *string, error) {
+			out, err := client.ListInstances(ctx, &ssoadmin.ListInstancesInput{NextToken: token, MaxResults: sdkaws.Int32(ssoPageCap)})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Instances, out.NextToken, nil
+		},
+		func(in ssotypes.InstanceMetadata) (*store.Resource, string, string) {
+			listed = append(listed, in)
+			r, why, key := arnRow("instances", in.InstanceArn, in.Name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeSSOInstance, NativeID: sv(in.InstanceArn),
+				Name: in.Name, Region: &region,
+				AttributesJSON: mustJSON(in), DiscoveredBy: scanID,
+			})
+			if r != nil {
+				byARN[r.NativeID] = in
+			}
+			return r, why, key
+		},
+		func(in ssotypes.InstanceMetadata) string { return sv(in.InstanceArn) },
+		tags, p)
+	if failed {
+		return nil, nil, true
 	}
-	return instances, len(batch), n, nil
+	for _, pa := range parents {
+		stored = append(stored, byARN[pa.arn])
+	}
+	return listed, stored, false
 }
 
 // ssoPermissionSet is a permission set and the instance it belongs to, the
 // pair every per-permission-set call takes.
 type ssoPermissionSet struct{ instanceARN, arn string }
 
-// scanSSOPermissionSets lists and describes each instance's permission sets
-// and returns the ones it stored.
-func scanSSOPermissionSets(ctx context.Context, client ssoadminAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) ([]ssoPermissionSet, int, int, error) {
-	var refs []ssoPermissionSet
+// scanSSOPermissionSets lists each instance's permission sets, completes
+// each with DescribePermissionSet (its body as the attributes, its Name),
+// reads its tags, writes each page as soon as it is read, and returns the
+// permission sets stored.
+//
+// ListPermissionSets returns ARNs only, so a permission set whose describe
+// fails other than as not found, or answers without a PermissionSet, is
+// stored as its listed element: the same NativeID, its ARN as its
+// attributes, no name. The denied describes of every instance are one
+// warning, and so are the denied listings, each keeping the pages read
+// before it; any other error is returned once the rows are stored. A
+// permission set the describe or the tag read finds deleted is dropped. An
+// instance whose first page is not found (ResourceNotFoundException, modeled
+// for ListPermissionSets) was deleted after ListInstances and has none. One
+// instance's failed listing keeps the pages read before it and costs the
+// other instances nothing. It reports whether a write failed, after which
+// the scan must stop.
+func scanSSOPermissionSets(ctx context.Context, client ssoadminAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string, shared rowTagReader, p *phaseTotals) (sets []ssoPermissionSet, storeWriteFailed bool) {
+	describe := rowDetailReader{op: ssoDescribePermissionSetOp, what: "permission set(s)", notFound: ssoGone}.sharingDetailDenials()
+	var listDenied skipTally
 	for _, in := range instances {
-		instArn := sv(in.InstanceArn)
-		pager := ssoadmin.NewListPermissionSetsPaginator(client, &ssoadmin.ListPermissionSetsInput{InstanceArn: in.InstanceArn})
-		for pager.HasMorePages() {
-			out, perr := pager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "sso-admin:ListPermissionSets", acct.ID, region, perr)
-					return nil, 0, 0, nil
+		instanceARN, owner := sv(in.InstanceArn), sv(in.OwnerAccountId)
+		details := describe
+		details.get = func(ctx context.Context, r *store.Resource) (any, error) {
+			arn := r.NativeID
+			out, err := client.DescribePermissionSet(ctx, &ssoadmin.DescribePermissionSetInput{InstanceArn: &instanceARN, PermissionSetArn: &arn})
+			if err != nil {
+				return nil, err
+			}
+			if out.PermissionSet == nil {
+				return nil, nil // keeps the listed element as the attributes
+			}
+			r.Name = out.PermissionSet.Name
+			return out, nil
+		}
+		steps := tokenPageSteps{
+			details: details,
+			stored: func(rows []*store.Resource) {
+				for _, r := range rows {
+					sets = append(sets, ssoPermissionSet{instanceARN: instanceARN, arn: r.NativeID})
 				}
-				return nil, 0, 0, fmt.Errorf("sso-admin:ListPermissionSets: %w", perr)
-			}
-			for _, arn := range out.PermissionSets {
-				refs = append(refs, ssoPermissionSet{instanceARN: instArn, arn: arn})
-			}
+			},
+		}
+		// The denial ends this instance's listing as deniedPages says and is
+		// warned about with the other instances' after the loop, not by the
+		// listing.
+		denial := listDenial{isDenied: isAccessDenied, unread: "permission sets on later pages and what is listed under them"}
+		if storeTokenPagesTagsWith(ctx, st, acct, region, ssoListPermissionSetsOp,
+			firstPageGapPages(isSSOParentGone, deniedPages(&denial, func(ctx context.Context, token *string) ([]string, *string, error) {
+				out, err := client.ListPermissionSets(ctx, &ssoadmin.ListPermissionSetsInput{InstanceArn: &instanceARN, NextToken: token, MaxResults: sdkaws.Int32(ssoPageCap)})
+				if err != nil {
+					return nil, nil, err
+				}
+				return out.PermissionSets, out.NextToken, nil
+			})),
+			func(arn string) (*store.Resource, string, string) {
+				return arnRow("permission sets", &arn, nil, &store.Resource{
+					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+					Type: TypeSSOPermissionSet, NativeID: arn, Region: &region,
+					AttributesJSON: mustJSON(map[string]string{"PermissionSetArn": arn}), DiscoveredBy: scanID,
+				})
+			},
+			steps, ssoTagsUnder(client, shared, instanceARN).untaggedIfOwnerElsewhere(acct.ID, func(*store.Resource) string { return owner }), p) {
+			return nil, true
+		}
+		if denial.err != nil {
+			listDenied.skipped(instanceARN, denial.err)
 		}
 	}
-	if len(refs) == 0 {
-		return nil, 0, 0, nil
+	if listDenied.count > 0 {
+		_ = skipIfAccessDenied(st, ssoListPermissionSetsOp, acct.ID, region, fmt.Errorf("%d instance(s) denied, first %s: %w", listDenied.count, listDenied.first, listDenied.err))
 	}
-
-	// SetLimit, not a semaphore acquired on gctx: once one call fails, gctx is
-	// cancelled and an Acquire would return context.Canceled in place of that
-	// call's error, which g.Wait reports.
-	var (
-		mu           sync.Mutex
-		batch        []*store.Resource
-		sets         []ssoPermissionSet
-		unidentified int
-	)
-	// A set deleted after the listing is skipped silently; a denial warns once.
-	errs := &fanOutErrs{st: st, acct: acct, region: region, op: "sso-admin:DescribePermissionSet", isSkip: isSSOParentGone}
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(fanoutMed)
-	for _, ref := range refs {
-		g.Go(func() error {
-			out, derr := client.DescribePermissionSet(gctx, &ssoadmin.DescribePermissionSetInput{
-				InstanceArn: &ref.instanceARN, PermissionSetArn: &ref.arn,
-			})
-			if derr != nil {
-				return errs.keyErr(ref.arn, derr)
-			}
-			ps := out.PermissionSet
-			if ps == nil || sv(ps.PermissionSetArn) == "" {
-				mu.Lock()
-				unidentified++
-				mu.Unlock()
-				return nil
-			}
-			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeSSOPermissionSet,
-				NativeID:       sv(ps.PermissionSetArn),
-				Name:           ps.Name,
-				Region:         &region,
-				AttributesJSON: mustJSON(out),
-				DiscoveredBy:   scanID,
-			}
-			mu.Lock()
-			defer mu.Unlock()
-			batch = append(batch, r)
-			sets = append(sets, ssoPermissionSet{instanceARN: ref.instanceARN, arn: r.NativeID})
-			return nil
-		})
-	}
-	if werr := g.Wait(); werr != nil {
-		return nil, 0, 0, werr
-	}
-	// The model makes PermissionSet and its PermissionSetArn optional. Without
-	// the ARN the row has no identity (every such row would share one
-	// ResourceID), so it is dropped.
-	if unidentified > 0 {
-		st.ReportWarning(store.ScanWarning{
-			Provider: "aws", Service: "sso-admin:DescribePermissionSet", Scope: acct.ID + "/" + region,
-			Message: fmt.Sprintf("%d permission set(s) described without a PermissionSet or PermissionSetArn were not stored", unidentified),
-		})
-	}
-	if len(batch) == 0 {
-		return nil, 0, 0, nil
-	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return nil, 0, 0, fmt.Errorf("upsert sso permission-sets: %w", uerr)
-	}
-	return sets, len(batch), n, nil
+	describe.warnDetailDenials(st, acct, region)
+	return sets, false
 }
 
-// scanSSOAccountAssignments walks the (instance × permission-set ×
-// provisioned-account) cube, calling ListAccountAssignments per triple.
+// scanSSOAccountAssignments lists, for each permission set phase 2 stored
+// (sets), the accounts it is provisioned to, then calls
+// ListAccountAssignments per (permission set, account). It reads the stored
+// permission sets rather than listing them again, so an instance whose
+// listing phase 2 found deleted, denied or failed is not reported twice.
 // Result count scales with the org's assignment fan-out; sized for typical
 // orgs with dozens of permission sets and hundreds of accounts.
-func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *account, region string, instances []ssotypes.InstanceMetadata, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *account, region string, sets []ssoPermissionSet, st *store.Store, scanID string) (total, inserted int, err error) {
 	type pair struct {
 		instanceArn string
 		psArn       string
@@ -286,35 +364,21 @@ func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *ac
 	// listing accounts each permission-set is provisioned to. Sequential:
 	// output drives fan-out, so concurrency only helps once the work-list
 	// exists.
-	for _, in := range instances {
-		instArn := sv(in.InstanceArn)
-		psPager := ssoadmin.NewListPermissionSetsPaginator(client, &ssoadmin.ListPermissionSetsInput{InstanceArn: in.InstanceArn})
-		for psPager.HasMorePages() {
-			psOut, perr := psPager.NextPage(ctx)
-			if perr != nil {
-				if isAccessDenied(perr) {
-					_ = skipIfAccessDenied(st, "sso-admin:ListPermissionSets", acct.ID, region, perr)
+	for _, ps := range sets {
+		acctPager := ssoadmin.NewListAccountsForProvisionedPermissionSetPaginator(client, &ssoadmin.ListAccountsForProvisionedPermissionSetInput{
+			InstanceArn: &ps.instanceARN, PermissionSetArn: &ps.arn,
+		})
+		for acctPager.HasMorePages() {
+			aOut, aerr := acctPager.NextPage(ctx)
+			if aerr != nil {
+				if isAccessDenied(aerr) {
+					_ = skipIfAccessDenied(st, "sso-admin:ListAccountsForProvisionedPermissionSet", acct.ID, region, aerr)
 					return 0, 0, nil
 				}
-				return 0, 0, fmt.Errorf("sso-admin:ListPermissionSets: %w", perr)
+				return 0, 0, fmt.Errorf("sso-admin:ListAccountsForProvisionedPermissionSet: %w", aerr)
 			}
-			for _, psArn := range psOut.PermissionSets {
-				acctPager := ssoadmin.NewListAccountsForProvisionedPermissionSetPaginator(client, &ssoadmin.ListAccountsForProvisionedPermissionSetInput{
-					InstanceArn: in.InstanceArn, PermissionSetArn: &psArn,
-				})
-				for acctPager.HasMorePages() {
-					aOut, aerr := acctPager.NextPage(ctx)
-					if aerr != nil {
-						if isAccessDenied(aerr) {
-							_ = skipIfAccessDenied(st, "sso-admin:ListAccountsForProvisionedPermissionSet", acct.ID, region, aerr)
-							return 0, 0, nil
-						}
-						return 0, 0, fmt.Errorf("sso-admin:ListAccountsForProvisionedPermissionSet: %w", aerr)
-					}
-					for _, accountID := range aOut.AccountIds {
-						pairs = append(pairs, pair{instanceArn: instArn, psArn: psArn, accountID: accountID})
-					}
-				}
+			for _, accountID := range aOut.AccountIds {
+				pairs = append(pairs, pair{instanceArn: ps.instanceARN, psArn: ps.arn, accountID: accountID})
 			}
 		}
 	}
@@ -322,8 +386,10 @@ func scanSSOAccountAssignments(ctx context.Context, client ssoadminAPI, acct *ac
 		return 0, 0, nil
 	}
 
-	// Step 2: fan-out ListAccountAssignments per triple. SetLimit, as in
-	// scanSSOPermissionSets, so g.Wait reports the failed call's own error.
+	// Step 2: fan-out ListAccountAssignments per triple. SetLimit, not a
+	// semaphore acquired on gctx: once one call fails, gctx is cancelled and
+	// an Acquire would return context.Canceled in place of that call's
+	// error, which g.Wait reports.
 	var (
 		mu    sync.Mutex
 		batch []*store.Resource
