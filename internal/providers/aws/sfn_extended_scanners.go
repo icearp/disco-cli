@@ -2,129 +2,65 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/sfn"
+	sfntypes "github.com/aws/aws-sdk-go-v2/service/sfn/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanSFNStateMachineAliasesAndVersions discovers aliases and versions for
-// every standard-tier state machine. ListStateMachineAliases /
-// ListStateMachineVersions reject EXPRESS state-machine ARNs with
-// ValidationException — tolerated.
-func scanSFNStateMachineAliasesAndVersions(ctx context.Context, client sfnAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var smARNs []string
-	pager := sfn.NewListStateMachinesPaginator(client, &sfn.ListStateMachinesInput{})
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				_ = skipIfAccessDenied(st, "states:ListStateMachines(extended)", acct.ID, region, err)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("states:ListStateMachines(extended): %w", err)
-		}
-		for _, sm := range out.StateMachines {
-			if a := sv(sm.StateMachineArn); a != "" {
-				smARNs = append(smARNs, a)
-			}
-		}
-	}
+const (
+	sfnListAliasesOp  = "states:ListStateMachineAliases"
+	sfnListVersionsOp = "states:ListStateMachineVersions"
+)
 
-	t, i, ferr := scanSFNAliases(ctx, client, smARNs, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
+// sfnAliasesGone is the codes ListStateMachineAliases models for a state
+// machine deleted, or being deleted, since it was listed.
+var sfnAliasesGone = []string{"ResourceNotFound", "StateMachineDoesNotExist", "StateMachineDeleting"}
 
-	t, i, ferr = scanSFNVersions(ctx, client, smARNs, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-	return total, inserted, nil
+// scanSFNAliases stores the aliases of each state machine the first phase
+// stored; one state machine's failure costs the others none of theirs
+// (storeEachParentPages). It reports whether a write failed, after which the
+// scan must stop.
+func scanSFNAliases(ctx context.Context, client sfnAPI, acct *account, region string, st *store.Store, scanID string, machines []childParent, p *phaseTotals) bool {
+	return storeEachParentPages(ctx, st, acct, region, sfnListAliasesOp, sfnAliasesGone, machines,
+		func(ctx context.Context, smARN string, token *string) ([]sfntypes.StateMachineAliasListItem, *string, error) {
+			out, err := client.ListStateMachineAliases(ctx, &sfn.ListStateMachineAliasesInput{StateMachineArn: &smARN, MaxResults: sfnPageCap, NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.StateMachineAliases, out.NextToken, nil
+		},
+		func(smARN string, a sfntypes.StateMachineAliasListItem) (*store.Resource, string, string) {
+			return sfnChildRow(acct, region, scanID, TypeSFNStateMachineAlias, "state machine aliases", a.StateMachineAliasArn, "an alias of "+smARN, a)
+		}, p)
 }
 
-func scanSFNAliases(ctx context.Context, client sfnAPI, smARNs []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	for _, smARN := range smARNs {
-		arn := smARN
-		var nextToken *string
-		for {
-			out, err := client.ListStateMachineAliases(ctx, &sfn.ListStateMachineAliasesInput{
-				StateMachineArn: &arn,
-				NextToken:       nextToken,
-			})
+// scanSFNVersions stores the versions of each state machine the first phase
+// stored; one state machine's failure costs the others none of theirs
+// (storeEachParentPages). ListStateMachineVersions models no not-found, so
+// any error for a state machine deleted since it was listed is returned (not
+// verified against a live account). It reports whether a write failed, after
+// which the scan must stop.
+func scanSFNVersions(ctx context.Context, client sfnAPI, acct *account, region string, st *store.Store, scanID string, machines []childParent, p *phaseTotals) bool {
+	return storeEachParentPages(ctx, st, acct, region, sfnListVersionsOp, nil, machines,
+		func(ctx context.Context, smARN string, token *string) ([]sfntypes.StateMachineVersionListItem, *string, error) {
+			out, err := client.ListStateMachineVersions(ctx, &sfn.ListStateMachineVersionsInput{StateMachineArn: &smARN, MaxResults: sfnPageCap, NextToken: token})
 			if err != nil {
-				if isAccessDenied(err) {
-					_ = skipIfAccessDenied(st, "states:ListStateMachineAliases", acct.ID, region, err)
-					break
-				}
-				if isAPIErrorCode(err, "ValidationException", "StateMachineDoesNotExist", "StateMachineTypeNotSupported") {
-					break
-				}
-				return 0, 0, fmt.Errorf("states:ListStateMachineAliases sm=%s: %w", arn, err)
+				return nil, nil, err
 			}
-			for _, a := range out.StateMachineAliases {
-				aliasArn := sv(a.StateMachineAliasArn)
-				if aliasArn == "" {
-					continue
-				}
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeSFNStateMachineAlias, NativeID: aliasArn,
-					Region:         &region,
-					AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-				})
-			}
-			if out.NextToken == nil || *out.NextToken == "" {
-				break
-			}
-			nextToken = out.NextToken
-		}
-	}
-	return upsertBatch(st, batch, "stepfunctions state-machine-aliases")
+			return out.StateMachineVersions, out.NextToken, nil
+		},
+		func(smARN string, v sfntypes.StateMachineVersionListItem) (*store.Resource, string, string) {
+			return sfnChildRow(acct, region, scanID, TypeSFNStateMachineVersion, "state machine versions", v.StateMachineVersionArn, "a version of "+smARN, v)
+		}, p)
 }
 
-func scanSFNVersions(ctx context.Context, client sfnAPI, smARNs []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	for _, smARN := range smARNs {
-		arn := smARN
-		var nextToken *string
-		for {
-			out, err := client.ListStateMachineVersions(ctx, &sfn.ListStateMachineVersionsInput{
-				StateMachineArn: &arn,
-				NextToken:       nextToken,
-			})
-			if err != nil {
-				if isAccessDenied(err) {
-					_ = skipIfAccessDenied(st, "states:ListStateMachineVersions", acct.ID, region, err)
-					break
-				}
-				if isAPIErrorCode(err, "ValidationException", "StateMachineDoesNotExist", "StateMachineTypeNotSupported") {
-					break
-				}
-				return 0, 0, fmt.Errorf("states:ListStateMachineVersions sm=%s: %w", arn, err)
-			}
-			for _, v := range out.StateMachineVersions {
-				varn := sv(v.StateMachineVersionArn)
-				if varn == "" {
-					continue
-				}
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeSFNStateMachineVersion, NativeID: varn,
-					Region:         &region,
-					AttributesJSON: mustJSON(v), DiscoveredBy: scanID,
-				})
-			}
-			if out.NextToken == nil || *out.NextToken == "" {
-				break
-			}
-			nextToken = out.NextToken
-		}
-	}
-	return upsertBatch(st, batch, "stepfunctions state-machine-versions")
+// sfnChildRow is the row of a listed alias or version, stored under its ARN,
+// with key naming an element without one (arnRow).
+func sfnChildRow(acct *account, region, scanID, typ, what string, arn *string, key string, element any) (*store.Resource, string, string) {
+	return arnRow(what, arn, &key, &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: sv(arn), Region: &region,
+		AttributesJSON: mustJSON(element), DiscoveredBy: scanID,
+	})
 }

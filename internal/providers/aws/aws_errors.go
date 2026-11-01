@@ -522,6 +522,11 @@ func isTransientCause(err error) bool {
 		// status; scanLicenseManager's client adds it, so it reaches us only once
 		// those retries are spent.
 		"RateLimitExceededException",
+		// Step Functions' error for KMS throttling a call it makes for the
+		// caller (the only model with it; DescribeStateMachine's). The SDK
+		// retryer does not retry it; scanSFN's client adds it, so it reaches us
+		// only once those retries are spent.
+		"KmsThrottlingException",
 		// A throttle code in the SDK retryer's DefaultThrottleErrorCodes (e.g.
 		// modeled by rekognition:ListProjectPolicies).
 		"ProvisionedThroughputExceededException",
