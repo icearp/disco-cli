@@ -1,10 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/backupgateway"
+	bgwtypes "github.com/aws/aws-sdk-go-v2/service/backupgateway/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -22,9 +24,18 @@ func init() {
 }
 
 const (
-	backupGatewayBandwidthScheduleOp = "backupgateway:GetBandwidthRateLimitSchedule"
-	backupGatewayPropertyMappingsOp  = "backupgateway:GetHypervisorPropertyMappings"
+	backupGatewayListHypervisorsOp     = "backupgateway:ListHypervisors"
+	backupGatewayListGatewaysOp        = "backupgateway:ListGateways"
+	backupGatewayListVirtualMachinesOp = "backupgateway:ListVirtualMachines"
+	backupGatewayBandwidthScheduleOp   = "backupgateway:GetBandwidthRateLimitSchedule"
+	backupGatewayPropertyMappingsOp    = "backupgateway:GetHypervisorPropertyMappings"
+	backupGatewayListTagsForResourceOp = "backupgateway:ListTagsForResource"
 )
+
+// backupGatewayGone is the not-found code ListTagsForResource models, and the
+// one GetBandwidthRateLimitSchedule and GetHypervisorPropertyMappings model
+// for a parent deleted since it was listed.
+var backupGatewayGone = []string{"ResourceNotFoundException"}
 
 // backupGatewayAPI is the narrow surface scanBackupGateway uses.
 type backupGatewayAPI interface {
@@ -33,6 +44,7 @@ type backupGatewayAPI interface {
 	ListVirtualMachines(context.Context, *backupgateway.ListVirtualMachinesInput, ...func(*backupgateway.Options)) (*backupgateway.ListVirtualMachinesOutput, error)
 	GetBandwidthRateLimitSchedule(context.Context, *backupgateway.GetBandwidthRateLimitScheduleInput, ...func(*backupgateway.Options)) (*backupgateway.GetBandwidthRateLimitScheduleOutput, error)
 	GetHypervisorPropertyMappings(context.Context, *backupgateway.GetHypervisorPropertyMappingsInput, ...func(*backupgateway.Options)) (*backupgateway.GetHypervisorPropertyMappingsOutput, error)
+	ListTagsForResource(context.Context, *backupgateway.ListTagsForResourceInput, ...func(*backupgateway.Options)) (*backupgateway.ListTagsForResourceOutput, error)
 }
 
 func scanBackupGateway(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -40,46 +52,64 @@ func scanBackupGateway(ctx context.Context, acct *account, region string, st *st
 	return scanBackupGatewayAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanBackupGatewayAll runs the resource phases, which stop at their first hard
-// error, then the per-parent configuration phases over the parents stored
-// before that error, so a failure on either side costs the other no rows. The
-// resource side's transient error is demoted to a warning only beside a hard
-// error: joined, it would be buried in the hard error instead of reported under
-// its op.
+// scanBackupGatewayAll runs every listing as its own phase, one at a time:
+// the hypervisors, gateways and virtual machines, then the per-parent
+// configuration phases over the gateways and hypervisors stored this scan. A
+// phase's error does not stop the later ones; a failed write and ctx's end
+// do, and so does an NXDOMAIN of the first listing with nothing stored (the
+// region does not serve the service) (runHostPhases). Hypervisors, gateways
+// and virtual machines have their tags read per row (backupGatewayTags),
+// whose denials are one warning for the scan.
 func scanBackupGatewayAll(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, parents, err := scanBackupGatewayResources(ctx, client, acct, region, st, scanID)
-	t1, i1, serr := scanBackupGatewayBandwidthSchedules(ctx, client, acct, region, st, scanID, parents.gateways)
-	t2, i2, merr := scanBackupGatewayPropertyMappings(ctx, client, acct, region, st, scanID, parents.hypervisors)
-	return total + t1 + t2, inserted + i1 + i2, demoteBeside(st, "backupgateway", acct, region, err, serr, merr)
+	tags := backupGatewayTags(client).sharingDenials()
+	var hypervisors, gateways []childParent
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "backupgateway", 0, []hostPhase{
+		{op: backupGatewayListHypervisorsOp, run: func(p *phaseTotals) (failed bool) {
+			hypervisors, failed = scanBackupGatewayHypervisors(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: backupGatewayListGatewaysOp, run: func(p *phaseTotals) (failed bool) {
+			gateways, failed = scanBackupGatewayGateways(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: backupGatewayListVirtualMachinesOp, run: func(p *phaseTotals) bool {
+			return scanBackupGatewayVirtualMachines(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		countedPhase(0, backupGatewayBandwidthScheduleOp, func() (int, int, error) {
+			return scanBackupGatewayBandwidthSchedules(ctx, client, acct, region, st, scanID, gateways)
+		}),
+		countedPhase(0, backupGatewayPropertyMappingsOp, func() (int, int, error) {
+			return scanBackupGatewayPropertyMappings(ctx, client, acct, region, st, scanID, hypervisors)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// backupGatewayParents holds the hypervisors and gateways stored this scan.
-type backupGatewayParents struct {
-	hypervisors, gateways []childParent
-}
-
-// scanBackupGatewayResources runs the hypervisor, gateway and virtual-machine
-// phases in order, stopping at the first hard error, and returns the parents
-// stored before it.
-func scanBackupGatewayResources(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, parents backupGatewayParents, err error) {
-	var t, i int
-	parents.hypervisors, t, i, err = scanBackupGatewayHypervisors(ctx, client, acct, region, st, scanID)
-	total, inserted = total+t, inserted+i
-	if err != nil {
-		return total, inserted, parents, err
+// backupGatewayTags reads a row's tags with ListTagsForResource, sent the
+// row's NativeID: the ARN its listing returned. The Service Reference lists
+// gateway, hypervisor and virtualmachine, the three types read here, under
+// ListTagsForResource and TagResource, and the op's model ARN pattern accepts
+// each of their ARNs. The op does not page its tags.
+// ResourceNotFoundException, its modeled not-found, drops a resource deleted
+// after it was listed.
+func backupGatewayTags(client backupGatewayAPI) rowTagReader {
+	return rowTagReader{
+		op:       backupGatewayListTagsForResourceOp,
+		notFound: backupGatewayGone,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &backupgateway.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
+			if err != nil {
+				return nil, err
+			}
+			return kvTagsJSON(out.Tags, func(t bgwtypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
 	}
-	parents.gateways, t, i, err = scanBackupGatewayGateways(ctx, client, acct, region, st, scanID)
-	total, inserted = total+t, inserted+i
-	if err != nil {
-		return total, inserted, parents, err
-	}
-	t, i, err = scanBackupGatewayVirtualMachines(ctx, client, acct, region, st, scanID)
-	return total + t, inserted + i, parents, err
 }
 
 // isBackupGatewayParentGone reports a parent deleted since it was listed.
 func isBackupGatewayParentGone(err error) bool {
-	return isAPIErrorCode(err, "ResourceNotFoundException")
+	return isAPIErrorCode(err, backupGatewayGone...)
 }
 
 // backupGatewayConfigFanOut reads one configuration per parent through get
@@ -150,122 +180,79 @@ func backupGatewayPropertyMappingNativeID(hypervisorARN string) string {
 	return hypervisorARN + "/property-mappings"
 }
 
-// scanBackupGatewayGateways stores every gateway and returns them as parents,
-// none unless the phase stored them.
-func scanBackupGatewayGateways(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	p := backupgateway.NewListGatewaysPaginator(client, &backupgateway.ListGatewaysInput{})
-	var batch []*store.Resource
-	for p.HasMorePages() {
-		page, perr := p.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "backupgateway:ListGateways", acct.ID, region, perr)
-				return nil, 0, 0, nil
-			}
-			return nil, 0, 0, fmt.Errorf("backupgateway:ListGateways: %w", perr)
-		}
-		for _, gw := range page.Gateways {
-			arn := sv(gw.GatewayArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(gw.GatewayDisplayName)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBackupGatewayGateway, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(gw), DiscoveredBy: scanID,
-			})
-		}
-	}
-	total, inserted, err := upsertBatch(st, batch, "backupgateway gateways")
-	if err != nil {
-		return nil, total, inserted, err
-	}
-	parents := make([]childParent, len(batch))
-	for i, r := range batch {
-		parents[i] = childParent{id: r.NativeID, arn: r.NativeID}
-	}
-	return parents, total, inserted, nil
-}
-
-func scanBackupGatewayVirtualMachines(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	p := backupgateway.NewListVirtualMachinesPaginator(client, &backupgateway.ListVirtualMachinesInput{})
-	var batch []*store.Resource
-	for p.HasMorePages() {
-		page, perr := p.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				_ = skipIfAccessDenied(st, "backupgateway:ListVirtualMachines", acct.ID, region, perr)
-				return 0, 0, nil
-			}
-			return 0, 0, fmt.Errorf("backupgateway:ListVirtualMachines: %w", perr)
-		}
-		for _, vm := range page.VirtualMachines {
-			arn := sv(vm.ResourceArn)
-			if arn == "" {
-				continue
-			}
-			label := sv(vm.Name)
-			if label == "" {
-				label = arn
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeBackupGatewayVirtualMachine, NativeID: arn,
-				Name: &label, Region: &region, AttributesJSON: mustJSON(vm), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "backupgateway virtual-machines")
-}
-
-// scanBackupGatewayHypervisors stores every hypervisor and returns those stored
-// as parents, including the pages stored before an error.
-func scanBackupGatewayHypervisors(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string) (parents []childParent, total, inserted int, err error) {
-	p := backupgateway.NewListHypervisorsPaginator(client, &backupgateway.ListHypervisorsInput{})
-	for p.HasMorePages() {
-		page, err := p.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return parents, total, inserted, skipIfAccessDenied(st, "backupgateway:ListHypervisors", acct.ID, region, err)
-			}
-			return parents, total, inserted, fmt.Errorf("backupgateway:ListHypervisors: %w", err)
-		}
-		batch := make([]*store.Resource, 0, len(page.Hypervisors))
-		for _, h := range page.Hypervisors {
-			arn := sv(h.HypervisorArn)
-			if arn == "" {
-				continue
-			}
-			name := sv(h.Name)
-			status := string(h.State)
-			batch = append(batch, &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeBackupGatewayHypervisor,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				Status:         &status,
-				AttributesJSON: mustJSON(h),
-				DiscoveredBy:   scanID,
-			})
-		}
-		if len(batch) > 0 {
-			n, err := st.UpsertResources(batch)
+// scanBackupGatewayHypervisors stores the hypervisors with their tags, a page
+// at a time, and returns those stored as the parents of the property-mapping
+// phase, each keyed by its ARN. A hypervisor's Name and Status are stored as
+// listed, empty included. It reports whether a write failed, after which the
+// scan must stop.
+func scanBackupGatewayHypervisors(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, backupGatewayListHypervisorsOp, "hypervisors", "HypervisorArn",
+		func(ctx context.Context, token *string) ([]bgwtypes.Hypervisor, *string, error) {
+			out, err := client.ListHypervisors(ctx, &backupgateway.ListHypervisorsInput{NextToken: token})
 			if err != nil {
-				return parents, total, inserted, fmt.Errorf("upsert backupgateway hypervisors: %w", err)
+				return nil, nil, err
 			}
-			total += len(batch)
-			inserted += n
-			for _, r := range batch {
-				parents = append(parents, childParent{id: r.NativeID, arn: r.NativeID})
+			return out.Hypervisors, out.NextToken, nil
+		},
+		func(h bgwtypes.Hypervisor) (*store.Resource, string, string) {
+			name, status := sv(h.Name), string(h.State)
+			return arnRow("hypervisors", h.HypervisorArn, h.Name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeBackupGatewayHypervisor, NativeID: sv(h.HypervisorArn),
+				Name: &name, Region: &region, Status: &status, AttributesJSON: mustJSON(h), DiscoveredBy: scanID,
+			})
+		},
+		func(h bgwtypes.Hypervisor) string { return sv(h.HypervisorArn) },
+		tags, p)
+}
+
+// scanBackupGatewayGateways stores the gateways with their tags, a page at a
+// time, and returns those stored as the parents of the bandwidth-schedule
+// phase, each keyed by its ARN. It reports whether a write failed, after
+// which the scan must stop.
+func scanBackupGatewayGateways(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, backupGatewayListGatewaysOp, "gateways", "GatewayArn",
+		func(ctx context.Context, token *string) ([]bgwtypes.Gateway, *string, error) {
+			out, err := client.ListGateways(ctx, &backupgateway.ListGatewaysInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-		}
+			return out.Gateways, out.NextToken, nil
+		},
+		func(gw bgwtypes.Gateway) (*store.Resource, string, string) {
+			return arnRow("gateways", gw.GatewayArn, gw.GatewayDisplayName,
+				backupGatewayNamedRow(acct, region, scanID, TypeBackupGatewayGateway, sv(gw.GatewayArn), sv(gw.GatewayDisplayName), gw))
+		},
+		func(gw bgwtypes.Gateway) string { return sv(gw.GatewayArn) },
+		tags, p)
+}
+
+// scanBackupGatewayVirtualMachines stores the virtual machines of every
+// hypervisor with their tags, a page at a time. It reports whether a write
+// failed, after which the scan must stop.
+func scanBackupGatewayVirtualMachines(ctx context.Context, client backupGatewayAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, backupGatewayListVirtualMachinesOp,
+		func(ctx context.Context, token *string) ([]bgwtypes.VirtualMachine, *string, error) {
+			out, err := client.ListVirtualMachines(ctx, &backupgateway.ListVirtualMachinesInput{NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.VirtualMachines, out.NextToken, nil
+		},
+		func(vm bgwtypes.VirtualMachine) (*store.Resource, string, string) {
+			return arnRow("virtual machines", vm.ResourceArn, vm.Name,
+				backupGatewayNamedRow(acct, region, scanID, TypeBackupGatewayVirtualMachine, sv(vm.ResourceArn), sv(vm.Name), vm))
+		},
+		tags, p)
+}
+
+// backupGatewayNamedRow is the row of a gateway or virtual machine stored
+// under arn and named name, or arn when name is empty.
+func backupGatewayNamedRow(acct *account, region, scanID, typ, arn, name string, element any) *store.Resource {
+	label := cmp.Or(name, arn)
+	return &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: arn,
+		Name: &label, Region: &region, AttributesJSON: mustJSON(element), DiscoveredBy: scanID,
 	}
-	return parents, total, inserted, nil
 }
