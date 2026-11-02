@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	awsarn "github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/codeartifact"
 	catypes "github.com/aws/aws-sdk-go-v2/service/codeartifact/types"
@@ -28,168 +29,187 @@ type codeArtifactAPI interface {
 	ListRepositories(context.Context, *codeartifact.ListRepositoriesInput, ...func(*codeartifact.Options)) (*codeartifact.ListRepositoriesOutput, error)
 	ListPackageGroups(context.Context, *codeartifact.ListPackageGroupsInput, ...func(*codeartifact.Options)) (*codeartifact.ListPackageGroupsOutput, error)
 	ListPackages(context.Context, *codeartifact.ListPackagesInput, ...func(*codeartifact.Options)) (*codeartifact.ListPackagesOutput, error)
+	ListTagsForResource(context.Context, *codeartifact.ListTagsForResourceInput, ...func(*codeartifact.Options)) (*codeartifact.ListTagsForResourceOutput, error)
 }
 
-// codeArtifactPackagePageLimit is ListPackagesMaxResults' model maximum.
-const codeArtifactPackagePageLimit = 1000
+const (
+	caTagsOp = "codeartifact:ListTagsForResource"
+	// caPageCap is the maxResults maximum of every CodeArtifact listing read
+	// here.
+	caPageCap = 1000
+)
+
+// caGone is the not-found code ListTagsForResource models, and the one
+// ListPackageGroups and ListPackages model for a domain or repository deleted
+// since it was listed.
+var caGone = []string{"ResourceNotFoundException"}
 
 func scanCodeArtifact(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := codeartifact.NewFromConfig(acct.cfg, func(o *codeartifact.Options) { o.Region = region })
 	return scanCodeArtifactAll(ctx, client, acct, region, st, scanID)
 }
 
-// scanCodeArtifactAll runs the domain, repository and package-group phases,
-// which stop at their first hard error, then lists the packages of the
-// repositories stored before that error, so a failure on either side costs the
-// other no rows. The first side's transient error is demoted to a warning only
-// beside a hard error: joined, it would be buried in the hard error instead of
-// reported under its op.
+// scanCodeArtifactAll discovers the CodeArtifact resources of one region: the
+// domains, the repositories, each domain's package groups and each
+// repository's packages. Every listing runs as its own phase, one at a time:
+// a phase's error does not stop the later ones; a failed write and ctx's end
+// do (runHostPhases). The package-group and package phases read the parents
+// stored this scan. Domains, repositories and package groups have their tags
+// read per row (caTags), whose denials are one warning for the whole scan;
+// packages have none (Untaggable).
 func scanCodeArtifactAll(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	total, inserted, repos, err := scanCAParents(ctx, client, acct, region, st, scanID)
-	t, i, perr := scanCAPackages(ctx, client, acct, region, st, scanID, repos)
-	return total + t, inserted + i, demoteBeside(st, "codeartifact", acct, region, err, perr)
+	tags := caTags(client).sharingDenials()
+	var (
+		domains []childParent
+		repos   []caRepository
+	)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "codeartifact", 0, []hostPhase{
+		{op: "codeartifact:ListDomains", run: func(p *phaseTotals) (failed bool) {
+			domains, failed = scanCADomains(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "codeartifact:ListRepositories", run: func(p *phaseTotals) (failed bool) {
+			repos, failed = scanCARepositories(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "codeartifact:ListPackageGroups", run: func(p *phaseTotals) bool {
+			return scanCAPackageGroups(ctx, client, acct, region, st, scanID, domains, tags, p)
+		}},
+		countedPhase(0, "codeartifact:ListPackages", func() (int, int, error) {
+			return scanCAPackages(ctx, client, acct, region, st, scanID, repos)
+		}),
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// scanCAParents stores domains, repositories and package groups, stopping at
-// the first hard error, and returns the repositories stored.
-// Repositories are listed account-wide via ListRepositories; package groups
-// fan out per domain (ListPackageGroups requires Domain).
-func scanCAParents(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, repos []caRepository, err error) {
-	domainNames, t, i, err := scanCADomains(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return 0, 0, nil, err
+// caTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID, the ARN its listing returned. The Service Reference lists domain,
+// package-group and repository under ListTagsForResource; package it does
+// not. The op returns every tag in one response. ResourceNotFoundException,
+// its modeled not-found, drops a resource deleted after it was listed.
+func caTags(client codeArtifactAPI) rowTagReader {
+	return rowTagReader{
+		op:       caTagsOp,
+		notFound: caGone,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &codeartifact.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
+			}
+			return kvTagsJSON(out.Tags, func(t catypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
 	}
-	total, inserted = total+t, inserted+i
+}
 
-	repos, t, i, err = scanCARepositories(ctx, client, acct, region, st, scanID)
-	if err != nil {
-		return total, inserted, nil, err
-	}
-	total, inserted = total+t, inserted+i
-
-	t, i, err = scanCAPackageGroups(ctx, client, domainNames, acct, region, st, scanID)
-	return total + t, inserted + i, repos, err
+// scanCADomains stores the domains with their tags and returns the stored
+// ones that have a name, the parents of the package-group phase. ListDomains
+// returns only the domains this account owns, which a per-account quota
+// bounds, so the listing is held whole. It reports whether the write failed,
+// after which the scan must stop.
+func scanCADomains(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentListTags(ctx, st, acct, region, "codeartifact:ListDomains", "domains", "Name",
+		func(ctx context.Context, token *string) ([]catypes.DomainSummary, *string, error) {
+			out, err := client.ListDomains(ctx, &codeartifact.ListDomainsInput{MaxResults: aws.Int32(caPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Domains, out.NextToken, nil
+		},
+		func(d catypes.DomainSummary) (*store.Resource, string, string) {
+			return arnRow("domains", d.Arn, d.Name, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCodeArtifactDomain, NativeID: sv(d.Arn),
+				Name: d.Name, Region: &region, Status: nonEmptyPtr(string(d.Status)),
+				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
+			})
+		},
+		func(d catypes.DomainSummary) string { return sv(d.Name) },
+		tags, p)
 }
 
 // caRepository is a stored repository: its ARN, and the DomainOwner
 // ListPackages takes alongside the domain and repository names.
 type caRepository struct{ arn, domainOwner string }
 
-func scanCADomains(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	var batch []*store.Resource
-	var names []string
-	var nextToken *string
-	for {
-		out, err := client.ListDomains(ctx, &codeartifact.ListDomainsInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "codeartifact:ListDomains", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("codeartifact:ListDomains: %w", err)
-		}
-		for _, d := range out.Domains {
-			arn := sv(d.Arn)
-			name := sv(d.Name)
-			if arn == "" {
-				continue
-			}
-			if name != "" {
-				names = append(names, name)
-			}
-			status := string(d.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeCodeArtifactDomain, NativeID: arn,
-				Name: d.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	t, i, err := upsertBatch(st, batch, "codeartifact domains")
-	return names, t, i, err
-}
-
-// scanCARepositories stores the repositories and, once they are stored,
-// returns them.
-func scanCARepositories(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string) ([]caRepository, int, int, error) {
+// scanCARepositories stores the repositories with their tags and returns the
+// stored ones, the parents of the package phase. The repositories of every
+// domain are listed together, with no small bound, so each page is written
+// as soon as its tags are read. It reports whether a write failed, after
+// which the scan must stop.
+//
+// A repository can sit in a domain another account owns. A repository whose
+// ARN names another account gives no tags and no error on a denial or
+// not-found (untaggedIfOtherAccount), so it is kept untagged without a
+// warning. The ARN decides, not the element's AdministratorAccount: the ARN
+// names the account the resource is in, so a denial on a repository whose
+// ARN names this account is this account's own and warns, whoever
+// administers it. Whether such a repository's ARN names its domain's owner,
+// whether ListRepositories returns it, and whether the tag read is refused
+// for it, is unverified live.
+func scanCARepositories(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]caRepository, bool) {
 	var (
-		batch []*store.Resource
-		repos []caRepository
+		// listed holds the element of each row of the page being stored, so
+		// that stored can carry its DomainOwner to the package phase.
+		listed = map[*store.Resource]catypes.RepositorySummary{}
+		repos  []caRepository
 	)
-	var nextToken *string
-	for {
-		out, err := client.ListRepositories(ctx, &codeartifact.ListRepositoriesInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "codeartifact:ListRepositories", acct.ID, region, err)
+	tags = tags.untaggedIfOtherAccount(acct.ID)
+	failed := storeTokenPagesTagsWith(ctx, st, acct, region, "codeartifact:ListRepositories",
+		func(ctx context.Context, token *string) ([]catypes.RepositorySummary, *string, error) {
+			out, err := client.ListRepositories(ctx, &codeartifact.ListRepositoriesInput{MaxResults: aws.Int32(caPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("codeartifact:ListRepositories: %w", err)
-		}
-		for _, r := range out.Repositories {
-			arn := sv(r.Arn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
+			return out.Repositories, out.NextToken, nil
+		},
+		func(e catypes.RepositorySummary) (*store.Resource, string, string) {
+			r, why, key := arnRow("repositories", e.Arn, e.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeCodeArtifactRepository, NativeID: arn,
-				Name: r.Name, Region: &region,
-				AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
+				Type: TypeCodeArtifactRepository, NativeID: sv(e.Arn),
+				Name: e.Name, Region: &region,
+				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
 			})
-			repos = append(repos, caRepository{arn: arn, domainOwner: sv(r.DomainOwner)})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	t, i, err := upsertBatch(st, batch, "codeartifact repositories")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return repos, t, i, nil
+			if r != nil {
+				listed[r] = e
+			}
+			return r, why, key
+		},
+		tokenPageSteps{stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				repos = append(repos, caRepository{arn: r.NativeID, domainOwner: sv(listed[r].DomainOwner)})
+			}
+			clear(listed)
+		}},
+		tags, p)
+	return repos, failed
 }
 
-func scanCAPackageGroups(ctx context.Context, client codeArtifactAPI, domainNames []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	for _, d := range domainNames {
-		domain := d
-		var nextToken *string
-		for {
-			out, err := client.ListPackageGroups(ctx, &codeartifact.ListPackageGroupsInput{
-				Domain:    &domain,
-				NextToken: nextToken,
-			})
+// scanCAPackageGroups stores each stored domain's package groups with their
+// tags, each page as soon as its tags are read (storeEachParentPagesTags):
+// one domain's failure costs the others none of theirs, and a domain deleted
+// since it was listed (ResourceNotFoundException) is skipped. The domains are
+// this account's own (ListDomains), so each listing is sent no DomainOwner.
+// It reports whether a write failed, after which the scan must stop.
+func scanCAPackageGroups(ctx context.Context, client codeArtifactAPI, acct *account, region string, st *store.Store, scanID string, domains []childParent, tags rowTagReader, p *phaseTotals) bool {
+	return storeEachParentPagesTags(ctx, st, acct, region, "codeartifact:ListPackageGroups", caGone, domains,
+		func(ctx context.Context, domain string, token *string) ([]catypes.PackageGroupSummary, *string, error) {
+			out, err := client.ListPackageGroups(ctx, &codeartifact.ListPackageGroupsInput{Domain: &domain, MaxResults: aws.Int32(caPageCap), NextToken: token})
 			if err != nil {
-				if isAccessDenied(err) {
-					_ = skipIfAccessDenied(st, "codeartifact:ListPackageGroups", acct.ID, region, err)
-					break
-				}
-				return 0, 0, fmt.Errorf("codeartifact:ListPackageGroups domain=%s: %w", domain, err)
+				return nil, nil, err
 			}
-			for _, pg := range out.PackageGroups {
-				arn := sv(pg.Arn)
-				if arn == "" {
-					continue
-				}
-				batch = append(batch, &store.Resource{
-					Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-					Type: TypeCodeArtifactPackageGroup, NativeID: arn,
-					Name: pg.Pattern, Region: &region,
-					AttributesJSON: mustJSON(pg), DiscoveredBy: scanID,
-				})
-			}
-			if out.NextToken == nil || *out.NextToken == "" {
-				break
-			}
-			nextToken = out.NextToken
-		}
-	}
-	return upsertBatch(st, batch, "codeartifact package-groups")
+			return out.PackageGroups, out.NextToken, nil
+		},
+		func(_ string, pg catypes.PackageGroupSummary) (*store.Resource, string, string) {
+			return arnRow("package groups", pg.Arn, pg.Pattern, &store.Resource{
+				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+				Type: TypeCodeArtifactPackageGroup, NativeID: sv(pg.Arn),
+				Name: pg.Pattern, Region: &region,
+				AttributesJSON: mustJSON(pg), DiscoveredBy: scanID,
+			})
+		},
+		tags, p)
 }
 
 // scanCAPackages lists the packages of each given repository, storing each
@@ -217,7 +237,7 @@ func scanCAPackages(ctx context.Context, client codeArtifactAPI, acct *account, 
 			pager := codeartifact.NewListPackagesPaginator(client, &codeartifact.ListPackagesInput{
 				Domain: &repo.domain, Repository: &repo.name, DomainOwner: nonEmptyPtr(owners[p.arn]),
 			}, func(o *codeartifact.ListPackagesPaginatorOptions) {
-				o.Limit = codeArtifactPackagePageLimit
+				o.Limit = caPageCap
 				o.StopOnDuplicateToken = true
 			})
 			var total, inserted int
@@ -248,7 +268,7 @@ func scanCAPackages(ctx context.Context, client codeArtifactAPI, acct *account, 
 		})
 }
 
-func isCANotFound(err error) bool { return isAPIErrorCode(err, "ResourceNotFoundException") }
+func isCANotFound(err error) bool { return isAPIErrorCode(err, caGone...) }
 
 // caRepositoryARN is a repository ARN split into what ListPackages and the
 // package ARN need.
