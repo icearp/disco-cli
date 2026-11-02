@@ -1279,11 +1279,12 @@ func storeRowsTags(ctx context.Context, st *store.Store, acct *account, region, 
 }
 
 // errTagsNotDescribed is a bulk tag read's result for a resource its
-// successful response did not describe. The bulk ops read here (ELB
-// DescribeTags) document neither that an untagged resource is left out nor
-// that a deleted one is (each models a not-found error for that), so the row
-// is kept untagged and the read reported as failed rather than read as
-// having no tags.
+// successful response did not describe. The bulk ops read through
+// bulkRowTags (elasticloadbalancing:DescribeTags, cloudtrail:ListTags)
+// document neither that an untagged resource is left out nor that a deleted
+// one is (each models a not-found error for that), so the row is kept
+// untagged and the read reported as failed rather than read as having no
+// tags.
 var errTagsNotDescribed = errors.New("the tag response did not describe this resource")
 
 // errTagsNotFetched is the result for a row whose key no listing handed to
@@ -1307,9 +1308,35 @@ type bulkRowTags struct {
 	key      func(*store.Resource) string
 	describe func(ctx context.Context, keys []string) (map[string]*string, error)
 	slots    chan struct{}
+	// splitAll widens which failed calls are made again per key; see
+	// splittingFailures.
+	splitAll bool
 
 	mu  sync.Mutex // guards got
 	got map[string]rowTagRead
+}
+
+// splittingFailures is b with a failed call of several keys made again for
+// each key alone on any error except one still transient after the SDK's
+// retries, not only on a notFound code: for an op whose model
+// lists refusals of one resource that fail the whole call, so that one
+// resource's refusal costs no other resource in the call its tags. A denial
+// is split too: a policy keyed on resource tags may deny only some resources
+// of a call. A call denied for every key thus costs one more call per key.
+// A call cut short by ctx's end is split too, each key's call then ending at
+// once with the same stop.
+func (b *bulkRowTags) splittingFailures() *bulkRowTags {
+	b.splitAll = true
+	return b
+}
+
+// splitsCall reports whether readBulkChunk makes a call of several keys that
+// failed with err again for each key alone.
+func (b *bulkRowTags) splitsCall(err error) bool {
+	if b.splitAll {
+		return err != nil && !isTransientNetworkError(err)
+	}
+	return isAPIErrorCode(err, b.notFound...)
 }
 
 // newBulkRowTags is a bulkRowTags making at most fanoutMed calls at once.
@@ -1351,12 +1378,13 @@ func (b *bulkRowTags) fetchBulkTags(ctx context.Context, keys []string) {
 
 // readBulkChunk reads the tags of keys in one call. A not-found error does
 // not say which key was not found, so a call of several keys that fails with
-// one is made again for each key alone: only the resources deleted since they
-// were listed then read as not found, and the others keep their tags.
+// one (or, under splittingFailures, with any error splitsCall accepts) is
+// made again for each key alone: only the resources deleted since they were
+// listed then read as not found, and the others keep their tags.
 func (b *bulkRowTags) readBulkChunk(ctx context.Context, keys []string) map[string]rowTagRead {
 	got, err := b.describeBulkBounded(ctx, keys)
 	out := make(map[string]rowTagRead, len(keys))
-	if len(keys) > 1 && isAPIErrorCode(err, b.notFound...) {
+	if len(keys) > 1 && b.splitsCall(err) {
 		for _, k := range keys {
 			maps.Copy(out, b.readBulkChunk(ctx, []string{k}))
 		}
@@ -1388,7 +1416,17 @@ func (b *bulkRowTags) describeBulkBounded(ctx context.Context, keys []string) (m
 }
 
 // takeBulkTags returns, and forgets, what fetchBulkTags read for r's key.
-func (b *bulkRowTags) takeBulkTags(_ context.Context, r *store.Resource) (*string, error) {
+func (b *bulkRowTags) takeBulkTags(ctx context.Context, r *store.Resource) (*string, error) {
+	tags, err := b.peekBulkTags(ctx, r)
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.got, b.key(r))
+	return tags, err
+}
+
+// peekBulkTags returns what fetchBulkTags read for r's key, as takeBulkTags
+// does, but keeps it for takeBulkTags.
+func (b *bulkRowTags) peekBulkTags(_ context.Context, r *store.Resource) (*string, error) {
 	k := b.key(r)
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -1396,13 +1434,19 @@ func (b *bulkRowTags) takeBulkTags(_ context.Context, r *store.Resource) (*strin
 	if !ok {
 		return nil, fmt.Errorf("%w: %s", errTagsNotFetched, k)
 	}
-	delete(b.got, k)
 	return got.tags, got.err
 }
 
 // bulkTagReader is the rowTagReader giving each row what b read for it.
 func (b *bulkRowTags) bulkTagReader() rowTagReader {
 	return rowTagReader{op: b.op, notFound: b.notFound, read: b.takeBulkTags}
+}
+
+// bulkTagPeeker is bulkTagReader reading through peekBulkTags, so that a
+// listing can see which rows a tag read will drop before bulkTagReader reads
+// them.
+func (b *bulkRowTags) bulkTagPeeker() rowTagReader {
+	return rowTagReader{op: b.op, notFound: b.notFound, read: b.peekBulkTags}
 }
 
 // noIdentifier names, in a warning, a listed element with neither an ARN nor

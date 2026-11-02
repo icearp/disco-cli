@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net"
 	"path/filepath"
 	"slices"
@@ -105,7 +106,7 @@ func cloudTrailHandlers(insightCalls, evCfgCalls *parentCalls) map[string]func(i
 			}}, nil
 		},
 		"GetTrailStatus": func(any) (any, error) { return &cloudtrail.GetTrailStatusOutput{IsLogging: sdkaws.Bool(true)}, nil },
-		"ListTags":       func(any) (any, error) { return &cloudtrail.ListTagsOutput{}, nil },
+		"ListTags":       ctListTags(nil, nil, nil),
 		"ListEventDataStores": func(in any) (any, error) {
 			if in.(*cloudtrail.ListEventDataStoresInput).NextToken == nil {
 				return &cloudtrail.ListEventDataStoresOutput{
@@ -437,7 +438,7 @@ func TestScanCloudTrail_OlderPhaseErrorStillRunsConfigurations(t *testing.T) {
 // error.
 func TestScanCloudTrail_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 	st := newTestStore(t)
-	warns := countOpWarnings(st, "cloudtrail")
+	warns := countOpWarnings(st, ctListChannelsOp)
 	var insightCalls, evCfgCalls parentCalls
 	h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
 	h["ListChannels"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }
@@ -448,7 +449,7 @@ func TestScanCloudTrail_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 		t.Errorf("err = %v reads as transient; the hard configuration error must not be masked", err)
 	}
 	if *warns != 1 {
-		t.Errorf("warnings = %d, want 1 for the demoted transient", *warns)
+		t.Errorf("%s warnings = %d, want 1 for the demoted transient, under the op that failed", ctListChannelsOp, *warns)
 	}
 }
 
@@ -717,6 +718,79 @@ func TestScanCloudTrail_LakeDetailFailureKeepsListElement(t *testing.T) {
 	}
 }
 
+// A failed GetChannel of a service-linked channel, or GetDashboard of a
+// MANAGED dashboard, whose tags are not read, is reported like that of any
+// other item: a denial warns once and the scan succeeds, any other error is
+// returned. Either way the item is stored as its list element.
+func TestScanCloudTrail_ManagedLakeItemDetailFailureReported(t *testing.T) {
+	for _, op := range []struct {
+		name, typ, arn string
+		in             func(in any) string
+		wantAttrs      map[string]any // the list element's attrs
+	}{
+		{
+			"GetChannel", TypeCloudTrailChannel, ctTestManagedChannelARN,
+			func(in any) string { return sv(in.(*cloudtrail.GetChannelInput).Channel) },
+			map[string]any{"ChannelArn": ctTestManagedChannelARN, "Name": "aws-service-channel/securitylake/svc-1"},
+		},
+		{
+			"GetDashboard", TypeCloudTrailDashboard, ctTestManagedDashboardARN,
+			func(in any) string { return sv(in.(*cloudtrail.GetDashboardInput).DashboardId) },
+			map[string]any{"DashboardArn": ctTestManagedDashboardARN, "Type": string(cloudtrailtypes.DashboardTypeManaged)},
+		},
+	} {
+		for _, tc := range []struct {
+			name      string
+			err       error
+			wantCode  string // "" means the scan returns nil
+			wantWarns int
+		}{
+			{"denied", ctDenied, "", 1},
+			{"other", ctBadInput, "InvalidParameterException", 0},
+		} {
+			t.Run(op.name+"/"+tc.name, func(t *testing.T) {
+				st := newTestStore(t)
+				warns := countOpWarnings(st, "cloudtrail:"+op.name)
+				var insightCalls, evCfgCalls parentCalls
+				h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
+				ctWithAllLakeItems(h, map[string]int32{})
+				detail := h[op.name]
+				h[op.name] = func(in any) (any, error) {
+					if op.in(in) == op.arn {
+						return nil, tc.err
+					}
+					return detail(in)
+				}
+				_, err := scanCloudTrailTopLevel(t, st, h)
+				if tc.wantCode != "" {
+					assertAPICode(t, err, tc.wantCode)
+				} else if err != nil {
+					t.Fatalf("scanCloudTrail: %v", err)
+				}
+				if *warns != tc.wantWarns {
+					t.Errorf("cloudtrail:%s warnings = %d, want %d", op.name, *warns, tc.wantWarns)
+				}
+				row, ok := rowsByNativeID(t, st, op.typ)[op.arn]
+				if !ok {
+					t.Fatalf("%s not stored", op.arn)
+				}
+				var attrs map[string]any
+				if err := json.Unmarshal([]byte(row.AttributesJSON), &attrs); err != nil {
+					t.Fatal(err)
+				}
+				for k, v := range attrs {
+					if v == nil {
+						delete(attrs, k)
+					}
+				}
+				if !maps.Equal(attrs, op.wantAttrs) {
+					t.Errorf("%s attrs = %v; want the list element %v", op.arn, attrs, op.wantAttrs)
+				}
+			})
+		}
+	}
+}
+
 // A failed write stores no channel, so the warning that a channel was stored
 // as its list element is not given.
 func TestScanCTChannels_NoKeptWarningAfterFailedWrite(t *testing.T) {
@@ -739,9 +813,11 @@ func TestScanCTChannels_NoKeptWarningAfterFailedWrite(t *testing.T) {
 			return nil, ctDenied
 		},
 	}, ctDenied))
-	_, _, _, err = scanCTChannels(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
-	if !errors.Is(err, store.ErrStoreWrite) {
-		t.Fatalf("err = %v, want store.ErrStoreWrite", err)
+	acct := newTestAccount(testAccountID)
+	var p phaseTotals
+	_, failed := scanCTChannels(context.Background(), client, acct, testRegion, st, testScanID, newCloudTrailTags(client, acct.ID), &p)
+	if _, _, err := p.result(st, acct, testRegion); !failed || !errors.Is(err, store.ErrStoreWrite) {
+		t.Fatalf("write failed = %v, err = %v; want true, store.ErrStoreWrite", failed, err)
 	}
 	if *warns != 0 {
 		t.Errorf("GetChannel warnings = %d, want 0: the channel was not stored", *warns)

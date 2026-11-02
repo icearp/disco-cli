@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudtrail"
 	cloudtrailtypes "github.com/aws/aws-sdk-go-v2/service/cloudtrail/types"
 	"github.com/icearp/disco-cli/store"
@@ -181,49 +182,24 @@ func cloudTrailConfigFanOut(
 	return t1 + t2, i1 + i2, errors.Join(err1, err2)
 }
 
-// scanCloudTrailExtended discovers Lake channels, dashboards, and
-// resource-based policies attached to channels/dashboards/event-data-stores.
-// ResourcePolicy synth ARN: {targetArn}/policy. Every phase runs whatever the
-// others returned, and the policies are read for the targets listed before
-// any listing failed; the counts are every row stored and the errors join
-// through phaseErrs. eventDataStores are the stores
-// scanCloudTrailEventDataStores stored.
-func scanCloudTrailExtended(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string, eventDataStores []childParent) (total, inserted int, err error) {
-	var errs phaseErrs
-	channelArns, t, i, err := scanCTChannels(ctx, client, acct, region, st, scanID)
-	total, inserted = total+t, inserted+i
-	errs.add(ctListChannelsOp, err)
-
-	dashboardArns, t, i, err := scanCTDashboards(ctx, client, acct, region, st, scanID)
-	total, inserted = total+t, inserted+i
-	errs.add(ctListDashboardsOp, err)
-
-	policyTargets := slices.Concat(channelArns, dashboardArns)
-	for _, eds := range eventDataStores {
-		policyTargets = append(policyTargets, eds.arn)
-	}
-	t, i, err = scanCTResourcePolicies(ctx, client, policyTargets, acct, region, st, scanID)
-	total, inserted = total+t, inserted+i
-	errs.add("cloudtrail:GetResourcePolicy", err)
-	return total, inserted, errs.join(st, acct, region)
-}
-
 const (
 	ctListChannelsOp   = "cloudtrail:ListChannels"
 	ctListDashboardsOp = "cloudtrail:ListDashboards"
 )
 
 // ctListPages reads a hand-rolled NextToken listing, page by page, until list
-// fails or returns its last page. A denial warns under op and ends the listing
-// without an error; any other error, and a repeated token, ends it with one.
-// ListDashboards has no SDK paginator, and ListChannels' would loop on a
-// repeated token or, told to stop on one, read as a complete listing.
-func ctListPages(st *store.Store, acct *account, region, op string, list func(token *string) (*string, error)) error {
+// fails or returns its last page, and returns the error that ended it: list's,
+// or a repeated token's. A denial of a page after the first says the listing
+// was cut short. The caller warns about a denial (storeReadRows) only once the
+// pages read are stored. ListDashboards has no SDK paginator, and
+// ListChannels' would loop on a repeated token or, told to stop on one, read
+// as a complete listing.
+func ctListPages(list func(token *string) (*string, error)) error {
 	var token *string
 	for {
 		next, err := list(token)
-		if isAccessDenied(err) {
-			return skipIfAccessDenied(st, op, acct.ID, region, err)
+		if isAccessDenied(err) && token != nil {
+			return fmt.Errorf("listing truncated, items on this and later pages not stored: %w", err)
 		}
 		if err != nil {
 			return err
@@ -236,8 +212,9 @@ func ctListPages(st *store.Store, acct *account, region, op string, list func(to
 	}
 }
 
-// ctDetailFailures tallies the Lake items whose detail read (GetChannel,
-// GetDashboard) failed, so that each is stored as its list element.
+// ctDetailFailures tallies the stored Lake items whose detail read
+// (GetChannel, GetDashboard) failed, so that each is stored as its list
+// element.
 type ctDetailFailures struct {
 	denied    skipTally
 	transient transientTally
@@ -274,20 +251,52 @@ func (f *ctDetailFailures) settle(st *store.Store, acct *account, region, listOp
 	return errors.Join(err, fmt.Errorf("%s: "+kept, op, f.other.count, f.other.first, f.other.err))
 }
 
-// scanCTChannels stores the Lake channels and returns the ARNs of those
-// listed. The pages read before a failed listing are stored. A channel
-// GetChannel no longer finds (ChannelNotFoundException, in the op's model) was
-// deleted since it was listed and is not stored; any other GetChannel failure
-// stores it as its list element, per ctDetailFailures.
-func scanCTChannels(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+// storeCTLakeItems stores the rows a Lake listing read, which ended with
+// listErr: the rows in read have their tags read first (tags), those in
+// untagged do not. detailErrs holds, by NativeID, the failed detail reads
+// that kept a row as its list element; only those of the rows stored (the
+// untagged rows and those the tag read keeps) are reported (ctDetailFailures),
+// since a row the tag read drops is not stored. It adds the counts and
+// errors to p, returns the NativeIDs of the rows stored, and reports whether
+// the write failed.
+func storeCTLakeItems(ctx context.Context, st *store.Store, acct *account, region, listOp, detailOp string, read, untagged []*store.Resource, listErr error, detailErrs map[string]error, tags cloudTrailTags, p *phaseTotals) (arns []string, storeWriteFailed bool) {
+	var tagErrs rowTagErrs
+	kept, tagWarn := tags.readCloudTrailRowTags(ctx, st, acct, region, read, &tagErrs)
+	batch := slices.Concat(kept, untagged)
+	var failed ctDetailFailures
+	for _, r := range batch {
+		if dErr, ok := detailErrs[r.NativeID]; ok {
+			failed.add(r.NativeID, dErr)
+		}
+	}
+	total, inserted, err := storeReadRows(st, acct, region, listOp, batch, listErr, tagWarn)
+	err = failed.settle(st, acct, region, listOp, detailOp, err)
+	if tagErrs.addPhase(p, ctListTagsOp, listOp, total, inserted, err) {
+		return nil, true
+	}
+	for _, r := range batch {
+		arns = append(arns, r.NativeID)
+	}
+	return arns, false
+}
+
+// scanCTChannels stores the Lake channels, with their tags, and returns the
+// ARNs of those stored. The pages read before a failed listing are stored. A
+// channel GetChannel no longer finds (ChannelNotFoundException, in the op's
+// model) was deleted since it was listed and is not stored; any other
+// GetChannel failure stores it as its list element, per ctDetailFailures.
+// A service-linked channel (aws-service-channel/ name prefix) is created and
+// managed by the AWS service named in it, so it is ManagedByProvider and its
+// tags are not read: nothing shows ListTags accepts it. Counts and errors go
+// to p; it reports whether the write failed.
+func scanCTChannels(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string, tags cloudTrailTags, p *phaseTotals) (arns []string, storeWriteFailed bool) {
 	var (
-		batch   []*store.Resource
-		arns    []string
-		arnless skipTally
-		failed  ctDetailFailures
+		read, managed []*store.Resource
+		arnless       skipTally
+		detailErrs    = map[string]error{}
 	)
-	listErr := ctListPages(st, acct, region, ctListChannelsOp, func(token *string) (*string, error) {
-		out, err := client.ListChannels(ctx, &cloudtrail.ListChannelsInput{NextToken: token})
+	listErr := ctListPages(func(token *string) (*string, error) {
+		out, err := client.ListChannels(ctx, &cloudtrail.ListChannelsInput{NextToken: token, MaxResults: aws.Int32(ctLakePageCap)})
 		if err != nil {
 			return nil, err
 		}
@@ -303,39 +312,44 @@ func scanCTChannels(ctx context.Context, client cloudtrailAPI, acct *account, re
 			}
 			var attrs any = detail
 			if dErr != nil {
-				failed.add(arn, dErr)
+				detailErrs[arn] = dErr
 				attrs = c
 			}
-			arns = append(arns, arn)
-			batch = append(batch, &store.Resource{
+			r := &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeCloudTrailChannel, NativeID: arn,
 				Name: c.Name, Region: &region,
 				ManagedByProvider: strings.HasPrefix(sv(c.Name), "aws-service-channel/"),
 				AttributesJSON:    mustJSON(attrs), DiscoveredBy: scanID,
-			})
+			}
+			if r.ManagedByProvider {
+				managed = append(managed, r)
+			} else {
+				read = append(read, r)
+			}
 		}
 		return out.NextToken, nil
 	})
 	warnNotStored(st, ctListChannelsOp, acct, region, &arnless, "channels have no ChannelArn")
-	t, i, err := upsertListed(st, batch, ctListChannelsOp, listErr)
-	return arns, t, i, failed.settle(st, acct, region, ctListChannelsOp, "cloudtrail:GetChannel", err)
+	return storeCTLakeItems(ctx, st, acct, region, ctListChannelsOp, "cloudtrail:GetChannel", read, managed, listErr, detailErrs, tags, p)
 }
 
-// scanCTDashboards stores the Lake dashboards and returns the ARNs of those
-// listed. The pages read before a failed listing are stored. A dashboard
-// GetDashboard no longer finds (ResourceNotFoundException, in the op's model)
-// was deleted since it was listed and is not stored; any other GetDashboard
-// failure stores it as its list element, per ctDetailFailures.
-func scanCTDashboards(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
+// scanCTDashboards stores the Lake dashboards, with their tags, and returns
+// the ARNs of those stored. The pages read before a failed listing are
+// stored. A dashboard GetDashboard no longer finds (ResourceNotFoundException,
+// in the op's model) was deleted since it was listed and is not stored; any
+// other GetDashboard failure stores it as its list element, per
+// ctDetailFailures. A MANAGED dashboard is one CloudTrail defines, not the
+// account, so its tags are not read: nothing shows ListTags accepts it.
+// Counts and errors go to p; it reports whether the write failed.
+func scanCTDashboards(ctx context.Context, client cloudtrailAPI, acct *account, region string, st *store.Store, scanID string, tags cloudTrailTags, p *phaseTotals) (arns []string, storeWriteFailed bool) {
 	var (
-		batch   []*store.Resource
-		arns    []string
-		arnless skipTally
-		failed  ctDetailFailures
+		read, managed []*store.Resource
+		arnless       skipTally
+		detailErrs    = map[string]error{}
 	)
-	listErr := ctListPages(st, acct, region, ctListDashboardsOp, func(token *string) (*string, error) {
-		out, err := client.ListDashboards(ctx, &cloudtrail.ListDashboardsInput{NextToken: token})
+	listErr := ctListPages(func(token *string) (*string, error) {
+		out, err := client.ListDashboards(ctx, &cloudtrail.ListDashboardsInput{NextToken: token, MaxResults: aws.Int32(ctLakePageCap)})
 		if err != nil {
 			return nil, err
 		}
@@ -356,18 +370,20 @@ func scanCTDashboards(ctx context.Context, client cloudtrailAPI, acct *account, 
 				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
 			}
 			if dErr != nil {
-				failed.add(arn, dErr)
+				detailErrs[arn] = dErr
 			} else {
 				r.Status, r.AttributesJSON = nonEmptyPtr(string(detail.Status)), mustJSON(detail)
 			}
-			arns = append(arns, arn)
-			batch = append(batch, r)
+			if d.Type == cloudtrailtypes.DashboardTypeManaged {
+				managed = append(managed, r)
+			} else {
+				read = append(read, r)
+			}
 		}
 		return out.NextToken, nil
 	})
 	warnNotStored(st, ctListDashboardsOp, acct, region, &arnless, "dashboards have no DashboardArn")
-	t, i, err := upsertListed(st, batch, ctListDashboardsOp, listErr)
-	return arns, t, i, failed.settle(st, acct, region, ctListDashboardsOp, "cloudtrail:GetDashboard", err)
+	return storeCTLakeItems(ctx, st, acct, region, ctListDashboardsOp, "cloudtrail:GetDashboard", read, managed, listErr, detailErrs, tags, p)
 }
 
 // scanCTResourcePolicies stores the resource-based policy of each target that

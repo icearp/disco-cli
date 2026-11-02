@@ -737,7 +737,6 @@ func TestTransientDemotersAreKnown(t *testing.T) {
 		// Either way the scan is not marked partial: whether a per-item
 		// throttle should be is an open question for the user.
 		"skipIfTransient": {
-			"cloudtrail_scanners.go:scanCloudTrailEventDataStores":      true,
 			"cloudtrail_scanners.go:warn":                               true,
 			"cloudtrail_extended_scanners.go:settle":                    true,
 			"connect_scanners.go:warnKept":                              true,
@@ -3204,6 +3203,72 @@ func TestBulkRowTags_PerKeyResults(t *testing.T) {
 		assertTagsMap(t, got, map[string]string{"name": k})
 	}
 	for k, want := range map[string]error{"gone": gone, "left-out": errTagsNotDescribed, "c": bad, "bad": bad, "never": errTagsNotFetched} {
+		if got, err := c.take(k); got != nil || !errors.Is(err, want) {
+			t.Errorf("take %s = %v, %v; want nil, %v", k, got, err, want)
+		}
+	}
+}
+
+// bulkTagPeeker gives a key's result as often as it is read and leaves it
+// for bulkTagReader, which then gives the same result once; a key no fetch
+// read peeks as not fetched.
+func TestBulkRowTags_PeekKeepsResult(t *testing.T) {
+	gone := apiErr("NotFound", "gone")
+	c := newBulkTestCalls()
+	c.errs["gone"] = gone
+	c.b.fetchBulkTags(context.Background(), []string{"a", "gone"})
+	peek := func(key string) (*string, error) {
+		return c.b.bulkTagPeeker().read(context.Background(), &store.Resource{NativeID: key})
+	}
+	for range 2 {
+		got, err := peek("a")
+		if err != nil {
+			t.Fatalf("peek a: %v", err)
+		}
+		assertTagsMap(t, got, map[string]string{"name": "a"})
+		if got, err := peek("gone"); got != nil || !errors.Is(err, gone) {
+			t.Errorf("peek gone = %v, %v; want nil, %v", got, err, gone)
+		}
+	}
+	got, err := c.take("a")
+	if err != nil {
+		t.Fatalf("take a: %v", err)
+	}
+	assertTagsMap(t, got, map[string]string{"name": "a"})
+	if got, err := c.take("gone"); got != nil || !errors.Is(err, gone) {
+		t.Errorf("take gone = %v, %v; want nil, %v", got, err, gone)
+	}
+	for _, k := range []string{"a", "never"} {
+		if _, err := peek(k); !errors.Is(err, errTagsNotFetched) {
+			t.Errorf("peek %s = %v; want errTagsNotFetched: taken, or never fetched", k, err)
+		}
+	}
+}
+
+// Under splittingFailures a call of several keys failing with any error but
+// a transient one is made again for each key alone, so only the key refused
+// reads as failed; a transient failure is every key's of its call, unsplit.
+func TestBulkRowTags_SplittingFailures(t *testing.T) {
+	refused, denied := apiErr("InactiveThing", "refused"), apiErr("AccessDeniedException", "denied")
+	throttled := apiErr("ThrottlingException", "Rate exceeded")
+	c := newBulkTestCalls()
+	c.b.splittingFailures()
+	c.errs["refused"], c.errs["denied"], c.errs["slow"] = refused, denied, throttled
+	c.b.fetchBulkTags(context.Background(), []string{"a", "refused", "b", "denied"})
+	c.b.fetchBulkTags(context.Background(), []string{"c", "slow"})
+
+	wantCalls := [][]string{{"a", "refused", "b", "denied"}, {"a"}, {"refused"}, {"b"}, {"denied"}, {"c", "slow"}}
+	if !slices.EqualFunc(c.calls, wantCalls, slices.Equal) {
+		t.Errorf("calls = %v\nwant %v", c.calls, wantCalls)
+	}
+	for _, k := range []string{"a", "b"} {
+		got, err := c.take(k)
+		if err != nil {
+			t.Fatalf("take %s: %v", k, err)
+		}
+		assertTagsMap(t, got, map[string]string{"name": k})
+	}
+	for k, want := range map[string]error{"refused": refused, "denied": denied, "c": throttled, "slow": throttled} {
 		if got, err := c.take(k); got != nil || !errors.Is(err, want) {
 			t.Errorf("take %s = %v, %v; want nil, %v", k, got, err, want)
 		}
