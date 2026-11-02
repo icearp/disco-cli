@@ -438,6 +438,18 @@ func joinedMembers(err error) []error {
 	return nil
 }
 
+// throttledAfterRetriesError is err, a service's modeled throttle still
+// returned after the SDK's retries, marked transient by the scanner that
+// knows its code means a throttle there. The code list in isTransientCause
+// cannot hold such a code when other services use it for something else:
+// Cost Explorer's throttle is LimitExceededException, which elsewhere means a
+// quota was reached. Its message and chain are err's.
+type throttledAfterRetriesError struct{ err error }
+
+func (e *throttledAfterRetriesError) Error() string { return e.err.Error() }
+
+func (e *throttledAfterRetriesError) Unwrap() error { return e.err }
+
 // isTransientCause is isTransientNetworkError for an err whose chain holds no
 // join.
 func isTransientCause(err error) bool {
@@ -470,6 +482,10 @@ func isTransientCause(err error) bool {
 		return true
 	}
 	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	var throttled *throttledAfterRetriesError
+	if errors.As(err, &throttled) {
 		return true
 	}
 	// HTTP 408 — the server timed out waiting for the request. Same fact as the

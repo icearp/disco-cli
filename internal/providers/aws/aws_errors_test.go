@@ -507,6 +507,9 @@ func TestIsTransientNetworkError(t *testing.T) {
 	provThroughput := &smithy.GenericAPIError{Code: "ProvisionedThroughputExceededException", Message: "rate exceeded"}
 	accessDenied := &smithy.GenericAPIError{Code: "AccessDenied", Message: "denied"}
 	validation := &smithy.GenericAPIError{Code: "ValidationException", Message: "bad input"}
+	// Cost Explorer's throttle; other services use the code for a quota.
+	limitExceeded := &smithy.GenericAPIError{Code: "LimitExceededException", Message: "You made too many calls in a short period of time. Try again later."}
+	markedThrottle := &throttledAfterRetriesError{limitExceeded}
 
 	// Transport send failure: connection dropped mid-request. Smithy wraps a bare
 	// io.EOF, which is neither a net.* type nor an APIError. Observed post-retry on
@@ -547,6 +550,10 @@ func TestIsTransientNetworkError(t *testing.T) {
 		{"request send error wrapped (transcribe shape)", wrappedSendEOF, true},
 		{"bare io.EOF", io.EOF, true},
 		{"io.ErrUnexpectedEOF", io.ErrUnexpectedEOF, true},
+		{"LimitExceededException unmarked not transient", limitExceeded, false},
+		{"throttle marked by its scanner", markedThrottle, true},
+		{"marked throttle under an op label", fmt.Errorf("ce:ListTagsForResource arn: %w", markedThrottle), true},
+		{"marked throttle joined beside a hard error", errors.Join(markedThrottle, validation), false},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

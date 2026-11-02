@@ -18,8 +18,16 @@ import (
 // BCM Pricing Calculator + Cost Explorer scanners — both gate on the same
 // account-level Cost Explorer enablement.
 func isCostExplorerNotEnabled(err error) bool {
-	return isAccessDeniedWithMessage(err, "not enabled for cost explorer") ||
+	return isCostExplorerUserNotEnabled(err) ||
 		isAccessDeniedWithMessage(err, "doesn't have access to cost category")
+}
+
+// isCostExplorerUserNotEnabled is the part of isCostExplorerNotEnabled that
+// says Cost Explorer itself is not enabled ("User not enabled for cost
+// explorer access"), as opposed to a linked account refused cost categories
+// while its other Cost Explorer calls answer.
+func isCostExplorerUserNotEnabled(err error) bool {
+	return isAccessDeniedWithMessage(err, "not enabled for cost explorer")
 }
 
 // isMigrationRequiredIAMDeny matches the canned AccessDeniedException AWS

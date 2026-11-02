@@ -2,9 +2,10 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/costexplorer"
+	cetypes "github.com/aws/aws-sdk-go-v2/service/costexplorer/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -24,7 +25,16 @@ type costExplorerAPI interface {
 	GetAnomalyMonitors(context.Context, *costexplorer.GetAnomalyMonitorsInput, ...func(*costexplorer.Options)) (*costexplorer.GetAnomalyMonitorsOutput, error)
 	GetAnomalySubscriptions(context.Context, *costexplorer.GetAnomalySubscriptionsInput, ...func(*costexplorer.Options)) (*costexplorer.GetAnomalySubscriptionsOutput, error)
 	ListCostCategoryDefinitions(context.Context, *costexplorer.ListCostCategoryDefinitionsInput, ...func(*costexplorer.Options)) (*costexplorer.ListCostCategoryDefinitionsOutput, error)
+	ListTagsForResource(context.Context, *costexplorer.ListTagsForResourceInput, ...func(*costexplorer.Options)) (*costexplorer.ListTagsForResourceOutput, error)
 }
+
+const (
+	ceTagsOp = "ce:ListTagsForResource"
+	// ceCostCategoryPageCap is ListCostCategoryDefinitions' MaxResults
+	// maximum. The anomaly listings model no MaxResults range and their docs
+	// name no cap, so they are sent none.
+	ceCostCategoryPageCap = 100
+)
 
 // scanCostExplorer discovers anomaly monitors, anomaly subscriptions, and
 // cost category definitions. CE is global, called in its home region
@@ -35,120 +45,157 @@ func scanCostExplorer(ctx context.Context, acct *account, _ string, st *store.St
 		return 0, 0, err
 	}
 	client := costexplorer.NewFromConfig(acct.cfg, func(o *costexplorer.Options) { o.Region = region })
-
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanCEAnomalyMonitors(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanCEAnomalySubscriptions(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanCECostCategories(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+	return scanCostExplorerAll(ctx, client, acct, region, st, scanID)
 }
 
-func scanCEAnomalyMonitors(ctx context.Context, client costExplorerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.GetAnomalyMonitors(ctx, &costexplorer.GetAnomalyMonitorsInput{NextPageToken: nextToken})
-		if err != nil {
-			if isCostExplorerNotEnabled(err) {
-				return 0, 0, markServiceDisabled(err)
-			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ce:GetAnomalyMonitors", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("ce:GetAnomalyMonitors: %w", err)
+// scanCostExplorerAll stores the anomaly monitors, anomaly subscriptions and
+// cost categories, each with its tags (ceTags). Every listing runs as its own
+// phase, one at a time and in that order: a phase's error does not stop the
+// later ones; a failed write and ctx's end do (runHostPhases). The tag
+// reads' denials are one warning for the whole scan.
+//
+// A listing whose first page Cost Explorer refuses as not enabled for the
+// account (isCostExplorerNotEnabled) is read as empty without a warning: the
+// account cannot fix that with IAM. That covers a linked account refused
+// cost categories ("doesn't have access to cost category") while its other
+// listings answer: its Cost Explorer is enabled, and it cannot enable cost
+// categories itself, so that refusal never reports the account disabled.
+// The scan reports the account disabled only when Cost Explorer itself was
+// refused as not enabled (isCostExplorerUserNotEnabled) while nothing was
+// stored and no phase failed, so the sentinel never discards rows or hides
+// an error. The same refusal of a later page is warned about as a denial
+// under its listing, with the pages before it kept.
+func scanCostExplorerAll(ctx context.Context, client costExplorerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	// The phases run one at a time, so the gate is never called concurrently.
+	var notEnabled error
+	gate := func(err error) bool {
+		if !isCostExplorerNotEnabled(err) {
+			return false
 		}
-		for _, m := range out.AnomalyMonitors {
-			arn := sv(m.MonitorArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeCEAnomalyMonitor, NativeID: arn,
-				Name: m.MonitorName, Region: regionGlobal,
-				AttributesJSON: mustJSON(m), DiscoveredBy: scanID,
-			})
+		if isCostExplorerUserNotEnabled(err) {
+			notEnabled = err
 		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		nextToken = out.NextPageToken
+		return true
 	}
-	return upsertBatch(st, batch, "ce anomaly-monitors")
+	tags := ceTags(client).sharingDenials()
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "ce", 0, []hostPhase{
+		{op: "ce:GetAnomalyMonitors", run: func(p *phaseTotals) bool {
+			return scanCEAnomalyMonitors(ctx, client, acct, region, st, scanID, gate, tags, p)
+		}},
+		{op: "ce:GetAnomalySubscriptions", run: func(p *phaseTotals) bool {
+			return scanCEAnomalySubscriptions(ctx, client, acct, region, st, scanID, gate, tags, p)
+		}},
+		{op: "ce:ListCostCategoryDefinitions", run: func(p *phaseTotals) bool {
+			return scanCECostCategories(ctx, client, acct, region, st, scanID, gate, tags, p)
+		}},
+	})
+	tags.warnDenials(st, acct, region)
+	if notEnabled != nil && total == 0 && err == nil {
+		return 0, 0, markServiceDisabled(notEnabled)
+	}
+	return total, inserted, err
 }
 
-func scanCEAnomalySubscriptions(ctx context.Context, client costExplorerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.GetAnomalySubscriptions(ctx, &costexplorer.GetAnomalySubscriptionsInput{NextPageToken: nextToken})
-		if err != nil {
-			if isCostExplorerNotEnabled(err) {
-				return 0, 0, markServiceDisabled(err)
+// ceTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: the ARN its listing returned. The Service Reference lists
+// anomalymonitor, anomalysubscription and costcategory under
+// ListTagsForResource, and each one's Create op takes ResourceTags. The op
+// returns every tag at once. ResourceNotFoundException, its modeled
+// not-found, drops a resource deleted after it was listed.
+// LimitExceededException, its only other modeled error, is Cost Explorer's
+// throttle (ceThrottled).
+func ceTags(client costExplorerAPI) rowTagReader {
+	return rowTagReader{
+		op:       ceTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &costexplorer.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, ceThrottled(err)
 			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ce:GetAnomalySubscriptions", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("ce:GetAnomalySubscriptions: %w", err)
-		}
-		for _, s := range out.AnomalySubscriptions {
-			arn := sv(s.SubscriptionArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeCEAnomalySubscription, NativeID: arn,
-				Name: s.SubscriptionName, Region: regionGlobal,
-				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextPageToken == nil || *out.NextPageToken == "" {
-			break
-		}
-		nextToken = out.NextPageToken
+			return kvTagsJSON(out.ResourceTags, func(t cetypes.ResourceTag) (*string, *string) { return t.Key, t.Value }), nil
+		},
 	}
-	return upsertBatch(st, batch, "ce anomaly-subscriptions")
 }
 
-func scanCECostCategories(ctx context.Context, client costExplorerAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	var nextToken *string
-	for {
-		out, err := client.ListCostCategoryDefinitions(ctx, &costexplorer.ListCostCategoryDefinitionsInput{NextToken: nextToken})
-		if err != nil {
-			if isCostExplorerNotEnabled(err) {
-				return 0, 0, markServiceDisabled(err)
-			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "ce:ListCostCategoryDefinitions", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("ce:ListCostCategoryDefinitions: %w", err)
-		}
-		for _, c := range out.CostCategoryReferences {
-			arn := sv(c.CostCategoryArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeCECostCategory, NativeID: arn,
-				Name: c.Name, Region: regionGlobal,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
+// ceThrottled is err marked transient (throttledAfterRetriesError) when it is
+// LimitExceededException, else err. Every Cost Explorer op the scan calls
+// models LimitExceededException as Cost Explorer's throttle ("You made too
+// many calls in a short period of time"), so one still returned after the
+// SDK's retries makes the scan partial, not failed.
+func ceThrottled(err error) error {
+	if isAPIErrorCode(err, "LimitExceededException") {
+		return &throttledAfterRetriesError{err}
 	}
-	return upsertBatch(st, batch, "ce cost-categories")
+	return err
+}
+
+// ceRow is the row of a listed element stored under its ARN and named name;
+// an element without an ARN is not stored (arnRow), and what names such
+// elements in the listing's warning.
+func ceRow(acct *account, scanID, typ, what string, arn, name *string, element any) (*store.Resource, string, string) {
+	return arnRow(what, arn, name, &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: sv(arn),
+		Name: name, Region: regionGlobal,
+		AttributesJSON: mustJSON(element), DiscoveredBy: scanID,
+	})
+}
+
+// scanCEAnomalyMonitors stores the anomaly monitors, each page written as
+// soon as its rows' tags are read. A first page notEnabled accepts is read
+// as an empty listing. It reports whether a write failed, after which the
+// scan must stop.
+func scanCEAnomalyMonitors(ctx context.Context, client costExplorerAPI, acct *account, region string, st *store.Store, scanID string, notEnabled func(error) bool, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "ce:GetAnomalyMonitors",
+		firstPageGapPages(notEnabled, func(ctx context.Context, token *string) ([]cetypes.AnomalyMonitor, *string, error) {
+			out, err := client.GetAnomalyMonitors(ctx, &costexplorer.GetAnomalyMonitorsInput{NextPageToken: token})
+			if err != nil {
+				return nil, nil, ceThrottled(err)
+			}
+			return out.AnomalyMonitors, out.NextPageToken, nil
+		}),
+		func(m cetypes.AnomalyMonitor) (*store.Resource, string, string) {
+			return ceRow(acct, scanID, TypeCEAnomalyMonitor, "anomaly monitors", m.MonitorArn, m.MonitorName, m)
+		},
+		tags, p)
+}
+
+// scanCEAnomalySubscriptions stores the anomaly subscriptions, each page
+// written as soon as its rows' tags are read. A first page notEnabled
+// accepts is read as an empty listing. It reports whether a write failed,
+// after which the scan must stop.
+func scanCEAnomalySubscriptions(ctx context.Context, client costExplorerAPI, acct *account, region string, st *store.Store, scanID string, notEnabled func(error) bool, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "ce:GetAnomalySubscriptions",
+		firstPageGapPages(notEnabled, func(ctx context.Context, token *string) ([]cetypes.AnomalySubscription, *string, error) {
+			out, err := client.GetAnomalySubscriptions(ctx, &costexplorer.GetAnomalySubscriptionsInput{NextPageToken: token})
+			if err != nil {
+				return nil, nil, ceThrottled(err)
+			}
+			return out.AnomalySubscriptions, out.NextPageToken, nil
+		}),
+		func(s cetypes.AnomalySubscription) (*store.Resource, string, string) {
+			return ceRow(acct, scanID, TypeCEAnomalySubscription, "anomaly subscriptions", s.SubscriptionArn, s.SubscriptionName, s)
+		},
+		tags, p)
+}
+
+// scanCECostCategories stores the cost categories, each page written as
+// soon as its rows' tags are read. A first page notEnabled accepts is read
+// as an empty listing. It reports whether a write failed, after which the
+// scan must stop.
+func scanCECostCategories(ctx context.Context, client costExplorerAPI, acct *account, region string, st *store.Store, scanID string, notEnabled func(error) bool, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "ce:ListCostCategoryDefinitions",
+		firstPageGapPages(notEnabled, func(ctx context.Context, token *string) ([]cetypes.CostCategoryReference, *string, error) {
+			out, err := client.ListCostCategoryDefinitions(ctx, &costexplorer.ListCostCategoryDefinitionsInput{MaxResults: sdkaws.Int32(ceCostCategoryPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, ceThrottled(err)
+			}
+			return out.CostCategoryReferences, out.NextToken, nil
+		}),
+		func(c cetypes.CostCategoryReference) (*store.Resource, string, string) {
+			return ceRow(acct, scanID, TypeCECostCategory, "cost categories", c.CostCategoryArn, c.Name, c)
+		},
+		tags, p)
 }
