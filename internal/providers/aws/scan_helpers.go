@@ -1922,6 +1922,14 @@ func recordUnderParents(st *store.Store, acct *account, op string, stored []*sto
 	for _, r := range stored {
 		pairs = append(pairs, [2]string{r.ID, store.ResourceID("aws", acct.ID, parentOf[r])})
 	}
+	return recordHierarchyPairs(st, op, pairs, p)
+}
+
+// recordHierarchyPairs records pairs, each a stored row's id and its
+// parent's resource id, in one closure write. A failed write is added to p
+// under op; it reports whether the write failed, after which the scanner
+// must stop.
+func recordHierarchyPairs(st *store.Store, op string, pairs [][2]string, p *phaseTotals) bool {
 	if err := st.RecordHierarchyBatch(pairs); err != nil {
 		return p.addPhase(op, 0, 0, fmt.Errorf("closure %s: %w", op, err))
 	}

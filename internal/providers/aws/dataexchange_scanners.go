@@ -2,8 +2,10 @@ package aws
 
 import (
 	"context"
-	"fmt"
+	"slices"
+	"strings"
 	"sync"
+	"time"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dataexchange"
@@ -42,7 +44,23 @@ type dataExchangeAPI interface {
 	ListDataSetRevisions(context.Context, *dataexchange.ListDataSetRevisionsInput, ...func(*dataexchange.Options)) (*dataexchange.ListDataSetRevisionsOutput, error)
 	ListRevisionAssets(context.Context, *dataexchange.ListRevisionAssetsInput, ...func(*dataexchange.Options)) (*dataexchange.ListRevisionAssetsOutput, error)
 	ListReceivedDataGrants(context.Context, *dataexchange.ListReceivedDataGrantsInput, ...func(*dataexchange.Options)) (*dataexchange.ListReceivedDataGrantsOutput, error)
+	ListTagsForResource(context.Context, *dataexchange.ListTagsForResourceInput, ...func(*dataexchange.Options)) (*dataexchange.ListTagsForResourceOutput, error)
 }
+
+const (
+	adxTagsOp = "dataexchange:ListTagsForResource"
+	// adxPageCap is the MaxResults maximum the model sets for every Data
+	// Exchange listing read here.
+	adxPageCap = 200
+	// adxReceivedSuffix ends a received grant's NativeID, after the grant's
+	// ARN; see scanDataExchangeReceivedDataGrants.
+	adxReceivedSuffix = "/received"
+)
+
+// adxParentGone is the not-found code ListDataSetRevisions and
+// ListRevisionAssets model, for a data set or revision deleted since it was
+// listed.
+var adxParentGone = []string{"ResourceNotFoundException"}
 
 // dxDataSet is a data set stored this scan, as a revision fan-out parent.
 type dxDataSet struct {
@@ -65,307 +83,360 @@ type dxRevision struct {
 // content, see scanDataExchangeAssets), entitled-* (consumer-side marketplace
 // subscriptions), jobs (import/export run records).
 //
-// The received-grant, revision and asset phases run after every older phase,
-// so their failure cannot cost the older rows; received grants go first among
-// them because they depend on nothing and the two fan-outs are unbounded.
-func scanDataExchange(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// Every listing runs as its own phase, one at a time, in this order: a
+// phase's error does not stop the later ones; a failed write and ctx's end
+// do (runHostPhases). The revision phase lists the data sets the first phase
+// stored, and the asset phase the revisions the revision phase stored. Every
+// type has its tags read per row (adxTags), and the tag denials of the whole
+// scan are one warning.
+func scanDataExchange(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := dataexchange.NewFromConfig(acct.cfg, func(o *dataexchange.Options) { o.Region = region })
-
+	tags := adxTags(client).sharingDenials()
 	var (
 		dataSets  []dxDataSet
 		revisions []dxRevision
 	)
-	for _, phase := range []func() (int, int, error){
-		func() (t, i int, err error) {
-			dataSets, t, i, err = scanDataExchangeDataSets(ctx, client, acct, region, st, scanID)
-			return t, i, err
-		},
-		func() (int, int, error) { return scanDataExchangeDataGrants(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanDataExchangeEventActions(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) {
-			return scanDataExchangeReceivedDataGrants(ctx, client, acct, region, st, scanID)
-		},
-		func() (t, i int, err error) {
-			revisions, t, i, err = scanDataExchangeRevisions(ctx, client, acct, region, st, scanID, dataSets)
-			return t, i, err
-		},
-		func() (int, int, error) {
-			return scanDataExchangeAssets(ctx, client, acct, region, st, scanID, revisions)
-		},
-	} {
-		t, i, ferr := phase()
-		total += t
-		inserted += i
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-	}
-	return total, inserted, nil
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "dataexchange", 0, []hostPhase{
+		{op: "dataexchange:ListDataSets", run: func(p *phaseTotals) (failed bool) {
+			dataSets, failed = scanDataExchangeDataSets(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "dataexchange:ListDataGrants", run: func(p *phaseTotals) bool {
+			return scanDataExchangeDataGrants(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "dataexchange:ListEventActions", run: func(p *phaseTotals) bool {
+			return scanDataExchangeEventActions(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "dataexchange:ListReceivedDataGrants", run: func(p *phaseTotals) bool {
+			return scanDataExchangeReceivedDataGrants(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: "dataexchange:ListDataSetRevisions", run: func(p *phaseTotals) (failed bool) {
+			revisions, failed = scanDataExchangeRevisions(ctx, client, acct, region, st, scanID, dataSets, tags, p)
+			return failed
+		}},
+		{op: "dataexchange:ListRevisionAssets", run: func(p *phaseTotals) bool {
+			return scanDataExchangeAssets(ctx, client, acct, region, st, scanID, revisions, tags, p)
+		}},
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-func scanDataExchangeDataSets(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string) ([]dxDataSet, int, int, error) {
-	var (
-		batch   []*store.Resource
-		parents []dxDataSet
-	)
-	// Owned-only: entitled (subscribed-from-others) data sets are catalogued
-	// separately upstream as entitled-data-sets and not scanned here.
-	pager := dataexchange.NewListDataSetsPaginator(client, &dataexchange.ListDataSetsInput{Origin: sdkaws.String("OWNED")})
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return nil, 0, 0, skipIfAccessDenied(st, "dataexchange:ListDataSets", acct.ID, region, perr)
-			}
-			return nil, 0, 0, fmt.Errorf("dataexchange:ListDataSets: %w", perr)
-		}
-		for _, d := range out.DataSets {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
-			}
-			name := sv(d.Name)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDataExchangeDataSets, NativeID: arn,
-				Name: &name, Region: &region,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-			if id := sv(d.Id); id != "" {
-				parents = append(parents, dxDataSet{childParent: childParent{id: id, arn: arn}, assetType: d.AssetType})
-			}
-		}
+// adxTags reads a row's tags with ListTagsForResource, one call per row,
+// sent the row's NativeID, the ARN its listing returned. The Service
+// Reference lists every type read here under ListTagsForResource (assets,
+// data-grants, data-sets, event-actions, revisions); no listed element
+// carries tags. The op answers with every tag at once (no page token). Its
+// model lists no error, so no code drops a row: a resource deleted between
+// its listing and its tag read keeps its row untagged, and the read's error
+// is returned.
+func adxTags(client dataExchangeAPI) rowTagReader {
+	return rowTagReader{
+		op: adxTagsOp,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			return adxReadTags(ctx, client, r.NativeID)
+		},
 	}
-	t, i, err := upsertBatch(st, batch, "dataexchange data-sets")
+}
+
+// adxReadTags reads the tags of the resource arn names.
+func adxReadTags(ctx context.Context, client dataExchangeAPI, arn string) (*string, error) {
+	out, err := client.ListTagsForResource(ctx, &dataexchange.ListTagsForResourceInput{ResourceArn: &arn})
 	if err != nil {
-		return nil, 0, 0, err
+		return nil, err
 	}
-	return parents, t, i, nil
+	return mapTagsJSON(out.Tags), nil
 }
 
-func scanDataExchangeDataGrants(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	pager := dataexchange.NewListDataGrantsPaginator(client, &dataexchange.ListDataGrantsInput{})
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "dataexchange:ListDataGrants", acct.ID, region, perr)
+// adxRow is the row of a listed element stored under its ARN and named
+// name, its attributes the element. An element without an ARN is not
+// stored (arnRow): one empty NativeID would merge every such element into
+// one resource; what names the elements in that warning.
+func adxRow(acct *account, region, scanID, typ, what string, arn, name *string, status *string, created *time.Time, element any) (*store.Resource, string, string) {
+	label := sv(name)
+	return arnRow(what, arn, name, &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: sv(arn),
+		Name: &label, Region: &region, Status: status, CreatedAt: tp(created),
+		AttributesJSON: mustJSON(element), DiscoveredBy: scanID,
+	})
+}
+
+// scanDataExchangeDataSets stores the owned data sets with their tags, each
+// page written as soon as its tags are read, and returns the stored ones
+// that have an Id, the parents of the revision phase; one stored without is
+// warned about, as stored without its revisions. Entitled (subscribed-from-
+// others) data sets are catalogued separately upstream as entitled-data-sets
+// and not scanned here. It reports whether a write failed, after which the
+// scan must stop.
+func scanDataExchangeDataSets(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]dxDataSet, bool) {
+	assetTypes := map[string]dxtypes.AssetType{}
+	parents, failed := storeParentPagesTags(ctx, st, acct, region, "dataexchange:ListDataSets", "data sets", "Id",
+		func(ctx context.Context, token *string) ([]dxtypes.DataSetEntry, *string, error) {
+			out, err := client.ListDataSets(ctx, &dataexchange.ListDataSetsInput{Origin: sdkaws.String("OWNED"), MaxResults: adxPageCap, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("dataexchange:ListDataGrants: %w", perr)
-		}
-		for _, g := range out.DataGrantSummaries {
-			arn := sv(g.Arn)
-			if arn == "" {
-				continue
+			return out.DataSets, out.NextToken, nil
+		},
+		func(d dxtypes.DataSetEntry) (*store.Resource, string, string) {
+			return adxRow(acct, region, scanID, TypeDataExchangeDataSets, "data sets", d.Arn, d.Name, nil, nil, d)
+		},
+		func(d dxtypes.DataSetEntry) string {
+			assetTypes[sv(d.Id)] = d.AssetType
+			return sv(d.Id)
+		},
+		tags, p)
+	if failed {
+		return nil, true
+	}
+	dataSets := make([]dxDataSet, len(parents))
+	for i, c := range parents {
+		dataSets[i] = dxDataSet{childParent: c, assetType: assetTypes[c.id]}
+	}
+	return dataSets, false
+}
+
+// scanDataExchangeDataGrants stores the data grants this account sent, with
+// their tags, each page written as soon as its tags are read. It reports
+// whether a write failed, after which the scan must stop.
+func scanDataExchangeDataGrants(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "dataexchange:ListDataGrants",
+		func(ctx context.Context, token *string) ([]dxtypes.DataGrantSummaryEntry, *string, error) {
+			out, err := client.ListDataGrants(ctx, &dataexchange.ListDataGrantsInput{MaxResults: sdkaws.Int32(adxPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			name := sv(g.Name)
+			return out.DataGrantSummaries, out.NextToken, nil
+		},
+		func(g dxtypes.DataGrantSummaryEntry) (*store.Resource, string, string) {
 			status := string(g.AcceptanceState)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDataExchangeDataGrants, NativeID: arn,
-				Name: &name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "dataexchange data-grants")
+			return adxRow(acct, region, scanID, TypeDataExchangeDataGrants, "data grants", g.Arn, g.Name, &status, nil, g)
+		},
+		tags, p)
 }
 
-func scanDataExchangeEventActions(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	pager := dataexchange.NewListEventActionsPaginator(client, &dataexchange.ListEventActionsInput{})
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "dataexchange:ListEventActions", acct.ID, region, perr)
+// scanDataExchangeEventActions stores the event actions with their tags,
+// each page written as soon as its tags are read. An event action has no
+// name; it is named by its Id. It reports whether a write failed, after
+// which the scan must stop.
+func scanDataExchangeEventActions(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "dataexchange:ListEventActions",
+		func(ctx context.Context, token *string) ([]dxtypes.EventActionEntry, *string, error) {
+			out, err := client.ListEventActions(ctx, &dataexchange.ListEventActionsInput{MaxResults: adxPageCap, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("dataexchange:ListEventActions: %w", perr)
-		}
-		for _, e := range out.EventActions {
-			arn := sv(e.Arn)
-			if arn == "" {
-				continue
-			}
-			id := sv(e.Id)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDataExchangeEventActions, NativeID: arn,
-				Name: &id, Region: &region,
-				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "dataexchange event-actions")
+			return out.EventActions, out.NextToken, nil
+		},
+		func(e dxtypes.EventActionEntry) (*store.Resource, string, string) {
+			return adxRow(acct, region, scanID, TypeDataExchangeEventActions, "event actions", e.Arn, e.Id, nil, nil, e)
+		},
+		tags, p)
 }
 
-// scanDataExchangeRevisions lists the revisions of each data set stored this
-// scan, storing each page as it arrives because a data set gains a revision
-// per publication. It returns the stored revisions whose assets
-// scanDataExchangeAssets lists: those of data sets whose AssetType is not
-// S3_SNAPSHOT. A data set's AssetType is fixed at CreateDataSet and names the
-// type of asset added to it.
-func scanDataExchangeRevisions(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string, dataSets []dxDataSet) ([]dxRevision, int, int, error) {
-	const op = "dataexchange:ListDataSetRevisions"
-	parents := make([]childParent, len(dataSets))
-	listsAssets := make(map[string]bool, len(dataSets))
-	for i, d := range dataSets {
-		parents[i] = d.childParent
-		listsAssets[d.id] = d.assetType != dxtypes.AssetTypeS3Snapshot
-	}
-	var (
-		mu        sync.Mutex
-		revisions []dxRevision
-	)
-	total, inserted, err := childFanOutStored(ctx, st, acct, region, op, parents, isDataExchangeNotFound,
-		func(ctx context.Context, p childParent) (int, int, error) {
-			var total, inserted int
-			parentID := store.ResourceID("aws", acct.ID, p.arn)
-			pager := dataexchange.NewListDataSetRevisionsPaginator(client, &dataexchange.ListDataSetRevisionsInput{DataSetId: &p.id})
-			for pager.HasMorePages() {
-				out, err := pager.NextPage(ctx)
-				if err != nil {
-					return total, inserted, err
-				}
-				var (
-					page    []containedChild
-					pageRev []dxRevision
-				)
-				for _, r := range out.Revisions {
-					arn, id := sv(r.Arn), sv(r.Id)
-					if arn == "" {
-						continue
-					}
-					page = append(page, containedChild{parentID: parentID, row: &store.Resource{
-						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeDataExchangeDataSetRevision, NativeID: arn,
-						Name: &id, Status: sp(dxRevisionStatus(r)), Region: &region, CreatedAt: tp(r.CreatedAt),
-						AttributesJSON: mustJSON(r), DiscoveredBy: scanID,
-					}})
-					if id != "" {
-						pageRev = append(pageRev, dxRevision{
-							childParent: childParent{id: p.id + "/" + id, arn: arn},
-							dataSetID:   p.id, revisionID: id,
-						})
-					}
-				}
-				t, i, err := upsertContained(st, op, page)
-				if err != nil {
-					return total, inserted, err
-				}
-				total += t
-				inserted += i
-				if listsAssets[p.id] {
-					mu.Lock()
-					revisions = append(revisions, pageRev...)
-					mu.Unlock()
-				}
-			}
-			return total, inserted, nil
-		})
-	return revisions, total, inserted, err
-}
-
-// scanDataExchangeAssets lists the assets of each given revision, storing each
-// page as it arrives. An asset is stored only when it is a means of fulfilling
-// data — a Redshift datashare, API Gateway API, Lake Formation data permission
-// or S3 data access — which points at infrastructure the provider runs and
-// grants subscribers access to it. An S3 data access asset's Keys and
-// KeyPrefixes are kept: they are the access the provider chose to share, not
-// object contents. An S3_SNAPSHOT asset is a copy of one S3 object: the data
-// itself, one row per file, so scanDataExchangeRevisions does not hand over
-// the revisions of S3_SNAPSHOT data sets.
-func scanDataExchangeAssets(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string, revisions []dxRevision) (int, int, error) {
-	const op = "dataexchange:ListRevisionAssets"
-	parents := make([]childParent, len(revisions))
-	byARN := make(map[string]dxRevision, len(revisions))
-	for i, r := range revisions {
-		parents[i] = r.childParent
-		byARN[r.arn] = r
-	}
-	return childFanOutStored(ctx, st, acct, region, op, parents, isDataExchangeNotFound,
-		func(ctx context.Context, p childParent) (int, int, error) {
-			var total, inserted int
-			parentID := store.ResourceID("aws", acct.ID, p.arn)
-			rev := byARN[p.arn]
-			pager := dataexchange.NewListRevisionAssetsPaginator(client, &dataexchange.ListRevisionAssetsInput{
-				DataSetId: &rev.dataSetID, RevisionId: &rev.revisionID,
-			})
-			for pager.HasMorePages() {
-				out, err := pager.NextPage(ctx)
-				if err != nil {
-					return total, inserted, err
-				}
-				var page []containedChild
-				for _, a := range out.Assets {
-					arn := sv(a.Arn)
-					if arn == "" {
-						continue
-					}
-					name := sv(a.Name)
-					page = append(page, containedChild{parentID: parentID, row: &store.Resource{
-						Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-						Type: TypeDataExchangeRevisionAsset, NativeID: arn,
-						Name: &name, Region: &region, CreatedAt: tp(a.CreatedAt),
-						AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
-					}})
-				}
-				t, i, err := upsertContained(st, op, page)
-				if err != nil {
-					return total, inserted, err
-				}
-				total += t
-				inserted += i
-			}
-			return total, inserted, nil
-		})
-}
-
-// isDataExchangeNotFound matches a data set or revision deleted between the
-// phase that listed it and the call listing its children.
-func isDataExchangeNotFound(err error) bool {
-	return isAPIErrorCode(err, "ResourceNotFoundException")
-}
-
-// scanDataExchangeReceivedDataGrants lists the data grants sent to this
-// account, in every acceptance state the SDK knows: the filter is passed
+// scanDataExchangeReceivedDataGrants stores the data grants sent to this
+// account, in every acceptance state the SDK knows, with their tags, each
+// page written as soon as its tags are read: the filter is passed
 // explicitly because the API does not document what an empty one returns.
+// It reports whether a write failed, after which the scan must stop.
 //
 // A received grant reports the grant's own ARN, the ARN its sender's
 // ListDataGrants reports. Identity includes the account, so the two rows can
 // only meet in an account that grants to itself, which is unverified. The
-// NativeID appends /received to guard that case, as servicecatalog's accepted
-// portfolio shares append /accepted-share.
-func scanDataExchangeReceivedDataGrants(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var batch []*store.Resource
-	pager := dataexchange.NewListReceivedDataGrantsPaginator(client, &dataexchange.ListReceivedDataGrantsInput{
-		AcceptanceState: dxtypes.AcceptanceStateFilterValue("").Values(),
-	})
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			if isAccessDenied(perr) {
-				return 0, 0, skipIfAccessDenied(st, "dataexchange:ListReceivedDataGrants", acct.ID, region, perr)
-			}
-			return 0, 0, fmt.Errorf("dataexchange:ListReceivedDataGrants: %w", perr)
-		}
-		for _, g := range out.DataGrantSummaries {
-			arn := sv(g.Arn)
-			if arn == "" {
-				continue
-			}
-			name := sv(g.Name)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeDataExchangeReceivedDataGrant, NativeID: arn + "/received",
-				Name: &name, Region: &region, Status: nonEmptyPtr(string(g.AcceptanceState)),
-				CreatedAt:      tp(g.CreatedAt),
-				AttributesJSON: mustJSON(g), DiscoveredBy: scanID,
-			})
-		}
+// NativeID appends adxReceivedSuffix to guard that case, as servicecatalog's
+// accepted portfolio shares append /accepted-share.
+//
+// The tag read is sent the grant's ARN, which names the sender's account: a
+// grant is its sender's resource. A denied read of a grant another account
+// sent gives no tags and no error (untaggedIfOtherAccount), so the row is
+// kept untagged without a warning. Whether Data Exchange serves the
+// receiver the sender's tags, or refuses with a denial, is unverified live.
+func scanDataExchangeReceivedDataGrants(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	tags.read = func(ctx context.Context, r *store.Resource) (*string, error) {
+		return adxReadTags(ctx, client, strings.TrimSuffix(r.NativeID, adxReceivedSuffix))
 	}
-	return upsertBatch(st, batch, "dataexchange received-data-grants")
+	return storeTokenPagesTags(ctx, st, acct, region, "dataexchange:ListReceivedDataGrants",
+		func(ctx context.Context, token *string) ([]dxtypes.ReceivedDataGrantSummariesEntry, *string, error) {
+			out, err := client.ListReceivedDataGrants(ctx, &dataexchange.ListReceivedDataGrantsInput{
+				AcceptanceState: dxtypes.AcceptanceStateFilterValue("").Values(),
+				MaxResults:      sdkaws.Int32(adxPageCap), NextToken: token,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.DataGrantSummaries, out.NextToken, nil
+		},
+		func(g dxtypes.ReceivedDataGrantSummariesEntry) (*store.Resource, string, string) {
+			r, why, key := adxRow(acct, region, scanID, TypeDataExchangeReceivedDataGrant, "received data grants", g.Arn, g.Name, nonEmptyPtr(string(g.AcceptanceState)), g.CreatedAt, g)
+			if r != nil {
+				r.NativeID += adxReceivedSuffix
+			}
+			return r, why, key
+		},
+		tags.untaggedIfOtherAccount(acct.ID), p)
+}
+
+// adxUnder records each row a per-parent phase writes page by page
+// (storeEachParentPagesTagsWith) under the parent it was listed under: what
+// was listed of each row built, until the row is written, then the row's
+// contains pair. The rows of different parents are built concurrently and
+// written in no fixed order, so mu guards both.
+type adxUnder struct {
+	mu     sync.Mutex
+	listed map[*store.Resource]adxListed
+	pairs  [][2]string
+}
+
+// adxListed is what a row's listing gave: its parent's ARN and, for a
+// revision, the revision as a parent of the asset phase.
+type adxListed struct {
+	parentARN string
+	revision  dxRevision
+}
+
+// adxListedUnder notes that r was listed as l says.
+func (u *adxUnder) adxListedUnder(r *store.Resource, l adxListed) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.listed == nil {
+		u.listed = map[*store.Resource]adxListed{}
+	}
+	u.listed[r] = l
+}
+
+// adxWrittenUnder adds the contains pair of each written row and returns
+// what was listed of the rows, in row order.
+func (u *adxUnder) adxWrittenUnder(acctID string, rows []*store.Resource) []adxListed {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	listed := make([]adxListed, len(rows))
+	for i, r := range rows {
+		listed[i] = u.listed[r]
+		delete(u.listed, r)
+		u.pairs = append(u.pairs, [2]string{r.ID, store.ResourceID("aws", acctID, listed[i].parentARN)})
+	}
+	return listed
+}
+
+// scanDataExchangeRevisions stores the revisions of each data set stored
+// this scan with their tags, under the data set, each page written as soon
+// as its tags are read because a data set gains a revision per publication;
+// one data set's failure costs the others none of theirs. It returns the
+// stored revisions whose assets scanDataExchangeAssets lists, sorted by ARN:
+// those of data sets whose AssetType is not S3_SNAPSHOT. A data set's
+// AssetType is fixed at CreateDataSet and names the type of asset added to
+// it. Such a revision stored without an Id is warned about, as stored
+// without its assets. It reports whether a write failed, after which the
+// scan must stop.
+//
+// The hierarchy of the rows written is recorded in one closure write once
+// the phase's pages are, so the phase's warnings concern rows already
+// written whatever the closure write does. It is recorded after a failed
+// row write too, so the rows written before it keep their contains edges.
+func scanDataExchangeRevisions(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string, dataSets []dxDataSet, tags rowTagReader, p *phaseTotals) ([]dxRevision, bool) {
+	const op = "dataexchange:ListDataSetRevisions"
+	parents := make([]childParent, len(dataSets))
+	listsAssets := make(map[string]bool, len(dataSets))
+	dataSetARN := make(map[string]string, len(dataSets))
+	for i, d := range dataSets {
+		parents[i] = d.childParent
+		listsAssets[d.id] = d.assetType != dxtypes.AssetTypeS3Snapshot
+		dataSetARN[d.id] = d.arn
+	}
+	var (
+		under     adxUnder
+		revisions []dxRevision
+		noID      skipTally
+	)
+	failed := storeEachParentPagesTagsWith(ctx, st, acct, region, op, adxParentGone, parents,
+		func(ctx context.Context, dataSetID string, token *string) ([]dxtypes.RevisionEntry, *string, error) {
+			out, err := client.ListDataSetRevisions(ctx, &dataexchange.ListDataSetRevisionsInput{DataSetId: &dataSetID, MaxResults: adxPageCap, NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Revisions, out.NextToken, nil
+		},
+		func(dataSetID string, rev dxtypes.RevisionEntry) (*store.Resource, string, string) {
+			r, why, key := adxRow(acct, region, scanID, TypeDataExchangeDataSetRevision, "revisions", rev.Arn, rev.Id, sp(dxRevisionStatus(rev)), rev.CreatedAt, rev)
+			if r != nil {
+				id := sv(rev.Id)
+				under.adxListedUnder(r, adxListed{parentARN: dataSetARN[dataSetID], revision: dxRevision{
+					childParent: childParent{id: dataSetID + "/" + id, arn: r.NativeID},
+					dataSetID:   dataSetID, revisionID: id,
+				}})
+			}
+			return r, why, key
+		},
+		nil,
+		func(rows []*store.Resource) {
+			for _, l := range under.adxWrittenUnder(acct.ID, rows) {
+				switch rev := l.revision; {
+				case !listsAssets[rev.dataSetID]:
+				case rev.revisionID == "":
+					noID.skippedLeast(rev.arn, nil)
+				default:
+					revisions = append(revisions, rev)
+				}
+			}
+		},
+		tags, p)
+	if closureFailed := recordHierarchyPairs(st, op, under.pairs, p); failed || closureFailed {
+		return nil, true
+	}
+	warnNoChildID(st, op, acct, region, &noID, "revisions of data sets holding assets", "Id")
+	// The data sets' pages are written in no fixed order.
+	slices.SortFunc(revisions, func(a, b dxRevision) int { return strings.Compare(a.arn, b.arn) })
+	return revisions, false
+}
+
+// scanDataExchangeAssets stores the assets of each given revision with their
+// tags, under the revision, each page written as soon as its tags are read;
+// one revision's failure costs the others none of theirs. An asset is
+// stored only when it is a means of fulfilling data — a Redshift datashare,
+// API Gateway API, Lake Formation data permission or S3 data access — which
+// points at infrastructure the provider runs and grants subscribers access
+// to it. An S3 data access asset's Keys and KeyPrefixes are kept: they are
+// the access the provider chose to share, not object contents. An
+// S3_SNAPSHOT asset is a copy of one S3 object: the data itself, one row per
+// file, so scanDataExchangeRevisions does not hand over the revisions of
+// S3_SNAPSHOT data sets. It reports whether a write failed, after which the
+// scan must stop. As in scanDataExchangeRevisions, the hierarchy of the rows
+// written is recorded once the pages are, a failed row write's included.
+func scanDataExchangeAssets(ctx context.Context, client dataExchangeAPI, acct *account, region string, st *store.Store, scanID string, revisions []dxRevision, tags rowTagReader, p *phaseTotals) bool {
+	const op = "dataexchange:ListRevisionAssets"
+	parents := make([]childParent, len(revisions))
+	byID := make(map[string]dxRevision, len(revisions))
+	for i, r := range revisions {
+		parents[i] = r.childParent
+		byID[r.id] = r
+	}
+	var under adxUnder
+	failed := storeEachParentPagesTagsWith(ctx, st, acct, region, op, adxParentGone, parents,
+		func(ctx context.Context, revID string, token *string) ([]dxtypes.AssetEntry, *string, error) {
+			rev := byID[revID]
+			out, err := client.ListRevisionAssets(ctx, &dataexchange.ListRevisionAssetsInput{
+				DataSetId: &rev.dataSetID, RevisionId: &rev.revisionID, MaxResults: adxPageCap, NextToken: token,
+			})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.Assets, out.NextToken, nil
+		},
+		func(revID string, a dxtypes.AssetEntry) (*store.Resource, string, string) {
+			r, why, key := adxRow(acct, region, scanID, TypeDataExchangeRevisionAsset, "assets", a.Arn, a.Name, nil, a.CreatedAt, a)
+			if r != nil {
+				under.adxListedUnder(r, adxListed{parentARN: byID[revID].arn})
+			}
+			return r, why, key
+		},
+		nil,
+		func(rows []*store.Resource) {
+			under.adxWrittenUnder(acct.ID, rows)
+		},
+		tags, p)
+	closureFailed := recordHierarchyPairs(st, op, under.pairs, p)
+	return failed || closureFailed
 }
 
 // dxRevisionStatus names a revision's lifecycle state from its flags. Revoked

@@ -28,7 +28,7 @@ func init() {
 
 // noopDataExchangeHierarchy only declares the data-set->revision and
 // revision->asset contains edges; scanDataExchangeRevisions and
-// scanDataExchangeAssets record them through childFanOutStored.
+// scanDataExchangeAssets record them (recordHierarchyPairs).
 func noopDataExchangeHierarchy(_ *account, _ *store.Store) error {
 	return nil
 }

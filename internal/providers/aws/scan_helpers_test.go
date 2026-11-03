@@ -3001,6 +3001,52 @@ func TestRecordUnderParents(t *testing.T) {
 	})
 }
 
+// recordHierarchyPairs records exactly the pairs it is given; a failed
+// closure write is reported under op as a store write failure, which stops
+// the scanner.
+func TestRecordHierarchyPairs(t *testing.T) {
+	stored := func(t *testing.T, st *store.Store) [][2]string {
+		t.Helper()
+		var rows []*store.Resource
+		for i, id := range []string{"parent-a", "child-1", "child-2"} {
+			r, _, _ := tagTestRow(id)
+			r.Type = TypeAppIntegrationsApplication
+			if i > 0 {
+				r.Type = TypeAppIntegrationsApplicationAssociation
+			}
+			rows = append(rows, r)
+		}
+		if _, err := st.UpsertResources(rows); err != nil {
+			t.Fatalf("upsert: %v", err)
+		}
+		return [][2]string{{rows[1].ID, rows[0].ID}}
+	}
+	t.Run("recorded", func(t *testing.T) {
+		st := newTestStore(t)
+		pairs := stored(t, st)
+		var p phaseTotals
+		if recordHierarchyPairs(st, tagTestListOp, pairs, &p) || len(p.errs) != 0 {
+			t.Fatalf("failed = true or errs = %v; want a clean write", p.errs)
+		}
+		rels, err := st.RelationshipsFrom(store.ResourceID("aws", testAccountID, "parent-a"), store.RelContains)
+		if err != nil || len(rels) != 1 || rels[0].ToID != store.ResourceID("aws", testAccountID, "child-1") {
+			t.Errorf("parent-a contains %v (err %v); want only child-1", rels, err)
+		}
+	})
+	t.Run("closure write fails", func(t *testing.T) {
+		st := newTestStore(t)
+		pairs := stored(t, st)
+		refuseClosureWrites(t, st)
+		var p phaseTotals
+		if !recordHierarchyPairs(st, tagTestListOp, pairs, &p) {
+			t.Fatal("did not report the failed write")
+		}
+		if len(p.errs) != 1 || p.errs[0].op != tagTestListOp || !errors.Is(p.errs[0].err, store.ErrStoreWrite) {
+			t.Errorf("errs = %v; want one store write failure under %s", p.errs, tagTestListOp)
+		}
+	})
+}
+
 // storeEachParentTagsUnder records each stored child under the ARN of the
 // parent whose id it was listed under. A parent deleted before its listing
 // returned anything is skipped silently; one deleted mid-listing keeps the
