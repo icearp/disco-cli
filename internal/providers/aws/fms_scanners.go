@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"sync"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/fms"
@@ -29,14 +28,21 @@ func isFMSAdminOnlyDenial(err error) bool {
 	return isAccessDeniedWithMessage(err, "only available to AWS Firewall Manager Administrators")
 }
 
-// isFMSResourceNotFound matches the modeled not-found of GetPolicy and
-// ListResourceSetResources: the policy or set was deleted after it was listed.
+// fmsNotFound is the not-found code GetPolicy, ListResourceSetResources and
+// ListTagsForResource model: the policy, set or list was deleted after it
+// was listed.
+var fmsNotFound = []string{"ResourceNotFoundException"}
+
+// isFMSResourceNotFound matches ResourceNotFoundException, which
+// GetNotificationChannel models for a region with no channel set.
 func isFMSResourceNotFound(err error) bool {
-	return isAPIErrorCode(err, "ResourceNotFoundException")
+	return isAPIErrorCode(err, fmsNotFound...)
 }
 
 // fmsPageSize is the model's MaxResults cap (PaginationMaxResults, 1-100).
 const fmsPageSize int32 = 100
+
+const fmsTagsOp = "fms:ListTagsForResource"
 
 var errFMSPolicyMissing = errors.New("GetPolicy answered without a policy body; rescan, and report it if it recurs")
 
@@ -46,6 +52,12 @@ var errFMSPolicyMissing = errors.New("GetPolicy answered without a policy body; 
 // can name a set of another region is unverified (such a set gets no edge).
 func fmsResourceSetARN(partition, region, accountID, id string) string {
 	return arnFor(partition, "fms", region, accountID, "resource-set/"+id)
+}
+
+// fmsBuiltPolicyARN builds a policy's ARN in the Service Reference's format
+// (policy/{Id}), for a summary listed with a PolicyId but no PolicyArn.
+func fmsBuiltPolicyARN(partition, region, accountID, id string) string {
+	return arnFor(partition, "fms", region, accountID, "policy/"+id)
 }
 
 // fmsNotificationChannelNativeID names the notification channel row. The API
@@ -75,6 +87,60 @@ type fmsAPI interface {
 	ListResourceSetResources(context.Context, *fms.ListResourceSetResourcesInput, ...func(*fms.Options)) (*fms.ListResourceSetResourcesOutput, error)
 	ListAppsLists(context.Context, *fms.ListAppsListsInput, ...func(*fms.Options)) (*fms.ListAppsListsOutput, error)
 	ListProtocolsLists(context.Context, *fms.ListProtocolsListsInput, ...func(*fms.Options)) (*fms.ListProtocolsListsOutput, error)
+	ListTagsForResource(context.Context, *fms.ListTagsForResourceInput, ...func(*fms.Options)) (*fms.ListTagsForResourceOutput, error)
+}
+
+// fmsTags reads a policy's, resource set's, applications list's or protocols
+// list's tags with ListTagsForResource, sent the row's NativeID: the listed
+// PolicyArn or ListArn, or the ARN built in the Service Reference's format
+// for a resource set (its summary carries none) or a policy listed without
+// PolicyArn. The Service Reference's ListTagsForResource names only
+// policies, but its TagResource names all four resource types and each
+// one's Put input takes TagList, so all four are read; how the op answers a
+// resource-set ARN is unverified live. ResourceNotFoundException, the op's
+// modeled not-found, drops a resource deleted after it was listed. No list
+// call or Get body carries these tags. The notification channel is not a
+// taggable resource.
+func fmsTags(client fmsAPI) rowTagReader {
+	return rowTagReader{
+		op:       fmsTagsOp,
+		notFound: fmsNotFound,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &fms.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
+			if err != nil {
+				return nil, err
+			}
+			return kvTagsJSON(out.TagList, func(t fmstypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
+	}
+}
+
+// fmsGate is a listing's answer that Firewall Manager was never onboarded
+// for the account (isFMSNotEnabled), under the op that met it, as the
+// disabled sentinel; err is nil when no listing met it.
+type fmsGate struct {
+	op  string
+	err error
+}
+
+// fmsGatedPages is page with the not-onboarded answer recorded in gate and
+// ending the listing without an error, keeping the pages read before it,
+// and with the admin-only denial a member account gets on a first page read
+// as an empty listing, without a warning (isFMSAdminOnlyDenial). After a
+// page was read that denial is returned, and warned about as a denial
+// (firstPageGapPages).
+func fmsGatedPages[Item any](gate *fmsGate, op string, page func(ctx context.Context, token *string) ([]Item, *string, error)) func(ctx context.Context, token *string) ([]Item, *string, error) {
+	page = firstPageGapPages(isFMSAdminOnlyDenial, page)
+	return func(ctx context.Context, token *string) ([]Item, *string, error) {
+		items, next, err := page(ctx, token)
+		// The not-onboarded answer is an AccessDeniedException, so it is
+		// matched before the listing reads err as a denial.
+		if isFMSNotEnabled(err) {
+			*gate = fmsGate{op, markServiceDisabled(err)}
+			return nil, nil, nil
+		}
+		return items, next, err
+	}
 }
 
 // scanFMS discovers one region's Firewall Manager policies, resource sets,
@@ -86,245 +152,216 @@ type fmsAPI interface {
 // administrator whose admin scope is limited to some regions may be denied in
 // the others with a message that is unverified; if it matches neither the
 // not-enabled nor the admin-only matcher, each such region warns once per op.
-// Every phase runs whatever the others returned, and the counts are summed. The
-// phases' errors are joined by phaseErrs: a transient one alone, or beside
-// transient ones only, marks the scan partial; beside a hard one it is demoted
-// to a warning under its op instead of buried in the hard error. An account FMS
-// never onboarded reports it on ListPolicies, the first call, before anything
-// is stored in this region, and the scan returns the disabled sentinel for this
-// region. A disabled answer after an earlier phase stored rows or failed
-// becomes a warning instead: the dispatcher reads the sentinel through any join
-// and would report the service disabled, discarding those rows' counts and
+//
+// Every listing runs as its own phase, one at a time: a phase's error does
+// not stop the later ones; a failed write and ctx's end do, and so does an
+// NXDOMAIN of the first listing with nothing stored (runHostPhases).
+// Policies, resource sets, applications lists and protocols lists have their
+// tags read per row (fmsTags), whose denials are one warning for the scan.
+// An account FMS never onboarded reports it on ListPolicies, the first call,
+// before anything is stored in this region; no later phase runs, and the
+// scan returns the disabled sentinel for this region. A not-onboarded answer
+// after rows were stored or a call failed becomes a warning instead, and the
+// later phases run: the dispatcher reads the sentinel through any join and
+// would report the service disabled, discarding those rows' counts and
 // hiding the earlier failure.
-func scanFMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+func scanFMS(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := fms.NewFromConfig(acct.cfg, func(o *fms.Options) { o.Region = region })
-	var errs phaseErrs
-	for _, phase := range []struct {
-		op  string
-		run func() (int, int, error)
-	}{
-		{"fms:ListPolicies", func() (int, int, error) { return scanFMSPolicies(ctx, client, acct, region, st, scanID) }},
-		{"fms:ListResourceSets", func() (int, int, error) { return scanFMSResourceSets(ctx, client, acct, region, st, scanID) }},
-		{"fms:GetNotificationChannel", func() (int, int, error) { return scanFMSNotificationChannel(ctx, client, acct, region, st, scanID) }},
-		{"fms:ListAppsLists", func() (int, int, error) { return scanFMSAppsLists(ctx, client, acct, region, st, scanID) }},
-		{"fms:ListProtocolsLists", func() (int, int, error) { return scanFMSProtocolsLists(ctx, client, acct, region, st, scanID) }},
-	} {
-		t, i, perr := phase.run()
-		total += t
-		inserted += i
-		switch {
-		case errors.Is(perr, errServiceDisabled) && total == 0 && len(errs) == 0:
-			return total, inserted, perr
-		case errors.Is(perr, errServiceDisabled):
-			st.ReportWarning(store.ScanWarning{
-				Provider: "aws", Service: phase.op, Scope: acct.ID + "/" + region,
-				Message: "not reported as disabled because earlier FMS phases stored rows or failed: " + perr.Error(),
-			})
-		case perr != nil:
-			errs.add(phase.op, perr)
-		}
+	tags := fmsTags(client).sharingDenials()
+	var gate, disabled fmsGate
+	phase := func(op string, run func(p *phaseTotals) (storeWriteFailed bool)) hostPhase {
+		return hostPhase{op: op, run: func(p *phaseTotals) bool {
+			if disabled.err != nil {
+				return false
+			}
+			if run(p) {
+				return true
+			}
+			switch {
+			case gate.err == nil:
+			case p.total == 0 && len(p.errs) == 0:
+				disabled = gate
+			default:
+				st.ReportWarning(store.ScanWarning{
+					Provider: "aws", Service: gate.op, Scope: acct.ID + "/" + region,
+					Message: "not reported as disabled because FMS rows were stored or a call failed before this answer: " + gate.err.Error(),
+				})
+			}
+			gate = fmsGate{}
+			return false
+		}}
 	}
-	return total, inserted, errs.join(st, acct, region)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "fms", 0, []hostPhase{
+		phase("fms:ListPolicies", func(p *phaseTotals) bool {
+			return scanFMSPolicies(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("fms:ListResourceSets", func(p *phaseTotals) bool {
+			return scanFMSResourceSets(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("fms:GetNotificationChannel", func(p *phaseTotals) bool {
+			t, i, err := scanFMSNotificationChannel(ctx, client, acct, region, st, scanID)
+			return p.addPhase("fms:GetNotificationChannel", t, i, err)
+		}),
+		phase("fms:ListAppsLists", func(p *phaseTotals) bool {
+			return scanFMSAppsLists(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+		phase("fms:ListProtocolsLists", func(p *phaseTotals) bool {
+			return scanFMSProtocolsLists(ctx, client, acct, region, st, scanID, &gate, tags, p)
+		}),
+	})
+	// Disabled, nothing was stored and no later phase ran.
+	if disabled.err != nil {
+		return 0, 0, disabled.err
+	}
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-// warnFMSListingOnly warns once for the keys of a fan-out whose read failed
-// transiently and which were stored from the listing alone.
-func warnFMSListingOnly(st *store.Store, op string, acct *account, region string, t *transientTally) {
-	if t.count == 0 {
-		return
-	}
-	_ = skipIfTransient(st, op, acct.ID, region, fmt.Errorf("%d stored from the listing only, first %s: %w", t.count, t.first, t.err))
-}
-
-// fmsPolicyRow is a policy's row under its ARN; attrs is its GetPolicy body,
-// or its listed summary when GetPolicy could not be read.
-func fmsPolicyRow(acct *account, region string, p fmstypes.PolicySummary, arn, attrs, scanID string) *store.Resource {
+// fmsPolicyRow is a policy's row under arn, its listed summary as
+// attributes until GetPolicy's body replaces them.
+func fmsPolicyRow(acct *account, region string, p fmstypes.PolicySummary, arn, scanID string) *store.Resource {
 	return &store.Resource{
 		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 		Type: TypeFMSPolicy, NativeID: arn,
 		Name: p.PolicyName, Region: &region, Status: nonEmptyPtr(string(p.PolicyStatus)),
-		AttributesJSON: attrs, DiscoveredBy: scanID,
+		AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
 	}
 }
 
-// scanFMSPolicies lists the policies, then stores each one's GetPolicy body:
-// the listed summary lacks ResourceSetIds, which the policy->resource-set
-// edge reads. A policy deleted between the two calls is dropped. A policy
-// whose GetPolicy is denied or fails transiently, or whose summary has no
-// PolicyId to call it with, keeps its row with the summary as attributes,
-// warning once per cause. A summary without PolicyArn takes the ARN from
-// GetPolicy; one that ends up with no ARN cannot be named and is not stored,
-// warning once.
-func scanFMSPolicies(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := fms.NewListPoliciesPaginator(client, &fms.ListPoliciesInput{}, func(o *fms.ListPoliciesPaginatorOptions) { o.Limit = fmsPageSize })
-	summaries := map[string]fmstypes.PolicySummary{}
-	var (
-		ids     []string
-		noID    []fmstypes.PolicySummary
-		unnamed skipTally
-	)
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isFMSNotEnabled(err) {
-				return 0, 0, markServiceDisabled(err)
+// scanFMSPolicies stores the policies, each page written as soon as its
+// rows' GetPolicy bodies and tags are read. A row's attributes are its
+// GetPolicy body: the listed summary lacks ResourceSetIds, which the
+// policy->resource-set edge reads. A policy GetPolicy reports not found was
+// deleted since it was listed and is not stored; any other failed GetPolicy
+// stores the summary as the row (readRowDetails). A summary without
+// PolicyArn is stored under the ARN built from its PolicyId; one without
+// PolicyId is stored from the listing, warning once, as GetPolicy takes the
+// id; one with neither cannot be named and is not stored, warning once. It
+// reports whether a write failed, after which the scan must stop.
+func scanFMSPolicies(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string, gate *fmsGate, tags rowTagReader, p *phaseTotals) bool {
+	// ids maps each row of the page in flight to its PolicyId; a row listed
+	// without one has no entry. The row builder fills it and the reads only
+	// look entries up; it is emptied before the next page is fetched, which
+	// follows that page's write, so one page is held.
+	ids := map[*store.Resource]string{}
+	var noID skipTally
+	steps := tokenPageSteps{
+		details: rowDetailReader{
+			op: "fms:GetPolicy", what: "policies", notFound: fmsNotFound,
+			get: func(ctx context.Context, r *store.Resource) (any, error) {
+				id, ok := ids[r]
+				if !ok {
+					return nil, nil
+				}
+				out, err := client.GetPolicy(ctx, &fms.GetPolicyInput{PolicyId: &id})
+				if err != nil {
+					return nil, err
+				}
+				if out.Policy == nil {
+					return nil, errFMSPolicyMissing
+				}
+				return out.Policy, nil
+			},
+		},
+		stored: func(rows []*store.Resource) {
+			for _, r := range rows {
+				if _, ok := ids[r]; !ok {
+					noID.skipped(r.NativeID, nil)
+				}
 			}
-			if isFMSAdminOnlyDenial(err) {
-				return 0, 0, nil
-			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "fms:ListPolicies", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("fms:ListPolicies: %w", err)
-		}
-		for _, p := range out.PolicyList {
-			id := sv(p.PolicyId)
-			switch {
-			case id != "":
-				summaries[id] = p
-				ids = append(ids, id)
-			case sv(p.PolicyArn) != "":
-				noID = append(noID, p)
-			default:
-				unnamed.skipped(fmt.Sprintf("%q", sv(p.PolicyName)), nil)
-			}
-		}
+		},
 	}
-	var (
-		denyOnce  sync.Once
-		transient transientTally
-	)
-	rows, err := describeFanOut(ctx, st, acct, region, "fms:GetPolicy", ids, isFMSResourceNotFound,
-		func(ctx context.Context, id string) (*store.Resource, error) {
-			p := summaries[id]
-			arn, attrs := sv(p.PolicyArn), mustJSON(p)
-			out, err := client.GetPolicy(ctx, &fms.GetPolicyInput{PolicyId: &id})
-			switch {
-			case err == nil && out.Policy == nil:
-				return nil, errFMSPolicyMissing
-			case err == nil:
-				attrs = mustJSON(out.Policy)
-				arn = cmp.Or(arn, sv(out.PolicyArn))
-			case isAccessDenied(err):
-				denyOnce.Do(func() { _ = skipIfAccessDenied(st, "fms:GetPolicy", acct.ID, region, err) })
-			case transient.drop(id, err):
-			default:
-				return nil, err
+	failed := storeTokenPagesTagsWith(ctx, st, acct, region, "fms:ListPolicies",
+		fmsGatedPages(gate, "fms:ListPolicies", func(ctx context.Context, token *string) ([]fmstypes.PolicySummary, *string, error) {
+			clear(ids)
+			out, err := client.ListPolicies(ctx, &fms.ListPoliciesInput{MaxResults: sdkaws.Int32(fmsPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.PolicyList, out.NextToken, nil
+		}),
+		func(s fmstypes.PolicySummary) (*store.Resource, string, string) {
+			id := sv(s.PolicyId)
+			arn := sv(s.PolicyArn)
+			if arn == "" && id != "" {
+				arn = fmsBuiltPolicyARN(acct.partition(), region, acct.ID, id)
 			}
 			if arn == "" {
-				unnamed.skipped(id, nil)
-				return nil, nil
+				return nil, "policies have neither a PolicyArn nor a PolicyId", cmp.Or(sv(s.PolicyName), noIdentifier)
 			}
-			return fmsPolicyRow(acct, region, p, arn, attrs, scanID), nil
-		})
-	if err != nil {
-		return 0, 0, err
-	}
-	for _, p := range noID {
-		rows = append(rows, fmsPolicyRow(acct, region, p, sv(p.PolicyArn), mustJSON(p), scanID))
-	}
-	total, inserted, err := upsertBatch(st, rows, "fms policies")
-	if err != nil {
-		return total, inserted, err
-	}
-	warnFMSListingOnly(st, "fms:GetPolicy", acct, region, &transient)
-	warnNotStored(st, "fms:ListPolicies", acct, region, &unnamed, "policies have no PolicyArn in the listing or from GetPolicy")
-	if len(noID) > 0 {
+			r := fmsPolicyRow(acct, region, s, arn, scanID)
+			if id != "" {
+				ids[r] = id
+			}
+			return r, "", ""
+		},
+		steps, tags, p)
+	if !failed && noID.count > 0 {
 		st.ReportWarning(store.ScanWarning{
 			Provider: "aws", Service: "fms:ListPolicies", Scope: acct.ID + "/" + region,
-			Message: fmt.Sprintf("%d listed policies have no PolicyId, so GetPolicy could not be called; stored from the listing only, first %s", len(noID), sv(noID[0].PolicyArn)),
+			Message: fmt.Sprintf("%d listed policies have no PolicyId, so GetPolicy could not be called; stored from the listing only, first %s", noID.count, noID.first),
 		})
 	}
-	return total, inserted, nil
+	return failed
 }
 
 // fmsResourceSetAttrs is a resource-set row's attributes: the listed summary
 // and every resource associated to the set, sorted so an unchanged set does
-// not version-split. Resources is a pointer so a denied or transiently failed
-// member read stores no Resources key, while a set with no members stores []:
+// not version-split. Resources is a pointer so a set whose member read
+// failed stores no Resources key, while a set with no members stores []:
 // an empty list is always the whole list, never a stand-in for an unread one.
 type fmsResourceSetAttrs struct {
 	ResourceSet fmstypes.ResourceSetSummary `json:"ResourceSet"`
 	Resources   *[]fmstypes.Resource        `json:"Resources,omitempty"`
 }
 
-// scanFMSResourceSets lists the resource sets, then each set's members. A set
-// deleted between the two calls is dropped; a listed set with no Id cannot be
-// named, so it is not stored and is warned about once.
-func scanFMSResourceSets(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	summaries := map[string]fmstypes.ResourceSetSummary{}
-	var (
-		ids     []string
-		unnamed skipTally
-	)
-	in := &fms.ListResourceSetsInput{MaxResults: sdkaws.Int32(fmsPageSize)}
-	for {
-		out, err := client.ListResourceSets(ctx, in)
-		if err != nil {
-			if isFMSNotEnabled(err) {
-				return 0, 0, markServiceDisabled(err)
-			}
-			if isFMSAdminOnlyDenial(err) {
-				return 0, 0, nil
-			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "fms:ListResourceSets", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("fms:ListResourceSets: %w", err)
-		}
-		for _, r := range out.ResourceSets {
-			id := sv(r.Id)
-			if id == "" {
-				unnamed.skipped(fmt.Sprintf("%q", sv(r.Name)), nil)
-				continue
-			}
-			summaries[id] = r
-			ids = append(ids, id)
-		}
-		next := sv(out.NextToken)
-		if next == "" {
-			break
-		}
-		if next == sv(in.NextToken) {
-			return 0, 0, fmt.Errorf("fms:ListResourceSets: NextToken %q: %w", next, errRepeatedNextToken)
-		}
-		in.NextToken = out.NextToken
-	}
-	var (
-		denyOnce  sync.Once
-		transient transientTally
-	)
-	rows, err := describeFanOut(ctx, st, acct, region, "fms:ListResourceSetResources", ids, isFMSResourceNotFound,
-		func(ctx context.Context, id string) (*store.Resource, error) {
-			var members *[]fmstypes.Resource
-			list, err := listFMSResourceSetMembers(ctx, client, id)
-			switch {
-			case err == nil:
-				members = &list
-			case isAccessDenied(err):
-				denyOnce.Do(func() { _ = skipIfAccessDenied(st, "fms:ListResourceSetResources", acct.ID, region, err) })
-			case transient.drop(id, err):
-			default:
+// scanFMSResourceSets stores the resource sets, each page written as soon as
+// its rows' members and tags are read. A set ListResourceSetResources
+// reports not found was deleted since it was listed and is not stored; any
+// other failed member read stores the set without Resources
+// (readRowDetails). A listed set with no Id cannot be named, so it is not
+// stored and is warned about once. It reports whether a write failed, after
+// which the scan must stop.
+func scanFMSResourceSets(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string, gate *fmsGate, tags rowTagReader, p *phaseTotals) bool {
+	// listed maps each row of the page in flight to its summary. The row
+	// builder fills it and the reads only look entries up; it is emptied
+	// before the next page is fetched, which follows that page's write.
+	listed := map[*store.Resource]fmstypes.ResourceSetSummary{}
+	steps := tokenPageSteps{details: rowDetailReader{
+		op: "fms:ListResourceSetResources", what: "resource set(s)", notFound: fmsNotFound,
+		get: func(ctx context.Context, r *store.Resource) (any, error) {
+			s := listed[r]
+			members, err := listFMSResourceSetMembers(ctx, client, sv(s.Id))
+			if err != nil {
 				return nil, err
 			}
-			r := summaries[id]
-			return &store.Resource{
+			return fmsResourceSetAttrs{ResourceSet: s, Resources: &members}, nil
+		},
+	}}
+	return storeTokenPagesTagsWith(ctx, st, acct, region, "fms:ListResourceSets",
+		fmsGatedPages(gate, "fms:ListResourceSets", func(ctx context.Context, token *string) ([]fmstypes.ResourceSetSummary, *string, error) {
+			clear(listed)
+			out, err := client.ListResourceSets(ctx, &fms.ListResourceSetsInput{MaxResults: sdkaws.Int32(fmsPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ResourceSets, out.NextToken, nil
+		}),
+		func(s fmstypes.ResourceSetSummary) (*store.Resource, string, string) {
+			id := sv(s.Id)
+			if id == "" {
+				return nil, "resource sets have no Id", cmp.Or(sv(s.Name), noIdentifier)
+			}
+			r := &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
 				Type: TypeFMSResourceSet, NativeID: fmsResourceSetARN(acct.partition(), region, acct.ID, id),
-				Name: r.Name, Region: &region, Status: nonEmptyPtr(string(r.ResourceSetStatus)),
-				AttributesJSON: mustJSON(fmsResourceSetAttrs{ResourceSet: r, Resources: members}), DiscoveredBy: scanID,
-			}, nil
-		})
-	if err != nil {
-		return 0, 0, err
-	}
-	total, inserted, err := upsertBatch(st, rows, "fms resource-sets")
-	if err != nil {
-		return total, inserted, err
-	}
-	warnFMSListingOnly(st, "fms:ListResourceSetResources", acct, region, &transient)
-	warnNotStored(st, "fms:ListResourceSets", acct, region, &unnamed, "resource sets have no Id")
-	return total, inserted, nil
+				Name: s.Name, Region: &region, Status: nonEmptyPtr(string(s.ResourceSetStatus)),
+				AttributesJSON: mustJSON(fmsResourceSetAttrs{ResourceSet: s}), DiscoveredBy: scanID,
+			}
+			listed[r] = s
+			return r, "", ""
+		},
+		steps, tags, p)
 }
 
 // listFMSResourceSetMembers returns every resource associated to the set,

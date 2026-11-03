@@ -2,96 +2,59 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/fms"
+	fmstypes "github.com/aws/aws-sdk-go-v2/service/fms/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanFMSAppsLists discovers customer-defined Firewall Manager applications lists
-// (DefaultLists=false excludes AWS-managed ones). edge-less — policies reference these,
-// no outbound edges.
-func scanFMSAppsLists(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := fms.NewListAppsListsPaginator(client, &fms.ListAppsListsInput{}, func(o *fms.ListAppsListsPaginatorOptions) { o.Limit = 100 })
-	var (
-		batch   []*store.Resource
-		unnamed skipTally
-	)
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isFMSNotEnabled(err) {
-				return 0, 0, markServiceDisabled(err)
+// scanFMSAppsLists stores the customer-defined Firewall Manager applications
+// lists, each page written as soon as its rows' tags are read. DefaultLists
+// is left false, so the lists Firewall Manager itself provides are not
+// listed. Policies reference these lists; they have no outbound edges. It
+// reports whether a write failed, after which the scan must stop.
+func scanFMSAppsLists(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string, gate *fmsGate, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "fms:ListAppsLists",
+		fmsGatedPages(gate, "fms:ListAppsLists", func(ctx context.Context, token *string) ([]fmstypes.AppsListDataSummary, *string, error) {
+			out, err := client.ListAppsLists(ctx, &fms.ListAppsListsInput{MaxResults: sdkaws.Int32(fmsPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isFMSAdminOnlyDenial(err) {
-				return 0, 0, nil
-			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "fms:ListAppsLists", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("fms:ListAppsLists: %w", err)
-		}
-		for _, a := range out.AppsLists {
-			arn := sv(a.ListArn)
-			if arn == "" {
-				unnamed.skipped(fmt.Sprintf("%q", sv(a.ListName)), nil)
-				continue
-			}
-			batch = append(batch, &store.Resource{
+			return out.AppsLists, out.NextToken, nil
+		}),
+		func(a fmstypes.AppsListDataSummary) (*store.Resource, string, string) {
+			return arnRow("applications lists", a.ListArn, a.ListName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFMSAppsList, NativeID: arn,
+				Type: TypeFMSAppsList, NativeID: sv(a.ListArn),
 				Name: a.ListName, Region: &region,
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
-		}
-	}
-	total, inserted, err := upsertBatch(st, batch, "fms applications-lists")
-	if err != nil {
-		return total, inserted, err
-	}
-	warnNotStored(st, "fms:ListAppsLists", acct, region, &unnamed, "applications lists have no ListArn")
-	return total, inserted, nil
+		},
+		tags, p)
 }
 
-// scanFMSProtocolsLists discovers customer-defined Firewall Manager protocols lists. edge-less.
-func scanFMSProtocolsLists(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := fms.NewListProtocolsListsPaginator(client, &fms.ListProtocolsListsInput{}, func(o *fms.ListProtocolsListsPaginatorOptions) { o.Limit = 100 })
-	var (
-		batch   []*store.Resource
-		unnamed skipTally
-	)
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isFMSNotEnabled(err) {
-				return 0, 0, markServiceDisabled(err)
+// scanFMSProtocolsLists stores the customer-defined Firewall Manager
+// protocols lists, each page written as soon as its rows' tags are read.
+// DefaultLists is left false, so the lists Firewall Manager itself provides
+// are not listed. They have no outbound edges. It reports whether a write
+// failed, after which the scan must stop.
+func scanFMSProtocolsLists(ctx context.Context, client fmsAPI, acct *account, region string, st *store.Store, scanID string, gate *fmsGate, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, "fms:ListProtocolsLists",
+		fmsGatedPages(gate, "fms:ListProtocolsLists", func(ctx context.Context, token *string) ([]fmstypes.ProtocolsListDataSummary, *string, error) {
+			out, err := client.ListProtocolsLists(ctx, &fms.ListProtocolsListsInput{MaxResults: sdkaws.Int32(fmsPageSize), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			if isFMSAdminOnlyDenial(err) {
-				return 0, 0, nil
-			}
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "fms:ListProtocolsLists", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("fms:ListProtocolsLists: %w", err)
-		}
-		for _, p := range out.ProtocolsLists {
-			arn := sv(p.ListArn)
-			if arn == "" {
-				unnamed.skipped(fmt.Sprintf("%q", sv(p.ListName)), nil)
-				continue
-			}
-			batch = append(batch, &store.Resource{
+			return out.ProtocolsLists, out.NextToken, nil
+		}),
+		func(l fmstypes.ProtocolsListDataSummary) (*store.Resource, string, string) {
+			return arnRow("protocols lists", l.ListArn, l.ListName, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeFMSProtocolsList, NativeID: arn,
-				Name: p.ListName, Region: &region,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
+				Type: TypeFMSProtocolsList, NativeID: sv(l.ListArn),
+				Name: l.ListName, Region: &region,
+				AttributesJSON: mustJSON(l), DiscoveredBy: scanID,
 			})
-		}
-	}
-	total, inserted, err := upsertBatch(st, batch, "fms protocols-lists")
-	if err != nil {
-		return total, inserted, err
-	}
-	warnNotStored(st, "fms:ListProtocolsLists", acct, region, &unnamed, "protocols lists have no ListArn")
-	return total, inserted, nil
+		},
+		tags, p)
 }

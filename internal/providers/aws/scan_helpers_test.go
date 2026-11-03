@@ -745,7 +745,6 @@ func TestTransientDemotersAreKnown(t *testing.T) {
 			"kafka_children_scanners.go:scanKafkaChannels":              true,
 			"mq_scanners.go:warn":                                       true,
 			"ec2_ipam_resolver_scanners.go:scanIPAMPrefixListResolvers": true,
-			"fms_scanners.go:warnFMSListingOnly":                        true,
 			"organizations_scanners.go:scanOrgAccounts":                 true,
 			"pipes_scanners.go:scanPipes":                               true,
 			"securityhub_scanners.go:warn":                              true,
