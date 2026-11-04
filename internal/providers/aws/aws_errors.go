@@ -538,6 +538,11 @@ func isTransientCause(err error) bool {
 		// status; scanLicenseManager's client adds it, so it reaches us only once
 		// those retries are spent.
 		"RateLimitExceededException",
+		// Elemental Inference's HTTP 429 throttle (the only model with it;
+		// singular, unlike TooManyRequestsException above). The SDK retryer
+		// does not retry it; scanElementalInference's client adds it, so it
+		// reaches us only once those retries are spent.
+		"TooManyRequestException",
 		// Step Functions' error for KMS throttling a call it makes for the
 		// caller (the only model with it; DescribeStateMachine's). The SDK
 		// retryer does not retry it; scanSFN's client adds it, so it reaches us
