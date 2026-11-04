@@ -118,6 +118,7 @@ func TestMultiSiteARNHelpers_Partition(t *testing.T) {
 		{"redshift cluster", func(p, r string) string { return redshiftClusterARN(p, r, a, "c") }, "arn:aws:redshift:us-east-1:123456789012:cluster:c"},
 		{"redshift subnet group", func(p, r string) string { return redshiftSubnetGroupARN(p, r, a, "g") }, "arn:aws:redshift:us-east-1:123456789012:subnetgroup:g"},
 		{"route53", func(p, r string) string { return route53ARN(p, "hostedzone/Z1") }, "arn:aws:route53:::hostedzone/Z1"},
+		{"rtbfabric gateway", func(p, r string) string { return rtbGatewayARN(p, r, a, "g") }, "arn:aws:rtbfabric:us-east-1:123456789012:gateway/g"},
 		{"rtbfabric link", func(p, r string) string { return rtbLinkARN(p, r, a, "g", "l") }, "arn:aws:rtbfabric:us-east-1:123456789012:gateway/g/link/l"},
 		{"s3files", func(p, r string) string { return s3filesFSARN(p, r, a, "fs") }, "arn:aws:s3files:us-east-1:123456789012:file-system/fs"},
 		{"sagemaker", func(p, r string) string { return sagemakerARN(p, r, a, "domain", "d") }, "arn:aws:sagemaker:us-east-1:123456789012:domain/d"},
