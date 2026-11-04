@@ -23,6 +23,7 @@ import (
 	lambdatypes "github.com/aws/aws-sdk-go-v2/service/lambda/types"
 	lightsailtypes "github.com/aws/aws-sdk-go-v2/service/lightsail/types"
 	mltypes "github.com/aws/aws-sdk-go-v2/service/machinelearning/types"
+	mctypes "github.com/aws/aws-sdk-go-v2/service/mediaconvert/types"
 	mptypes "github.com/aws/aws-sdk-go-v2/service/mediapackage/types"
 	mttypes "github.com/aws/aws-sdk-go-v2/service/mediatailor/types"
 	pptypes "github.com/aws/aws-sdk-go-v2/service/pinpoint/types"
@@ -332,6 +333,46 @@ func TestRedact_MediaPackageChannel_IngestPassword(t *testing.T) {
 		}
 		if want := fmt.Sprintf("https://ingest.example/%d", i+1); em["Url"] != want {
 			t.Errorf("IngestEndpoints[%d].Url = %v, want %s kept", i, em["Url"], want)
+		}
+	}
+}
+
+// The static content key of every HLS and CMAF output group is redacted; the
+// key provider's other fields and the group's other settings are kept.
+func TestRedact_MediaConvertJobTemplate_StaticKeyValue(t *testing.T) {
+	t.Parallel()
+	key := func(n string) *mctypes.StaticKeyProvider {
+		return &mctypes.StaticKeyProvider{
+			StaticKeyValue: ptrStr(strings.Repeat(n, 32)), KeyFormat: ptrStr("identity"),
+			KeyFormatVersions: ptrStr("1"), Url: ptrStr("https://keys.example/" + n),
+		}
+	}
+	jt := mctypes.JobTemplate{Name: ptrStr("tmpl"), Settings: &mctypes.JobTemplateSettings{OutputGroups: []mctypes.OutputGroup{
+		{Name: ptrStr("hls"), OutputGroupSettings: &mctypes.OutputGroupSettings{
+			Type:             mctypes.OutputGroupTypeHlsGroupSettings,
+			HlsGroupSettings: &mctypes.HlsGroupSettings{SegmentLength: ptrInt32(6), Encryption: &mctypes.HlsEncryptionSettings{StaticKeyProvider: key("a")}},
+		}},
+		{Name: ptrStr("cmaf"), OutputGroupSettings: &mctypes.OutputGroupSettings{
+			Type:              mctypes.OutputGroupTypeCmafGroupSettings,
+			CmafGroupSettings: &mctypes.CmafGroupSettings{SegmentLength: ptrInt32(4), Encryption: &mctypes.CmafEncryptionSettings{StaticKeyProvider: key("b")}},
+		}},
+	}}}
+	got := applyAndDecode(t, TypeMediaConvertJobTemplate, jt)
+	groups := got["Settings"].(map[string]any)["OutputGroups"].([]any)
+	for i, c := range []struct {
+		settings, url string
+		segment       float64
+	}{{"HlsGroupSettings", "https://keys.example/a", 6}, {"CmafGroupSettings", "https://keys.example/b", 4}} {
+		gs := groups[i].(map[string]any)["OutputGroupSettings"].(map[string]any)[c.settings].(map[string]any)
+		kp := gs["Encryption"].(map[string]any)["StaticKeyProvider"].(map[string]any)
+		if kp["StaticKeyValue"] != redact.Placeholder {
+			t.Errorf("%s StaticKeyValue = %v; want redacted", c.settings, kp["StaticKeyValue"])
+		}
+		if kp["Url"] != c.url || kp["KeyFormat"] != "identity" || kp["KeyFormatVersions"] != "1" {
+			t.Errorf("%s StaticKeyProvider = %v; want Url %s, KeyFormat identity, KeyFormatVersions 1 kept", c.settings, kp, c.url)
+		}
+		if gs["SegmentLength"] != c.segment {
+			t.Errorf("%s SegmentLength = %v; want %v kept", c.settings, gs["SegmentLength"], c.segment)
 		}
 	}
 }
