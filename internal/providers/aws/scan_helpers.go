@@ -1936,6 +1936,52 @@ func recordHierarchyPairs(st *store.Store, op string, pairs [][2]string, p *phas
 	return false
 }
 
+// rowsUnder records each row a per-parent phase writes page by page
+// (storeEachParentPagesTagsWith) under the parent it was listed under: what
+// was listed of each row built, until the row is written, then the row's
+// contains pair. The rows of different parents are built concurrently and
+// written in no fixed order, so mu guards both. L is what else the caller
+// needs of a row once it is written (struct{} for nothing). The caller
+// records pairs once the phase's pages are written (recordHierarchyPairs).
+type rowsUnder[L any] struct {
+	mu     sync.Mutex
+	listed map[*store.Resource]listedUnder[L]
+	pairs  [][2]string
+}
+
+// listedUnder is what a row's listing gave: its parent's ARN and what else
+// the caller kept.
+type listedUnder[L any] struct {
+	parentARN string
+	kept      L
+}
+
+// listedUnderParent notes that r was listed under the parent whose ARN is
+// parentARN, keeping kept until r is written.
+func (u *rowsUnder[L]) listedUnderParent(r *store.Resource, parentARN string, kept L) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if u.listed == nil {
+		u.listed = map[*store.Resource]listedUnder[L]{}
+	}
+	u.listed[r] = listedUnder[L]{parentARN: parentARN, kept: kept}
+}
+
+// writtenUnderParents adds the contains pair of each written row and
+// returns what was kept of the rows, in row order.
+func (u *rowsUnder[L]) writtenUnderParents(acctID string, rows []*store.Resource) []L {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	kept := make([]L, len(rows))
+	for i, r := range rows {
+		l := u.listed[r]
+		delete(u.listed, r)
+		kept[i] = l.kept
+		u.pairs = append(u.pairs, [2]string{r.ID, store.ResourceID("aws", acctID, l.parentARN)})
+	}
+	return kept
+}
+
 // storeEachParentTagsUnder is storeEachParentTags with each stored row then
 // recorded under the ARN of the parent it was listed under
 // (recordUnderParents). The rows are held until one write: one parent's

@@ -4,7 +4,6 @@ import (
 	"context"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
@@ -277,48 +276,6 @@ func scanDataExchangeReceivedDataGrants(ctx context.Context, client dataExchange
 		tags.untaggedIfOtherAccount(acct.ID), p)
 }
 
-// adxUnder records each row a per-parent phase writes page by page
-// (storeEachParentPagesTagsWith) under the parent it was listed under: what
-// was listed of each row built, until the row is written, then the row's
-// contains pair. The rows of different parents are built concurrently and
-// written in no fixed order, so mu guards both.
-type adxUnder struct {
-	mu     sync.Mutex
-	listed map[*store.Resource]adxListed
-	pairs  [][2]string
-}
-
-// adxListed is what a row's listing gave: its parent's ARN and, for a
-// revision, the revision as a parent of the asset phase.
-type adxListed struct {
-	parentARN string
-	revision  dxRevision
-}
-
-// adxListedUnder notes that r was listed as l says.
-func (u *adxUnder) adxListedUnder(r *store.Resource, l adxListed) {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	if u.listed == nil {
-		u.listed = map[*store.Resource]adxListed{}
-	}
-	u.listed[r] = l
-}
-
-// adxWrittenUnder adds the contains pair of each written row and returns
-// what was listed of the rows, in row order.
-func (u *adxUnder) adxWrittenUnder(acctID string, rows []*store.Resource) []adxListed {
-	u.mu.Lock()
-	defer u.mu.Unlock()
-	listed := make([]adxListed, len(rows))
-	for i, r := range rows {
-		listed[i] = u.listed[r]
-		delete(u.listed, r)
-		u.pairs = append(u.pairs, [2]string{r.ID, store.ResourceID("aws", acctID, listed[i].parentARN)})
-	}
-	return listed
-}
-
 // scanDataExchangeRevisions stores the revisions of each data set stored
 // this scan with their tags, under the data set, each page written as soon
 // as its tags are read because a data set gains a revision per publication;
@@ -345,7 +302,7 @@ func scanDataExchangeRevisions(ctx context.Context, client dataExchangeAPI, acct
 		dataSetARN[d.id] = d.arn
 	}
 	var (
-		under     adxUnder
+		under     rowsUnder[dxRevision]
 		revisions []dxRevision
 		noID      skipTally
 	)
@@ -361,17 +318,17 @@ func scanDataExchangeRevisions(ctx context.Context, client dataExchangeAPI, acct
 			r, why, key := adxRow(acct, region, scanID, TypeDataExchangeDataSetRevision, "revisions", rev.Arn, rev.Id, sp(dxRevisionStatus(rev)), rev.CreatedAt, rev)
 			if r != nil {
 				id := sv(rev.Id)
-				under.adxListedUnder(r, adxListed{parentARN: dataSetARN[dataSetID], revision: dxRevision{
+				under.listedUnderParent(r, dataSetARN[dataSetID], dxRevision{
 					childParent: childParent{id: dataSetID + "/" + id, arn: r.NativeID},
 					dataSetID:   dataSetID, revisionID: id,
-				}})
+				})
 			}
 			return r, why, key
 		},
 		nil,
 		func(rows []*store.Resource) {
-			for _, l := range under.adxWrittenUnder(acct.ID, rows) {
-				switch rev := l.revision; {
+			for _, rev := range under.writtenUnderParents(acct.ID, rows) {
+				switch {
 				case !listsAssets[rev.dataSetID]:
 				case rev.revisionID == "":
 					noID.skippedLeast(rev.arn, nil)
@@ -411,7 +368,7 @@ func scanDataExchangeAssets(ctx context.Context, client dataExchangeAPI, acct *a
 		parents[i] = r.childParent
 		byID[r.id] = r
 	}
-	var under adxUnder
+	var under rowsUnder[struct{}]
 	failed := storeEachParentPagesTagsWith(ctx, st, acct, region, op, adxParentGone, parents,
 		func(ctx context.Context, revID string, token *string) ([]dxtypes.AssetEntry, *string, error) {
 			rev := byID[revID]
@@ -426,13 +383,13 @@ func scanDataExchangeAssets(ctx context.Context, client dataExchangeAPI, acct *a
 		func(revID string, a dxtypes.AssetEntry) (*store.Resource, string, string) {
 			r, why, key := adxRow(acct, region, scanID, TypeDataExchangeRevisionAsset, "assets", a.Arn, a.Name, nil, a.CreatedAt, a)
 			if r != nil {
-				under.adxListedUnder(r, adxListed{parentARN: byID[revID].arn})
+				under.listedUnderParent(r, byID[revID].arn, struct{}{})
 			}
 			return r, why, key
 		},
 		nil,
 		func(rows []*store.Resource) {
-			under.adxWrittenUnder(acct.ID, rows)
+			under.writtenUnderParents(acct.ID, rows)
 		},
 		tags, p)
 	closureFailed := recordHierarchyPairs(st, op, under.pairs, p)

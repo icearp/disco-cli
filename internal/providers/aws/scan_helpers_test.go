@@ -3123,6 +3123,30 @@ func TestRecordHierarchyPairs(t *testing.T) {
 	})
 }
 
+// rowsUnder hands back what was kept of each written row, in the written
+// rows' order, and adds each written row's contains pair under the parent it
+// was listed under, page after page.
+func TestRowsUnder(t *testing.T) {
+	t.Parallel()
+	a, b, c := &store.Resource{ID: "id-a"}, &store.Resource{ID: "id-b"}, &store.Resource{ID: "id-c"}
+	var u rowsUnder[string]
+	u.listedUnderParent(a, "parent-1", "kept a")
+	u.listedUnderParent(b, "parent-2", "kept b")
+	u.listedUnderParent(c, "parent-1", "kept c")
+
+	if got := u.writtenUnderParents(testAccountID, []*store.Resource{b, a}); !slices.Equal(got, []string{"kept b", "kept a"}) {
+		t.Errorf("first page kept = %v; want [kept b kept a]", got)
+	}
+	if got := u.writtenUnderParents(testAccountID, []*store.Resource{c}); !slices.Equal(got, []string{"kept c"}) {
+		t.Errorf("second page kept = %v; want [kept c]", got)
+	}
+	parent := func(arn string) string { return store.ResourceID("aws", testAccountID, arn) }
+	want := [][2]string{{"id-b", parent("parent-2")}, {"id-a", parent("parent-1")}, {"id-c", parent("parent-1")}}
+	if !slices.Equal(u.pairs, want) {
+		t.Errorf("pairs = %v; want %v", u.pairs, want)
+	}
+}
+
 // storeEachParentTagsUnder records each stored child under the ARN of the
 // parent whose id it was listed under. A parent deleted before its listing
 // returned anything is skipped silently; one deleted mid-listing keeps the
