@@ -2,9 +2,10 @@ package aws
 
 import (
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kafkaconnect"
+	kafkaconnecttypes "github.com/aws/aws-sdk-go-v2/service/kafkaconnect/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -23,108 +24,130 @@ type kafkaConnectAPI interface {
 	ListConnectors(context.Context, *kafkaconnect.ListConnectorsInput, ...func(*kafkaconnect.Options)) (*kafkaconnect.ListConnectorsOutput, error)
 	ListCustomPlugins(context.Context, *kafkaconnect.ListCustomPluginsInput, ...func(*kafkaconnect.Options)) (*kafkaconnect.ListCustomPluginsOutput, error)
 	ListWorkerConfigurations(context.Context, *kafkaconnect.ListWorkerConfigurationsInput, ...func(*kafkaconnect.Options)) (*kafkaconnect.ListWorkerConfigurationsOutput, error)
+	ListTagsForResource(context.Context, *kafkaconnect.ListTagsForResourceInput, ...func(*kafkaconnect.Options)) (*kafkaconnect.ListTagsForResourceOutput, error)
 }
 
-// scanKafkaConnect discovers KafkaConnect connectors, custom plugins, and
-// worker configurations. ARNs native on every type.
-func scanKafkaConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+const (
+	kcListConnectorsOp           = "kafkaconnect:ListConnectors"
+	kcListCustomPluginsOp        = "kafkaconnect:ListCustomPlugins"
+	kcListWorkerConfigurationsOp = "kafkaconnect:ListWorkerConfigurations"
+	kcTagsOp                     = "kafkaconnect:ListTagsForResource"
+	// kcPageCap is the maxResults range maximum (1-100) the model gives every
+	// listing.
+	kcPageCap int32 = 100
+)
+
+// scanKafkaConnect discovers MSK Connect connectors, custom plugins and
+// worker configurations, each with its tags (kafkaConnectTags). Every
+// listing runs as its own phase, one at a time and in that order: a phase's
+// error does not stop the later ones; a failed write and ctx's end do, and so
+// does a first phase that stores nothing and fails only with NXDOMAIN, since
+// the region does not serve the service (runHostPhases). Each listing is
+// written a page at a time, and the tag reads' denials are one warning for
+// the whole scan.
+func scanKafkaConnect(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := kafkaconnect.NewFromConfig(acct.cfg, func(o *kafkaconnect.Options) { o.Region = region })
 
-	for _, phase := range []func() (int, int, error){
-		func() (int, int, error) { return scanKCConnectors(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanKCCustomPlugins(ctx, client, acct, region, st, scanID) },
-		func() (int, int, error) { return scanKCWorkerConfigurations(ctx, client, acct, region, st, scanID) },
-	} {
-		t, i, perr := phase()
-		if perr != nil {
-			return total, inserted, perr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+	tags := kafkaConnectTags(client).sharingDenials()
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "kafkaconnect", 0, []hostPhase{
+		{op: kcListConnectorsOp, run: func(p *phaseTotals) bool {
+			return scanKCConnectors(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: kcListCustomPluginsOp, run: func(p *phaseTotals) bool {
+			return scanKCCustomPlugins(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+		{op: kcListWorkerConfigurationsOp, run: func(p *phaseTotals) bool {
+			return scanKCWorkerConfigurations(ctx, client, acct, region, st, scanID, tags, p)
+		}},
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-func scanKCConnectors(ctx context.Context, client kafkaConnectAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := kafkaconnect.NewListConnectorsPaginator(client, &kafkaconnect.ListConnectorsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "kafkaconnect:ListConnectors", acct.ID, region, err)
+// kafkaConnectTags reads a row's tags with ListTagsForResource, sent the
+// row's NativeID: the ARN its listed element carries. The Service
+// Reference lists connector, custom plugin and worker configuration on
+// ListTagsForResource and TagResource, each with aws:ResourceTag as a
+// condition key, and the three Create ops take Tags; no listed summary
+// carries them. The op returns every tag at once. NotFoundException, its
+// modeled not-found, drops a resource deleted after it was listed;
+// ForbiddenException is a denial (isAccessDenied).
+func kafkaConnectTags(client kafkaConnectAPI) rowTagReader {
+	return rowTagReader{
+		op:       kcTagsOp,
+		notFound: []string{"NotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTagsForResource(ctx, &kafkaconnect.ListTagsForResourceInput{ResourceArn: &arn})
+			if err != nil {
+				return nil, err
 			}
-			return 0, 0, fmt.Errorf("kafkaconnect:ListConnectors: %w", err)
-		}
-		for _, c := range out.Connectors {
-			arn := sv(c.ConnectorArn)
-			if arn == "" {
-				continue
-			}
-			status := string(c.ConnectorState)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKafkaConnectConnector, NativeID: arn,
-				Name: c.ConnectorName, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
+			return mapTagsJSON(out.Tags), nil
+		},
 	}
-	return upsertBatch(st, batch, "kafkaconnect connectors")
 }
 
-func scanKCCustomPlugins(ctx context.Context, client kafkaConnectAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := kafkaconnect.NewListCustomPluginsPaginator(client, &kafkaconnect.ListCustomPluginsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "kafkaconnect:ListCustomPlugins", acct.ID, region, err)
-			}
-			return 0, 0, fmt.Errorf("kafkaconnect:ListCustomPlugins: %w", err)
-		}
-		for _, p := range out.CustomPlugins {
-			arn := sv(p.CustomPluginArn)
-			if arn == "" {
-				continue
-			}
-			status := string(p.CustomPluginState)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKafkaConnectCustomPlugin, NativeID: arn,
-				Name: p.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(p), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "kafkaconnect custom-plugins")
+// kcRow is the row of a listed element of typ, stored under its ARN, named
+// name, with the element's state as its Status (none when the element has
+// no state). An element without an ARN is not stored, and its listing's
+// warning calls the type's elements what and names it by name, or by
+// noIdentifier without one (arnRow).
+func kcRow(acct *account, region, scanID, typ, what string, arn, name *string, state string, element any) (*store.Resource, string, string) {
+	return arnRow(what, arn, name, &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: sv(arn),
+		Name: name, Region: &region, Status: nonEmptyPtr(state),
+		AttributesJSON: mustJSON(element), DiscoveredBy: scanID,
+	})
 }
 
-func scanKCWorkerConfigurations(ctx context.Context, client kafkaConnectAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	pager := kafkaconnect.NewListWorkerConfigurationsPaginator(client, &kafkaconnect.ListWorkerConfigurationsInput{})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "kafkaconnect:ListWorkerConfigurations", acct.ID, region, err)
+// scanKCConnectors stores the connectors, each page written as soon as its
+// rows' tags are read. It reports whether a write failed, after which the
+// scan must stop.
+func scanKCConnectors(ctx context.Context, client kafkaConnectAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, kcListConnectorsOp,
+		func(ctx context.Context, token *string) ([]kafkaconnecttypes.ConnectorSummary, *string, error) {
+			out, err := client.ListConnectors(ctx, &kafkaconnect.ListConnectorsInput{MaxResults: sdkaws.Int32(kcPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("kafkaconnect:ListWorkerConfigurations: %w", err)
-		}
-		for _, w := range out.WorkerConfigurations {
-			arn := sv(w.WorkerConfigurationArn)
-			if arn == "" {
-				continue
+			return out.Connectors, out.NextToken, nil
+		},
+		func(c kafkaconnecttypes.ConnectorSummary) (*store.Resource, string, string) {
+			return kcRow(acct, region, scanID, TypeKafkaConnectConnector, "connectors", c.ConnectorArn, c.ConnectorName, string(c.ConnectorState), c)
+		}, tags, p)
+}
+
+// scanKCCustomPlugins stores the custom plugins, each page written as soon
+// as its rows' tags are read. It reports whether a write failed, after which
+// the scan must stop.
+func scanKCCustomPlugins(ctx context.Context, client kafkaConnectAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, kcListCustomPluginsOp,
+		func(ctx context.Context, token *string) ([]kafkaconnecttypes.CustomPluginSummary, *string, error) {
+			out, err := client.ListCustomPlugins(ctx, &kafkaconnect.ListCustomPluginsInput{MaxResults: sdkaws.Int32(kcPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			status := string(w.WorkerConfigurationState)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeKafkaConnectWorkerConfiguration, NativeID: arn,
-				Name: w.Name, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(w), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "kafkaconnect worker-configurations")
+			return out.CustomPlugins, out.NextToken, nil
+		},
+		func(c kafkaconnecttypes.CustomPluginSummary) (*store.Resource, string, string) {
+			return kcRow(acct, region, scanID, TypeKafkaConnectCustomPlugin, "custom plugins", c.CustomPluginArn, c.Name, string(c.CustomPluginState), c)
+		}, tags, p)
+}
+
+// scanKCWorkerConfigurations stores the worker configurations, each page
+// written as soon as its rows' tags are read. It reports whether a write
+// failed, after which the scan must stop.
+func scanKCWorkerConfigurations(ctx context.Context, client kafkaConnectAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) bool {
+	return storeTokenPagesTags(ctx, st, acct, region, kcListWorkerConfigurationsOp,
+		func(ctx context.Context, token *string) ([]kafkaconnecttypes.WorkerConfigurationSummary, *string, error) {
+			out, err := client.ListWorkerConfigurations(ctx, &kafkaconnect.ListWorkerConfigurationsInput{MaxResults: sdkaws.Int32(kcPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.WorkerConfigurations, out.NextToken, nil
+		},
+		func(w kafkaconnecttypes.WorkerConfigurationSummary) (*store.Resource, string, string) {
+			return kcRow(acct, region, scanID, TypeKafkaConnectWorkerConfiguration, "worker configurations", w.WorkerConfigurationArn, w.Name, string(w.WorkerConfigurationState), w)
+		}, tags, p)
 }
