@@ -3,54 +3,35 @@ package aws
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	"github.com/icearp/disco-cli/store"
 )
 
-// scanOpenSearchApplications discovers OpenSearch applications and returns
-// them as data-source-attachment parents.
-func scanOpenSearchApplications(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) ([]childParent, int, int, error) {
-	var (
-		batch   []*store.Resource
-		parents []childParent
-	)
-	var nextToken *string
-	for {
-		out, err := client.ListApplications(ctx, &opensearch.ListApplicationsInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "opensearch:ListApplications", acct.ID, region, err)
+// scanOpenSearchApplications stores the OpenSearch applications with their
+// tags (tags), a page at a time, and returns the stored ones as
+// data-source-attachment parents, keyed by Id. It reports whether a write
+// failed, after which the scan must stop.
+func scanOpenSearchApplications(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, osListApplicationsOp, "applications", "Id",
+		func(ctx context.Context, token *string) ([]opensearchtypes.ApplicationSummary, *string, error) {
+			out, err := client.ListApplications(ctx, &opensearch.ListApplicationsInput{MaxResults: openSearchPageLimit, NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("opensearch:ListApplications: %w", err)
-		}
-		for _, a := range out.ApplicationSummaries {
-			arn := sv(a.Arn)
-			if arn == "" {
-				continue
-			}
-			if id := sv(a.Id); id != "" {
-				parents = append(parents, childParent{id: id, arn: arn})
-			}
-			status := string(a.Status)
-			batch = append(batch, &store.Resource{
+			return out.ApplicationSummaries, out.NextToken, nil
+		},
+		func(a opensearchtypes.ApplicationSummary) (*store.Resource, string, string) {
+			return arnRow("applications", a.Arn, a.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeOpenSearchApplication, NativeID: arn,
-				Name: a.Name, Region: &region, Status: &status,
+				Type: TypeOpenSearchApplication, NativeID: sv(a.Arn),
+				Name: a.Name, Region: &region, Status: nonEmptyPtr(string(a.Status)),
 				AttributesJSON: mustJSON(a), DiscoveredBy: scanID,
 			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	total, inserted, err := upsertBatch(st, batch, "opensearch applications")
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return parents, total, inserted, nil
+		},
+		func(a opensearchtypes.ApplicationSummary) string { return sv(a.Id) },
+		tags, p)
 }
 
 // errOpenSearchOpNotDeployed marks an app whose first attachment call the

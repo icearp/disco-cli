@@ -2,14 +2,13 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/opensearch"
+	opensearchtypes "github.com/aws/aws-sdk-go-v2/service/opensearch/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -43,76 +42,128 @@ type opensearchAPI interface {
 	DescribeReservedInstances(context.Context, *opensearch.DescribeReservedInstancesInput, ...func(*opensearch.Options)) (*opensearch.DescribeReservedInstancesOutput, error)
 	DescribeOutboundConnections(context.Context, *opensearch.DescribeOutboundConnectionsInput, ...func(*opensearch.Options)) (*opensearch.DescribeOutboundConnectionsOutput, error)
 	DescribeInboundConnections(context.Context, *opensearch.DescribeInboundConnectionsInput, ...func(*opensearch.Options)) (*opensearch.DescribeInboundConnectionsOutput, error)
+	ListTags(context.Context, *opensearch.ListTagsInput, ...func(*opensearch.Options)) (*opensearch.ListTagsOutput, error)
 }
+
+const (
+	osListDomainNamesOp  = "opensearch:ListDomainNames"
+	osDescribeDomainOp   = "opensearch:DescribeDomain"
+	osListApplicationsOp = "opensearch:ListApplications"
+	osListTagsOp         = "opensearch:ListTags"
+)
 
 // scanOpenSearch discovers OpenSearch (and legacy Elasticsearch, same SDK)
 // domains in one region, then the applications, data sources and account-level
-// resources around them. ListDomainNames returns name-only entries;
-// DescribeDomain carries the edge-bearing body. Per-item AccessDenied
-// tolerated.
+// resources around them. Domains and applications are stored with their tags
+// (openSearchTags), whose denials are one warning for the whole scan.
 //
-// Every phase calls the same endpoint, so a domain phase that cannot reach it
-// (isEndpointUnreachable) is returned alone: the later phases would
-// fail the same way. Any other domain-phase error, an API-coded throttle
-// included, is joined like a later phase's, and the later phases still run;
-// the data-source phase fans out over whatever domain names were listed.
-// The phases are independent: a failed phase does not stop the ones after it,
-// and their errors are joined by phaseErrs, so a lone or all-transient
-// failure marks the scan partial; a later NXDOMAIN is a plain error
-// (lateNXDOMAIN).
-// Attachments fan out over the applications listed earlier in the same scan.
-func scanOpenSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// The phases run one at a time, in order: the data-source phase fans out over
+// the domain names listed, the attachment phase over the applications stored.
+// A phase's error does not stop the later ones; a failed write and ctx's end
+// do. Every phase calls the same endpoint, so a domain listing that cannot
+// reach it (isEndpointUnreachable) is returned alone: the later phases would
+// fail the same way. Once that listing has reached the endpoint, a later
+// NXDOMAIN is a plain error (lateNXDOMAIN). The errors are joined by
+// phaseErrs, so a lone or all-transient failure marks the scan partial.
+func scanOpenSearch(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := opensearch.NewFromConfig(acct.cfg, func(o *opensearch.Options) { o.Region = region })
-	domainNames, total, inserted, derr := scanOpenSearchDomains(ctx, client, acct, region, st, scanID)
-	if isEndpointUnreachable(derr) {
-		return total, inserted, derr
-	}
-	var errs phaseErrs
-	errs.add("opensearch:ListDomainNames", derr)
-	var apps []childParent
-	for _, phase := range []struct {
-		name string
-		run  func() (int, int, error)
-	}{
-		{"opensearch:ListApplications", func() (int, int, error) {
-			var (
-				t, i int
-				err  error
-			)
-			apps, t, i, err = scanOpenSearchApplications(ctx, client, acct, region, st, scanID)
-			return t, i, err
+	tags := openSearchTags(client).sharingDenials()
+	var (
+		domainNames []string
+		apps        []childParent
+	)
+	phases := []hostPhase{
+		{op: osListDomainNamesOp, run: func(p *phaseTotals) (failed bool) {
+			domainNames, failed = scanOpenSearchDomains(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
 		}},
-		{"opensearch:ListDataSources", func() (int, int, error) {
+		{op: osListApplicationsOp, run: func(p *phaseTotals) (failed bool) {
+			apps, failed = scanOpenSearchApplications(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		countedPhase(0, "opensearch:ListDataSources", func() (int, int, error) {
 			return scanOpenSearchDataSources(ctx, client, acct, region, st, scanID, domainNames)
-		}},
-		{"opensearch:ListDirectQueryDataSources", func() (int, int, error) {
+		}),
+		countedPhase(0, "opensearch:ListDirectQueryDataSources", func() (int, int, error) {
 			return scanOpenSearchDirectQueryDataSources(ctx, client, acct, region, st, scanID)
-		}},
-		{"opensearch:ListDataSourceAttachments", func() (int, int, error) {
+		}),
+		countedPhase(0, "opensearch:ListDataSourceAttachments", func() (int, int, error) {
 			return scanOpenSearchDataSourceAttachments(ctx, client, acct, region, st, scanID, apps)
-		}},
-		{"opensearch:ListVpcEndpoints", func() (int, int, error) {
+		}),
+		countedPhase(0, "opensearch:ListVpcEndpoints", func() (int, int, error) {
 			return scanOpenSearchVpcEndpoints(ctx, client, acct, region, st, scanID)
-		}},
-		{"opensearch:DescribePackages", func() (int, int, error) {
+		}),
+		countedPhase(0, "opensearch:DescribePackages", func() (int, int, error) {
 			return scanOpenSearchPackages(ctx, client, acct, region, st, scanID)
-		}},
-		{"opensearch:DescribeReservedInstances", func() (int, int, error) {
+		}),
+		countedPhase(0, "opensearch:DescribeReservedInstances", func() (int, int, error) {
 			return scanOpenSearchReservedInstances(ctx, client, acct, region, st, scanID)
-		}},
-		{"opensearch:DescribeOutboundConnections", func() (int, int, error) {
+		}),
+		countedPhase(0, "opensearch:DescribeOutboundConnections", func() (int, int, error) {
 			return scanOpenSearchOutboundConnections(ctx, client, acct, region, st, scanID)
-		}},
-		{"opensearch:DescribeInboundConnections", func() (int, int, error) {
+		}),
+		countedPhase(0, "opensearch:DescribeInboundConnections", func() (int, int, error) {
 			return scanOpenSearchInboundConnections(ctx, client, acct, region, st, scanID)
-		}},
-	} {
-		t, i, perr := phase.run()
-		total += t
-		inserted += i
-		errs.add(phase.name, lateNXDOMAIN(phase.name, perr))
+		}),
 	}
-	return total, inserted, errs.join(st, acct, region)
+	var p phaseTotals
+	notRun := 0
+	for n, ph := range phases {
+		if ctx.Err() != nil {
+			notRun = len(phases) - n
+			break
+		}
+		before := len(p.errs)
+		if ph.run(&p) {
+			break
+		}
+		if osListingUnreachable(p.errs[before:]) {
+			break
+		}
+		for i := before; i < len(p.errs); i++ {
+			p.errs[i].err = lateNXDOMAIN(p.errs[i].op, p.errs[i].err)
+		}
+	}
+	p.foldStop(ctx, "opensearch", notRun)
+	tags.warnDenials(st, acct, region)
+	return p.result(st, acct, region)
+}
+
+// osListingUnreachable reports whether errs holds the domain listing's error
+// and it says the endpoint could not be reached. Only the first phase files
+// under that op; a describe's or tag read's error does not count, as the
+// listing reached the endpoint.
+func osListingUnreachable(errs phaseErrs) bool {
+	for _, f := range errs {
+		if f.op == osListDomainNamesOp && isEndpointUnreachable(f.err) {
+			return true
+		}
+	}
+	return false
+}
+
+// openSearchTags reads a row's tags with ListTags, sent the row's NativeID:
+// the ARN DescribeDomain or ListApplications returned. The Service Reference
+// lists domain, application and datasource on ListTags and AddTags, each with
+// aws:ResourceTag as a condition key; CreateDomain and CreateApplication take
+// a TagList, and neither DomainStatus nor ApplicationSummary carries one. Its
+// datasource is the direct-query data source, whose listing carries its
+// TagList, so none is read for it. The op answers with every tag at once (no
+// page token). ResourceNotFoundException, its modeled not-found, drops a
+// resource deleted after it was listed.
+func openSearchTags(client opensearchAPI) rowTagReader {
+	return rowTagReader{
+		op:       osListTagsOp,
+		notFound: []string{"ResourceNotFoundException"},
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			arn := r.NativeID
+			out, err := client.ListTags(ctx, &opensearch.ListTagsInput{ARN: &arn})
+			if err != nil {
+				return nil, err
+			}
+			return openSearchTagsJSON(out.TagList), nil
+		},
+	}
 }
 
 // openSearchARN builds an es-namespace ARN-shaped NativeID,
@@ -123,96 +174,102 @@ func openSearchARN(partition, region, accountID, resource string) string {
 	return arnFor(partition, "es", region, accountID, resource)
 }
 
-// scanOpenSearchDomains lists the region's domain names, describes and stores
-// each domain, and returns the listed names (also when a describe fails) for
-// the data-source phase.
-func scanOpenSearchDomains(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string) (names []string, total, inserted int, err error) {
-	listOut, lerr := client.ListDomainNames(ctx, &opensearch.ListDomainNamesInput{})
-	if lerr != nil {
-		if isAccessDenied(lerr) {
-			_ = skipIfAccessDenied(st, "opensearch:ListDomainNames", acct.ID, region, lerr)
-			return nil, 0, 0, nil
-		}
-		return nil, 0, 0, fmt.Errorf("opensearch:ListDomainNames: %w", lerr)
-	}
-	for _, n := range listOut.DomainNames {
-		if name := sv(n.DomainName); name != "" {
-			names = append(names, name)
-		}
-	}
-	if len(names) == 0 {
-		return nil, 0, 0, nil
-	}
+// osDomainRead is one domain's DescribeDomain result.
+type osDomainRead struct {
+	status *opensearchtypes.DomainStatus
+	err    error
+}
 
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, name := range names {
-		// Acquire fails once a describe has failed and cancelled gctx; stop
-		// launching and let g.Wait return that first error, not Canceled.
-		if sem.Acquire(gctx, 1) != nil {
-			break
+// scanOpenSearchDomains lists the region's domain names, describes each one
+// and stores the domains with their tags (tags). It returns every name
+// listed, also when its describe fails, for the data-source phase, and
+// whether the write failed, after which the scan must stop.
+//
+// ListDomainNames returns names only, so a domain whose describe fails has no
+// element carrying its ARN to store, and is dropped. One DescribeDomain no
+// longer finds (ResourceNotFoundException, deleted after it was listed) is
+// dropped silently. A denied describe warns once, after the write succeeded;
+// any other error, ctx's end included, is returned after the other domains
+// are stored, a transient one apart so that it is demoted beside a hard
+// error. An NXDOMAIN is a plain error (lateNXDOMAIN): the listing resolved.
+// scanOpenSearch folds ctx's end into one error.
+func scanOpenSearchDomains(ctx context.Context, client opensearchAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (names []string, storeWriteFailed bool) {
+	var listSkips, describeSkips notStoredSkips
+	out, listErr := client.ListDomainNames(ctx, &opensearch.ListDomainNamesInput{})
+	if listErr == nil {
+		for _, n := range out.DomainNames {
+			if name := sv(n.DomainName); name != "" {
+				names = append(names, name)
+			} else {
+				listSkips.skipped("domains have no name", noIdentifier)
+			}
 		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			out, derr := client.DescribeDomain(gctx, &opensearch.DescribeDomainInput{DomainName: &name})
-			if derr != nil {
-				if isAccessDenied(derr) {
-					return nil
-				}
-				return fmt.Errorf("opensearch:DescribeDomain %s: %w", name, derr)
-			}
-			if out.DomainStatus == nil {
-				return nil
-			}
-			arn := sv(out.DomainStatus.ARN)
-			if arn == "" {
-				return nil
-			}
-			created := false
-			if out.DomainStatus.Created != nil {
-				created = *out.DomainStatus.Created
-			}
-			status := "creating"
-			if created {
-				status = "active"
-			}
-			r := &store.Resource{
-				Provider:       "aws",
-				AccountID:      acct.ID,
-				AccountName:    &acct.Name,
-				Type:           TypeOpenSearchDomain,
-				NativeID:       arn,
-				Name:           &name,
-				Region:         &region,
-				Status:         &status,
-				AttributesJSON: mustJSON(out.DomainStatus),
-				DiscoveredBy:   scanID,
-			}
-			mu.Lock()
-			batch = append(batch, r)
-			mu.Unlock()
-			return nil
-		})
 	}
-	werr := g.Wait()
-	if werr == nil {
-		// The launch loop also stops when the caller's ctx is cancelled, with
-		// no describe having failed; that must not read as a complete listing.
-		werr = ctx.Err()
+	reads, stopped := readEachKey(ctx, names, func(ctx context.Context, name string) osDomainRead {
+		out, err := client.DescribeDomain(ctx, &opensearch.DescribeDomainInput{DomainName: &name})
+		if err != nil {
+			return osDomainRead{err: err}
+		}
+		return osDomainRead{status: out.DomainStatus}
+	})
+	var (
+		rows       []*store.Resource
+		denied     skipTally
+		transients transientTally
+		errs       []error
+	)
+	for i, read := range reads {
+		name := names[i]
+		switch err := lateNXDOMAIN(osDescribeDomainOp, read.err); {
+		case err == nil:
+			if read.status == nil || sv(read.status.ARN) == "" {
+				describeSkips.skipped("domains were described without an ARN", name)
+				continue
+			}
+			rows = append(rows, openSearchDomainRow(acct, region, scanID, name, read.status))
+		case isAPIErrorCode(err, "ResourceNotFoundException"):
+		case isAccessDenied(err):
+			denied.skipped(name, err)
+		case transients.drop(name, err):
+		default:
+			errs = append(errs, fmt.Errorf("%s %s: %w", osDescribeDomainOp, name, err))
+		}
 	}
-	if werr != nil {
-		return names, 0, 0, werr
+	if stopped != nil {
+		errs = append(errs, fmt.Errorf("%s: %w", osDescribeDomainOp, stopped))
 	}
-	if len(batch) == 0 {
-		return names, 0, 0, nil
+	// Added before the write: these domains were never going to be stored,
+	// so a transient one demoted to a warning beside a failed write still
+	// says what happened to them.
+	p.errs.add(osDescribeDomainOp, errors.Join(errs...))
+	if t := &transients.skipTally; t.count > 0 {
+		p.errs.add(osDescribeDomainOp, fmt.Errorf("%s: %d domain(s) not described, so not stored, first %s: %w", osDescribeDomainOp, t.count, t.first, t.err))
 	}
-	n, uerr := st.UpsertResources(batch)
-	if uerr != nil {
-		return names, 0, 0, fmt.Errorf("upsert opensearch domains: %w", uerr)
+	return names, storeRowsTags(ctx, st, acct, region, osListDomainNamesOp, rows, listErr, func() {
+		listSkips.warn(st, osListDomainNamesOp, acct, region)
+		describeSkips.warn(st, osDescribeDomainOp, acct, region)
+		denied.warnDeniedIn(st, osDescribeDomainOp, acct, region, "domain(s) not stored as their describe was")
+	}, tags, p)
+}
+
+// openSearchDomainRow is the row of the domain name, described as d, stored
+// under d's ARN. Its Status is "active" once d says the domain is created,
+// "creating" before.
+func openSearchDomainRow(acct *account, region, scanID, name string, d *opensearchtypes.DomainStatus) *store.Resource {
+	status := "creating"
+	if d.Created != nil && *d.Created {
+		status = "active"
 	}
-	return names, len(batch), n, nil
+	return &store.Resource{
+		Provider:       "aws",
+		AccountID:      acct.ID,
+		AccountName:    &acct.Name,
+		Type:           TypeOpenSearchDomain,
+		NativeID:       sv(d.ARN),
+		Name:           &name,
+		Region:         &region,
+		Status:         &status,
+		AttributesJSON: mustJSON(d),
+		DiscoveredBy:   scanID,
+	}
 }

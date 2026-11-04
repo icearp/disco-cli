@@ -11,8 +11,8 @@ import (
 	"github.com/icearp/disco-cli/store"
 )
 
-// openSearchPageLimit is the documented MaxResults cap of the paginated
-// Describe* ops below.
+// openSearchPageLimit is the MaxResults range maximum the model gives
+// ListApplications and the paginated Describe* ops below.
 const openSearchPageLimit = 100
 
 // openSearchDirectQueryDataSourceAttrs shadows the DataSourceType union, which

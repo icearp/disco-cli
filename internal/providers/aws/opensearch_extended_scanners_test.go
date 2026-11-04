@@ -143,9 +143,12 @@ func TestScanOpenSearchDataSourceAttachments_NoApps(t *testing.T) {
 	}
 }
 
+// An application without an ARN is not stored; one without an Id is stored
+// but is no attachment parent. Each is warned about once under the listing.
 func TestScanOpenSearchApplications_ReturnsAttachmentParents(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
+	warns := rhWarnRecorder(st)
 	client := osClient(map[string]func(any) (any, error){
 		"ListApplications": func(any) (any, error) {
 			return &opensearch.ListApplicationsOutput{ApplicationSummaries: []opensearchtypes.ApplicationSummary{
@@ -154,13 +157,19 @@ func TestScanOpenSearchApplications_ReturnsAttachmentParents(t *testing.T) {
 				{Id: ptrStr("a3")},
 			}}, nil
 		},
+		"ListTags": func(any) (any, error) { return &opensearch.ListTagsOutput{}, nil },
 	})
-	parents, total, _, err := scanOpenSearchApplications(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
-	if err != nil {
-		t.Fatalf("scan: %v", err)
+	var p phaseTotals
+	parents, failed := scanOpenSearchApplications(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, openSearchTags(client), &p)
+	if failed || len(p.errs) != 0 {
+		t.Fatalf("failed = %v, errs = %v; want neither", failed, p.errs)
 	}
-	if want := []childParent{{id: "a1", arn: osApp1ARN}}; total != 2 || !slices.Equal(parents, want) {
-		t.Errorf("total = %d, parents = %v; want 2 rows, %v (a parent needs both id and ARN)", total, parents, want)
+	if want := []childParent{{id: "a1", arn: osApp1ARN}}; p.total != 2 || !slices.Equal(parents, want) {
+		t.Errorf("total = %d, parents = %v; want 2 rows, %v (a parent needs both id and ARN)", p.total, parents, want)
+	}
+	w := warns()
+	if got := kcWarnOps(w); !slices.Equal(got, []string{osListApplicationsOp, osListApplicationsOp}) {
+		t.Errorf("warnings = %v; want two under %s (no ARN, no Id)", w, osListApplicationsOp)
 	}
 }
 

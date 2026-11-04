@@ -61,6 +61,7 @@ func osTopLevelHandlers() map[string]func(any) (any, error) {
 		"DescribeInboundConnections": func(any) (any, error) {
 			return &opensearch.DescribeInboundConnectionsOutput{Connections: []opensearchtypes.InboundConnection{{ConnectionId: ptrStr("c2"), RemoteDomainInfo: local}}}, nil
 		},
+		"ListTags": func(any) (any, error) { return &opensearch.ListTagsOutput{}, nil },
 	}
 }
 
@@ -274,55 +275,31 @@ func TestScanOpenSearch_DomainThrottleJoinedAndLaterPhasesRun(t *testing.T) {
 	}
 }
 
-// osDomainStub fails DescribeDomain for d00 and holds every other describe
-// until the fan-out context is cancelled, so the launch loop is still waiting
-// for a slot when the failure cancels it.
-type osDomainStub struct {
-	opensearchAPI
-	names []opensearchtypes.DomainInfo
-}
-
-func (s osDomainStub) ListDomainNames(context.Context, *opensearch.ListDomainNamesInput, ...func(*opensearch.Options)) (*opensearch.ListDomainNamesOutput, error) {
-	return &opensearch.ListDomainNamesOutput{DomainNames: s.names}, nil
-}
-
-func (s osDomainStub) DescribeDomain(ctx context.Context, in *opensearch.DescribeDomainInput, _ ...func(*opensearch.Options)) (*opensearch.DescribeDomainOutput, error) {
-	if sv(in.DomainName) == "d00" {
-		return nil, osBadInput
-	}
-	<-ctx.Done()
-	return nil, ctx.Err()
-}
-
-// More domains than fan-out slots, one failing: the returned error is that
-// describe's, not the Canceled the blocked launch loop sees.
-func TestScanOpenSearchDomains_FirstDescribeErrorWins(t *testing.T) {
+// One describe failing among more domains than fan-out slots drops only that
+// domain: every other domain is stored, and the failure is returned.
+func TestScanOpenSearch_DescribeErrorKeepsOtherDomains(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	stub := osDomainStub{}
+	handlers := osTopLevelHandlers()
+	var listed []opensearchtypes.DomainInfo
 	for i := range fanoutMed + 5 {
-		stub.names = append(stub.names, opensearchtypes.DomainInfo{DomainName: ptrStr(fmt.Sprintf("d%02d", i))})
+		listed = append(listed, opensearchtypes.DomainInfo{DomainName: ptrStr(fmt.Sprintf("d%02d", i))})
 	}
-	names, total, _, err := scanOpenSearchDomains(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
-	if !isAPIErrorCode(err, "ValidationException") || errors.Is(err, context.Canceled) {
-		t.Errorf("err = %v; want the d00 ValidationException", err)
+	handlers["ListDomainNames"] = func(any) (any, error) {
+		return &opensearch.ListDomainNamesOutput{DomainNames: listed}, nil
 	}
-	if total != 0 || len(names) != fanoutMed+5 {
-		t.Errorf("total = %d, names = %d; want 0 rows and all %d listed names", total, len(names), fanoutMed+5)
+	handlers["DescribeDomain"] = func(in any) (any, error) {
+		name := sv(in.(*opensearch.DescribeDomainInput).DomainName)
+		if name == "d00" {
+			return nil, osBadInput
+		}
+		return &opensearch.DescribeDomainOutput{DomainStatus: &opensearchtypes.DomainStatus{ARN: ptrStr(osTestDomainARN("aws", testRegion, name)), DomainName: &name}}, nil
 	}
-}
-
-// A caller cancellation that stops the launch loop is returned, not read as a
-// complete listing.
-func TestScanOpenSearchDomains_CallerCancelReturned(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	stub := osDomainStub{names: []opensearchtypes.DomainInfo{{DomainName: ptrStr("d01")}}}
-	_, total, _, err := scanOpenSearchDomains(ctx, stub, newTestAccount(testAccountID), testRegion, st, testScanID)
-	if !errors.Is(err, context.Canceled) || total != 0 {
-		t.Errorf("total = %d, err = %v; want 0, context.Canceled", total, err)
+	_, err := runScanOpenSearch(t, st, handlers)
+	assertAPICode(t, err, "ValidationException")
+	rows := rowsByNativeID(t, st, TypeOpenSearchDomain)
+	if _, ok := rows[osTestDomainARN("aws", testRegion, "d00")]; ok || len(rows) != fanoutMed+4 {
+		t.Errorf("domains stored = %d (d00 among them: %v); want the %d others", len(rows), ok, fanoutMed+4)
 	}
 }
 
