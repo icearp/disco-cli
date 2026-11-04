@@ -304,8 +304,9 @@ func TestCodeDeploy_ScannerAndResolverAgreeOnPartition(t *testing.T) {
 				}}},
 			}), pf.region))
 			ctx := context.Background()
-			if _, _, _, err := scanCDApplications(ctx, client, acct, pf.region, st, testScanID); err != nil {
-				t.Fatalf("scanCDApplications: %v", err)
+			var p phaseTotals
+			if _, failed := scanCDApplications(ctx, client, acct, pf.region, st, testScanID, rowTagReader{op: cdTagsOp, read: func(context.Context, *store.Resource) (*string, error) { return nil, nil }}, &p); failed || len(p.errs) > 0 {
+				t.Fatalf("scanCDApplications: failed %v, errors %v", failed, p.errs)
 			}
 			if _, _, err := scanCDDeploymentConfigs(ctx, client, acct, pf.region, st, testScanID); err != nil {
 				t.Fatalf("scanCDDeploymentConfigs: %v", err)
