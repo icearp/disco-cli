@@ -2714,6 +2714,61 @@ func runHostPhases(ctx context.Context, st *store.Store, acct *account, region, 
 	return p.resultLateNXDOMAIN(st, acct, region)
 }
 
+// notEntitledGate reads a scan's not-entitled refusal (is) across the
+// phases runHostPhases runs. The refusal of a listing's first page while the
+// scan has stored no row is kept (keepFirstPageRefusal) and read by that
+// listing as empty; no later phase runs (gatedPhase), and the scan reports
+// the account not entitled (notEntitledErr). The same refusal of a later
+// page, or after a row was stored, is not kept: the listing warns about it
+// as a denial, and the stored rows keep their counts.
+type notEntitledGate struct {
+	is      func(error) bool
+	refusal error
+	op      string
+}
+
+// keepFirstPageRefusal reports whether err is the refusal of a listing's
+// first page (token nil) while the scan has stored no row (p), and then
+// keeps it.
+func (g *notEntitledGate) keepFirstPageRefusal(p *phaseTotals, token *string, err error) bool {
+	if token != nil || p.total != 0 || !g.is(err) {
+		return false
+	}
+	g.refusal = err
+	return true
+}
+
+// gatedPhase is the phase reported under op that runs run unless an
+// earlier phase kept the refusal; a refusal run keeps is recorded under op.
+func (g *notEntitledGate) gatedPhase(op string, run func(p *phaseTotals) bool) hostPhase {
+	return hostPhase{op: op, run: func(p *phaseTotals) bool {
+		if g.refusal != nil {
+			return false
+		}
+		stop := run(p)
+		if g.refusal != nil {
+			g.op = op
+		}
+		return stop
+	}}
+}
+
+// notEntitledErr returns the kept refusal marked not entitled when the
+// phases returned no error (err), and nil otherwise. The sentinel is never
+// joined with an error: beside err the scan is partial, so the refusal is
+// warned about under its phase instead, and the scan record says why the
+// later phases did not run.
+func (g *notEntitledGate) notEntitledErr(st *store.Store, acct *account, region string, err error) error {
+	if g.refusal == nil {
+		return nil
+	}
+	if err == nil {
+		return markServiceNotEntitled(g.refusal)
+	}
+	_ = skipIfAccessDenied(st, g.op, acct.ID, region, g.refusal)
+	return nil
+}
+
 // hostAbsentAfter reports whether the phase that started at total rows and
 // errs errors left its host unserved in this region: it stored nothing and
 // failed only with NXDOMAIN. runHostPhases skips such a host's later phases;

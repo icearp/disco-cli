@@ -64,50 +64,28 @@ const (
 // tag reads' denials are one warning for the whole scan.
 //
 // The payer-only refusal (isBillingConductorPayerOnly) of a listing's first
-// page while the scan has stored no row (bcKeepPayerOnly) reports the account
-// not entitled, and no later listing runs. An earlier listing's denial is
-// still warned about; any other error of it is returned instead of the
-// sentinel, and the refusal is then warned about under its listing
-// (payerOnlyOp), so the scan record says why the later listings did not run.
-// The same refusal of a later page, or after a row was stored, is warned
-// about as a denial, and the stored rows keep their counts.
+// page while the scan has stored no row reports the account not entitled,
+// and no later listing runs (notEntitledGate). An earlier listing's denial is
+// still warned about.
 func scanBillingConductor(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
-	var payerOnly error
-	var payerOnlyOp string
+	payerOnly := &notEntitledGate{is: isBillingConductorPayerOnly}
 	tags := bcTags(client).sharingDenials()
-	phase := func(op string, run func(p *phaseTotals) bool) hostPhase {
-		return hostPhase{op: op, run: func(p *phaseTotals) bool {
-			if payerOnly != nil {
-				return false
-			}
-			stop := run(p)
-			if payerOnly != nil {
-				payerOnlyOp = op
-			}
-			return stop
-		}}
-	}
 	total, inserted, err := runHostPhases(ctx, st, acct, region, "billingconductor", 0, []hostPhase{
-		phase("billingconductor:ListBillingGroups", func(p *phaseTotals) bool {
-			return scanBillingConductorBillingGroups(ctx, client, acct, region, st, scanID, &payerOnly, tags, p)
+		payerOnly.gatedPhase("billingconductor:ListBillingGroups", func(p *phaseTotals) bool {
+			return scanBillingConductorBillingGroups(ctx, client, acct, region, st, scanID, payerOnly, tags, p)
 		}),
-		phase("billingconductor:ListCustomLineItems", func(p *phaseTotals) bool {
-			return scanBillingConductorCustomLineItems(ctx, client, acct, region, st, scanID, &payerOnly, tags, p)
+		payerOnly.gatedPhase("billingconductor:ListCustomLineItems", func(p *phaseTotals) bool {
+			return scanBillingConductorCustomLineItems(ctx, client, acct, region, st, scanID, payerOnly, tags, p)
 		}),
-		phase("billingconductor:ListPricingPlans", func(p *phaseTotals) bool {
-			return scanBillingConductorPricingPlans(ctx, client, acct, region, st, scanID, &payerOnly, tags, p)
+		payerOnly.gatedPhase("billingconductor:ListPricingPlans", func(p *phaseTotals) bool {
+			return scanBillingConductorPricingPlans(ctx, client, acct, region, st, scanID, payerOnly, tags, p)
 		}),
-		phase("billingconductor:ListPricingRules", func(p *phaseTotals) bool {
-			return scanBillingConductorPricingRules(ctx, client, acct, region, st, scanID, &payerOnly, tags, p)
+		payerOnly.gatedPhase("billingconductor:ListPricingRules", func(p *phaseTotals) bool {
+			return scanBillingConductorPricingRules(ctx, client, acct, region, st, scanID, payerOnly, tags, p)
 		}),
 	})
-	// The sentinel is never joined with an error: an earlier listing's
-	// failure is returned alone, and the scan is partial.
-	if payerOnly != nil {
-		if err == nil {
-			return total, inserted, markServiceNotEntitled(payerOnly)
-		}
-		_ = skipIfAccessDenied(st, payerOnlyOp, acct.ID, region, payerOnly)
+	if notEntitled := payerOnly.notEntitledErr(st, acct, region, err); notEntitled != nil {
+		return total, inserted, notEntitled
 	}
 	tags.warnDenials(st, acct, region)
 	return total, inserted, err
@@ -149,19 +127,6 @@ func bcTags(client billingConductorAPI) rowTagReader {
 // ResourceArn pattern admits: …:billinggroup/ and a 12-digit id.
 var bcGroupTagReadable = regexp.MustCompile(`:billinggroup/[0-9]{12}$`)
 
-// bcKeepPayerOnly reports whether err is the payer-only refusal of a
-// listing's first page (token nil) while the scan has stored no row (p), and
-// then keeps it in payerOnly: the account is not entitled
-// (scanBillingConductor). Any other refusal is left for the listing to warn
-// about.
-func bcKeepPayerOnly(payerOnly *error, p *phaseTotals, token *string, err error) bool {
-	if token != nil || p.total != 0 || !isBillingConductorPayerOnly(err) {
-		return false
-	}
-	*payerOnly = err
-	return true
-}
-
 // epochMillisToTime converts a billingconductor int64 epoch-millis timestamp
 // to *time.Time for store.Resource.CreatedAt. Zero values stay nil.
 func epochMillisToTime(ms int64) *time.Time {
@@ -187,14 +152,14 @@ func bcRow(acct *account, scanID, typ, what string, arn, name *string, createdMs
 }
 
 // scanBillingConductorBillingGroups stores the billing groups, each page
-// written as soon as its rows' tags are read. A refusal bcKeepPayerOnly keeps
+// written as soon as its rows' tags are read. A refusal payerOnly keeps
 // is read as an empty listing. It reports whether a write failed, after which
 // the scan must stop.
-func scanBillingConductorBillingGroups(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string, payerOnly *error, tags rowTagReader, p *phaseTotals) bool {
+func scanBillingConductorBillingGroups(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string, payerOnly *notEntitledGate, tags rowTagReader, p *phaseTotals) bool {
 	return storeTokenPagesTags(ctx, st, acct, region, "billingconductor:ListBillingGroups",
 		func(ctx context.Context, token *string) ([]bctypes.BillingGroupListElement, *string, error) {
 			out, err := client.ListBillingGroups(ctx, &billingconductor.ListBillingGroupsInput{MaxResults: sdkaws.Int32(bcPageCap), NextToken: token})
-			if bcKeepPayerOnly(payerOnly, p, token, err) {
+			if payerOnly.keepFirstPageRefusal(p, token, err) {
 				return nil, nil, nil
 			}
 			if err != nil {
@@ -209,14 +174,14 @@ func scanBillingConductorBillingGroups(ctx context.Context, client billingConduc
 }
 
 // scanBillingConductorCustomLineItems stores the custom line items, each page
-// written as soon as its rows' tags are read. A refusal bcKeepPayerOnly keeps
+// written as soon as its rows' tags are read. A refusal payerOnly keeps
 // is read as an empty listing. It reports whether a write failed, after which
 // the scan must stop.
-func scanBillingConductorCustomLineItems(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string, payerOnly *error, tags rowTagReader, p *phaseTotals) bool {
+func scanBillingConductorCustomLineItems(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string, payerOnly *notEntitledGate, tags rowTagReader, p *phaseTotals) bool {
 	return storeTokenPagesTags(ctx, st, acct, region, "billingconductor:ListCustomLineItems",
 		func(ctx context.Context, token *string) ([]bctypes.CustomLineItemListElement, *string, error) {
 			out, err := client.ListCustomLineItems(ctx, &billingconductor.ListCustomLineItemsInput{MaxResults: sdkaws.Int32(bcPageCap), NextToken: token})
-			if bcKeepPayerOnly(payerOnly, p, token, err) {
+			if payerOnly.keepFirstPageRefusal(p, token, err) {
 				return nil, nil, nil
 			}
 			if err != nil {
@@ -231,14 +196,14 @@ func scanBillingConductorCustomLineItems(ctx context.Context, client billingCond
 }
 
 // scanBillingConductorPricingPlans stores the pricing plans, each page written
-// as soon as its rows' tags are read. A refusal bcKeepPayerOnly keeps is read
+// as soon as its rows' tags are read. A refusal payerOnly keeps is read
 // as an empty listing. It reports whether a write failed, after which the
 // scan must stop.
-func scanBillingConductorPricingPlans(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string, payerOnly *error, tags rowTagReader, p *phaseTotals) bool {
+func scanBillingConductorPricingPlans(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string, payerOnly *notEntitledGate, tags rowTagReader, p *phaseTotals) bool {
 	return storeTokenPagesTags(ctx, st, acct, region, "billingconductor:ListPricingPlans",
 		func(ctx context.Context, token *string) ([]bctypes.PricingPlanListElement, *string, error) {
 			out, err := client.ListPricingPlans(ctx, &billingconductor.ListPricingPlansInput{MaxResults: sdkaws.Int32(bcPageCap), NextToken: token})
-			if bcKeepPayerOnly(payerOnly, p, token, err) {
+			if payerOnly.keepFirstPageRefusal(p, token, err) {
 				return nil, nil, nil
 			}
 			if err != nil {
@@ -257,14 +222,14 @@ func scanBillingConductorPricingPlans(ctx context.Context, client billingConduct
 }
 
 // scanBillingConductorPricingRules stores the pricing rules, each page written
-// as soon as its rows' tags are read. A refusal bcKeepPayerOnly keeps is read
+// as soon as its rows' tags are read. A refusal payerOnly keeps is read
 // as an empty listing. It reports whether a write failed, after which the
 // scan must stop.
-func scanBillingConductorPricingRules(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string, payerOnly *error, tags rowTagReader, p *phaseTotals) bool {
+func scanBillingConductorPricingRules(ctx context.Context, client billingConductorAPI, acct *account, region string, st *store.Store, scanID string, payerOnly *notEntitledGate, tags rowTagReader, p *phaseTotals) bool {
 	return storeTokenPagesTags(ctx, st, acct, region, "billingconductor:ListPricingRules",
 		func(ctx context.Context, token *string) ([]bctypes.PricingRuleListElement, *string, error) {
 			out, err := client.ListPricingRules(ctx, &billingconductor.ListPricingRulesInput{MaxResults: sdkaws.Int32(bcPageCap), NextToken: token})
-			if bcKeepPayerOnly(payerOnly, p, token, err) {
+			if payerOnly.keepFirstPageRefusal(p, token, err) {
 				return nil, nil, nil
 			}
 			if err != nil {

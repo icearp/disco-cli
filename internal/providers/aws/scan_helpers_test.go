@@ -1998,6 +1998,125 @@ func TestFirstPageGapPages(t *testing.T) {
 	}
 }
 
+// notEntitledGateTestRefusal is the refusal a notEntitledGate under test
+// reads as not entitled; notEntitledGateTestDenial is a denial it does not.
+var (
+	notEntitledGateTestRefusal = apiErr("AccessDeniedException", "only the payer may call this")
+	notEntitledGateTestDenial  = apiErr("AccessDeniedException", "not authorized")
+)
+
+func newTestNotEntitledGate() *notEntitledGate {
+	return &notEntitledGate{is: func(err error) bool { return isAccessDeniedWithMessage(err, "only the payer") }}
+}
+
+// keepFirstPageRefusal keeps only the refusal is matches, of a first page
+// (token nil), while the scan has stored no row.
+func TestNotEntitledGate_KeepFirstPageRefusal(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name   string
+		token  *string
+		stored int
+		err    error
+		want   bool
+	}{
+		{"refusal of the first page, nothing stored", nil, 0, notEntitledGateTestRefusal, true},
+		{"refusal of a later page", ptrStr("p2"), 0, notEntitledGateTestRefusal, false},
+		{"refusal after a row was stored", nil, 1, notEntitledGateTestRefusal, false},
+		{"another denial", nil, 0, notEntitledGateTestDenial, false},
+		{"no error", nil, 0, nil, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			g := newTestNotEntitledGate()
+			if got := g.keepFirstPageRefusal(&phaseTotals{total: c.stored}, c.token, c.err); got != c.want {
+				t.Errorf("kept = %v; want %v", got, c.want)
+			}
+			var want error
+			if c.want {
+				want = c.err
+			}
+			if g.refusal != want {
+				t.Errorf("refusal = %v; want %v", g.refusal, want)
+			}
+		})
+	}
+}
+
+// Through runHostPhases: no phase runs after the one that kept the refusal.
+// With no other error the scan is not entitled and nothing is warned about;
+// beside an earlier phase's error that error is the scan's alone, and the
+// refusal is warned about under the phase that kept it. A gate that kept
+// nothing changes nothing.
+func TestNotEntitledGate_Phases(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name            string
+		firstErr        error
+		refuseIn        string
+		wantRan         []string
+		wantErr         error
+		wantNotEntitled bool
+		wantWarns       []string
+	}{
+		{"refusal alone", nil, "svc:B", []string{"svc:A", "svc:B"}, nil, true, nil},
+		{"refusal after an error", tagTestInvalid, "svc:B", []string{"svc:A", "svc:B"}, tagTestInvalid, false, []string{"svc:B"}},
+		{"refusal in the first phase", nil, "svc:A", []string{"svc:A"}, nil, true, nil},
+		{"no refusal", tagTestInvalid, "", []string{"svc:A", "svc:B", "svc:C"}, tagTestInvalid, false, nil},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			st := newTestStore(t)
+			warns := rhWarnRecorder(st)
+			acct := newTestAccount(testAccountID)
+			g := newTestNotEntitledGate()
+			var ran []string
+			phase := func(op string) hostPhase {
+				return g.gatedPhase(op, func(p *phaseTotals) bool {
+					ran = append(ran, op)
+					if op == c.refuseIn {
+						if !g.keepFirstPageRefusal(p, nil, notEntitledGateTestRefusal) {
+							t.Fatalf("%s: refusal not kept", op)
+						}
+						return false
+					}
+					if op == "svc:A" {
+						return p.addPhase(op, 0, 0, c.firstErr)
+					}
+					return false
+				})
+			}
+			_, _, err := runHostPhases(context.Background(), st, acct, testRegion, "svc", 0, []hostPhase{phase("svc:A"), phase("svc:B"), phase("svc:C")})
+			gateErr := g.notEntitledErr(st, acct, testRegion, err)
+
+			if !slices.Equal(ran, c.wantRan) {
+				t.Errorf("phases run = %v; want %v", ran, c.wantRan)
+			}
+			if !errors.Is(err, c.wantErr) || (c.wantErr == nil) != (err == nil) {
+				t.Errorf("phases' err = %v; want %v", err, c.wantErr)
+			}
+			if c.wantNotEntitled {
+				if !errors.Is(gateErr, errServiceNotEntitled) {
+					t.Errorf("notEntitledErr = %v; want errServiceNotEntitled", gateErr)
+				}
+			} else if gateErr != nil {
+				t.Errorf("notEntitledErr = %v; want nil", gateErr)
+			}
+			w := warns()
+			var ops []string
+			for _, x := range w {
+				ops = append(ops, x.Service)
+			}
+			if !slices.Equal(ops, c.wantWarns) {
+				t.Errorf("warnings = %v; want %v", ops, c.wantWarns)
+			}
+			if len(w) == 1 && w[0].Scope != testAccountID+"/"+testRegion {
+				t.Errorf("warning scope = %q; want %s/%s", w[0].Scope, testAccountID, testRegion)
+			}
+		})
+	}
+}
+
 // readRowDetailsDeniedBy keeps a row whose Get its predicate reports denied,
 // as its list element, and warns once after the write; readRowDetails returns
 // the same code as an error.
