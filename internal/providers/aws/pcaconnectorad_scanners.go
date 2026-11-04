@@ -1,10 +1,12 @@
 package aws
 
 import (
+	"cmp"
 	"context"
-	"fmt"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/pcaconnectorad"
+	pcaadtypes "github.com/aws/aws-sdk-go-v2/service/pcaconnectorad/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
 )
@@ -27,217 +29,216 @@ type pcaADAPI interface {
 	ListServicePrincipalNames(context.Context, *pcaconnectorad.ListServicePrincipalNamesInput, ...func(*pcaconnectorad.Options)) (*pcaconnectorad.ListServicePrincipalNamesOutput, error)
 	ListTemplates(context.Context, *pcaconnectorad.ListTemplatesInput, ...func(*pcaconnectorad.Options)) (*pcaconnectorad.ListTemplatesOutput, error)
 	ListTemplateGroupAccessControlEntries(context.Context, *pcaconnectorad.ListTemplateGroupAccessControlEntriesInput, ...func(*pcaconnectorad.Options)) (*pcaconnectorad.ListTemplateGroupAccessControlEntriesOutput, error)
+	ListTagsForResource(context.Context, *pcaconnectorad.ListTagsForResourceInput, ...func(*pcaconnectorad.Options)) (*pcaconnectorad.ListTagsForResourceOutput, error)
 }
+
+const (
+	pcaADTagsOp = "pcaconnectorad:ListTagsForResource"
+	// pcaADPageCap is the MaxResults every listing sends: the maximum of the
+	// range the model gives all five (1-1000).
+	pcaADPageCap = 1000
+)
+
+// pcaADGone is the not-found code ListServicePrincipalNames, ListTemplates,
+// ListTemplateGroupAccessControlEntries and ListTagsForResource model: the
+// parent of a child listing, or the resource whose tags are read, was deleted
+// since it was listed.
+var pcaADGone = []string{"ResourceNotFoundException"}
 
 // scanPCAConnectorAD discovers Private CA AD connectors, directory
 // registrations, per-directory-registration service principal names,
-// per-connector templates, and per-template template-group ACEs.
-func scanPCAConnectorAD(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
+// per-connector templates, and per-template template-group ACEs. Every
+// listing runs as its own phase, one at a time: a phase's error does not stop
+// the later ones; a failed write and ctx's end do (runHostPhases). Each child
+// phase reads the parents stored this scan, those parents concurrently.
+// Connectors, directory registrations and templates have their tags read per
+// row (pcaADTags), whose denials are one warning for the whole scan.
+func scanPCAConnectorAD(ctx context.Context, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
 	client := pcaconnectorad.NewFromConfig(acct.cfg, func(o *pcaconnectorad.Options) { o.Region = region })
-
-	connectorARNs, t, i, ferr := scanPCAConnectors(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	dirARNs, t, i, ferr := scanPCADirectoryRegistrations(ctx, client, acct, region, st, scanID)
-	if ferr != nil {
-		return total, inserted, ferr
-	}
-	total += t
-	inserted += i
-
-	for _, da := range dirARNs {
-		t, i, ferr = scanPCAServicePrincipalNames(ctx, client, acct, region, st, scanID, da)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-
-	var templateARNs []string
-	for _, ca := range connectorARNs {
-		ts, tt, ii, terr := scanPCATemplates(ctx, client, acct, region, st, scanID, ca)
-		if terr != nil {
-			return total, inserted, terr
-		}
-		total += tt
-		inserted += ii
-		templateARNs = append(templateARNs, ts...)
-	}
-	for _, ta := range templateARNs {
-		t, i, ferr = scanPCATemplateGroupACEs(ctx, client, acct, region, st, scanID, ta)
-		if ferr != nil {
-			return total, inserted, ferr
-		}
-		total += t
-		inserted += i
-	}
-	return total, inserted, nil
+	tags := pcaADTags(client).sharingDenials()
+	var connectors, dirRegs, templates []childParent
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "pcaconnectorad", 0, []hostPhase{
+		{op: "pcaconnectorad:ListConnectors", run: func(p *phaseTotals) (failed bool) {
+			connectors, failed = scanPCAConnectors(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "pcaconnectorad:ListDirectoryRegistrations", run: func(p *phaseTotals) (failed bool) {
+			dirRegs, failed = scanPCADirectoryRegistrations(ctx, client, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		{op: "pcaconnectorad:ListServicePrincipalNames", run: func(p *phaseTotals) bool {
+			return scanPCAServicePrincipalNames(ctx, client, acct, region, st, scanID, dirRegs, p)
+		}},
+		{op: "pcaconnectorad:ListTemplates", run: func(p *phaseTotals) (failed bool) {
+			templates, failed = scanPCATemplates(ctx, client, acct, region, st, scanID, connectors, tags, p)
+			return failed
+		}},
+		{op: "pcaconnectorad:ListTemplateGroupAccessControlEntries", run: func(p *phaseTotals) bool {
+			return scanPCATemplateGroupACEs(ctx, client, acct, region, st, scanID, templates, p)
+		}},
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-func scanPCAConnectors(ctx context.Context, client pcaADAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := pcaconnectorad.NewListConnectorsPaginator(client, &pcaconnectorad.ListConnectorsInput{})
-	var batch []*store.Resource
-	var arns []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "pcaconnectorad:ListConnectors", acct.ID, region, err)
+// pcaADTags reads a row's tags with ListTagsForResource, sent the row's
+// NativeID: the ARN its listing returned. The Service Reference gives the
+// connector, directory registration and template aws:ResourceTag and lists
+// them under TagResource, and each one's Create* input carries tags; service
+// principal names and template group ACEs have neither, so theirs are not
+// read. The op does not page its tags. The service models no sharing (no RAM
+// resource type, no cross-account listing), so every row is this account's
+// own and no other-account gate applies.
+func pcaADTags(client pcaADAPI) rowTagReader {
+	return rowTagReader{
+		op:       pcaADTagsOp,
+		notFound: pcaADGone,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			out, err := client.ListTagsForResource(ctx, &pcaconnectorad.ListTagsForResourceInput{ResourceArn: sdkaws.String(r.NativeID)})
+			if err != nil {
+				return nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("pcaconnectorad:ListConnectors: %w", err)
-		}
-		for _, c := range out.Connectors {
-			arn := sv(c.Arn)
-			if arn == "" {
-				continue
-			}
-			arns = append(arns, arn)
-			label := arn
-			status := string(c.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypePCAConnectorADConnector, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(c), DiscoveredBy: scanID,
-			})
-		}
+			return mapTagsJSON(out.Tags), nil
+		},
 	}
-	t, i, err := upsertBatch(st, batch, "pcaconnectorad connectors")
-	return arns, t, i, err
 }
 
-func scanPCADirectoryRegistrations(ctx context.Context, client pcaADAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	pager := pcaconnectorad.NewListDirectoryRegistrationsPaginator(client, &pcaconnectorad.ListDirectoryRegistrationsInput{})
-	var batch []*store.Resource
-	var arns []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "pcaconnectorad:ListDirectoryRegistrations", acct.ID, region, err)
-			}
-			return nil, 0, 0, fmt.Errorf("pcaconnectorad:ListDirectoryRegistrations: %w", err)
-		}
-		for _, d := range out.DirectoryRegistrations {
-			arn := sv(d.Arn)
-			if arn == "" {
-				continue
-			}
-			arns = append(arns, arn)
-			label := arn
-			status := string(d.Status)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypePCAConnectorADDirectoryRegistration, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
-				AttributesJSON: mustJSON(d), DiscoveredBy: scanID,
-			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "pcaconnectorad directory-registrations")
-	return arns, t, i, err
+// pcaADNamedByARN is the row of a connector or directory registration: stored
+// under the ARN its element carries, named by that ARN, with the element's
+// status and the element verbatim as the attributes. An element without an
+// ARN is not stored (arnRow); its directory id names it in the warning.
+func pcaADNamedByARN(acct *account, region, scanID, typ, what string, arn, directoryID *string, status string, item any) (*store.Resource, string, string) {
+	return arnRow(what, arn, directoryID, &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: sv(arn),
+		Name: arn, Region: &region, Status: &status,
+		AttributesJSON: mustJSON(item), DiscoveredBy: scanID,
+	})
 }
 
-// scanPCAServicePrincipalNames synthesizes ARN: parent directory-reg ARN +
-// /service-principal-name/{connectorArnTail}. SPNs have no native ARN.
-func scanPCAServicePrincipalNames(ctx context.Context, client pcaADAPI, acct *account, region string, st *store.Store, scanID string, dirARN string) (int, int, error) {
-	da := dirARN
-	pager := pcaconnectorad.NewListServicePrincipalNamesPaginator(client, &pcaconnectorad.ListServicePrincipalNamesInput{DirectoryRegistrationArn: &da})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "pcaconnectorad:ListServicePrincipalNames", acct.ID, region, err)
+// scanPCAConnectors stores the connectors with their tags, a page at a time,
+// and returns the stored ones, the parents of the template phase, each keyed
+// by its ARN. It reports whether a write failed, after which the scan must
+// stop.
+func scanPCAConnectors(ctx context.Context, client pcaADAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, "pcaconnectorad:ListConnectors", "connectors", "Arn",
+		func(ctx context.Context, token *string) ([]pcaadtypes.ConnectorSummary, *string, error) {
+			out, err := client.ListConnectors(ctx, &pcaconnectorad.ListConnectorsInput{MaxResults: sdkaws.Int32(pcaADPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("pcaconnectorad:ListServicePrincipalNames: %w", err)
-		}
-		for _, s := range out.ServicePrincipalNames {
+			return out.Connectors, out.NextToken, nil
+		},
+		func(c pcaadtypes.ConnectorSummary) (*store.Resource, string, string) {
+			return pcaADNamedByARN(acct, region, scanID, TypePCAConnectorADConnector, "connectors", c.Arn, c.DirectoryId, string(c.Status), c)
+		},
+		func(c pcaadtypes.ConnectorSummary) string { return sv(c.Arn) },
+		tags, p)
+}
+
+// scanPCADirectoryRegistrations is scanPCAConnectors for the directory
+// registrations, the parents of the service principal name phase.
+func scanPCADirectoryRegistrations(ctx context.Context, client pcaADAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, "pcaconnectorad:ListDirectoryRegistrations", "directory registrations", "Arn",
+		func(ctx context.Context, token *string) ([]pcaadtypes.DirectoryRegistrationSummary, *string, error) {
+			out, err := client.ListDirectoryRegistrations(ctx, &pcaconnectorad.ListDirectoryRegistrationsInput{MaxResults: sdkaws.Int32(pcaADPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.DirectoryRegistrations, out.NextToken, nil
+		},
+		func(d pcaadtypes.DirectoryRegistrationSummary) (*store.Resource, string, string) {
+			return pcaADNamedByARN(acct, region, scanID, TypePCAConnectorADDirectoryRegistration, "directory registrations", d.Arn, d.DirectoryId, string(d.Status), d)
+		},
+		func(d pcaadtypes.DirectoryRegistrationSummary) string { return sv(d.Arn) },
+		tags, p)
+}
+
+// scanPCAServicePrincipalNames stores the service principal names of each
+// directory registration stored this scan, each page written as it is read;
+// one registration's failure costs the others none of theirs. A service
+// principal name has no ARN of its own: its NativeID is its directory
+// registration's ARN + "/service-principal-name/" + its connector's full
+// ARN, and an element without a connector ARN is not stored, with one
+// warning. It reports whether a write failed, after which the scan must stop.
+func scanPCAServicePrincipalNames(ctx context.Context, client pcaADAPI, acct *account, region string, st *store.Store, scanID string, dirRegs []childParent, p *phaseTotals) bool {
+	return storeEachParentPages(ctx, st, acct, region, "pcaconnectorad:ListServicePrincipalNames", pcaADGone, dirRegs,
+		func(ctx context.Context, dirARN string, token *string) ([]pcaadtypes.ServicePrincipalNameSummary, *string, error) {
+			out, err := client.ListServicePrincipalNames(ctx, &pcaconnectorad.ListServicePrincipalNamesInput{DirectoryRegistrationArn: &dirARN, MaxResults: sdkaws.Int32(pcaADPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
+			}
+			return out.ServicePrincipalNames, out.NextToken, nil
+		},
+		func(dirARN string, s pcaadtypes.ServicePrincipalNameSummary) (*store.Resource, string, string) {
 			ca := sv(s.ConnectorArn)
 			if ca == "" {
-				continue
+				return nil, "service principal names have no connector ARN", dirARN
 			}
-			arn := da + "/service-principal-name/" + ca
-			label := ca
 			status := string(s.Status)
-			batch = append(batch, &store.Resource{
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypePCAConnectorADServicePrincipalName, NativeID: arn,
-				Name: &label, Region: &region, Status: &status,
+				Type: TypePCAConnectorADServicePrincipalName, NativeID: dirARN + "/service-principal-name/" + ca,
+				Name: &ca, Region: &region, Status: &status,
 				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "pcaconnectorad service-principal-names")
+			}, "", ""
+		},
+		p)
 }
 
-func scanPCATemplates(ctx context.Context, client pcaADAPI, acct *account, region string, st *store.Store, scanID string, connectorARN string) ([]string, int, int, error) {
-	ca := connectorARN
-	pager := pcaconnectorad.NewListTemplatesPaginator(client, &pcaconnectorad.ListTemplatesInput{ConnectorArn: &ca})
-	var batch []*store.Resource
-	var arns []string
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "pcaconnectorad:ListTemplates", acct.ID, region, err)
+// scanPCATemplates stores each connector's templates with their tags, each
+// page written as soon as its tags are read; one connector's failure costs
+// the others none of theirs. It returns the stored templates, the parents of
+// the template group ACE phase, each keyed by its ARN. It reports whether a
+// write failed, after which the scan must stop.
+func scanPCATemplates(ctx context.Context, client pcaADAPI, acct *account, region string, st *store.Store, scanID string, connectors []childParent, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeNestedParentPagesTags(ctx, st, acct, region, "pcaconnectorad:ListTemplates", "templates", "Arn", pcaADGone, connectors,
+		func(ctx context.Context, connectorARN string, token *string) ([]pcaadtypes.TemplateSummary, *string, error) {
+			out, err := client.ListTemplates(ctx, &pcaconnectorad.ListTemplatesInput{ConnectorArn: &connectorARN, MaxResults: sdkaws.Int32(pcaADPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return nil, 0, 0, fmt.Errorf("pcaconnectorad:ListTemplates: %w", err)
-		}
-		for _, tt := range out.Templates {
-			arn := sv(tt.Arn)
-			if arn == "" {
-				continue
-			}
-			arns = append(arns, arn)
-			batch = append(batch, &store.Resource{
+			return out.Templates, out.NextToken, nil
+		},
+		func(_ string, tt pcaadtypes.TemplateSummary) (*store.Resource, string, string) {
+			return arnRow("templates", tt.Arn, tt.Name, &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypePCAConnectorADTemplate, NativeID: arn,
+				Type: TypePCAConnectorADTemplate, NativeID: sv(tt.Arn),
 				Name: tt.Name, Region: &region,
 				AttributesJSON: mustJSON(tt), DiscoveredBy: scanID,
 			})
-		}
-	}
-	t, i, err := upsertBatch(st, batch, "pcaconnectorad templates")
-	return arns, t, i, err
+		},
+		func(tt pcaadtypes.TemplateSummary) string { return sv(tt.Arn) },
+		tags, p)
 }
 
-// scanPCATemplateGroupACEs synthesizes ARN: parent template ARN +
-// /access-control-entry/{groupSID}.
-func scanPCATemplateGroupACEs(ctx context.Context, client pcaADAPI, acct *account, region string, st *store.Store, scanID string, templateARN string) (int, int, error) {
-	ta := templateARN
-	pager := pcaconnectorad.NewListTemplateGroupAccessControlEntriesPaginator(client, &pcaconnectorad.ListTemplateGroupAccessControlEntriesInput{TemplateArn: &ta})
-	var batch []*store.Resource
-	for pager.HasMorePages() {
-		out, err := pager.NextPage(ctx)
-		if err != nil {
-			if isAccessDenied(err) {
-				return 0, 0, skipIfAccessDenied(st, "pcaconnectorad:ListTemplateGroupAccessControlEntries", acct.ID, region, err)
+// scanPCATemplateGroupACEs stores the group access control entries of each
+// template stored this scan, each page written as it is read; one template's
+// failure costs the others none of theirs. An entry has no ARN of its own:
+// its NativeID is its template's ARN + "/access-control-entry/" + its group
+// SID, and an entry without a SID is not stored, with one warning. It reports
+// whether a write failed, after which the scan must stop.
+func scanPCATemplateGroupACEs(ctx context.Context, client pcaADAPI, acct *account, region string, st *store.Store, scanID string, templates []childParent, p *phaseTotals) bool {
+	return storeEachParentPages(ctx, st, acct, region, "pcaconnectorad:ListTemplateGroupAccessControlEntries", pcaADGone, templates,
+		func(ctx context.Context, templateARN string, token *string) ([]pcaadtypes.AccessControlEntrySummary, *string, error) {
+			out, err := client.ListTemplateGroupAccessControlEntries(ctx, &pcaconnectorad.ListTemplateGroupAccessControlEntriesInput{TemplateArn: &templateARN, MaxResults: sdkaws.Int32(pcaADPageCap), NextToken: token})
+			if err != nil {
+				return nil, nil, err
 			}
-			return 0, 0, fmt.Errorf("pcaconnectorad:ListTemplateGroupAccessControlEntries: %w", err)
-		}
-		for _, e := range out.AccessControlEntries {
+			return out.AccessControlEntries, out.NextToken, nil
+		},
+		func(templateARN string, e pcaadtypes.AccessControlEntrySummary) (*store.Resource, string, string) {
 			sid := sv(e.GroupSecurityIdentifier)
 			if sid == "" {
-				continue
+				return nil, "access control entries have no group SID", cmp.Or(sv(e.GroupDisplayName), templateARN)
 			}
-			arn := ta + "/access-control-entry/" + sid
-			label := sv(e.GroupDisplayName)
-			if label == "" {
-				label = sid
-			}
-			batch = append(batch, &store.Resource{
+			label := cmp.Or(sv(e.GroupDisplayName), sid)
+			return &store.Resource{
 				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypePCAConnectorADTemplateGroupACE, NativeID: arn,
+				Type: TypePCAConnectorADTemplateGroupACE, NativeID: templateARN + "/access-control-entry/" + sid,
 				Name: &label, Region: &region,
 				AttributesJSON: mustJSON(e), DiscoveredBy: scanID,
-			})
-		}
-	}
-	return upsertBatch(st, batch, "pcaconnectorad template-group-aces")
+			}, "", ""
+		},
+		p)
 }
