@@ -6,6 +6,7 @@ import (
 )
 
 func TestAccessKeyRE(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		in   string
 		want bool
@@ -23,6 +24,7 @@ func TestAccessKeyRE(t *testing.T) {
 }
 
 func TestIsARNOrSecretRef(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		in   string
 		want bool
@@ -72,6 +74,7 @@ func TestIsARNOrSecretRef(t *testing.T) {
 }
 
 func TestEC2ResourceIDRE(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		in   string
 		want bool

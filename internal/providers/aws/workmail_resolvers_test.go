@@ -11,6 +11,7 @@ import (
 const wmFnARN = "arn:aws:lambda:us-east-1:123456789012:function:availability"
 
 func TestResolveWorkMailAvailabilityLambda(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		cfg      workmailtypes.AvailabilityConfiguration
@@ -49,6 +50,7 @@ func TestResolveWorkMailAvailabilityLambda(t *testing.T) {
 }
 
 func TestResolveWorkMailMailboxPermissionGrantees(t *testing.T) {
+	t.Parallel()
 	const (
 		mailbox = wmOrgA + "/user/u1"
 		userB   = wmOrgB + "/user/u-2"
@@ -101,6 +103,7 @@ func TestResolveWorkMailMailboxPermissionGrantees(t *testing.T) {
 // is listed between two good ones, so neither stopping at it nor skipping
 // past the rest goes unseen.
 func TestResolveWorkMailMailboxPermissionGrantees_DecodeErrors(t *testing.T) {
+	t.Parallel()
 	grant := mustJSON(workmailtypes.Permission{GranteeId: ptrStr("u-2"), GranteeType: workmailtypes.MemberTypeUser})
 	for _, tc := range []struct {
 		name, nativeID, attrs string

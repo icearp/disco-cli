@@ -71,6 +71,7 @@ func (s *stubIoTFW) ListTagsForResource(_ context.Context, _ *iotfleetwise.ListT
 // sentinel — the account can't self-enable IoT FleetWise — so the dispatcher
 // renders `(account: not entitled)` instead of N per-phase warnings.
 func TestGateIoTFleetWiseClosedToAccount(t *testing.T) {
+	t.Parallel()
 	stub := &stubIoTFW{
 		listCampaignsErr: &smithy.GenericAPIError{Code: "AccessDeniedException", Message: ""},
 	}
@@ -87,6 +88,7 @@ func TestGateIoTFleetWiseClosedToAccount(t *testing.T) {
 // action-identifying message does NOT trip the gate — skipIfAccessDenied
 // still handles it as a warning.
 func TestGateIoTFleetWiseRealIAMDenial(t *testing.T) {
+	t.Parallel()
 	stub := &stubIoTFW{
 		listCampaignsErr: &smithy.GenericAPIError{
 			Code:    "AccessDeniedException",
@@ -102,6 +104,7 @@ func TestGateIoTFleetWiseRealIAMDenial(t *testing.T) {
 // TestGateIoTFleetWiseSuccess verifies a successful probe call returns nil
 // (not disabled) so the phase loop runs.
 func TestGateIoTFleetWiseSuccess(t *testing.T) {
+	t.Parallel()
 	stub := &stubIoTFW{}
 	err := gateIoTFleetWise(context.Background(), stub)
 	if err != nil {
@@ -246,6 +249,7 @@ func assertIoTFWRows(t *testing.T, st *store.Store, typ string, want []string) {
 }
 
 func TestScanIoTFleetWise_StoresDecoderManifestChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings atomic.Int32
 	st.OnWarn = func(store.ScanWarning) { warnings.Add(1) }
@@ -306,6 +310,7 @@ func TestScanIoTFleetWise_StoresDecoderManifestChildren(t *testing.T) {
 }
 
 func TestScanIoTFleetWise_ManifestsWithoutChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := iotFWHandlers(map[string]*parentCalls{})
 	handlers["ListDecoderManifestSignals"] = func(any) (any, error) { return &iotfleetwise.ListDecoderManifestSignalsOutput{}, nil }
@@ -328,6 +333,7 @@ func TestScanIoTFleetWise_ManifestsWithoutChildren(t *testing.T) {
 // manifests (dm-b, or dm-b and dm-gone) and checks what the phase keeps: dm-a's rows of that op, every row
 // of the other op and of the older phases.
 func TestScanIoTFleetWise_ManifestChildErrors(t *testing.T) {
+	t.Parallel()
 	opLabels := map[string]string{
 		"ListDecoderManifestSignals":           iotFWListDecoderManifestSignalsOp,
 		"ListDecoderManifestNetworkInterfaces": iotFWListDecoderManifestNetworkInterfacesOp,
@@ -407,6 +413,7 @@ func TestScanIoTFleetWise_ManifestChildErrors(t *testing.T) {
 // A manifest refused as not ready on its second page keeps, and counts, the
 // rows its first page stored.
 func TestScanIoTFWDecoderManifestSignals_NotReadyKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeIoTFWDecoderManifest, iotFWTestManifestA, testRegion, "{}")
 	warns := countOpWarnings(st, iotFWListDecoderManifestSignalsOp)
@@ -430,6 +437,7 @@ func TestScanIoTFWDecoderManifestSignals_NotReadyKeepsEarlierPages(t *testing.T)
 }
 
 func TestScanIoTFleetWise_OlderPhaseErrorStillRunsManifestChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := iotFWHandlers(map[string]*parentCalls{})
 	handlers["ListVehicles"] = func(any) (any, error) { return nil, iotFWConflict }
@@ -443,6 +451,7 @@ func TestScanIoTFleetWise_OlderPhaseErrorStillRunsManifestChildren(t *testing.T)
 }
 
 func TestScanIoTFleetWise_ChildErrorsAfterEveryOlderPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := iotFWHandlers(map[string]*parentCalls{})
 	for _, op := range iotFWChildOps {
@@ -458,6 +467,7 @@ func TestScanIoTFleetWise_ChildErrorsAfterEveryOlderPhase(t *testing.T) {
 }
 
 func TestScanIoTFleetWise_OlderTransientDoesNotMaskChildError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iotFWListFleetsOp)
 	handlers := iotFWHandlers(map[string]*parentCalls{})
@@ -486,6 +496,7 @@ func iotFWEmptyHandlers() map[string]func(in any) (any, error) {
 }
 
 func TestScanIoTFleetWise_StateTemplateGateAfterRowsWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iotFWListStateTemplatesOp)
 	handlers := iotFWHandlers(map[string]*parentCalls{})
@@ -509,6 +520,7 @@ func TestScanIoTFleetWise_StateTemplateGateAfterRowsWarns(t *testing.T) {
 }
 
 func TestScanIoTFleetWise_StateTemplateGateWithNothingStoredIsDisabled(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := iotFWEmptyHandlers()
 	handlers["ListStateTemplates"] = func(any) (any, error) { return nil, iotFWFeatureGated }
@@ -518,6 +530,7 @@ func TestScanIoTFleetWise_StateTemplateGateWithNothingStoredIsDisabled(t *testin
 }
 
 func TestScanIoTFleetWise_StateTemplateGateDoesNotHideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iotFWListStateTemplatesOp)
 	handlers := iotFWEmptyHandlers()
@@ -666,6 +679,7 @@ func iotFWScan(ctx context.Context, st *store.Store, handlers map[string]func(an
 // tag op (the decoder manifest children have none); every listing is sent
 // MaxResults 100 (the gate probe 1).
 func TestScanIoTFleetWise_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newIoTFWCalls()
 
@@ -721,6 +735,7 @@ func TestScanIoTFleetWise_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanIoTFleetWise_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := iotFWScan(context.Background(), st, newIoTFWCalls().handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -746,6 +761,7 @@ var (
 // hard error. Each holds for a row written page by page (a vehicle) and a
 // parent listing's row (a decoder manifest).
 func TestScanIoTFleetWise_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		typ, arn string
 		goneLost int
@@ -814,6 +830,7 @@ func TestScanIoTFleetWise_TagReadFailures(t *testing.T) {
 // A decoder manifest the tag read finds deleted is no parent: its children
 // are not listed.
 func TestScanIoTFleetWise_ManifestGoneIsNoParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newIoTFWCalls()
 	calls.errs[iotFWTestManifestB] = iotFWGone
@@ -836,6 +853,7 @@ func TestScanIoTFleetWise_ManifestGoneIsNoParent(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanIoTFleetWise_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iotFWListTagsOp)
 	calls := newIoTFWCalls()
@@ -853,6 +871,7 @@ func TestScanIoTFleetWise_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the scan: no later page or phase is read, and no
 // warning is sent about the rows it lost or about state templates.
 func TestScanIoTFleetWise_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tagWarns := countOpWarnings(st, iotFWListTagsOp)
 	gateWarns := countOpWarnings(st, iotFWListStateTemplatesOp)
@@ -887,6 +906,7 @@ func TestScanIoTFleetWise_FailedWriteStopsWithoutWarning(t *testing.T) {
 // Vehicles are written a page at a time: the first page's vehicle is stored
 // with its tags before the second page is read.
 func TestScanIoTFleetWise_VehiclesWrittenPerPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newIoTFWCalls()
 	handlers := calls.handlers()
@@ -913,6 +933,7 @@ func TestScanIoTFleetWise_VehiclesWrittenPerPage(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error
 // stops no later phase.
 func TestScanIoTFleetWise_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := newIoTFWCalls().handlers()
 	k := iotFWKindOf(t, "ListCampaigns")
@@ -938,6 +959,7 @@ func TestScanIoTFleetWise_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanIoTFleetWise_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := newIoTFWCalls().handlers()
 	k := iotFWKindOf(t, "ListVehicles")
@@ -961,6 +983,7 @@ func TestScanIoTFleetWise_RepeatedTokenKeepsPages(t *testing.T) {
 // An element without an ARN is not stored and is warned about once under its
 // listing; its siblings are stored.
 func TestScanIoTFleetWise_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := bacWarnings(st, iotFWListFleetsOp)
 	handlers := newIoTFWCalls().handlers()
@@ -989,6 +1012,7 @@ func TestScanIoTFleetWise_ElementWithoutARNWarns(t *testing.T) {
 // warns once under its op, since rows after that page were not read. The
 // other listings run either way.
 func TestScanIoTFleetWise_ClosedListing(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		call      int
@@ -1033,6 +1057,7 @@ func TestScanIoTFleetWise_ClosedListing(t *testing.T) {
 
 // A denied listing warns once under its own op; every other listing runs.
 func TestScanIoTFleetWise_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iotFWListVehiclesOp)
 	handlers := newIoTFWCalls().handlers()
@@ -1050,6 +1075,7 @@ func TestScanIoTFleetWise_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // The state-template feature gate on a later page keeps the first page and
 // warns once, since rows were stored.
 func TestScanIoTFleetWise_StateTemplateGateOnLaterPageKeepsRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iotFWListStateTemplatesOp)
 	handlers := newIoTFWCalls().handlers()
@@ -1070,6 +1096,7 @@ func TestScanIoTFleetWise_StateTemplateGateOnLaterPageKeepsRows(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it too.
 func TestScanIoTFleetWise_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newIoTFWCalls()
 	handlers := calls.handlers()
@@ -1116,6 +1143,7 @@ func TestScanIoTFleetWise_ContextEndStopsOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanIoTFleetWise_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)
 		handlers := newIoTFWCalls().handlers()
@@ -1150,6 +1178,7 @@ func TestScanIoTFleetWise_NXDOMAIN(t *testing.T) {
 // errRepeatedNextToken, keeping both pages it read and every other
 // manifest's rows.
 func TestScanIoTFleetWise_ChildRepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range iotFWChildOps {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1182,6 +1211,7 @@ func TestScanIoTFleetWise_ChildRepeatedTokenKeepsPages(t *testing.T) {
 // A failed write of a manifest's children is returned as a store write
 // failure, never dropped.
 func TestScanIoTFleetWise_ChildWriteFailureReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeIoTFWDecoderManifestSignal)
 	_, err := scanIoTFWTopLevel(t, st, iotFWHandlers(map[string]*parentCalls{}))
@@ -1193,6 +1223,7 @@ func TestScanIoTFleetWise_ChildWriteFailureReturned(t *testing.T) {
 // When ctx ends during a vehicle page's tag reads, the stop is one member of
 // the error, the second vehicle page is not read and no later phase runs.
 func TestScanIoTFleetWise_ContextEndsDuringTagReads(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1243,6 +1274,7 @@ func TestScanIoTFleetWise_ContextEndsDuringTagReads(t *testing.T) {
 // Rows of an account in another partition are sent to the tag op under the
 // ARNs their listings return.
 func TestScanIoTFleetWise_TagReadInAccountPartition(t *testing.T) {
+	t.Parallel()
 	acct := partitionAccount("aws-us-gov")
 	region := acct.Regions[0]
 	st := newTestStore(t)

@@ -19,6 +19,7 @@ func cloudHSMClusterAttrs(t *testing.T, c cloudhsmv2types.Cluster) string {
 }
 
 func TestResolveCloudHSMClusterNetwork(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -47,6 +48,7 @@ func TestResolveCloudHSMClusterNetwork(t *testing.T) {
 // A cluster whose VPC/SG/subnet refs are absent or point at unscanned EC2
 // resources emits no edges.
 func TestResolveCloudHSMClusterNetwork_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -69,6 +71,7 @@ func TestResolveCloudHSMClusterNetwork_NoEdge(t *testing.T) {
 }
 
 func TestResolveCloudHSMBackupCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -89,6 +92,7 @@ func TestResolveCloudHSMBackupCluster(t *testing.T) {
 // A backup whose ClusterId points at an unscanned cluster, and one with no
 // ClusterId, emit no edge.
 func TestResolveCloudHSMBackupCluster_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

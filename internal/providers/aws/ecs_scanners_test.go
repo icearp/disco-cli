@@ -16,6 +16,7 @@ import (
 // phase. A denied cluster must stop its own listing, keep the services listed
 // before the denial, warn once, and leave other clusters and later phases to run.
 func TestScanECS_ListServicesDenied(t *testing.T) {
+	t.Parallel()
 	cluster2ARN := fmt.Sprintf("arn:aws:ecs:%s:%s:cluster/cl-2", testRegion, testAccountID)
 	// cl-3 is always denied, so a warning per denied cluster shows as two.
 	cluster3ARN := fmt.Sprintf("arn:aws:ecs:%s:%s:cluster/cl-3", testRegion, testAccountID)

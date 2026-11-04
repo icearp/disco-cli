@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveNotifChildrenToConfig(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cARN := fmt.Sprintf("arn:aws:notifications::%s:configuration/c-1", acct.ID)

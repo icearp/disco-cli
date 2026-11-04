@@ -254,6 +254,7 @@ var wisdomAllRows = []wisdomRowCase{
 // an untagged element stores none; the version types store none. It also pins
 // each type's NativeID and Name.
 func TestScanWisdomAll_StoresTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := wisdomScanAll(t, st, wisdomAllHandlers(t))
 	if err != nil {
@@ -333,6 +334,7 @@ func wisdomFirstParent(in any) bool {
 // denial warns once with the account/region scope; any other error is
 // returned. The second parent's row is stored in every case.
 func TestScanWisdomAll_PerParentOutcomes(t *testing.T) {
+	t.Parallel()
 	hard := apiErr("ValidationException", "bad")
 	for op, want := range wisdomPerParentOps {
 		for _, c := range []struct {
@@ -395,6 +397,7 @@ func TestScanWisdomAll_PerParentOutcomes(t *testing.T) {
 // knowledge-base listing warns once with the account/region scope instead of
 // failing, and the other phases are stored.
 func TestScanWisdomAll_AccountListingDeniedWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, other string }{
 		{"ListAssistants", TypeWisdomKnowledgeBase},
 		{"ListKnowledgeBases", TypeWisdomAssistant},
@@ -428,6 +431,7 @@ func TestScanWisdomAll_AccountListingDeniedWarns(t *testing.T) {
 // failure on the page after the first returns the error and keeps the rows
 // the first page read.
 func TestScanWisdomAll_LaterPageFailureKeepsRows(t *testing.T) {
+	t.Parallel()
 	hard := apiErr("ValidationException", "bad")
 	byOp := map[string]string{"ListAssistants": TypeWisdomAssistant, "ListKnowledgeBases": TypeWisdomKnowledgeBase}
 	for op, w := range wisdomPerParentOps {
@@ -470,6 +474,7 @@ func wisdomListParent(in any) string {
 // with an ARN but no id is stored with a warning, and that no child listing is
 // called for it; one listed with no ARN is warned about and not stored.
 func TestScanWisdomAll_ParentWithoutIDStoredAndWarned(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op       string
 		typ      string
@@ -530,6 +535,7 @@ func TestScanWisdomAll_ParentWithoutIDStoredAndWarned(t *testing.T) {
 // quick response or content association listed without an ARN is warned
 // about once and not stored, while the ones with an ARN are.
 func TestScanWisdomAll_LeafWithoutARNWarned(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op    string
 		typ   string
@@ -576,6 +582,7 @@ func TestScanWisdomAll_LeafWithoutARNWarned(t *testing.T) {
 // without the ARN or the VersionNumber its NativeID is built from is warned
 // about and not stored, while its siblings are.
 func TestScanWisdomAll_VersionWithoutIdentityWarned(t *testing.T) {
+	t.Parallel()
 	agentARN := func(in any) *string {
 		return ptrStr("arn:agent/" + sv(in.(*qconnect.ListAIAgentVersionsInput).AssistantId))
 	}
@@ -638,6 +645,7 @@ func TestScanWisdomAll_VersionWithoutIdentityWarned(t *testing.T) {
 // without an id is not warned about when the write failed, since the warning
 // would claim it was stored.
 func TestScanWisdomAll_NoChildIDWarnsOnlyAfterWrite(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op    string
 		serve func(in any) (any, error)
@@ -686,6 +694,7 @@ func TestScanWisdomAll_NoChildIDWarnsOnlyAfterWrite(t *testing.T) {
 // not stop the phases after it: its error is returned and every independent
 // phase's rows are stored.
 func TestScanWisdomAll_PhaseErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	hard := apiErr("ValidationException", "bad")
 	for _, c := range []struct {
 		failOp   string
@@ -717,6 +726,7 @@ func TestScanWisdomAll_PhaseErrorRunsLaterPhases(t *testing.T) {
 // TestScanWisdomAll_StoreWriteStops pins that a failed write stops the scan,
 // whichever phase it hits: no phase after it calls AWS.
 func TestScanWisdomAll_StoreWriteStops(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		closeIn  string
 		notAfter []string
@@ -761,6 +771,7 @@ func TestScanWisdomAll_StoreWriteStops(t *testing.T) {
 // beside a hard-failing one is demoted to one warning and the scan classified
 // as an error, not as transient.
 func TestScanWisdomAll_TransientBesideHardError(t *testing.T) {
+	t.Parallel()
 	h := wisdomAllHandlers(t)
 	h["ListAssistants"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }
 	h["ListQuickResponses"] = func(any) (any, error) { return nil, apiErr("ValidationException", "bad") }

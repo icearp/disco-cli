@@ -23,6 +23,7 @@ func shieldProtectionGroupARN(acct, id string) string {
 // the EIP shape normalisation (Shield's `:eip-allocation/` → disco's
 // `:elastic-ip/`).
 func TestResolveShieldProtectionTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -85,6 +86,7 @@ func TestResolveShieldProtectionTargets(t *testing.T) {
 // Every load balancer generation in the elasticloadbalancing namespace maps to
 // its own ARN; other elasticloadbalancing resources are not targets.
 func TestClassifyShieldProtectedResource_LoadBalancers(t *testing.T) {
+	t.Parallel()
 	const prefix = "arn:aws:elasticloadbalancing:us-east-1:123456789012:"
 	cases := []struct {
 		arn    string
@@ -109,6 +111,7 @@ func TestClassifyShieldProtectedResource_LoadBalancers(t *testing.T) {
 // TestResolveShieldProtection_UnknownARN verifies unrecognised target shapes
 // (e.g. Global Accelerator) skip silently with no edges.
 func TestResolveShieldProtection_UnknownARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -131,6 +134,7 @@ func TestResolveShieldProtection_UnknownARN(t *testing.T) {
 // TestResolveShieldProtection_UnscannedTarget verifies FK-safe skip when
 // ResourceArn matches a known shape but the target is not in the store.
 func TestResolveShieldProtection_UnscannedTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -153,6 +157,7 @@ func TestResolveShieldProtection_UnscannedTarget(t *testing.T) {
 // TestResolveShieldProtectionGroupMembers covers ARBITRARY pattern with two
 // scanned member protections; one unscanned member is skipped FK-safely.
 func TestResolveShieldProtectionGroupMembers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -187,6 +192,7 @@ func TestResolveShieldProtectionGroupMembers(t *testing.T) {
 // listed before and after it are still wired. Names a, b, c fix the listing
 // order (ListResources orders by type, then name).
 func TestResolveShieldProtectionTargets_BadAttrsReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cfARN := fmt.Sprintf("arn:aws:cloudfront::%s:distribution/E27EXAMPLE51Z", acct.ID)
@@ -212,6 +218,7 @@ func TestResolveShieldProtectionTargets_BadAttrsReportedOthersWired(t *testing.T
 // A protection group whose attributes do not parse is reported, and the
 // groups listed before and after it are still wired.
 func TestResolveShieldProtectionGroupMembers_BadAttrsReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pARN := shieldProtectionARN(acct.ID, "m1")
@@ -237,6 +244,7 @@ func TestResolveShieldProtectionGroupMembers_BadAttrsReportedOthersWired(t *test
 // TestResolveShieldProtectionGroup_NonArbitraryPatternSkipped verifies
 // Pattern=ALL and Pattern=BY_RESOURCE_TYPE produce no edges (deferred).
 func TestResolveShieldProtectionGroup_NonArbitraryPatternSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -261,6 +269,7 @@ func TestResolveShieldProtectionGroup_NonArbitraryPatternSkipped(t *testing.T) {
 
 // TestResolveShield_EmptyAttrs verifies no panic on empty AttributesJSON.
 func TestResolveShield_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

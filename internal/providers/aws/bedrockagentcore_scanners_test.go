@@ -211,6 +211,7 @@ func (s *stubBAC) ListPaymentCredentialProviders(_ context.Context, _ *bac.ListP
 // SYSTEM browsers/code-interpreters bucket as the managed built-in type; CUSTOM
 // ones stay the customer-facing type.
 func TestScanBACBrowsersAndCodeInterpreters_SystemVsCustom(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -254,6 +255,7 @@ func TestScanBACBrowsersAndCodeInterpreters_SystemVsCustom(t *testing.T) {
 }
 
 func TestScanBACBrowsers_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var p phaseTotals
@@ -270,6 +272,7 @@ func TestScanBACBrowsers_Empty(t *testing.T) {
 // scanBACAll hands the gateways it listed to the child fan-outs and runs every
 // phase added after the established ones.
 func TestScanBACAll_StoresNewTypes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	gwARN := bacARN("aws", testRegion, testAccountID, "gateway", "gw-1")
 	control := &stubBAC{
@@ -304,6 +307,7 @@ func TestScanBACAll_StoresNewTypes(t *testing.T) {
 // A hard error in a per-gateway fan-out must not stop the account-wide lists:
 // they run before the fan-outs.
 func TestScanBACAll_FanOutErrorKeepsAccountLists(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	// The payment credential provider phase is the last established phase, so
 	// its row pins that every new phase runs after the established ones.

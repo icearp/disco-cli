@@ -123,6 +123,7 @@ func storedWAFKeys(t *testing.T, rows map[string]store.Resource) map[string]wafv
 }
 
 func TestScanWAFv2_APIKeysBothScopesPaged(t *testing.T) {
+	t.Parallel()
 	var calls wafAPIKeyCalls
 	res := scanWAFv2With(t, wafv2Handlers(&calls))
 	if res.err != nil {
@@ -175,6 +176,7 @@ func TestScanWAFv2_APIKeysBothScopesPaged(t *testing.T) {
 }
 
 func TestScanWAFv2_APIKeysRegionalOnlyOutsideUSEast1(t *testing.T) {
+	t.Parallel()
 	var calls wafAPIKeyCalls
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -193,6 +195,7 @@ func TestScanWAFv2_APIKeysRegionalOnlyOutsideUSEast1(t *testing.T) {
 }
 
 func TestScanWAFv2APIKeys_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := wafv2.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
 		"ListAPIKeys": func(any) (any, error) { return &wafv2.ListAPIKeysOutput{}, nil },
@@ -207,6 +210,7 @@ func TestScanWAFv2APIKeys_Empty(t *testing.T) {
 }
 
 func TestScanWAFv2APIKeys_ErrorAfterFirstPage(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		page2     func() (any, error)
@@ -272,6 +276,7 @@ func TestScanWAFv2APIKeys_ErrorAfterFirstPage(t *testing.T) {
 }
 
 func TestScanWAFv2_APIKeysDeniedWarnsPerScope(t *testing.T) {
+	t.Parallel()
 	var calls wafAPIKeyCalls
 	h := wafv2Handlers(&calls)
 	delete(h, "ListAPIKeys")
@@ -290,6 +295,7 @@ func TestScanWAFv2_APIKeysDeniedWarnsPerScope(t *testing.T) {
 // The API-key phase runs after every older phase, and neither side's hard
 // error skips the other.
 func TestScanWAFv2_APIKeyAndOlderPhasesIndependent(t *testing.T) {
+	t.Parallel()
 	acl := types.WebACL{ARN: sdkaws.String("arn:aws:wafv2:us-east-1:" + testAccountID + ":regional/webacl/a/1"), Name: sdkaws.String("a"), Id: sdkaws.String("1")}
 	withACL := func(h map[string]func(in any) (any, error)) {
 		h["ListWebACLs"] = func(in any) (any, error) {
@@ -444,6 +450,7 @@ func wafWithACLs(h map[string]func(in any) (any, error), fail map[string]error) 
 // a transient failure, or any other error, is returned after the other ACLs
 // are stored and the scope's later phases have run.
 func TestScanWAFv2_GetWebACLErrors(t *testing.T) {
+	t.Parallel()
 	arn, withACLs := wafACLARN, wafWithACLs
 	cases := []struct {
 		name      string
@@ -530,6 +537,7 @@ func TestScanWAFv2_GetWebACLErrors(t *testing.T) {
 // A denied ListWebACLs page keeps the web ACLs of the pages before it, warns
 // once, and the later phases still run.
 func TestScanWAFv2_ListWebACLsDeniedContinues(t *testing.T) {
+	t.Parallel()
 	aclARN := "arn:aws:wafv2:" + testRegion + ":" + testAccountID + ":regional/webacl/a/1"
 	ipSetARN := "arn:aws:wafv2:" + testRegion + ":" + testAccountID + ":regional/ipset/ip/1"
 	var calls wafAPIKeyCalls
@@ -576,6 +584,7 @@ func TestScanWAFv2_ListWebACLsDeniedContinues(t *testing.T) {
 // A regex pattern set listed without an ARN is not stored and is warned about
 // once.
 func TestScanWAFv2_ARNlessRegexPatternSetWarns(t *testing.T) {
+	t.Parallel()
 	regexARN := "arn:aws:wafv2:" + testRegion + ":" + testAccountID + ":regional/regexpatternset/rx/1"
 	var calls wafAPIKeyCalls
 	h := wafv2Handlers(&calls)
@@ -605,6 +614,7 @@ func TestScanWAFv2_ARNlessRegexPatternSetWarns(t *testing.T) {
 // A denied ListRuleGroups or ListIPSets keeps the pages read before it, warns
 // once, and the later phases still run.
 func TestScanWAFv2_ListDeniedWarnsAndContinues(t *testing.T) {
+	t.Parallel()
 	ruleGroupARN := "arn:aws:wafv2:" + testRegion + ":" + testAccountID + ":regional/rulegroup/rg/1"
 	ipSetARN := "arn:aws:wafv2:" + testRegion + ":" + testAccountID + ":regional/ipset/ip/1"
 	regexARN := "arn:aws:wafv2:" + testRegion + ":" + testAccountID + ":regional/regexpatternset/rx/1"
@@ -677,6 +687,7 @@ func TestScanWAFv2_ListDeniedWarnsAndContinues(t *testing.T) {
 // A web ACL kept as its summary is warned about only once it is stored: a
 // failed write returns the store error and no "stored as" warning.
 func TestScanWAFv2_KeptWebACLWarnsOnlyOnceStored(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	warns := countOpWarnings(st, "wafv2:GetWebACL")
 	aclARN := "arn:aws:wafv2:" + testRegion + ":" + testAccountID + ":regional/webacl/a/1"
@@ -708,6 +719,7 @@ func TestScanWAFv2_KeptWebACLWarnsOnlyOnceStored(t *testing.T) {
 // (WAFNonexistentItemException, in the op's model) skips that ACL's
 // associations and the scan goes on to the next.
 func TestScanWAFv2_AssociationsOnlyForStoredACLs(t *testing.T) {
+	t.Parallel()
 	gone := apiErr("WAFNonexistentItemException", "gone")
 	cases := []struct {
 		name               string
@@ -769,6 +781,7 @@ func TestScanWAFv2_AssociationsOnlyForStoredACLs(t *testing.T) {
 // lists for a regional ACL, never with the type left empty (the op then lists
 // ALBs only), and an association of a non-ALB type is stored.
 func TestScanWAFv2_AssociationsListedPerResourceType(t *testing.T) {
+	t.Parallel()
 	var calls wafAPIKeyCalls
 	h := wafv2Handlers(&calls)
 	wafWithACLs(h, nil)
@@ -823,6 +836,7 @@ func TestScanWAFv2_AssociationsListedPerResourceType(t *testing.T) {
 // gap, not handled. A value a later SDK adds fails here until someone reads
 // its doc and places it.
 func TestWAFv2RegionalResourceTypesCoverEnum(t *testing.T) {
+	t.Parallel()
 	got := []string{"AMPLIFY"}
 	for _, e := range wafv2RegionalResourceTypes {
 		got = append(got, string(e.rt))
@@ -841,6 +855,7 @@ func TestWAFv2RegionalResourceTypesCoverEnum(t *testing.T) {
 // A resource type whose owning service AWS does not offer in the region is
 // not requested there; the other types still are.
 func TestScanWAFv2_AssociationTypesOnlyWhereOwnerOffered(t *testing.T) {
+	t.Parallel()
 	// A commercial-shaped region in no SDK endpoint table, so only the catalog
 	// below offers services there.
 	const region = "us-nowhere-9"
@@ -882,6 +897,7 @@ func TestScanWAFv2_AssociationTypesOnlyWhereOwnerOffered(t *testing.T) {
 // resource type warns once per cause (a rejection once per type) and the scan
 // succeeds; any other error, including WAF rejecting another field, is returned.
 func TestScanWAFv2_AssociationTypeFailureKeepsOtherTypes(t *testing.T) {
+	t.Parallel()
 	typeRejected := &types.WAFInvalidParameterException{
 		Message: sdkaws.String("bad type"), Field: types.ParameterExceptionFieldResourceType,
 	}
@@ -946,6 +962,7 @@ func TestScanWAFv2_AssociationTypeFailureKeepsOtherTypes(t *testing.T) {
 // ListTagsForResource, and its sibling is stored. A GetWebACL body without
 // an ARN does not change the row's NativeID, which is always the summary's.
 func TestScanWAFv2_ARNlessWebACLWarns(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name       string
 		summary    bool // the summary lacks the ARN, else the body does
@@ -1022,6 +1039,7 @@ func TestScanWAFv2_ARNlessWebACLWarns(t *testing.T) {
 // A failed rule group listing still runs the IP sets and later phases, and the
 // scan returns the counts of every row stored, not 0, 0.
 func TestScanWAFv2_ListRuleGroupsFailureKeepsCounts(t *testing.T) {
+	t.Parallel()
 	var calls wafAPIKeyCalls
 	h := wafv2Handlers(&calls)
 	wafWithACLs(h, nil)
@@ -1045,6 +1063,7 @@ func TestScanWAFv2_ListRuleGroupsFailureKeepsCounts(t *testing.T) {
 // NativeID; it is warned about once under its list op, and its sibling is
 // stored.
 func TestScanWAFv2_ARNlessSummariesWarn(t *testing.T) {
+	t.Parallel()
 	rgARN := "arn:aws:wafv2:" + testRegion + ":" + testAccountID + ":regional/rulegroup/rg/1"
 	ipARN := "arn:aws:wafv2:" + testRegion + ":" + testAccountID + ":regional/ipset/ip/1"
 	var calls wafAPIKeyCalls
@@ -1101,6 +1120,7 @@ func TestScanWAFv2_ARNlessSummariesWarn(t *testing.T) {
 // A GetWebACL that succeeds without a WebACL keeps the ACL as its summary,
 // instead of panicking, and the scan returns errWAFv2NoWebACLBody.
 func TestScanWAFv2_GetWebACLWithoutBodyKeepsSummary(t *testing.T) {
+	t.Parallel()
 	var calls wafAPIKeyCalls
 	h := wafv2Handlers(&calls)
 	wafWithACLs(h, nil)
@@ -1188,6 +1208,7 @@ func wafExtendedRows(t *testing.T, st *store.Store) map[string]int {
 // stops none of the others: their rows are stored and the hard error is
 // returned.
 func TestScanWAFv2_ExtendedPhasesIndependent(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("WAFInvalidParameterException", "bad")
 	cases := []struct {
 		name string
@@ -1259,6 +1280,7 @@ func wafPaged[In any](inScope func(In) bool, sent func(In) *string, first, repea
 // sent, or fails, keeps the first page's item, and the repeating page's item,
 // and returns the error, naming the scope that failed.
 func TestScanWAFv2_LaterPageFailureKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	m1 := sdkaws.String("m1")
 	cases := []struct {
 		op      string
@@ -1378,6 +1400,7 @@ func TestScanWAFv2_LaterPageFailureKeepsEarlierPages(t *testing.T) {
 // A logging configuration or managed rule set listed without the ARN its row
 // is keyed by is not stored and is warned about once under its op.
 func TestScanWAFv2_ARNlessExtendedItemsWarn(t *testing.T) {
+	t.Parallel()
 	var calls wafAPIKeyCalls
 	h := wafv2Handlers(&calls)
 	h["ListLoggingConfigurations"] = func(in any) (any, error) {
@@ -1418,6 +1441,7 @@ func TestScanWAFv2_ARNlessExtendedItemsWarn(t *testing.T) {
 // skips those ACLs with one warning per cause, and the scan succeeds; an
 // associated resource with an empty ARN is not stored and warns once.
 func TestScanWAFv2_AssociationSkipsWarnOncePerCause(t *testing.T) {
+	t.Parallel()
 	failing := func(err error) func(any) (any, error) {
 		return func(any) (any, error) { return nil, err }
 	}
@@ -1464,6 +1488,7 @@ func TestScanWAFv2_AssociationSkipsWarnOncePerCause(t *testing.T) {
 // partition (us-east-1 for aws); a region elsewhere, or a partition the SDK
 // gives CloudFront no home in, makes no CLOUDFRONT call.
 func TestScanWAFv2_CloudFrontScopeOnlyInCloudFrontHome(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		partition, region string
 		wantCloudFront    bool
@@ -1704,6 +1729,7 @@ func wafWarnings(ws []store.ScanWarning, op string) []store.ScanWarning {
 // and tag read sends Limit 100, the model's cap, and GetWebACL is sent the
 // summary's Id, Name and scope. A rescan inserts nothing.
 func TestScanWAFv2_TagsStoredPerType(t *testing.T) {
+	t.Parallel()
 	var rec wafTagCalls
 	h := wafTagHandlers(wafTaggedItems, &rec, nil)
 	st := newTestStore(t)
@@ -1793,6 +1819,7 @@ func TestScanWAFv2_TagsStoredPerType(t *testing.T) {
 // their own Id, Name and scope, stored as their bodies, and have their
 // associations listed and stored, like the first page's.
 func TestScanWAFv2_WebACLsAcrossPages(t *testing.T) {
+	t.Parallel()
 	var keys wafAPIKeyCalls
 	h := wafv2Handlers(&keys)
 	h["ListWebACLs"] = func(in any) (any, error) {
@@ -1858,6 +1885,7 @@ func TestScanWAFv2_WebACLsAcrossPages(t *testing.T) {
 // member, reported under wafv2 with the phases not run, although the listing
 // and each tag read saw it too.
 func TestScanWAFv2_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var rec wafTagCalls
@@ -1909,6 +1937,7 @@ func TestScanWAFv2_ContextEndStopsOnce(t *testing.T) {
 // repeated NextMarker, or a response without TagInfoForResource, keeps the
 // row without tags and returns the error.
 func TestScanWAFv2_TagPages(t *testing.T) {
+	t.Parallel()
 	rg := wafTaggedItems[3]
 	page := func(in *wafv2.ListTagsForResourceInput, tags map[string]string, next *string) (any, error) {
 		out := wafTagsOut(in, tags)
@@ -1975,6 +2004,7 @@ func TestScanWAFv2_TagPages(t *testing.T) {
 // are one warning for the scan; a transient failure is returned as one, and
 // demoted to a warning beside a hard error; any other error is returned.
 func TestScanWAFv2_TagReadErrors(t *testing.T) {
+	t.Parallel()
 	a, cf, rg, ip := wafTaggedItems[0], wafTaggedItems[2], wafTaggedItems[3], wafTaggedItems[5]
 	denied := apiErr("AccessDeniedException", "not authorized to perform: wafv2:ListTagsForResource")
 	throttled := apiErr("ThrottlingException", "Rate exceeded")
@@ -2079,6 +2109,7 @@ func TestScanWAFv2_TagReadErrors(t *testing.T) {
 // A tag read denied before a failed write sends no warning: the row it
 // names was never stored.
 func TestScanWAFv2_TagDenialAfterFailedWriteNotWarned(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	var rec wafTagCalls
 	h := wafTagHandlers(wafTaggedItems[3:4], &rec, func(*wafv2.ListTagsForResourceInput) (any, error) {
@@ -2097,6 +2128,7 @@ func TestScanWAFv2_TagDenialAfterFailedWriteNotWarned(t *testing.T) {
 // GetWebACL denied in both scopes is one warning for the scan, and every
 // ACL is kept as its summary.
 func TestScanWAFv2_GetWebACLDenialsOneWarning(t *testing.T) {
+	t.Parallel()
 	var rec wafTagCalls
 	h := wafTagHandlers(wafTaggedItems, &rec, nil)
 	h["GetWebACL"] = func(any) (any, error) {
@@ -2125,6 +2157,7 @@ func TestScanWAFv2_GetWebACLDenialsOneWarning(t *testing.T) {
 // In GovCloud the ARN a listing returns reaches ListTagsForResource
 // unchanged.
 func TestScanWAFv2_GovCloudARNSentUnchanged(t *testing.T) {
+	t.Parallel()
 	const region = "us-gov-west-1"
 	govARN := "arn:aws-us-gov:wafv2:" + region + ":" + testAccountID + ":regional/rulegroup/rg/1"
 	var sent parentCalls

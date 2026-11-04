@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveConnectLambdaFunctionTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	fnARN := connectTestFunctionARN + "fn"
 	upsertTestResource(t, st, "aws", testAccountID, TypeLambdaFunction, fnARN, testRegion, "{}")
@@ -44,6 +45,7 @@ func TestResolveConnectLambdaFunctionTarget(t *testing.T) {
 }
 
 func TestResolveConnectRoutingProfileQueueTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	queueARN := connectTestInstanceARN + "/queue/q-1"
 	upsertTestResource(t, st, "aws", testAccountID, TypeConnectQueue, queueARN, testRegion, "{}")
@@ -70,6 +72,7 @@ func TestResolveConnectRoutingProfileQueueTarget(t *testing.T) {
 
 // A row that fails to decode is returned, and costs the other rows no edge.
 func TestConnectARNFieldEdge_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	queueARN := connectTestInstanceARN + "/queue/q-1"
 	upsertTestResource(t, st, "aws", testAccountID, TypeConnectQueue, queueARN, testRegion, "{}")
@@ -90,6 +93,7 @@ func TestConnectARNFieldEdge_DecodeErrorKeepsOtherEdges(t *testing.T) {
 }
 
 func TestConnectAccessResolvers_NoRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	for name, resolve := range map[string]func(*account, *store.Store) error{
 		"lambda": resolveConnectLambdaFunctionTarget,

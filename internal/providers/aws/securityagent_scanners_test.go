@@ -200,6 +200,7 @@ func saPentestHandlers(lists *parentCalls, gets *batchCalls, batchErr error) map
 // it reports not found is dropped, an id it returns that was never listed
 // stores nothing, and the custom header and actor credential are redacted.
 func TestScanSAPentests_StoresFullDefinitionsUnderSpaces(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedSASpaces(t, st)
 	var lists parentCalls
@@ -253,6 +254,7 @@ func TestScanSAPentests_StoresFullDefinitionsUnderSpaces(t *testing.T) {
 // without the read action (AccessDenied), a page larger than the undocumented
 // batch cap (ValidationException), and a not-found the op does not model.
 func TestScanSAPentests_BatchGetFailureKeepsSummaries(t *testing.T) {
+	t.Parallel()
 	for _, batchErr := range []error{saDenied, saBadInput, saGone} {
 		t.Run(batchErr.(*smithy.GenericAPIError).Code, func(t *testing.T) {
 			st := newTestStore(t)
@@ -280,6 +282,7 @@ func TestScanSAPentests_BatchGetFailureKeepsSummaries(t *testing.T) {
 }
 
 func TestScanSAPentests_Errors(t *testing.T) {
+	t.Parallel()
 	t.Run("batch get other error propagates", func(t *testing.T) {
 		st := newTestStore(t)
 		var lists parentCalls
@@ -343,6 +346,7 @@ func TestScanSAPentests_Errors(t *testing.T) {
 // this pins each one's list and BatchGet wiring, NativeID kind, parent and
 // actor credential redaction.
 func TestScanSACodeReviewsAndThreatModels(t *testing.T) {
+	t.Parallel()
 	role := ptrStr("arn:aws:iam::123456789012:role/agent")
 	cases := []struct {
 		name     string
@@ -438,6 +442,7 @@ func saMembershipHandler(calls *parentCalls, fail map[string]error) func(in any)
 }
 
 func TestScanSAMemberships_StoresEveryApplicationsMembersUnderSpaces(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedSASpaces(t, st)
 	var calls parentCalls
@@ -473,6 +478,7 @@ func TestScanSAMemberships_StoresEveryApplicationsMembersUnderSpaces(t *testing.
 }
 
 func TestScanSAMemberships_Errors(t *testing.T) {
+	t.Parallel()
 	t.Run("denied warns once", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, "securityagent:ListMemberships")
@@ -553,6 +559,7 @@ func saIntegratedResourceHandler(calls *parentCalls, fail map[string]error) func
 }
 
 func TestScanSAIntegratedResources_StoresKnownResourcesUnderSpaces(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedSASpaces(t, st)
 	var calls parentCalls
@@ -590,6 +597,7 @@ func TestScanSAIntegratedResources_StoresKnownResourcesUnderSpaces(t *testing.T)
 }
 
 func TestScanSAIntegratedResources_Errors(t *testing.T) {
+	t.Parallel()
 	t.Run("space gone is skipped silently", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, "securityagent:ListIntegratedResources")
@@ -677,6 +685,7 @@ func saTopLevelHandlers() map[string]func(in any) (any, error) {
 // The service scan hands the agent spaces and applications it listed to every
 // per-space phase, and the customer-managed packs to the requirement phase.
 func TestScanSecurityAgent_StoresSpaceChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(saTopLevelHandlers(), saDenied)
@@ -710,6 +719,7 @@ func TestScanSecurityAgent_StoresSpaceChildren(t *testing.T) {
 // new per-space phases, a hard error in every new phase does not stop the
 // existing ones, and all errors reach the caller.
 func TestScanSecurityAgent_PhaseErrorsAreIndependent(t *testing.T) {
+	t.Parallel()
 	newOps := []string{"ListCodeReviews", "ListIntegratedResources", "ListMemberships", "ListSecurityRequirements", "ListThreatModels"} // sorted, as parentCalls.distinct returns
 	t.Run("new phases fail", func(t *testing.T) {
 		st := newTestStore(t)
@@ -754,6 +764,7 @@ func TestScanSecurityAgent_PhaseErrorsAreIndependent(t *testing.T) {
 // AWS-managed pack is stored as provider-managed and its requirements are not
 // listed.
 func TestScanSASecurityRequirementPacks_ReturnsCustomerManaged(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := saClient(map[string]func(in any) (any, error){
 		"ListSecurityRequirementPacks": func(any) (any, error) {
@@ -829,6 +840,7 @@ func seedSAPacks(t *testing.T, st *store.Store) {
 // BatchGet returns one; a per-item BatchGet error warns once and keeps that
 // requirement's summary.
 func TestScanSASecurityRequirements_StoresUnderPacks(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedSAPacks(t, st)
 	warns := countOpWarnings(st, "securityagent:BatchGetSecurityRequirements")
@@ -855,6 +867,7 @@ func TestScanSASecurityRequirements_StoresUnderPacks(t *testing.T) {
 }
 
 func TestScanSASecurityRequirements_Errors(t *testing.T) {
+	t.Parallel()
 	// Both ops model ResourceNotFoundException: a pack deleted after listing
 	// is skipped silently and the other pack continues.
 	t.Run("pack gone on list is skipped silently", func(t *testing.T) {
@@ -1119,6 +1132,7 @@ func saSamePtr(a, b *string) bool { return (a == nil) == (b == nil) && sv(a) == 
 // gives no range), and each per-parent listing is sent each stored parent;
 // only customer-managed packs have their requirements listed.
 func TestScanSecurityAgent_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newSATagCalls()
@@ -1180,6 +1194,7 @@ func TestScanSecurityAgent_StoresTagsOfEveryType(t *testing.T) {
 // An aws-us-gov account scanned in us-gov-west-1 sends the tag op the ARNs
 // built in the account's partition and region.
 func TestScanSecurityAgent_GovCloudARNsReachTagOp(t *testing.T) {
+	t.Parallel()
 	const (
 		govRegion = "us-gov-west-1"
 		space     = "arn:aws-us-gov:securityagent:us-gov-west-1:123456789012:agent-space/s-gov"
@@ -1242,6 +1257,7 @@ func TestScanSecurityAgent_GovCloudARNsReachTagOp(t *testing.T) {
 // Empty listings store nothing, make no per-parent listing, read no tags and
 // report nothing.
 func TestScanSecurityAgent_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newSATagCalls()
@@ -1273,6 +1289,7 @@ func TestScanSecurityAgent_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanSecurityAgent_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := saTagScan(context.Background(), st, saTagHandlers(newSATagCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -1291,6 +1308,7 @@ func TestScanSecurityAgent_RescanInsertsNone(t *testing.T) {
 // error, and any other code a hard one. The op models no not-found, so a
 // ResourceNotFoundException is a hard error too and the row is kept.
 func TestScanSecurityAgent_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct{ typ, arn string }{
 		{TypeSecurityAgentAgentSpace, saTagSpaceT},
 		{TypeSecurityAgentApplication, saTagAppT},
@@ -1351,6 +1369,7 @@ func TestScanSecurityAgent_TagReadFailures(t *testing.T) {
 
 // Denied tag reads in several phases are one warning for the scan.
 func TestScanSecurityAgent_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, saTagsOp)
 	calls := newSATagCalls()
@@ -1382,6 +1401,7 @@ func TestScanSecurityAgent_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanSecurityAgent_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, saTagsOp)
 	calls := newSATagCalls()
@@ -1406,6 +1426,7 @@ var saPhaseOps = []string{
 // listing and sends no warning about the rows it lost, their denied tag
 // reads included.
 func TestScanSecurityAgent_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		typ, op, deniedARN string
 	}{
@@ -1451,6 +1472,7 @@ func TestScanSecurityAgent_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its rows are
 // still parents; no listing's failure stops the phases after it.
 func TestScanSecurityAgent_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newSATagCalls()
@@ -1496,6 +1518,7 @@ func TestScanSecurityAgent_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) 
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanSecurityAgent_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	// out builds a new output per call: the SDK writes ResultMetadata into it.
 	for _, c := range []struct {
 		op, typ, arn string
@@ -1539,6 +1562,7 @@ func TestScanSecurityAgent_RepeatedTokenKeepsPages(t *testing.T) {
 // Elements listed without their identifier are not stored or read and are
 // warned about once per listing, under a key that is never empty.
 func TestScanSecurityAgent_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		out           any
@@ -1579,6 +1603,7 @@ func TestScanSecurityAgent_UnstorableItemsWarn(t *testing.T) {
 // A denied listing warns once under its own op and costs no other phase its
 // rows; denied agent spaces leave the per-space phases no parent.
 func TestScanSecurityAgent_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op   string
 		lost int
@@ -1618,6 +1643,7 @@ func TestScanSecurityAgent_DeniedListingWarnsUnderItsOp(t *testing.T) {
 
 // Once ctx ends no further phase starts, and the stop is reported once.
 func TestScanSecurityAgent_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSATagCalls()
 	h := saTagHandlers(calls)
@@ -1652,6 +1678,7 @@ func TestScanSecurityAgent_ContextEndStopsOnce(t *testing.T) {
 // stored) is unavailable and makes no other listing. An NXDOMAIN after rows
 // were stored is a failure of this scan: the counts are kept.
 func TestScanSecurityAgent_Unreachable(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "securityagent.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("endpoint absent", func(t *testing.T) {
 		st := newTestStore(t)

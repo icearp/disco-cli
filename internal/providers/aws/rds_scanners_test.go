@@ -269,6 +269,7 @@ func rdsTagReadARNs() []string {
 // automated backups keep the tags their listing returns. No error, no
 // warning.
 func TestScanRDS_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newRDSCalls()
@@ -350,6 +351,7 @@ func TestScanRDS_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanRDS_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := rdsScan(context.Background(), st, rdsHandlers(newRDSCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -369,6 +371,7 @@ func TestScanRDS_RescanInsertsNone(t *testing.T) {
 // once under rds:ListTagsForResource; a throttle keeps it and is transient;
 // any other error keeps it and is an error.
 func TestScanRDS_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagCase struct {
 		name      string
 		arn, typ  string
@@ -442,6 +445,7 @@ func TestScanRDS_TagReadFailures(t *testing.T) {
 // A proxy whose tag read finds it deleted is dropped, and its target groups
 // are not listed; the other proxy's are.
 func TestScanRDS_ProxyGoneAtTagReadHasNoTargetGroupRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newRDSCalls()
 	proxies := rdsProxies()
@@ -464,6 +468,7 @@ func TestScanRDS_ProxyGoneAtTagReadHasNoTargetGroupRead(t *testing.T) {
 // is skipped silently, a denial warns once under the op, and any other error
 // is returned.
 func TestScanRDS_TargetGroupListingFailures(t *testing.T) {
+	t.Parallel()
 	proxies := rdsProxies()
 	gone := proxies.name("tagged")
 	for _, c := range []struct {
@@ -513,6 +518,7 @@ func TestScanRDS_TargetGroupListingFailures(t *testing.T) {
 // Denied tag reads in two listings, which run as separate families, send one
 // warning for the whole scan, counting every denied row; the rows are kept.
 func TestScanRDS_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, rdsTagsOp)
 	calls := newRDSCalls()
@@ -542,6 +548,7 @@ func TestScanRDS_TagDenialsWarnOncePerScan(t *testing.T) {
 // The tag reads of every family share one bound of fanoutMed, though each
 // family's reads alone would allow fanoutMed.
 func TestScanRDS_TagReadsShareOneBound(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	gate := &cfGatedTags{over: make(chan struct{})}
 	handlers := rdsHandlers(newRDSCalls())
@@ -566,6 +573,7 @@ func TestScanRDS_TagReadsShareOneBound(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanRDS_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, rdsTagsOp)
 	calls := newRDSCalls()
@@ -583,6 +591,7 @@ func TestScanRDS_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops its listing and sends no warning about the rows it
 // lost, while every other family stores its rows.
 func TestScanRDS_FailedWriteKeepsOtherFamilies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeRDSDBParameterGroup)
@@ -611,6 +620,7 @@ func TestScanRDS_FailedWriteKeepsOtherFamilies(t *testing.T) {
 // A failed proxy write stops the proxies' family before any target group is
 // listed.
 func TestScanRDS_FailedProxyWriteListsNoTargetGroups(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeRDSDBProxy)
 	calls := newRDSCalls()
@@ -627,6 +637,7 @@ func TestScanRDS_FailedProxyWriteListsNoTargetGroups(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the other listings. A proxy not stored has no target groups read.
 func TestScanRDS_ListFailureKeepsPagesAndOtherFamilies(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op        string
 		wantTotal int
@@ -658,6 +669,7 @@ func TestScanRDS_ListFailureKeepsPagesAndOtherFamilies(t *testing.T) {
 
 // A repeated marker ends the listing as an error, keeping its pages.
 func TestScanRDS_RepeatedMarkerKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := rdsHandlers(newRDSCalls())
 	k := rdsKindOf(t, "DescribeEventSubscriptions")
@@ -683,6 +695,7 @@ func TestScanRDS_RepeatedMarkerKeepsPages(t *testing.T) {
 // warned about once under its listing, named by its name or by the fallback
 // text when it has none. A proxy without one has no target groups read.
 func TestScanRDS_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		answer        func(in any) (any, error)
@@ -736,6 +749,7 @@ func TestScanRDS_ElementWithoutARNWarns(t *testing.T) {
 // Service Reference's ri format gives for its id, in the account's partition,
 // and that ARN is sent to the tag op; no warning.
 func TestScanRDS_ReservedInstanceWithoutARNStoredUnderItsARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newRDSCalls()
@@ -767,6 +781,7 @@ func TestScanRDS_ReservedInstanceWithoutARNStoredUnderItsARN(t *testing.T) {
 // listed ARNs unchanged, and a reserved instance without an ARN under one
 // built in the account's partition.
 func TestScanRDS_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -803,6 +818,7 @@ func TestScanRDS_TagReadsKeepPartitionARNs(t *testing.T) {
 // under the tag op naming the first one's ARN, with no error. A non-default
 // group's same failure is still an error (TestScanRDS_TagReadFailures).
 func TestScanRDS_DefaultGroupTagFailureWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newRDSCalls()
@@ -849,6 +865,7 @@ func TestScanRDS_DefaultGroupTagFailureWarnsOnce(t *testing.T) {
 // After a failed write, a default group's failed tag read sends no warning:
 // its row may be one the write lost.
 func TestScanRDS_DefaultGroupFailureAfterFailedWriteWarnsNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeRDSDBParameterGroup)
@@ -872,6 +889,7 @@ func TestScanRDS_DefaultGroupFailureAfterFailedWriteWarnsNothing(t *testing.T) {
 // The refusal tally names the smallest ARN whatever order the reads end in,
 // since the families read concurrently.
 func TestRDSDefaultGroupRefusals_NamesSmallestARN(t *testing.T) {
+	t.Parallel()
 	var d rdsDefaultGroupRefusals
 	tags := d.tags(rowTagReader{read: func(context.Context, *store.Resource) (*string, error) { return nil, rdsTestInvalid }})
 	for _, arn := range []string{rdsTestARNPrefix + "pg:default.b", rdsTestARNPrefix + "og:default:c", rdsTestARNPrefix + "cluster-pg:default.a"} {
@@ -888,6 +906,7 @@ func TestRDSDefaultGroupRefusals_NamesSmallestARN(t *testing.T) {
 // A default group's tag read that fails with any code but the expected
 // refusals is an error, as for any other group, with no warning.
 func TestScanRDS_DefaultGroupUnexpectedCodeIsError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newRDSCalls()
@@ -912,6 +931,7 @@ func TestScanRDS_DefaultGroupUnexpectedCodeIsError(t *testing.T) {
 // A default group's tag read cut off by the scan's stop is the stop, not a
 // group stored without tags: the error carries it and nothing is warned.
 func TestScanRDS_DefaultGroupReadCutByStopIsNoRefusal(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := bacWarnings(st, rdsTagsOp)
 	calls := newRDSCalls()
@@ -943,6 +963,7 @@ func TestScanRDS_DefaultGroupReadCutByStopIsNoRefusal(t *testing.T) {
 // A default group's denied or throttled tag read keeps its usual path: the
 // denial is the shared denial warning, the throttle a transient error.
 func TestScanRDS_DefaultGroupKeepsDenialAndTransientPaths(t *testing.T) {
+	t.Parallel()
 	pg := rdsTestARNPrefix + "pg:default.mysql8.0"
 	for _, c := range []struct {
 		name    string
@@ -989,6 +1010,7 @@ func TestScanRDS_DefaultGroupKeepsDenialAndTransientPaths(t *testing.T) {
 // and both collapse into the one row under NativeID "" (a known defect,
 // pinned so that the doc on scanDBClusterEndpoints stays true).
 func TestScanRDS_BuiltInClusterEndpointsStoredUntagged(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newRDSCalls()
@@ -1029,6 +1051,7 @@ func TestScanRDS_BuiltInClusterEndpointsStoredUntagged(t *testing.T) {
 // A denied listing warns once under its op; a denial on a later page keeps
 // the page read before it. Every other listing still runs.
 func TestScanRDS_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, call := range []int{1, 2} {
 		t.Run(fmt.Sprintf("page%d", call), func(t *testing.T) {
 			st := newTestStore(t)
@@ -1058,6 +1081,7 @@ func TestScanRDS_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although two families
 // in flight saw it in their listings.
 func TestScanRDS_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := rdsHandlers(newRDSCalls())
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1091,6 +1115,7 @@ func TestScanRDS_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanRDS_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "rds.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

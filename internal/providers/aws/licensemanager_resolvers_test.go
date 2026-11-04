@@ -9,6 +9,7 @@ import (
 )
 
 func TestResolveLicenseManagerGrantToLicense(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	lARN := fmt.Sprintf("arn:aws:license-manager::%s:license:l-1", acct.ID)
@@ -33,6 +34,7 @@ func lmRelsFrom(t *testing.T, st *store.Store, id string) []store.Relationship {
 }
 
 func TestResolveLicenseManagerReceivedLicenseToLicense_SelfGrant(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ownARN := fmt.Sprintf("arn:aws:license-manager::%s:license:l-own", acct.ID)
@@ -56,6 +58,7 @@ func TestResolveLicenseManagerReceivedLicenseToLicense_SelfGrant(t *testing.T) {
 }
 
 func TestResolveLicenseManagerReceivedLicenseToLicense_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ownARN := fmt.Sprintf("arn:aws:license-manager::%s:license:l-own", acct.ID)
@@ -70,6 +73,7 @@ func TestResolveLicenseManagerReceivedLicenseToLicense_NoAttrs(t *testing.T) {
 }
 
 func TestResolveLicenseManagerTokenRelationships_LicenseAndRoles(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	licARN := fmt.Sprintf("arn:aws:license-manager::%s:license:l-1", acct.ID)
@@ -91,6 +95,7 @@ func TestResolveLicenseManagerTokenRelationships_LicenseAndRoles(t *testing.T) {
 }
 
 func TestResolveLicenseManagerTokenRelationships_ForeignIssuerUsesReceivedLicense(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	foreignARN := "arn:aws:license-manager::444455556666:license:l-foreign"
@@ -111,6 +116,7 @@ func TestResolveLicenseManagerTokenRelationships_ForeignIssuerUsesReceivedLicens
 }
 
 func TestResolveLicenseManagerTokenRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	licARN := fmt.Sprintf("arn:aws:license-manager::%s:license:l-1", acct.ID)
@@ -125,6 +131,7 @@ func TestResolveLicenseManagerTokenRelationships_NoAttrs(t *testing.T) {
 }
 
 func TestResolveLicenseManager_UndecodableAttrsReturnError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		typ     string

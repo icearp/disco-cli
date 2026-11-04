@@ -9,6 +9,7 @@ import (
 )
 
 func TestResolveCloudFrontFLEConfigProfile(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -42,6 +43,7 @@ func TestResolveCloudFrontFLEConfigProfile(t *testing.T) {
 }
 
 func TestResolveCloudFrontFLEProfilePublicKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -72,6 +74,7 @@ func TestResolveCloudFrontFLEProfilePublicKey(t *testing.T) {
 // A config referencing an unscanned profile, and one with no profile refs, emit
 // no edge.
 func TestResolveCloudFrontFLEConfigProfile_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

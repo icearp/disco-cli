@@ -150,6 +150,7 @@ func (c iamCredCase) scan(t *testing.T, st *store.Store, users []childParent, h 
 }
 
 func TestScanIAMUserCredentials_StoresEveryPageOfEveryUser(t *testing.T) {
+	t.Parallel()
 	for _, c := range iamCredCases {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -186,6 +187,7 @@ func TestScanIAMUserCredentials_StoresEveryPageOfEveryUser(t *testing.T) {
 }
 
 func TestScanIAMUserCredentials_Empty(t *testing.T) {
+	t.Parallel()
 	for _, c := range iamCredCases {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -201,6 +203,7 @@ func TestScanIAMUserCredentials_Empty(t *testing.T) {
 // and drops only the denied users; any other error fails the phase. The
 // served users' id-less elements add one warning to each count.
 func TestScanIAMUserCredentials_PerUserErrors(t *testing.T) {
+	t.Parallel()
 	for _, c := range iamCredCases {
 		t.Run(c.op+"/gone", func(t *testing.T) {
 			st := newTestStore(t)
@@ -241,6 +244,7 @@ func TestScanIAMUserCredentials_PerUserErrors(t *testing.T) {
 // marker it was sent ends the loop instead of spinning, keeps the rows read
 // and fails the listing as incomplete.
 func TestScanIAMServiceSpecificCredentials_RepeatedMarkerKeepsRowsAndFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	c := iamCredCases[0]
 	var calls atomic.Int32
@@ -258,6 +262,7 @@ func TestScanIAMServiceSpecificCredentials_RepeatedMarkerKeepsRowsAndFails(t *te
 
 // The signing certificate body is a public certificate and is stored verbatim.
 func TestScanIAMSigningCertificates_KeepsCertificateBody(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	c := iamCredCases[1]
 	var calls parentCalls
@@ -325,6 +330,7 @@ func scanIAMTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in 
 // scan stored only. Every handler returns the same ids for a user, so the rows
 // of one kind would merge into another's if their NativeIDs could coincide.
 func TestScanIAM_StoresPerUserCredentialsApartPerKind(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if err := scanIAMTopLevel(t, st, iamTopLevelHandlers(nil)); err != nil {
 		t.Fatalf("scanIAM: %v", err)
@@ -341,6 +347,7 @@ func TestScanIAM_StoresPerUserCredentialsApartPerKind(t *testing.T) {
 // Each new phase runs after the access-key phase and whatever it or its
 // siblings return; the failed phase's error surfaces from scanIAM.
 func TestScanIAM_CredentialPhaseFailureKeepsOtherPhases(t *testing.T) {
+	t.Parallel()
 	failedOps := []string{"ListAccessKeys"}
 	for _, c := range iamCredCases {
 		failedOps = append(failedOps, c.op)
@@ -413,6 +420,7 @@ func scanIAMDelegationWith(t *testing.T, st *store.Store, h func(in any) (any, e
 }
 
 func TestScanIAMDelegationRequests_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "iam:ListDelegationRequests")
 	var inputs []iam.ListDelegationRequestsInput
@@ -447,6 +455,7 @@ func TestScanIAMDelegationRequests_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanIAMDelegationRequests_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanIAMDelegationWith(t, st, func(any) (any, error) { return iamTestDelegationPage(nil), nil })
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeIAMDelegationRequest)) != 0 {
@@ -455,6 +464,7 @@ func TestScanIAMDelegationRequests_Empty(t *testing.T) {
 }
 
 func TestScanIAMDelegationRequests_AccessDeniedWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "iam:ListDelegationRequests")
 	total, _, err := scanIAMDelegationWith(t, st, func(any) (any, error) { return nil, iamDenied })
@@ -467,6 +477,7 @@ func TestScanIAMDelegationRequests_AccessDeniedWarns(t *testing.T) {
 // but an unfiltered listing names no entity that could be missing. A failure on
 // a later page keeps the rows already stored.
 func TestScanIAMDelegationRequests_OtherErrorsFail(t *testing.T) {
+	t.Parallel()
 	for _, failure := range []*smithy.GenericAPIError{iamFailure, iamGone} {
 		t.Run(failure.Code+"/first-page", func(t *testing.T) {
 			st := newTestStore(t)
@@ -492,6 +503,7 @@ func TestScanIAMDelegationRequests_OtherErrorsFail(t *testing.T) {
 // ListDelegationRequests has no SDK paginator: a page repeating the marker it
 // was sent fails the phase rather than looping or passing as complete.
 func TestScanIAMDelegationRequests_RepeatedMarkerFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls atomic.Int32
 	total, _, err := scanIAMDelegationWith(t, st, func(any) (any, error) {
@@ -509,6 +521,7 @@ func TestScanIAMDelegationRequests_RepeatedMarkerFails(t *testing.T) {
 // The delegation-request phase depends on no other phase: a phase-1 failure
 // does not cost it its rows, and its failure costs no other phase its rows.
 func TestScanIAM_DelegationRequestsRunLastAndFailAlone(t *testing.T) {
+	t.Parallel()
 	t.Run("stored despite a phase-1 failure", func(t *testing.T) {
 		st := newTestStore(t)
 		handlers := iamTopLevelHandlers(map[string]error{"GetAccountAuthorizationDetails": iamFailure})
@@ -544,6 +557,7 @@ func TestScanIAM_DelegationRequestsRunLastAndFailAlone(t *testing.T) {
 // A transient error in one phase is demoted to a warning, so another phase's
 // hard error still classifies the service as failed, whichever side throttles.
 func TestScanIAM_TransientPhaseDoesNotMaskHardFailure(t *testing.T) {
+	t.Parallel()
 	throttled := &smithy.GenericAPIError{Code: "Throttling", Message: "Rate exceeded"}
 	for _, c := range []struct{ transientOp, hardOp, warnedAs string }{
 		{"ListAccessKeys", "ListDelegationRequests", "iam:ListAccessKeys"},
@@ -571,6 +585,7 @@ func TestScanIAM_TransientPhaseDoesNotMaskHardFailure(t *testing.T) {
 // A lone transient phase failure reaches the dispatcher as transient, so the
 // scan is marked partial instead of reading as complete.
 func TestScanIAM_LoneTransientPhaseMarksPartial(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListInstanceProfiles", "ListSSHPublicKeys", "ListDelegationRequests"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -587,6 +602,7 @@ func TestScanIAM_LoneTransientPhaseMarksPartial(t *testing.T) {
 // A phase-1 failure costs the per-user phases nothing: they run over the
 // users phase 1 stored, and the failure is still returned.
 func TestScanIAM_PhaseOneFailureKeepsPerUserPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	err := scanIAMTopLevel(t, st, iamTopLevelHandlers(map[string]error{"ListInstanceProfiles": iamFailure}))
 	assertAPICode(t, err, "ServiceFailure")
@@ -606,6 +622,7 @@ func TestScanIAM_PhaseOneFailureKeepsPerUserPhases(t *testing.T) {
 // A phase-1 failure does not cancel its siblings: GAAD, still in flight when
 // ListInstanceProfiles fails, stores its users.
 func TestScanIAM_PhaseOneFailureDoesNotCancelSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	failed := make(chan struct{})
 	handlers := iamTopLevelHandlers(nil)
@@ -639,6 +656,7 @@ func TestScanIAM_PhaseOneFailureDoesNotCancelSiblings(t *testing.T) {
 // page of it, is stored before the hard error is returned. A user gone since
 // GAAD is skipped silently; a throttled or denied user warns.
 func TestScanIAMAccessKeys_PerUserOutcomes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "iam:ListAccessKeys")
 	client := iam.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
@@ -684,6 +702,7 @@ func TestScanIAMAccessKeys_PerUserOutcomes(t *testing.T) {
 // A user's keys read before a later page failed are stored, and the failure
 // is returned.
 func TestScanIAMAccessKeys_KeepsKeysReadBeforeFailedPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := iam.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
 		"ListAccessKeys": func(in any) (any, error) {
@@ -707,6 +726,7 @@ func TestScanIAMAccessKeys_KeepsKeysReadBeforeFailedPage(t *testing.T) {
 // a keyless NativeID but warned about once, naming its user, while the user's
 // other keys are stored.
 func TestScanIAMAccessKeys_KeyWithoutIDNotStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := recordWarnings(st)
 	client := iam.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
@@ -829,6 +849,7 @@ func (c iamProviderCase) scan(st *store.Store, names []string, fail map[string]e
 // Each provider is stored from its Get body, tags included; a list entry with
 // no ARN is not stored and warns once.
 func TestScanIAMProviders_StoresGetBody(t *testing.T) {
+	t.Parallel()
 	for _, c := range iamProviderCases {
 		t.Run(c.typ, func(t *testing.T) {
 			st := newTestStore(t)
@@ -871,6 +892,7 @@ func TestScanIAMProviders_StoresGetBody(t *testing.T) {
 // since it was listed is skipped silently; denied ones are not stored and warn
 // once; any other error is returned after the rest are stored.
 func TestScanIAMProviders_PerProviderOutcomes(t *testing.T) {
+	t.Parallel()
 	for _, c := range iamProviderCases {
 		t.Run(c.typ, func(t *testing.T) {
 			st := newTestStore(t)
@@ -909,6 +931,7 @@ func assertOneDenialWarning(t *testing.T, warned []store.ScanWarning, op, firstK
 // A throttled read is returned, not warned about: the provider has no row to
 // keep, so the scan must be marked partial.
 func TestScanIAMProviders_TransientReadReturned(t *testing.T) {
+	t.Parallel()
 	throttled := &smithy.GenericAPIError{Code: "Throttling", Message: "Rate exceeded"}
 	for _, c := range iamProviderCases {
 		t.Run(c.typ, func(t *testing.T) {
@@ -927,6 +950,7 @@ func TestScanIAMProviders_TransientReadReturned(t *testing.T) {
 // A scan cancelled after the listing reads no provider and says so, rather
 // than passing as a complete, empty one.
 func TestScanIAMProviders_CancelledAfterListFails(t *testing.T) {
+	t.Parallel()
 	for _, c := range iamProviderCases {
 		t.Run(c.typ, func(t *testing.T) {
 			st := newTestStore(t)
@@ -948,6 +972,7 @@ func TestScanIAMProviders_CancelledAfterListFails(t *testing.T) {
 }
 
 func TestScanIAMProviders_ListErrors(t *testing.T) {
+	t.Parallel()
 	for _, c := range iamProviderCases {
 		scan := func(t *testing.T, st *store.Store, listErr error) (int, error) {
 			t.Helper()
@@ -973,6 +998,7 @@ func TestScanIAMProviders_ListErrors(t *testing.T) {
 }
 
 func TestScanIAMProviders_Empty(t *testing.T) {
+	t.Parallel()
 	for _, c := range iamProviderCases {
 		t.Run(c.typ, func(t *testing.T) {
 			st := newTestStore(t)

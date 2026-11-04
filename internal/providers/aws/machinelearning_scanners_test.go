@@ -170,6 +170,7 @@ func mlWarnings(st *store.Store) map[string]int {
 }
 
 func TestScanMachineLearning_TwoPagesStored(t *testing.T) {
+	t.Parallel()
 	for _, k := range mlKinds {
 		t.Run(k.kind, func(t *testing.T) {
 			var calls mlCalls
@@ -222,6 +223,7 @@ func TestScanMachineLearning_TwoPagesStored(t *testing.T) {
 }
 
 func TestScanMachineLearning_EmptyStoresNothing(t *testing.T) {
+	t.Parallel()
 	var calls mlCalls
 	st := newTestStore(t)
 	warns := mlWarnings(st)
@@ -250,6 +252,7 @@ var mlClosedAnswers = []struct{ name, msg string }{
 // A closed answer to the gate ends the scan as not entitled, silently, before
 // any phase runs.
 func TestScanMachineLearning_ClosedAccountNotEntitled(t *testing.T) {
+	t.Parallel()
 	for _, c := range mlClosedAnswers {
 		t.Run(c.name, func(t *testing.T) {
 			var calls mlCalls
@@ -282,6 +285,7 @@ func TestScanMachineLearning_ClosedAccountNotEntitled(t *testing.T) {
 // A closed answer on one phase after the gate passed skips that phase silently
 // and keeps the others.
 func TestScanMachineLearning_ClosedPhaseSkippedSilently(t *testing.T) {
+	t.Parallel()
 	for _, c := range mlClosedAnswers {
 		t.Run(c.name, func(t *testing.T) {
 			var calls mlCalls
@@ -310,6 +314,7 @@ func TestScanMachineLearning_ClosedPhaseSkippedSilently(t *testing.T) {
 // A gate denial that matches neither closed shape is an IAM denial: the scan
 // goes on, and the phase that hits it warns once.
 func TestScanMachineLearning_GateIAMDenialNotClosed(t *testing.T) {
+	t.Parallel()
 	var calls mlCalls
 	st := newTestStore(t)
 	warns := mlWarnings(st)
@@ -330,6 +335,7 @@ func TestScanMachineLearning_GateIAMDenialNotClosed(t *testing.T) {
 }
 
 func TestScanMachineLearning_DeniedPhaseWarnsAndOthersRun(t *testing.T) {
+	t.Parallel()
 	for _, k := range mlKinds {
 		t.Run(k.kind, func(t *testing.T) {
 			var calls mlCalls
@@ -359,6 +365,7 @@ func TestScanMachineLearning_DeniedPhaseWarnsAndOthersRun(t *testing.T) {
 // InvalidInputException is a real client error, never a closed signal: the
 // phase fails, the other phases still store and count their rows.
 func TestScanMachineLearning_UnmodelledSkipFailsPhase(t *testing.T) {
+	t.Parallel()
 	for _, k := range mlKinds {
 		t.Run(k.kind, func(t *testing.T) {
 			var calls mlCalls
@@ -390,6 +397,7 @@ func TestScanMachineLearning_UnmodelledSkipFailsPhase(t *testing.T) {
 // A throttle on one phase is demoted to a warning, so the joined error still
 // classifies as the other phase's hard error.
 func TestScanMachineLearning_ThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	var calls mlCalls
 	st := newTestStore(t)
 	warns := mlWarnings(st)
@@ -410,6 +418,7 @@ func TestScanMachineLearning_ThrottleDemotedBesideHardError(t *testing.T) {
 }
 
 func TestScanMachineLearning_LaterPageErrorKeepsEarlierRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls mlCalls
 	h := mlHandlers(t, &calls, nil, nil)
@@ -434,6 +443,7 @@ func TestScanMachineLearning_LaterPageErrorKeepsEarlierRows(t *testing.T) {
 }
 
 func TestScanMachineLearning_RepeatedNextTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls mlCalls
 	h := mlHandlers(t, &calls, nil, nil)
@@ -460,6 +470,7 @@ func TestScanMachineLearning_RepeatedNextTokenFails(t *testing.T) {
 // The SDK endpoint table lists two regions; the generated table must keep
 // every other region out of dispatch.
 func TestScanMachineLearning_RegionsScoped(t *testing.T) {
+	t.Parallel()
 	if got := regions.ServiceRegions("aws:machinelearning"); !slices.Equal(got, []string{"eu-west-1", "us-east-1"}) {
 		t.Errorf("ServiceRegions = %v, want [eu-west-1 us-east-1]", got)
 	}

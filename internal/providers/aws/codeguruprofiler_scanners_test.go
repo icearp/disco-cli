@@ -15,6 +15,7 @@ import (
 // the Tags of its ListProfilingGroups description, and that an untagged group
 // stores none.
 func TestScanCodeGuruProfiler_ReadsTags(t *testing.T) {
+	t.Parallel()
 	const (
 		tagged   = "arn:aws:codeguru-profiler:us-east-1:123456789012:profilingGroup/g1"
 		untagged = "arn:aws:codeguru-profiler:us-east-1:123456789012:profilingGroup/g2"
@@ -59,6 +60,7 @@ func TestScanCodeGuruProfiler_ReadsTags(t *testing.T) {
 // ListProfilingGroups page after the first keeps the groups already read: a
 // denial warns once and returns nil, any other error is returned.
 func TestScanCodeGuruProfiler_LaterPageFailsKeepsRows(t *testing.T) {
+	t.Parallel()
 	const first = "arn:aws:codeguru-profiler:us-east-1:123456789012:profilingGroup/g1"
 	for _, c := range []struct {
 		name      string
@@ -108,6 +110,7 @@ func TestScanCodeGuruProfiler_LaterPageFailsKeepsRows(t *testing.T) {
 // service repeats its NextToken returns errRepeatedNextToken with the groups
 // of both pages stored.
 func TestScanCodeGuruProfiler_RepeatedTokenKeepsRows(t *testing.T) {
+	t.Parallel()
 	handlers := map[string]func(in any) (any, error){
 		"ListProfilingGroups": func(in any) (any, error) {
 			name := "g1"
@@ -135,6 +138,7 @@ func TestScanCodeGuruProfiler_RepeatedTokenKeepsRows(t *testing.T) {
 // page is denied and storing the groups already read fails, the write error is
 // returned and no denial warning claims the groups were handled.
 func TestScanCodeGuruProfiler_DeniedLaterPageWriteFails(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	handlers := map[string]func(in any) (any, error){
 		"ListProfilingGroups": func(in any) (any, error) {
@@ -162,6 +166,7 @@ func TestScanCodeGuruProfiler_DeniedLaterPageWriteFails(t *testing.T) {
 // TestScanCodeGuruProfiler_EmptyARNWarnsOnce pins that listed groups with no
 // ARN are not stored and warn once, beside the stored group.
 func TestScanCodeGuruProfiler_EmptyARNWarnsOnce(t *testing.T) {
+	t.Parallel()
 	handlers := map[string]func(in any) (any, error){
 		"ListProfilingGroups": func(any) (any, error) {
 			return &codeguruprofiler.ListProfilingGroupsOutput{ProfilingGroups: []cgptypes.ProfilingGroupDescription{
@@ -191,6 +196,7 @@ func TestScanCodeGuruProfiler_EmptyARNWarnsOnce(t *testing.T) {
 // the groups fails, ErrStoreWrite is returned and the id-less group does not
 // warn.
 func TestScanCodeGuruProfiler_WriteFailsNoEmptyARNWarning(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	handlers := map[string]func(in any) (any, error){
 		"ListProfilingGroups": func(any) (any, error) {

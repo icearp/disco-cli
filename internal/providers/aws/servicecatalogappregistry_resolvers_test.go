@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveSCARAttributeGroupAssocRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -29,6 +30,7 @@ func TestResolveSCARAttributeGroupAssocRefs(t *testing.T) {
 }
 
 func TestResolveSCARResourceAssocApplication(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

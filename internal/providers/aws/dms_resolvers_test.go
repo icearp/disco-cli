@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveDMSEndpointRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	certARN := fmt.Sprintf("arn:aws:dms:%s:%s:cert:abc", testRegion, acct.ID)
@@ -26,6 +27,7 @@ func TestResolveDMSEndpointRefs(t *testing.T) {
 }
 
 func TestResolveDMSReplicationInstanceRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rsgARN := dmsReplicationSubnetGroupARNFromName("aws", testRegion, acct.ID, "default")
@@ -44,6 +46,7 @@ func TestResolveDMSReplicationInstanceRefs(t *testing.T) {
 }
 
 func TestResolveDMSReplicationSubnetGroupRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
@@ -62,6 +65,7 @@ func TestResolveDMSReplicationSubnetGroupRefs(t *testing.T) {
 }
 
 func TestResolveDMSReplicationTaskRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	riARN := fmt.Sprintf("arn:aws:dms:%s:%s:rep:r1", testRegion, acct.ID)
@@ -80,6 +84,7 @@ func TestResolveDMSReplicationTaskRefs(t *testing.T) {
 }
 
 func TestResolveDMSMigrationProjectRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ipARN := fmt.Sprintf("arn:aws:dms:%s:%s:instance-profile:ip1", testRegion, acct.ID)
@@ -98,6 +103,7 @@ func TestResolveDMSMigrationProjectRefs(t *testing.T) {
 }
 
 func TestResolveDMSEventSubscriptionTopic(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tARN := fmt.Sprintf("arn:aws:sns:%s:%s:dms-events", testRegion, acct.ID)

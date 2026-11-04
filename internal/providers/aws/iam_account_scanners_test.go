@@ -61,6 +61,7 @@ func (s stubIAMAccountAPI) GetAccountPasswordPolicy(context.Context, *iam.GetAcc
 // the canonical natural key with summary/alias/password-policy attrs, and that
 // the alias becomes the row name.
 func TestScanIAMAccount_PopulatesSelfNode(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	minLen := int32(14)
 	client := stubIAMAccountAPI{
@@ -96,6 +97,7 @@ func TestScanIAMAccount_PopulatesSelfNode(t *testing.T) {
 // policy (NoSuchEntity) still upserts a self-node — without a PasswordPolicy
 // attribute — and falls back to the account ID as name when no alias exists.
 func TestScanIAMAccount_NoPasswordPolicy(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := stubIAMAccountAPI{
 		summary: map[string]int32{"Users": 0},
@@ -141,6 +143,7 @@ func iamAccountAttrs(t *testing.T, st *store.Store) map[string]json.RawMessage {
 // scan, so the row an earlier scan stored keeps the key; the failure is
 // returned under its op, so the scan is partial.
 func TestScanIAMAccount_FailedReadWithholdsRow(t *testing.T) {
+	t.Parallel()
 	throttled := &smithy.GenericAPIError{Code: "Throttling", Message: "Rate exceeded"}
 	full := stubIAMAccountAPI{
 		summary:  map[string]int32{"Users": 1},
@@ -187,6 +190,7 @@ func TestScanIAMAccount_FailedReadWithholdsRow(t *testing.T) {
 // A denied read keeps the row without the denied key and warns once; the scan
 // is not failed.
 func TestScanIAMAccount_DeniedReadKeepsRow(t *testing.T) {
+	t.Parallel()
 	denied := &smithy.GenericAPIError{Code: "AccessDenied", Message: "is not authorized to perform: iam:GetAccountPasswordPolicy"}
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "iam:GetAccountPasswordPolicy")
@@ -212,6 +216,7 @@ func TestScanIAMAccount_DeniedReadKeepsRow(t *testing.T) {
 // Beside another phase's hard error, each failed account read is demoted to a
 // warning under its own op, not under the scanner's first op.
 func TestScanIAMAccount_ErrorsLabelledByOwnOp(t *testing.T) {
+	t.Parallel()
 	throttled := &smithy.GenericAPIError{Code: "Throttling", Message: "Rate exceeded"}
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)

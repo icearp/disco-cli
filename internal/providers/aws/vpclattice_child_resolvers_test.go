@@ -22,6 +22,7 @@ func vlTargetGroupAttrs(tgARN string, typ vltypes.TargetGroupType) string {
 }
 
 func TestResolveVPCLatticeSNVpcEndpointAssocs_EndpointAndVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpceID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCEndpoint, ec2ARN(testRegion, acct.ID, "vpc-endpoint", "vpce-1"), testRegion, "{}")
@@ -45,6 +46,7 @@ func TestResolveVPCLatticeSNVpcEndpointAssocs_EndpointAndVPC(t *testing.T) {
 }
 
 func TestResolveVPCLatticeSNVpcEndpointAssocs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCEndpoint, ec2ARN(testRegion, acct.ID, "vpc-endpoint", "vpce-1"), testRegion, "{}")
@@ -58,6 +60,7 @@ func TestResolveVPCLatticeSNVpcEndpointAssocs_NoAttrs(t *testing.T) {
 }
 
 func TestResolveVPCLatticeSNVpcEndpointAssocs_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpceID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCEndpoint, ec2ARN(testRegion, acct.ID, "vpc-endpoint", "vpce-1"), testRegion, "{}")
@@ -102,6 +105,7 @@ func vlTarget(t *testing.T, st *store.Store, tgARN, id string, port *int32) stri
 }
 
 func TestResolveVPCLatticeTargets_ByTargetGroupType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	instID, fnID, albID := vlTargetFixture(t, st, acct)
@@ -142,6 +146,7 @@ func TestResolveVPCLatticeTargets_ByTargetGroupType(t *testing.T) {
 }
 
 func TestResolveVPCLatticeTargets_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vlTargetFixture(t, st, acct)
@@ -155,6 +160,7 @@ func TestResolveVPCLatticeTargets_NoAttrs(t *testing.T) {
 }
 
 func TestResolveVPCLatticeTargets_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		seed func(t *testing.T, st *store.Store)
@@ -183,6 +189,7 @@ func TestResolveVPCLatticeTargets_DecodeErrorKeepsOtherEdges(t *testing.T) {
 }
 
 func TestResolveVPCLatticeTargets_MalformedNativeIDReturnsError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	instID, _, _ := vlTargetFixture(t, st, acct)

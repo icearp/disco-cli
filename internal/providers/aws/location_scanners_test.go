@@ -91,6 +91,7 @@ func scanLocGeofences(t *testing.T, st *store.Store, handler func(in any) (any, 
 }
 
 func TestScanLocationGeofences_StoresEveryPageOfEveryCollection(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls, sizes parentCalls
 	total, err := scanLocGeofences(t, st, locGeofenceHandler(&calls, &sizes, nil), "c1", "c2")
@@ -132,6 +133,7 @@ func TestScanLocationGeofences_StoresEveryPageOfEveryCollection(t *testing.T) {
 }
 
 func TestScanLocationGeofences_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanLocGeofences(t, st, func(any) (any, error) { return &location.ListGeofencesOutput{}, nil }, "c1")
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeLocationGeofence)) != 0 {
@@ -142,6 +144,7 @@ func TestScanLocationGeofences_Empty(t *testing.T) {
 // A collection deleted after it was listed is skipped silently; a denial warns
 // once for the op and keeps the other collections; any other error fails.
 func TestScanLocationGeofences_FailedCollection(t *testing.T) {
+	t.Parallel()
 	t.Run("gone", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, "geo:ListGeofences")
@@ -182,6 +185,7 @@ func TestScanLocationGeofences_FailedCollection(t *testing.T) {
 // geofence stored, linked and counted, whether the failure is a denial (warned,
 // nil error) or any other error (returned).
 func TestScanLocationGeofences_FailedSecondPageKeepsFirstPage(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		err      error
@@ -235,6 +239,7 @@ func locTopLevelHandlers(calls *parentCalls) map[string]func(in any) (any, error
 }
 
 func TestScanLocation_StoresGeofencesOfListedCollections(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var calls parentCalls
@@ -255,6 +260,7 @@ func TestScanLocation_StoresGeofencesOfListedCollections(t *testing.T) {
 }
 
 func TestScanLocation_CallsGoToScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var calls, regions parentCalls
@@ -276,6 +282,7 @@ func TestScanLocation_CallsGoToScannedRegion(t *testing.T) {
 // The geofence phase runs after every pre-existing phase, and its hard error
 // reaches the caller with the earlier phases' counts.
 func TestScanLocation_GeofenceErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var calls parentCalls

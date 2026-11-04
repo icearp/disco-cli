@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveBACGatewayChildParents(t *testing.T) {
+	t.Parallel()
 	gw1 := bacARN("aws", testRegion, testAccountID, "gateway", "gw-1")
 	gw2 := bacARN("aws", testRegion, testAccountID, "gateway", "gw-1x")
 	cases := []struct {

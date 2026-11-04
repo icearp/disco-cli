@@ -34,6 +34,7 @@ import (
 // every existing commercial row a new ResourceID. The aws-cn column, in cn-north-1,
 // proves the partition argument reaches the output instead of being ignored.
 func TestPartitionARNBuilders_CommercialUnchanged(t *testing.T) {
+	t.Parallel()
 	const acct = "123456789012"
 	cases := []struct {
 		name       string
@@ -100,12 +101,14 @@ func TestPartitionARNBuilders_CommercialUnchanged(t *testing.T) {
 }
 
 func TestArnFor(t *testing.T) {
+	t.Parallel()
 	if got, want := arnFor("aws-us-gov", "s3", "", "", "bucket"), "arn:aws-us-gov:s3:::bucket"; got != want {
 		t.Errorf("arnFor(aws-us-gov, s3, \"\", \"\", bucket) = %q; want %q", got, want)
 	}
 }
 
 func TestPartitionOf(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in     string
 		want   string
@@ -130,6 +133,7 @@ func TestPartitionOf(t *testing.T) {
 }
 
 func TestDNSSuffix(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in     string
 		want   string
@@ -152,6 +156,7 @@ func TestDNSSuffix(t *testing.T) {
 }
 
 func TestIsARNOf(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in, service string
 		want        bool
@@ -176,6 +181,7 @@ func TestIsARNOf(t *testing.T) {
 }
 
 func TestParseARN(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in     string
 		want   arn.ARN
@@ -196,6 +202,7 @@ func TestParseARN(t *testing.T) {
 }
 
 func TestS3BucketARNFromLocation(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:s3:::bucket", "arn:aws:s3:::bucket"},
 		{"arn:aws:s3:::bucket/prefix/", "arn:aws:s3:::bucket"},
@@ -218,6 +225,7 @@ func TestS3BucketARNFromLocation(t *testing.T) {
 }
 
 func TestHostRegion(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		partition, host, prefix string
 		want                    string
@@ -254,6 +262,7 @@ func TestHostRegion(t *testing.T) {
 // endpoint label, the per-label region check, the SDK's region-less hosts and
 // the aws-only accelerate fact.
 func TestS3HostBucket(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, partition, host, bucket string
 		ok                            bool
@@ -340,6 +349,7 @@ func TestS3HostBucket(t *testing.T) {
 }
 
 func TestECRImageRepoARN(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ partition, in, want string }{
 		{"aws", "123456789012.dkr.ecr.us-east-1.amazonaws.com/myapp:latest", "arn:aws:ecr:us-east-1:123456789012:repository/myapp"},
 		{"aws", "123456789012.dkr.ecr.us-east-1.amazonaws.com/team/myapp:v1", "arn:aws:ecr:us-east-1:123456789012:repository/team/myapp"},
@@ -366,6 +376,7 @@ func TestECRImageRepoARN(t *testing.T) {
 // store.ResourceID, so a format change silently breaks all relationships
 // referencing EC2 resources.
 func TestEC2ARNIn_Commercial(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		region, account, rtype, id, want string
 	}{
@@ -392,6 +403,7 @@ func TestEC2ARNIn_Commercial(t *testing.T) {
 }
 
 func TestRDSARNIn_Commercial(t *testing.T) {
+	t.Parallel()
 	got := rdsARNIn("aws", "us-east-1", "123456789012", "db", "mydb")
 	want := "arn:aws:rds:us-east-1:123456789012:db:mydb"
 	if got != want {
@@ -400,6 +412,7 @@ func TestRDSARNIn_Commercial(t *testing.T) {
 }
 
 func TestAPIGatewayARNIn_Commercial(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name string
 		in   []string
@@ -419,6 +432,7 @@ func TestAPIGatewayARNIn_Commercial(t *testing.T) {
 }
 
 func TestLogGroupARNIn_Commercial(t *testing.T) {
+	t.Parallel()
 	got := logGroupARNIn("aws", "123456789012", "us-east-1", "/aws/lambda/foo")
 	want := "arn:aws:logs:us-east-1:123456789012:log-group:/aws/lambda/foo"
 	if got != want {
@@ -427,6 +441,7 @@ func TestLogGroupARNIn_Commercial(t *testing.T) {
 }
 
 func TestMacieSessionNativeIDIn_Commercial(t *testing.T) {
+	t.Parallel()
 	got := macieSessionNativeIDIn("aws", "123456789012", "us-east-1")
 	want := "arn:aws:macie2:us-east-1:123456789012:session"
 	if got != want {
@@ -435,6 +450,7 @@ func TestMacieSessionNativeIDIn_Commercial(t *testing.T) {
 }
 
 func TestSSOAssignmentNativeID(t *testing.T) {
+	t.Parallel()
 	psArn := "arn:aws:sso:::permissionSet/ssoins-1/ps-2"
 	got := ssoAssignmentNativeID(psArn, "111122223333", "USER", "u-1")
 	want := psArn + "/account/111122223333/USER/u-1"
@@ -444,6 +460,7 @@ func TestSSOAssignmentNativeID(t *testing.T) {
 }
 
 func TestIdentityStoreNativeIDIn_Commercial(t *testing.T) {
+	t.Parallel()
 	if got, want := identityStoreUserNativeIDIn("aws", "123456789012", "d-9067", "u-1"),
 		"arn:aws:identitystore::123456789012:user/d-9067/u-1"; got != want {
 		t.Errorf("identityStoreUserNativeIDIn(aws, …) = %q, want %q", got, want)
@@ -527,6 +544,7 @@ func onlyRow(t *testing.T, st *store.Store, typ string) store.Resource {
 }
 
 func TestEC2ARNIn_ScannerUsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -544,6 +562,7 @@ func TestEC2ARNIn_ScannerUsesAccountPartition(t *testing.T) {
 }
 
 func TestEC2ARNIn_ResolverUsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -562,6 +581,7 @@ func TestEC2ARNIn_ResolverUsesAccountPartition(t *testing.T) {
 }
 
 func TestEC2ARNIn_RouteTargetUsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -584,6 +604,7 @@ func TestEC2ARNIn_RouteTargetUsesAccountPartition(t *testing.T) {
 // CloudFormation returns; each target NativeID is built the way its scanner
 // builds it (the SDK ARN for RDS and Logs).
 func TestCloudFormationStackResources_PartitionBindings(t *testing.T) {
+	t.Parallel()
 	type target struct{ typ, nativeID string }
 	cases := []struct {
 		cfnType, physID string
@@ -644,6 +665,7 @@ func TestCloudFormationStackResources_PartitionBindings(t *testing.T) {
 
 // The instance's NativeID is the DBInstanceArn RDS returns.
 func TestRDSARNIn_ResolverUsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -660,6 +682,7 @@ func TestRDSARNIn_ResolverUsesAccountPartition(t *testing.T) {
 }
 
 func TestAPIGatewayARNIn_ResolverUsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -681,6 +704,7 @@ func TestAPIGatewayARNIn_ResolverUsesAccountPartition(t *testing.T) {
 // The subscription's NativeID comes from dsDirectoryARN, the builder the
 // Directory Service scanner uses.
 func TestLogGroupARNIn_DSLogSubscriptionUsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -699,6 +723,7 @@ func TestLogGroupARNIn_DSLogSubscriptionUsesAccountPartition(t *testing.T) {
 }
 
 func TestMacieSessionNativeIDIn_ScannerUsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -718,6 +743,7 @@ func TestMacieSessionNativeIDIn_ScannerUsesAccountPartition(t *testing.T) {
 // Users, groups and memberships come from the real scanner; the membership
 // resolver must reach the user and group rows it stored.
 func TestIdentityStoreNativeIDIn_MembershipEdgesUseAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -764,6 +790,7 @@ func TestIdentityStoreNativeIDIn_MembershipEdgesUseAccountPartition(t *testing.T
 // Both rows come from their real scanners, and the key store's synthetic
 // NativeID need not share the cluster's partition for the edge to form.
 func TestCloudHSMClusterARNIn_KMSKeyStoreReachesScannedCluster(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -801,6 +828,7 @@ func TestCloudHSMClusterARNIn_KMSKeyStoreReachesScannedCluster(t *testing.T) {
 // Both rows come from their real scanners; the classic load balancer's
 // synthetic NativeID need not share the VPC's partition for the edge to form.
 func TestEC2ARNIn_ClassicELBReachesScannedVPC(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)

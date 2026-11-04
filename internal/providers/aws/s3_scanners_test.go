@@ -42,7 +42,7 @@ func s3StubConfig(handlers map[string]func(region string, in any) (any, error)) 
 					return smithymw.InitializeOutput{}, smithymw.Metadata{}, s3Denied
 				}
 				out, err := h(awsmw.GetRegion(ctx), in.Parameters)
-				return smithymw.InitializeOutput{Result: out}, smithymw.Metadata{}, err
+				return smithymw.InitializeOutput{Result: freshOutput(out)}, smithymw.Metadata{}, err
 			}), smithymw.After)
 	}
 	return cfgWithStub(stub, testRegion)
@@ -191,6 +191,7 @@ func runS3ConfigKind(t *testing.T, k s3ConfigKind, list func(bucket string, toke
 }
 
 func TestScanS3BucketConfigs_StoresEveryPageInHomeRegion(t *testing.T) {
+	t.Parallel()
 	for _, k := range s3ConfigKinds {
 		t.Run(k.op, func(t *testing.T) {
 			run := runS3ConfigKind(t, k, func(bucket string, token *string) (any, error) {
@@ -239,6 +240,7 @@ func TestScanS3BucketConfigs_StoresEveryPageInHomeRegion(t *testing.T) {
 }
 
 func TestScanS3BucketConfigs_Status(t *testing.T) {
+	t.Parallel()
 	for _, k := range s3ConfigKinds {
 		t.Run(k.op, func(t *testing.T) {
 			run := runS3ConfigKind(t, k, func(string, *string) (any, error) { return k.page([]string{"c"}, false, nil), nil })
@@ -258,6 +260,7 @@ func TestScanS3BucketConfigs_Status(t *testing.T) {
 }
 
 func TestScanS3BucketConfigs_Empty(t *testing.T) {
+	t.Parallel()
 	for _, k := range s3ConfigKinds {
 		t.Run(k.op, func(t *testing.T) {
 			run := runS3ConfigKind(t, k, func(string, *string) (any, error) { return k.page(nil, false, nil), nil })
@@ -273,6 +276,7 @@ func TestScanS3BucketConfigs_Empty(t *testing.T) {
 // configurations it read, and leaves its sibling bucket's configurations
 // stored.
 func TestScanS3BucketConfigs_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	for _, k := range s3ConfigKinds {
 		t.Run(k.op, func(t *testing.T) {
 			calls := map[string]int{}
@@ -300,6 +304,7 @@ func TestScanS3BucketConfigs_RepeatedTokenFails(t *testing.T) {
 // truncated with no continuation token fails with errTruncatedWithoutToken
 // instead of reading as the last page, and that its rows are kept.
 func TestScanS3BucketConfigs_TruncatedWithoutTokenFails(t *testing.T) {
+	t.Parallel()
 	for _, k := range s3ConfigKinds {
 		t.Run(k.op, func(t *testing.T) {
 			run := runS3ConfigKind(t, k, func(bucket string, _ *string) (any, error) {
@@ -330,6 +335,7 @@ func assertS3ConfigsStored(t *testing.T, st *store.Store, k s3ConfigKind, want .
 }
 
 func TestScanS3BucketConfigs_PerBucketErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name             string
 		eastErr, westErr error
@@ -375,6 +381,7 @@ func TestScanS3BucketConfigs_PerBucketErrors(t *testing.T) {
 }
 
 func TestS3HomedBuckets_LocationErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -445,6 +452,7 @@ func s3ServiceHandlers(failOp string) map[string]func(string, any) (any, error) 
 }
 
 func TestScanS3_StoresBucketConfigs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = s3StubConfig(s3ServiceHandlers(""))
@@ -469,6 +477,7 @@ func TestScanS3_StoresBucketConfigs(t *testing.T) {
 // A failing configuration op must leave the bucket, policy and encryption
 // phases' results in place and must not stop the other configuration kinds.
 func TestScanS3_ConfigFailureKeepsOtherPhases(t *testing.T) {
+	t.Parallel()
 	for _, failing := range s3ConfigKinds {
 		t.Run(failing.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -501,6 +510,7 @@ func TestScanS3_ConfigFailureKeepsOtherPhases(t *testing.T) {
 }
 
 func TestScanS3BucketConfigs_LegacyEULocationUsesEUWest1(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		mu      sync.Mutex
@@ -532,6 +542,7 @@ func TestScanS3BucketConfigs_LegacyEULocationUsesEUWest1(t *testing.T) {
 }
 
 func TestScanS3MetricsConfigs_NamesFilterMember(t *testing.T) {
+	t.Parallel()
 	metrics := s3ConfigKinds[3]
 	run := runS3ConfigKind(t, metrics, func(bucket string, _ *string) (any, error) {
 		if bucket != "b-east" {
@@ -586,6 +597,7 @@ var s3ForbiddenNoRegion = s3Answer(http.StatusForbidden, http.Header{}, nil)
 // unknown, never guessed. The legacy "EU" constraint is eu-west-1 and any
 // other is itself.
 func TestS3BucketRegion_PerPartition(t *testing.T) {
+	t.Parallel()
 	headOK := func(any) (any, error) { return &s3.HeadBucketOutput{BucketRegion: sdkaws.String("us-gov-east-1")}, nil }
 	headMoved := func(any) (any, error) {
 		return nil, s3Answer(http.StatusMovedPermanently, http.Header{"X-Amz-Bucket-Region": {"cn-north-1"}}, nil)
@@ -637,6 +649,7 @@ func TestS3BucketRegion_PerPartition(t *testing.T) {
 // raw, so the caller classifies it as it does every other per-bucket error: a
 // cancelled scan, a transient failure, a vanished bucket, or no HTTP answer.
 func TestS3BucketRegion_RawHeadBucketErrors(t *testing.T) {
+	t.Parallel()
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	cases := []struct {
@@ -669,6 +682,7 @@ func TestS3BucketRegion_RawHeadBucketErrors(t *testing.T) {
 // through the phase that reads it, so the scan is classified outcomeDeadline,
 // not a skipped bucket.
 func TestScanS3_HeadBucketDeadlineIsDeadline(t *testing.T) {
+	t.Parallel()
 	acct := testAccountIn("aws-us-gov")
 	h := s3ServiceHandlers("")
 	h["GetBucketLocation"] = func(string, any) (any, error) { return &s3.GetBucketLocationOutput{}, nil }
@@ -693,6 +707,7 @@ func TestScanS3_HeadBucketDeadlineIsDeadline(t *testing.T) {
 // NotFound) is skipped silently by the region lookup and the scan, as a
 // vanished bucket is everywhere else.
 func TestScanS3_HeadBucketGoneIsSilent(t *testing.T) {
+	t.Parallel()
 	acct := testAccountIn("aws-us-gov")
 	h := s3ServiceHandlers("")
 	h["GetBucketLocation"] = func(string, any) (any, error) { return &s3.GetBucketLocationOutput{}, nil }
@@ -727,6 +742,7 @@ func TestScanS3_HeadBucketGoneIsSilent(t *testing.T) {
 // warning naming it, and has no policy, encryption or configuration read;
 // a sibling bucket with a known region is read in full.
 func TestScanS3_UnknownRegionKeepsBucketSkipsReads(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "s3:HeadBucket")
 	acct := testAccountIn("aws-us-gov")
@@ -875,6 +891,7 @@ const s3FixtureTotal = 12
 // the base scan's Name, Region, CreatedAt and verbatim element, and the scan
 // reports no error or warning.
 func TestScanS3_StoresBucketTagsFromHomeRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	created := time.Date(2024, 5, 6, 7, 8, 9, 0, time.UTC)
@@ -922,6 +939,7 @@ func TestScanS3_StoresBucketTagsFromHomeRegion(t *testing.T) {
 // An aws-us-gov account stores its bucket under the gov ARN and reads its
 // tags in the gov region ListBuckets names.
 func TestScanS3_GovBucketTagsReadInGovRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	c := newS3TagCalls()
 	c.tags["b-gov"] = map[string]string{"env": "gov"}
@@ -948,6 +966,7 @@ func TestScanS3_GovBucketTagsReadInGovRegion(t *testing.T) {
 // An empty listing stores nothing, reads no tags or policies and reports
 // nothing.
 func TestScanS3_EmptyBucketListing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	c := newS3TagCalls()
@@ -963,6 +982,7 @@ func TestScanS3_EmptyBucketListing(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanS3_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, h := s3TagFixture()
 	if _, _, err := s3TagScan(t, st, h); err != nil {
@@ -980,6 +1000,7 @@ func TestScanS3_RescanInsertsNone(t *testing.T) {
 // models no error code, so NoSuchBucket (a bucket deleted after the listing)
 // is returned too.
 func TestScanS3_BucketTagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -1027,6 +1048,7 @@ func TestScanS3_BucketTagReadFailures(t *testing.T) {
 
 // Denied tag reads on several pages are one warning for the scan.
 func TestScanS3_BucketTagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, s3TagsOp)
 	calls, h := s3TagFixture()
@@ -1043,6 +1065,7 @@ func TestScanS3_BucketTagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanS3_BucketTagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, s3TagsOp)
 	calls, h := s3TagFixture()
@@ -1059,6 +1082,7 @@ func TestScanS3_BucketTagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed ListBuckets page keeps the buckets of the pages before it, with
 // their tags, and the later phases read those buckets only.
 func TestScanS3_BucketPageFailureKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls, h := s3TagFixture()
 	calls.tags["b-east"] = map[string]string{"page": "1"}
@@ -1085,6 +1109,7 @@ func TestScanS3_BucketPageFailureKeepsEarlierPages(t *testing.T) {
 // A ListBuckets page that repeats the token it was sent ends the listing
 // with errRepeatedNextToken, keeping the buckets of both pages.
 func TestScanS3_ListBucketsRepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newS3TagCalls()
 	h := calls.handlers()
@@ -1110,6 +1135,7 @@ func TestScanS3_ListBucketsRepeatedTokenFails(t *testing.T) {
 // A denied ListBuckets warns once under its op, stores nothing and reads no
 // bucket.
 func TestScanS3_DeniedListBucketsWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	listWarns := countOpWarnings(st, "s3:ListBuckets")
@@ -1128,6 +1154,7 @@ func TestScanS3_DeniedListBucketsWarns(t *testing.T) {
 // A failed bucket write stops the listing at that page, fails the scan with
 // store.ErrStoreWrite and sends no warning about the rows it lost.
 func TestScanS3_FailedBucketWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeS3Bucket)
@@ -1146,6 +1173,7 @@ func TestScanS3_FailedBucketWriteStopsWithoutWarning(t *testing.T) {
 // A bucket listed without a name is warned about once rather than stored
 // under the bare arn:aws:s3:::, and no later phase reads it.
 func TestScanS3_BucketWithoutNameWarnedNotStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	listWarns := countOpWarnings(st, "s3:ListBuckets")
@@ -1172,6 +1200,7 @@ func TestScanS3_BucketWithoutNameWarnedNotStored(t *testing.T) {
 // back to outside aws. No warning names a policy or encryption read that was
 // never sent.
 func TestScanS3_RegionLookupThrottleWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("Throttling", "slow down")
 	for _, c := range []struct {
 		name, partition, op string
@@ -1221,6 +1250,7 @@ func TestScanS3_RegionLookupThrottleWarnsUnderItsOp(t *testing.T) {
 // one that cannot reach S3. Its policy is still read from the region
 // GetBucketLocation names.
 func TestScanS3_BucketWithoutListedRegionFailsTagRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newS3TagCalls()
 	calls.tags["b-east"] = map[string]string{"env": "prod"}

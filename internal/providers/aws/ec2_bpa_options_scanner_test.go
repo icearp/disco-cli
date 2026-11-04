@@ -43,6 +43,7 @@ func (s *bpaOptionsStub) DescribeVpcBlockPublicAccessOptions(
 // reports a security control's state for a region that may have the opposite
 // setting.
 func TestScanVPCBlockPublicAccessOptions_PerRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	scanID := testScanID

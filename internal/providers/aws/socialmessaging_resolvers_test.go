@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveSocialMessagingPhoneNumberWABA(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -29,6 +30,7 @@ func TestResolveSocialMessagingPhoneNumberWABA(t *testing.T) {
 }
 
 func TestResolveSocialMessagingPhoneNumberWABA_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	phoneArn := "arn:aws:social-messaging:us-east-1:" + acct.ID + ":phone-number-id/phone-number-id-1"

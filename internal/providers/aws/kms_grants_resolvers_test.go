@@ -10,6 +10,7 @@ import (
 // TestResolveKMSGrants_RoleGrantee verifies a uses edge from a grant to the
 // IAM role named in GranteePrincipal.
 func TestResolveKMSGrants_RoleGrantee(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -33,6 +34,7 @@ func TestResolveKMSGrants_RoleGrantee(t *testing.T) {
 // TestResolveKMSGrants_UserAndRetiring verifies edges for both GranteePrincipal
 // (IAM user) and RetiringPrincipal (IAM role).
 func TestResolveKMSGrants_UserAndRetiring(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -59,6 +61,7 @@ func TestResolveKMSGrants_UserAndRetiring(t *testing.T) {
 // TestResolveKMSGrants_ServicePrincipal verifies no edge + no error for
 // service principals (non-ARN).
 func TestResolveKMSGrants_ServicePrincipal(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -81,6 +84,7 @@ func TestResolveKMSGrants_ServicePrincipal(t *testing.T) {
 // TestResolveKMSGrants_UnscannedPrincipal verifies FK-safe skip for cross-
 // account principals not present in the store.
 func TestResolveKMSGrants_UnscannedPrincipal(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -103,6 +107,7 @@ func TestResolveKMSGrants_UnscannedPrincipal(t *testing.T) {
 // TestResolveKMSGrants_EmptyAttrs verifies no panic/edges when neither
 // principal field is set.
 func TestResolveKMSGrants_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -118,6 +123,7 @@ func TestResolveKMSGrants_EmptyAttrs(t *testing.T) {
 // grant to the Lambda function named in
 // `Constraints.EncryptionContextEquals["aws:lambda:FunctionArn"]`.
 func TestResolveKMSGrantEncryptionContext_Lambda(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -141,6 +147,7 @@ func TestResolveKMSGrantEncryptionContext_Lambda(t *testing.T) {
 // TestResolveKMSGrantEncryptionContext_UnscannedFunction confirms FK-safe
 // skip when the named function has no row in the local store.
 func TestResolveKMSGrantEncryptionContext_UnscannedFunction(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -161,6 +168,7 @@ func TestResolveKMSGrantEncryptionContext_UnscannedFunction(t *testing.T) {
 // grant to the EC2 volume named (bare ID) under
 // `Constraints.EncryptionContextSubset["aws:ebs:id"]`.
 func TestResolveKMSGrantEncryptionContext_EBSVolume(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -184,6 +192,7 @@ func TestResolveKMSGrantEncryptionContext_EBSVolume(t *testing.T) {
 // A volume shared from another account is stored under the scanned account
 // but keyed by its owner's ARN; a grant naming its bare id still reaches it.
 func TestResolveKMSGrantEncryptionContext_SharedEBSVolume(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -209,6 +218,7 @@ func TestResolveKMSGrantEncryptionContext_SharedEBSVolume(t *testing.T) {
 
 // A volume grant in another region does not match a same-id volume here.
 func TestResolveKMSGrantEncryptionContext_EBSVolumeOtherRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeEC2Volume, ec2ARN(testRegion, acct.ID, "volume", "vol-abc"), testRegion, `{}`)
@@ -228,6 +238,7 @@ func TestResolveKMSGrantEncryptionContext_EBSVolumeOtherRegion(t *testing.T) {
 // A stored volume whose NativeID has no volume segment fails the resolver
 // rather than silently leaving every grant without its volume edge.
 func TestResolveKMSGrantEncryptionContext_MalformedVolumeNativeID(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeEC2Volume, "vol-bare", testRegion, `{}`)
@@ -242,6 +253,7 @@ func TestResolveKMSGrantEncryptionContext_MalformedVolumeNativeID(t *testing.T) 
 // TestResolveKMSGrantEncryptionContext_EBSVolumeUnscanned confirms FK-safe
 // skip when the named volume has no row in the local store.
 func TestResolveKMSGrantEncryptionContext_EBSVolumeUnscanned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -261,6 +273,7 @@ func TestResolveKMSGrantEncryptionContext_EBSVolumeUnscanned(t *testing.T) {
 // TestResolveKMSGrantEncryptionContext_EmptyConstraints confirms no panic and
 // no edges when the grant carries no Constraints block.
 func TestResolveKMSGrantEncryptionContext_EmptyConstraints(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

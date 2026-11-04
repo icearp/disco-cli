@@ -89,6 +89,7 @@ func runMQSharedResources(t *testing.T, st *store.Store, h func(any) (any, error
 }
 
 func TestScanMQSharedResources_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	noARN := mqSharedResource("ignored")
@@ -134,6 +135,7 @@ func TestScanMQSharedResources_PagesAndFields(t *testing.T) {
 }
 
 func TestScanMQSharedResources_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := runMQSharedResources(t, st, mqSharedHandler(&calls, nil, nil), mqBrokers(t, st, "b-1"))
@@ -149,6 +151,7 @@ func TestScanMQSharedResources_Empty(t *testing.T) {
 }
 
 func TestScanMQSharedResources_PerBrokerErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -192,6 +195,7 @@ func TestScanMQSharedResources_PerBrokerErrors(t *testing.T) {
 
 // A hard error on a broker's second page keeps its first page's rows.
 func TestScanMQSharedResources_HardErrorKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := runMQSharedResources(t, st, mqSharedHandler(&calls, map[string][][]mqtypes.SharedResource{
@@ -207,6 +211,7 @@ func TestScanMQSharedResources_HardErrorKeepsEarlierPages(t *testing.T) {
 
 // A NextToken that repeats the request's token ends the listing.
 func TestScanMQSharedResources_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls atomic.Int32
 	h := func(any) (any, error) {
@@ -262,6 +267,7 @@ func runScanMQ(st *store.Store, h map[string]func(any) (any, error)) (int, error
 }
 
 func TestScanMQ_SharedResourcesOfListedBrokers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := runScanMQ(st, mqTopLevelHandlers(&calls))
@@ -284,6 +290,7 @@ func TestScanMQ_SharedResourcesOfListedBrokers(t *testing.T) {
 // run even when ListConfigurations fails, and the shared-resource phase runs
 // after every older phase.
 func TestScanMQ_PhaseErrorsAreIndependent(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListConfigurations", "DescribeSharedResources"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -318,6 +325,7 @@ func TestScanMQ_PhaseErrorsAreIndependent(t *testing.T) {
 // shared-resource phase's hard error still reaches the dispatcher as a hard
 // error.
 func TestScanMQ_TransientDoesNotMaskSharedResourceError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "mq:ListConfigurations")
 	var calls parentCalls
@@ -339,6 +347,7 @@ func TestScanMQ_TransientDoesNotMaskSharedResourceError(t *testing.T) {
 // A failed association write is returned as a store-write error, and the
 // shared-resource phase after it still runs.
 func TestScanMQ_AssociationWriteErrorIsReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	// SQLite trigger refusing only association rows; the abort is a constraint
 	// error, which the store does not retry.
@@ -363,6 +372,7 @@ func TestScanMQ_AssociationWriteErrorIsReturned(t *testing.T) {
 // NotFoundException from every broker warns once, as the op may not be served
 // in the region; from only some brokers it stays silent (deleted brokers).
 func TestScanMQSharedResources_NotFound(t *testing.T) {
+	t.Parallel()
 	gone := apiErr("NotFoundException", "gone")
 	cases := []struct {
 		name      string
@@ -397,6 +407,7 @@ func TestScanMQSharedResources_NotFound(t *testing.T) {
 // Broker tags come from DescribeBroker, configuration tags from the listed
 // Configuration; an untagged broker or configuration stores no tags.
 func TestScanMQ_ReadsBrokerAndConfigurationTags(t *testing.T) {
+	t.Parallel()
 	const (
 		taggedCfg   = "arn:aws:mq:" + testRegion + ":" + testAccountID + ":configuration:c-1"
 		untaggedCfg = "arn:aws:mq:" + testRegion + ":" + testAccountID + ":configuration:c-2"
@@ -447,6 +458,7 @@ func mqBrokerSummary(id string) mqtypes.BrokerSummary {
 // tags, no association) unless the broker is gone; a denial or a throttle
 // warns once, any other error is returned after b-1 and b-2 are stored.
 func TestScanMQBrokers_DescribeBrokerFailure(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name       string
 		err        error
@@ -517,6 +529,7 @@ func TestScanMQBrokers_DescribeBrokerFailure(t *testing.T) {
 // A listed broker without a BrokerArn or a BrokerId is not stored and is
 // warned about once; it is no error.
 func TestScanMQBrokers_MissingIDWarns(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name  string
 		strip func(*mqtypes.BrokerSummary)
@@ -547,6 +560,7 @@ func TestScanMQBrokers_MissingIDWarns(t *testing.T) {
 // A ListBrokers page failing after the first keeps the first page's brokers:
 // a denial warns once, any other error is returned.
 func TestScanMQBrokers_LaterListPageFails(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -586,6 +600,7 @@ func TestScanMQBrokers_LaterListPageFails(t *testing.T) {
 // run: the configuration, b-1's association and both brokers' shared
 // resources are stored.
 func TestScanMQ_DescribeBrokerErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	h := mqTopLevelHandlers(&calls)
@@ -613,6 +628,7 @@ func TestScanMQ_DescribeBrokerErrorRunsLaterPhases(t *testing.T) {
 // A failed broker write returns at once: no later phase runs on brokers that
 // were not stored.
 func TestScanMQ_BrokerWriteErrorReturnsAtOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, err := st.DB().Exec(`CREATE TRIGGER refuse_mq_broker BEFORE INSERT ON resources
 		WHEN NEW.type = '` + TypeMQBroker + `'

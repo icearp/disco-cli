@@ -138,6 +138,7 @@ func assertDRSRow(t *testing.T, row store.Resource, name, status string, attrs a
 }
 
 func TestScanDRSRecoveryPlans_StoresEveryPageSkipsARNless(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, drsRecoveryPlansOp)
 	total, parents, err := scanDRSPlans(t, st, drsPlanHandlers(nil, nil))
@@ -157,6 +158,7 @@ func TestScanDRSRecoveryPlans_StoresEveryPageSkipsARNless(t *testing.T) {
 }
 
 func TestScanDRSRecoveryPlans_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets atomic.Int32
 	total, parents, err := scanDRSPlans(t, st, map[string]func(in any) (any, error){
@@ -174,6 +176,7 @@ func TestScanDRSRecoveryPlans_Empty(t *testing.T) {
 // A failed page two keeps page one's plan: a denial warns once, any other
 // error is returned after the plan is stored.
 func TestScanDRSRecoveryPlans_FailedListPage(t *testing.T) {
+	t.Parallel()
 	want := []string{drsTestARN("recovery-plan", "plan1")}
 	for _, tc := range []struct {
 		name     string
@@ -209,6 +212,7 @@ func TestScanDRSRecoveryPlans_FailedListPage(t *testing.T) {
 // stays a parent of the step phase: a denial warns once, a transient error is
 // returned as transient, any other error is returned.
 func TestScanDRSRecoveryPlans_FailedGet(t *testing.T) {
+	t.Parallel()
 	plan1, plan2 := drsTestARN("recovery-plan", "plan1"), drsTestARN("recovery-plan", "plan2")
 	t.Run("plan gone", func(t *testing.T) {
 		st := newTestStore(t)
@@ -430,6 +434,7 @@ func drsListedHandlers(fail map[string]error, actionCalls *parentCalls) map[stri
 // warned about once and not stored. A source server with no id is stored,
 // warned about, and given no child calls.
 func TestScanDRS_ListedPhasesStoreTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := map[string]*int{}
 	for _, f := range drsListedFixtures() {
@@ -468,6 +473,7 @@ func TestScanDRS_ListedPhasesStoreTags(t *testing.T) {
 // A failed page two keeps page one's row in every listed phase: a denial
 // warns once, any other error is returned after storing.
 func TestScanDRS_ListedPhaseFailedPageKeepsPageOne(t *testing.T) {
+	t.Parallel()
 	for _, f := range drsListedFixtures() {
 		for _, tc := range []struct {
 			name     string
@@ -591,6 +597,7 @@ func scanDRSTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in 
 }
 
 func TestScanDRS_StoresRecoveryPlanStepsUnderTheirPlan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, drsRecoveryPlanStepsOp)
 	var stepCalls, actionCalls parentCalls
@@ -642,6 +649,7 @@ func TestScanDRS_StoresRecoveryPlanStepsUnderTheirPlan(t *testing.T) {
 }
 
 func TestScanDRS_StoresLaunchActionsUnderTemplatesAndServers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, drsLaunchActionsOp)
 	var stepCalls, actionCalls parentCalls
@@ -675,6 +683,7 @@ func TestScanDRS_StoresLaunchActionsUnderTemplatesAndServers(t *testing.T) {
 // One action id under a template and under a source server is two actions;
 // the parent ARN in the NativeID keeps their identities apart.
 func TestScanDRS_SameActionIDUnderTwoParentsKeepsTwoIdentities(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var stepCalls, actionCalls parentCalls
 	if err := scanDRSTopLevel(t, st, drsTopLevelHandlers(&stepCalls, &actionCalls)); err != nil {
@@ -689,6 +698,7 @@ func TestScanDRS_SameActionIDUnderTwoParentsKeepsTwoIdentities(t *testing.T) {
 }
 
 func TestScanDRS_NoParentsNoChildCalls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var stepCalls, actionCalls parentCalls
 	h := drsTopLevelHandlers(&stepCalls, &actionCalls)
@@ -711,6 +721,7 @@ func TestScanDRS_NoParentsNoChildCalls(t *testing.T) {
 // returned after the other parents' rows are stored. Both plans fail in the
 // step case; the launch-action case keeps the healthy s-1's action.
 func TestScanDRS_FailedChildParent(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, bad1, bad2, childType string
 		want                      []string
@@ -781,6 +792,7 @@ func failParents(next func(in any) (any, error), err error, bad1, bad2 string) f
 }
 
 func TestScanDRS_UninitializedAccountDisabled(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var stepCalls, actionCalls parentCalls
 	h := drsTopLevelHandlers(&stepCalls, &actionCalls)
@@ -794,6 +806,7 @@ func TestScanDRS_UninitializedAccountDisabled(t *testing.T) {
 
 // The client is pinned to the scanned region, not the config's default.
 func TestScanDRS_CallsGoToScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var stepCalls, actionCalls, regions parentCalls
@@ -862,6 +875,7 @@ func scanDRSReplicationConfigs(t *testing.T, st *store.Store, fail map[string]er
 }
 
 func TestScanDRSReplicationConfigurations_OneRowPerServer(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, inserted, calls, err := scanDRSReplicationConfigs(t, st, nil)
 	if err != nil {
@@ -896,6 +910,7 @@ func TestScanDRSReplicationConfigurations_OneRowPerServer(t *testing.T) {
 }
 
 func TestScanDRSReplicationConfigurations_NoServersNoCalls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := drs.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
@@ -912,6 +927,7 @@ func TestScanDRSReplicationConfigurations_NoServersNoCalls(t *testing.T) {
 // error is returned after the other servers' rows are stored: there is no
 // listed row to keep in its place.
 func TestScanDRSReplicationConfigurations_FailedServer(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		fail     map[string]error
@@ -961,6 +977,7 @@ func TestScanDRSReplicationConfigurations_FailedServer(t *testing.T) {
 }
 
 func TestScanDRS_StoresReplicationConfigurationsUnderTheirServers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var stepCalls, actionCalls, configCalls parentCalls
 	h := drsTopLevelHandlers(&stepCalls, &actionCalls)
@@ -983,6 +1000,7 @@ func TestScanDRS_StoresReplicationConfigurationsUnderTheirServers(t *testing.T) 
 // phase has stored a row or failed otherwise; after either, it is returned as
 // an error and the earlier phase's work is kept.
 func TestScanDRS_UninitializedAccountAfterOtherWork(t *testing.T) {
+	t.Parallel()
 	uninit := apiErr("UninitializedAccountException", "Account not initialized")
 	for _, tc := range []struct {
 		name        string
@@ -1029,6 +1047,7 @@ func TestScanDRS_UninitializedAccountAfterOtherWork(t *testing.T) {
 // failing still leaves the recovery-plan steps (the latest child phase) and
 // every other early phase's rows stored, and its error is returned.
 func TestScanDRS_PhaseErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, f := range drsListedFixtures() {
 		t.Run(f.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1062,6 +1081,7 @@ func TestScanDRS_PhaseErrorRunsLaterPhases(t *testing.T) {
 // the only failure, and is demoted to one warning beside a later phase's
 // hard error.
 func TestScanDRS_TransientPhaseBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		hard      bool
@@ -1097,6 +1117,7 @@ func TestScanDRS_TransientPhaseBesideHardError(t *testing.T) {
 // reads its parents, store fewer. TestScanDRS_PhaseErrorRunsLaterPhases covers
 // the listed phases.
 func TestScanDRS_ChildPhaseErrorKeepsOtherPhases(t *testing.T) {
+	t.Parallel()
 	all := map[string]int{
 		TypeDRSLaunchAction: 3, TypeDRSRecoveryPlanResource: 2, TypeDRSRecoveryPlanStep: 3, TypeDRSReplicationConfiguration: 2,
 	}
@@ -1161,6 +1182,7 @@ func (o *drsOverlap) wrap(next func(in any) (any, error)) func(in any) (any, err
 // The per-parent reads (GetRecoveryPlan, and every storeTokenEachParent op)
 // run concurrently, so one slow parent does not hold up the others.
 func TestScanDRS_PerParentReadsRunConcurrently(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"GetRecoveryPlan", "ListRecoveryPlanSteps", "ListLaunchActions", "GetReplicationConfiguration"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1184,6 +1206,7 @@ func TestScanDRS_PerParentReadsRunConcurrently(t *testing.T) {
 // parents never read add none. (The stub ignores ctx, so the reads in flight
 // succeed here; with the real SDK they report their own errors.)
 func TestScanDRSReplicationConfigurations_StopsOnContext(t *testing.T) {
+	t.Parallel()
 	const n = 3 * fanoutMed
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1232,6 +1255,7 @@ func drsLeaves(err error) int {
 // error; the plans never read add none. (The stub ignores ctx, so the reads in
 // flight succeed here; with the real SDK they report their own errors.)
 func TestScanDRSRecoveryPlans_StopsOnContext(t *testing.T) {
+	t.Parallel()
 	const n = 3 * fanoutMed
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1269,6 +1293,7 @@ func TestScanDRSRecoveryPlans_StopsOnContext(t *testing.T) {
 // summary, and the failures come back as one transient error, not one per
 // plan.
 func TestScanDRSRecoveryPlans_TransientFailuresAreOneError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	plan1, plan2 := drsTestARN("recovery-plan", "plan1"), drsTestARN("recovery-plan", "plan2")
 	_, _, err := scanDRSPlans(t, st, drsPlanHandlers(nil, map[string]error{plan1: drsThrottled, plan2: drsThrottled}))
@@ -1282,6 +1307,7 @@ func TestScanDRSRecoveryPlans_TransientFailuresAreOneError(t *testing.T) {
 
 // A failed contains-edge write is returned with the stored children's counts.
 func TestScanDRSReplicationConfigurations_HierarchyWriteFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	server := childParent{id: "s-1", arn: drsTestARN("source-server", "s-1")}
 	upsertTestResource(t, st, "aws", testAccountID, TypeDRSSourceServerResource, server.arn, testRegion, "{}")

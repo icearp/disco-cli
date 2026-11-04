@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveVPNConnectionRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpnARN := ec2ARN(testRegion, acct.ID, "vpn-connection", "vpn-001")
@@ -30,6 +31,7 @@ func TestResolveVPNConnectionRelationships(t *testing.T) {
 }
 
 func TestResolveVPNConnectionRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpnID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPNConnection, ec2ARN(testRegion, acct.ID, "vpn-connection", "vpn-bare"), testRegion, "{}")
@@ -43,6 +45,7 @@ func TestResolveVPNConnectionRelationships_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveVPNGatewayRoutePropagations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vgwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPNGateway,
@@ -65,6 +68,7 @@ func TestResolveVPNGatewayRoutePropagations(t *testing.T) {
 }
 
 func TestResolveVPNGatewayRoutePropagations_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeEC2RouteTable,
@@ -75,6 +79,7 @@ func TestResolveVPNGatewayRoutePropagations_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveTGWAttachmentRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tgwARN := ec2ARN(testRegion, acct.ID, "transit-gateway", "tgw-001")
@@ -100,6 +105,7 @@ func TestResolveTGWAttachmentRelationships(t *testing.T) {
 }
 
 func TestResolveTGWAttachmentRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2TransitGatewayAttachment, ec2ARN(testRegion, acct.ID, "transit-gateway-attachment", "tgw-attach-bare"), testRegion, "{}")

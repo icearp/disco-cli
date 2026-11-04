@@ -18,6 +18,7 @@ func cbAttrs(t *testing.T, v any) string {
 }
 
 func TestResolveChatbotRelationships_RolesAndTopics(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	const (
@@ -71,6 +72,7 @@ func TestResolveChatbotRelationships_RolesAndTopics(t *testing.T) {
 }
 
 func TestResolveChatbotRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, cbRoleARN, "global", "{}")
 	for _, typ := range []string{TypeChatbotChimeWebhookConfiguration, TypeChatbotSlackUserIdentity, TypeChatbotMicrosoftTeamsUserIdentity} {
@@ -87,6 +89,7 @@ func TestResolveChatbotRelationships_NoAttrs(t *testing.T) {
 
 // A row that fails to decode is reported, and costs no other row its edges.
 func TestResolveChatbotRelationships_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	roleID := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, cbRoleARN, "global", "{}")
 	// ListResources orders by name, so the good row is resolved after the bad one.

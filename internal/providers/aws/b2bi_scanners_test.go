@@ -265,6 +265,7 @@ func b2biAttrs(t *testing.T, r store.Resource) map[string]any {
 // every row; every listing is sent MaxResults 100, after the gate's probe of
 // ListProfiles with 1. No error, no warning.
 func TestScanB2BI_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newB2BITestCalls()
@@ -350,6 +351,7 @@ func b2biStoredWithTags(st *store.Store, arn string) bool {
 // Every listing writes its first page, with its tags, before it reads the
 // second.
 func TestScanB2BI_PagesWrittenAsRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := b2biTestHandlers(newB2BITestCalls())
 	var (
@@ -380,6 +382,7 @@ func TestScanB2BI_PagesWrittenAsRead(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanB2BI_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(newB2BITestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -396,6 +399,7 @@ func TestScanB2BI_RescanInsertsNone(t *testing.T) {
 // Empty listings: each listed once (ListProfiles also by the gate), nothing
 // stored, no detail or tag read, no error, no warning.
 func TestScanB2BI_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newB2BITestCalls()
@@ -441,6 +445,7 @@ func TestScanB2BI_Empty(t *testing.T) {
 // untagged and warns once under the tag op with the scan's scope; a throttle
 // keeps it and is transient; any other error keeps it and is an error.
 func TestScanB2BI_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		op        string
@@ -508,6 +513,7 @@ func TestScanB2BI_TagReadFailures(t *testing.T) {
 // Denied tag reads in three phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanB2BI_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newB2BITestCalls()
@@ -530,6 +536,7 @@ func TestScanB2BI_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanB2BI_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "b2bi:ListTagsForResource")
 	calls := newB2BITestCalls()
@@ -551,6 +558,7 @@ func TestScanB2BI_TagThrottleDemotedBesideHardError(t *testing.T) {
 // throttle is transient; any other error is an error. The sibling keeps its
 // GetCapability body.
 func TestScanB2BI_GetCapabilityFailures(t *testing.T) {
+	t.Parallel()
 	caps := b2biTestKindOf(t, "ListCapabilities")
 	for _, c := range []struct {
 		name      string
@@ -625,6 +633,7 @@ func TestScanB2BI_GetCapabilityFailures(t *testing.T) {
 
 // Both capabilities' GetCapability denied send one warning for the listing.
 func TestScanB2BI_GetCapabilityDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "b2bi:GetCapability")
 	calls := newB2BITestCalls()
@@ -647,6 +656,7 @@ func TestScanB2BI_GetCapabilityDenialsWarnOnce(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanB2BI_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeB2BIPartnership)
@@ -681,6 +691,7 @@ func TestScanB2BI_FailedWriteStopsScan(t *testing.T) {
 // customers (an empty message) is an empty listing: nothing stored, no
 // warning, no error.
 func TestScanB2BI_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	type listFailure struct {
 		name      string
 		op        string
@@ -758,6 +769,7 @@ func TestScanB2BI_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // The gate's probe refused as closed to new customers reports the service
 // not entitled, with nothing listed, stored or warned about.
 func TestScanB2BI_GateClosedNotEntitled(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newB2BITestCalls()
@@ -782,6 +794,7 @@ func TestScanB2BI_GateClosedNotEntitled(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanB2BI_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newB2BITestCalls()
 	handlers := b2biTestHandlers(calls)
@@ -809,6 +822,7 @@ func TestScanB2BI_RepeatedTokenKeepsPages(t *testing.T) {
 // listing's elements and the element by its Name; the rest of the listing is
 // stored.
 func TestScanB2BI_ElementWithoutID(t *testing.T) {
+	t.Parallel()
 	for _, k := range b2biTestKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -853,6 +867,7 @@ func TestScanB2BI_ElementWithoutID(t *testing.T) {
 // partition and region, is the row's NativeID, and reaches the tag op
 // unchanged.
 func TestScanB2BI_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -880,6 +895,7 @@ func TestScanB2BI_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanB2BI_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newB2BITestCalls()
 	handlers := b2biTestHandlers(calls)
@@ -916,6 +932,7 @@ func TestScanB2BI_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later phase runs.
 func TestScanB2BI_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "b2bi.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

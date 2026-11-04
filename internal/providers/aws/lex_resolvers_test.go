@@ -8,6 +8,7 @@ import (
 )
 
 func TestLexBotARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:lex:us-east-1:123:bot-alias/B1/A1", "arn:aws:lex:us-east-1:123:bot/B1"},
 		{"arn:aws:lex:us-east-1:123:bot/B1/version/3", "arn:aws:lex:us-east-1:123:bot/B1"},
@@ -23,6 +24,7 @@ func TestLexBotARNFromChild(t *testing.T) {
 }
 
 func TestResolveLexChildrenToBot(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	botARN := fmt.Sprintf("arn:aws:lex:%s:%s:bot/B1", testRegion, acct.ID)
@@ -43,6 +45,7 @@ func TestResolveLexChildrenToBot(t *testing.T) {
 }
 
 func TestResolveLexBotRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/lex-exec", acct.ID)

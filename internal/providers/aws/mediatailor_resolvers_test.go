@@ -56,6 +56,7 @@ func outEdges(t *testing.T, st *store.Store, id string) map[string]string {
 // the referrer's region. A step naming an unscanned function, and a playback
 // configuration in a region without that function, get no edge.
 func TestResolveMediaTailorFunctionUses_PlaybackAndSteps(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	enrichID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaTailorFunction, mtFunctionARN(testRegion, "enrich"), testRegion, mtHTTPFunctionAttrs("enrich"))
@@ -87,6 +88,7 @@ func TestResolveMediaTailorFunctionUses_PlaybackAndSteps(t *testing.T) {
 // Rows without function references produce no edges and no error, and an
 // empty reference does not match a function row that carries no FunctionId.
 func TestResolveMediaTailorFunctionUses_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fnID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaTailorFunction, mtFunctionARN(testRegion, "f"), testRegion, "{}")
@@ -108,6 +110,7 @@ func TestResolveMediaTailorFunctionUses_NoAttrs(t *testing.T) {
 // An undecodable function row and an undecodable playback configuration are
 // both reported, and the rows that do decode still resolve.
 func TestResolveMediaTailorFunctionUses_UndecodableRowsReported(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	enrichID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaTailorFunction, mtFunctionARN(testRegion, "enrich"), testRegion, mtHTTPFunctionAttrs("enrich"))
@@ -135,6 +138,7 @@ func TestResolveMediaTailorFunctionUses_UndecodableRowsReported(t *testing.T) {
 }
 
 func TestResolveMediaTailorChannelPolicyToChannel(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	chARN := fmt.Sprintf("arn:aws:mediatailor:%s:%s:channel/c1", testRegion, acct.ID)
@@ -151,6 +155,7 @@ func TestResolveMediaTailorChannelPolicyToChannel(t *testing.T) {
 }
 
 func TestResolveMediaTailorSourcesToSourceLocation(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	slARN := mtSourceLocationARN("aws", testRegion, acct.ID, "sl1")
@@ -174,6 +179,7 @@ func TestResolveMediaTailorSourcesToSourceLocation(t *testing.T) {
 // An undecodable live source and an undecodable VOD source are both reported,
 // and the sources named before and after them still resolve.
 func TestResolveMediaTailorSourcesToSourceLocation_UndecodableRowsReported(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	slID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaTailorSourceLocation, mtSourceLocationARN("aws", testRegion, acct.ID, "sl1"), testRegion, "{}")

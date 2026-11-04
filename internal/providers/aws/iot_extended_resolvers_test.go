@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveIoTSecurityProfileRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cmARN := fmt.Sprintf("arn:aws:iot:%s:%s:custommetric/myMetric", testRegion, acct.ID)

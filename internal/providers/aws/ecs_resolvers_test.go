@@ -9,6 +9,7 @@ import (
 // TestResolveECSRelationships_ServiceToClusterAndTaskDef verifies a service's
 // cluster ARN and task definition ARN both produce the correct relationships.
 func TestResolveECSRelationships_ServiceToClusterAndTaskDef(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -50,6 +51,7 @@ func TestResolveECSRelationships_ServiceToClusterAndTaskDef(t *testing.T) {
 // TestResolveECSRelationships_NoAttrs verifies a service with empty attrs
 // produces no relationships and no error.
 func TestResolveECSRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -72,6 +74,7 @@ func TestResolveECSRelationships_NoAttrs(t *testing.T) {
 // TestResolveECSRelationships_NetworkConfig verifies service → subnet / SG
 // edges from awsvpc NetworkConfiguration.
 func TestResolveECSRelationships_NetworkConfig(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -97,6 +100,7 @@ func TestResolveECSRelationships_NetworkConfig(t *testing.T) {
 // TestResolveECSTaskDefinitionRelationships verifies IAM task/execution role
 // edges.
 func TestResolveECSTaskDefinitionRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -122,6 +126,7 @@ func TestResolveECSTaskDefinitionRelationships(t *testing.T) {
 // TestResolveECSContainerRelationships_ECR verifies task-def → ECR repo edge
 // from a container image URI.
 func TestResolveECSContainerRelationships_ECR(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -147,6 +152,7 @@ func TestResolveECSContainerRelationships_ECR(t *testing.T) {
 // TestResolveECSContainerRelationships_LogGroup verifies task-def → log-group
 // edge from awslogs log driver config.
 func TestResolveECSContainerRelationships_LogGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -172,6 +178,7 @@ func TestResolveECSContainerRelationships_LogGroup(t *testing.T) {
 // reference shapes: full Secrets Manager ARN (with trailing JSON-key suffix),
 // full SSM parameter ARN, and a bare SSM parameter name.
 func TestResolveECSTaskDefinitionSecrets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -208,6 +215,7 @@ func TestResolveECSTaskDefinitionSecrets(t *testing.T) {
 
 // TestResolveECSTaskDefinitionSecrets_NoAttrs verifies no panic on empty attrs.
 func TestResolveECSTaskDefinitionSecrets_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tdARN := "arn:aws:ecs:" + testRegion + ":" + testAccountID + ":task-definition/none:1"
@@ -219,6 +227,7 @@ func TestResolveECSTaskDefinitionSecrets_NoAttrs(t *testing.T) {
 
 // TestResolveECSContainerRelationships_NoAttrs verifies no panic on empty attrs.
 func TestResolveECSContainerRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

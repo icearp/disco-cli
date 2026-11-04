@@ -15,6 +15,7 @@ func drsARN(region, acct, kind, id string) string {
 }
 
 func TestResolveDRSRecoveryInstanceRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -41,6 +42,7 @@ func TestResolveDRSRecoveryInstanceRefs(t *testing.T) {
 // A source server with the same id and region in another account is not
 // the one a recovery instance recovers: no edge crosses accounts.
 func TestResolveDRSRecoveryInstanceRefs_OtherAccountServer(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	const other = "999999999999"
@@ -62,6 +64,7 @@ func TestResolveDRSRecoveryInstanceRefs_OtherAccountServer(t *testing.T) {
 }
 
 func TestResolveDRSSourceServerRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -82,6 +85,7 @@ func TestResolveDRSSourceServerRefs(t *testing.T) {
 }
 
 func TestResolveDRSSourceNetworkRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -102,6 +106,7 @@ func TestResolveDRSSourceNetworkRefs(t *testing.T) {
 // staging subnet and security groups; an unscanned security group gets no
 // edge.
 func TestResolveDRSReplicationSettingsRefs(t *testing.T) {
+	t.Parallel()
 	keyARN := "arn:aws:kms:" + testRegion + ":" + testAccountID + ":key/k-drs"
 	subnet, sgs := "subnet-1", []string{"sg-1", "sg-9"}
 	for _, tc := range []struct {
@@ -147,6 +152,7 @@ func TestResolveDRSReplicationSettingsRefs(t *testing.T) {
 // A row whose attributes do not parse is reported without costing the rows
 // listed before or after it their edges (the rows list by name).
 func TestResolveDRSReplicationSettingsRefs_DecodeError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	subnet := "subnet-1"
@@ -180,6 +186,7 @@ func assertDRSDecodeErrorKeepsSiblings(t *testing.T, st *store.Store, resolve fu
 }
 
 func TestResolveDRS_DecodeErrorKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	t.Run("recovery instance", func(t *testing.T) {
 		st := newTestStore(t)
 		ssID := upsertTestResourceNamed(t, st, TypeDRSSourceServerResource, drsARN(testRegion, testAccountID, "source-server", "s-1"), testRegion, "{}", "s-1")
@@ -208,6 +215,7 @@ func TestResolveDRS_DecodeErrorKeepsSiblings(t *testing.T) {
 }
 
 func TestResolveDRSLaunchTemplateRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -224,6 +232,7 @@ func TestResolveDRSLaunchTemplateRefs(t *testing.T) {
 }
 
 func TestResolveDRS_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	riARN := drsARN(testRegion, acct.ID, "recovery-instance", "ri-1")
@@ -256,6 +265,7 @@ func drsStepAttrs(cfg drstypes.RecoveryPlanStepConfiguration) string {
 // without costing the rows listed before or after it their edges (the rows
 // list by name).
 func TestResolveDRSRecoveryPlanStepRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -291,6 +301,7 @@ func TestResolveDRSRecoveryPlanStepRefs(t *testing.T) {
 }
 
 func TestResolveDRSRecoveryPlanStepRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeDRSSourceServerResource, drsARN(testRegion, acct.ID, "source-server", "s-1"), testRegion, "{}")

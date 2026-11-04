@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveInstanceRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -48,6 +49,7 @@ func TestResolveInstanceRelationships(t *testing.T) {
 }
 
 func TestResolveSnapshotRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -69,6 +71,7 @@ func TestResolveSnapshotRelationships(t *testing.T) {
 }
 
 func TestResolveSnapshotRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -86,6 +89,7 @@ func TestResolveSnapshotRelationships_NoAttrs(t *testing.T) {
 // via the region+name index (key pair NativeID is by KeyPairId, instance
 // carries KeyName only).
 func TestResolveInstanceRelationships_KeyPair(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -118,6 +122,7 @@ func TestResolveInstanceRelationships_KeyPair(t *testing.T) {
 }
 
 func TestResolveInstanceRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -139,6 +144,7 @@ func TestResolveInstanceRelationships_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveInstanceConnectEndpointRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	iceARN := "arn:aws:ec2:" + testRegion + ":" + testAccountID + ":instance-connect-endpoint/eice-001"
@@ -162,6 +168,7 @@ func TestResolveInstanceConnectEndpointRelationships(t *testing.T) {
 }
 
 func TestResolveInstanceConnectEndpointRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	iceID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2InstanceConnectEndpoint,
@@ -178,6 +185,7 @@ func TestResolveInstanceConnectEndpointRelationships_EmptyAttrs(t *testing.T) {
 // TestResolveInstanceRelationships_IAMProfileAndENI verifies instance-profile
 // and network-interface edges are emitted.
 func TestResolveInstanceRelationships_IAMProfileAndENI(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

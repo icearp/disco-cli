@@ -23,6 +23,7 @@ func (s *stubBCMDashboards) ListScheduledReports(_ context.Context, _ *bcmdashbo
 }
 
 func TestScanBCMDashboards(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -60,6 +61,7 @@ func TestScanBCMDashboards(t *testing.T) {
 
 // TestScanBCMDashboards_Empty guards the empty-list path: no rows, no error.
 func TestScanBCMDashboards_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	total, _, err := scanBCMDashboards(context.Background(), &stubBCMDashboards{}, acct, st, testScanID)

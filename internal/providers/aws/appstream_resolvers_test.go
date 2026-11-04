@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveAppStreamFleetRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	subARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-1")
@@ -32,6 +33,7 @@ func TestResolveAppStreamFleetRefs(t *testing.T) {
 }
 
 func TestResolveAppStreamApplicationAppBlock(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	abARN := fmt.Sprintf("arn:aws:appstream:%s:%s:app-block/B1", testRegion, acct.ID)
@@ -47,6 +49,7 @@ func TestResolveAppStreamApplicationAppBlock(t *testing.T) {
 }
 
 func TestResolveAppStreamApplicationFleetAssoc(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fARN := fmt.Sprintf("arn:aws:appstream:%s:%s:fleet/F1", testRegion, acct.ID)
@@ -65,6 +68,7 @@ func TestResolveAppStreamApplicationFleetAssoc(t *testing.T) {
 }
 
 func TestResolveAppStreamEntitlementStack(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	sARN := fmt.Sprintf("arn:aws:appstream:%s:%s:stack/S1", testRegion, acct.ID)
@@ -80,6 +84,7 @@ func TestResolveAppStreamEntitlementStack(t *testing.T) {
 }
 
 func TestResolveAppStreamStackFleetAssoc(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	sARN := fmt.Sprintf("arn:aws:appstream:%s:%s:stack/S1", testRegion, acct.ID)
@@ -98,6 +103,7 @@ func TestResolveAppStreamStackFleetAssoc(t *testing.T) {
 }
 
 func TestResolveAppStreamApplicationEntitlementAssoc(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	sARN := fmt.Sprintf("arn:aws:appstream:%s:%s:stack/S1", testRegion, acct.ID)
@@ -115,6 +121,7 @@ func TestResolveAppStreamApplicationEntitlementAssoc(t *testing.T) {
 }
 
 func TestResolveAppStreamAppBlockS3(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -133,6 +140,7 @@ func TestResolveAppStreamAppBlockS3(t *testing.T) {
 }
 
 func TestResolveAppStreamDirectoryConfigCA(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -151,6 +159,7 @@ func TestResolveAppStreamDirectoryConfigCA(t *testing.T) {
 }
 
 func TestResolveAppStreamStackAccessEndpoints(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -169,6 +178,7 @@ func TestResolveAppStreamStackAccessEndpoints(t *testing.T) {
 }
 
 func TestResolveAppStreamImageRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

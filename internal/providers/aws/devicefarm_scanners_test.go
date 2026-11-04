@@ -77,6 +77,7 @@ func deviceFarmUploadRows(t *testing.T, st *store.Store) map[string]store.Resour
 }
 
 func TestScanDeviceFarmUploads_PaginatesEveryProject(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	projA, projB := testDFProjectARN("PA"), testDFProjectARN("PB")
 	fake := &fakeDeviceFarmUploads{pages: map[string]map[string]*devicefarm.ListUploadsOutput{
@@ -132,6 +133,7 @@ func TestScanDeviceFarmUploads_PaginatesEveryProject(t *testing.T) {
 }
 
 func TestScanDeviceFarmUploads_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	fake := &fakeDeviceFarmUploads{}
 
@@ -150,6 +152,7 @@ func TestScanDeviceFarmUploads_Empty(t *testing.T) {
 // A project deleted between ListProjects and ListUploads is skipped without a
 // warning; its siblings are still listed.
 func TestScanDeviceFarmUploads_VanishedProjectSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := false
 	st.OnWarn = func(store.ScanWarning) { warned = true }
@@ -177,6 +180,7 @@ func TestScanDeviceFarmUploads_VanishedProjectSkipped(t *testing.T) {
 // ListUploads can be denied per project, so a denial warns once and the
 // remaining projects are still listed.
 func TestScanDeviceFarmUploads_AccessDeniedWarnsOnceAndContinues(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
@@ -200,6 +204,7 @@ func TestScanDeviceFarmUploads_AccessDeniedWarnsOnceAndContinues(t *testing.T) {
 }
 
 func TestScanDeviceFarmUploads_UnexpectedErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	boom := apiErr("ServiceAccountException", "boom")
 	proj := testDFProjectARN("PA")
@@ -214,6 +219,7 @@ func TestScanDeviceFarmUploads_UnexpectedErrorPropagates(t *testing.T) {
 // scanDeviceFarm hands the projects it listed to the uploads phase, and the
 // stored upload carries the redacted presigned URL rather than its signature.
 func TestScanDeviceFarm_ListsUploadsOfListedProjects(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	proj := testDFProjectARN("PA")
 	stub := stubResponses(t, map[string][]stubCall{
@@ -251,6 +257,7 @@ func TestScanDeviceFarm_ListsUploadsOfListedProjects(t *testing.T) {
 
 // Category CURATED marks an upload AWS manages; PRIVATE is the customer's own.
 func TestScanDeviceFarmUploads_CuratedIsManagedByProvider(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	proj := testDFProjectARN("PA")
 	curated := testDFUpload("PA", "CUR")
@@ -284,6 +291,7 @@ func TestScanDeviceFarmUploads_CuratedIsManagedByProvider(t *testing.T) {
 
 // The same upload ARN listed under two projects is stored and counted once.
 func TestScanDeviceFarmUploads_DuplicateARNAcrossProjectsStoredOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	projA, projB := testDFProjectARN("PA"), testDFProjectARN("PB")
 	shared := testDFUpload("PA", "SHARED")
@@ -636,6 +644,7 @@ func dfOwnARNs() []string {
 // no page size. Pools, network profiles and uploads are listed per project.
 // No error, no warning.
 func TestScanDeviceFarm_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newDFCalls()
@@ -727,6 +736,7 @@ func TestScanDeviceFarm_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanDeviceFarm_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := dfScan(context.Background(), st, dfHandlers(newDFCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -743,6 +753,7 @@ func TestScanDeviceFarm_RescanInsertsNone(t *testing.T) {
 // Every listing empty: nothing stored, no per-project listing or tag read,
 // no error, no warning.
 func TestScanDeviceFarm_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newDFCalls()
@@ -775,6 +786,7 @@ func TestScanDeviceFarm_EmptyListings(t *testing.T) {
 // throttle keeps it and is transient; any other error keeps it and is an
 // error.
 func TestScanDeviceFarm_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	pool := dfKindOf(t, "ListDevicePools").arn("project-bare", "tagged")
 	instance := dfKindOf(t, "ListDeviceInstances").arn("", "tagged")
 	project := testDFProjectARN("project-bare")
@@ -848,6 +860,7 @@ func TestScanDeviceFarm_TagReadFailures(t *testing.T) {
 // Denied tag reads in several phases send one warning for the whole scan;
 // the rows are kept.
 func TestScanDeviceFarm_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newDFCalls()
@@ -872,6 +885,7 @@ func TestScanDeviceFarm_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op, in another
 // phase, is demoted to one warning, so the hard error decides the outcome.
 func TestScanDeviceFarm_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, dfTagsOp)
 	calls := newDFCalls()
@@ -890,6 +904,7 @@ func TestScanDeviceFarm_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored. A failed project write lists no project's children.
 func TestScanDeviceFarm_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	t.Run("instance profiles", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := rhWarnRecorder(st)
@@ -935,6 +950,7 @@ func TestScanDeviceFarm_FailedWriteStopsScan(t *testing.T) {
 // error does not stop the later phases. A project not stored has no
 // children read.
 func TestScanDeviceFarm_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, project         string
 		kept, lost          string
@@ -993,6 +1009,7 @@ func TestScanDeviceFarm_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanDeviceFarm_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListDeviceInstances", "ListDevicePools"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1034,6 +1051,7 @@ func TestScanDeviceFarm_RepeatedTokenKeepsPages(t *testing.T) {
 // skipped silently, a denial warns once under the op, and any other error is
 // returned.
 func TestScanDeviceFarm_PerProjectListingFailures(t *testing.T) {
+	t.Parallel()
 	failed := testDFProjectARN("project-tagged")
 	for _, op := range []string{"ListDevicePools", "ListNetworkProfiles"} {
 		for _, e := range []struct {
@@ -1095,6 +1113,7 @@ func TestScanDeviceFarm_PerProjectListingFailures(t *testing.T) {
 // is warned about once under its listing, keyed by its name, or by the
 // fallback text when it has none.
 func TestScanDeviceFarm_ElementWithoutARN(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		el            dfEl
@@ -1149,6 +1168,7 @@ func TestScanDeviceFarm_ElementWithoutARN(t *testing.T) {
 // follows a page the op served, so it is an error and the first page is
 // kept.
 func TestScanDeviceFarm_VPCENotAllowlisted(t *testing.T) {
+	t.Parallel()
 	notAllowlisted := apiErr("ServiceAccountException", "Account 123 is not allowlisted for VPC endpoint configurations")
 	for _, c := range []struct {
 		name      string
@@ -1197,6 +1217,7 @@ func TestScanDeviceFarm_VPCENotAllowlisted(t *testing.T) {
 // A denied ListProjects warns under it, and the account-wide phases still
 // run and store their rows.
 func TestScanDeviceFarm_ProjectsDeniedLaterPhasesRun(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newDFCalls()
@@ -1222,6 +1243,7 @@ func TestScanDeviceFarm_ProjectsDeniedLaterPhasesRun(t *testing.T) {
 // flight saw it in its listing and its tag reads, and the later phases are
 // not run.
 func TestScanDeviceFarm_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newDFCalls()
 	handlers := dfHandlers(calls)
@@ -1257,6 +1279,7 @@ func TestScanDeviceFarm_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanDeviceFarm_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "devicefarm.us-west-2.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

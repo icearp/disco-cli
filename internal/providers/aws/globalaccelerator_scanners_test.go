@@ -368,6 +368,7 @@ func gaByoipID(cidr string) string { return gaByoipCidrNativeID("aws", testAccou
 // under its listing, naming its name, or a child by its region (endpoint
 // groups) within its parent. No error.
 func TestScanGlobalAccelerator_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newGACalls()
@@ -499,6 +500,7 @@ func TestScanGlobalAccelerator_StoresEveryTypeWithTags(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanGlobalAccelerator_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := gaScan(st, gaHandlers(newGACalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -513,6 +515,7 @@ func TestScanGlobalAccelerator_RescanInsertsNone(t *testing.T) {
 }
 
 func TestGAByoipCidrNativeID(t *testing.T) {
+	t.Parallel()
 	if got, want := gaByoipCidrNativeID("aws", "123456789012", "203.0.113.0/24"), "arn:aws:globalaccelerator::123456789012:byoip-cidr/203.0.113.0/24"; got != want {
 		t.Errorf("gaByoipCidrNativeID = %q, want %q", got, want)
 	}
@@ -525,6 +528,7 @@ func TestGAByoipCidrNativeID(t *testing.T) {
 // a throttle keeps it and is transient; any other error keeps it and is an
 // error.
 func TestScanGlobalAccelerator_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	kinds := []struct {
 		typ, arn, notFound, otherNotFound string
 		// childOp is the listing whose parents the row's kind are; droppedTotal
@@ -596,6 +600,7 @@ func TestScanGlobalAccelerator_TagReadFailures(t *testing.T) {
 // Denied tag reads in three listings send one warning for the whole scan,
 // under the tag op, naming the first denied row; the rows are kept untagged.
 func TestScanGlobalAccelerator_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := bacWarnings(st, gaTestTagsOp)
 	calls := newGACalls()
@@ -627,6 +632,7 @@ func TestScanGlobalAccelerator_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanGlobalAccelerator_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, gaTestTagsOp)
 	calls := newGACalls()
@@ -645,6 +651,7 @@ func TestScanGlobalAccelerator_TagThrottleDemotedBesideHardError(t *testing.T) {
 // listing tagged per row writes its first page before it lists the second,
 // so the failed write also ends that listing after one call.
 func TestScanGlobalAccelerator_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		typ, op, firstRow string
 		later             []string
@@ -696,6 +703,7 @@ func TestScanGlobalAccelerator_FailedWriteStopsScan(t *testing.T) {
 // A listing's failed later page keeps the pages read before it, and its
 // sibling parents' rows; its error does not stop the later phases.
 func TestScanGlobalAccelerator_LaterPageFailureKeepsPages(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op        string
 		wantTotal int // the rows of the failed page, and of its children, are lost
@@ -730,6 +738,7 @@ func TestScanGlobalAccelerator_LaterPageFailureKeepsPages(t *testing.T) {
 
 // A listing whose NextToken repeats ends as an error, keeping both pages.
 func TestScanGlobalAccelerator_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{
 		"ListAccelerators", "ListCrossAccountAttachments", "ListListeners", "ListEndpointGroups",
 		"ListCustomRoutingAccelerators", "ListCustomRoutingListeners", "ListCustomRoutingEndpointGroups", "ListByoipCidrs",
@@ -756,6 +765,7 @@ func TestScanGlobalAccelerator_RepeatedTokenKeepsPages(t *testing.T) {
 // Each failed parent below lists the op's element without an ARN, so the
 // op's only warning can be the denial.
 func TestScanGlobalAccelerator_ChildListingFailures(t *testing.T) {
+	t.Parallel()
 	parents := []struct {
 		op, parent, gone string
 		wantTotal        int
@@ -805,6 +815,7 @@ func TestScanGlobalAccelerator_ChildListingFailures(t *testing.T) {
 // A listing denied after its first page keeps that page and its sibling
 // parents' rows, and warns once.
 func TestScanGlobalAccelerator_LaterPageDeniedKeepsPages(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op        string
 		wantTotal int // the rows of the denied page, and of its children, are lost
@@ -844,6 +855,7 @@ func TestScanGlobalAccelerator_LaterPageDeniedKeepsPages(t *testing.T) {
 // A listing that fails outright does not stop the later phases; its child
 // phase has no parents and makes no call.
 func TestScanGlobalAccelerator_FailedListingRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGACalls()
 	h := gaHandlers(calls)
@@ -869,6 +881,7 @@ func TestScanGlobalAccelerator_FailedListingRunsLaterPhases(t *testing.T) {
 // instead, so the demotion must add exactly one warning, under the op that
 // failed, and none under any other.
 func TestScanGlobalAccelerator_TransientPhaseDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	scan := func(t *testing.T, op, hardOp string, opErr error) map[string]int {
 		t.Helper()
 		st := newTestStore(t)
@@ -912,6 +925,7 @@ func TestScanGlobalAccelerator_TransientPhaseDemotedBesideHardError(t *testing.T
 // An account with nothing in any account-wide listing stores nothing, reads
 // no tags, makes no child listing and warns about nothing.
 func TestScanGlobalAccelerator_EmptyAccount(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newGACalls()
@@ -944,6 +958,7 @@ func TestScanGlobalAccelerator_EmptyAccount(t *testing.T) {
 // were stored, an NXDOMAIN from a later listing or a tag read is a failure
 // of this scan, and the stored rows keep their counts.
 func TestScanGlobalAccelerator_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "globalaccelerator.us-west-2.amazonaws.com", IsNotFound: true}
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)

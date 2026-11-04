@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveNeptuneGraphSnapshotRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gARN := neptuneGraphARN("aws", testRegion, acct.ID, "g-1")
@@ -26,6 +27,7 @@ func TestResolveNeptuneGraphSnapshotRefs(t *testing.T) {
 }
 
 func TestResolveNeptuneGraphPrivateEndpointRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gARN := neptuneGraphARN("aws", testRegion, acct.ID, "g-1")

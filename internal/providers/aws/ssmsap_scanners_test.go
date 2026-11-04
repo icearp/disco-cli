@@ -251,6 +251,7 @@ func assertSAPWarnings(t *testing.T, run sapRun, op string, keys ...string) {
 }
 
 func TestScanSSMSAP_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSAPCalls()
 	run := scanSAPTopLevel(st, nil, calls)
@@ -284,6 +285,7 @@ func TestScanSSMSAP_StoresEveryTypeWithTags(t *testing.T) {
 // A failed page two keeps the rows read before it, the error is returned, and
 // every later phase still runs over the applications stored.
 func TestScanSSMSAP_FailedPageKeepsRowsAndRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, parent string
 		want       map[string][]string
@@ -311,6 +313,7 @@ func TestScanSSMSAP_FailedPageKeepsRowsAndRunsLaterPhases(t *testing.T) {
 // op fans out over applications, and is no error; the other phases keep
 // their rows. ListComponents models UnauthorizedException as its denial.
 func TestScanSSMSAP_DeniedOpWarnsOnce(t *testing.T) {
+	t.Parallel()
 	both := func(err error) map[string]error { return map[string]error{"app-a/": err, "app-b/": err} }
 	for _, tc := range []struct {
 		name, op string
@@ -344,6 +347,7 @@ func TestScanSSMSAP_DeniedOpWarnsOnce(t *testing.T) {
 // application, skips the application: silently when nothing was read from
 // it, with a warning naming it when a page had been read.
 func TestScanSSMSAP_DeletedApplicationIsSkipped(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, key string
 		lost    []string
@@ -370,6 +374,7 @@ func TestScanSSMSAP_DeletedApplicationIsSkipped(t *testing.T) {
 // unfiltered application list included, is returned after the other rows are
 // stored: the lost children have no listed row to keep in their place.
 func TestScanSSMSAP_OtherErrorsAreReturned(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, op, key string
 		err           error
@@ -398,6 +403,7 @@ func TestScanSSMSAP_OtherErrorsAreReturned(t *testing.T) {
 // A throttled phase alone leaves the scan transient; beside another phase's
 // hard error it is warned about once and the scan reads as an error.
 func TestScanSSMSAP_TransientPhaseBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		hard      bool
@@ -433,6 +439,7 @@ func TestScanSSMSAP_TransientPhaseBesideHardError(t *testing.T) {
 // A failed write stops the scan with no warning claiming the lost rows, and
 // no later phase runs; the rows of earlier phases stay stored.
 func TestScanSSMSAP_WriteFailureStops(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		typ, op  string
 		ops      []string
@@ -474,6 +481,7 @@ func TestScanSSMSAP_WriteFailureStops(t *testing.T) {
 // A context ended after the components were read stops the database phase,
 // and the scan returns that stop.
 func TestScanSSMSAP_ContextEndStopsDatabasePhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

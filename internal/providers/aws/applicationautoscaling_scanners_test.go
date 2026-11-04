@@ -42,6 +42,7 @@ func (s *stubApplicationAutoScaling) DescribeScheduledActions(context.Context, *
 }
 
 func TestApplicationAutoScalingScalableTargetNativeID(t *testing.T) {
+	t.Parallel()
 	got := applicationAutoScalingScalableTargetNativeID("aws", "us-east-1", "111111111111", "ecs", "service/cluster/svc", "ecs:service:DesiredCount")
 	want := "arn:aws:application-autoscaling:us-east-1:111111111111:scalable-target/ecs/service/cluster/svc/ecs:service:DesiredCount"
 	if got != want {
@@ -50,6 +51,7 @@ func TestApplicationAutoScalingScalableTargetNativeID(t *testing.T) {
 }
 
 func TestScanApplicationAutoScalingScalableTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion
@@ -82,6 +84,7 @@ func TestScanApplicationAutoScalingScalableTargets(t *testing.T) {
 }
 
 func TestScanApplicationAutoScalingScalingPolicies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion
@@ -225,6 +228,7 @@ func scanApplicationAutoScalingWith(t *testing.T, st *store.Store, handlers map[
 }
 
 func TestScanApplicationAutoScaling_ScheduledActions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls aasCallLog
 	total, err := scanApplicationAutoScalingWith(t, st, aasHandlers(&calls))
@@ -269,6 +273,7 @@ func TestScanApplicationAutoScaling_ScheduledActions(t *testing.T) {
 }
 
 func TestScanApplicationAutoScaling_ScheduledActionsRunAfterOlderPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls aasCallLog
 	if _, err := scanApplicationAutoScalingWith(t, st, aasHandlers(&calls)); err != nil {
@@ -286,6 +291,7 @@ func TestScanApplicationAutoScaling_ScheduledActionsRunAfterOlderPhases(t *testi
 }
 
 func TestScanApplicationAutoScaling_ScheduledActionErrors(t *testing.T) {
+	t.Parallel()
 	ecsOnly := func(err error) func(*applicationautoscaling.DescribeScheduledActionsInput) error {
 		return func(req *applicationautoscaling.DescribeScheduledActionsInput) error {
 			if req.ServiceNamespace == aastypes.ServiceNamespaceEcs {
@@ -398,6 +404,7 @@ func TestScanApplicationAutoScaling_ScheduledActionErrors(t *testing.T) {
 }
 
 func TestScanApplicationAutoScaling_OlderPhaseErrorStillScansScheduledActions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls aasCallLog
 	h := aasHandlers(&calls)
@@ -417,6 +424,7 @@ func TestScanApplicationAutoScaling_OlderPhaseErrorStillScansScheduledActions(t 
 }
 
 func TestScanApplicationAutoScaling_OlderTransientDoesNotMaskScheduledActionHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "application-autoscaling")
 	var calls aasCallLog
@@ -449,6 +457,7 @@ func assertAASCallsPerNamespace(t *testing.T, calls *aasCallLog, wantPolicies, w
 }
 
 func TestScanApplicationAutoScaling_PoliciesAndActionsOnlyWhereTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls aasCallLog
 	if _, err := scanApplicationAutoScalingWith(t, st, aasHandlers(&calls)); err != nil {
@@ -467,6 +476,7 @@ func TestScanApplicationAutoScaling_PoliciesAndActionsOnlyWhereTargets(t *testin
 }
 
 func TestScanApplicationAutoScaling_FailedTargetListingStillQueriesNamespace(t *testing.T) {
+	t.Parallel()
 	ecsOnly := func(err error) func(aastypes.ServiceNamespace) error {
 		return func(ns aastypes.ServiceNamespace) error {
 			if ns == aastypes.ServiceNamespaceEcs {
@@ -554,6 +564,7 @@ func TestScanApplicationAutoScaling_FailedTargetListingStillQueriesNamespace(t *
 }
 
 func TestScanApplicationAutoScaling_NamespaceWithAnyListedTargetIsQueried(t *testing.T) {
+	t.Parallel()
 	rid := "service/cluster/web"
 	for _, tc := range []struct {
 		name  string
@@ -605,6 +616,7 @@ func TestScanApplicationAutoScaling_NamespaceWithAnyListedTargetIsQueried(t *tes
 }
 
 func TestScanApplicationAutoScaling_RepeatedTargetTokenFailsAndKeepsNamespace(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls aasCallLog
 	var maxResults []int32

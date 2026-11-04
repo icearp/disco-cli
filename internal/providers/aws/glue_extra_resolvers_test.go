@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveGlueUserDefinedFunctionRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -21,6 +22,7 @@ func TestResolveGlueUserDefinedFunctionRelationships(t *testing.T) {
 }
 
 func TestResolveGlueUserDefinedFunctionRelationships_NoParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

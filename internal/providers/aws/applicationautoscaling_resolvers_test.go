@@ -13,6 +13,7 @@ import (
 // scheduled action's target triple produces an attached-to edge to the
 // stored scalable target, and none to another target in the namespace.
 func TestResolveApplicationAutoScalingScheduledActionToTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion
@@ -50,6 +51,7 @@ func TestResolveApplicationAutoScalingScheduledActionToTarget(t *testing.T) {
 // a scheduled action without its target triple produces no edge, even to a
 // target whose NativeID was built from empty parts.
 func TestResolveApplicationAutoScalingScheduledActionToTarget_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	targetNative := applicationAutoScalingScalableTargetNativeID("aws", testRegion, acct.ID, "", "", "")
@@ -72,6 +74,7 @@ func TestResolveApplicationAutoScalingScheduledActionToTarget_NoAttrs(t *testing
 // an undecodable child is reported and costs a child listed after it none of
 // its edges.
 func TestResolveApplicationAutoScalingRelationships_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	for _, typ := range []string{TypeApplicationAutoScalingScalingPolicy, TypeApplicationAutoScalingScheduledAction} {
 		t.Run(typ, func(t *testing.T) {
 			st := newTestStore(t)
@@ -98,6 +101,7 @@ func TestResolveApplicationAutoScalingRelationships_DecodeErrorReturned(t *testi
 // policy's (ServiceNamespace, ResourceId, ScalableDimension) triple
 // produces a policy → scalable-target attached-to relationship.
 func TestResolveApplicationAutoScalingPolicyToTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion
@@ -127,6 +131,7 @@ func TestResolveApplicationAutoScalingPolicyToTarget(t *testing.T) {
 // TestResolveApplicationAutoScalingPolicyToTarget_Missing verifies an
 // unscanned scalable-target produces no edge and no error.
 func TestResolveApplicationAutoScalingPolicyToTarget_Missing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion
@@ -151,6 +156,7 @@ func TestResolveApplicationAutoScalingPolicyToTarget_Missing(t *testing.T) {
 // missing attrs fields produce no edge and no panic, even to a target whose
 // NativeID was built from empty parts.
 func TestResolveApplicationAutoScalingPolicyToTarget_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion

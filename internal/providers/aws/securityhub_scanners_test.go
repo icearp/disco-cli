@@ -99,6 +99,7 @@ func seedShHub(t *testing.T, st *store.Store) {
 }
 
 func TestScanSecurityHubActionTargets_StoresEveryPageUnderHub(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedShHub(t, st)
 	total, err := scanShActionTargets(t, st, shActionTargetHandler(testRegion, nil))
@@ -122,6 +123,7 @@ func TestScanSecurityHubActionTargets_StoresEveryPageUnderHub(t *testing.T) {
 }
 
 func TestScanSecurityHubActionTargets_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanShActionTargets(t, st, func(any) (any, error) { return &securityhub.DescribeActionTargetsOutput{}, nil })
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeSecurityHubActionTarget)) != 0 {
@@ -132,6 +134,7 @@ func TestScanSecurityHubActionTargets_Empty(t *testing.T) {
 // A denial on page two warns once and a disabled hub skips silently, both
 // keeping page one's row; any other error fails the phase.
 func TestScanSecurityHubActionTargets_FailedPage(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name  string
 		fail  error
@@ -164,6 +167,7 @@ func TestScanSecurityHubActionTargets_FailedPage(t *testing.T) {
 }
 
 func TestScanSecurityHubMembers_StoresEveryMemberUnderHub(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedShHub(t, st)
 	var onlyAssociated []*bool
@@ -198,6 +202,7 @@ func TestScanSecurityHubMembers_StoresEveryMemberUnderHub(t *testing.T) {
 }
 
 func TestScanSecurityHubMembers_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanShMembers(t, st, func(any) (any, error) { return &securityhub.ListMembersOutput{}, nil })
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeSecurityHubMember)) != 0 {
@@ -208,6 +213,7 @@ func TestScanSecurityHubMembers_Empty(t *testing.T) {
 // A denial on page two warns once and a hub disabled mid-scan skips silently,
 // both keeping page one's row; any other error fails the phase.
 func TestScanSecurityHubMembers_FailedPage(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name  string
 		fail  error
@@ -273,6 +279,7 @@ func shStandardARN(region string) string {
 // hub. On a fresh store every child phase links under the hub row this scan
 // stored, so the hub phase must run before them.
 func TestScanSecurityHub_StoresNewChildrenInScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var regions parentCalls
@@ -327,6 +334,7 @@ func TestScanSecurityHub_StoresNewChildrenInScannedRegion(t *testing.T) {
 // their row under the hub; newTestStore's cleanup fails the test if any of
 // those contains pairs is undeclared.
 func TestScanSecurityHubChildren_StoredUnderHub(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedShHub(t, st)
 	hub := shHubARN(testRegion)
@@ -374,6 +382,7 @@ func TestScanSecurityHubChildren_StoredUnderHub(t *testing.T) {
 // Each new phase runs after every pre-existing phase, and its hard error
 // reaches the caller.
 func TestScanSecurityHub_NewPhaseErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeActionTargets", "ListMembers", "ListStandardsControlAssociations"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -535,6 +544,7 @@ func scanShControlAssocs(t *testing.T, st *store.Store, standards []string, cont
 }
 
 func TestScanSecurityHubControlAssociations_StoresEveryPageUnderControl(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	controls := shSeedControls(t, st)
 	var c shAssocCalls
@@ -580,6 +590,7 @@ func TestScanSecurityHubControlAssociations_StoresEveryPageUnderControl(t *testi
 
 // With no stored subscription the phase makes no call at all.
 func TestScanSecurityHubControlAssociations_NoSubscriptionNoCalls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	controls := shSeedControls(t, st)
 	var c shAssocCalls
@@ -592,6 +603,7 @@ func TestScanSecurityHubControlAssociations_NoSubscriptionNoCalls(t *testing.T) 
 // Only the controls of subscribed standards are asked: IAM.1 is stored but in
 // no subscribed standard.
 func TestScanSecurityHubControlAssociations_OnlySubscribedStandardsControlsAsked(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	controls := shSeedControls(t, st)
 	var c shAssocCalls
@@ -609,6 +621,7 @@ func TestScanSecurityHubControlAssociations_OnlySubscribedStandardsControlsAsked
 // A subscribed standard's control with no stored security-control row is not
 // asked, and one warning covers every such control.
 func TestScanSecurityHubControlAssociations_UnstoredControlWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	controls := shSeedControls(t, st)
 	warns := countOpWarnings(st, shListControlAssociationsOp)
@@ -630,6 +643,7 @@ func TestScanSecurityHubControlAssociations_UnstoredControlWarnsOnce(t *testing.
 // warning names the op; any other error is returned before any association
 // call.
 func TestScanSecurityHubControlAssociations_FailedStandard(t *testing.T) {
+	t.Parallel()
 	fsbp := shStdFSBP(testRegion)
 	for _, tc := range []struct {
 		name      string
@@ -673,6 +687,7 @@ func TestScanSecurityHubControlAssociations_FailedStandard(t *testing.T) {
 // The CIS v1.2.0 StandardsArn carries no region, so the same control and
 // standard in two regions must still be two rows.
 func TestScanSecurityHubControlAssociations_RegionlessStandardStaysPerRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	for _, region := range []string{"us-east-1", "eu-west-1"} {
@@ -695,6 +710,7 @@ func TestScanSecurityHubControlAssociations_RegionlessStandardStaysPerRegion(t *
 }
 
 func TestScanSecurityHubControlAssociations_NoAssociations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	controls := shSeedControls(t, st)
 	client := shClient(map[string]func(any) (any, error){
@@ -714,6 +730,7 @@ func TestScanSecurityHubControlAssociations_NoAssociations(t *testing.T) {
 // warns once however many controls hit it; any other error fails the phase
 // and is returned.
 func TestScanSecurityHubControlAssociations_FailedControl(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("ThrottlingException", "slow down")
 	limited := apiErr("LimitExceededException", "rate")
 	iamRow := shAssocNativeID(testRegion, shCtlIAM, shStdFSBP(testRegion))
@@ -759,6 +776,7 @@ func TestScanSecurityHubControlAssociations_FailedControl(t *testing.T) {
 // The phase asks only the stored controls of the standards subscribed this
 // scan: an element with no SecurityControlId is neither stored nor asked.
 func TestScanSecurityHub_ControlAssociationsOverStoredControls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var defs, assocs parentCalls

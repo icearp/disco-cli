@@ -77,6 +77,7 @@ func adoWebhook(id string) devopsagenttypes.Webhook {
 }
 
 func TestScanAidevopsAssets_StoresEachSpacesAssets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	spaces := adoSeedSpaces(t, st, "s-a", "s-b", "s-c")
 	calls := &parentCalls{}
@@ -147,6 +148,7 @@ func TestScanAidevopsAssets_StoresEachSpacesAssets(t *testing.T) {
 }
 
 func TestScanAidevopsTriggers_StoresEachSpacesTriggers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	spaces := adoSeedSpaces(t, st, "s-a", "s-b", "s-gone")
 	calls := &parentCalls{}
@@ -246,6 +248,7 @@ func adoSeedAssociations(t *testing.T, st *store.Store, assocs ...adoAssoc) []ai
 }
 
 func TestScanAidevopsWebhooks_StoresEachAssociationsWebhooks(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	assocs := adoSeedAssociations(t, st,
 		adoAssoc{"a-1", "s-a", adoPagerDuty}, adoAssoc{"a-2", "s-b", adoGitLab}, adoAssoc{"a-gone", "s-a", adoPagerDuty},
@@ -330,6 +333,7 @@ var adoNewPhases = []struct {
 }
 
 func TestAidevopsHasWebhooks_OnlyWebhookCapableKinds(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name string
 		cfg  devopsagenttypes.ServiceConfiguration
@@ -365,6 +369,7 @@ func adoGoal(id string, goalType devopsagenttypes.GoalType) devopsagenttypes.Goa
 }
 
 func TestScanAidevopsGoals_StoresEachSpacesGoals(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	spaces := adoSeedSpaces(t, st, "s-a", "s-b", "s-c")
 	calls := &parentCalls{}
@@ -438,6 +443,7 @@ func TestScanAidevopsGoals_StoresEachSpacesGoals(t *testing.T) {
 }
 
 func TestAidevopsChildPhases_Errors(t *testing.T) {
+	t.Parallel()
 	for _, p := range adoNewPhases {
 		t.Run(p.op+"/empty", func(t *testing.T) {
 			st := newTestStore(t)
@@ -472,6 +478,7 @@ func TestAidevopsChildPhases_Errors(t *testing.T) {
 // ListAssets and ListGoals model no not-found error, so one is not taken for a deleted
 // space and skipped.
 func TestAidevopsUnmodeledNotFound_Propagates(t *testing.T) {
+	t.Parallel()
 	for _, p := range adoNewPhases {
 		if p.op != "ListAssets" && p.op != "ListGoals" {
 			continue
@@ -536,6 +543,7 @@ func adoTopLevelHandlers(override map[string]func(any) (any, error)) map[string]
 // The new phases run over the parents the earlier phases listed, and an
 // earlier phase's error neither stops them nor is lost.
 func TestScanAidevopsAll_RunsNewPhasesOverListedParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := adoTopLevelHandlers(map[string]func(any) (any, error){
 		"ListServices": func(any) (any, error) { return nil, adoBadInput },
@@ -558,6 +566,7 @@ func TestScanAidevopsAll_RunsNewPhasesOverListedParents(t *testing.T) {
 // Every new phase runs after the existing phases: their rows are stored and
 // counted when every new phase fails, and each new phase's error is returned.
 func TestScanAidevopsAll_NewPhaseErrorsKeepEarlierRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	override := map[string]func(any) (any, error){}
 	var phaseErrs []error
@@ -589,6 +598,7 @@ func TestScanAidevopsAll_NewPhaseErrorsKeepEarlierRows(t *testing.T) {
 // under its phase instead of inside the hard error, and the phases after it
 // still run.
 func TestScanAidevopsAll_TransientPhaseDoesNotMaskOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "aidevops:ListAssets")
 	handlers := adoTopLevelHandlers(map[string]func(any) (any, error){
@@ -614,6 +624,7 @@ func TestScanAidevopsAll_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 // In a region with no aidevops endpoint the first phase's NXDOMAIN is
 // returned alone, so the dispatcher reports the region unavailable.
 func TestScanAidevopsAll_NXDOMAINStopsTheScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
@@ -641,6 +652,7 @@ func TestScanAidevopsAll_NXDOMAINStopsTheScan(t *testing.T) {
 // phases' errors, and the phases that do not need agent spaces still store
 // their rows.
 func TestScanAidevopsAll_AgentSpaceErrorKeepsIndependentPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := adoTopLevelHandlers(map[string]func(any) (any, error){
 		"ListAgentSpaces": func(any) (any, error) { return nil, adoBadInput },
@@ -666,6 +678,7 @@ func TestScanAidevopsAll_AgentSpaceErrorKeepsIndependentPhases(t *testing.T) {
 // NXDOMAIN says the region does not serve the service, so the phases that do
 // not need agent spaces still run and store their rows.
 func TestScanAidevopsAll_AgentSpaceConnectionErrorKeepsIndependentPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refused := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
 	calls := &parentCalls{}
@@ -699,6 +712,7 @@ func TestScanAidevopsAll_AgentSpaceConnectionErrorKeepsIndependentPhases(t *test
 // A data-plane phase's transient error alone is returned, so the scan is
 // marked partial rather than complete, with the other phases' rows counted.
 func TestScanAidevopsAll_LoneTransientPhaseMarksPartial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "aidevops:ListAssets")
 	handlers := adoTopLevelHandlers(map[string]func(any) (any, error){
@@ -720,6 +734,7 @@ func TestScanAidevopsAll_LoneTransientPhaseMarksPartial(t *testing.T) {
 // a plain error, so the dispatcher does not report the region unavailable and
 // drop the control-plane rows already stored.
 func TestScanAidevopsAll_DataPlaneNXDOMAINKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := adoTopLevelHandlers(map[string]func(any) (any, error){
 		"ListAssets": func(any) (any, error) {
@@ -751,6 +766,7 @@ var adoTestTagged = []string{TypeAidevopsAgentSpace, TypeAidevopsService, TypeAi
 // one newer than the pinned SDK under UnknownMember, and none as an empty
 // object.
 func TestAidevopsServiceAttrs_LabelsEveryDetailsMember(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		member devopsagenttypes.AdditionalServiceDetails
 		key    string
@@ -794,6 +810,7 @@ func TestAidevopsServiceAttrs_LabelsEveryDetailsMember(t *testing.T) {
 // list, and a document that does not render fails the row's attributes (which
 // the store reports) instead of being written as {}.
 func TestAidevopsServiceAttrs_AccessibleResources(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name string
 		docs []document.Interface
@@ -1021,6 +1038,7 @@ func adoScan(ctx context.Context, st *store.Store, handlers map[string]func(in a
 // child is stored under the agent space's ARN without a tag read. The two
 // paginated listings are sent MaxResults 100. No error, no warning.
 func TestScanAidevops_StoresTagsOfTaggableTypes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newADOTagFixture("aws", testRegion)
@@ -1104,6 +1122,7 @@ func TestScanAidevops_StoresTagsOfTaggableTypes(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanAidevops_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := adoScan(context.Background(), st, newADOTagFixture("aws", testRegion).handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -1120,6 +1139,7 @@ func TestScanAidevops_RescanInsertsNone(t *testing.T) {
 // Empty listings: nothing stored, no child listing or tag read, no error, no
 // warning.
 func TestScanAidevops_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newADOTagFixture("aws", testRegion)
@@ -1151,6 +1171,7 @@ func TestScanAidevops_EmptyListings(t *testing.T) {
 // warns once under the tag op with the scan's scope; a throttle keeps it and
 // is transient; any other error keeps it and is an error.
 func TestScanAidevops_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	f0 := newADOTagFixture("aws", testRegion)
 	space, svc, pc := f0.spaceARN("s-tagged"), f0.serviceARN("svc-bare"), f0.pcARN("pc-tagged")
 	for _, c := range []struct {
@@ -1218,6 +1239,7 @@ func TestScanAidevops_TagReadFailures(t *testing.T) {
 // Denied tag reads of every tag-read type send one warning for the whole
 // scan; the rows are kept.
 func TestScanAidevops_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newADOTagFixture("aws", testRegion)
@@ -1242,6 +1264,7 @@ func TestScanAidevops_TagDenialsWarnOncePerScan(t *testing.T) {
 // A denied tag read is still warned about when another phase fails: the scan
 // returns that phase's error, and the row stays stored without tags.
 func TestScanAidevops_TagDenialWarnedBesideListingError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newADOTagFixture("aws", testRegion)
@@ -1270,6 +1293,7 @@ func TestScanAidevops_TagDenialWarnedBesideListingError(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanAidevops_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, aidevopsTagsOp)
 	f := newADOTagFixture("aws", testRegion)
@@ -1288,6 +1312,7 @@ func TestScanAidevops_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phase's rows
 // stay stored.
 func TestScanAidevops_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeAidevopsService)
@@ -1318,6 +1343,7 @@ func TestScanAidevops_FailedWriteStopsScan(t *testing.T) {
 // error does not stop the later phases. An agent space not stored has no
 // children read.
 func TestScanAidevops_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	f0 := newADOTagFixture("aws", testRegion)
 	for _, c := range []struct {
 		op         string
@@ -1363,6 +1389,7 @@ func TestScanAidevops_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated nextToken ends the listing as an error, keeping its pages.
 func TestScanAidevops_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newADOTagFixture("aws", testRegion)
 	h := f.handlers()
@@ -1391,6 +1418,7 @@ func TestScanAidevops_RepeatedTokenKeepsPages(t *testing.T) {
 // Agent spaces and services write their first page, with its tags, before
 // the second page is read.
 func TestScanAidevops_PagesWrittenAsRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newADOTagFixture("aws", testRegion)
 	h := f.handlers()
@@ -1424,6 +1452,7 @@ func TestScanAidevops_PagesWrittenAsRead(t *testing.T) {
 // op, and is warned about once under its listing, keyed by its name, another
 // field, or the fallback text.
 func TestScanAidevops_ElementWithoutIdentifier(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		answer        any
@@ -1494,6 +1523,7 @@ func TestScanAidevops_ElementWithoutIdentifier(t *testing.T) {
 // In GovCloud and China the built ARNs carry the account's partition, and
 // reach the tag op unchanged.
 func TestScanAidevops_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1524,6 +1554,7 @@ func TestScanAidevops_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it, and the later phases are not run.
 func TestScanAidevops_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newADOTagFixture("aws", testRegion)
 	h := f.handlers()
@@ -1559,6 +1590,7 @@ func TestScanAidevops_ContextEndReportedOnce(t *testing.T) {
 // A tag read's NXDOMAIN after the listing reached the endpoint is a failure
 // of this scan, not a region gap: the counts are kept.
 func TestScanAidevops_TagReadNXDOMAINKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newADOTagFixture("aws", testRegion)
 	f.errs[f.serviceARN("svc-bare")] = &net.DNSError{Err: "no such host", Name: "cp.aidevops.us-east-1.api.aws", IsNotFound: true}

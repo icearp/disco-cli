@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveCloudTrailRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -42,6 +43,7 @@ func TestResolveCloudTrailRelationships(t *testing.T) {
 }
 
 func TestResolveCloudTrailEventDataStore_KMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -63,6 +65,7 @@ func TestResolveCloudTrailEventDataStore_KMS(t *testing.T) {
 }
 
 func TestResolveCloudTrailEventDataStore_FederationRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -84,6 +87,7 @@ func TestResolveCloudTrailEventDataStore_FederationRole(t *testing.T) {
 }
 
 func TestResolveCloudTrailEventDataStore_AWSManagedKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -104,6 +108,7 @@ func TestResolveCloudTrailEventDataStore_AWSManagedKey(t *testing.T) {
 }
 
 func TestResolveCloudTrailEventDataStore_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -123,6 +128,7 @@ func TestResolveCloudTrailEventDataStore_Empty(t *testing.T) {
 }
 
 func TestResolveCloudTrailRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

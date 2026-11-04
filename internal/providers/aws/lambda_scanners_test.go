@@ -34,6 +34,7 @@ func lambdaVersion(fn, version string) lambdatypes.FunctionConfiguration {
 // one, or whose versions could not be listed, are handed to that phase. A
 // function deleted since ListFunctions is skipped, not fatal.
 func TestScanLambdaVersions_ProvisionedConcurrencyCandidates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubLambdaPerFn{
 		errFor: map[string]error{
@@ -369,6 +370,7 @@ var lambdaTaggedTypes = map[string]string{
 // no other row (versions, aliases) has its tags read. A rescan inserts
 // nothing.
 func TestScanLambda_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newLambdaCalls()
@@ -421,6 +423,7 @@ func TestScanLambda_StoresTagsOfEveryType(t *testing.T) {
 
 // Each account-wide listing sends its page cap.
 func TestScanLambda_PageCaps(t *testing.T) {
+	t.Parallel()
 	calls := newLambdaCalls()
 	if _, _, err := lambdaScan(context.Background(), newTestStore(t), lambdaHandlers(calls)); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -438,6 +441,7 @@ func TestScanLambda_PageCaps(t *testing.T) {
 
 // Each function page is written with its tags before the next page is read.
 func TestScanLambda_FunctionsWrittenPageByPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newLambdaCalls()
 	handlers := lambdaHandlers(calls)
@@ -467,6 +471,7 @@ func TestScanLambda_FunctionsWrittenPageByPage(t *testing.T) {
 // lambda:ListTags; a throttle after retries keeps it and is a transient
 // error; InvalidParameterValueException keeps it and is a hard error.
 func TestScanLambda_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []string{"function", "microvm-image"} {
 		typ, arn := lambdaTaggedTypes[kind], lambdaTaggedARN(kind)
 		t.Run(kind, func(t *testing.T) {
@@ -538,6 +543,7 @@ func TestScanLambda_TagReadFailures(t *testing.T) {
 
 // Denied tag reads across phases and both clients send one warning.
 func TestScanLambda_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, lambdaListTagsOp)
 	calls := newLambdaCalls()
@@ -556,6 +562,7 @@ func TestScanLambda_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanLambda_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, lambdaListTagsOp)
 	calls := newLambdaCalls()
@@ -578,6 +585,7 @@ func TestScanLambda_TagThrottleDemotedBesideHardError(t *testing.T) {
 // throttle keeps it and is transient; any other error keeps it and is
 // returned. Each failure kept reads that function's tags with ListTags.
 func TestScanLambda_GetFunction(t *testing.T) {
+	t.Parallel()
 	image := lmvARN("function", "image-fn")
 	for _, c := range []struct {
 		name      string
@@ -664,6 +672,7 @@ func lambdaFunctionTagReads(calls *lambdaCalls) []string {
 // GetFunction's body; an image function's add Code.ImageUri only. No row
 // stores GetFunction's Code.Location, a presigned URL.
 func TestScanLambda_FunctionAttributesFromListing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := lambdaScan(context.Background(), st, lambdaHandlers(newLambdaCalls())); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -707,6 +716,7 @@ func TestScanLambda_FunctionAttributesFromListing(t *testing.T) {
 // A TagsError in GetFunction's body reads that function's tags, and only
 // its, with ListTags.
 func TestScanLambda_FunctionTagsErrorFallsBackToListTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newLambdaCalls()
@@ -735,6 +745,7 @@ func TestScanLambda_FunctionTagsErrorFallsBackToListTags(t *testing.T) {
 // ListTags; one whose ListTags is denied too is stored untagged. Each denial
 // warns once under its own op.
 func TestScanLambda_GetFunctionDeniedTagsFromListTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	all := countWarnings(st)
 	getWarns := bacWarnings(st, lambdaGetFunctionOp)
@@ -769,6 +780,7 @@ func TestScanLambda_GetFunctionDeniedTagsFromListTags(t *testing.T) {
 
 // Each type's row carries its Name and Status from the listed element.
 func TestScanLambda_NameAndStatus(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := lambdaScan(context.Background(), st, lambdaHandlers(newLambdaCalls())); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -797,6 +809,7 @@ func TestScanLambda_NameAndStatus(t *testing.T) {
 // Functions and MicroVM images of other partitions are read with the ARN
 // their listing returned.
 func TestScanLambda_OtherPartitionARNs(t *testing.T) {
+	t.Parallel()
 	gov := "arn:aws-us-gov:lambda:us-gov-west-1:123456789012:function:gov-fn"
 	cn := "arn:aws-cn:lambda:cn-north-1:123456789012:microvm-image/cn-image"
 	calls := newLambdaCalls()
@@ -823,6 +836,7 @@ func TestScanLambda_OtherPartitionARNs(t *testing.T) {
 // A failed later page keeps the pages before it, and every later phase still
 // runs; the error is returned.
 func TestScanLambda_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newLambdaCalls()
 	calls.listErr["ListCodeSigningConfigs"] = lambdaInvalid
@@ -851,6 +865,7 @@ func TestScanLambda_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // A repeated marker ends the function listing as an error, keeping the page
 // read.
 func TestScanLambda_RepeatedMarkerKeepsPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := lambdaHandlers(newLambdaCalls())
 	handlers["ListFunctions"] = func(any) (any, error) {
@@ -868,6 +883,7 @@ func TestScanLambda_RepeatedMarkerKeepsPage(t *testing.T) {
 // A listed element without an ARN is not stored, and one warning under its
 // listing names it.
 func TestScanLambda_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for op, typ := range map[string]string{
 		"ListFunctions": TypeLambdaFunction, "ListCodeSigningConfigs": TypeLambdaCodeSigningConfig,
 		"ListCapacityProviders": TypeLambdaCapacityProvider, "ListEventSourceMappings": TypeLambdaESM,
@@ -898,6 +914,7 @@ func TestScanLambda_ElementWithoutARNWarns(t *testing.T) {
 // first page with the gateway's NotFoundException, read as an empty listing;
 // the same answer on a later page is an error.
 func TestScanLambda_CapacityProvidersRegionGap(t *testing.T) {
+	t.Parallel()
 	gap := apiErr("NotFoundException", "Unable to determine service/operation name to be authorized")
 	for _, c := range []struct {
 		name    string
@@ -935,6 +952,7 @@ func TestScanLambda_CapacityProvidersRegionGap(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanLambda_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeLambdaFunction)
@@ -959,6 +977,7 @@ func TestScanLambda_FailedWriteStopsWithoutWarning(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it too.
 func TestScanLambda_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newLambdaCalls()
 	handlers := lambdaHandlers(calls)
@@ -994,6 +1013,7 @@ func TestScanLambda_ContextEndStopsOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanLambda_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "lambda.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1034,6 +1054,7 @@ func TestScanLambda_NXDOMAIN(t *testing.T) {
 // its parent phase stored, and a phase's failure leaves every other phase's
 // rows stored.
 func TestScanLambda_PhasesWiredAndIndependent(t *testing.T) {
+	t.Parallel()
 	type row struct{ typ, nativeID string }
 	fn := lambdaTaggedARN("function")
 	version := row{TypeLambdaVersion, fn + ":1"}

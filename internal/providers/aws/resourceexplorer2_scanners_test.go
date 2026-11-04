@@ -3,6 +3,7 @@ package aws
 import "testing"
 
 func TestRE2ViewName(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		arn  string
 		want string

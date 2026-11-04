@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveTransferAgreementRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	sARN := fmt.Sprintf("arn:aws:transfer:%s:%s:server/s-1", testRegion, acct.ID)
@@ -26,6 +27,7 @@ func TestResolveTransferAgreementRefs(t *testing.T) {
 }
 
 func TestResolveTransferUserParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	sARN := fmt.Sprintf("arn:aws:transfer:%s:%s:server/s-1", testRegion, acct.ID)
@@ -40,6 +42,7 @@ func TestResolveTransferUserParent(t *testing.T) {
 }
 
 func TestResolveTransferUserRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/Tx", acct.ID)
@@ -55,6 +58,7 @@ func TestResolveTransferUserRole(t *testing.T) {
 }
 
 func TestResolveTransferServerLoggingRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/Log", acct.ID)
@@ -70,6 +74,7 @@ func TestResolveTransferServerLoggingRole(t *testing.T) {
 }
 
 func TestResolveTransferHostKeyParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	sARN := fmt.Sprintf("arn:aws:transfer:%s:%s:server/s-1", testRegion, acct.ID)
@@ -84,6 +89,7 @@ func TestResolveTransferHostKeyParent(t *testing.T) {
 }
 
 func TestResolveTransferAccessRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	access := transferDescribedAccess("S-1-5-21-1")
@@ -98,6 +104,7 @@ func TestResolveTransferAccessRole(t *testing.T) {
 }
 
 func TestResolveTransferAccessRole_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, sv(transferDescribedAccess("S-1-5-21-1").Role), "", "{}")
@@ -113,6 +120,7 @@ func TestResolveTransferAccessRole_NoAttrs(t *testing.T) {
 }
 
 func TestResolveTransferRoleEdge_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	// ListResources orders by name, so the bad row "a" is read before the
@@ -131,6 +139,7 @@ func TestResolveTransferRoleEdge_DecodeErrorReturned(t *testing.T) {
 }
 
 func TestResolveTransferHostKeyParent_NoMatch(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	hkARN := fmt.Sprintf("arn:aws:transfer:%s:%s:host-key/s-missing/hostkey-1", testRegion, acct.ID)

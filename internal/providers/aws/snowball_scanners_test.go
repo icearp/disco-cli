@@ -56,6 +56,7 @@ func sbCluster(n string) *sbtypes.ClusterMetadata {
 }
 
 func TestScanSnowballAddresses_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		mu       sync.Mutex
@@ -104,6 +105,7 @@ func TestScanSnowballAddresses_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanSnowballAddresses_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name         string
 		err          error
@@ -144,6 +146,7 @@ func TestScanSnowballAddresses_Errors(t *testing.T) {
 }
 
 func TestScanSnowballAddresses_LaterPageErrorKeepsStoredPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := map[string]func(any) (any, error){
 		"DescribeAddresses": func(in any) (any, error) {
@@ -187,6 +190,7 @@ func sbClusterHandlers(calls *parentCalls, describe func(id string) (any, error)
 }
 
 func TestScanSnowballClusters_DescribesEveryListedCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &parentCalls{}
 	var (
@@ -241,6 +245,7 @@ func TestScanSnowballClusters_DescribesEveryListedCluster(t *testing.T) {
 // A cluster whose DescribeCluster returns no metadata is dropped; the other
 // is stored.
 func TestScanSnowballClusters_NoMetadataDropped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := sbClusterHandlers(&parentCalls{}, func(id string) (any, error) {
 		if id == sbClusterID("1") {
@@ -259,6 +264,7 @@ func TestScanSnowballClusters_NoMetadataDropped(t *testing.T) {
 }
 
 func TestScanSnowballClusters_ListErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -297,6 +303,7 @@ func TestScanSnowballClusters_ListErrors(t *testing.T) {
 // A failed second page still describes and stores the cluster the first
 // page listed, and the error is returned.
 func TestScanSnowballClusters_LaterListPageErrorStoresListedClusters(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := sbClusterHandlers(&parentCalls{}, nil)
 	list := handlers["ListClusters"]
@@ -318,6 +325,7 @@ func TestScanSnowballClusters_LaterListPageErrorStoresListedClusters(t *testing.
 // Cluster 1 fails DescribeCluster with err; cluster 2 is kept unless the
 // error is fatal.
 func TestScanSnowballClusters_PerClusterErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -370,6 +378,7 @@ func sbTopLevelHandlers(override map[string]func(any) (any, error)) map[string]f
 }
 
 func TestScanSnowballAll_StoresAddressesAndClusters(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanSnowballAll(context.Background(), sbClient(sbTopLevelHandlers(nil)), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
@@ -400,6 +409,7 @@ func sbCountingAddresses(calls *atomic.Int32) map[string]func(any) (any, error) 
 // A US region whose listing is denied leaves the addresses to the next US
 // region, which stores them under the first configured US region.
 func TestScanSnowballAddressesOnce_DeniedRegionLeavesTurnToNext(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, snowballDescribeAddressesOp)
 	acct := newTestAccount(testAccountID)
@@ -425,6 +435,7 @@ func TestScanSnowballAddressesOnce_DeniedRegionLeavesTurnToNext(t *testing.T) {
 // A configured US region the scan never dispatches to (here us-east-1, as if
 // not enabled for the account) is not stored as a US address's Region.
 func TestScanSnowballAddressesOnce_RegionLabelIsADispatchedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.Regions = []string{"us-east-1", "us-west-2"}
@@ -439,6 +450,7 @@ func TestScanSnowballAddressesOnce_RegionLabelIsADispatchedRegion(t *testing.T) 
 }
 
 func TestSnowballUSAddressRegion_FirstScannedUSRegion(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		scanned []string
 		region  string
@@ -458,6 +470,7 @@ func TestSnowballUSAddressRegion_FirstScannedUSRegion(t *testing.T) {
 // A failed write of an address page leaves the listing incomplete, so the
 // next US region lists again.
 func TestScanSnowballAddresses_StoreWriteFailureIsIncomplete(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
 	if err != nil {
@@ -484,6 +497,8 @@ func sbClientCtx(handlers map[string]func(ctx context.Context, in any) (any, err
 // waits on the gate before its clusters nor blames itself for the wait. The
 // holder's call fails after the waiter's deadline, so a waiter that ignored
 // its context would then call DescribeAddresses itself and fail.
+//
+//nolint:paralleltest // needs its 300ms deadline to end before the holder's 400ms call; parallel load can close that gap
 func TestScanSnowballAll_WaitingUSRegionKeepsClustersWithoutDeadline(t *testing.T) {
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -540,6 +555,7 @@ func TestScanSnowballAll_WaitingUSRegionKeepsClustersWithoutDeadline(t *testing.
 // Once one US region has stored the addresses, later US regions do not call
 // DescribeAddresses.
 func TestScanSnowballAddressesOnce_StoredOnceAcrossUSRegions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var calls atomic.Int32
@@ -560,6 +576,7 @@ func TestScanSnowballAddressesOnce_StoredOnceAcrossUSRegions(t *testing.T) {
 // A non-US region (GovCloud included) lists its addresses even after a US
 // region has stored the US ones.
 func TestScanSnowballAddressesOnce_NonUSRegionAlwaysLists(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var calls atomic.Int32
@@ -577,6 +594,7 @@ func TestScanSnowballAddressesOnce_NonUSRegionAlwaysLists(t *testing.T) {
 // US regions scanned concurrently call DescribeAddresses once: the first call
 // waits briefly for a second one, which the account's lock must keep out.
 func TestScanSnowballAddressesOnce_ConcurrentUSRegionsCallOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var calls atomic.Int32
@@ -611,6 +629,7 @@ func TestScanSnowballAddressesOnce_ConcurrentUSRegionsCallOnce(t *testing.T) {
 // A hard error in either phase does not stop the other phase from storing
 // its rows, and is returned.
 func TestScanSnowballAll_PhaseErrorKeepsOtherPhase(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		failOp   string
@@ -639,6 +658,7 @@ func TestScanSnowballAll_PhaseErrorKeepsOtherPhase(t *testing.T) {
 // A lone throttle is returned, not demoted, so the dispatcher reads the scan
 // as partial; the other phase's rows are kept.
 func TestScanSnowballAll_LoneTransientIsReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, snowballListClustersOp)
 	handlers := sbTopLevelHandlers(map[string]func(any) (any, error){
@@ -659,6 +679,7 @@ func TestScanSnowballAll_LoneTransientIsReturned(t *testing.T) {
 // A throttle in one phase is demoted to one warning so that the other
 // phase's hard error still classifies the service as failed.
 func TestScanSnowballAll_TransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, throttledOp, warnOp, hardOp string
 	}{

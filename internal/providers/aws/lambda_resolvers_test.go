@@ -12,6 +12,7 @@ var baseFnARN = fmt.Sprintf("arn:aws:lambda:%s:%s:function:my-fn", testRegion, t
 // TestResolveLambdaRelationships verifies a Lambda function's IAM role ARN is
 // extracted from AttributesJSON and produces an assumes relationship.
 func TestResolveLambdaRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -41,6 +42,7 @@ func TestResolveLambdaRelationships(t *testing.T) {
 // TestResolveLambdaRelationships_NoRole verifies a function without a Role
 // field produces no relationships and no error.
 func TestResolveLambdaRelationships_NoRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -62,6 +64,7 @@ func TestResolveLambdaRelationships_NoRole(t *testing.T) {
 // TestResolveLambdaAliasRelationships verifies an alias links to its function
 // via an attached-to edge.
 func TestResolveLambdaAliasRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -86,6 +89,7 @@ func TestResolveLambdaAliasRelationships(t *testing.T) {
 // TestResolveLambdaAliasRelationships_NoAliases verifies no error when there
 // are no alias resources.
 func TestResolveLambdaAliasRelationships_NoAliases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -97,6 +101,7 @@ func TestResolveLambdaAliasRelationships_NoAliases(t *testing.T) {
 // TestResolveLambdaVersionRelationships verifies a published version links to
 // its function via an attached-to edge.
 func TestResolveLambdaVersionRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -121,6 +126,7 @@ func TestResolveLambdaVersionRelationships(t *testing.T) {
 // TestResolveLambdaVersionRelationships_NoVersions verifies no error when there
 // are no version resources.
 func TestResolveLambdaVersionRelationships_NoVersions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -132,6 +138,7 @@ func TestResolveLambdaVersionRelationships_NoVersions(t *testing.T) {
 // TestResolveLambdaESMRelationships verifies an event source mapping links to
 // its target function via an attached-to edge.
 func TestResolveLambdaESMRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -158,6 +165,7 @@ func TestResolveLambdaESMRelationships(t *testing.T) {
 // TestResolveLambdaESMRelationships_NoFunctionArn verifies an ESM without a
 // FunctionArn produces no relationships and no error.
 func TestResolveLambdaESMRelationships_NoFunctionArn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -180,6 +188,7 @@ func TestResolveLambdaESMRelationships_NoFunctionArn(t *testing.T) {
 // TestResolveLambdaEventInvokeConfigRelationships verifies an event invoke
 // config links to its function via an attached-to edge.
 func TestResolveLambdaEventInvokeConfigRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -204,6 +213,7 @@ func TestResolveLambdaEventInvokeConfigRelationships(t *testing.T) {
 // TestResolveLambdaEventInvokeConfigRelationships_NoConfigs verifies no error
 // when there are no event invoke config resources.
 func TestResolveLambdaEventInvokeConfigRelationships_NoConfigs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -215,6 +225,7 @@ func TestResolveLambdaEventInvokeConfigRelationships_NoConfigs(t *testing.T) {
 // TestResolveLambdaFunctionURLRelationships verifies a function URL config
 // links to its function via an attached-to edge.
 func TestResolveLambdaFunctionURLRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -239,6 +250,7 @@ func TestResolveLambdaFunctionURLRelationships(t *testing.T) {
 // TestResolveLambdaFunctionURLRelationships_NoURLs verifies no error when there
 // are no function URL resources.
 func TestResolveLambdaFunctionURLRelationships_NoURLs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -250,6 +262,7 @@ func TestResolveLambdaFunctionURLRelationships_NoURLs(t *testing.T) {
 // TestResolveLambdaCodeSigningConfigRelationships verifies a function with a
 // CodeSigningConfigArn links to the config via a "uses" edge.
 func TestResolveLambdaCodeSigningConfigRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -276,6 +289,7 @@ func TestResolveLambdaCodeSigningConfigRelationships(t *testing.T) {
 // TestResolveLambdaCodeSigningConfigRelationships_NoCSC verifies a function
 // without a CodeSigningConfigArn produces no relationships and no error.
 func TestResolveLambdaCodeSigningConfigRelationships_NoCSC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -297,6 +311,7 @@ func TestResolveLambdaCodeSigningConfigRelationships_NoCSC(t *testing.T) {
 // TestResolveLambdaLayerRelationships verifies a function using a layer
 // version links to that layer version via a "uses" edge.
 func TestResolveLambdaLayerRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -325,6 +340,7 @@ func TestResolveLambdaLayerRelationships(t *testing.T) {
 // no error. Regression guard for the FK failure when a function uses a layer
 // ListLayers doesn't return in the caller account.
 func TestResolveLambdaLayerRelationships_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -349,6 +365,7 @@ func TestResolveLambdaLayerRelationships_FKSafe(t *testing.T) {
 // TestResolveLambdaLayerRelationships_NoLayers verifies a function without
 // layers produces no relationships and no error.
 func TestResolveLambdaLayerRelationships_NoLayers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -371,6 +388,7 @@ func TestResolveLambdaLayerRelationships_NoLayers(t *testing.T) {
 // with a customer-managed KMS key emits edges to KMS, each subnet, and each
 // security group.
 func TestResolveLambdaRelationships_KMSAndVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -400,6 +418,7 @@ func TestResolveLambdaRelationships_KMSAndVPC(t *testing.T) {
 // TestResolveLambdaESMRelationships_SQSSource verifies an ESM with an SQS
 // EventSourceArn produces an edge to the queue.
 func TestResolveLambdaESMRelationships_SQSSource(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -425,6 +444,7 @@ func TestResolveLambdaESMRelationships_SQSSource(t *testing.T) {
 // TestResolveLambdaESMRelationships_KinesisSource verifies ESM with a Kinesis
 // EventSourceArn produces an edge to the stream.
 func TestResolveLambdaESMRelationships_KinesisSource(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -449,6 +469,7 @@ func TestResolveLambdaESMRelationships_KinesisSource(t *testing.T) {
 // TestResolveLambdaESMRelationships_MSKSource verifies ESM with an MSK
 // EventSourceArn produces an edge to the cluster.
 func TestResolveLambdaESMRelationships_MSKSource(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -472,6 +493,7 @@ func TestResolveLambdaESMRelationships_MSKSource(t *testing.T) {
 
 // TestLambdaStripQualifier verifies the qualifier-stripping helper.
 func TestLambdaStripQualifier(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		arn  string
 		want string
@@ -504,6 +526,7 @@ func TestLambdaStripQualifier(t *testing.T) {
 
 // TestResolveLambdaEFSRelationships verifies Function → EFS access point edge.
 func TestResolveLambdaEFSRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -529,6 +552,7 @@ func TestResolveLambdaEFSRelationships(t *testing.T) {
 // TestResolveLambdaRelationships_DLQSQS verifies Function → SQS dead-letter
 // target edge.
 func TestResolveLambdaRelationships_DLQSQS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -552,6 +576,7 @@ func TestResolveLambdaRelationships_DLQSQS(t *testing.T) {
 // TestResolveLambdaRelationships_DLQSNS verifies Function → SNS dead-letter
 // target edge.
 func TestResolveLambdaRelationships_DLQSNS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -575,6 +600,7 @@ func TestResolveLambdaRelationships_DLQSNS(t *testing.T) {
 // TestResolveLambdaRelationships_ImageECR verifies Function → ECR repository
 // edge for image-package functions.
 func TestResolveLambdaRelationships_ImageECR(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -599,6 +625,7 @@ func TestResolveLambdaRelationships_ImageECR(t *testing.T) {
 // TestResolveLambdaEventInvokeConfigRelationships_Destinations verifies
 // destination dispatch to SQS, SNS, EventBridge bus, and Lambda function.
 func TestResolveLambdaEventInvokeConfigRelationships_Destinations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -633,6 +660,7 @@ func TestResolveLambdaEventInvokeConfigRelationships_Destinations(t *testing.T) 
 // TestResolveLambdaESMRelationships_MQSource verifies ESM with an Amazon MQ
 // EventSourceArn produces an edge to the broker.
 func TestResolveLambdaESMRelationships_MQSource(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -658,6 +686,7 @@ func TestResolveLambdaESMRelationships_MQSource(t *testing.T) {
 // its parent function via AttachedTo and to the SourceArn (S3 bucket here)
 // referenced by an Allow statement's Condition block.
 func TestResolveLambdaPermissionRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -686,6 +715,7 @@ func TestResolveLambdaPermissionRelationships(t *testing.T) {
 // account-principal permission (Principal.AWS, no SourceArn) emits only the
 // AttachedTo edge.
 func TestResolveLambdaPermissionRelationships_NoCondition(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -714,6 +744,7 @@ func TestResolveLambdaPermissionRelationships_NoCondition(t *testing.T) {
 // AttachedTo edge to the parent layer version. Cross-account principals
 // are not edge-bearing.
 func TestResolveLambdaLayerVersionPermissionRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -740,6 +771,7 @@ func TestResolveLambdaLayerVersionPermissionRelationships(t *testing.T) {
 // DocumentDB cluster EventSourceArn produces an edge to the cluster.
 // DocDB cluster ARNs use the rds: prefix (historical artefact).
 func TestResolveLambdaESMRelationships_DocDBSource(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

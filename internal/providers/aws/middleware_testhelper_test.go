@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"reflect"
 	"sync"
 	"testing"
 
@@ -58,9 +59,23 @@ func stubResponses(t *testing.T, responses map[string][]stubCall) func(*smithymw
 				}
 				c := q.queue[q.idx]
 				q.idx++
-				return smithymw.InitializeOutput{Result: c.Output}, smithymw.Metadata{}, c.Err
+				return smithymw.InitializeOutput{Result: freshOutput(c.Output)}, smithymw.Metadata{}, c.Err
 			}), smithymw.After)
 	}
+}
+
+// freshOutput returns a shallow copy of a stubbed *<Op>Output. The SDK writes
+// ResultMetadata into the output a call returns, so one fixture output handed
+// to fan-out goroutines or to parallel tests would be written concurrently; a
+// real client returns a new output per call.
+func freshOutput(out any) any {
+	v := reflect.ValueOf(out)
+	if v.Kind() != reflect.Pointer || v.IsNil() {
+		return out
+	}
+	c := reflect.New(v.Elem().Type())
+	c.Elem().Set(v.Elem())
+	return c.Interface()
 }
 
 // cfgWithStub is an SDK config whose every call is answered by stub (usually
@@ -103,7 +118,7 @@ func opStubConfigCtx(handlers map[string]func(ctx context.Context, in any) (any,
 					return smithymw.InitializeOutput{}, smithymw.Metadata{}, denyErr
 				}
 				out, err := h(ctx, in.Parameters)
-				return smithymw.InitializeOutput{Result: out}, smithymw.Metadata{}, err
+				return smithymw.InitializeOutput{Result: freshOutput(out)}, smithymw.Metadata{}, err
 			}), smithymw.After)
 	}
 	return cfgWithStub(stub, testRegion)

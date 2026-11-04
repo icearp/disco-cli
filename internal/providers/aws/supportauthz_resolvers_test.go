@@ -23,6 +23,7 @@ func saPermitAttrs(keyARN string) string {
 // A permit uses the scanned key that signs it. A permit with no key, or whose
 // key is not scanned, has no edge.
 func TestResolveSupportPermitKMS_KeyEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, saKeyARN, saRegion, "{}")
@@ -48,6 +49,7 @@ func TestResolveSupportPermitKMS_KeyEdge(t *testing.T) {
 // A permit whose attributes do not decode is reported, and costs the other
 // permits none of their edges.
 func TestResolveSupportPermitKMS_DecodeError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyID := upsertTestResource(t, st, "aws", acct.ID, TypeKMSKey, saKeyARN, saRegion, "{}")

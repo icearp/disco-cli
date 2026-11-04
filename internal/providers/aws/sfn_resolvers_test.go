@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveSFNRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -54,6 +55,7 @@ func TestResolveSFNRelationships(t *testing.T) {
 }
 
 func TestResolveSFNRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

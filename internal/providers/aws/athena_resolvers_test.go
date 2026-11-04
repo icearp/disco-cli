@@ -18,6 +18,7 @@ const (
 // TestResolveAthenaWorkgroupTargets_HappyPath verifies workgroup →
 // {S3 bucket, KMS key} edges land when both targets are scanned.
 func TestResolveAthenaWorkgroupTargets_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -47,6 +48,7 @@ func TestResolveAthenaWorkgroupTargets_HappyPath(t *testing.T) {
 // TestResolveAthenaWorkgroupTargets_NoConfig verifies workgroups without
 // ResultConfiguration skip without erroring.
 func TestResolveAthenaWorkgroupTargets_NoConfig(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -61,6 +63,7 @@ func TestResolveAthenaWorkgroupTargets_NoConfig(t *testing.T) {
 // TestResolveAthenaDataCatalogLambda_HappyPath verifies LAMBDA-type
 // catalog → Lambda function edge via Parameters[`function`].
 func TestResolveAthenaDataCatalogLambda_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -84,6 +87,7 @@ func TestResolveAthenaDataCatalogLambda_HappyPath(t *testing.T) {
 // TestResolveAthenaDataCatalogLambda_GlueSkipped verifies GLUE-type
 // catalogs emit no Lambda edge (no Parameters.function).
 func TestResolveAthenaDataCatalogLambda_GlueSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -112,6 +116,7 @@ func TestResolveAthenaDataCatalogLambda_GlueSkipped(t *testing.T) {
 // catalog with both metadata-function and record-function emits two
 // edges (deduplicated if same function).
 func TestResolveAthenaDataCatalogLambda_HiveDualFn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -136,6 +141,7 @@ func TestResolveAthenaDataCatalogLambda_HiveDualFn(t *testing.T) {
 }
 
 func TestResolveAthenaSavedQueryWorkgroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -158,6 +164,7 @@ func TestResolveAthenaSavedQueryWorkgroup(t *testing.T) {
 
 // Saved queries whose workgroup is unscanned emit no edge.
 func TestResolveAthenaSavedQueryWorkgroup_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

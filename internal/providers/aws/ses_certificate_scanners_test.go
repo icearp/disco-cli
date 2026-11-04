@@ -151,6 +151,7 @@ func scanSESCerts(t *testing.T, st *store.Store, handlers map[string]func(in any
 // scanSES lists certificates for every stored identity, after every older
 // phase, and stores each under its identity.
 func TestScanSES_StoresCertificatesOfEveryIdentityLast(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, sesCertificateOp)
 	var calls parentCalls
@@ -203,6 +204,7 @@ func TestScanSES_StoresCertificatesOfEveryIdentityLast(t *testing.T) {
 // A hard certificate error is returned after every older phase stored its
 // rows, and reaches the dispatcher as a hard error.
 func TestScanSES_CertificateErrorKeepsOlderPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	var log opLog
@@ -220,6 +222,7 @@ func TestScanSES_CertificateErrorKeepsOlderPhases(t *testing.T) {
 // Each per-identity failure is dropped or returned per its kind, and a
 // dropped identity costs its sibling none of its rows.
 func TestScanSESEmailIdentityCertificates_ErrorLadder(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		failed    []string
@@ -281,6 +284,7 @@ func TestScanSESEmailIdentityCertificates_ErrorLadder(t *testing.T) {
 }
 
 func TestScanSESEmailIdentityCertificates_Empty(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name       string
 		identities []sesIdentity
@@ -312,6 +316,7 @@ func TestScanSESEmailIdentityCertificates_Empty(t *testing.T) {
 // A service that repeats its NextToken ends the identity's listing instead of
 // looping; the stub fails after a few calls so a regression cannot hang.
 func TestScanSESEmailIdentityCertificates_StopsOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedParentRows(t, st, TypeSESEmailIdentity, sesTestDomainARN)
 	var n int
@@ -338,6 +343,7 @@ func TestScanSESEmailIdentityCertificates_StopsOnRepeatedToken(t *testing.T) {
 // An address with a DEPROVISIONING association and its replacement stores the
 // replacement once, whichever the service lists first.
 func TestScanSESEmailIdentityCertificates_ReplacementBeatsDeprovisioning(t *testing.T) {
+	t.Parallel()
 	old := sesv2types.IdentityCertificate{FromAddress: ptrStr("alice@example.com"), CertificateArn: ptrStr(sesTestCertARN1), Status: sesv2types.IdentityCertificateStatusDeprovisioning}
 	replacement := sesv2types.IdentityCertificate{FromAddress: ptrStr("alice@example.com"), CertificateArn: ptrStr(sesTestCertARN2), Status: sesv2types.IdentityCertificateStatusActive}
 	for _, tc := range []struct {
@@ -393,6 +399,7 @@ func TestScanSESEmailIdentityCertificates_ReplacementBeatsDeprovisioning(t *test
 // the identity is an email address; under a domain it is skipped with a
 // warning.
 func TestScanSESEmailIdentityCertificates_MissingFromAddress(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		identity  sesIdentity
@@ -434,6 +441,7 @@ func TestScanSESEmailIdentityCertificates_MissingFromAddress(t *testing.T) {
 // An association skipped on an early page is not reported when a later page
 // of the same identity fails: the identity stores nothing.
 func TestScanSESEmailIdentityCertificates_FailedIdentityTalliesNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedParentRows(t, st, TypeSESEmailIdentity, sesTestDomainARN)
 	warns := countOpWarnings(st, sesCertificateOp)
@@ -459,6 +467,7 @@ func TestScanSESEmailIdentityCertificates_FailedIdentityTalliesNothing(t *testin
 // Two associations for one address, neither DEPROVISIONING, keep the first
 // listed and are reported in one warning.
 func TestScanSESEmailIdentityCertificates_UndocumentedDuplicateWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedParentRows(t, st, TypeSESEmailIdentity, sesTestDomainARN)
 	warns := countOpWarnings(st, sesCertificateOp)
@@ -493,6 +502,7 @@ var sesNotDeployed = apiErr("UnknownOperationException", "unknown operation")
 // phase is silent; with some, the refused identities are skipped in one
 // warning and the others keep their rows.
 func TestScanSESEmailIdentityCertificates_NotDeployed(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		// errFor fails identities; nil leaves an identity's sesCertHandlers
@@ -616,6 +626,8 @@ func TestScanSESEmailIdentityCertificates_NotDeployed(t *testing.T) {
 // no message and read as a deleted identity. The client is built from the
 // account config, as a scan's clients are; a client built without
 // baseLoadOptions fails this test.
+//
+//nolint:paralleltest // accountConfigForTest calls t.Setenv
 func TestSESCertificateErrors_ReadCapitalisedGatewayMessage(t *testing.T) {
 	const gateway = "Unable to determine service/operation name to be authorized"
 	cases := []struct {

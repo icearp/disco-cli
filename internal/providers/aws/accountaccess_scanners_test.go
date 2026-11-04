@@ -129,6 +129,7 @@ func runAccountAccess(t *testing.T, st *store.Store, handlers map[string]func(in
 }
 
 func TestScanAccountAccess_StoresEveryPageInTheScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets, lists, regions parentCalls
 	h := aaHandlers(&gets, &lists)
@@ -218,6 +219,7 @@ func TestScanAccountAccess_StoresEveryPageInTheScannedRegion(t *testing.T) {
 // SDK's {"Value": ...} encoding loses: a user and a group principal would
 // store alike.
 func TestScanAccountAccess_AttributesNameUnionMembers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets, lists parentCalls
 	if _, err := runAccountAccess(t, st, aaHandlers(&gets, &lists)); err != nil {
@@ -260,6 +262,7 @@ func TestScanAccountAccess_AttributesNameUnionMembers(t *testing.T) {
 // A member this SDK version does not model is kept under UnknownMember with
 // its tag, at every union level.
 func TestFlattenAccountAccess_UnknownMembers(t *testing.T) {
+	t.Parallel()
 	unknown := &aatypes.UnknownUnionMember{Tag: "newMember"}
 	wantUnknown := map[string]any{"UnknownMember": map[string]any{"Tag": "newMember", "Value": nil}}
 
@@ -299,6 +302,7 @@ func TestFlattenAccountAccess_UnknownMembers(t *testing.T) {
 }
 
 func TestScanAccountAccess_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	total, err := runAccountAccess(t, st, map[string]func(in any) (any, error){
@@ -312,6 +316,7 @@ func TestScanAccountAccess_Empty(t *testing.T) {
 // A list denial warns once and keeps the applications, and their
 // entitlements, from the pages before it.
 func TestScanAccountAccess_ListApplicationsDeniedKeepsListed(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name       string
 		secondPage bool
@@ -348,6 +353,7 @@ func TestScanAccountAccess_ListApplicationsDeniedKeepsListed(t *testing.T) {
 // A ListApplications error other than a denial fails the scan before any
 // entitlement is listed.
 func TestScanAccountAccess_ListApplicationsErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets, lists parentCalls
 	h := aaHandlers(&gets, &lists)
@@ -362,6 +368,7 @@ func TestScanAccountAccess_ListApplicationsErrorPropagates(t *testing.T) {
 // A service that answers with the token it was sent ends the listing after
 // that page instead of looping.
 func TestScanAccountAccess_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets, lists parentCalls
 	h := aaHandlers(&gets, &lists)
@@ -402,6 +409,7 @@ func aaGetFails(gets, lists *parentCalls, err error) map[string]func(in any) (an
 // An application whose Get fails with a skipped code is not stored and so
 // not a parent; its sibling and the sibling's entitlement are.
 func TestScanAccountAccess_GetApplicationSkips(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -430,6 +438,7 @@ func TestScanAccountAccess_GetApplicationSkips(t *testing.T) {
 }
 
 func TestScanAccountAccess_GetApplicationErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets, lists parentCalls
 	_, err := runAccountAccess(t, st, aaGetFails(&gets, &lists, apiErr("ValidationException", "bad arn")))
@@ -459,6 +468,7 @@ func aaListFails(gets, lists *parentCalls, app string, err error) map[string]fun
 // entitlements and both applications. A ValidationException is skipped only
 // for an application that is not ACTIVE (app-b is DELETE_FAILED).
 func TestScanAccountAccess_ListEntitlementsSkips(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		app       string
@@ -509,6 +519,7 @@ func TestScanAccountAccess_ListEntitlementsSkips(t *testing.T) {
 
 // A denial on every application warns once for the op.
 func TestScanAccountAccess_ListEntitlementsDeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "account-access:ListEntitlements")
 	var gets, lists parentCalls
@@ -525,6 +536,7 @@ func TestScanAccountAccess_ListEntitlementsDeniedWarnsOnce(t *testing.T) {
 // A ValidationException from an ACTIVE application, or any other code, fails
 // the phase; the applications stay stored.
 func TestScanAccountAccess_ListEntitlementsErrorPropagates(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		code string

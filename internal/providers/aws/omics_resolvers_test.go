@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveOmicsAnnotationStoreVersionParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	storeID := "as-1"
@@ -27,6 +28,7 @@ func TestResolveOmicsAnnotationStoreVersionParent(t *testing.T) {
 }
 
 func TestResolveOmicsAnnotationStoreVersionParent_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vARN := fmt.Sprintf("arn:aws:omics:%s:%s:annotationStore/as-1/version/v1", testRegion, acct.ID)
@@ -40,6 +42,7 @@ func TestResolveOmicsAnnotationStoreVersionParent_NoAttrs(t *testing.T) {
 }
 
 func TestResolveOmicsReferenceParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	storeID := "rs-1"
@@ -57,6 +60,7 @@ func TestResolveOmicsReferenceParent(t *testing.T) {
 }
 
 func TestResolveOmicsReferenceParent_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	refARN := fmt.Sprintf("arn:aws:omics:%s:%s:referenceStore/rs-1/reference/ref-1", testRegion, acct.ID)
@@ -70,6 +74,7 @@ func TestResolveOmicsReferenceParent_NoAttrs(t *testing.T) {
 }
 
 func TestResolveOmicsWorkflowVersionParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	wARN := fmt.Sprintf("arn:aws:omics:%s:%s:workflow/w1", testRegion, acct.ID)
@@ -84,6 +89,7 @@ func TestResolveOmicsWorkflowVersionParent(t *testing.T) {
 }
 
 func TestResolveOmicsStoreKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/omics-key", testRegion, acct.ID)
@@ -103,6 +109,7 @@ func TestResolveOmicsStoreKMS(t *testing.T) {
 }
 
 func TestResolveOmicsShareResource(t *testing.T) {
+	t.Parallel()
 	acct := newTestAccount(testAccountID)
 	arnOf := func(kind, id string) string {
 		return fmt.Sprintf("arn:aws:omics:%s:%s:%s/%s", testRegion, acct.ID, kind, id)

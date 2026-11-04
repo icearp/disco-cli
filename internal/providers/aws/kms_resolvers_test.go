@@ -15,6 +15,7 @@ import (
 // TestResolveKMSAliasToKey verifies an alias with a TargetKeyId resolves to
 // an attached-to edge against the key sharing the same region+account.
 func TestResolveKMSAliasToKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -45,6 +46,7 @@ func TestResolveKMSAliasToKey(t *testing.T) {
 
 // TestResolveKMSAliasToKey_NoAttrs verifies alias with empty attrs is a no-op.
 func TestResolveKMSAliasToKey_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -81,6 +83,7 @@ func kmsRelsFrom(t *testing.T, st *store.Store, id string) []store.Relationship 
 }
 
 func TestResolveKMSCustomKeyStoreBackends_ClusterAndEndpointService(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clusterID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudHSMCluster, kmsTestClusterARN, testRegion, "{}")
@@ -117,6 +120,7 @@ func TestResolveKMSCustomKeyStoreBackends_ClusterAndEndpointService(t *testing.T
 // The resolver's cluster target is the row the CloudHSM scanner stores, not a
 // hand-built ARN that could drift from it.
 func TestResolveKMSCustomKeyStoreBackends_TargetsScannedCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	hsm := kmsHSMStore()
@@ -145,6 +149,7 @@ func TestResolveKMSCustomKeyStoreBackends_TargetsScannedCluster(t *testing.T) {
 }
 
 func TestResolveKMSCustomKeyStoreBackends_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeCloudHSMCluster, kmsTestClusterARN, testRegion, "{}")
@@ -158,6 +163,7 @@ func TestResolveKMSCustomKeyStoreBackends_NoAttrs(t *testing.T) {
 }
 
 func TestResolveKMSCustomKeyStoreBackends_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeKMSCustomKeyStore, kmsCustomKeyStoreNativeID("aws", testRegion, acct.ID, "cks-bad"), testRegion, `{"CloudHsmClusterId":7}`)
@@ -167,6 +173,7 @@ func TestResolveKMSCustomKeyStoreBackends_DecodeErrorReturned(t *testing.T) {
 }
 
 func TestVPCEndpointServiceARNFromName(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, owner, want string
 		ok                bool
@@ -193,6 +200,7 @@ func kmsKeyRow(t *testing.T, st *store.Store, keyID string, storeID *string) str
 }
 
 func TestResolveKMSKeyCustomKeyStores_KeyInStore(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	storeID := kmsStoreRow(t, st, kmsHSMStore())
@@ -216,6 +224,7 @@ func TestResolveKMSKeyCustomKeyStores_KeyInStore(t *testing.T) {
 }
 
 func TestResolveKMSKeyCustomKeyStores_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	kmsStoreRow(t, st, kmsHSMStore())
@@ -229,6 +238,7 @@ func TestResolveKMSKeyCustomKeyStores_NoAttrs(t *testing.T) {
 }
 
 func TestResolveKMSKeyCustomKeyStores_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	kmsStoreRow(t, st, kmsHSMStore())

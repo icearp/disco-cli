@@ -60,6 +60,7 @@ func dxInterconnectPages(first, second []directconnecttypes.Interconnect) func(a
 }
 
 func TestScanDXInterconnects_TwoPagesStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	client := newDXTestClient(map[string]func(any) (any, error){
@@ -111,6 +112,7 @@ func TestScanDXInterconnects_TwoPagesStored(t *testing.T) {
 }
 
 func TestScanDXInterconnects_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := newDXTestClient(map[string]func(any) (any, error){
 		"DescribeInterconnects": func(any) (any, error) { return &directconnect.DescribeInterconnectsOutput{}, nil },
@@ -123,6 +125,7 @@ func TestScanDXInterconnects_Empty(t *testing.T) {
 
 // A repeated token fails the listing; the interconnect already listed is stored.
 func TestScanDXInterconnects_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := 0
 	client := newDXTestClient(map[string]func(any) (any, error){
@@ -150,6 +153,7 @@ func TestScanDXInterconnects_RepeatedTokenFails(t *testing.T) {
 }
 
 func TestScanDXInterconnects_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		secondErr error // the second page's error; the first page lists one interconnect
@@ -300,6 +304,7 @@ func dxGroupAssociationARNs(t *testing.T, r store.Resource) []string {
 }
 
 func TestScanDXResiliencyGroups_StoresGroupsWithAssociations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := &dxGroupHandlers{}
 	client := newDXTestClient(h.handlers())
@@ -347,6 +352,7 @@ func TestScanDXResiliencyGroups_StoresGroupsWithAssociations(t *testing.T) {
 }
 
 func TestScanDXResiliencyGroups_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := newDXTestClient(map[string]func(any) (any, error){
 		"ListResiliencyGroups": func(any) (any, error) { return &directconnect.ListResiliencyGroupsOutput{}, nil },
@@ -358,6 +364,7 @@ func TestScanDXResiliencyGroups_Empty(t *testing.T) {
 }
 
 func TestScanDXResiliencyGroups_ListErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -392,6 +399,7 @@ func TestScanDXResiliencyGroups_ListErrors(t *testing.T) {
 // null), one whose associations could not be read with Associations null.
 // Either error is returned unless it was a denial, which warns once.
 func TestScanDXResiliencyGroups_PerGroupErrors(t *testing.T) {
+	t.Parallel()
 	both := func(err error) map[string]error { return map[string]error{"rg-a": err, "rg-b": err} }
 	for _, tc := range []struct {
 		name     string
@@ -478,6 +486,7 @@ func TestScanDXResiliencyGroups_PerGroupErrors(t *testing.T) {
 // A Get detail without a ResiliencyGroupArn has no key to store it under, so
 // it is warned about once, and the other group is stored.
 func TestScanDXResiliencyGroups_DetailWithoutARN(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name         string
 		summaryNoARN bool
@@ -530,6 +539,7 @@ func TestScanDXResiliencyGroups_DetailWithoutARN(t *testing.T) {
 // either, leaves nothing to store: one not-stored warning, and the empty
 // answer is returned.
 func TestScanDXResiliencyGroups_EmptyGetWithoutARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, dxGetResiliencyGroupOp)
 	h := &dxGroupHandlers{summaryNoARN: map[string]bool{"rg-a": true}}
@@ -556,6 +566,7 @@ func TestScanDXResiliencyGroups_EmptyGetWithoutARN(t *testing.T) {
 // A VIF whose type maps to no disco type is not stored and is warned about
 // once under the VIF op, scoped to the account and region.
 func TestScanDXVirtualInterfaces_UnmappedTypeWarned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var scopes []string
 	st.OnWarn = func(w store.ScanWarning) {
@@ -582,6 +593,7 @@ func TestScanDXVirtualInterfaces_UnmappedTypeWarned(t *testing.T) {
 // A group stored from its summary after a failed Get keeps the NativeID of the
 // row its detail stores, so the two scans write one row per group.
 func TestScanDXResiliencyGroups_SummaryRowSharesDetailNativeID(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	for _, h := range []*dxGroupHandlers{{}, {getErr: map[string]error{"rg-a": dcDenied, "rg-b": dcDenied}}} {
 		if _, _, err := scanDXResiliencyGroups(context.Background(), newDXTestClient(h.handlers()), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
@@ -597,6 +609,7 @@ func TestScanDXResiliencyGroups_SummaryRowSharesDetailNativeID(t *testing.T) {
 // Groups not read because ctx ended are still stored, from their summary, and
 // the stop is returned.
 func TestScanDXResiliencyGroups_StoppedGroupsStoredFromSummary(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -646,6 +659,7 @@ func TestScanDXResiliencyGroups_StoppedGroupsStoredFromSummary(t *testing.T) {
 // A denied group with no ARN in its summary is not stored, so it is warned
 // about once as such, not also as stored from its summary.
 func TestScanDXResiliencyGroups_DeniedWithoutARNWarnedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, dxGetResiliencyGroupOp)
 	h := &dxGroupHandlers{getErr: map[string]error{"rg-a": dcDenied}, summaryNoARN: map[string]bool{"rg-a": true}}
@@ -663,6 +677,7 @@ func TestScanDXResiliencyGroups_DeniedWithoutARNWarnedOnce(t *testing.T) {
 // A Get that answers without a group stores the summary and returns
 // errDXNoGroupBody.
 func TestScanDXResiliencyGroups_EmptyGetStoresSummary(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := &dxGroupHandlers{}
 	handlers := h.handlers()
@@ -688,6 +703,7 @@ func TestScanDXResiliencyGroups_EmptyGetStoresSummary(t *testing.T) {
 
 // The denial warning names the account and the region.
 func TestScanDXResiliencyGroups_DenialWarningScope(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var scopes []string
 	st.OnWarn = func(w store.ScanWarning) {
@@ -706,6 +722,7 @@ func TestScanDXResiliencyGroups_DenialWarningScope(t *testing.T) {
 
 // A failed ListResiliencyGroups page keeps the groups listed before it.
 func TestScanDXResiliencyGroups_ListErrorAfterPageKeepsGroups(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -788,6 +805,7 @@ func dxAllCounts() map[string]int {
 }
 
 func TestScanDirectConnect_RunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(dxAllHandlers(nil), dcDenied)
@@ -809,6 +827,7 @@ func TestScanDirectConnect_RunsEveryPhase(t *testing.T) {
 // failed gateway listing leaves the association phase only the gateways
 // listed before it.
 func TestScanDirectConnectAll_PhaseErrorsAreIndependent(t *testing.T) {
+	t.Parallel()
 	fail := func(any) (any, error) { return nil, dcClientErr }
 	for _, tc := range []struct {
 		sdkOp string
@@ -854,6 +873,7 @@ func TestScanDirectConnectAll_PhaseErrorsAreIndependent(t *testing.T) {
 // A transient error in one phase is demoted to a warning so that another
 // phase's hard error still reaches the dispatcher as a hard error.
 func TestScanDirectConnectAll_TransientDemoted(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name               string
 		throttledOp, label string
@@ -888,6 +908,7 @@ func TestScanDirectConnectAll_TransientDemoted(t *testing.T) {
 // A throttled phase alone is returned, not demoted, so the scan is marked
 // partial rather than complete.
 func TestScanDirectConnectAll_TransientAloneReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := newDXTestClient(dxAllHandlers(map[string]func(any) (any, error){
 		"DescribeLags": func(any) (any, error) { return nil, dcThrottled },
@@ -904,6 +925,7 @@ func TestScanDirectConnectAll_TransientAloneReturned(t *testing.T) {
 // Two associations of one connection differ only in state; their stored order
 // must not depend on the order the API returned them in.
 func TestScanDXResiliencyGroups_AssociationOrderStable(t *testing.T) {
+	t.Parallel()
 	assoc := func(state directconnecttypes.ResiliencyGroupAssociationState) directconnecttypes.ResiliencyGroupAssociation {
 		return directconnecttypes.ResiliencyGroupAssociation{ConnectionArn: sdkaws.String(dxTestConn1), State: state}
 	}
@@ -940,6 +962,7 @@ func dxRepeatToken(calls *atomic.Int32, page func() any) func(any) (any, error) 
 // A repeated ListResiliencyGroups token fails the listing; the group already
 // listed is still read and stored.
 func TestScanDXResiliencyGroups_RepeatedListTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := &dxGroupHandlers{}
 	handlers := h.handlers()
@@ -965,6 +988,7 @@ func TestScanDXResiliencyGroups_RepeatedListTokenFails(t *testing.T) {
 // group is still stored. The group whose listing repeated keeps Associations
 // null (not read): stored with part of them, it would claim the rest absent.
 func TestScanDXResiliencyGroups_RepeatedAssociationTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := &dxGroupHandlers{}
 	handlers := h.handlers()
@@ -1168,6 +1192,7 @@ func dxListCases() []dxListCase {
 }
 
 func TestScanDXListings_TwoPagesStoredWithTags(t *testing.T) {
+	t.Parallel()
 	for _, tc := range dxListCases() {
 		t.Run(tc.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1191,6 +1216,7 @@ func TestScanDXListings_TwoPagesStoredWithTags(t *testing.T) {
 // A denied first page warns once; a failed later page keeps the rows read
 // before it and returns the error.
 func TestScanDXListings_PageErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range dxListCases() {
 		for _, ec := range []struct {
 			name                string
@@ -1236,6 +1262,7 @@ func TestScanDXListings_PageErrors(t *testing.T) {
 // Gateways are global: a scan of any region but us-east-1 neither lists nor
 // stores them.
 func TestScanDXGateways_OnlyInUSEast1(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := newDXTestClient(map[string]func(any) (any, error){
 		"DescribeDirectConnectGateways": func(any) (any, error) { return nil, errors.New("listed outside us-east-1") },
@@ -1249,6 +1276,7 @@ func TestScanDXGateways_OnlyInUSEast1(t *testing.T) {
 // The gateway phase hands on the ids of the gateways it stored, those read
 // before a failed page included.
 func TestScanDXGateways_ReturnsStoredIDs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := newDXTestClient(map[string]func(any) (any, error){
 		"DescribeDirectConnectGateways": func(in any) (any, error) {
@@ -1307,6 +1335,7 @@ func dxAssociationPages(fail map[string]error) func(any) (any, error) {
 }
 
 func TestScanDXGatewayAssociations_StoredPerGateway(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, dxDescribeGatewayAssociationsOp)
 	client := newDXTestClient(map[string]func(any) (any, error){"DescribeDirectConnectGatewayAssociations": dxAssociationPages(nil)})
@@ -1330,6 +1359,7 @@ func TestScanDXGatewayAssociations_StoredPerGateway(t *testing.T) {
 // One gateway's failure costs the other gateways nothing: a denial warns once,
 // any other error is returned after their associations are stored.
 func TestScanDXGatewayAssociations_PerGatewayErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error

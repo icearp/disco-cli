@@ -9,6 +9,7 @@ import (
 // TestResolveEKSRelationships verifies an EKS cluster's VPC ID is extracted
 // from the nested ResourcesVpcConfig.VpcId JSON path.
 func TestResolveEKSRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -38,6 +39,7 @@ func TestResolveEKSRelationships(t *testing.T) {
 // TestResolveEKSRelationships_NoVPC verifies a cluster with no VPC config
 // produces no relationships and no error.
 func TestResolveEKSRelationships_NoVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 

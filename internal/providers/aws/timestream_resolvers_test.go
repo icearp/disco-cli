@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveTSInfluxRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -36,6 +37,7 @@ func TestResolveTSInfluxRefs(t *testing.T) {
 }
 
 func TestResolveTSDatabaseKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -54,6 +56,7 @@ func TestResolveTSDatabaseKMS(t *testing.T) {
 }
 
 func TestResolveTSTableMagneticS3(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -76,6 +79,7 @@ func TestResolveTSTableMagneticS3(t *testing.T) {
 }
 
 func TestResolveTSScheduledQueryRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -104,6 +108,7 @@ func TestResolveTSScheduledQueryRefs(t *testing.T) {
 }
 
 func TestResolveTSInfluxParameterGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -125,6 +130,7 @@ func TestResolveTSInfluxParameterGroup(t *testing.T) {
 }
 
 func TestResolveTSInfluxParameterGroup_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

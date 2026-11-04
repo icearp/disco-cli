@@ -229,6 +229,7 @@ func orgScanWith(st *store.Store, h map[string]func(in any) (any, error)) (int, 
 // Storing it a second time under another type in the same scan merges both
 // into one row whose type flips every scan, splitting a version each time.
 func TestScanOrganizations_RootStoredOnceTypedRoot(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := orgScanWith(st, orgTreeHandlers())
 	if err != nil {
@@ -287,6 +288,7 @@ func TestScanOrganizations_RootStoredOnceTypedRoot(t *testing.T) {
 // without an Arn is not stored (it has no NativeID) and is reported once, while
 // the OUs and accounts under it are still listed and stored.
 func TestScanOrganizations_ARNlessRootSubtreeStillStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		mu    sync.Mutex
@@ -336,6 +338,7 @@ func TestScanOrganizations_ARNlessRootSubtreeStillStored(t *testing.T) {
 // ListParents answers, account 333333333333 (under the ARN-less root, which
 // is not stored) adds one more warning.
 func TestScanOrganizations_ListParentsErrors(t *testing.T) {
+	t.Parallel()
 	t.Run("denied", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, "organizations:ListParents")
@@ -490,6 +493,7 @@ func TestScanOrganizations_ListParentsErrors(t *testing.T) {
 // DescribeResourcePolicy's expected states (no policy, no organization) store
 // nothing silently; a denial warns once; any other error fails the scan.
 func TestScanOrganizations_DescribeResourcePolicyErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -532,6 +536,7 @@ func orgTestTransfer(id string) organizationstypes.ResponsibilityTransfer {
 // A failed phase costs no other phase its rows: the later phases still run,
 // and the closure links what the tree phases stored.
 func TestScanOrganizations_PhaseFailureKeepsOtherPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListOrganizationalUnitsForParent", "ListAccounts", "ListPolicies"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -569,6 +574,7 @@ func orgTestTransferScan(t *testing.T, st *store.Store, h map[string]func(in any
 // A list that repeats its token keeps the transfers read, the other list
 // still runs, and the listing fails as incomplete.
 func TestScanOrgResponsibilityTransfers_RepeatedTokenKeepsRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var inCalls int
 	calls := newOrgCalls()
@@ -603,6 +609,7 @@ func TestScanOrgResponsibilityTransfers_RepeatedTokenKeepsRows(t *testing.T) {
 // returned after they are stored. A denied list is warned about under its
 // own op instead.
 func TestScanOrgResponsibilityTransfers_FailedListKeepsOtherList(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -645,6 +652,7 @@ func TestScanOrgResponsibilityTransfers_FailedListKeepsOtherList(t *testing.T) {
 // is warned about once under the list that returned it; one listed by both
 // lists is stored once, silently.
 func TestScanOrgResponsibilityTransfers_ARNlessWarnedUnderItsList(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	inWarns := countOpWarnings(st, "organizations:ListInboundResponsibilityTransfers")
 	outWarns := countOpWarnings(st, "organizations:ListOutboundResponsibilityTransfers")
@@ -680,6 +688,7 @@ func TestScanOrgResponsibilityTransfers_ARNlessWarnedUnderItsList(t *testing.T) 
 // A failed write of the transfers sends neither list's warning: not the
 // inbound list's denial, nor the outbound list's ARN-less transfer.
 func TestScanOrgResponsibilityTransfers_FailedWriteSendsNoDenialWarning(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	inWarns := countOpWarnings(st, "organizations:ListInboundResponsibilityTransfers")
 	outWarns := countOpWarnings(st, "organizations:ListOutboundResponsibilityTransfers")
@@ -706,6 +715,7 @@ func TestScanOrgResponsibilityTransfers_FailedWriteSendsNoDenialWarning(t *testi
 // A throttled transfer list beside another phase's hard error is demoted to
 // one warning under the list that failed.
 func TestScanOrganizations_TransferListThrottleDemotedUnderItsOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "organizations:ListInboundResponsibilityTransfers")
 	h := newOrgCalls().fullHandlers()
@@ -726,6 +736,7 @@ func TestScanOrganizations_TransferListThrottleDemotedUnderItsOp(t *testing.T) {
 // (AwsManaged, whatever their Id) are flagged ManagedByProvider and not read. Every listing sends
 // MaxResults 20, and the rows keep their fields.
 func TestScanOrganizations_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tagWarns := countOpWarnings(st, "organizations:ListTagsForResource")
 	descWarns := countOpWarnings(st, "organizations:DescribePolicy")
@@ -865,6 +876,7 @@ func TestScanOrganizations_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanOrganizations_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := orgScanWith(st, newOrgCalls().fullHandlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -881,6 +893,7 @@ func TestScanOrganizations_RescanInsertsNone(t *testing.T) {
 // untagged and warns once under the tag op; a throttle keeps it and is
 // transient; any other error keeps it and is an error.
 func TestScanOrganizations_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	gone := apiErr("TargetNotFoundException", "gone")
 	for _, c := range []struct {
 		name      string
@@ -946,6 +959,7 @@ func TestScanOrganizations_TagReadFailures(t *testing.T) {
 // ListTagsForResource pages are all read; a repeated NextToken fails the
 // read, keeping the row untagged.
 func TestScanOrganizations_TagPages(t *testing.T) {
+	t.Parallel()
 	pageOf := func(next *string, k, v string) *organizations.ListTagsForResourceOutput {
 		return &organizations.ListTagsForResourceOutput{NextToken: next, Tags: []organizationstypes.Tag{{Key: sdkaws.String(k), Value: sdkaws.String(v)}}}
 	}
@@ -996,6 +1010,7 @@ func TestScanOrganizations_TagPages(t *testing.T) {
 // Denied tag reads in several phases send one warning for the whole scan;
 // the rows are kept.
 func TestScanOrganizations_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "organizations:ListTagsForResource")
 	calls := newOrgCalls()
@@ -1014,6 +1029,7 @@ func TestScanOrganizations_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanOrganizations_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "organizations:ListTagsForResource")
 	calls := newOrgCalls()
@@ -1031,6 +1047,7 @@ func TestScanOrganizations_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A denied tag read whose rows a failed write lost warns nothing, and the
 // failed write stops the scan: no later phase runs.
 func TestScanOrganizations_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	warns := countOpWarnings(st, "organizations:ListTagsForResource")
 	calls := newOrgCalls()
@@ -1065,6 +1082,7 @@ func TestScanOrganizations_FailedWriteStopsScan(t *testing.T) {
 // row, tags read, with one warning; any other error keeps it and is
 // returned; an answer without a Policy keeps it silently.
 func TestScanOrganizations_DescribePolicyFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -1132,6 +1150,7 @@ func TestScanOrganizations_DescribePolicyFailures(t *testing.T) {
 // failure is returned. A parent deleted since it was listed
 // (ParentNotFoundException, modeled) is skipped silently.
 func TestScanOrganizations_OUWalkParentFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name     string
 		err      error
@@ -1183,6 +1202,7 @@ func TestScanOrganizations_OUWalkParentFailures(t *testing.T) {
 // A later ListAccounts page failing keeps the accounts of the pages before
 // it, linked; a repeated NextToken ends the listing as incomplete.
 func TestScanOrganizations_AccountPages(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		second  func() (any, error)
@@ -1290,6 +1310,7 @@ const (
 // not read; no call is sent an empty id. A root with neither an Arn nor an
 // Id is not stored and not walked. Each gap is warned about once.
 func TestScanOrganizations_ElementsWithoutID(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tagWarns := countOpWarnings(st, "organizations:ListTagsForResource")
 	ouWarns := countOpWarnings(st, "organizations:ListOrganizationalUnitsForParent")
@@ -1333,6 +1354,7 @@ func TestScanOrganizations_ElementsWithoutID(t *testing.T) {
 // The no-Id warnings name rows stored: after a later phase's failed write,
 // which may have lost them, neither is sent.
 func TestScanOrganizations_ElementsWithoutIDFailedWriteWarnsNothing(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	tagWarns := countOpWarnings(st, "organizations:ListTagsForResource")
 	ouWarns := countOpWarnings(st, "organizations:ListOrganizationalUnitsForParent")
@@ -1355,6 +1377,7 @@ func TestScanOrganizations_ElementsWithoutIDFailedWriteWarnsNothing(t *testing.T
 // In GovCloud the rows keep the partition's listed ARNs, and the tag reads
 // are sent the elements' Ids.
 func TestScanOrganizations_GovCloud(t *testing.T) {
+	t.Parallel()
 	const (
 		govOrg  = "arn:aws-us-gov:organizations::" + testAccountID + ":organization/o-gov"
 		govRoot = "arn:aws-us-gov:organizations::" + testAccountID + ":root/o-gov/r-ab12"
@@ -1415,6 +1438,7 @@ func TestScanOrganizations_GovCloud(t *testing.T) {
 // is a failure of this scan, not a missing endpoint: the later phases run
 // and their rows are counted.
 func TestScanOrganizations_LateNXDOMAIN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := orgTreeHandlers()
 	h["ListRoots"] = func(any) (any, error) {
@@ -1431,6 +1455,7 @@ func TestScanOrganizations_LateNXDOMAIN(t *testing.T) {
 // A member account stores the organization row alone: no management-only
 // listing or tag read is made.
 func TestScanOrganizations_MemberAccountStoresOrgOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newOrgCalls()
 	h := calls.fullHandlers()
@@ -1451,6 +1476,7 @@ func TestScanOrganizations_MemberAccountStoresOrgOnly(t *testing.T) {
 // A root or OU whose write fails is not linked: no closure row names it,
 // and the failed write stops the scan, so the accounts are not listed.
 func TestScanOrganizations_UnstoredParentIsNotLinked(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, refusedType string
 		refused           []string
@@ -1490,6 +1516,7 @@ func TestScanOrganizations_UnstoredParentIsNotLinked(t *testing.T) {
 // Denied OU listings on two levels of the walk (r-noarn, then
 // ou-ab12-11111111) are one warning, and the OUs listed elsewhere are stored.
 func TestScanOrganizations_OUWalkDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "organizations:ListOrganizationalUnitsForParent")
 	h := newOrgCalls().fullHandlers()
@@ -1516,6 +1543,7 @@ func TestScanOrganizations_OUWalkDenialsWarnOnce(t *testing.T) {
 // write (ou-ab12-11111111's children) fails: the warning would follow rows a
 // failed write may have lost.
 func TestScanOrganizations_OUWalkDenialFailedWriteWarnsNothing(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	warns := countOpWarnings(st, "organizations:ListOrganizationalUnitsForParent")
 	h := newOrgCalls().fullHandlers()
@@ -1541,6 +1569,7 @@ func TestScanOrganizations_OUWalkDenialFailedWriteWarnsNothing(t *testing.T) {
 // A resource policy described without an Arn is not stored, its tags are
 // not read, and it is warned about once under DescribeResourcePolicy.
 func TestScanOrganizations_ARNlessResourcePolicyNotStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "organizations:DescribeResourcePolicy")
 	calls := newOrgCalls()
@@ -1568,6 +1597,7 @@ func TestScanOrganizations_ARNlessResourcePolicyNotStored(t *testing.T) {
 // ctx ending while DescribeOrganization answers stops the scan before any
 // listing, and the organization row it stored is counted.
 func TestScanOrganizations_StopAfterOrganizationCountsIt(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1592,6 +1622,7 @@ func TestScanOrganizations_StopAfterOrganizationCountsIt(t *testing.T) {
 // Whichever list returns it, a transfer whose ARN names another account is
 // kept untagged and silent when its tag read is denied or finds nothing.
 func TestScanOrganizations_OtherAccountOutboundTransferKeptUntagged(t *testing.T) {
+	t.Parallel()
 	const otherOut = "arn:aws:organizations::888888888888:transfer/o-other2/billing/outbound/rt-out11111"
 	for name, tagErr := range map[string]error{"denied": orgTestDenied, "not found": apiErr("TargetNotFoundException", "gone")} {
 		t.Run(name, func(t *testing.T) {

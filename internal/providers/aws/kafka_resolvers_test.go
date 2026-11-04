@@ -16,6 +16,7 @@ func kafkaClusterARN(region, acct, name, uuid string) string {
 // cluster emits subnet, security-group, and KMS edges when all targets are
 // scanned.
 func TestResolveKafkaRelationships_ProvisionedAllEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -55,6 +56,7 @@ func TestResolveKafkaRelationships_ProvisionedAllEdges(t *testing.T) {
 // TestResolveKafkaRelationships_Serverless verifies a serverless cluster
 // resolves VpcConfigs subnet + SG edges.
 func TestResolveKafkaRelationships_Serverless(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -88,6 +90,7 @@ func TestResolveKafkaRelationships_Serverless(t *testing.T) {
 // alias reference emits no KMS edge (the AWS-managed key isn't scanned, so
 // the edge would dangle).
 func TestResolveKafkaRelationships_AWSManagedKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -123,6 +126,7 @@ func TestResolveKafkaRelationships_AWSManagedKMS(t *testing.T) {
 // TestResolveKafkaRelationships_UnscannedSubnet verifies FK-safe skip when a
 // referenced subnet is not in the store.
 func TestResolveKafkaRelationships_UnscannedSubnet(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -149,6 +153,7 @@ func TestResolveKafkaRelationships_UnscannedSubnet(t *testing.T) {
 // TestResolveKafkaRelationships_EmptyAttrs verifies no panic and no edges
 // when neither Provisioned nor Serverless is populated.
 func TestResolveKafkaRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

@@ -336,6 +336,7 @@ func assertIWCfgRows(t *testing.T, st *store.Store, want []string) {
 // sent to the tag op; every listing is sent the model's page cap of 250. No
 // error or warning.
 func TestScanIoTWireless_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newIWCalls()
@@ -392,6 +393,7 @@ func TestScanIoTWireless_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanIoTWireless_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := iwScan(context.Background(), st, iwHandlers(newIWCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -411,6 +413,7 @@ func TestScanIoTWireless_RescanInsertsNone(t *testing.T) {
 // and is a transient error; ValidationException keeps it and is a hard
 // error.
 func TestScanIoTWireless_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListDestinations", "ListWirelessDevices", "ListWirelessGatewayTaskDefinitions"} {
 		k := iwKindOf(t, op)
 		arn := k.arn("tagged")
@@ -473,6 +476,7 @@ func TestScanIoTWireless_TagReadFailures(t *testing.T) {
 // is no event-configuration parent: the configurations naming it are stored
 // unlinked.
 func TestScanIoTWireless_TagNotFoundIsNoEventParent(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ parent, cfg string }{
 		{iwTestDevice, iwTestCfgDevEui},
 		{iwTestGateway, iwTestCfgGwEui},
@@ -494,6 +498,7 @@ func TestScanIoTWireless_TagNotFoundIsNoEventParent(t *testing.T) {
 // Denied tag reads across several phases send one warning per phase, never
 // one per row.
 func TestScanIoTWireless_TagDenialsWarnOncePerPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, iwTagsOp)
 	calls := newIWCalls()
@@ -515,6 +520,7 @@ func TestScanIoTWireless_TagDenialsWarnOncePerPhase(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanIoTWireless_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iwTagsOp)
 	calls := newIWCalls()
@@ -532,6 +538,7 @@ func TestScanIoTWireless_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanIoTWireless_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeIoTWirelessDestination)
@@ -553,6 +560,7 @@ func TestScanIoTWireless_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the listings after it.
 func TestScanIoTWireless_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListDestinations", "ListPartnerAccounts", "ListWirelessDevices", "ListWirelessGatewayTaskDefinitions"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -577,6 +585,7 @@ func TestScanIoTWireless_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanIoTWireless_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := iwHandlers(newIWCalls())
 	k := iwKindOf(t, "ListWirelessDeviceImportTasks")
@@ -600,6 +609,7 @@ func TestScanIoTWireless_RepeatedTokenKeepsPages(t *testing.T) {
 // An element without an Arn is warned about under its listing, named by its
 // name or id, or by the fallback text when it has none, and is not stored.
 func TestScanIoTWireless_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		page          any
@@ -635,6 +645,7 @@ func TestScanIoTWireless_ElementWithoutARNWarns(t *testing.T) {
 // A denied listing warns once under its op; a denial on a later page keeps
 // the pages read before it. Every other listing still runs.
 func TestScanIoTWireless_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op       string
 		call     int
@@ -674,6 +685,7 @@ func TestScanIoTWireless_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // refusal after the first page keeps that page and is warned about as the
 // denial it is.
 func TestScanIoTWireless_PartnerRegionGate(t *testing.T) {
+	t.Parallel()
 	k := iwKindOf(t, "ListPartnerAccounts")
 	t.Run("first page", func(t *testing.T) {
 		st := newTestStore(t)
@@ -708,6 +720,7 @@ func TestScanIoTWireless_PartnerRegionGate(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it too.
 func TestScanIoTWireless_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newIWCalls()
 	handlers := iwHandlers(calls)
@@ -745,6 +758,7 @@ func TestScanIoTWireless_ContextEndStopsOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanIoTWireless_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "api.iotwireless.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -777,6 +791,7 @@ func TestScanIoTWireless_NXDOMAIN(t *testing.T) {
 }
 
 func TestScanIoTWireless_StoresEventConfigurations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings atomic.Int32
 	st.OnWarn = func(store.ScanWarning) { warnings.Add(1) }
@@ -833,6 +848,7 @@ func assertNoIWContainer(t *testing.T, st *store.Store, childNativeID string) {
 }
 
 func TestScanIoTWireless_NoEventConfigurations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := iwHandlers(newIWCalls())
 	handlers["ListEventConfigurations"] = func(any) (any, error) { return &iotwireless.ListEventConfigurationsOutput{}, nil }
@@ -850,6 +866,7 @@ func TestScanIoTWireless_NoEventConfigurations(t *testing.T) {
 // for the case's resource types and checks the warnings, the error and that
 // the other resource types' rows are stored.
 func TestScanIoTWireless_EventConfigurationErrors(t *testing.T) {
+	t.Parallel()
 	gateway := iwtypes.EventNotificationResourceTypeWirelessGateway
 	device := iwtypes.EventNotificationResourceTypeWirelessDevice
 	cases := []struct {
@@ -891,6 +908,7 @@ func TestScanIoTWireless_EventConfigurationErrors(t *testing.T) {
 // TestScanIoTWireless_EventConfigurationPageErrorKeepsRows fails the second
 // WirelessDevice page and checks the first page's row is kept.
 func TestScanIoTWireless_EventConfigurationPageErrorKeepsRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iwListEventConfigurationsOp)
 	handlers := iwHandlers(newIWCalls())
@@ -911,6 +929,7 @@ func TestScanIoTWireless_EventConfigurationPageErrorKeepsRows(t *testing.T) {
 }
 
 func TestScanIoTWireless_EventConfigurationRepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := iwHandlers(newIWCalls())
 	var calls atomic.Int32
@@ -930,6 +949,7 @@ func TestScanIoTWireless_EventConfigurationRepeatedTokenFails(t *testing.T) {
 }
 
 func TestScanIoTWireless_EventConfigurationErrorAfterEveryOlderPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := iwHandlers(newIWCalls())
 	handlers["ListEventConfigurations"] = func(any) (any, error) { return nil, iwConflict }
@@ -943,6 +963,7 @@ func TestScanIoTWireless_EventConfigurationErrorAfterEveryOlderPhase(t *testing.
 }
 
 func TestScanIoTWireless_OlderTransientDoesNotMaskEventConfigurationError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "iotwireless:ListFuotaTasks")
 	handlers := iwHandlers(newIWCalls())
@@ -960,6 +981,7 @@ func TestScanIoTWireless_OlderTransientDoesNotMaskEventConfigurationError(t *tes
 // A failed event-configuration write sends neither the denial nor the
 // transient warning, which would claim rows the write lost.
 func TestScanIoTWireless_EventConfigurationFailedWriteSendsNoWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iwListEventConfigurationsOp)
 	refuseStoreWrites(t, st, TypeIoTWirelessEventConfiguration)
@@ -979,6 +1001,7 @@ func TestScanIoTWireless_EventConfigurationFailedWriteSendsNoWarning(t *testing.
 // The region-gated refusal is silent only on a resource type's first page:
 // on a later page it keeps the pages read and is warned about as a denial.
 func TestScanIoTWireless_EventConfigurationRegionGateLaterPageWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iwListEventConfigurationsOp)
 	handlers := iwHandlers(newIWCalls())

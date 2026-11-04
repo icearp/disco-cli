@@ -87,6 +87,7 @@ func lambdaPCFixture(t *testing.T, st *store.Store) (*stubLambdaPerFn, []lambdaF
 }
 
 func TestScanLambdaProvisionedConcurrencyConfigs_PagesEveryFunction(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub, fns := lambdaPCFixture(t, st)
 
@@ -131,6 +132,7 @@ func TestScanLambdaProvisionedConcurrencyConfigs_PagesEveryFunction(t *testing.T
 }
 
 func TestScanLambdaProvisionedConcurrencyConfigs_PerFunctionErrors(t *testing.T) {
+	t.Parallel()
 	deny := apiErr("AccessDeniedException", "User: arn:aws:iam::123456789012:role/x is not authorized to perform: lambda:ListProvisionedConcurrencyConfigs")
 	for _, tc := range []struct {
 		name         string
@@ -171,6 +173,7 @@ func TestScanLambdaProvisionedConcurrencyConfigs_PerFunctionErrors(t *testing.T)
 }
 
 func TestScanLambdaProvisionedConcurrencyConfigs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubLambdaPerFn{}
 	fns := []lambdaFunctionSummary{{name: "f1", arn: lambdaFnARN("f1")}}

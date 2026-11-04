@@ -160,6 +160,7 @@ func connectAnalyticsCases() []connectAnalyticsCase {
 }
 
 func TestConnectAnalyticsPhases_DescribesEveryListedItemOfEveryInstance(t *testing.T) {
+	t.Parallel()
 	for _, c := range connectAnalyticsCases() {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -204,6 +205,7 @@ func TestConnectAnalyticsPhases_DescribesEveryListedItemOfEveryInstance(t *testi
 }
 
 func TestScanConnectMetrics_ListsOnlyCustomerManaged(t *testing.T) {
+	t.Parallel()
 	var rec connectAnalyticsRec
 	if _, _, err := scanConnectMetrics(context.Background(), connectStubClient(metricHandlers(&rec)), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -219,6 +221,7 @@ func TestScanConnectMetrics_ListsOnlyCustomerManaged(t *testing.T) {
 }
 
 func TestConnectAnalyticsPhases_Errors(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	for _, c := range connectAnalyticsCases() {
 		listLabel, describeLabel := "connect:"+c.listOp, "connect:"+c.describeOp
@@ -421,6 +424,7 @@ func TestConnectAnalyticsPhases_Errors(t *testing.T) {
 // A describe not-found means the item vanished after the list: it is dropped
 // silently and its siblings are kept.
 func TestConnectAnalyticsPhases_DescribeNotFound(t *testing.T) {
+	t.Parallel()
 	for _, c := range connectAnalyticsCases() {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -480,6 +484,7 @@ func savedMetricHandlers(describedIDs *parentCalls, fail func(metricID string) e
 }
 
 func TestScanConnectMetrics_SavedMetricDescribedWithQualifier(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	scan := func(st *store.Store, h map[string]func(any) (any, error)) (int, int, error) {
 		return scanConnectMetrics(ctx, connectStubClient(h), connectInstances("i-1"), newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -534,6 +539,7 @@ func TestScanConnectMetrics_SavedMetricDescribedWithQualifier(t *testing.T) {
 }
 
 func TestFlattenConnectMetric_CreatedByMembers(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		u    cttypes.CreatedByInfo
@@ -586,6 +592,7 @@ func TestFlattenConnectMetric_CreatedByMembers(t *testing.T) {
 }
 
 func TestScanConnectTestCases_SummaryListedTwiceIsStoredOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := map[string]func(any) (any, error){
 		"ListTestCases": func(in any) (any, error) {
@@ -613,6 +620,7 @@ func connectAnalyticsHandlers() map[string]func(any) (any, error) {
 
 // A hard error in one analytics phase must not cost the other phase its rows.
 func TestScanConnectAnalytics_PhasesIndependent(t *testing.T) {
+	t.Parallel()
 	for _, failing := range connectAnalyticsCases() {
 		t.Run(failing.name+" fails", func(t *testing.T) {
 			st := newTestStore(t)
@@ -638,6 +646,7 @@ func TestScanConnectAnalytics_PhasesIndependent(t *testing.T) {
 // One phase's throttle is demoted to a warning so that the other phase's hard
 // error still reaches the dispatcher as a hard error.
 func TestScanConnectAnalytics_TransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	for _, throttled := range connectAnalyticsCases() {
 		t.Run(throttled.name+" throttled", func(t *testing.T) {
 			st := newTestStore(t)
@@ -678,6 +687,7 @@ func scanConnectTopLevel(t *testing.T, st *store.Store, h map[string]func(any) (
 }
 
 func TestScanConnect_StoresAnalyticsRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := scanConnectTopLevel(t, st, connectTopLevelHandlers()); err != nil {
 		t.Fatalf("scanConnect: %v", err)
@@ -692,6 +702,7 @@ func TestScanConnect_StoresAnalyticsRows(t *testing.T) {
 // An older family's hard error must not cost the analytics rows, and an
 // analytics error must not cost the older families' rows.
 func TestScanConnect_AnalyticsIndependentOfOlderFamilies(t *testing.T) {
+	t.Parallel()
 	t.Run("older child phase fails", func(t *testing.T) {
 		st := newTestStore(t)
 		h := connectTopLevelHandlers()
@@ -735,6 +746,7 @@ func TestScanConnect_AnalyticsIndependentOfOlderFamilies(t *testing.T) {
 // An older family's throttle is demoted to a warning so that an analytics
 // hard error still reaches the dispatcher as a hard error.
 func TestScanConnect_OlderTransientDoesNotMaskAnalyticsError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "connect")
 	h := connectTopLevelHandlers()

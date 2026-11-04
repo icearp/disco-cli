@@ -18,6 +18,7 @@ func crmlAttrs(t *testing.T, v any) string {
 }
 
 func TestResolveCleanRoomsMLEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -63,6 +64,7 @@ func TestResolveCleanRoomsMLEdges(t *testing.T) {
 // configured-audience-model with no AudienceModelArn, and a trained-model whose
 // association was never scanned all emit no edge.
 func TestResolveCleanRoomsMLEdges_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

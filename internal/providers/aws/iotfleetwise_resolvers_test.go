@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveIoTFWRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -59,6 +60,7 @@ func iotFWSignalAttrs(fqn, iface string) string {
 // the network interface of its own manifest only: dm-b's decoder names can0,
 // which only dm-a has, and a decoder without an interface id links nowhere.
 func TestResolveIoTFWSignalInterfaces_SameManifestOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ifaceA := upsertTestResource(t, st, "aws", testAccountID, TypeIoTFWDecoderManifestNetworkInterface, iotFWTestIfaceA1, testRegion,
@@ -90,6 +92,7 @@ func TestResolveIoTFWSignalInterfaces_SameManifestOnly(t *testing.T) {
 }
 
 func TestResolveIoTFWSignalInterfaces_Errors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, nativeID, attrs string
 	}{

@@ -12,6 +12,7 @@ import (
 // TestScanSavingsPlans_ReadsTags pins that a savings-plan row carries its
 // listed element's Tags, and that an untagged plan stores none.
 func TestScanSavingsPlans_ReadsTags(t *testing.T) {
+	t.Parallel()
 	const (
 		tagged   = "arn:aws:savingsplans::123456789012:savingsplan/sp-1"
 		untagged = "arn:aws:savingsplans::123456789012:savingsplan/sp-2"

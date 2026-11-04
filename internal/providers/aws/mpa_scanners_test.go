@@ -81,6 +81,7 @@ func scanMPAPolicies(t *testing.T, st *store.Store, handler func(in any) (any, e
 // Both pages of every team are stored under the team; a policy name reused
 // across teams and across policy types within a team stays one row each.
 func TestScanMPAResourcePolicies_StoresEveryPageOfEveryTeam(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := scanMPAPolicies(t, st, mpaPolicyHandler(&calls, nil), mpaTeam1ARN, mpaTeam2ARN)
@@ -115,6 +116,7 @@ func TestScanMPAResourcePolicies_StoresEveryPageOfEveryTeam(t *testing.T) {
 }
 
 func TestScanMPAResourcePolicies_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanMPAPolicies(t, st, func(any) (any, error) { return &mpa.ListResourcePoliciesOutput{}, nil }, mpaTeam1ARN)
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeMPAResourcePolicy)) != 0 {
@@ -125,6 +127,7 @@ func TestScanMPAResourcePolicies_Empty(t *testing.T) {
 // A team deleted after it was listed is skipped silently; a denial warns once
 // for the op and keeps the other teams; any other error fails.
 func TestScanMPAResourcePolicies_FailedTeam(t *testing.T) {
+	t.Parallel()
 	const op = "mpa:ListResourcePolicies"
 	t.Run("gone", func(t *testing.T) {
 		st := newTestStore(t)
@@ -188,6 +191,7 @@ func mpaTopLevelHandlers(policyCalls *parentCalls) map[string]func(in any) (any,
 // Resource policies are listed for every approval team the team phase
 // stored, and land under it.
 func TestScanMPA_StoresPoliciesOfListedTeams(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var policyCalls parentCalls
@@ -209,6 +213,7 @@ func TestScanMPA_StoresPoliciesOfListedTeams(t *testing.T) {
 }
 
 func TestScanMPA_CallsGoToScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var policyCalls, regions parentCalls
@@ -232,6 +237,7 @@ func TestScanMPA_CallsGoToScannedRegion(t *testing.T) {
 // (a team ARN rejected, so the inferred ResourceArn binding is wrong) warns
 // once and returns no error. Either way the earlier rows survive.
 func TestScanMPA_PolicyErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -284,6 +290,7 @@ func TestScanMPA_PolicyErrorAfterExistingPhases(t *testing.T) {
 
 // A denied team list warns, lists no policies and keeps the identity sources.
 func TestScanMPA_DeniedTeamsKeepIdentitySources(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	warns := countOpWarnings(st, "mpa:ListApprovalTeams")

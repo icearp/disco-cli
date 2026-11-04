@@ -186,6 +186,7 @@ func assertEMRClusterRow(t *testing.T, rows map[string]store.Resource, id, name 
 }
 
 func TestScanEMRClusters_StoresDescribedClustersWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	unnamed := emrListed("j-untagged")
@@ -210,6 +211,7 @@ func TestScanEMRClusters_StoresDescribedClustersWithTags(t *testing.T) {
 }
 
 func TestScanEMRClusters_DescribeFailuresKeepListedRow(t *testing.T) {
+	t.Parallel()
 	const id = "j-failing"
 	for _, tc := range []struct {
 		name     string
@@ -262,6 +264,7 @@ func TestScanEMRClusters_DescribeFailuresKeepListedRow(t *testing.T) {
 // TestScanEMRClusters_DeniedReadsShareOneWarning pins one warning per op for
 // every denied DescribeCluster.
 func TestScanEMRClusters_DeniedReadsShareOneWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, emrDescribeClusterOp)
 	f := newEMRFake([]emrtypes.ClusterSummary{emrListed("j-a"), emrListed("j-b")})
@@ -276,6 +279,7 @@ func TestScanEMRClusters_DeniedReadsShareOneWarning(t *testing.T) {
 }
 
 func TestScanEMRClusters_ListFailures(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name       string
 		failMarker string
@@ -318,6 +322,7 @@ func TestScanEMRClusters_ListFailures(t *testing.T) {
 // ClusterArn is not stored, and one without an Id is stored as its listed
 // element, is not described and is not a parent; each is warned about.
 func TestScanEMRClusters_EmptyIDsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	noARN := emrListed("j-noarn")
@@ -354,6 +359,7 @@ func TestScanEMRClusters_EmptyIDsWarn(t *testing.T) {
 // TestScanEMRClusters_StoreWriteFailureStops pins that a failed write
 // returns the store error alone, no parents and no warning claiming rows.
 func TestScanEMRClusters_StoreWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	refuseStoreWrites(t, st, TypeEMRCluster)
@@ -377,6 +383,7 @@ func TestScanEMRClusters_StoreWriteFailureStops(t *testing.T) {
 // TestScanEMRClusters_ContextStop pins that once ctx ends no further cluster
 // is described and the stop is returned.
 func TestScanEMRClusters_ContextStop(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -404,6 +411,7 @@ func emrAllRowCounts(t *testing.T, st *store.Store) map[string]int {
 // failed child listing of one cluster and a denied cluster listing do not
 // stop the later clusters' children or the account-wide phases.
 func TestScanEMRAll_PhasesRunPastErrors(t *testing.T) {
+	t.Parallel()
 	accountWide := map[string]int{TypeEMRSecurityConfig: 1, TypeEMRStudio: 2, TypeEMRStudioSessionMapping: 2}
 	for _, tc := range []struct {
 		name      string
@@ -457,6 +465,7 @@ func TestScanEMRAll_PhasesRunPastErrors(t *testing.T) {
 // DescribeCluster beside a later phase's hard error is warned about under the
 // cluster phase's label, and the scan is classified by the hard error.
 func TestScanEMRAll_TransientDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	f := newEMRFake([]emrtypes.ClusterSummary{emrListed("j-slow")})
@@ -481,6 +490,7 @@ func TestScanEMRAll_TransientDemotedBesideHardError(t *testing.T) {
 // in any phase stops the scan before the next call, keeping the counts of
 // the rows written before it.
 func TestScanEMRAll_StoreWriteFailureStopsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		refused   string
 		notCalled string // "<Op> <key>" of the next call

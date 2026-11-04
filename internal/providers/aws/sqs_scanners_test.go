@@ -68,6 +68,7 @@ func (s *stubSQS) GetQueueAttributes(_ context.Context, in *sqs.GetQueueAttribut
 }
 
 func TestScanSQSQueues_PersistsQueuesAndArn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -118,6 +119,7 @@ func TestScanSQSQueues_PersistsQueuesAndArn(t *testing.T) {
 }
 
 func TestScanSQSQueues_AccessDeniedOnListReturnsNilWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var got store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { got = w }
@@ -138,6 +140,7 @@ func TestScanSQSQueues_AccessDeniedOnListReturnsNilWarning(t *testing.T) {
 }
 
 func TestScanSQSQueues_ListErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSQS{listErr: errors.New("network kaput")}
@@ -149,6 +152,7 @@ func TestScanSQSQueues_ListErrorPropagates(t *testing.T) {
 }
 
 func TestScanSQSQueues_PerQueueAccessDeniedSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -177,6 +181,7 @@ func TestScanSQSQueues_PerQueueAccessDeniedSkipped(t *testing.T) {
 }
 
 func TestScanSQSQueues_MissingQueueArnSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

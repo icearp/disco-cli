@@ -61,6 +61,7 @@ func scanECSAccountSettingsWith(t *testing.T, st *store.Store, handler func(any)
 }
 
 func TestScanECSAccountSettings_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	pages := [][]ecstypes.Setting{
 		{ecsSetting(ecstypes.SettingNameContainerInsights, "enabled", ecstypes.SettingTypeUser)},
@@ -111,6 +112,7 @@ func TestScanECSAccountSettings_PagesAndFields(t *testing.T) {
 }
 
 func TestScanECSAccountSettings_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, inserted, err := scanECSAccountSettingsWith(t, st, ecsAccountSettingsHandler(nil, nil))
 	if err != nil || total != 0 || inserted != 0 {
@@ -124,6 +126,7 @@ func TestScanECSAccountSettings_Empty(t *testing.T) {
 // A denial warns once and keeps the settings listed before it; any other
 // error is returned and also keeps them.
 func TestScanECSAccountSettings_ListErrors(t *testing.T) {
+	t.Parallel()
 	pages := [][]ecstypes.Setting{
 		{ecsSetting(ecstypes.SettingNameContainerInsights, "enabled", ecstypes.SettingTypeUser)},
 		{ecsSetting(ecstypes.SettingNameTaskLongArnFormat, "enabled", ecstypes.SettingTypeUser)},
@@ -190,6 +193,7 @@ func storedRowCount(t *testing.T, st *store.Store) int {
 var ecsTestSettingID = ecsAccountSettingNativeID("aws", testRegion, testAccountID, ecstypes.SettingNameContainerInsights)
 
 func TestScanECS_StoresSettingsAndClusters(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(ecsTopLevelHandlers(), ecsDenied)}
 	total, inserted, err := scanECS(context.Background(), acct, testRegion, st, testScanID)
@@ -210,6 +214,7 @@ func TestScanECS_StoresSettingsAndClusters(t *testing.T) {
 // The settings phase runs before the cluster phases, so a cluster side that
 // runs into the deadline costs no setting rows.
 func TestScanECS_SettingsBeforeClusterDeadline(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -238,6 +243,7 @@ func TestScanECS_SettingsBeforeClusterDeadline(t *testing.T) {
 // A hard error on either side is returned, and the other side's rows are
 // still stored.
 func TestScanECS_PhaseErrorKeepsOtherSide(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		failOp  string
@@ -270,6 +276,7 @@ func TestScanECS_PhaseErrorKeepsOtherSide(t *testing.T) {
 // A transient error on one side is demoted to one warning, so the other
 // side's hard error still classifies as an error.
 func TestScanECS_TransientSideDemoted(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, throttleOp, failOp, warnOp string
 	}{

@@ -16,6 +16,7 @@ func dxDataSetID(t *testing.T, st *store.Store, acct *account, id, arn string) s
 }
 
 func TestResolveDataExchangeDataGrantRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dsARN := fmt.Sprintf("arn:aws:dataexchange:%s:%s:data-sets/ds1", testRegion, acct.ID)
@@ -33,6 +34,7 @@ func TestResolveDataExchangeDataGrantRefs(t *testing.T) {
 }
 
 func TestResolveDataExchangeDataGrantRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	grantARN := fmt.Sprintf("arn:aws:dataexchange:%s:%s:data-grants/g1", testRegion, acct.ID)
@@ -46,6 +48,7 @@ func TestResolveDataExchangeDataGrantRefs_NoAttrs(t *testing.T) {
 }
 
 func TestResolveDataExchangeEventActionRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dsARN := fmt.Sprintf("arn:aws:dataexchange:%s:%s:data-sets/ds1", testRegion, acct.ID)
@@ -81,6 +84,7 @@ func TestResolveDataExchangeEventActionRefs(t *testing.T) {
 }
 
 func TestResolveDataExchangeEventActionRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	eaARN := fmt.Sprintf("arn:aws:dataexchange:%s:%s:event-actions/ea1", testRegion, acct.ID)

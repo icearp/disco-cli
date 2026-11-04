@@ -56,6 +56,7 @@ func srTestServer(t *testing.T, docs map[string][]string, failService string) *h
 }
 
 func TestFetchServiceReference_SynthesizesKeys(t *testing.T) {
+	t.Parallel()
 	docs := map[string][]string{
 		"dynamodb": {"table", "stream"},
 		"macie2":   {"ClassificationJob"},
@@ -90,6 +91,7 @@ func TestFetchServiceReference_SynthesizesKeys(t *testing.T) {
 }
 
 func TestFetchServiceReference_PerServiceErrorIsFatal(t *testing.T) {
+	t.Parallel()
 	docs := map[string][]string{
 		"dynamodb": {"table"},
 		"macie2":   {"ClassificationJob"},
@@ -102,6 +104,7 @@ func TestFetchServiceReference_PerServiceErrorIsFatal(t *testing.T) {
 }
 
 func TestFetchServiceReference_IndexErrorIsFatal(t *testing.T) {
+	t.Parallel()
 	srv := srTestServer(t, map[string][]string{"dynamodb": {"table"}}, "")
 	// Point at a path the mux doesn't serve as an index array.
 	if _, err := fetchServiceReferenceFrom(context.Background(), srv.URL+"/missing", http.DefaultClient); err == nil {

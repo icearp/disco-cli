@@ -231,6 +231,7 @@ func (f *sfFixture) scan(ctx context.Context, st *store.Store) (int, int, error)
 // warn once per listing, named by their name, their state machine, or
 // noIdentifier. Every listing sends MaxResults 1000.
 func TestScanSFN_StoresTagsOfTaggedTypes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newSFFixture("aws", testRegion)
@@ -316,6 +317,7 @@ func TestScanSFN_StoresTagsOfTaggedTypes(t *testing.T) {
 
 // A rescan stores the same rows and inserts none.
 func TestScanSFN_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newSFFixture("aws", testRegion)
 	if _, _, err := f.scan(context.Background(), st); err != nil {
@@ -330,6 +332,7 @@ func TestScanSFN_RescanInsertsNone(t *testing.T) {
 // With no state machines and no activities, no per-state-machine op and no
 // tag read is called.
 func TestScanSFN_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newSFFixture("aws", testRegion)
 	handlers := f.handlers()
@@ -362,6 +365,7 @@ func TestScanSFN_EmptyListings(t *testing.T) {
 // warns once under the tag op with the scan's scope; a throttle keeps it and
 // is transient; any other error keeps it and is an error.
 func TestScanSFN_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	noIDWarns := []string{sfnListStateMachinesOp, "states:ListActivities", sfnListAliasesOp, sfnListVersionsOp}
 	for _, c := range []struct {
 		name, resource, typ string
@@ -419,6 +423,7 @@ func TestScanSFN_TagReadFailures(t *testing.T) {
 // A state machine whose tag read finds it deleted is no parent: its aliases
 // and versions are not read.
 func TestScanSFN_StateMachineGoneHasNoChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newSFFixture("aws", testRegion)
 	f.errs["ListTagsForResource/"+f.sm("sm-1")] = sfGone
@@ -436,6 +441,7 @@ func TestScanSFN_StateMachineGoneHasNoChildren(t *testing.T) {
 // Denied tag reads of state machines and activities send one warning for the
 // whole scan; the rows are kept.
 func TestScanSFN_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, sfnTagsOp)
 	f := newSFFixture("aws", testRegion)
@@ -455,6 +461,7 @@ func TestScanSFN_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanSFN_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, sfnTagsOp)
 	f := newSFFixture("aws", testRegion)
@@ -481,6 +488,7 @@ func TestScanSFN_TagThrottleDemotedBesideHardError(t *testing.T) {
 // KmsInvalidStateException included, is an error. Only those two KMS errors
 // are asked again.
 func TestScanSFN_DescribeFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name          string
 		err, retryErr error
@@ -555,6 +563,7 @@ func TestScanSFN_DescribeFailures(t *testing.T) {
 // then finds deleted is not stored, so it is not warned about as stored
 // without its definition.
 func TestScanSFN_DefinitionsNotReadWarnOnce(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		kms       []string // state machines whose DescribeStateMachine fails with KMS
@@ -608,6 +617,7 @@ func TestScanSFN_DefinitionsNotReadWarnOnce(t *testing.T) {
 // standard retryer does not, and keeps a non-throttle client error
 // unretried.
 func TestSFNClientOptions_RetriesKmsThrottling(t *testing.T) {
+	t.Parallel()
 	kmsThrottle := &sfntypes.KmsThrottlingException{Message: ptrStr("slow down")}
 	if retry.NewStandard().IsErrorRetryable(kmsThrottle) {
 		t.Fatal("the SDK's standard retryer retries KmsThrottlingException; sfnClientOptions' retryer wrap is redundant")
@@ -633,6 +643,7 @@ func TestSFNClientOptions_RetriesKmsThrottling(t *testing.T) {
 // which neither op models. warns counts the op's warnings: a denial's, plus
 // one for the element without an ARN when its page is read.
 func TestScanSFN_PerStateMachineFailureKeepsSiblingsAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, key  string // key: the state machine, then "/p2" for its later page
 		err      error
@@ -691,6 +702,7 @@ func TestScanSFN_PerStateMachineFailureKeepsSiblingsAndLaterPhases(t *testing.T)
 // once under its op, with the scan's scope, instead, and the later phases
 // run.
 func TestScanSFN_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, key         string
 		err               error
@@ -752,6 +764,7 @@ func TestScanSFN_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // NXDOMAIN is a failure of this scan instead, and the stored rows keep their
 // counts.
 func TestScanSFN_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "states.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -784,6 +797,7 @@ func TestScanSFN_NXDOMAIN(t *testing.T) {
 // flight saw it in its listing; the later phases are not run, and the rows
 // stored before it are kept.
 func TestScanSFN_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newSFFixture("aws", testRegion)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -818,6 +832,7 @@ func TestScanSFN_ContextEndReportedOnce(t *testing.T) {
 // A repeated NextToken ends the state machine listing with
 // errRepeatedNextToken after its first page is stored.
 func TestScanSFN_RepeatedStateMachineToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newSFFixture("aws", testRegion)
 	handlers := f.handlers()
@@ -839,6 +854,7 @@ func TestScanSFN_RepeatedStateMachineToken(t *testing.T) {
 // before it stay stored. act-1's tag read is denied, so its warning is sent
 // only when the activities were stored.
 func TestScanSFN_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		refuse     string
 		wantStored map[string]int
@@ -900,6 +916,7 @@ func TestScanSFN_FailedWriteStopsScan(t *testing.T) {
 // A GovCloud or China ARN reaches the tag op unchanged and is the row's
 // NativeID.
 func TestScanSFN_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range partitionFixtures {
 		t.Run(c.partition, func(t *testing.T) {
 			st := newTestStore(t)

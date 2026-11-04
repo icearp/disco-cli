@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveWSWPortalRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	bsARN := fmt.Sprintf("arn:aws:workspaces-web:%s:%s:browserSettings/bs1", testRegion, acct.ID)
@@ -26,6 +27,7 @@ func TestResolveWSWPortalRefs(t *testing.T) {
 }
 
 func TestResolveWSWNetworkSettingsRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
@@ -47,6 +49,7 @@ func TestResolveWSWNetworkSettingsRefs(t *testing.T) {
 }
 
 func TestResolveWSWUserAccessLoggingKinesis(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ksARN := fmt.Sprintf("arn:aws:kinesis:%s:%s:stream/audit", testRegion, acct.ID)
@@ -62,6 +65,7 @@ func TestResolveWSWUserAccessLoggingKinesis(t *testing.T) {
 }
 
 func TestResolveWSWIdentityProviderPortal(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pARN := fmt.Sprintf("arn:aws:workspaces-web:%s:%s:portal/abc-uuid", testRegion, acct.ID)
@@ -76,6 +80,7 @@ func TestResolveWSWIdentityProviderPortal(t *testing.T) {
 }
 
 func TestResolveWSWSettingsKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

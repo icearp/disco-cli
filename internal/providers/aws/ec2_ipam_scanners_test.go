@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"slices"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -143,6 +144,7 @@ func efpSeed(t *testing.T, st *store.Store, ph efpPhase) {
 // with its NativeID, Name, the element verbatim and its tags (none when
 // untagged); the element without its key is warned about once, by that key.
 func TestScanEC2LateTaggedFanOut_StoresRows(t *testing.T) {
+	t.Parallel()
 	for _, ph := range efpPhases {
 		t.Run(ph.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -168,17 +170,18 @@ func TestScanEC2LateTaggedFanOut_StoresRows(t *testing.T) {
 // With no stored parent nothing is called; a parent with nothing to list
 // stores nothing.
 func TestScanEC2LateTaggedFanOut_Empty(t *testing.T) {
+	t.Parallel()
 	for _, ph := range efpPhases {
 		t.Run(ph.name, func(t *testing.T) {
 			st := newTestStore(t)
-			calls := 0
-			h := map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) { calls++; return ph.empty, nil }}
-			if total, _, err := elxRun(ph.run, st, h); err != nil || total != 0 || calls != 0 {
-				t.Fatalf("no parents: total, calls, err = %d, %d, %v; want 0, 0, nil", total, calls, err)
+			var calls atomic.Int32
+			h := map[string]func(any) (any, error){ph.sdkOp: func(any) (any, error) { calls.Add(1); return ph.empty, nil }}
+			if total, _, err := elxRun(ph.run, st, h); err != nil || total != 0 || calls.Load() != 0 {
+				t.Fatalf("no parents: total, calls, err = %d, %d, %v; want 0, 0, nil", total, calls.Load(), err)
 			}
 			efpSeed(t, st, ph)
-			if total, _, err := elxRun(ph.run, st, h); err != nil || total != 0 || calls != 2 {
-				t.Fatalf("empty parents: total, calls, err = %d, %d, %v; want 0, 2, nil", total, calls, err)
+			if total, _, err := elxRun(ph.run, st, h); err != nil || total != 0 || calls.Load() != 2 {
+				t.Fatalf("empty parents: total, calls, err = %d, %d, %v; want 0, 2, nil", total, calls.Load(), err)
 			}
 		})
 	}
@@ -189,6 +192,7 @@ func TestScanEC2LateTaggedFanOut_Empty(t *testing.T) {
 // failure and any other error are returned. A failure on parent 1's second
 // page keeps its first page and parent 2's row.
 func TestScanEC2LateTaggedFanOut_PerParentErrors(t *testing.T) {
+	t.Parallel()
 	// EC2 models no not-found code, so a vanished parent is returned, never
 	// skipped silently.
 	vanished := apiErr("InvalidParameterValue.NotFound", "gone")
@@ -241,6 +245,7 @@ func TestScanEC2LateTaggedFanOut_PerParentErrors(t *testing.T) {
 // A repeated NextToken ends the parent's listing with errRepeatedNextToken,
 // its first page kept.
 func TestScanEC2LateTaggedFanOut_RepeatedToken(t *testing.T) {
+	t.Parallel()
 	for _, ph := range efpPhases {
 		t.Run(ph.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -287,6 +292,7 @@ func efpTopLevel() map[string]func(any) (any, error) {
 
 // scanEC2 stores each phase's rows under the parents its categories stored.
 func TestScanEC2_StoresLateTaggedFanOutRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if err := elxScanEC2(st, efpTopLevel()); err != nil {
 		t.Fatalf("scanEC2: %v", err)
@@ -302,6 +308,7 @@ func TestScanEC2_StoresLateTaggedFanOutRows(t *testing.T) {
 // older category's slow call uncancelled, does not stop the other phase,
 // and reaches the caller.
 func TestScanEC2_LateTaggedFanOutAfterOlderCategories(t *testing.T) {
+	t.Parallel()
 	for _, failed := range efpPhases {
 		t.Run(failed.name+" fails", func(t *testing.T) {
 			st := newTestStore(t)

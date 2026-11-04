@@ -27,6 +27,7 @@ func ssoInstanceAttrs() string {
 }
 
 func TestInstanceArnFromPermissionSetArn(t *testing.T) {
+	t.Parallel()
 	got := instanceArnFromPermissionSetArn("aws", ssoPermSetARN())
 	want := ssoInstanceARN()
 	if got != want {
@@ -40,6 +41,7 @@ func TestInstanceArnFromPermissionSetArn(t *testing.T) {
 // TestResolveSSOPermissionSetInstance verifies the contains edge from
 // instance to permission-set lands when both are scanned.
 func TestResolveSSOPermissionSetInstance(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -60,6 +62,7 @@ func TestResolveSSOPermissionSetInstance(t *testing.T) {
 // assignment links to the permission-set, identity-store user, and
 // Organizations account targets when all three are scanned.
 func TestResolveSSOAccountAssignments_UserPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -96,6 +99,7 @@ func TestResolveSSOAccountAssignments_UserPath(t *testing.T) {
 // cross-account: the assignment grants access to a target AWS account
 // distinct from its own row account.
 func TestResolveSSOAccountAssignments_GroupPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -125,6 +129,7 @@ func TestResolveSSOAccountAssignments_GroupPath(t *testing.T) {
 // without erroring — the partial-coverage case: assignments scanned but
 // the identity-store / org tree not.
 func TestResolveSSOAccountAssignments_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -151,6 +156,7 @@ func TestResolveSSOAccountAssignments_FKSafe(t *testing.T) {
 // TestResolveSSOAccountAssignments_MalformedAttrs ensures invalid attrs
 // JSON skips the row rather than aborting the whole resolver.
 func TestResolveSSOAccountAssignments_MalformedAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -164,6 +170,7 @@ func TestResolveSSOAccountAssignments_MalformedAttrs(t *testing.T) {
 }
 
 func TestResolveSSOApplicationInstance(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -180,6 +187,7 @@ func TestResolveSSOApplicationInstance(t *testing.T) {
 }
 
 func TestResolveSSOApplicationAssignmentRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -205,6 +213,7 @@ func TestResolveSSOApplicationAssignmentRefs(t *testing.T) {
 }
 
 func TestResolveSSOAttrConfigInstance(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -220,6 +229,7 @@ func TestResolveSSOAttrConfigInstance(t *testing.T) {
 }
 
 func TestResolveSSOTrustedTokenIssuerInstance(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -236,6 +246,7 @@ func TestResolveSSOTrustedTokenIssuerInstance(t *testing.T) {
 }
 
 func TestResolveSSOTrustedTokenIssuerInstance_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ttiARN := "arn:aws:sso::" + acct.ID + ":trustedTokenIssuer/" + testSSOInsID + "/tti-1"
@@ -253,6 +264,7 @@ func TestResolveSSOTrustedTokenIssuerInstance_NoAttrs(t *testing.T) {
 // The scanner writes these contains edges through RecordHierarchyBatch; the
 // declarations are the only way coverage tooling sees them as wired.
 func TestSSOChildHierarchyEdgesDeclared(t *testing.T) {
+	t.Parallel()
 	declared := CollectResolverEdges()
 	for _, want := range []EdgeDecl{
 		{TypeSSOApplication, TypeSSOApplicationAccessScope, store.RelContains},
@@ -292,6 +304,7 @@ func ssoAttachmentAttrs(t *testing.T, name string) string {
 }
 
 func TestResolveSSOManagedPolicyTargets_LinksScannedPolicyOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	policyID := ssoManagedPolicyFixture(t, st)
@@ -321,6 +334,7 @@ func TestResolveSSOManagedPolicyTargets_LinksScannedPolicyOnly(t *testing.T) {
 }
 
 func TestResolveSSOManagedPolicyTargets_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ssoManagedPolicyFixture(t, st)
 	if err := resolveSSOManagedPolicyTargets(newTestAccount(testAccountID), st); err != nil {
@@ -330,6 +344,7 @@ func TestResolveSSOManagedPolicyTargets_Empty(t *testing.T) {
 
 // A row that does not decode is reported, and costs no other row its edge.
 func TestResolveSSOManagedPolicyTargets_DecodeError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	policyID := ssoManagedPolicyFixture(t, st)

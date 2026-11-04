@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolvePaymentCryptographyAliasToKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	kARN := fmt.Sprintf("arn:aws:payment-cryptography:%s:%s:key/k-1", testRegion, acct.ID)

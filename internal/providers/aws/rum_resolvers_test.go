@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveRUMMetricsDestinationRoles_RoleEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ev := rumEvidently()
@@ -35,6 +36,7 @@ func TestResolveRUMMetricsDestinationRoles_RoleEdge(t *testing.T) {
 }
 
 func TestResolveRUMMetricsDestinationRoles_NoDestinations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if err := resolveRUMMetricsDestinationRoles(newTestAccount(testAccountID), st); err != nil {
 		t.Errorf("err = %v; want nil", err)
@@ -42,6 +44,7 @@ func TestResolveRUMMetricsDestinationRoles_NoDestinations(t *testing.T) {
 }
 
 func TestResolveRUMMetricsDestinationRoles_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, "arn:aws:iam::"+testAccountID+":role/r", "", "{}")
 	upsertTestResource(t, st, "aws", testAccountID, TypeRUMMetricsDestination, rumCWDestID("m1"), testRegion, `{"IamRoleArn":7}`)

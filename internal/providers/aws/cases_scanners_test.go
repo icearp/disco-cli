@@ -259,6 +259,7 @@ func casesWarnOps(w []store.ScanWarning) []string {
 // listing is called for both domains and the options for each field. No
 // error, no warning.
 func TestScanCases_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCasesCalls()
@@ -349,6 +350,7 @@ func TestScanCases_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanCases_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := casesScan(context.Background(), st, casesHandlers(newCasesCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -365,6 +367,7 @@ func TestScanCases_RescanInsertsNone(t *testing.T) {
 // No domain: nothing stored, no child listing or tag read, no error, no
 // warning.
 func TestScanCases_NoDomains(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCasesCalls()
@@ -398,6 +401,7 @@ func TestScanCases_NoDomains(t *testing.T) {
 // scope; a throttle keeps it and is transient; any other error keeps it and
 // is an error.
 func TestScanCases_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	layout := casesKindOf("ListLayouts").arns()[0]
 	domain := casesKindOf("ListDomains").arns()[1]
 	field := casesKindOf("ListFields").arns()[2]
@@ -464,6 +468,7 @@ func TestScanCases_TagReadFailures(t *testing.T) {
 // Denied tag reads in two phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanCases_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCasesCalls()
@@ -488,6 +493,7 @@ func TestScanCases_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanCases_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, casesTagsOp)
 	calls := newCasesCalls()
@@ -506,6 +512,7 @@ func TestScanCases_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored. A failed domain write lists no domain's children.
 func TestScanCases_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	t.Run("fields", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := rhWarnRecorder(st)
@@ -551,6 +558,7 @@ func TestScanCases_FailedWriteStopsScan(t *testing.T) {
 // error does not stop the later phases. A domain not stored has no children
 // read.
 func TestScanCases_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, domain               string
 		kept, lost               string
@@ -605,6 +613,7 @@ func TestScanCases_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanCases_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, typ string
 		rows    int
@@ -643,6 +652,7 @@ func TestScanCases_RepeatedTokenKeepsPages(t *testing.T) {
 // warns once under the op, and any other error, a transient one after the
 // SDK's retries included, is returned after the rows are stored.
 func TestScanCases_PerParentListingFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, typ string
 		// parent fails, by its DomainId, or its FieldId for options.
@@ -735,6 +745,7 @@ func TestScanCases_PerParentListingFailures(t *testing.T) {
 // a FieldId, is stored and tagged without its children read, with one
 // warning naming the empty field.
 func TestScanCases_ElementsWithoutIdentifiers(t *testing.T) {
+	t.Parallel()
 	noIDDomain := casesTestDomainARN("aws", testRegion, "x")
 	noIDField := casesKindOf("ListFields").arn("domain-tagged", "x")
 	bareField := casesKindOf("ListFields").arn("domain-bare", "bare")
@@ -837,6 +848,7 @@ func TestScanCases_ElementsWithoutIdentifiers(t *testing.T) {
 // and a system single-select field are stored and tagged, and no options are
 // listed for them.
 func TestScanCases_OnlyCustomSingleSelectFieldsListOptions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCasesCalls()
 	handlers := casesHandlers(calls)
@@ -877,6 +889,7 @@ func TestScanCases_OnlyCustomSingleSelectFieldsListOptions(t *testing.T) {
 // (its second page is asked for only then), so without the sort the first
 // domain's field would be named.
 func TestScanCases_FieldOptionWarningNamesLeastField(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCasesCalls()
@@ -914,6 +927,7 @@ func TestScanCases_FieldOptionWarningNamesLeastField(t *testing.T) {
 // first written. domain-bare's field is held until domain-tagged's first page
 // is written (its second page is asked for only then).
 func TestScanCases_NoFieldIDWarningNamesLeastField(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCasesCalls()
@@ -957,6 +971,7 @@ func TestScanCases_NoFieldIDWarningNamesLeastField(t *testing.T) {
 // demoted to one warning under its own op, so the hard error decides the
 // outcome; every phase's rows are kept.
 func TestScanCases_ListThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "connectcases:ListTemplates")
 	calls := newCasesCalls()
@@ -989,6 +1004,7 @@ func TestScanCases_ListThrottleDemotedBesideHardError(t *testing.T) {
 // A GovCloud or China ARN reaches the tag op unchanged, scanned in an
 // account and region of that partition.
 func TestScanCases_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			arn := casesTestDomainARN(pf.partition, pf.region, "d-p")
@@ -1022,6 +1038,7 @@ func TestScanCases_TagReadsKeepPartitionARNs(t *testing.T) {
 // flight saw it in its listing and its tag reads, and the later phases are
 // not run.
 func TestScanCases_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCasesCalls()
 	handlers := casesHandlers(calls)
@@ -1057,6 +1074,7 @@ func TestScanCases_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanCases_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "cases.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

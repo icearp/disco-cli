@@ -218,6 +218,7 @@ func bgwStoredIDs(t *testing.T, st *store.Store) []string {
 }
 
 func TestScanBackupGateway_ConfigRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls bgwCalls
 	total, err := scanBackupGatewayTopLevel(t, st, bgwHandlers(&calls))
@@ -264,6 +265,7 @@ func TestScanBackupGateway_ConfigRows(t *testing.T) {
 // A hypervisor whose mappings name only an IAM role, or only tag mappings,
 // still has a configuration.
 func TestScanBackupGateway_PartialPropertyMappingsStored(t *testing.T) {
+	t.Parallel()
 	for name, out := range map[string]*backupgateway.GetHypervisorPropertyMappingsOutput{
 		"role only": {IamRoleArn: &bgwTestRole},
 		"tags only": {VmwareToAwsTagMappings: []bgwtypes.VmwareToAwsTagMapping{{VmwareTagName: sdkaws.String("prod")}}},
@@ -293,6 +295,7 @@ func TestScanBackupGateway_PartialPropertyMappingsStored(t *testing.T) {
 // and the sibling's row is kept in each case; any other error fails the op's
 // phase, storing none of its rows, after the resource phases stored theirs.
 func TestScanBackupGateway_ConfigParentErrors(t *testing.T) {
+	t.Parallel()
 	notFound := apiErr("ResourceNotFoundException", "gone")
 	validation := apiErr("ValidationException", "not ready")
 	for _, tc := range []struct {
@@ -358,6 +361,7 @@ func TestScanBackupGateway_ConfigParentErrors(t *testing.T) {
 
 // A denial for every parent of an op is one warning, not one per parent.
 func TestScanBackupGateway_ConfigDeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{backupGatewayBandwidthScheduleOp, backupGatewayPropertyMappingsOp} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -379,6 +383,7 @@ func TestScanBackupGateway_ConfigDeniedWarnsOnce(t *testing.T) {
 // before it are kept, and every later phase still runs over the parents
 // stored.
 func TestScanBackupGateway_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op         string
 		typ        string
@@ -428,6 +433,7 @@ func TestScanBackupGateway_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // so that a configuration phase's hard error still reaches the dispatcher as
 // a hard error.
 func TestScanBackupGateway_ResourceTransientDoesNotMaskConfigError(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"GetBandwidthRateLimitSchedule", "GetHypervisorPropertyMappings"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -456,6 +462,7 @@ func TestScanBackupGateway_ResourceTransientDoesNotMaskConfigError(t *testing.T)
 // empty; a gateway is named by its display name and a virtual machine by its
 // Name, each by its ARN when that is empty. No error, no warning.
 func TestScanBackupGateway_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls bgwCalls
@@ -535,6 +542,7 @@ func TestScanBackupGateway_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows and inserts none: the tags read are the same.
 func TestScanBackupGateway_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls bgwCalls
 	if _, _, err := bgwScan(context.Background(), st, bgwHandlers(&calls)); err != nil {
@@ -552,6 +560,7 @@ func TestScanBackupGateway_RescanInsertsNone(t *testing.T) {
 // A region with no hypervisor, gateway or virtual machine stores nothing,
 // reads no tags and calls no configuration op.
 func TestScanBackupGateway_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls bgwCalls
@@ -583,6 +592,7 @@ func TestScanBackupGateway_Empty(t *testing.T) {
 // warns once under the tag op with the scan's scope; a throttle keeps it and
 // is transient; any other error keeps it and is an error.
 func TestScanBackupGateway_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name       string
 		arn, typ   string
@@ -647,6 +657,7 @@ func TestScanBackupGateway_TagReadFailures(t *testing.T) {
 // Denied tag reads in every phase send one warning for the whole scan; the
 // rows are kept.
 func TestScanBackupGateway_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := bgwCalls{tagErrs: map[string]error{bgwTestHypB: bgwDenied, bgwTestGwC: bgwDenied, bgwTestVM2: bgwDenied}}
@@ -665,6 +676,7 @@ func TestScanBackupGateway_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanBackupGateway_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, backupGatewayListTagsForResourceOp)
 	calls := bgwCalls{tagErrs: map[string]error{bgwTestHypC: bgwThrottle, bgwTestVM2: bgwBadInput}}
@@ -680,6 +692,7 @@ func TestScanBackupGateway_TagThrottleDemotedBesideHardError(t *testing.T) {
 // rows it lost (a denied tag read among them), no later phase runs, and the
 // earlier phases' rows stay counted.
 func TestScanBackupGateway_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		typ, denied string
 		laterLists  []string // listings that must not be called
@@ -719,6 +732,7 @@ func TestScanBackupGateway_FailedWriteStopsScan(t *testing.T) {
 // Each listing writes a page before it reads the next: the first page's row
 // is stored when the second page is requested.
 func TestScanBackupGateway_WritesEachPageBeforeTheNext(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls bgwCalls
 	h := bgwHandlers(&calls)
@@ -751,6 +765,7 @@ func TestScanBackupGateway_WritesEachPageBeforeTheNext(t *testing.T) {
 // A repeated NextToken ends each listing as an error, keeping its pages; the
 // later phases still run.
 func TestScanBackupGateway_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListHypervisors", "ListGateways", "ListVirtualMachines"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -786,6 +801,7 @@ func TestScanBackupGateway_RepeatedTokenKeepsPages(t *testing.T) {
 // A listed element without an ARN is not stored, and each listing warns once
 // under its op; its siblings are stored and have their tags read.
 func TestScanBackupGateway_ElementWithoutARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls bgwCalls
@@ -816,6 +832,7 @@ func TestScanBackupGateway_ElementWithoutARN(t *testing.T) {
 
 // A GovCloud or China ARN reaches the tag op unchanged.
 func TestScanBackupGateway_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			arns := map[string]string{
@@ -861,6 +878,7 @@ func TestScanBackupGateway_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanBackupGateway_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls bgwCalls
 	h := bgwHandlers(&calls)
@@ -895,6 +913,7 @@ func TestScanBackupGateway_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanBackupGateway_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "backup-gateway.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

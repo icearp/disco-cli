@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveR53RResolverEndpointVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
@@ -25,6 +26,7 @@ func TestResolveR53RResolverEndpointVPC(t *testing.T) {
 }
 
 func TestResolveR53RDNSSECConfigVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-2")
@@ -40,6 +42,7 @@ func TestResolveR53RDNSSECConfigVPC(t *testing.T) {
 }
 
 func TestResolveR53RQueryLogAssocRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-3")
@@ -82,6 +85,7 @@ func r53rRelsFrom(t *testing.T, st *store.Store, id string) []store.Relationship
 // An address links to its subnet; an address whose subnet was not scanned, or
 // that names none, links to nothing.
 func TestResolveR53REndpointIPSubnet(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, acct.ID, "subnet", "subnet-a"), testRegion, "{}")
@@ -111,6 +115,7 @@ func TestResolveR53REndpointIPSubnet(t *testing.T) {
 // list included; a threat-protection rule, or a rule whose list is in another
 // region, links to nothing.
 func TestResolveR53RFirewallRuleDomainList(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	// The index keys on the list ARN, so the rows carry no attributes.
@@ -143,6 +148,7 @@ func TestResolveR53RFirewallRuleDomainList(t *testing.T) {
 }
 
 func TestResolveR53RChildResolvers_NoRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveR53RFirewallRuleDomainList(acct, st); err != nil {
@@ -155,6 +161,7 @@ func TestResolveR53RChildResolvers_NoRows(t *testing.T) {
 
 // Undecodable attributes fail the resolver rather than dropping its edges.
 func TestResolveR53R_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		typ     string

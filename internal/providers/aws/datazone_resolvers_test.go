@@ -8,6 +8,7 @@ import (
 )
 
 func TestDatazoneDomainARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:datazone:us-east-1:123:domain/d1/project/p1", "arn:aws:datazone:us-east-1:123:domain/d1"},
 		{"arn:aws:datazone:us-east-1:123:domain/d1/environment-action/e1/a1", "arn:aws:datazone:us-east-1:123:domain/d1"},
@@ -22,6 +23,7 @@ func TestDatazoneDomainARNFromChild(t *testing.T) {
 }
 
 func TestResolveDataZoneChildrenToDomain(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		typ, kind string
 		managed   bool
@@ -67,6 +69,7 @@ func TestResolveDataZoneChildrenToDomain(t *testing.T) {
 }
 
 func TestResolveDataZoneEnvActionsToEnvironment(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := fmt.Sprintf("arn:aws:datazone:%s:%s:domain/d1", testRegion, acct.ID)
@@ -86,6 +89,7 @@ func TestResolveDataZoneEnvActionsToEnvironment(t *testing.T) {
 }
 
 func TestResolveDataZoneDomainRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

@@ -278,6 +278,7 @@ func bcmPCSeedParents(t *testing.T, st *store.Store, ph bcmPCChildPhase, ids ...
 func bcmPCAPIErr(code, msg string) error { return &smithy.GenericAPIError{Code: code, Message: msg} }
 
 func TestScanBcmPCChildren_PagesStoredUnderParent(t *testing.T) {
+	t.Parallel()
 	for _, ph := range bcmPCChildPhases() {
 		t.Run(ph.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -340,6 +341,7 @@ func TestScanBcmPCChildren_PagesStoredUnderParent(t *testing.T) {
 }
 
 func TestScanBcmPCChildren_Empty(t *testing.T) {
+	t.Parallel()
 	for _, ph := range bcmPCChildPhases() {
 		t.Run(ph.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -363,6 +365,7 @@ func TestScanBcmPCChildren_Empty(t *testing.T) {
 // class: skipped ones keep the third parent's row, warned ones warn once per op
 // however many parents fail, and any other error is returned.
 func TestScanBcmPCChildren_ParentErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name         string
 		err          error
@@ -410,6 +413,7 @@ func TestScanBcmPCChildren_ParentErrors(t *testing.T) {
 }
 
 func TestFlattenBcmPCCommitmentMod_NamesTheActionKind(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		action       bcmpctypes.BillScenarioCommitmentModificationAction
 		key          string
@@ -527,6 +531,7 @@ func bcmPCScan(ctx context.Context, st *store.Store, f *bcmPCFake) (int, int, er
 // stored under their parents without a tag read. Each listing is sent
 // MaxResults 25. No error, no warning.
 func TestScanBcmPricingCalculator_StoresTagsOfParentTypes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := bcmPCTopLevelFake()
@@ -605,6 +610,7 @@ func TestScanBcmPricingCalculator_StoresTagsOfParentTypes(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanBcmPricingCalculator_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := bcmPCScan(context.Background(), st, bcmPCTopLevelFake()); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -621,6 +627,7 @@ func TestScanBcmPricingCalculator_RescanInsertsNone(t *testing.T) {
 // Empty listings: nothing stored, no child listing or tag read, no error, no
 // warning.
 func TestScanBcmPricingCalculator_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newBcmPCFake()
@@ -647,6 +654,7 @@ func TestScanBcmPricingCalculator_EmptyListings(t *testing.T) {
 // scope; a throttle keeps it and is transient; any other error keeps it and
 // is an error.
 func TestScanBcmPricingCalculator_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	scenario, estimate, workload := bcmPCARN("bill-scenario", "s1"), bcmPCARN("bill-estimate", "e1"), bcmPCARN("workload-estimate", "w1")
 	for _, c := range []struct {
 		name      string
@@ -720,6 +728,7 @@ func TestScanBcmPricingCalculator_TagReadFailures(t *testing.T) {
 // Denied tag reads of every tag-read type send one warning for the whole
 // scan; the rows are kept.
 func TestScanBcmPricingCalculator_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := bcmPCTopLevelFake()
@@ -744,6 +753,7 @@ func TestScanBcmPricingCalculator_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanBcmPricingCalculator_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, bcmPCTagsOp)
 	f := bcmPCTopLevelFake()
@@ -762,6 +772,7 @@ func TestScanBcmPricingCalculator_TagThrottleDemotedBesideHardError(t *testing.T
 // tag read among them), no later phase runs, and the earlier phase's rows
 // stay stored.
 func TestScanBcmPricingCalculator_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeBcmPricingCalculatorBillEstimate)
@@ -793,6 +804,7 @@ func TestScanBcmPricingCalculator_FailedWriteStopsScan(t *testing.T) {
 // does not stop the later phases, the child phases included. A bill scenario
 // not stored has no children read.
 func TestScanBcmPricingCalculator_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, pt := range bcmPCParentTypes() {
 		t.Run(pt.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -825,6 +837,7 @@ func TestScanBcmPricingCalculator_ListFailureKeepsPagesAndLaterPhases(t *testing
 
 // A repeated nextToken ends the listing as an error, keeping its pages.
 func TestScanBcmPricingCalculator_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, pt := range bcmPCParentTypes() {
 		t.Run(pt.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -848,6 +861,7 @@ func TestScanBcmPricingCalculator_RepeatedTokenKeepsPages(t *testing.T) {
 // Each listing writes its first page, with its tags, before the second page
 // is read.
 func TestScanBcmPricingCalculator_PagesWrittenAsRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := bcmPCTopLevelFake()
 	storedFirst := map[string]bool{}
@@ -872,6 +886,7 @@ func TestScanBcmPricingCalculator_PagesWrittenAsRead(t *testing.T) {
 // warned about once under its listing, keyed by its name or the fallback
 // text.
 func TestScanBcmPricingCalculator_ElementWithoutID(t *testing.T) {
+	t.Parallel()
 	for _, pt := range bcmPCParentTypes() {
 		for _, name := range []string{"orphan", ""} {
 			t.Run(pt.op+"/"+cmp.Or(name, "no name"), func(t *testing.T) {
@@ -911,6 +926,7 @@ func TestScanBcmPricingCalculator_ElementWithoutID(t *testing.T) {
 // In GovCloud and China the built ARNs carry the account's partition, and
 // reach the tag op unchanged.
 func TestScanBcmPricingCalculator_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -939,6 +955,7 @@ func TestScanBcmPricingCalculator_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it, and the later phases are not run.
 func TestScanBcmPricingCalculator_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := bcmPCTopLevelFake()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -972,6 +989,7 @@ func TestScanBcmPricingCalculator_ContextEndReportedOnce(t *testing.T) {
 // hard error of one parent listing skips neither the later listings nor the
 // child phases, and is returned.
 func TestScanBcmPricingCalculator_OlderPhaseErrorKeepsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := bcmPCTopLevelFake()
 	f.errs["ListBillEstimates #0"] = bcmPCBadInput
@@ -994,6 +1012,7 @@ func TestScanBcmPricingCalculator_OlderPhaseErrorKeepsLaterPhases(t *testing.T) 
 // TestScanBcmPricingCalculator_ChildPhaseErrorKeepsOtherPhases fails each child
 // op in turn: its error is returned and every other phase still stores its rows.
 func TestScanBcmPricingCalculator_ChildPhaseErrorKeepsOtherPhases(t *testing.T) {
+	t.Parallel()
 	for _, failing := range bcmPCChildPhases() {
 		t.Run(failing.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1031,6 +1050,7 @@ func bcmPCCostExplorerOff() error {
 // it) is disabled, payer-only is not entitled. The later parent listings and
 // the child phases make no call, and nothing is warned about.
 func TestScanBcmPricingCalculator_FirstPhaseSentinelReturnedAlone(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name     string
 		err      error
@@ -1068,6 +1088,7 @@ func TestScanBcmPricingCalculator_FirstPhaseSentinelReturnedAlone(t *testing.T) 
 // refused listing keeps its earlier pages; the parent listings after it are
 // not called, and the child phases run over the parents stored.
 func TestScanBcmPricingCalculator_LaterSentinelWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		errs      map[string]error
@@ -1127,6 +1148,7 @@ func TestScanBcmPricingCalculator_LaterSentinelWarns(t *testing.T) {
 // warns under its op, the migration deny is silent. The migration deny after
 // a page was read keeps that page and warns as a denial.
 func TestScanBcmPricingCalculator_ListingDenials(t *testing.T) {
+	t.Parallel()
 	migrate := bcmPCAPIErr("AccessDeniedException", "To use this feature, please obtain the required permissions. Migrate the policies in your account to use the new IAM actions.")
 	for _, c := range []struct {
 		name      string
@@ -1170,6 +1192,7 @@ func TestScanBcmPricingCalculator_ListingDenials(t *testing.T) {
 // a transient error, while a child phase fails hard: the dispatcher must see
 // the hard error, and the parent listing's error is one warning under its op.
 func TestScanBcmPricingCalculator_OlderPhaseErrorDoesNotHideChildHardError(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name         string
 		estimatesErr error
@@ -1200,6 +1223,7 @@ func TestScanBcmPricingCalculator_OlderPhaseErrorDoesNotHideChildHardError(t *te
 // of the first listing, with nothing stored, stays region-unavailable: no
 // later listing or child phase runs, and nothing is warned about.
 func TestScanBcmPricingCalculator_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "bcm-pricing-calculator.us-east-1.api.aws", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1243,6 +1267,7 @@ func TestScanBcmPricingCalculator_NXDOMAIN(t *testing.T) {
 // A listed element with no Status is stored with Status "" (not nil), as
 // before tags were read, so its identity does not change.
 func TestScanBcmPricingCalculator_EmptyStatusKept(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newBcmPCFake()
 	f.scenarios = []bcmpctypes.BillScenarioSummary{{Id: sdkaws.String("s1")}}

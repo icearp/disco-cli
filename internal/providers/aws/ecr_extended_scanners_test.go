@@ -124,6 +124,7 @@ func ecrPubContainsCount(t *testing.T, st *store.Store) int {
 }
 
 func TestScanECRPublic_StoresRegistriesAndContainsEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(map[string]func(in any) (any, error){
@@ -171,6 +172,7 @@ func TestScanECRPublic_StoresRegistriesAndContainsEdges(t *testing.T) {
 }
 
 func TestEcrPublicRegistryLabel(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		reg  ecrpublictypes.Registry
@@ -191,6 +193,7 @@ func TestEcrPublicRegistryLabel(t *testing.T) {
 }
 
 func TestScanECRPublicRegistries_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := ecrPubClient(map[string]func(in any) (any, error){
 		"DescribeRegistries": func(any) (any, error) { return &ecrpublic.DescribeRegistriesOutput{}, nil },
@@ -205,6 +208,7 @@ func TestScanECRPublicRegistries_Empty(t *testing.T) {
 }
 
 func TestScanECRPublicRegistries_Errors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		handler   func(in any) (any, error)
@@ -247,6 +251,7 @@ func TestScanECRPublicRegistries_Errors(t *testing.T) {
 // ecrPublic is us-east-1-only: every other region makes no call, and the
 // us-east-1 pass calls us-east-1 whatever the config's default region.
 func TestScanECRPublic_RegionRouting(t *testing.T) {
+	t.Parallel()
 	var (
 		mu      sync.Mutex
 		called  []string
@@ -285,6 +290,7 @@ func TestScanECRPublic_RegionRouting(t *testing.T) {
 
 // A denied repository listing still stores the registry, with no edges.
 func TestScanECRPublic_RepositoriesDeniedStillScansRegistries(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "ecr-public:DescribeRepositories")
 	acct := newTestAccount(testAccountID)
@@ -319,6 +325,7 @@ func TestScanECRPublic_RepositoriesDeniedStillScansRegistries(t *testing.T) {
 // is stored, linked to the repositories read before the failure, and the
 // repository error is returned.
 func TestScanECRPublic_RepositoryErrorStillScansRegistries(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(map[string]func(in any) (any, error){
@@ -354,6 +361,7 @@ func TestScanECRPublic_RepositoryErrorStillScansRegistries(t *testing.T) {
 // Public rows without their identifier are warned about once per phase and
 // not stored.
 func TestScanECRPublic_EmptyARNsWarned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	repoWarns := countOpWarnings(st, "ecr-public:DescribeRepositories")
 	regWarns := countOpWarnings(st, ecrPublicRegistriesOp)
@@ -387,6 +395,7 @@ func runECRPublic(acct *account, region string, st *store.Store) (int, int, erro
 // repository phase: its hard error reaches the caller with those rows stored
 // and counted.
 func TestScanECR_RegistryErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	called := false
@@ -497,6 +506,7 @@ func runECRScanCfg(st *store.Store, repos []childParent, h func(any) (any, error
 }
 
 func TestScanECRRepositoryScanningConfigs_BatchesAndStores(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	names := append(ecrRepoNames(25), "team/app")
 	repos := ecrSeedRepos(t, st, names)
@@ -546,6 +556,7 @@ func TestScanECRRepositoryScanningConfigs_BatchesAndStores(t *testing.T) {
 }
 
 func TestScanECRRepositoryScanningConfigs_NoRepositories(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls ecrScanCfgBatches
 	total, _, err := runECRScanCfg(st, nil, calls.handler(ecrScanCfgOK))
@@ -556,6 +567,7 @@ func TestScanECRRepositoryScanningConfigs_NoRepositories(t *testing.T) {
 
 // A denial of every batch warns once for the op and fails nothing.
 func TestScanECRRepositoryScanningConfigs_DeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ecrScanCfgOp)
 	repos := ecrSeedRepos(t, st, ecrRepoNames(30))
@@ -576,6 +588,7 @@ func TestScanECRRepositoryScanningConfigs_DeniedWarnsOnce(t *testing.T) {
 // A failure entry drops only its repository: REPOSITORY_NOT_FOUND silently,
 // a code the SDK does not model with a warning.
 func TestScanECRRepositoryScanningConfigs_Failures(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		code      ecrtypes.ScanningConfigurationFailureCode
@@ -618,6 +631,7 @@ var ecrRepoNotFound = &smithy.GenericAPIError{Code: "RepositoryNotFoundException
 // failure entry with an unrecognised code warns, and the rest of the batch
 // and the other batch are stored.
 func TestScanECRRepositoryScanningConfigs_BatchNotFoundRetriesSingly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ecrScanCfgOp)
 	repos := ecrSeedRepos(t, st, ecrRepoNames(26))
@@ -655,6 +669,7 @@ func TestScanECRRepositoryScanningConfigs_BatchNotFoundRetriesSingly(t *testing.
 // A single-name batch failing with RepositoryNotFoundException is dropped
 // silently without being sent again.
 func TestScanECRRepositoryScanningConfigs_SingleNameBatchNotFound(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ecrScanCfgOp)
 	repos := ecrSeedRepos(t, st, []string{"a"})
@@ -671,6 +686,7 @@ func TestScanECRRepositoryScanningConfigs_SingleNameBatchNotFound(t *testing.T) 
 // After a batch's RepositoryNotFoundException, a single-name call failing
 // otherwise fails the phase.
 func TestScanECRRepositoryScanningConfigs_SingleRetryErrorFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	repos := ecrSeedRepos(t, st, []string{"a", "b"})
 	var calls ecrScanCfgBatches
@@ -693,6 +709,7 @@ func TestScanECRRepositoryScanningConfigs_SingleRetryErrorFails(t *testing.T) {
 // When ctx ends during the fan-out, the batches it cut short and those never
 // read add one stop member between them.
 func TestScanECRRepositoryScanningConfigs_ContextEndedMidFanOut(t *testing.T) {
+	t.Parallel()
 	for _, batches := range []int{3, fanoutMed + 2} {
 		t.Run(strconv.Itoa(batches)+" batches", func(t *testing.T) {
 			st := newTestStore(t)
@@ -725,6 +742,7 @@ func TestScanECRRepositoryScanningConfigs_ContextEndedMidFanOut(t *testing.T) {
 
 // Once ctx has ended no batch is read, and the stop is returned.
 func TestScanECRRepositoryScanningConfigs_ContextEnded(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	repos := ecrSeedRepos(t, st, []string{"a"})
 	ctx, cancel := context.WithCancel(context.Background())
@@ -743,6 +761,7 @@ func TestScanECRRepositoryScanningConfigs_ContextEnded(t *testing.T) {
 // After a batch's RepositoryNotFoundException, denials of the single-name
 // calls warn once and fail nothing.
 func TestScanECRRepositoryScanningConfigs_SingleRetryDenied(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ecrScanCfgOp)
 	repos := ecrSeedRepos(t, st, []string{"a", "b"})
@@ -764,6 +783,7 @@ func TestScanECRRepositoryScanningConfigs_SingleRetryDenied(t *testing.T) {
 // A repository whose stored ARN does not parse gives its scanning
 // configuration no NativeID: it is dropped with a warning, its sibling stored.
 func TestScanECRRepositoryScanningConfigs_UnusableParentARNSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ecrScanCfgOp)
 	repos := append(ecrSeedRepos(t, st, []string{"a"}), childParent{id: "garbled", arn: "not-an-arn"})
@@ -781,6 +801,7 @@ func TestScanECRRepositoryScanningConfigs_UnusableParentARNSkipped(t *testing.T)
 }
 
 func TestECRRepoScanningConfigNativeID(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ repoARN, name, want string }{
 		{"arn:aws:ecr:us-east-1:123456789012:repository/team/app", "team/app", "arn:aws:ecr:us-east-1:123456789012:repository-scanning-configuration/team/app"},
 		{"arn:aws-cn:ecr:cn-north-1:123456789012:repository/a", "a", "arn:aws-cn:ecr:cn-north-1:123456789012:repository-scanning-configuration/a"},
@@ -796,6 +817,7 @@ func TestECRRepoScanningConfigNativeID(t *testing.T) {
 }
 
 func TestScanECRRepositoryScanningConfigs_OtherErrorFails(t *testing.T) {
+	t.Parallel()
 	for _, code := range []string{"ServerException", "ValidationException"} {
 		t.Run(code, func(t *testing.T) {
 			st := newTestStore(t)
@@ -815,6 +837,7 @@ func TestScanECRRepositoryScanningConfigs_OtherErrorFails(t *testing.T) {
 // An element without repositoryName has no NativeID: it is dropped with a
 // warning and its siblings are stored.
 func TestScanECRRepositoryScanningConfigs_UnnamedElementSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ecrScanCfgOp)
 	repos := ecrSeedRepos(t, st, []string{"a", "b"})
@@ -855,6 +878,7 @@ func ecrPrivateRepoPages(in any) (any, error) {
 // scanECR hands every repository it listed, across pages, to the scanning
 // configuration phase.
 func TestScanECR_StoresRepositoryScanningConfigs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(map[string]func(in any) (any, error){
@@ -875,6 +899,7 @@ func TestScanECR_StoresRepositoryScanningConfigs(t *testing.T) {
 // The scanning configuration phase runs after every existing ECR phase: its
 // hard error reaches the caller with the earlier rows stored and counted.
 func TestScanECR_ScanningConfigErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	called := false
@@ -917,6 +942,7 @@ func TestScanECR_ScanningConfigErrorAfterExistingPhases(t *testing.T) {
 // would name were not stored. The write fails on the scan id, which no scan
 // row holds, while the store stays open.
 func TestScanECRPublicRegistries_FailedWriteRecordsNoPairs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeECRPublicRepository, ecrPubRepoA, "us-east-1", "{}")
 	warns := countWarnings(st)
@@ -939,6 +965,7 @@ func TestScanECRPublicRegistries_FailedWriteRecordsNoPairs(t *testing.T) {
 // per-name retry read before the error, are stored and the error returned.
 // The warnings wait for the write, and a failed write sends none.
 func TestScanECRRepositoryScanningConfigs_FailedBatchKeepsOthers(t *testing.T) {
+	t.Parallel()
 	names := ecrRepoNames(ecrScanningConfigBatchMax + 1)
 	failing := names[ecrScanningConfigBatchMax]
 	handler := func(in any) (any, error) {

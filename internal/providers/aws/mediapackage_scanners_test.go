@@ -184,6 +184,7 @@ func assertMPRows(t *testing.T, st *store.Store, typ string, want []mpWantRow) {
 // attributes with the channel ingest password redacted, and the element's
 // Tags, nil when it has none.
 func TestScanMediaPackageAll_StoresRows(t *testing.T) {
+	t.Parallel()
 	cases, h := mpFixture(t, false)
 	st := newTestStore(t)
 	total, inserted, err := mpScanAll(t, st, h)
@@ -201,6 +202,7 @@ func TestScanMediaPackageAll_StoresRows(t *testing.T) {
 // TestScanMediaPackageAll_EmptyARNWarnsOncePerOp pins that every listing
 // warns once for its elements with no Arn and stores the others.
 func TestScanMediaPackageAll_EmptyARNWarnsOncePerOp(t *testing.T) {
+	t.Parallel()
 	cases, h := mpFixture(t, true)
 	st := newTestStore(t)
 	warns := map[string]*int{}
@@ -228,6 +230,7 @@ func TestScanMediaPackageAll_EmptyARNWarnsOncePerOp(t *testing.T) {
 // listing with errRepeatedNextToken; a denial is warned about, not returned,
 // and keeps the rows read before it.
 func TestScanMPPackagingGroups_ListOutcomes(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("UnprocessableEntityException", "bad")
 	denied := apiErr("ForbiddenException", "not authorized to perform: mediapackage-vod:ListPackagingGroups")
 	page := func(next string, ids ...string) func() (any, error) {
@@ -296,6 +299,7 @@ func TestScanMPPackagingGroups_ListOutcomes(t *testing.T) {
 // listing stops no other: its error is returned and every other listing's
 // rows are stored.
 func TestScanMediaPackageAll_PhaseErrorRunsOtherPhases(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("UnprocessableEntityException", "bad")
 	cases, _ := mpFixture(t, false)
 	for _, failed := range cases {
@@ -324,6 +328,7 @@ func TestScanMediaPackageAll_PhaseErrorRunsOtherPhases(t *testing.T) {
 // TestScanMediaPackageAll_StoreWriteStops pins that a failed write stops the
 // scan: no listing after it calls AWS.
 func TestScanMediaPackageAll_StoreWriteStops(t *testing.T) {
+	t.Parallel()
 	calls := map[string]int{}
 	_, h := mpFixture(t, false)
 	for op, f := range h {
@@ -352,6 +357,7 @@ func TestScanMediaPackageAll_StoreWriteStops(t *testing.T) {
 // listing beside a hard-failing one is demoted to one warning under the
 // throttled listing's own op, and the scan classified as an error.
 func TestScanMediaPackageAll_TransientBesideHardError(t *testing.T) {
+	t.Parallel()
 	cases, _ := mpFixture(t, false)
 	for _, c := range cases {
 		t.Run(c.sdkOp, func(t *testing.T) {
@@ -380,6 +386,7 @@ func TestScanMediaPackageAll_TransientBesideHardError(t *testing.T) {
 // denied every listing gets one warning per op, scoped to the account and
 // region, and no error.
 func TestScanMediaPackageAll_DeniedEveryOpWarnsWithRegion(t *testing.T) {
+	t.Parallel()
 	cases, _ := mpFixture(t, false)
 	st := newTestStore(t)
 	var scopes []string

@@ -204,6 +204,7 @@ func assertR53RRRow(t *testing.T, row store.Resource, name *string, attrs any, w
 }
 
 func TestScanR53RecoveryReadiness_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	res := scanR53RRTopLevel(t, st, nil)
 	if res.err != nil {
@@ -257,6 +258,7 @@ func TestScanR53RecoveryReadiness_StoresEveryTypeWithTags(t *testing.T) {
 // A failed page two keeps the rows read before it, the error is returned, and
 // every other listing still runs.
 func TestScanR53RecoveryReadiness_FailedPageKeepsRowsAndRunsOtherPhases(t *testing.T) {
+	t.Parallel()
 	for op, typ := range map[string]string{
 		"ListCells":           TypeR53RRCell,
 		"ListReadinessChecks": TypeR53RRReadinessCheck,
@@ -285,6 +287,7 @@ func TestScanR53RecoveryReadiness_FailedPageKeepsRowsAndRunsOtherPhases(t *testi
 // A denied listing warns once for its op and is not an error; the other
 // listings keep their rows.
 func TestScanR53RecoveryReadiness_DeniedListingWarnsOnce(t *testing.T) {
+	t.Parallel()
 	for op, typ := range map[string]string{
 		"ListCells":           TypeR53RRCell,
 		"ListReadinessChecks": TypeR53RRReadinessCheck,
@@ -314,6 +317,7 @@ func TestScanR53RecoveryReadiness_DeniedListingWarnsOnce(t *testing.T) {
 // A throttled listing alone leaves the scan transient; beside another
 // listing's hard error it is warned about once and the scan reads as an error.
 func TestScanR53RecoveryReadiness_TransientPhaseBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		hard      bool
@@ -344,6 +348,7 @@ func TestScanR53RecoveryReadiness_TransientPhaseBesideHardError(t *testing.T) {
 // A failed write stops the scan with no warning claiming the lost rows, and
 // no later listing runs.
 func TestScanR53RecoveryReadiness_WriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeR53RRReadinessCheck)
 	res := scanR53RRTopLevel(t, st, nil)

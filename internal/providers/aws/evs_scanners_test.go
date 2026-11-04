@@ -253,6 +253,7 @@ var evsAllChildRows = map[string][]string{
 }
 
 func TestScanEVS_StoresChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	listWarns := bacWarnings(st, "evs:ListEnvironments")
 	tagWarns := bacWarnings(st, "evs:ListTagsForResource")
@@ -348,6 +349,7 @@ func TestScanEVS_StoresChildren(t *testing.T) {
 }
 
 func TestScanEVS_NoChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := evsHandlers(calls)
@@ -373,6 +375,7 @@ func TestScanEVS_NoChildren(t *testing.T) {
 
 // A vCenter connector with no entitlements stores none and is not an error.
 func TestScanEVS_NoEntitlements(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := evsHandlers(calls)
@@ -393,6 +396,7 @@ func TestScanEVS_NoEntitlements(t *testing.T) {
 // stores its rows, except that a failed connector phase hands the entitlement
 // phase no connectors.
 func TestScanEVS_FailedChildParent(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("ThrottlingException", "slow down")
 	without := func(typ string, drop ...string) map[string][]string {
 		out := map[string][]string{}
@@ -613,6 +617,7 @@ func TestScanEVS_FailedChildParent(t *testing.T) {
 // A failed environment listing stores nothing and lists no children; a
 // denial warns and returns nil, anything else is returned.
 func TestScanEVS_EnvironmentListErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -649,6 +654,7 @@ func TestScanEVS_EnvironmentListErrors(t *testing.T) {
 // An empty environment listing stores nothing, reads no tags and lists no
 // children.
 func TestScanEVS_NoEnvironments(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := evsHandlers(calls)
@@ -665,6 +671,7 @@ func TestScanEVS_NoEnvironments(t *testing.T) {
 }
 
 func TestScanEVS_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, inserted, err := evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{}))
 	if err != nil || total != evsTestTotal || inserted != evsTestTotal {
@@ -682,6 +689,7 @@ func TestScanEVS_RescanInsertsNone(t *testing.T) {
 // throttle keeps it and makes the scan partial; any other error keeps it and
 // is returned. The other environments are read and their children listed.
 func TestScanEVS_EnvironmentTagReadFailures(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("ThrottlingException", "slow down")
 	both := []string{"env-aaaaaaaaaa", "env-bbbbbbbbbb"}
 	for _, tc := range []struct {
@@ -748,6 +756,7 @@ func TestScanEVS_EnvironmentTagReadFailures(t *testing.T) {
 // A throttled tag read beside a child phase's hard error is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanEVS_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "evs:ListTagsForResource")
 	h := evsHandlers(map[string]*parentCalls{})
@@ -771,6 +780,7 @@ func TestScanEVS_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed environment write stops the scan: no later page or phase runs, and
 // no warning is sent about rows the write lost.
 func TestScanEVS_FailedEnvironmentWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeEVSEnvironment)
@@ -804,6 +814,7 @@ func TestScanEVS_FailedEnvironmentWriteStopsScan(t *testing.T) {
 // A failed later page of the environment listing keeps the page before it,
 // whose environments' children are still listed, and is returned.
 func TestScanEVS_EnvironmentListFailureKeepsPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := evsHandlers(calls)
@@ -826,6 +837,7 @@ func TestScanEVS_EnvironmentListFailureKeepsPage(t *testing.T) {
 // A repeated NextToken ends the environment listing as an error, keeping
 // every page read and listing their children.
 func TestScanEVS_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := evsHandlers(map[string]*parentCalls{})
 	list := h["ListEnvironments"]
@@ -851,6 +863,7 @@ func TestScanEVS_RepeatedTokenKeepsPages(t *testing.T) {
 // with an ARN but no id is stored with its tags but has no children listed.
 // Each is warned about once under the listing.
 func TestScanEVS_EnvironmentWithoutIdentifiers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := bacWarnings(st, "evs:ListEnvironments")
 	calls := map[string]*parentCalls{}
@@ -900,6 +913,7 @@ func TestScanEVS_EnvironmentWithoutIdentifiers(t *testing.T) {
 // A DELETED environment without an id is stored and not warned about: being
 // deleted, not the missing id, is why its children are not read.
 func TestScanEVS_DeletedEnvironmentWithoutIDNotWarned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := bacWarnings(st, "evs:ListEnvironments")
 	h := evsHandlers(map[string]*parentCalls{})
@@ -923,6 +937,7 @@ func TestScanEVS_DeletedEnvironmentWithoutIDNotWarned(t *testing.T) {
 
 // A GovCloud environment's listed ARN reaches the tag op unchanged.
 func TestScanEVS_GovCloudARNReachesTagOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := evsHandlers(calls)
@@ -953,6 +968,7 @@ func TestScanEVS_GovCloudARNReachesTagOp(t *testing.T) {
 // Once ctx ends during the tag reads, the page is written, no child phase
 // runs, and the stop is one member of the error.
 func TestScanEVS_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := evsHandlers(calls)
@@ -992,6 +1008,7 @@ func TestScanEVS_ContextEndReportedOnce(t *testing.T) {
 // region gap, and the counts are kept; with nothing stored the region is
 // unavailable.
 func TestScanEVS_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "evs.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("tag read", func(t *testing.T) {
 		st := newTestStore(t)

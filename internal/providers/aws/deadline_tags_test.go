@@ -198,6 +198,7 @@ func dlRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, bo
 // sent each fleet's farm and fleet id, and the scan reports no error or
 // warning.
 func TestScanDeadline_StoresTagsOfEveryTaggedType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newDLCalls()
@@ -275,6 +276,7 @@ func TestScanDeadline_StoresTagsOfEveryTaggedType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanDeadline_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newDLCalls()
 	if _, _, err := dlScan(context.Background(), t, st, dlHandlers(calls)); err != nil {
@@ -295,6 +297,7 @@ func TestScanDeadline_RescanInsertsNone(t *testing.T) {
 // the tag read no longer finds is dropped, and its children are never
 // listed; a monitor, from an account-wide listing, likewise.
 func TestScanDeadline_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []dlRow{
 		{TypeDeadlineFarm, dlFarm("tagged")},
 		{TypeDeadlineFleet, dlFarm("tagged") + "/fleet/tagged"},
@@ -367,6 +370,7 @@ func dlTagReadFailures(t *testing.T, target dlRow) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanDeadline_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, deadlineListTagsOp)
 	calls := newDLCalls()
@@ -385,6 +389,7 @@ func TestScanDeadline_TagThrottleDemotedBesideHardError(t *testing.T) {
 // warning about the rows it lost: not the tag denial, and not a denied
 // listing page.
 func TestScanDeadline_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeDeadlineFleet)
@@ -410,6 +415,7 @@ func TestScanDeadline_FailedWriteStopsWithoutWarning(t *testing.T) {
 // it, a failed counted phase (limits) included. A farm a per-farm listing no
 // longer finds is skipped silently.
 func TestScanDeadline_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newDLCalls()
@@ -466,6 +472,7 @@ func TestScanDeadline_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // Items that cannot be stored are warned about in one warning per op that
 // names the first; their siblings are stored.
 func TestScanDeadline_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, op, key, typ string
 		answer             func(any) (any, error)
@@ -504,6 +511,7 @@ func TestScanDeadline_UnstorableItemsWarn(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanDeadline_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := dlHandlers(newDLCalls())
 	handlers["ListMonitors"] = func(any) (any, error) {
@@ -523,6 +531,7 @@ func TestScanDeadline_RepeatedTokenKeepsPages(t *testing.T) {
 // naming the phases not run, although the phase in flight saw it in its
 // listing and its tag reads.
 func TestScanDeadline_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newDLCalls()
 	handlers := dlHandlers(calls)
@@ -565,6 +574,7 @@ func TestScanDeadline_ContextEndStopsOnce(t *testing.T) {
 // gap: the counts are kept. A tag read's NXDOMAIN is one too. With nothing
 // stored it stays region-unavailable.
 func TestScanDeadline_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "management.deadline.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)

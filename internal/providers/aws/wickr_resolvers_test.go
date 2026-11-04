@@ -22,6 +22,7 @@ func wkNetworkAttrs(t *testing.T, keyARN string) string {
 // A network uses the scanned key its EncryptionKeyArn names. A network with no
 // key, or whose key is not scanned, has no edge.
 func TestResolveWickrNetworkKMS_KeyEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/1111aaaa-0000-0000-0000-000000000000"
@@ -48,6 +49,7 @@ func TestResolveWickrNetworkKMS_KeyEdge(t *testing.T) {
 // A network whose attributes do not decode is reported, and costs the other
 // networks none of their edges.
 func TestResolveWickrNetworkKMS_DecodeError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/1111aaaa-0000-0000-0000-000000000000"

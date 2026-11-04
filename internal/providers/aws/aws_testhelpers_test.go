@@ -351,6 +351,7 @@ func countOpWarnings(st *store.Store, op string) *int {
 // Two counters on one store each count their own op's warnings, and an OnWarn
 // set before them still sees every warning.
 func TestCountOpWarnings_CountersChain(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var earlier int
 	st.OnWarn = func(store.ScanWarning) { earlier++ }

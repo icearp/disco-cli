@@ -329,6 +329,7 @@ func adxtWantRows() []adxtWant {
 // the revisions of the share data set, each row under its parent. No error,
 // no warning.
 func TestScanDataExchange_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newADXTCalls()
@@ -411,6 +412,7 @@ func TestScanDataExchange_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanDataExchange_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := adxtScan(context.Background(), st, adxtHandlers(newADXTCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -427,6 +429,7 @@ func TestScanDataExchange_RescanInsertsNone(t *testing.T) {
 // Every listing empty: nothing stored, no child listing or tag read, no
 // error, no warning.
 func TestScanDataExchange_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newADXTCalls()
@@ -466,6 +469,7 @@ func TestScanDataExchange_Empty(t *testing.T) {
 // transient; any other error is an error. The row's children are still
 // listed.
 func TestScanDataExchange_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		err     error
@@ -526,6 +530,7 @@ func TestScanDataExchange_TagReadFailures(t *testing.T) {
 // Denied tag reads in several phases send one warning for the whole scan;
 // the rows are kept.
 func TestScanDataExchange_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newADXTCalls()
@@ -548,6 +553,7 @@ func TestScanDataExchange_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanDataExchange_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, adxtTagsOp)
 	calls := newADXTCalls()
@@ -567,6 +573,7 @@ func TestScanDataExchange_TagThrottleDemotedBesideHardError(t *testing.T) {
 // error; one this account sent itself is read as its own, so its denial
 // warns.
 func TestScanDataExchange_ReceivedGrantTagReads(t *testing.T) {
+	t.Parallel()
 	selfNative := adxtGrantARN(testAccountID, "rself") + "/received"
 	for _, c := range []struct {
 		name     string
@@ -622,6 +629,7 @@ func TestScanDataExchange_ReceivedGrantTagReads(t *testing.T) {
 // lost (a denied tag read among them), no later phase runs, and the earlier
 // phases' rows stay stored. A failed closure write stops it alike.
 func TestScanDataExchange_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	// The phases in their order, each with the first row its listing
 	// returns; total is the rows of the phases before it.
 	phases := []struct {
@@ -682,6 +690,7 @@ func TestScanDataExchange_FailedWriteStopsScan(t *testing.T) {
 // edge of every row written before it: ds1's r2 is refused after its r1,
 // and r1's a2 after its a1.
 func TestScanDataExchange_LaterPageWriteFailureKeepsEdges(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, refused, parent, written string
 	}{
@@ -709,6 +718,7 @@ func TestScanDataExchange_LaterPageWriteFailureKeepsEdges(t *testing.T) {
 // error does not stop the later phases; a denied later page warns instead.
 // A data set not stored has no revisions read.
 func TestScanDataExchange_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, typ    string
 		kept, lost string
@@ -768,6 +778,7 @@ func TestScanDataExchange_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanDataExchange_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newADXTCalls()
 	handlers := adxtHandlers(calls)
@@ -797,6 +808,7 @@ func TestScanDataExchange_RepeatedTokenKeepsPages(t *testing.T) {
 // silently, one deleted mid-listing keeps its first page and warns, a
 // denial warns once under the op, and any other error is returned.
 func TestScanDataExchange_PerParentListingFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op  string
 		first     bool // fail the first page rather than the second
@@ -865,6 +877,7 @@ func TestScanDataExchange_PerParentListingFailures(t *testing.T) {
 // warning naming the empty field; a revision of an S3 snapshot data set
 // without one has no assets to list and is not warned about.
 func TestScanDataExchange_ElementWithoutARNOrID(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newADXTCalls()
@@ -922,6 +935,7 @@ func TestScanDataExchange_ElementWithoutARNOrID(t *testing.T) {
 // A revision of an S3 snapshot data set has no assets to list, so one without
 // an Id is stored without a warning.
 func TestScanDataExchange_SnapshotRevisionWithoutIDNotWarned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	handlers := adxtHandlers(newADXTCalls())
@@ -956,6 +970,7 @@ func TestScanDataExchange_SnapshotRevisionWithoutIDNotWarned(t *testing.T) {
 // pages were written in, so its errors come in that order: dsb's revision
 // is written before dsa's, and the asset listings of both fail.
 func TestScanDataExchange_AssetPhaseReadsRevisionsInARNOrder(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newADXTCalls()
 	handlers := adxtHandlers(calls)
@@ -1020,6 +1035,7 @@ func adxtLeafOrder(err error, targets ...error) []error {
 
 // A GovCloud or China ARN reaches the tag op unchanged.
 func TestScanDataExchange_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range []struct{ partition, region string }{{"aws-us-gov", "us-gov-west-1"}, {"aws-cn", "cn-north-1"}} {
 		t.Run(pf.partition, func(t *testing.T) {
 			arn := fmt.Sprintf("arn:%s:dataexchange:%s:%s:event-actions/ea-p", pf.partition, pf.region, testAccountID)
@@ -1048,6 +1064,7 @@ func TestScanDataExchange_TagReadsKeepPartitionARNs(t *testing.T) {
 // flight saw it in its listing and its tag reads, and the later phases are
 // not run.
 func TestScanDataExchange_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newADXTCalls()
 	handlers := adxtHandlers(calls)
@@ -1085,6 +1102,7 @@ func TestScanDataExchange_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanDataExchange_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "dataexchange.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1118,6 +1136,7 @@ func TestScanDataExchange_NXDOMAIN(t *testing.T) {
 
 // Every call goes to the scanned region, not the config's.
 func TestScanDataExchange_CallsGoToScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var regions parentCalls
@@ -1136,6 +1155,7 @@ func TestScanDataExchange_CallsGoToScannedRegion(t *testing.T) {
 // An API asset's key and specification link are redacted; the rest of the
 // asset is stored as listed.
 func TestScanDataExchange_RedactsAPIAssetSecrets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newADXTCalls()
 	handlers := adxtHandlers(calls)
@@ -1170,6 +1190,7 @@ func TestScanDataExchange_RedactsAPIAssetSecrets(t *testing.T) {
 // NativeID only if an account grants to itself, which is unverified. The
 // /received suffix keeps the two rows apart even then.
 func TestScanDataExchange_ReceivedGrantKeptApartFromSentGrant(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newADXTCalls()
 	handlers := adxtHandlers(calls)

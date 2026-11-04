@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveSpotInstanceRequestRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -24,6 +25,7 @@ func TestResolveSpotInstanceRequestRelationships(t *testing.T) {
 }
 
 func TestResolveSpotInstanceRequestRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -38,6 +40,7 @@ func TestResolveSpotInstanceRequestRelationships_NoAttrs(t *testing.T) {
 }
 
 func TestResolveInstanceEventWindowRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -59,6 +62,7 @@ func TestResolveInstanceEventWindowRelationships(t *testing.T) {
 }
 
 func TestResolveInstanceEventWindowRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

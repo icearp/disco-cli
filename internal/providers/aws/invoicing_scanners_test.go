@@ -93,6 +93,7 @@ func scanInvPrefsWith(st *store.Store, handler func(in any) (any, error)) (int, 
 // Both pages are stored under the returned ARN in the global region; an
 // element without an ARN is skipped, and neither Name nor Status is set.
 func TestScanInvoicingProcurementPortalPreferences_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var pages invPages
 	total, err := scanInvPrefsWith(st, pages.preferences(nil))
@@ -127,6 +128,7 @@ func TestScanInvoicingProcurementPortalPreferences_StoresEveryPage(t *testing.T)
 }
 
 func TestScanInvoicingProcurementPortalPreferences_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanInvPrefsWith(st, func(any) (any, error) { return &invoicing.ListProcurementPortalPreferencesOutput{}, nil })
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeInvoicingProcurementPortalPreference)) != 0 {
@@ -137,6 +139,7 @@ func TestScanInvoicingProcurementPortalPreferences_Empty(t *testing.T) {
 // On the first call, every shape an unrouted operation takes is a silent
 // feature gap and a denial warns; any other error is returned.
 func TestScanInvoicingProcurementPortalPreferences_FirstPageError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -169,6 +172,7 @@ func TestScanInvoicingProcurementPortalPreferences_FirstPageError(t *testing.T) 
 // every other error, the not-deployed shapes included, is returned with page
 // one's row stored.
 func TestScanInvoicingProcurementPortalPreferences_PageTwoError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -210,6 +214,7 @@ func TestScanInvoicingProcurementPortalPreferences_PageTwoError(t *testing.T) {
 
 // A failed write of the rows listed before a list error reports both errors.
 func TestScanInvoicingProcurementPortalPreferences_WriteAndListErrorsBothReported(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closed.db"))
 	if err != nil {
@@ -229,6 +234,7 @@ func TestScanInvoicingProcurementPortalPreferences_WriteAndListErrorsBothReporte
 // Both phases run against us-east-1 whatever region the config names, and
 // their rows are stored and counted.
 func TestScanInvoicing_StoresUnitsAndPreferences(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var units, prefs invPages
@@ -266,6 +272,7 @@ func TestScanInvoicing_StoresUnitsAndPreferences(t *testing.T) {
 // The preference phase runs after the invoice units: its hard error reaches
 // the caller with the units and its own page-one row stored and counted.
 func TestScanInvoicing_PreferenceErrorAfterUnits(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var units, prefs invPages
@@ -292,6 +299,7 @@ func TestScanInvoicing_PreferenceErrorAfterUnits(t *testing.T) {
 // phases were. When one phase lists, its rows are stored and counted and the
 // scan returns nil, since the dispatcher discards a sentinel's counts.
 func TestScanInvoicing_PayerOnlyPerPhase(t *testing.T) {
+	t.Parallel()
 	payerOnly := func(any) (any, error) { return nil, invPayerOnly }
 	for _, tc := range []struct {
 		name            string

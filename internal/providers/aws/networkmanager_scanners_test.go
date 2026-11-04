@@ -193,6 +193,7 @@ func nmScanAll(t *testing.T, st *store.Store, h map[string]func(in any) (any, er
 // untagged element stores none; the types whose element has no Tags store
 // none although their parent is tagged.
 func TestScanNMAll_StoresTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := nmScanAll(t, st, nmAllHandlers(t))
 	if err != nil {
@@ -325,6 +326,7 @@ func nmScanSites(t *testing.T, st *store.Store, h map[string]func(in any) (any, 
 // every per-global-network and per-core-network listing: what each kind of
 // failure on gn-1 does to the result, and that gn-2's rows are stored anyway.
 func TestScanNMSites_ParentOutcomes(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("ValidationException", "bad")
 	notFound := apiErr("ResourceNotFoundException", "gone")
 	denied := apiErr("AccessDeniedException", "not authorized to perform: networkmanager:GetSites")
@@ -380,6 +382,7 @@ func TestScanNMSites_ParentOutcomes(t *testing.T) {
 // however many parents were denied, scoped to the account and home region
 // like the op's other warnings.
 func TestScanNMSites_DeniedParentsWarnOnce(t *testing.T) {
+	t.Parallel()
 	denied := apiErr("AccessDeniedException", "not authorized to perform: networkmanager:GetSites")
 	st := newTestStore(t)
 	var scopes []string
@@ -402,6 +405,7 @@ func TestScanNMSites_DeniedParentsWarnOnce(t *testing.T) {
 // ErrStoreWrite and reports no warning, since none could say the rows read
 // were stored.
 func TestScanNMSites_WriteFailsWarnsNothing(t *testing.T) {
+	t.Parallel()
 	denied := apiErr("AccessDeniedException", "not authorized to perform: networkmanager:GetSites")
 	st, closeStore := openClosingStore(t)
 	warns := countOpWarnings(st, nmGetSitesOp)
@@ -422,6 +426,7 @@ func TestScanNMSites_WriteFailsWarnsNothing(t *testing.T) {
 // TestScanNMSites_CancelStopsParents pins that a cancelled scan lists no
 // further parent.
 func TestScanNMSites_CancelStopsParents(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var called parentCalls
@@ -478,6 +483,7 @@ func nmFailPage(err error) func() (*networkmanager.ListAttachmentsOutput, error)
 // account-wide listing: rows read before a failure are kept, a denial warns
 // instead of failing, and an unstorable item warns once per reason.
 func TestScanNMAttachments_ListOutcomes(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("ValidationException", "bad")
 	denied := apiErr("AccessDeniedException", "not authorized to perform: networkmanager:ListAttachments")
 	unstorable := func() (*networkmanager.ListAttachmentsOutput, error) {
@@ -535,6 +541,7 @@ func TestScanNMAttachments_ListOutcomes(t *testing.T) {
 // TestScanNMAttachments_WriteFailsWarnsNothing pins that a failed write
 // returns ErrStoreWrite and reports no warning.
 func TestScanNMAttachments_WriteFailsWarnsNothing(t *testing.T) {
+	t.Parallel()
 	denied := apiErr("AccessDeniedException", "not authorized to perform: networkmanager:ListAttachments")
 	st, closeStore := openClosingStore(t)
 	warns := countOpWarnings(st, nmListAttachmentsOp)
@@ -559,6 +566,7 @@ func TestScanNMAttachments_WriteFailsWarnsNothing(t *testing.T) {
 // TestScanNMPeerings_UnmappedTypeWarns pins that a PeeringType other than
 // TRANSIT_GATEWAY is warned about, not dropped silently.
 func TestScanNMPeerings_UnmappedTypeWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, nmListPeeringsOp)
 	h := map[string]func(in any) (any, error){
@@ -584,6 +592,7 @@ func TestScanNMPeerings_UnmappedTypeWarns(t *testing.T) {
 // child listing is called with an empty id; one listed with no ARN is warned
 // about and not stored.
 func TestScanNMAll_ParentWithoutIDStoredAndWarned(t *testing.T) {
+	t.Parallel()
 	h := nmAllHandlers(t)
 	h["DescribeGlobalNetworks"] = func(any) (any, error) {
 		return &networkmanager.DescribeGlobalNetworksOutput{GlobalNetworks: []nmtypes.GlobalNetwork{
@@ -624,6 +633,7 @@ func TestScanNMAll_ParentWithoutIDStoredAndWarned(t *testing.T) {
 // does not stop the phases after it: its error is returned and every other
 // phase's rows are stored.
 func TestScanNMAll_PhaseErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("ValidationException", "bad")
 	for _, c := range []struct {
 		failOp   string
@@ -654,6 +664,7 @@ func TestScanNMAll_PhaseErrorRunsLaterPhases(t *testing.T) {
 // TestScanNMAll_StoreWriteStops pins that a failed write stops the scan,
 // whichever phase it hits: no phase after it calls AWS.
 func TestScanNMAll_StoreWriteStops(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		closeIn  string
 		notAfter []string
@@ -693,6 +704,7 @@ func TestScanNMAll_StoreWriteStops(t *testing.T) {
 // an id is not warned about when the write failed, since the warning would
 // claim it was stored.
 func TestScanNMAll_NoChildIDWarnsOnlyAfterWrite(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, label string }{
 		{"DescribeGlobalNetworks", nmDescribeGlobalNetworksOp},
 		{"ListCoreNetworks", nmListCoreNetworksOp},
@@ -726,6 +738,7 @@ func TestScanNMAll_NoChildIDWarnsOnlyAfterWrite(t *testing.T) {
 // hard-failing one is demoted to one warning and the scan classified as an
 // error, not as transient.
 func TestScanNMAll_TransientBesideHardError(t *testing.T) {
+	t.Parallel()
 	h := nmAllHandlers(t)
 	h["DescribeGlobalNetworks"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }
 	h["ListAttachments"] = func(any) (any, error) { return nil, apiErr("ValidationException", "bad") }

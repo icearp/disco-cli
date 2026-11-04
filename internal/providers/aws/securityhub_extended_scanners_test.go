@@ -24,6 +24,7 @@ func shStandard(arn, name string) securityhubtypes.Standard {
 // so a region-less standard listed by every region leaves Region unset
 // whichever region scans it last.
 func TestScanSHStandards_RegionFromARN(t *testing.T) {
+	t.Parallel()
 	const notARN = "cis-without-arn-shape"
 	for _, tc := range []struct {
 		name    string
@@ -67,6 +68,7 @@ func TestScanSHStandards_RegionFromARN(t *testing.T) {
 // A listed standard with no StandardsArn is not stored, and the phase says so
 // once, however many there are.
 func TestScanSHStandards_NoARNWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, "securityhub:DescribeStandards")
 	client := shClient(shStandardsHandler(

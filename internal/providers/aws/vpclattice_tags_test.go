@@ -256,6 +256,7 @@ func vltRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, b
 // stored, every listing asks for the model's page cap of 100, services store
 // their GetService body, and the scan reports no error or warning.
 func TestScanVpcLattice_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newVLTCalls()
@@ -345,6 +346,7 @@ func TestScanVpcLattice_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanVpcLattice_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newVLTCalls()
 	if _, _, err := vltScan(context.Background(), t, st, vltHandlers(calls)); err != nil {
@@ -365,6 +367,7 @@ func TestScanVpcLattice_RescanInsertsNone(t *testing.T) {
 // the tag read no longer finds is dropped, and its associations are never
 // listed; a target group, from an account-wide listing, likewise.
 func TestScanVpcLattice_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []vltRow{
 		{TypeVpcLatticeServiceNetwork, vltARN("servicenetwork/sn-t")},
 		{TypeVpcLatticeTargetGroup, vltARN("targetgroup/tg-t")},
@@ -428,6 +431,7 @@ func TestScanVpcLattice_TagReadFailures(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanVpcLattice_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, vlListTagsOp)
 	calls := newVLTCalls()
@@ -448,6 +452,7 @@ func TestScanVpcLattice_TagThrottleDemotedBesideHardError(t *testing.T) {
 // hard one. A service GetService no longer finds is dropped and its
 // listeners are never listed.
 func TestScanVpcLattice_GetServiceFailures(t *testing.T) {
+	t.Parallel()
 	svc := vltARN("service/svc-t")
 	for _, c := range []struct {
 		name      string
@@ -497,6 +502,7 @@ func TestScanVpcLattice_GetServiceFailures(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanVpcLattice_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeVpcLatticeListener)
@@ -519,6 +525,7 @@ func TestScanVpcLattice_FailedWriteStopsWithoutWarning(t *testing.T) {
 // failure stops the phases after it. A parent gone from an op that models no
 // not-found fails its listing alone.
 func TestScanVpcLattice_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newVLTCalls()
@@ -565,6 +572,7 @@ func TestScanVpcLattice_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // A service ListListeners no longer finds, and a listener ListRules no
 // longer finds, are skipped silently; their siblings' children are stored.
 func TestScanVpcLattice_DeletedParentSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	handlers := vltHandlers(newVLTCalls())
@@ -596,6 +604,7 @@ func TestScanVpcLattice_DeletedParentSkipped(t *testing.T) {
 // Items listed without an ARN are not stored and are warned about once per
 // listing, under a key that is never empty.
 func TestScanVpcLattice_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, "vpclattice:ListTargetGroups")
 	handlers := vltHandlers(newVLTCalls())
@@ -613,6 +622,7 @@ func TestScanVpcLattice_UnstorableItemsWarn(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanVpcLattice_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := vltHandlers(newVLTCalls())
 	handlers["ListResourceGateways"] = func(any) (any, error) {
@@ -632,6 +642,7 @@ func TestScanVpcLattice_RepeatedTokenKeepsPages(t *testing.T) {
 // naming the phases not run, although the phase in flight saw it in its
 // listing and its tag reads.
 func TestScanVpcLattice_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newVLTCalls()
 	handlers := vltHandlers(calls)
@@ -672,6 +683,7 @@ func TestScanVpcLattice_ContextEndStopsOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable,
 // and no later phase is run.
 func TestScanVpcLattice_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "vpc-lattice.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("tag read after rows were listed", func(t *testing.T) {
 		st := newTestStore(t)
@@ -721,6 +733,7 @@ func TestScanVpcLattice_NXDOMAIN(t *testing.T) {
 // TestScanVpcLattice_TagReadFailures). A denial about the account's own
 // resource, in any partition, still warns once under its op.
 func TestScanVpcLattice_SharedResourceDenialSilent(t *testing.T) {
+	t.Parallel()
 	ownNet := vltARN("servicenetwork/sn-t")
 	for _, c := range []struct {
 		name, op string

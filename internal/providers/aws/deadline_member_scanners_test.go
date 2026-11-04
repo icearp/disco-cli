@@ -182,6 +182,7 @@ func scanDeadlineTopLevel(t *testing.T, st *store.Store, handlers map[string]fun
 }
 
 func TestScanDeadline_StoresMembers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := map[string]*[]store.ScanWarning{}
 	for _, op := range []string{deadlineListFarmMembersOp, deadlineListFleetMembersOp, deadlineListQueueMembersOp} {
@@ -255,6 +256,7 @@ func TestScanDeadline_StoresMembers(t *testing.T) {
 }
 
 func TestScanDeadline_NoMembers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls dlMemberCalls
 	h := deadlineHandlers(&calls)
@@ -283,6 +285,7 @@ func TestScanDeadline_NoMembers(t *testing.T) {
 // sibling's members are stored. Every older phase's rows stay, the last
 // one's (monitors) included.
 func TestScanDeadline_FailedMemberParent(t *testing.T) {
+	t.Parallel()
 	type failCase struct {
 		name      string
 		fail      map[string]error // keyed as dlMemberPages keys
@@ -361,6 +364,7 @@ func TestScanDeadline_FailedMemberParent(t *testing.T) {
 // A hard error in the last older phase still lets the member phases run over
 // the farms, fleets and queues already stored, and is returned.
 func TestScanDeadline_OlderPhaseErrorStillRunsMembers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls dlMemberCalls
 	h := deadlineHandlers(&calls)
@@ -386,6 +390,7 @@ func TestScanDeadline_OlderPhaseErrorStillRunsMembers(t *testing.T) {
 // so that a member phase's hard error still reaches the dispatcher as a hard
 // error.
 func TestScanDeadline_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "deadline:ListMonitors")
 	var calls dlMemberCalls
@@ -422,6 +427,7 @@ func recordChildListings(h map[string]func(in any) (any, error), envs, volumes *
 // the denial, with one warning, so their members, environments and volumes
 // are listed with those of the other farm's children.
 func TestScanDeadline_MembersOfPartlyListedParents(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		listOp, memberOp, childOp string
 		page2                     func(in any) (any, bool)
@@ -493,6 +499,7 @@ func TestScanDeadline_MembersOfPartlyListedParents(t *testing.T) {
 // not listed. The store is closed while farm-a's children are listed, which
 // fails that write and every later one; the write failure is returned.
 func TestScanDeadline_NoMembersOfUnwrittenParents(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		listOp string
 		calls  func(*dlMemberCalls) *parentCalls
@@ -579,6 +586,7 @@ var dlMemberOps = []dlMemberOp{
 // first and the sibling parent's, and returns why it ended: a failed page as
 // that error, a page that repeats its NextToken as errRepeatedNextToken.
 func TestScanDeadline_MemberListingEndedEarlyKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range dlMemberOps {
 		for _, tc := range []struct {
 			name string
@@ -633,6 +641,7 @@ func TestScanDeadline_MemberListingEndedEarlyKeepsPages(t *testing.T) {
 // phase skipped: not the denial, the transient skip, the fleet not-ready skip
 // or the not-stored warning about the member with no principal id.
 func TestScanDeadline_MemberWriteFailureSendsNoWarning(t *testing.T) {
+	t.Parallel()
 	for _, op := range dlMemberOps {
 		// The other parent lists its member, so the phase has a row to write.
 		fails := map[string]error{"denied": dlDenied, "throttled": dlThrottle}
@@ -669,6 +678,7 @@ func TestScanDeadline_MemberWriteFailureSendsNoWarning(t *testing.T) {
 // the older phases stored rows the scan fails (resultLateNXDOMAIN); a member
 // phase that stored nothing returns the NXDOMAIN as is, the region gap.
 func TestScanDeadline_MemberNXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "management.deadline.us-east-1.amazonaws.com", IsNotFound: true}
 	for _, op := range dlMemberOps {
 		t.Run(op.op+"/rows stored", func(t *testing.T) {

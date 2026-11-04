@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveVPChildToPolicyStore(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	psARN := fmt.Sprintf("arn:aws:verifiedpermissions::%s:policy-store/abc", acct.ID)
@@ -28,6 +29,7 @@ func TestResolveVPChildToPolicyStore(t *testing.T) {
 }
 
 func TestResolveVPPolicyStoreAliasParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	psARN := fmt.Sprintf("arn:aws:verifiedpermissions::%s:policy-store/abc", acct.ID)
@@ -42,6 +44,7 @@ func TestResolveVPPolicyStoreAliasParent(t *testing.T) {
 }
 
 func TestResolveVPPolicyStoreAliasParent_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	aliasARN := fmt.Sprintf("arn:aws:verifiedpermissions::%s:policy-store-alias/myalias", acct.ID)

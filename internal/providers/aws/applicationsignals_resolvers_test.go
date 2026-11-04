@@ -9,6 +9,7 @@ import (
 // so the resolver intentionally emits zero edges. Guards against a future
 // SDK adding ARN fields without an audit pass silently breaking this.
 func TestResolveApplicationSignalsRelationships_NoEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion

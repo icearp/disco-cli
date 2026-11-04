@@ -304,6 +304,7 @@ func hasCBWarning(warnings []store.ScanWarning, op, key string) bool {
 }
 
 func TestScanCodeBuild_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	res := scanCBTopLevel(t, st, newCBFixture(), nil)
 	if res.err != nil {
@@ -358,6 +359,7 @@ func TestScanCodeBuild_StoresEveryTypeWithTags(t *testing.T) {
 // Each BatchGet op is sent its keys 100 at a time, the model's cap, and
 // every batch's elements are stored.
 func TestScanCodeBuild_BatchesAtModelCap(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	res := scanCBTopLevel(t, st, cbldBulkFixture(), nil)
 	if res.err != nil {
@@ -383,6 +385,7 @@ func TestScanCodeBuild_BatchesAtModelCap(t *testing.T) {
 // one is returned too, not warned about, since its listed keys cannot be
 // stored without it; every later phase still runs.
 func TestScanCodeBuild_FailedBatchKeepsOtherBatches(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, typ, first, kept string
 		err                  error
@@ -424,6 +427,7 @@ func TestScanCodeBuild_FailedBatchKeepsOtherBatches(t *testing.T) {
 // Denied batches warn once per op, naming the first batch's first key, and
 // are not an error; the other phases keep their rows.
 func TestScanCodeBuild_DeniedBatchesWarnOnce(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ op, typ, first, second string }{
 		{"BatchGetFleets", TypeCodeBuildFleet, cbldARN("fleet", "k000"), cbldARN("fleet", "k100")},
 		{"BatchGetProjects", TypeCodeBuildProject, "k000", "k100"},
@@ -451,6 +455,7 @@ func TestScanCodeBuild_DeniedBatchesWarnOnce(t *testing.T) {
 // A failed page two keeps the keys read before it, whose elements are read
 // and stored, and the error is returned; every other phase still runs.
 func TestScanCodeBuild_FailedPageKeepsRowsAndRunsOtherPhases(t *testing.T) {
+	t.Parallel()
 	for op, tc := range map[string]struct {
 		typ  string
 		keep []string
@@ -476,6 +481,7 @@ func TestScanCodeBuild_FailedPageKeepsRowsAndRunsOtherPhases(t *testing.T) {
 // A denied listing warns once for its op and is not an error; the other
 // phases keep their rows.
 func TestScanCodeBuild_DeniedListingWarnsOnce(t *testing.T) {
+	t.Parallel()
 	for op, typ := range map[string]string{
 		"ListFleets":            TypeCodeBuildFleet,
 		"ListProjects":          TypeCodeBuildProject,
@@ -504,6 +510,7 @@ func TestScanCodeBuild_DeniedListingWarnsOnce(t *testing.T) {
 // without fleets: no error and no warning. After a page was read the same
 // error fails the phase.
 func TestScanCodeBuild_FleetsNotOffered(t *testing.T) {
+	t.Parallel()
 	unknown := &smithy.GenericAPIError{Code: "InvalidInputException", Message: "Unknown operation ListFleets"}
 	t.Run("first page", func(t *testing.T) {
 		st := newTestStore(t)
@@ -537,6 +544,7 @@ func TestScanCodeBuild_FleetsNotOffered(t *testing.T) {
 // demoted to one warning under the fleet phase and the hard error is
 // returned. Either way the rows not lost are kept.
 func TestScanCodeBuild_TransientPhaseBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		throttle  map[string]map[string]error
@@ -595,6 +603,7 @@ func TestScanCodeBuild_TransientPhaseBesideHardError(t *testing.T) {
 // A failed write stops the scan with no warning claiming the lost rows, and
 // no later phase runs.
 func TestScanCodeBuild_WriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeCodeBuildProject)
 	res := scanCBTopLevel(t, st, newCBFixture(), nil)
@@ -616,6 +625,7 @@ func TestScanCodeBuild_WriteFailureStops(t *testing.T) {
 // A context that ends after the listing leaves the batches unread; the stop
 // is returned, not taken for an empty account.
 func TestStoreCBBatchPhase_StoppedContextIsReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

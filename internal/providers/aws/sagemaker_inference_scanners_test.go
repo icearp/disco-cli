@@ -66,6 +66,7 @@ func (s *stubSageMakerInference) DescribeInferenceExperiment(_ context.Context, 
 }
 
 func TestScanSageMakerInference(t *testing.T) {
+	t.Parallel()
 	for _, mode := range smTagModes {
 		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerInference(t, mode) })
 	}
@@ -133,6 +134,7 @@ func testScanSageMakerInference(t *testing.T, mode smTagMode) {
 }
 
 func TestScanSageMakerInferenceEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerInference{}

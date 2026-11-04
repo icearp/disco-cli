@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveSNSSubscriptionRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	topicARN := fmt.Sprintf("arn:aws:sns:%s:%s:my-topic", testRegion, acct.ID)
@@ -36,6 +37,7 @@ func TestResolveSNSSubscriptionRefs(t *testing.T) {
 }
 
 func TestResolveSNSTopicPolicyToTopic(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	topicARN := fmt.Sprintf("arn:aws:sns:%s:%s:t1", testRegion, acct.ID)
@@ -49,6 +51,7 @@ func TestResolveSNSTopicPolicyToTopic(t *testing.T) {
 }
 
 func TestResolveSNSPlatformApplicationRefs_TopicsAndRoles(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	topicIDs := map[string]string{}
@@ -93,6 +96,7 @@ func TestResolveSNSPlatformApplicationRefs_TopicsAndRoles(t *testing.T) {
 }
 
 func TestResolveSNSPlatformApplicationRefs_DecodeError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeSNSPlatformApplication, snsAppARN1, testRegion, `{"Attributes":"not-a-map"}`)
 	if err := resolveSNSPlatformApplicationRefs(newTestAccount(testAccountID), st); err == nil {

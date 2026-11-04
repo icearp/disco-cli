@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveDataSyncLocationS3(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	bARN := "arn:aws:s3:::my-bucket"
@@ -29,6 +30,7 @@ func TestResolveDataSyncLocationS3(t *testing.T) {
 }
 
 func TestResolveDataSyncLocationEFS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fsARN := fmt.Sprintf("arn:aws:elasticfilesystem:%s:%s:file-system/fs-1", testRegion, acct.ID)
@@ -54,6 +56,7 @@ func TestResolveDataSyncLocationEFS(t *testing.T) {
 }
 
 func TestResolveDataSyncLocationFSxOntap(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fsARN := fmt.Sprintf("arn:aws:fsx:%s:%s:file-system/fs-1", testRegion, acct.ID)
@@ -75,6 +78,7 @@ func TestResolveDataSyncLocationFSxOntap(t *testing.T) {
 }
 
 func TestResolveDataSyncOnPremAgents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	agARN := fmt.Sprintf("arn:aws:datasync:%s:%s:agent/agent-1", testRegion, acct.ID)
@@ -90,6 +94,7 @@ func TestResolveDataSyncOnPremAgents(t *testing.T) {
 }
 
 func TestResolveDataSyncAgentRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -114,6 +119,7 @@ func TestResolveDataSyncAgentRefs(t *testing.T) {
 }
 
 func TestResolveDataSyncTaskRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

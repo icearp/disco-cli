@@ -9,6 +9,7 @@ import (
 )
 
 func TestResolveFSxExtra_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	fsARN := fsxARN("aws", testRegion, testAccountID, "file-system", "fs-1")
 	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-1"
 	runFSxDecodeCases(t, []fsxDecodeCase{
@@ -24,6 +25,7 @@ func TestResolveFSxExtra_DecodeErrorReturned(t *testing.T) {
 }
 
 func TestResolveFSxBackupRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -43,6 +45,7 @@ func TestResolveFSxBackupRelationships(t *testing.T) {
 }
 
 func TestResolveFSxBackupRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -57,6 +60,7 @@ func TestResolveFSxBackupRelationships_NoAttrs(t *testing.T) {
 }
 
 func TestResolveFSxFileCacheRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

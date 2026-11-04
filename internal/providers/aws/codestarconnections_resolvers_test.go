@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveCSCRepositoryLinkRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	connARN := fmt.Sprintf("arn:aws:codestar-connections:%s:%s:connection/abc-123", testRegion, acct.ID)
@@ -28,6 +29,7 @@ func TestResolveCSCRepositoryLinkRefs(t *testing.T) {
 }
 
 func TestResolveCSCHostNetwork(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -57,6 +59,7 @@ func TestResolveCSCHostNetwork(t *testing.T) {
 }
 
 func TestResolveCSCHostNetwork_NoVpcConfig(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -74,6 +77,7 @@ func TestResolveCSCHostNetwork_NoVpcConfig(t *testing.T) {
 }
 
 func TestResolveCSCSyncConfigurationRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rlARN := fmt.Sprintf("arn:aws:codestar-connections:%s:%s:repository-link/r-1", testRegion, acct.ID)

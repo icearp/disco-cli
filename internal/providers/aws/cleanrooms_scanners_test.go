@@ -65,6 +65,7 @@ func crIntermediateTable(membershipID, id string) crtypes.IntermediateTableSumma
 }
 
 func TestScanCRMembers_StoresEachCollaborationsRoster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	collabs := crParents(crCollabPrefix, "c-a", "c-b", "c-gone")
 	crSeedParents(t, st, TypeCleanRoomsCollaboration, collabs)
@@ -132,6 +133,7 @@ func TestScanCRMembers_StoresEachCollaborationsRoster(t *testing.T) {
 }
 
 func TestScanCRIntermediateTables_StoresEachMembershipsTables(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	memberships := crParents(crMembershipPrefix, "m-a", "m-b", "m-gone")
 	crSeedParents(t, st, TypeCleanRoomsMembership, memberships)
@@ -231,6 +233,7 @@ func crEmptyOutput(op string) any {
 }
 
 func TestCleanRoomsChildPhases_Errors(t *testing.T) {
+	t.Parallel()
 	badInput := &smithy.GenericAPIError{Code: "ValidationException", Message: "bad"}
 	for _, p := range crNewPhases {
 		t.Run(p.op+"/empty", func(t *testing.T) {
@@ -298,6 +301,7 @@ func crTopLevelHandlers(override map[string]func(any) (any, error)) map[string]f
 // The new phases run over the parents the earlier phases listed, and an
 // earlier phase's error neither stops them nor is lost.
 func TestScanCleanRoomsIn_RunsNewPhasesOverListedParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	templateErr := &smithy.GenericAPIError{Code: "ValidationException", Message: "bad"}
 	handlers := crTopLevelHandlers(map[string]func(any) (any, error){
@@ -319,6 +323,7 @@ func TestScanCleanRoomsIn_RunsNewPhasesOverListedParents(t *testing.T) {
 // Every new phase runs after the existing phases: their rows are stored and
 // counted when every new phase fails, and each new phase's error is returned.
 func TestScanCleanRoomsIn_NewPhaseErrorsKeepEarlierRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	override := map[string]func(any) (any, error){}
 	var phaseErrs []error
@@ -347,6 +352,7 @@ func TestScanCleanRoomsIn_NewPhaseErrorsKeepEarlierRows(t *testing.T) {
 // reported as a warning under its phase instead of inside the hard error, and
 // the phases after it still run.
 func TestScanCleanRoomsIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "cleanrooms:ListMembers")
 	tableErr := &smithy.GenericAPIError{Code: "ValidationException", Message: "bad"}
@@ -373,6 +379,7 @@ func TestScanCleanRoomsIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 // In a region with no Clean Rooms endpoint the first phase's NXDOMAIN is
 // returned alone, so the dispatcher reports the region unavailable.
 func TestScanCleanRoomsIn_UnreachableEndpointStopsTheScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
@@ -399,6 +406,7 @@ func TestScanCleanRoomsIn_UnreachableEndpointStopsTheScan(t *testing.T) {
 // A later phase's transient error alone is returned, so the scan is marked
 // partial rather than complete, with the other phases' rows counted.
 func TestScanCleanRoomsIn_LoneTransientPhaseMarksPartial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "cleanrooms:ListMembers")
 	handlers := crTopLevelHandlers(map[string]func(any) (any, error){
@@ -419,6 +427,7 @@ func TestScanCleanRoomsIn_LoneTransientPhaseMarksPartial(t *testing.T) {
 // A later phase's NXDOMAIN is flattened to a plain error, so the dispatcher
 // does not report the region unavailable and drop the rows already stored.
 func TestScanCleanRoomsIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := crTopLevelHandlers(map[string]func(any) (any, error){
 		"ListMembers": func(any) (any, error) {

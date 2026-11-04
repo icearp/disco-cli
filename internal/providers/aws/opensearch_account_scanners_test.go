@@ -68,6 +68,7 @@ func osDQHandler(fail map[string]error) func(in any) (any, error) {
 }
 
 func TestScanOpenSearchDirectQueryDataSources_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st, total, err := osScanAccount(t, scanOpenSearchDirectQueryDataSources, map[string]func(any) (any, error){"ListDirectQueryDataSources": osDQHandler(nil)})
 	if err != nil {
 		t.Fatalf("scan: %v", err)
@@ -86,6 +87,7 @@ func TestScanOpenSearchDirectQueryDataSources_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanOpenSearchDirectQueryDataSources_Empty(t *testing.T) {
+	t.Parallel()
 	st, total, err := osScanAccount(t, scanOpenSearchDirectQueryDataSources, map[string]func(any) (any, error){
 		"ListDirectQueryDataSources": func(any) (any, error) { return &opensearch.ListDirectQueryDataSourcesOutput{}, nil },
 	})
@@ -96,6 +98,7 @@ func TestScanOpenSearchDirectQueryDataSources_Empty(t *testing.T) {
 
 // A repeated token fails the listing; both pages' data sources are stored.
 func TestScanOpenSearchDirectQueryDataSources_FailsOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	calls := 0
 	_, total, err := osScanAccount(t, scanOpenSearchDirectQueryDataSources, map[string]func(any) (any, error){
 		"ListDirectQueryDataSources": func(any) (any, error) {
@@ -115,6 +118,7 @@ func TestScanOpenSearchDirectQueryDataSources_FailsOnRepeatedToken(t *testing.T)
 // A first-page gap is silent and a denial warns; a later failure keeps the
 // first page's row. Any other error fails the phase.
 func TestScanOpenSearchDirectQueryDataSources_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		fail      map[string]error
@@ -189,6 +193,7 @@ func osVpcHandlers(described *[][]string, mu *sync.Mutex, describeFail map[int]e
 func osVpcEndpointID(id string) string { return "arn:aws:es:us-east-1:123456789012:vpc-endpoint/" + id }
 
 func TestScanOpenSearchVpcEndpoints_DescribesEachListPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warns []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warns = append(warns, w) }
@@ -223,6 +228,7 @@ func TestScanOpenSearchVpcEndpoints_DescribesEachListPage(t *testing.T) {
 
 // An endpoint deleted between list and describe is dropped without a warning.
 func TestScanOpenSearchVpcEndpoints_NotFoundIsSilent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "opensearch:DescribeVpcEndpoints")
 	client := osClient(map[string]func(any) (any, error){
@@ -242,6 +248,7 @@ func TestScanOpenSearchVpcEndpoints_NotFoundIsSilent(t *testing.T) {
 }
 
 func TestScanOpenSearchVpcEndpoints_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		handlers  func(*[][]string, *sync.Mutex) map[string]func(any) (any, error)
@@ -350,6 +357,7 @@ func osPackagesHandler(maxResults *[]int32, fail map[string]error) func(any) (an
 func osPackageID(id string) string { return "arn:aws:es:us-east-1:123456789012:package/" + id }
 
 func TestScanOpenSearchPackages_StoresCustomPackages(t *testing.T) {
+	t.Parallel()
 	var maxResults []int32
 	st, total, err := osScanAccount(t, scanOpenSearchPackages, map[string]func(any) (any, error){"DescribePackages": osPackagesHandler(&maxResults, nil)})
 	if err != nil {
@@ -371,6 +379,7 @@ func TestScanOpenSearchPackages_StoresCustomPackages(t *testing.T) {
 }
 
 func TestScanOpenSearchPackages_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		fail      map[string]error
@@ -417,6 +426,7 @@ func osReservedID(id string) string {
 }
 
 func TestScanOpenSearchReservedInstances_StoresEveryState(t *testing.T) {
+	t.Parallel()
 	var maxResults []int32
 	st, total, err := osScanAccount(t, scanOpenSearchReservedInstances, map[string]func(any) (any, error){"DescribeReservedInstances": osReservedHandler(&maxResults, nil)})
 	if err != nil {
@@ -441,6 +451,7 @@ func TestScanOpenSearchReservedInstances_StoresEveryState(t *testing.T) {
 }
 
 func TestScanOpenSearchReservedInstances_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		fail      map[string]error
@@ -478,6 +489,7 @@ func osDomainInfo(owner, region, name string) *opensearchtypes.DomainInformation
 const osRemoteAccount = "210987654321"
 
 func TestScanOpenSearchOutboundConnections_StoredUnderLocalDomain(t *testing.T) {
+	t.Parallel()
 	var maxResults []int32
 	local := osDomainInfo(testAccountID, testRegion, "logs")
 	remote := osDomainInfo(osRemoteAccount, "eu-west-1", "central")
@@ -517,6 +529,7 @@ func TestScanOpenSearchOutboundConnections_StoredUnderLocalDomain(t *testing.T) 
 }
 
 func TestScanOpenSearchInboundConnections_StoredUnderRemoteDomain(t *testing.T) {
+	t.Parallel()
 	var maxResults []int32
 	source := osDomainInfo(osRemoteAccount, "eu-west-1", "edge")
 	ours := osDomainInfo(testAccountID, testRegion, "logs")
@@ -552,6 +565,7 @@ func TestScanOpenSearchInboundConnections_StoredUnderRemoteDomain(t *testing.T) 
 // One connection id reported by both sides, with both domains in the
 // scanned account, is stored as two rows that do not merge.
 func TestScanOpenSearchConnections_BothSidesInOneAccountStayDistinct(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := osClient(map[string]func(any) (any, error){
 		"DescribeOutboundConnections": func(any) (any, error) {
@@ -583,6 +597,7 @@ func TestScanOpenSearchConnections_BothSidesInOneAccountStayDistinct(t *testing.
 }
 
 func TestScanOpenSearchConnections_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		op       string
@@ -612,6 +627,7 @@ func TestScanOpenSearchConnections_Errors(t *testing.T) {
 }
 
 func TestScanOpenSearchConnections_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := osClient(map[string]func(any) (any, error){
 		"DescribeOutboundConnections": func(any) (any, error) { return &opensearch.DescribeOutboundConnectionsOutput{}, nil },
@@ -632,6 +648,7 @@ func TestScanOpenSearchConnections_Empty(t *testing.T) {
 // A repeated ListVpcEndpoints token fails the listing; the endpoint already
 // listed is still described and stored.
 func TestScanOpenSearchVpcEndpoints_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	calls := 0
 	st, _, err := osScanAccount(t, scanOpenSearchVpcEndpoints, map[string]func(any) (any, error){
 		"ListVpcEndpoints": func(any) (any, error) {

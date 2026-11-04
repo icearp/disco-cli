@@ -196,6 +196,7 @@ func scanNetExtraErr(t *testing.T, fn netExtraScanFn, stub *netExtraStub) error 
 }
 
 func TestScanSecurityGroupRules(t *testing.T) {
+	t.Parallel()
 	arn1 := "arn:aws:ec2:us-east-1:123456789012:security-group-rule/sgr-1"
 	arn2 := "arn:aws:ec2:us-east-1:123456789012:security-group-rule/sgr-2"
 	t.Run("TwoPages", func(t *testing.T) {
@@ -233,6 +234,7 @@ func TestScanSecurityGroupRules(t *testing.T) {
 }
 
 func TestScanSubnetCidrReservations(t *testing.T) {
+	t.Parallel()
 	subnets := map[string]*ec2.DescribeSubnetsOutput{
 		"": {
 			Subnets: []ec2types.Subnet{
@@ -432,6 +434,7 @@ func countSubnetGoneWarnings(warns []store.ScanWarning) int {
 }
 
 func TestScanVPCEndpointConnections(t *testing.T) {
+	t.Parallel()
 	conn := func(id string) ec2types.VpcEndpointConnection {
 		return ec2types.VpcEndpointConnection{
 			VpcEndpointConnectionId: sdkaws.String(id),
@@ -475,6 +478,7 @@ func TestScanVPCEndpointConnections(t *testing.T) {
 }
 
 func TestScanVPCEndpointAssociations(t *testing.T) {
+	t.Parallel()
 	assoc := func(id string) ec2types.VpcEndpointAssociation {
 		return ec2types.VpcEndpointAssociation{
 			Id:                              sdkaws.String(id),
@@ -534,6 +538,7 @@ func TestScanVPCEndpointAssociations(t *testing.T) {
 // TestScanEC2NetworkExtra_AllPhasesStore pins that the category function runs
 // every sub-scanner: dropping one from its list stops that type being stored.
 func TestScanEC2NetworkExtra_AllPhasesStore(t *testing.T) {
+	t.Parallel()
 	ruleARN := "arn:aws:ec2:us-east-1:123456789012:security-group-rule/sgr-1"
 	stub := &netExtraStub{
 		sgrPages: map[string]*ec2.DescribeSecurityGroupRulesOutput{"": {SecurityGroupRules: []ec2types.SecurityGroupRule{
@@ -569,6 +574,7 @@ func TestScanEC2NetworkExtra_AllPhasesStore(t *testing.T) {
 // first page keeps that page's reservation. A hard error and a repeated token
 // are returned; a transient failure is warned about once as a partial read.
 func TestScanSubnetCidrReservations_LaterPageFailureKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		laterErr  error

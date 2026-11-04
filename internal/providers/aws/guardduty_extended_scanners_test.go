@@ -71,6 +71,7 @@ func gdOrgConfigARN(detectorID string) string {
 }
 
 func TestScanGDOrganizationConfigurations_MergesPagesPerDetector(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedGDDetectors(t, st, "d1", "d2")
 	fake := &fakeGDOrgConfig{}
@@ -128,6 +129,7 @@ func TestScanGDOrganizationConfigurations_MergesPagesPerDetector(t *testing.T) {
 }
 
 func TestScanGDOrganizationConfigurations_ErrorHandling(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		token     string
@@ -181,6 +183,7 @@ func TestScanGDOrganizationConfigurations_ErrorHandling(t *testing.T) {
 }
 
 func TestScanGDOrganizationConfigurations_NoDetectorsMakesNoCalls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	fake := &fakeGDOrgConfig{}
 	total, _, _, err := scanGDOrganizationConfigurations(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
@@ -227,6 +230,7 @@ func gdServiceStub(t *testing.T, override map[string][]stubCall) sdkaws.Config {
 // service against the real SDK client (its input validators included): the
 // detector is stored and contains its organization configuration.
 func TestScanGuardDuty_StoresOrganizationConfigurationUnderDetector(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = gdServiceStub(t, nil)
@@ -245,6 +249,7 @@ func TestScanGuardDuty_StoresOrganizationConfigurationUnderDetector(t *testing.T
 // one: a transient error is demoted to a warning where the custom detection
 // rule phases join theirs.
 func TestScanGuardDuty_OrganizationConfigurationErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = gdServiceStub(t, map[string][]stubCall{
@@ -261,6 +266,7 @@ func TestScanGuardDuty_OrganizationConfigurationErrorPropagates(t *testing.T) {
 // the service succeeds, warns once naming the op, and keeps the detector's
 // other rows.
 func TestScanGuardDuty_OrganizationConfigurationRefusedKeepsDetectorRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warned []string
 	st.OnWarn = func(w store.ScanWarning) { warned = append(warned, w.Service) }
@@ -285,6 +291,7 @@ func TestScanGuardDuty_OrganizationConfigurationRefusedKeepsDetectorRows(t *test
 }
 
 func TestIsGuardDutyMemberRestricted(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		err  error

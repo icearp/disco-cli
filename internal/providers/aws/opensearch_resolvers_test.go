@@ -27,6 +27,7 @@ func opensearchDomainARN() string {
 // edge: VPC, subnet, security group, KMS, Cognito user-pool + identity-
 // pool, IAM role, log group.
 func TestResolveOpenSearchDomainTargets_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -80,6 +81,7 @@ func TestResolveOpenSearchDomainTargets_HappyPath(t *testing.T) {
 // TestResolveOpenSearchDomainTargets_NonVPC verifies public domains (no
 // VPCOptions) skip cleanly.
 func TestResolveOpenSearchDomainTargets_NonVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

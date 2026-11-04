@@ -9,6 +9,7 @@ import (
 )
 
 func TestResolveOutpostSite(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	siteARN := fmt.Sprintf("arn:aws:outposts:%s:%s:site/os-1", testRegion, acct.ID)
@@ -24,6 +25,7 @@ func TestResolveOutpostSite(t *testing.T) {
 }
 
 func TestResolveOutpostSite_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	opARN := fmt.Sprintf("arn:aws:outposts:%s:%s:outpost/op-1", testRegion, acct.ID)

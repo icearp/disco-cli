@@ -19,6 +19,7 @@ func bcmDashScheduledReportAttrs(t *testing.T, r bcmdtypes.ScheduledReportSummar
 }
 
 func TestResolveBCMDashboardsScheduledReports(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -40,6 +41,7 @@ func TestResolveBCMDashboardsScheduledReports(t *testing.T) {
 // A scheduled report pointing at an unscanned dashboard, and one with empty
 // attrs (no DashboardArn), both emit no edge and don't panic.
 func TestResolveBCMDashboardsScheduledReports_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

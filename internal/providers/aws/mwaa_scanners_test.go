@@ -43,6 +43,7 @@ func runScanMWAA(st *store.Store, h map[string]func(any) (any, error)) (int, int
 }
 
 func TestScanMWAA_ReadsTagsFromGetEnvironment(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, inserted, err := runScanMWAA(st, mwaaHandlers(nil))
 	if err != nil {
@@ -63,6 +64,7 @@ func TestScanMWAA_ReadsTagsFromGetEnvironment(t *testing.T) {
 // skipped silently, and any other error, a throttle included, is returned
 // after the other environment is stored.
 func TestScanMWAA_GetEnvironmentFailure(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -97,6 +99,7 @@ func TestScanMWAA_GetEnvironmentFailure(t *testing.T) {
 // An environment GetEnvironment returns without an ARN is warned about once
 // and not stored.
 func TestScanMWAA_NoARNWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, mwaaGetEnvironmentOp)
 	h := mwaaHandlers(nil)

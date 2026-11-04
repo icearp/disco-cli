@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveQBusinessChildrenToApp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appARN := fmt.Sprintf("arn:aws:qbusiness:%s:%s:application/a1", testRegion, acct.ID)
@@ -42,6 +43,7 @@ func TestResolveQBusinessChildrenToApp(t *testing.T) {
 // TestResolveQBusinessChildrenToApp_NoRows guards the empty case — no children,
 // no application: the resolver must return nil without emitting edges.
 func TestResolveQBusinessChildrenToApp_NoRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveQBusinessChildrenToApp(acct, st); err != nil {
@@ -50,6 +52,7 @@ func TestResolveQBusinessChildrenToApp_NoRows(t *testing.T) {
 }
 
 func TestResolveQBusinessDataSourceToIndex(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	idxARN := fmt.Sprintf("arn:aws:qbusiness:%s:%s:application/a1/index/i1", testRegion, acct.ID)
@@ -64,6 +67,7 @@ func TestResolveQBusinessDataSourceToIndex(t *testing.T) {
 }
 
 func TestResolveQBusinessDataAccessorRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/qb-isv", acct.ID)

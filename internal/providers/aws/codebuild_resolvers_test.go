@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveCodeBuildProjectRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -59,6 +60,7 @@ func TestResolveCodeBuildProjectRefs(t *testing.T) {
 }
 
 func TestResolveCodeBuildFleetRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -89,6 +91,7 @@ func TestResolveCodeBuildFleetRefs(t *testing.T) {
 }
 
 func TestResolveCodeBuildReportGroupRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -116,6 +119,7 @@ func TestResolveCodeBuildReportGroupRefs(t *testing.T) {
 // walk, and costs no other row its edges; a row with no attributes emits no
 // edge.
 func TestResolveCodeBuildRefs_DecodeErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	roleARN := "arn:aws:iam::" + testAccountID + ":role/r"
 	bucketARN := s3BucketARN("aws", "cb-reports")
 	for _, tc := range []struct {
@@ -163,6 +167,7 @@ func TestResolveCodeBuildRefs_DecodeErrorKeepsOtherRows(t *testing.T) {
 // A project outside the aws partition reaches its log group by the ARN the
 // log-group scanner stores, in the project's partition.
 func TestResolveCodeBuildProjectRefs_LogGroupInProjectPartition(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-gov-west-1"
@@ -185,6 +190,7 @@ func TestResolveCodeBuildProjectRefs_LogGroupInProjectPartition(t *testing.T) {
 // A project row whose NativeID is not an ARN has no partition to rebuild its
 // log group in: its error is returned and the other rows keep their edges.
 func TestResolveCodeBuildProjectRefs_NativeIDNotARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := "arn:aws:iam::" + testAccountID + ":role/r"

@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveTrafficMirrorSessionRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -37,6 +38,7 @@ func TestResolveTrafficMirrorSessionRelationships(t *testing.T) {
 }
 
 func TestResolveTrafficMirrorSessionRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 

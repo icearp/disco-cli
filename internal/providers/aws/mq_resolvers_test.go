@@ -38,6 +38,7 @@ func usesTargets(t *testing.T, st *store.Store, fromID string) map[string]bool {
 }
 
 func TestResolveMQSharedResourceRefs_LinksScannedTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	shareID := upsertTestResource(t, st, "aws", acct.ID, TypeRAMResourceShare, mqTestShareARN("rs-1"), testRegion, "{}")
@@ -58,6 +59,7 @@ func TestResolveMQSharedResourceRefs_LinksScannedTargets(t *testing.T) {
 }
 
 func TestResolveMQSharedResourceRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeRAMResourceShare, mqTestShareARN("rs-1"), testRegion, "{}")
@@ -73,6 +75,7 @@ func TestResolveMQSharedResourceRefs_NoAttrs(t *testing.T) {
 
 // An undecodable row is returned as an error and costs no other row its edge.
 func TestResolveMQSharedResourceRefs_DecodeErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	shareID := upsertTestResource(t, st, "aws", acct.ID, TypeRAMResourceShare, mqTestShareARN("rs-1"), testRegion, "{}")

@@ -14,6 +14,7 @@ import (
 // Each cluster is stored from its DescribeCluster body: its ARN, name,
 // status, creation time and tags, the body verbatim as its attributes.
 func TestScanEKSClusters_StoresDescribedClusters(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newEKSXCalls()
 	if _, _, err := eksxScan(context.Background(), st, calls.handlers()); err != nil {
@@ -41,6 +42,7 @@ func TestScanEKSClusters_StoresDescribedClusters(t *testing.T) {
 // once, a throttle is a transient error and any other code a hard one. The other cluster is stored
 // in every case.
 func TestScanEKSClusters_DescribeFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name         string
 		describe     func() (any, error)
@@ -110,6 +112,7 @@ func TestScanEKSClusters_DescribeFailures(t *testing.T) {
 // other cluster's describe, is demoted to one warning under
 // eks:DescribeCluster.
 func TestScanEKSClusters_DescribeThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		listing string // fails hard when set
@@ -152,6 +155,7 @@ func TestScanEKSClusters_DescribeThrottleDemotedBesideHardError(t *testing.T) {
 // A ListClusters page that fails keeps the clusters of the page before it,
 // with their per-cluster resources, and returns the error.
 func TestScanEKSClusters_ListFailureKeepsPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newEKSXCalls()
 	h := calls.handlers()
@@ -170,6 +174,7 @@ func TestScanEKSClusters_ListFailureKeepsPage(t *testing.T) {
 // A denied ListClusters warns once under its op; no per-cluster listing runs,
 // and the later account-wide listing still does.
 func TestScanEKSClusters_DeniedListing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	opWarns := countOpWarnings(st, "eks:ListClusters")
@@ -193,6 +198,7 @@ func TestScanEKSClusters_DeniedListing(t *testing.T) {
 // it lost and no per-cluster listing, and still returns the describe errors
 // met before it: a hard one and a transient one.
 func TestScanEKSClusters_FailedWriteStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeEKSCluster)

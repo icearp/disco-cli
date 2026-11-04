@@ -22,6 +22,7 @@ func upsertLightsailRow(t *testing.T, st *store.Store, acct *account, rtype, arn
 }
 
 func TestResolveLightsailDatabaseSnapshotParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dbARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:RelationalDatabase/db-1", testRegion, acct.ID)
@@ -36,6 +37,7 @@ func TestResolveLightsailDatabaseSnapshotParent(t *testing.T) {
 }
 
 func TestResolveLightsailDiskSnapshotParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Disk/d-1", testRegion, acct.ID)
@@ -50,6 +52,7 @@ func TestResolveLightsailDiskSnapshotParent(t *testing.T) {
 }
 
 func TestResolveLightsailInstanceSnapshotParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	iARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Instance/i-1", testRegion, acct.ID)
@@ -64,6 +67,7 @@ func TestResolveLightsailInstanceSnapshotParent(t *testing.T) {
 }
 
 func TestResolveLightsailLoadBalancerTlsCertParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	lbARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:LoadBalancer/lb-1", testRegion, acct.ID)
@@ -78,6 +82,7 @@ func TestResolveLightsailLoadBalancerTlsCertParent(t *testing.T) {
 }
 
 func TestResolveLightsailAlarmTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	iARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Instance/i-2", testRegion, acct.ID)
@@ -92,6 +97,7 @@ func TestResolveLightsailAlarmTarget(t *testing.T) {
 }
 
 func TestResolveLightsailInstanceDisks(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Disk/d-1", testRegion, acct.ID)
@@ -107,6 +113,7 @@ func TestResolveLightsailInstanceDisks(t *testing.T) {
 }
 
 func TestResolveLightsailDiskAttachedInstance(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	iARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Instance/i-1", testRegion, acct.ID)
@@ -121,6 +128,7 @@ func TestResolveLightsailDiskAttachedInstance(t *testing.T) {
 }
 
 func TestResolveLightsailStaticIPAttachedInstance(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	iARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Instance/i-1", testRegion, acct.ID)
@@ -135,6 +143,7 @@ func TestResolveLightsailStaticIPAttachedInstance(t *testing.T) {
 }
 
 func TestResolveLightsailLoadBalancerRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	iARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Instance/i-1", testRegion, acct.ID)
@@ -153,6 +162,7 @@ func TestResolveLightsailLoadBalancerRefs(t *testing.T) {
 }
 
 func TestResolveLightsailDistributionOrigin(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	iARN := fmt.Sprintf("arn:aws:lightsail:%s:%s:Instance/i-1", "us-west-2", acct.ID)
@@ -171,6 +181,7 @@ func TestResolveLightsailDistributionOrigin(t *testing.T) {
 }
 
 func TestResolveLightsailCertificateDomain(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := fmt.Sprintf("arn:aws:lightsail:us-east-1:%s:Domain/d-1", acct.ID)

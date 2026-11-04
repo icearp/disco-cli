@@ -9,6 +9,7 @@ import (
 // TestResolveInstanceRelationships_AMI verifies the instance→AMI `uses` edge
 // when the AMI has been scanned (self-owned AMI case).
 func TestResolveInstanceRelationships_AMI(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -34,6 +35,7 @@ func TestResolveInstanceRelationships_AMI(t *testing.T) {
 // error when the instance references an AMI that isn't in the store
 // (public/Marketplace/shared AMI).
 func TestResolveInstanceRelationships_AMIUnscanned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -59,6 +61,7 @@ func TestResolveInstanceRelationships_AMIUnscanned(t *testing.T) {
 // TestResolveInstanceRelationships_AMIEmpty verifies no panic when ImageId is
 // absent from instance attrs.
 func TestResolveInstanceRelationships_AMIEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"

@@ -8,6 +8,7 @@ import (
 )
 
 func TestCognitoUserPoolARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:cognito-idp:us-east-1:123:userpool/us-east-1_abc/group/admins", "arn:aws:cognito-idp:us-east-1:123:userpool/us-east-1_abc"},
 		{"arn:aws:cognito-idp:us-east-1:123:userpool/us-east-1_abc/branding/mlb-1", "arn:aws:cognito-idp:us-east-1:123:userpool/us-east-1_abc"},
@@ -22,6 +23,7 @@ func TestCognitoUserPoolARNFromChild(t *testing.T) {
 }
 
 func TestResolveCognitoUserPoolChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	poolARN := fmt.Sprintf("arn:aws:cognito-idp:%s:%s:userpool/%s_abc", testRegion, acct.ID, testRegion)
@@ -41,6 +43,7 @@ func TestResolveCognitoUserPoolChildren(t *testing.T) {
 }
 
 func TestResolveCognitoUserPoolGroupRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/cognito-group-role", acct.ID)
@@ -56,6 +59,7 @@ func TestResolveCognitoUserPoolGroupRole(t *testing.T) {
 }
 
 func TestResolveCognitoUserPoolRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -98,6 +102,7 @@ func TestResolveCognitoUserPoolRefs(t *testing.T) {
 }
 
 func TestResolveCognitoIdentityPoolRoleAttachment(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	idpARN := fmt.Sprintf("arn:aws:cognito-identity:%s:%s:identitypool/%s:abc-123", testRegion, acct.ID, testRegion)

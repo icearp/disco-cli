@@ -10,6 +10,7 @@ import (
 )
 
 func TestDFProjectARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:devicefarm:us-west-2:111:devicepool:PROJ-1/POOL-1", "arn:aws:devicefarm:us-west-2:111:project:PROJ-1"},
 		{"arn:aws:devicefarm:us-west-2:111:networkprofile:PROJ-2/NP-1", "arn:aws:devicefarm:us-west-2:111:project:PROJ-2"},
@@ -24,6 +25,7 @@ func TestDFProjectARNFromChild(t *testing.T) {
 }
 
 func TestResolveDeviceFarmProjectChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-west-2"
@@ -49,6 +51,7 @@ func TestResolveDeviceFarmProjectChildren(t *testing.T) {
 
 // A curated child is stored ManagedByProvider; the resolver must still see it.
 func TestResolveDeviceFarmProjectChildren_ManagedChild(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-west-2"
@@ -71,6 +74,7 @@ func TestResolveDeviceFarmProjectChildren_ManagedChild(t *testing.T) {
 }
 
 func TestResolveDeviceFarmDeviceInstanceProfile(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-west-2"
@@ -88,6 +92,7 @@ func TestResolveDeviceFarmDeviceInstanceProfile(t *testing.T) {
 }
 
 func TestResolveDeviceFarmTestGridProjectVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-west-2"
@@ -110,6 +115,7 @@ func TestResolveDeviceFarmTestGridProjectVPC(t *testing.T) {
 }
 
 func TestResolveDeviceFarmProjectRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-west-2"
@@ -136,6 +142,7 @@ func TestResolveDeviceFarmProjectRefs(t *testing.T) {
 }
 
 func TestResolveDeviceFarmProjectRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pARN := fmt.Sprintf("arn:aws:devicefarm:us-west-2:%s:project:PROJ-1", acct.ID)
@@ -149,6 +156,7 @@ func TestResolveDeviceFarmProjectRefs_NoAttrs(t *testing.T) {
 }
 
 func TestResolveDeviceFarmDeviceInstanceProfile_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	diARN := fmt.Sprintf("arn:aws:devicefarm:us-west-2:%s:deviceinstance:DI-1", acct.ID)

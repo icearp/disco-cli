@@ -125,6 +125,7 @@ func scanAthenaTopLevel(t *testing.T, st *store.Store, handlers map[string]func(
 }
 
 func TestScanAthena_StoresNotebooksOfSparkWorkGroups(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var nbCalls parentCalls
 	total, err := scanAthenaTopLevel(t, st, athenaTopLevelHandlers(&nbCalls))
@@ -164,6 +165,7 @@ func TestScanAthena_StoresNotebooksOfSparkWorkGroups(t *testing.T) {
 }
 
 func TestScanAthena_NoSparkWorkGroupsOrNotebooks(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		engine    string
@@ -213,6 +215,7 @@ func TestScanAthena_NoSparkWorkGroupsOrNotebooks(t *testing.T) {
 // page, fails the scan. Every case runs after every older phase stored its
 // rows.
 func TestScanAthena_FailedNotebookWorkGroup(t *testing.T) {
+	t.Parallel()
 	gone := func(string) (any, error) { return nil, apiErr("InvalidRequestException", "WorkGroup is not found.") }
 	disabled := func(name string) (any, error) {
 		wg := athenaEngine(name, "PySpark engine version 3")
@@ -314,6 +317,7 @@ func athenaCallCount(c *parentCalls, id string) int {
 // saved-query and notebook phases over the workgroups stored, and is
 // returned.
 func TestScanAthena_PhaseErrorStillRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var nbCalls parentCalls
 	h := athenaTopLevelHandlers(&nbCalls)
@@ -337,6 +341,7 @@ func TestScanAthena_PhaseErrorStillRunsLaterPhases(t *testing.T) {
 // hard error, not hidden inside a join the dispatcher would read as
 // transient.
 func TestScanAthena_PhaseTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, athenaListDataCatalogsOp)
 	var nbCalls parentCalls
@@ -360,6 +365,7 @@ func TestScanAthena_PhaseTransientDoesNotMaskHardError(t *testing.T) {
 // a Spark summary. A denied body warns once under GetWorkGroup, and spark-b
 // is stored in every case.
 func TestScanAthena_SparkWorkGroupFromSummaryUntilBodyRead(t *testing.T) {
+	t.Parallel()
 	const pySpark, sql = "PySpark engine version 3", "Athena engine version 3"
 	for _, c := range []struct {
 		name          string
@@ -431,6 +437,7 @@ func TestScanAthena_SparkWorkGroupFromSummaryUntilBodyRead(t *testing.T) {
 }
 
 func TestIsAthenaSparkWorkGroup_EngineVersion(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		v    *athenatypes.EngineVersion
@@ -450,6 +457,7 @@ func TestIsAthenaSparkWorkGroup_EngineVersion(t *testing.T) {
 }
 
 func TestListAthenaNotebooks_FailsOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	var calls atomic.Int32
 	cfg := opStubConfig(map[string]func(in any) (any, error){
 		"ListNotebookMetadata": func(any) (any, error) {
@@ -648,6 +656,7 @@ func athenaAttr(t *testing.T, r store.Resource, key string) string {
 // catalogs, the element for capacity reservations); Status and CreatedAt come
 // from the listed element, nil where it has none.
 func TestScanAthena_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newAthenaTagCalls("aws", testRegion)
@@ -729,6 +738,7 @@ func TestScanAthena_StoresTagsOfEveryType(t *testing.T) {
 // An aws-us-gov account scanned in us-gov-west-1 sends ARNs of its own
 // partition and region to the tag op, and stores the rows under them.
 func TestScanAthena_GovCloudARNsReachTagOp(t *testing.T) {
+	t.Parallel()
 	const govRegion = "us-gov-west-1"
 	st := newTestStore(t)
 	calls := newAthenaTagCalls("aws-us-gov", govRegion)
@@ -769,6 +779,7 @@ func TestScanAthena_GovCloudARNsReachTagOp(t *testing.T) {
 // Every listing returning nothing stores nothing, reads no tag or body and
 // reports nothing.
 func TestScanAthena_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newAthenaTagCalls("aws", testRegion)
@@ -789,6 +800,7 @@ func TestScanAthena_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanAthena_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAthenaTagCalls("aws", testRegion)
 	if _, _, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls)); err != nil {
@@ -805,6 +817,7 @@ func TestScanAthena_RescanInsertsNone(t *testing.T) {
 // retries is a transient error, any other code a hard one;
 // ResourceNotFoundException drops the row. The same holds for each type.
 func TestScanAthena_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []athenaTagRow{athenaTagRows[0], athenaTagRows[3], athenaTagRows[5]} {
 		t.Run(target.typ, func(t *testing.T) {
 			arn := athenaTagARN(target.kind, target.name)
@@ -866,6 +879,7 @@ func TestScanAthena_TagReadFailures(t *testing.T) {
 
 // Denied tag reads in several listings are one warning for the scan.
 func TestScanAthena_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, athenaTagsOp)
 	calls := newAthenaTagCalls("aws", testRegion)
@@ -883,6 +897,7 @@ func TestScanAthena_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanAthena_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, athenaTagsOp)
 	calls := newAthenaTagCalls("aws", testRegion)
@@ -903,6 +918,7 @@ func TestScanAthena_TagThrottleDemotedBesideHardError(t *testing.T) {
 // InvalidRequestException a resource deleted since the listing gets
 // included (neither op models a not-found), is a hard one.
 func TestScanAthena_BodyReadFailureKeepsSummary(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		row      athenaTagRow
 		op, attr string
@@ -966,6 +982,7 @@ func TestScanAthena_BodyReadFailureKeepsSummary(t *testing.T) {
 // A GetWorkGroup or GetDataCatalog answer without a body keeps the listed
 // summary as the row's attributes, with no error or warning.
 func TestScanAthena_EmptyBodyKeepsSummary(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		row      athenaTagRow
 		op, attr string
@@ -1008,6 +1025,7 @@ func TestScanAthena_EmptyBodyKeepsSummary(t *testing.T) {
 // Get with the InvalidRequestException returned as a hard error, and its row
 // is dropped when the tag read then answers ResourceNotFoundException.
 func TestScanAthena_DeletedAfterListingDropsRow(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		row    athenaTagRow
 		op     string
@@ -1044,6 +1062,7 @@ func TestScanAthena_DeletedAfterListingDropsRow(t *testing.T) {
 // of another phase is demoted to one warning under the batch op, not under
 // the phase's listing op.
 func TestScanAthena_SavedQueryBatchThrottleWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("TooManyRequestsException", "slow down")
 	for _, c := range []struct{ listOp, batchOp string }{
 		{"ListNamedQueries", "BatchGetNamedQuery"},
@@ -1079,6 +1098,7 @@ func TestScanAthena_SavedQueryBatchThrottleWarnsUnderItsOp(t *testing.T) {
 // failure stops the phases after it: the saved-query listing reads the
 // workgroups stored.
 func TestScanAthena_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAthenaTagCalls("aws", testRegion)
 	h := athenaTagHandlers(calls)
@@ -1104,6 +1124,7 @@ func TestScanAthena_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // A listing whose service repeats its NextToken keeps both pages and fails
 // with errRepeatedNextToken instead of looping.
 func TestScanAthena_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAthenaTagCalls("aws", testRegion)
 	h := athenaTagHandlers(calls)
@@ -1127,6 +1148,7 @@ func TestScanAthena_RepeatedTokenKeepsPages(t *testing.T) {
 // rows; a denied workgroup listing leaves the saved-query listings no
 // workgroup to read.
 func TestScanAthena_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for op, lost := range map[string]int{"ListWorkGroups": 2, "ListDataCatalogs": 3, "ListCapacityReservations": 2} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1160,6 +1182,7 @@ func TestScanAthena_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanAthena_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeAthenaWorkgroup)
@@ -1186,6 +1209,7 @@ func TestScanAthena_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A listed element without a name is not stored and is warned about once
 // under its listing's op; its siblings are stored.
 func TestScanAthena_NamelessElementsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAthenaTagCalls("aws", testRegion)
 	h := athenaTagHandlers(calls)
@@ -1220,6 +1244,7 @@ func TestScanAthena_NamelessElementsWarn(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is reported once,
 // naming the phases not run.
 func TestScanAthena_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAthenaTagCalls("aws", testRegion)
 	h := athenaTagHandlers(calls)
@@ -1259,6 +1284,7 @@ func TestScanAthena_ContextEndStopsOnce(t *testing.T) {
 // stored) is unavailable, and no other listing is made. An NXDOMAIN after
 // rows were stored is a failure of this scan, and the counts are kept.
 func TestScanAthena_Unreachable(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "athena.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("endpoint absent", func(t *testing.T) {
 		st := newTestStore(t)

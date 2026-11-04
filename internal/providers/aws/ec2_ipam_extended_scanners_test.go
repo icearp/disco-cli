@@ -183,6 +183,7 @@ func sv32(p *int32) int32 {
 }
 
 func TestScanEC2ByoipCidrs_StoresLiveRangesAcrossPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanEC2ByoipCidrs(context.Background(), ipxClient(map[string]func(any) (any, error){
 		"DescribeByoipCidrs": ipxByoipHandler,
@@ -210,6 +211,7 @@ func TestScanEC2ByoipCidrs_StoresLiveRangesAcrossPages(t *testing.T) {
 }
 
 func TestEC2ByoipNativeIDShape(t *testing.T) {
+	t.Parallel()
 	if got, want := ipxByoipID(ipxCidr1), "arn:aws:ec2:us-east-1:123456789012:byoip-cidr/203.0.113.0/24"; got != want {
 		t.Errorf("byoip NativeID = %q, want %q", got, want)
 	}
@@ -222,6 +224,7 @@ func TestEC2ByoipNativeIDShape(t *testing.T) {
 }
 
 func TestScanEC2IpamByoasns_StoresLiveAsnsAcrossPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanEC2IpamByoasns(context.Background(), ipxClient(map[string]func(any) (any, error){
 		"DescribeIpamByoasn": ipxByoasnHandler,
@@ -251,6 +254,7 @@ func TestScanEC2IpamByoasns_StoresLiveAsnsAcrossPages(t *testing.T) {
 // A repeated NextToken ends the loop with errRepeatedNextToken instead of
 // spinning or reading as complete; the ASN already listed is stored.
 func TestScanEC2IpamByoasns_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := 0
 	_, _, err := scanEC2IpamByoasns(context.Background(), ipxClient(map[string]func(any) (any, error){
@@ -281,6 +285,7 @@ func TestScanEC2IpamByoasns_RepeatedTokenFails(t *testing.T) {
 // on a feature gap after a good page: BYOASN returns it as an error, while
 // BYOIP inherits ec2PageScan's silent skip.
 func TestScanEC2RegionWideIpamPhases_Errors(t *testing.T) {
+	t.Parallel()
 	phases := []struct {
 		name, op, sdkOp string
 		typ             string
@@ -415,6 +420,7 @@ func isFirstPage(in any) bool {
 }
 
 func TestScanEC2IpamPolicyAllocationRules_StoresDocumentsUnderPolicies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ipxSeedPolicies(t, st, ipxPolicy1, ipxPolicy2)
 	var calls parentCalls
@@ -455,6 +461,7 @@ func TestScanEC2IpamPolicyAllocationRules_StoresDocumentsUnderPolicies(t *testin
 }
 
 func TestScanEC2IpamPolicyAllocationRules_NoPolicies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanEC2IpamPolicyAllocationRules(context.Background(), ipxClient(nil),
 		newTestAccount(testAccountID), testRegion, st, testScanID, nil)
@@ -467,6 +474,7 @@ func TestScanEC2IpamPolicyAllocationRules_NoPolicies(t *testing.T) {
 // failure are skipped with one warning each, keeping the other policies'
 // rows; a denial warns once for every policy; anything else fails the phase.
 func TestScanEC2IpamPolicyAllocationRules_PerPolicyErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		failErr  error
@@ -517,6 +525,7 @@ func TestScanEC2IpamPolicyAllocationRules_PerPolicyErrors(t *testing.T) {
 }
 
 func TestScanIpamPolicies_ReturnsStoredLivePolicies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := ipxClient(map[string]func(any) (any, error){
 		"DescribeIpamPolicies": func(any) (any, error) {
@@ -571,6 +580,7 @@ func scanEC2TopLevel(t *testing.T, st *store.Store, handlers map[string]func(in 
 }
 
 func TestScanEC2_StoresIpamExtendedRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := scanEC2TopLevel(t, st, ipxTopLevelHandlers(&calls))
@@ -599,6 +609,7 @@ func TestScanEC2_StoresIpamExtendedRows(t *testing.T) {
 // either one leaves an older category's slow call uncancelled, and an older
 // category's failure does not skip them.
 func TestScanEC2_IpamExtendedPhasesAfterOlderCategories(t *testing.T) {
+	t.Parallel()
 	for _, failOp := range []string{
 		"DescribeByoipCidrs", "DescribeIpamByoasn", "GetIpamPolicyAllocationRules", "DescribeIpamInternetRegistryAssociations",
 	} {
@@ -652,6 +663,7 @@ func TestScanEC2_IpamExtendedPhasesAfterOlderCategories(t *testing.T) {
 // A transient error on either side of the join is demoted to one warning under
 // its op instead of buried in the other side's hard error.
 func TestScanEC2_TransientSideDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, transientOp, hardOp, warnOp string
 	}{
@@ -688,6 +700,7 @@ func TestScanEC2_TransientSideDoesNotMaskHardError(t *testing.T) {
 // dispatcher marks the region partial instead of complete; it is not demoted
 // to a warning, and the other phases keep their rows.
 func TestScanEC2_LoneThrottleMarksRegionPartial(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("RequestLimitExceeded", "Request limit exceeded.")
 	for _, c := range []struct{ op, warnOp string }{
 		{"DescribeVpcs", "ec2"},
@@ -717,6 +730,7 @@ func TestScanEC2_LoneThrottleMarksRegionPartial(t *testing.T) {
 // DescribeIpamByoasn and DescribeIpamInternetRegistryAssociations are called
 // only in a Region that is home to an IPAM this scan stored.
 func TestScanEC2_IpamHomeRegionPhasesOnlyInIpamHomeRegion(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		ipams    []ec2types.Ipam
@@ -772,6 +786,7 @@ func TestScanEC2_IpamHomeRegionPhasesOnlyInIpamHomeRegion(t *testing.T) {
 // errRepeatedNextToken instead of spinning; the rules both pages listed are
 // stored.
 func TestScanEC2IpamPolicyAllocationRules_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ipxSeedPolicies(t, st, ipxPolicy1)
 	calls := 0
@@ -801,6 +816,7 @@ func TestScanEC2IpamPolicyAllocationRules_RepeatedTokenFails(t *testing.T) {
 }
 
 func TestScanEC2IpamInternetRegistryAssociations_StoresLiveAssociationsAcrossPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, ec2IpamInternetRegistryAssocsOp)
 	total, inserted, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){
@@ -843,6 +859,7 @@ func TestScanEC2IpamInternetRegistryAssociations_StoresLiveAssociationsAcrossPag
 
 // A denial after a good page keeps that page's rows and warns once.
 func TestScanEC2IpamInternetRegistryAssociations_DeniedAfterPageKeepsRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, ec2IpamInternetRegistryAssocsOp)
 	total, _, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){
@@ -869,6 +886,7 @@ func TestScanEC2IpamInternetRegistryAssociations_DeniedAfterPageKeepsRows(t *tes
 
 // A repeated NextToken ends the loop instead of spinning.
 func TestScanEC2IpamInternetRegistryAssociations_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := 0
 	_, _, err := scanEC2IpamInternetRegistryAssociations(context.Background(), ipxClient(map[string]func(any) (any, error){

@@ -123,6 +123,7 @@ func scanEIDictionariesWith(st *store.Store, handler func(in any) (any, error)) 
 // Both pages are stored at page size 100; an element without an ARN and a
 // DELETED feed are skipped, and DELETING and ARCHIVED feeds are kept.
 func TestScanEIFeeds_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var pages eiPages
 	total, err := scanEIFeedsWith(st, pages.feeds(nil))
@@ -163,6 +164,7 @@ func TestScanEIFeeds_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanEIFeeds_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanEIFeedsWith(st, func(any) (any, error) { return &elementalinference.ListFeedsOutput{}, nil })
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeElementalInferenceFeed)) != 0 {
@@ -173,6 +175,7 @@ func TestScanEIFeeds_Empty(t *testing.T) {
 // A denial warns once and keeps the rows listed before it; any other error is
 // returned with those rows stored.
 func TestScanEIFeeds_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		firstPage bool
@@ -215,6 +218,7 @@ func TestScanEIFeeds_Errors(t *testing.T) {
 // DELETED dictionary are skipped, a DELETING one is kept, and Status is set
 // only when the summary carries one.
 func TestScanEIDictionaries_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var pages eiPages
 	total, err := scanEIDictionariesWith(st, pages.dictionaries(nil))
@@ -257,6 +261,7 @@ func TestScanEIDictionaries_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanEIDictionaries_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanEIDictionariesWith(st, func(any) (any, error) { return &elementalinference.ListDictionariesOutput{}, nil })
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeElementalInferenceDictionary)) != 0 {
@@ -267,6 +272,7 @@ func TestScanEIDictionaries_Empty(t *testing.T) {
 // On the first call, every shape an unrouted operation takes is a silent
 // feature gap and a denial warns; any other error is returned.
 func TestScanEIDictionaries_FirstPageError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -299,6 +305,7 @@ func TestScanEIDictionaries_FirstPageError(t *testing.T) {
 // every other error, the not-deployed shapes included, is returned with page
 // one's row stored.
 func TestScanEIDictionaries_PageTwoError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -340,6 +347,7 @@ func TestScanEIDictionaries_PageTwoError(t *testing.T) {
 // In either phase, a failed write of the rows listed before a list error
 // reports both errors.
 func TestScanEIPhases_WriteAndListErrorsBothReported(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		scan func(*store.Store, *eiPages) (int, error)
@@ -369,6 +377,7 @@ func TestScanEIPhases_WriteAndListErrorsBothReported(t *testing.T) {
 }
 
 func TestScanElementalInference_StoresFeedsAndDictionaries(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var feeds, dicts eiPages
@@ -406,6 +415,7 @@ func TestScanElementalInference_StoresFeedsAndDictionaries(t *testing.T) {
 // The dictionary phase runs after the feeds: its hard error reaches the
 // caller with the feeds and its own page-one row stored and counted.
 func TestScanElementalInference_DictionaryErrorAfterFeeds(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var feeds, dicts eiPages
@@ -430,6 +440,7 @@ func TestScanElementalInference_DictionaryErrorAfterFeeds(t *testing.T) {
 // A feed phase hard error stops the scan before the dictionaries and reaches
 // the caller with the feeds listed before it counted.
 func TestScanElementalInference_FeedErrorStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var feeds, dicts eiPages

@@ -376,6 +376,7 @@ func kendraRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource
 // Name, Status, verbatim element (an index its DescribeIndex body) and an
 // unset CreatedAt.
 func TestScanKendra_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls, h := kendraFixture()
@@ -448,6 +449,7 @@ func TestScanKendra_StoresTagsOfEveryType(t *testing.T) {
 // An aws-us-gov account scanned in us-gov-west-1 sends gov ARNs to the tag
 // op and stores their tags.
 func TestScanKendra_GovCloudARNsReachTagOp(t *testing.T) {
+	t.Parallel()
 	const govRegion = "us-gov-west-1"
 	const govPrefix = "arn:aws-us-gov:kendra:us-gov-west-1:123456789012:"
 	index := govPrefix + "index/" + kendraTestIdx1
@@ -492,6 +494,7 @@ func TestScanKendra_GovCloudARNsReachTagOp(t *testing.T) {
 // reports nothing. Indices whose listings are empty store only the indices,
 // each per-index listing made once per index.
 func TestScanKendra_EmptyListings(t *testing.T) {
+	t.Parallel()
 	t.Run("no index", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countWarnings(st)
@@ -543,6 +546,7 @@ func TestScanKendra_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanKendra_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, h := kendraFixture()
 	if _, _, err := kendraScan(context.Background(), t, st, h); err != nil {
@@ -564,6 +568,7 @@ func TestScanKendra_RescanInsertsNone(t *testing.T) {
 // not-found, so a ResourceUnavailableException is hard too and drops
 // nothing: an index answered so stays a parent, and every row is stored.
 func TestScanKendra_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct{ typ, arn string }{
 		{TypeKendraThesaurus, kendraTestThes},
 		{TypeKendraIndex, kendraIndexARN(kendraTestIdx2)},
@@ -623,6 +628,7 @@ func TestScanKendra_TagReadFailures(t *testing.T) {
 
 // Denied tag reads in several phases are one warning for the scan.
 func TestScanKendra_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, kendraTagsOp)
 	calls, h := kendraFixture()
@@ -650,6 +656,7 @@ func TestScanKendra_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanKendra_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, kendraTagsOp)
 	calls, h := kendraFixture()
@@ -670,6 +677,7 @@ func TestScanKendra_TagThrottleDemotedBesideHardError(t *testing.T) {
 // under kendra:DescribeIndex, a throttle after retries is a transient error,
 // any other code a hard one.
 func TestScanKendra_DescribeIndexFailures(t *testing.T) {
+	t.Parallel()
 	arn := kendraIndexARN(kendraTestIdx2)
 	for _, c := range []struct {
 		name      string
@@ -736,6 +744,7 @@ func TestScanKendra_DescribeIndexFailures(t *testing.T) {
 // A denied listing warns once under its own op and costs no other phase its
 // rows; a denied index listing leaves no index to read children from.
 func TestScanKendra_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	// Each per-index listing stores 2 rows a page, except the access control
 	// configurations and experiences, one per index; denied experiences also
 	// cost their 6 entities and personas.
@@ -769,6 +778,7 @@ func TestScanKendra_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanKendra_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeKendraDataSource)
@@ -795,6 +805,7 @@ func TestScanKendra_FailedWriteStopsWithoutWarning(t *testing.T) {
 // was read from it, and with one warning when a page was; any other error is
 // returned for that index only.
 func TestScanKendra_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	t.Run("index listing", func(t *testing.T) {
 		st := newTestStore(t)
 		_, h := kendraFixture()
@@ -866,6 +877,7 @@ func TestScanKendra_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // the other index's items kept. An experience skipped so has no entity or
 // persona listed.
 func TestScanKendra_IndexGoneFromListingIsSkipped(t *testing.T) {
+	t.Parallel()
 	typeOf := map[string]string{
 		"ListAccessControlConfigurations": TypeKendraAccessControlConfiguration,
 		"ListExperiences":                 TypeKendraExperience,
@@ -928,6 +940,7 @@ func TestScanKendra_IndexGoneFromListingIsSkipped(t *testing.T) {
 // A status listed empty is stored as an empty Status, not as none, for an
 // index and for a per-index item, as the base scan stored it.
 func TestScanKendra_EmptyStatusIsStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, h := kendraFixture()
 	h["ListIndices"] = func(any) (any, error) {
@@ -955,6 +968,7 @@ func TestScanKendra_EmptyStatusIsStored(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanKendra_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, typ, arn string
 		out          func(in any) any
@@ -986,6 +1000,7 @@ func TestScanKendra_RepeatedTokenKeepsPages(t *testing.T) {
 // Items listed without an id are not stored or read and are warned about
 // once per listing, under a key that is never empty.
 func TestScanKendra_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, key string
 		out     any
@@ -1015,6 +1030,7 @@ func TestScanKendra_UnstorableItemsWarn(t *testing.T) {
 
 // Once ctx ends no further phase starts, and the stop is reported once.
 func TestScanKendra_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls, h := kendraFixture()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1046,6 +1062,7 @@ func TestScanKendra_ContextEndStopsOnce(t *testing.T) {
 // unavailable, and no other call is made. An NXDOMAIN of a tag read after
 // rows were listed is a failure of this scan: the counts are kept.
 func TestScanKendra_Unreachable(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "kendra.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("endpoint absent", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1072,6 +1089,7 @@ func TestScanKendra_Unreachable(t *testing.T) {
 // An account Kendra is closed to is not entitled: nothing is stored or
 // warned about and no other call is made.
 func TestScanKendra_ClosedToAccountIsNotEntitled(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls, h := kendraFixture()
@@ -1087,6 +1105,7 @@ func TestScanKendra_ClosedToAccountIsNotEntitled(t *testing.T) {
 }
 
 func TestScanKendra_StoresEntitiesAndPersonas(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var entityCalls, personaCalls parentCalls
 	total, err := scanKendraTopLevel(t, st, kendraHandlers(newKendraCalls(), &entityCalls, &personaCalls))
@@ -1157,6 +1176,7 @@ func TestScanKendra_StoresEntitiesAndPersonas(t *testing.T) {
 }
 
 func TestScanKendra_ExperiencesWithoutEntitiesOrPersonas(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var entityCalls, personaCalls parentCalls
 	h := kendraHandlers(newKendraCalls(), &entityCalls, &personaCalls)
@@ -1190,6 +1210,7 @@ func TestScanKendra_ExperiencesWithoutEntitiesOrPersonas(t *testing.T) {
 // (childFanOut stores none of its rows) and is returned; the earlier phases'
 // rows and the other experience phase's rows stay.
 func TestScanKendra_FailedExperienceChild(t *testing.T) {
+	t.Parallel()
 	notReady := apiErr("ValidationException", "experience is not active")
 	for _, phase := range []struct {
 		op, sibling   string
@@ -1278,6 +1299,7 @@ func TestScanKendra_FailedExperienceChild(t *testing.T) {
 // A hard error of one index's listing still lets the other index and the
 // later phases run, and is returned with every phase's counts.
 func TestScanKendra_FailedIndexListingStillRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, h := kendraFixture()
 	thesauri := h["ListThesauri"]
@@ -1304,6 +1326,7 @@ func TestScanKendra_FailedIndexListingStillRunsLaterPhases(t *testing.T) {
 // A hard ListExperiences error does not cost the indices their access-control
 // rows: no phase's error stops another (runHostPhases).
 func TestScanKendra_ExperiencesErrorKeepsAccessControlConfigurations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, h := kendraFixture()
 	h["ListExperiences"] = func(any) (any, error) { return nil, kendraBadInput }
@@ -1325,6 +1348,7 @@ func TestScanKendra_ExperiencesErrorKeepsAccessControlConfigurations(t *testing.
 // so that either experience phase's hard error still reaches the dispatcher
 // as a hard error.
 func TestScanKendra_EarlierPhaseTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListExperienceEntities", "ListEntityPersonas"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)

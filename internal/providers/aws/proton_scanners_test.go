@@ -306,6 +306,7 @@ func protonWants(t *testing.T) []protonWant {
 // both RequestedBy values and stores the connection both return once; each
 // template's versions are listed by its name. No error or warning.
 func TestScanProton_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newProtonCalls(t)
@@ -371,6 +372,7 @@ func TestScanProton_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanProton_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newProtonCalls(t)
 	if _, _, err := protonScan(context.Background(), st, protonHandlers(t, calls)); err != nil {
@@ -392,6 +394,7 @@ func TestScanProton_RescanInsertsNone(t *testing.T) {
 // outcome holds for an account-wide listing's row, a template version's row
 // and an own-account connection's row.
 func TestScanProton_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct{ typ, arn string }{
 		{TypeProtonEnvironment, protonARN(protonKindOf(t, "ListEnvironments"), "tagged")},
 		{TypeProtonServiceTemplateVersion, protonVersionARN(t, "ListServiceTemplates", "bare", "1.0")},
@@ -459,6 +462,7 @@ func TestScanProton_TagReadFailures(t *testing.T) {
 // it; any other error keeps it and is returned. Own-account connections keep
 // the usual rules (TestScanProton_TagReadFailures).
 func TestScanProton_ForeignConnectionTagRead(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		err     error
@@ -508,6 +512,7 @@ func TestScanProton_ForeignConnectionTagRead(t *testing.T) {
 
 // An element whose status enum is empty stores no Status.
 func TestScanProton_EmptyStatusStoresNil(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := protonHandlers(t, newProtonCalls(t))
 	k := protonKindOf(t, "ListServices")
@@ -532,6 +537,7 @@ func TestScanProton_EmptyStatusStoresNil(t *testing.T) {
 // returned and MaxResults 100, and the row gets every page's tags. A
 // repeated token keeps the row without tags and is an error.
 func TestScanProton_TagReadPages(t *testing.T) {
+	t.Parallel()
 	arn := protonARN(protonKindOf(t, "ListComponents"), "tagged")
 	pages := func(second *string) func(any) (any, error) {
 		calls := newProtonCalls(t)
@@ -580,6 +586,7 @@ func TestScanProton_TagReadPages(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanProton_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, protonTagsOp)
 	calls := newProtonCalls(t)
@@ -598,6 +605,7 @@ func TestScanProton_TagThrottleDemotedBesideHardError(t *testing.T) {
 // type; every other listing still runs. A denied template listing leaves its
 // versions unlisted.
 func TestScanProton_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	ops := []struct {
 		op, typ string
 		lost    int
@@ -642,6 +650,7 @@ func TestScanProton_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // ResourceNotFoundException (the template was deleted since it was listed)
 // skips the template silently, and any other error is returned.
 func TestScanProton_VersionListingPerTemplate(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -694,6 +703,7 @@ func TestScanProton_VersionListingPerTemplate(t *testing.T) {
 // A template the tag read finds deleted is dropped and is not a parent: its
 // versions are not listed.
 func TestScanProton_TemplateGoneHasNoVersions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newProtonCalls(t)
 	k := protonKindOf(t, "ListEnvironmentTemplates")
@@ -715,6 +725,7 @@ func TestScanProton_TemplateGoneHasNoVersions(t *testing.T) {
 // however many sides were denied; any other error is returned, also beside
 // the other side's denial.
 func TestScanProton_ConnectionSides(t *testing.T) {
+	t.Parallel()
 	envSide := protontypes.EnvironmentAccountConnectionRequesterAccountTypeEnvironmentAccount
 	for _, c := range []struct {
 		name      string
@@ -776,6 +787,7 @@ func TestScanProton_ConnectionSides(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanProton_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeProtonEnvironmentAccountConnection)
@@ -805,6 +817,7 @@ func TestScanProton_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the listings after it.
 func TestScanProton_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := protonHandlers(t, newProtonCalls(t))
 	handlers["ListEnvironments"] = failOnCall(2, protonValidation, handlers["ListEnvironments"])
@@ -826,6 +839,7 @@ func TestScanProton_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanProton_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := protonHandlers(t, newProtonCalls(t))
 	k := protonKindOf(t, "ListDeployments")
@@ -855,6 +869,7 @@ func TestScanProton_RepeatedTokenKeepsPages(t *testing.T) {
 // An element without an ARN is warned about under its listing, not stored;
 // one without a name is stored, named by its ARN.
 func TestScanProton_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	all := countWarnings(st)
 	warns := bacWarnings(st, "proton:ListComponents")
@@ -885,6 +900,7 @@ func TestScanProton_UnstorableItemsWarn(t *testing.T) {
 // Rows of an account in another partition are sent to the tag op under the
 // ARNs their listings return.
 func TestScanProton_TagReadInAccountPartition(t *testing.T) {
+	t.Parallel()
 	acct := partitionAccount("aws-us-gov")
 	region := acct.Regions[0]
 	st := newTestStore(t)
@@ -914,6 +930,7 @@ func TestScanProton_TagReadInAccountPartition(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it too.
 func TestScanProton_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newProtonCalls(t)
 	handlers := protonHandlers(t, calls)
@@ -951,6 +968,7 @@ func TestScanProton_ContextEndStopsOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanProton_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "proton.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)

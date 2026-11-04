@@ -27,6 +27,7 @@ func fdtTwoVersions(h map[string]func(any) (any, error)) {
 // transient error and any other code a hard one. The detector's other
 // version and the other detector's versions are stored.
 func TestScanFDDetectorVersions_VersionReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -85,6 +86,7 @@ func TestScanFDDetectorVersions_VersionReadFailures(t *testing.T) {
 // is returned with the write's error instead, and no warning is sent, not
 // even for a denied version read.
 func TestScanFDDetectorVersions_ThrottledRead(t *testing.T) {
+	t.Parallel()
 	// fail makes version 1 of detector_t throttled and, when other is set,
 	// that of detector_b fail with other.
 	fail := func(h map[string]func(any) (any, error), other error) {
@@ -146,6 +148,7 @@ func TestScanFDDetectorVersions_ThrottledRead(t *testing.T) {
 // A version listed without an id, or read without an ARN, is not stored and
 // is warned about under DescribeDetector, once per reason.
 func TestScanFDDetectorVersions_UnstorableVersionsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, "frauddetector:DescribeDetector")
 	h := fdtHandlers(newFDTCalls())
@@ -178,6 +181,7 @@ func TestScanFDDetectorVersions_UnstorableVersionsWarn(t *testing.T) {
 // repeated token ends that detector's listing as an error, keeping the
 // versions of the pages read and the other detector's.
 func TestScanFDDetectorVersions_Pages(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name   string
 		repeat bool
@@ -229,6 +233,7 @@ func TestScanFDDetectorVersions_Pages(t *testing.T) {
 // it silently; any other error is returned, and the other parent's rows are
 // stored either way.
 func TestScanFD_PerParentListingFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, childType string
 		parentKey     func(in any) string
@@ -280,6 +285,7 @@ func TestScanFD_PerParentListingFailures(t *testing.T) {
 // DescribeModelVersions keys on the type too, are not read: that is warned
 // about under GetModels.
 func TestScanFDModels_NoTypeNotReadForVersions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, "frauddetector:GetModels")
 	calls := newFDTCalls()
@@ -306,6 +312,7 @@ func TestScanFDModels_NoTypeNotReadForVersions(t *testing.T) {
 // parents: each one's versions are read with its own type and stored under
 // it.
 func TestScanFDModelVersions_SameModelIDTwoTypes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	types := []fdtypes.ModelTypeEnum{fdtypes.ModelTypeEnumOnlineFraudInsights, fdtypes.ModelTypeEnumTransactionFraudInsights}
 	modelARN := func(typ fdtypes.ModelTypeEnum) string { return fdtARN("model/" + string(typ) + "/shared") }

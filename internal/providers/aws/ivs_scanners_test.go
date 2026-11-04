@@ -213,6 +213,7 @@ func assertIVSRow(t *testing.T, rows map[string]store.Resource, typ, arn, wantNa
 // element, nil when it has none. Ingest configurations carry no Tags and
 // store none.
 func TestScanIVSAll_StoresRowsWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := ivsScanAll(t, st, ivsHandlers(t, false))
 	if err != nil {
@@ -248,6 +249,7 @@ func TestScanIVSAll_StoresRowsWithTags(t *testing.T) {
 // TestScanIVSAll_EmptyARNWarnsOncePerOp pins that every listing warns once
 // for its elements with no Arn and stores the others.
 func TestScanIVSAll_EmptyARNWarnsOncePerOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := map[string]*int{ivsListStreamKeysOp: countOpWarnings(st, ivsListStreamKeysOp)}
 	for _, c := range ivsAccountWideTypes {
@@ -280,6 +282,7 @@ func TestScanIVSAll_EmptyARNWarnsOncePerOp(t *testing.T) {
 // returned; a repeated token ends the listing with errRepeatedNextToken; a
 // denial is warned about, not returned, and keeps the rows read before it.
 func TestScanIVSStages_ListOutcomes(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("ValidationException", "bad")
 	denied := apiErr("AccessDeniedException", "not authorized to perform: ivs:ListStages")
 	stagePage := func(next string, ids ...string) func() (*ivsrealtime.ListStagesOutput, error) {
@@ -355,6 +358,7 @@ func TestScanIVSStages_ListOutcomes(t *testing.T) {
 // deleted since it was listed (ResourceNotFoundException, modeled for
 // ListStreamKeys) is skipped silently.
 func TestScanIVSStreamKeys_ChannelOutcomes(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("ValidationException", "bad")
 	for _, c := range []struct {
 		name      string
@@ -404,6 +408,7 @@ func TestScanIVSStreamKeys_ChannelOutcomes(t *testing.T) {
 // stop the phases after it: its error is returned and the other phases' rows
 // are stored. A failed channel listing leaves no channels for stream keys.
 func TestScanIVSAll_PhaseErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("ValidationException", "bad")
 	for _, c := range []struct {
 		failOp    string
@@ -437,6 +442,7 @@ func TestScanIVSAll_PhaseErrorRunsLaterPhases(t *testing.T) {
 // TestScanIVSAll_StoreWriteStops pins that a failed write stops the scan: no
 // phase after it calls AWS.
 func TestScanIVSAll_StoreWriteStops(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		closeIn  string
 		notAfter []string
@@ -475,6 +481,7 @@ func TestScanIVSAll_StoreWriteStops(t *testing.T) {
 // a hard-failing one is demoted to one warning under the throttled phase's
 // own op, and the scan classified as an error, not as transient.
 func TestScanIVSAll_TransientBesideHardError(t *testing.T) {
+	t.Parallel()
 	phases := []struct{ sdkOp, label string }{{"ListStreamKeys", ivsListStreamKeysOp}}
 	for _, c := range ivsAccountWideTypes {
 		phases = append(phases, struct{ sdkOp, label string }{strings.TrimPrefix(c.op, "ivs:"), c.op})
@@ -506,6 +513,7 @@ func TestScanIVSAll_TransientBesideHardError(t *testing.T) {
 // listing gets one warning per op, scoped to the account and region, and no
 // error.
 func TestScanIVSAll_DeniedEveryOpWarnsWithRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var scopes []string
 	st.OnWarn = func(w store.ScanWarning) { scopes = append(scopes, w.Service+" "+w.Scope) }

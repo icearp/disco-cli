@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveWAFv2Relationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -36,6 +37,7 @@ func TestResolveWAFv2Relationships(t *testing.T) {
 }
 
 func TestResolveWAFv2Relationships_NoRules(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

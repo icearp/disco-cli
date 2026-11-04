@@ -11,6 +11,7 @@ import (
 // shape-bounded ARN allowlist despite living under the `credential` denylist
 // substring).
 func TestResolveAppFlowConnectorProfileToSecret(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -31,6 +32,7 @@ func TestResolveAppFlowConnectorProfileToSecret(t *testing.T) {
 // TestResolveAppFlowConnectorProfileRelationships_Empty verifies the resolver
 // runs cleanly with zero seeded profiles.
 func TestResolveAppFlowConnectorProfileRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveAppFlowConnectorProfileRelationships(acct, st); err != nil {

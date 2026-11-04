@@ -255,6 +255,7 @@ func erPolicyOf(a string) (entityresolution.GetPolicyOutput, bool) {
 // under {ARN}/policy, named "policy". Every listing sends MaxResults 25. No
 // error, no warning.
 func TestScanEntityResolution_StoresEveryRow(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls erCalls
@@ -367,6 +368,7 @@ func TestScanEntityResolution_StoresEveryRow(t *testing.T) {
 
 // A rescan stores the same rows and inserts none: the tags read are the same.
 func TestScanEntityResolution_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls erCalls
 	if _, _, err := erScan(context.Background(), st, erHandlers(&calls)); err != nil {
@@ -384,6 +386,7 @@ func TestScanEntityResolution_RescanInsertsNone(t *testing.T) {
 // A region with nothing listed stores nothing, and reads no tag, workflow
 // body or policy.
 func TestScanEntityResolution_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls erCalls
@@ -413,6 +416,7 @@ func TestScanEntityResolution_Empty(t *testing.T) {
 // scan's scope; a throttle keeps it and is transient; any other error (the
 // modeled ValidationException included) keeps it and is an error.
 func TestScanEntityResolution_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name         string
 		arn, typ     string
@@ -486,6 +490,7 @@ func TestScanEntityResolution_TagReadFailures(t *testing.T) {
 // with ListTagsForResource instead, and reads its policy: a denial warns once
 // under the Get's op, a throttle is transient, any other error is an error.
 func TestScanEntityResolution_GetMatchingWorkflowFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name     string
 		wf       string // the workflow whose Get fails
@@ -560,6 +565,7 @@ func TestScanEntityResolution_GetMatchingWorkflowFailures(t *testing.T) {
 // A workflow whose Get and tag read are both denied is kept as its list
 // element without tags, and each op warns once.
 func TestScanEntityResolution_GetAndTagReadDenied(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := erCalls{getErrs: map[string]error{"mw-a": erDenied}, tagErrs: map[string]error{erTestMWA: erDenied}}
@@ -585,6 +591,7 @@ func TestScanEntityResolution_GetAndTagReadDenied(t *testing.T) {
 // Denied tag reads in every phase send one warning for the whole scan; the
 // rows are kept.
 func TestScanEntityResolution_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := erCalls{tagErrs: map[string]error{erTestIMWB: erDenied, erTestNSA: erDenied, erTestSMB: erDenied}}
@@ -604,6 +611,7 @@ func TestScanEntityResolution_TagDenialsWarnOncePerScan(t *testing.T) {
 // warning, so the hard error decides the outcome; a throttled
 // GetMatchingWorkflow beside it is demoted under its own op.
 func TestScanEntityResolution_ThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tagWarns := countOpWarnings(st, erListTagsForResourceOp)
 	getWarns := countOpWarnings(st, erGetMatchingWorkflowOp)
@@ -622,6 +630,7 @@ func TestScanEntityResolution_ThrottleDemotedBesideHardError(t *testing.T) {
 // A listing whose second page fails keeps its first page, and the later
 // phases still run; a resource on the lost page has no policy read.
 func TestScanEntityResolution_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op   string
 		lost string
@@ -668,6 +677,7 @@ func TestScanEntityResolution_ListFailureKeepsPagesAndLaterPhases(t *testing.T) 
 // A denied listing warns once under its op and is not an error; its first
 // page, when it was read, is kept, and the later phases still run.
 func TestScanEntityResolution_ListDeniedWarnsAndContinues(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op   string
 		page int // the page denied
@@ -712,6 +722,7 @@ func TestScanEntityResolution_ListDeniedWarnsAndContinues(t *testing.T) {
 // from the denial warning, a throttle is transient and any other error is an
 // error. Every other resource's policy is stored.
 func TestScanEntityResolution_PolicyReadErrors(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name         string
 		errs         map[string]error
@@ -762,6 +773,7 @@ func TestScanEntityResolution_PolicyReadErrors(t *testing.T) {
 // A throttled policy read beside a hard failure of the same op is demoted to
 // one GetPolicy warning, so the hard error alone decides the outcome.
 func TestScanEntityResolution_PolicyThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, erGetPolicyOp)
 	calls := erCalls{policyErrs: map[string]error{erTestIMWA: erThrottle, erTestSMB: erBadRequest}}
@@ -782,6 +794,7 @@ func TestScanEntityResolution_PolicyThrottleDemotedBesideHardError(t *testing.T)
 // Every throttled policy read of a scan is one transient error, however many
 // resources it covers.
 func TestScanEntityResolution_PolicyThrottlesAreOneError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := erCalls{policyErrs: map[string]error{erTestIMWA: erThrottle, erTestMWA: erThrottle, erTestSMB: erThrottle}}
 	_, _, err := erScan(context.Background(), st, erHandlers(&calls))
@@ -798,6 +811,7 @@ func TestScanEntityResolution_PolicyThrottlesAreOneError(t *testing.T) {
 // lost (a denied tag, workflow or policy read among them), no later phase
 // runs, and the earlier phases' rows stay counted.
 func TestScanEntityResolution_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		typ                       string
 		tagErrs, getErrs, polErrs map[string]error
@@ -840,6 +854,7 @@ func TestScanEntityResolution_FailedWriteStopsScan(t *testing.T) {
 // Each listing writes a page before it reads the next: the first page's row
 // is stored when the second page is requested.
 func TestScanEntityResolution_WritesEachPageBeforeTheNext(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls erCalls
 	h := erHandlers(&calls)
@@ -872,6 +887,7 @@ func TestScanEntityResolution_WritesEachPageBeforeTheNext(t *testing.T) {
 // A repeated NextToken ends each listing as an error, keeping its pages; the
 // later phases still run.
 func TestScanEntityResolution_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListIdMappingWorkflows", "ListIdNamespaces", "ListMatchingWorkflows", "ListSchemaMappings"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -914,6 +930,7 @@ func TestScanEntityResolution_RepeatedTokenKeepsPages(t *testing.T) {
 // workflow with an ARN but no name has no GetMatchingWorkflow call: it is
 // stored as its list element, its tags read with ListTagsForResource.
 func TestScanEntityResolution_ElementWithoutIdentifier(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls erCalls
@@ -960,6 +977,7 @@ func TestScanEntityResolution_ElementWithoutIdentifier(t *testing.T) {
 // policy's NativeID is that ARN plus /policy. The matching workflow's Get is
 // denied here, so its ARN reaches the tag op too.
 func TestScanEntityResolution_PartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			arns := map[string]string{
@@ -1024,6 +1042,7 @@ func TestScanEntityResolution_PartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanEntityResolution_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls erCalls
 	h := erHandlers(&calls)
@@ -1063,6 +1082,7 @@ func TestScanEntityResolution_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanEntityResolution_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "entityresolution.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1119,6 +1139,7 @@ func TestScanEntityResolution_NXDOMAIN(t *testing.T) {
 // succeeded. Every GetPolicy call waits until fanoutMed have arrived, and the
 // last of those ends ctx, so the reads not started are exactly the rest.
 func TestScanEntityResolution_ContextEndDuringPolicyReads(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls erCalls
 	h := erHandlers(&calls)

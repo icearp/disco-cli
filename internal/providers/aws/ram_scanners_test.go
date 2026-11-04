@@ -36,6 +36,7 @@ func (s *stubRAM) GetResourceShareAssociations(_ context.Context, _ *ram.GetReso
 // 23505). Assert it's emitted once (region "global") from us-east-1 and
 // skipped elsewhere, while customer-managed permissions stay per-region.
 func TestScanRAMPermissions_ManagedCatalogueDedup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	// The managed entry skipped outside us-east-1 is not a row lost.
@@ -202,6 +203,7 @@ func scanRAMTopLevel(t *testing.T, st *store.Store, handlers map[string]func(any
 }
 
 func TestScanRAM_StoresShareAssociations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
@@ -277,6 +279,7 @@ func TestScanRAM_StoresShareAssociations(t *testing.T) {
 }
 
 func TestScanRAM_NoAssociations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := ramHandlers(&ramCallRecorder{})
 	h["GetResourceShareAssociations"] = func(any) (any, error) { return &ram.GetResourceShareAssociationsOutput{}, nil }
@@ -295,6 +298,7 @@ func TestScanRAM_NoAssociations(t *testing.T) {
 // A page that repeats the token it was asked with ends the listing instead of
 // looping on it.
 func TestScanRAM_AssociationsStopOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := ramHandlers(&ramCallRecorder{})
 	calls := 0
@@ -322,6 +326,7 @@ func TestScanRAM_AssociationsStopOnRepeatedToken(t *testing.T) {
 
 // A denied association listing warns once and costs the other phases no rows.
 func TestScanRAM_AssociationsDenied(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := ramHandlers(&ramCallRecorder{})
 	delete(h, "GetResourceShareAssociations")
@@ -344,6 +349,7 @@ func TestScanRAM_AssociationsDenied(t *testing.T) {
 // An error after the first page keeps, and links, the rows of the pages read
 // before it: a denial warns, any other error is returned.
 func TestScanRAM_AssociationsErrorOnSecondPageKeepsFirst(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		failErr  error
@@ -389,6 +395,7 @@ func TestScanRAM_AssociationsErrorOnSecondPageKeepsFirst(t *testing.T) {
 // Every phase runs whatever another returns: a hard error anywhere is
 // returned, and the other phases' rows are stored.
 func TestScanRAM_PhaseErrorPropagates(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op        string
 		wantTotal int
@@ -433,6 +440,7 @@ func TestScanRAM_PhaseErrorPropagates(t *testing.T) {
 // A phase's transient error is demoted to a warning under its op instead of
 // buried in another phase's hard error.
 func TestScanRAM_TransientPhaseDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	cases := []struct {
 		name, transientOp, hardOp, warnOp string
@@ -539,6 +547,7 @@ func ramTwoPageListHandlers(rec *ramListInputs, page2Err error) map[string]func(
 // every page with the page cap and every owned share, and warn once per op
 // for the elements without an ARN.
 func TestScanRAM_SharesAndPermissionsStoreTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	shareWarns := countOpWarnings(st, ramResourceSharesOp)
 	permWarns := countOpWarnings(st, ramPermissionsOp)
@@ -616,6 +625,7 @@ func TestScanRAM_SharesAndPermissionsStoreTags(t *testing.T) {
 // A failed later page keeps the rows of the pages read before it: a denial
 // warns once per op, any other error is returned.
 func TestScanRAM_SharesAndPermissionsKeepRowsPastFailedPage(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		page2Err  error
@@ -652,6 +662,7 @@ func TestScanRAM_SharesAndPermissionsKeepRowsPastFailedPage(t *testing.T) {
 // A page that repeats its NextToken ends the listing as an error, keeping the
 // rows read.
 func TestScanRAM_SharesAndPermissionsStopOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := ramTwoPageListHandlers(&ramListInputs{}, nil)
 	shares, perms := h["GetResourceShares"], h["ListPermissions"]
@@ -682,6 +693,7 @@ func TestScanRAM_SharesAndPermissionsStopOnRepeatedToken(t *testing.T) {
 // A store write failure stops the later phases: every later write would fail
 // too.
 func TestScanRAM_StoreWriteStopsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, failing := range []string{"GetResourceShares", "ListPermissions"} {
 		t.Run(failing, func(t *testing.T) {
 			st, closeStore := openClosingStore(t)

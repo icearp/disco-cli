@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveGlueDatabaseTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -31,6 +32,7 @@ func TestResolveGlueDatabaseTargets(t *testing.T) {
 }
 
 func TestResolveGlueIntegrationRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -59,6 +61,7 @@ func TestResolveGlueIntegrationRefs(t *testing.T) {
 }
 
 func TestResolveGlueCatalogTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

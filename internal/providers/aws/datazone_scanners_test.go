@@ -58,6 +58,7 @@ func dzOnePage(items ...dztypes.DomainSummary) []func() (any, error) {
 // GetDomain returned (the ListDomains element has none), and that an untagged
 // domain stores none.
 func TestScanDataZoneDomains_ReadsTags(t *testing.T) {
+	t.Parallel()
 	client := dzDomainsClient(t, dzOnePage(dzDomainItem("dom-1"), dzDomainItem("dom-2")), func(id string) (any, error) {
 		out := &datazone.GetDomainOutput{Id: &id, RootDomainUnitId: ptrStr("root-" + id)}
 		if id == "dom-1" {
@@ -91,6 +92,7 @@ func TestScanDataZoneDomains_ReadsTags(t *testing.T) {
 // warning; any other error, a transient one included, keeps them and is
 // returned; ResourceNotFoundException skips them silently.
 func TestScanDataZoneDomains_GetDomainFails(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -155,6 +157,7 @@ func TestScanDataZoneDomains_GetDomainFails(t *testing.T) {
 // A denied GetDomain warns that the domain was stored as its list element
 // only once it was: a failed write returns the store error and no warning.
 func TestScanDataZoneDomains_KeptDomainWarnsOnlyOnceStored(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	warns := countOpWarnings(st, dzGetDomainOp)
 	client := dzDomainsClient(t, dzOnePage(dzDomainItem("dom-1")), func(string) (any, error) {
@@ -176,6 +179,7 @@ func TestScanDataZoneDomains_KeptDomainWarnsOnlyOnceStored(t *testing.T) {
 // returns nil, any other error is returned. A page repeating the NextToken it
 // was sent keeps its domains and returns errRepeatedNextToken.
 func TestScanDataZoneDomains_ListPageFails(t *testing.T) {
+	t.Parallel()
 	denied := func() (any, error) {
 		return nil, apiErr("AccessDeniedException", "not authorized to perform: datazone:ListDomains")
 	}
@@ -234,6 +238,7 @@ func TestScanDataZoneDomains_ListPageFails(t *testing.T) {
 // or no id is not stored and is reported once, beside a keyed domain stored
 // normally.
 func TestScanDataZoneDomains_EmptyKeyWarns(t *testing.T) {
+	t.Parallel()
 	noID := dzDomainItem("no-id")
 	noID.Id = nil
 	noARN := dzDomainItem("no-arn")
@@ -274,6 +279,7 @@ func dzTopLevelHandlers() map[string]func(in any) (any, error) {
 // child phase is returned without stopping the phases after it, and that a
 // phase failing on one domain keeps the rows it read for another.
 func TestScanDataZone_ChildPhaseErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	handlers := dzTopLevelHandlers()
 	handlers["ListDomains"] = func(any) (any, error) {
 		return &datazone.ListDomainsOutput{Items: []dztypes.DomainSummary{dzDomainItem("dom-1"), dzDomainItem("dom-2")}}, nil
@@ -313,6 +319,7 @@ func TestScanDataZone_ChildPhaseErrorRunsLaterPhases(t *testing.T) {
 
 // A child phase whose store write fails stops the phases after it.
 func TestScanDataZone_StoreWriteStopsPhases(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	handlers := dzTopLevelHandlers()
 	notebooks := false
@@ -339,6 +346,7 @@ func TestScanDataZone_StoreWriteStopsPhases(t *testing.T) {
 // on one domain is returned without skipping the child phases: both stored
 // domains' projects are listed and counted.
 func TestScanDataZone_DomainErrorStillListsChildren(t *testing.T) {
+	t.Parallel()
 	handlers := dzTopLevelHandlers()
 	handlers["ListDomains"] = func(any) (any, error) {
 		return &datazone.ListDomainsOutput{Items: []dztypes.DomainSummary{dzDomainItem("dom-1"), dzDomainItem("dom-2")}}, nil
@@ -375,6 +383,7 @@ func TestScanDataZone_DomainErrorStillListsChildren(t *testing.T) {
 // when the write fails, ErrStoreWrite is returned and the id-less item does
 // not warn.
 func TestScanDataZoneChildPhases_ErrorKeepsRowsRead(t *testing.T) {
+	t.Parallel()
 	var bad error
 	// fail reports whether the call is for dom-2 or dom-3, the failing domains.
 	fail := func(domain *string) bool { return sv(domain) == "dom-2" || sv(domain) == "dom-3" }
@@ -558,6 +567,7 @@ func appendZeroItem(out any) {
 // TestScanDataZone_ListDomainsFailsReturnsError pins that a failed first
 // ListDomains page, which stores no domain, is still returned.
 func TestScanDataZone_ListDomainsFailsReturnsError(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("ValidationException", "bad request")
 	handlers := map[string]func(in any) (any, error){
 		"ListDomains": func(any) (any, error) { return nil, bad },
@@ -575,6 +585,7 @@ func TestScanDataZone_ListDomainsFailsReturnsError(t *testing.T) {
 // transient GetDomain beside a hard child-phase error is demoted to a warning
 // under the GetDomain op, not under ListDomains.
 func TestScanDataZone_TransientGetDomainFiledUnderGetDomain(t *testing.T) {
+	t.Parallel()
 	handlers := dzTopLevelHandlers()
 	handlers["GetDomain"] = func(any) (any, error) { return nil, io.EOF }
 	projectsErr := apiErr("ConflictException", "projects")

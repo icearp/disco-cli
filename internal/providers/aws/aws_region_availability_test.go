@@ -12,6 +12,7 @@ import (
 	"github.com/icearp/disco-cli/regions"
 )
 
+//nolint:paralleltest // adds a key to the package-level regionAvailabilityCodeOverrides
 func TestRegionAvailabilityCode(t *testing.T) {
 	// Derived default = name minus "aws:".
 	if got := regionAvailabilityCode("aws:dynamodb"); got != "dynamodb" {
@@ -44,6 +45,7 @@ const (
 // covering a brand-new region. Nothing else in the system would notice — the
 // pair reports zero resources, exactly like a genuinely empty region.
 func TestServiceAvailableInRegion(t *testing.T) {
+	t.Parallel()
 	const code = "cassandra"
 	listed := map[string]map[string]bool{code: {sdkListedRegion: true}}
 	omitted := map[string]map[string]bool{code: {"eu-west-1": true}}
@@ -118,6 +120,7 @@ func (s *stubSSMAvailability) GetParametersByPath(_ context.Context, in *ssm.Get
 }
 
 func TestLoadServiceRegionAvailability(t *testing.T) {
+	t.Parallel()
 	stub := &stubSSMAvailability{
 		regionsByCode: map[string][]string{
 			// 12 regions forces a second page (proves pagination).
@@ -150,6 +153,7 @@ func TestLoadServiceRegionAvailability(t *testing.T) {
 }
 
 func TestLoadServiceRegionAvailability_NonDenyErrorStaysQuiet(t *testing.T) {
+	t.Parallel()
 	stub := &stubSSMAvailability{
 		regionsByCode: map[string][]string{"dax": {"us-east-1"}},
 		errByCode:     map[string]error{"throttled": errors.New("rate exceeded")},
@@ -164,6 +168,7 @@ func TestLoadServiceRegionAvailability_NonDenyErrorStaysQuiet(t *testing.T) {
 }
 
 func TestDistinctRegionAvailabilityCodes(t *testing.T) {
+	t.Parallel()
 	svcs := []serviceEntry{
 		{name: "aws:dynamodb"},
 		{name: "aws:dynamodb"},          // dup
@@ -190,6 +195,7 @@ func TestDistinctRegionAvailabilityCodes(t *testing.T) {
 // warns: a correct code with an SDK opinion would never consult the catalog, and
 // an SDK-silent service with the derived code hits a path that does not exist.
 func TestBedrockAgentCoreOverride(t *testing.T) {
+	t.Parallel()
 	const (
 		service = "aws:bedrockagentcore"
 		code    = "bedrock-agentcore"
@@ -222,6 +228,7 @@ func TestBedrockAgentCoreOverride(t *testing.T) {
 // account's partition, never in commercial us-east-1 for another partition's
 // account.
 func TestBuildRegionAvailability_ReadsSSMOnceRegion(t *testing.T) {
+	t.Parallel()
 	for partition, kept := range map[string][]string{
 		"aws":        {"us-east-1", "eu-west-1"},
 		"aws-us-gov": {"us-gov-east-1", "us-gov-west-1"},
@@ -249,6 +256,7 @@ func TestBuildRegionAvailability_ReadsSSMOnceRegion(t *testing.T) {
 // scoping is off and says so with the region-scope warning, as a denied read
 // does; no call is made.
 func TestBuildRegionAvailability_NoSSMRegionWarns(t *testing.T) {
+	t.Parallel()
 	var regions parentCalls
 	st := newTestStore(t)
 	warns := countOpWarnings(st, regionScopeWarningService)

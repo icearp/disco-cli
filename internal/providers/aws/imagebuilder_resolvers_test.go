@@ -20,6 +20,7 @@ func ibRelsFrom(t *testing.T, st *store.Store, id string) []store.Relationship {
 }
 
 func TestResolveImageBuilderPipelineRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	irARN := fmt.Sprintf("arn:aws:imagebuilder:%s:%s:image-recipe/myrec/1.0.0", testRegion, acct.ID)
@@ -50,6 +51,7 @@ func TestResolveImageBuilderPipelineRefs(t *testing.T) {
 }
 
 func TestResolveImageBuilderInfraInstanceProfile(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ipARN := fmt.Sprintf("arn:aws:iam::%s:instance-profile/MyProf", acct.ID)
@@ -64,6 +66,7 @@ func TestResolveImageBuilderInfraInstanceProfile(t *testing.T) {
 }
 
 func TestResolveImageBuilderLifecycleRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/Lifecycle", acct.ID)
@@ -82,6 +85,7 @@ func TestResolveImageBuilderLifecycleRole(t *testing.T) {
 // *json.UnmarshalTypeError and costs the other rows none of their edges, and
 // that a row with no references gets none.
 func TestImageBuilderResolvers_DecodeErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/R", testAccountID)
 	for _, c := range []struct {
 		name, srcType, srcKind, field string

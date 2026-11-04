@@ -58,6 +58,7 @@ func assertPPDecodeErr(t *testing.T, err error) {
 // app-2 is scanned in testRegion, so the channel naming it from another region
 // gets no edge.
 func TestResolvePinpointChannelApps(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appID := upsertTestResource(t, st, "aws", acct.ID, TypePinpointApp, ppAppARN("app-1"), testRegion, "{}")
@@ -79,6 +80,7 @@ func TestResolvePinpointChannelApps(t *testing.T) {
 // A row whose attributes do not decode is returned as an error after the
 // other rows are linked.
 func TestResolvePinpointChannelApps_DecodeErrorReturnedAfterOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appID := upsertTestResource(t, st, "aws", acct.ID, TypePinpointApp, ppAppARN("app-1"), testRegion, "{}")
@@ -91,6 +93,7 @@ func TestResolvePinpointChannelApps_DecodeErrorReturnedAfterOthers(t *testing.T)
 }
 
 func TestResolvePinpointSegments(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appID := upsertTestResource(t, st, "aws", acct.ID, TypePinpointApp, ppAppARN("app-1"), testRegion, "{}")
@@ -105,6 +108,7 @@ func TestResolvePinpointSegments(t *testing.T) {
 }
 
 func TestResolvePinpointSegments_DecodeErrorReturnedAfterOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appID := upsertTestResource(t, st, "aws", acct.ID, TypePinpointApp, ppAppARN("app-1"), testRegion, "{}")
@@ -119,6 +123,7 @@ func TestResolvePinpointSegments_DecodeErrorReturnedAfterOthers(t *testing.T) {
 // A campaign links to its app, its segment and the templates of its own
 // region; a same-named template in another region is not linked.
 func TestResolvePinpointCampaigns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appID := upsertTestResource(t, st, "aws", acct.ID, TypePinpointApp, ppAppARN("app-1"), testRegion, "{}")
@@ -148,6 +153,7 @@ func TestResolvePinpointCampaigns(t *testing.T) {
 }
 
 func TestResolvePinpointCampaigns_DecodeErrorReturnedAfterOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appID := upsertTestResource(t, st, "aws", acct.ID, TypePinpointApp, ppAppARN("app-1"), testRegion, "{}")
@@ -162,6 +168,7 @@ func TestResolvePinpointCampaigns_DecodeErrorReturnedAfterOthers(t *testing.T) {
 // delivery stream it delivers to, and to its role; an unscanned destination
 // gets no edge.
 func TestResolvePinpointEventStreams(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appID := upsertTestResource(t, st, "aws", acct.ID, TypePinpointApp, ppAppARN("app-1"), testRegion, "{}")
@@ -192,6 +199,7 @@ func TestResolvePinpointEventStreams(t *testing.T) {
 }
 
 func TestResolvePinpointEventStreams_DecodeErrorReturnedAfterOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appID := upsertTestResource(t, st, "aws", acct.ID, TypePinpointApp, ppAppARN("app-1"), testRegion, "{}")

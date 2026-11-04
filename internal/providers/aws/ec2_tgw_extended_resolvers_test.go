@@ -54,6 +54,7 @@ func tgxAttachedTo(t *testing.T, st *store.Store, from string) map[string]bool {
 }
 
 func TestResolveTGWPrefixListReference_LinksPrefixListAndAttachment(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	pl1, att := tgxSeedRefTargets(t, st)
 	ref := upsertTestResource(t, st, "aws", testAccountID, TypeEC2TransitGatewayPrefixListReference,
@@ -70,6 +71,7 @@ func TestResolveTGWPrefixListReference_LinksPrefixListAndAttachment(t *testing.T
 // A prefix list scanned only in another Region, and an attachment not scanned
 // at all, get no edge.
 func TestResolveTGWPrefixListReference_UnscannedTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tgxSeedRefTargets(t, st)
 	ref := upsertTestResource(t, st, "aws", testAccountID, TypeEC2TransitGatewayPrefixListReference,
@@ -83,6 +85,7 @@ func TestResolveTGWPrefixListReference_UnscannedTargets(t *testing.T) {
 }
 
 func TestResolveTGWPrefixListReference_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tgxSeedRefTargets(t, st)
 	ref := upsertTestResource(t, st, "aws", testAccountID, TypeEC2TransitGatewayPrefixListReference,
@@ -98,6 +101,7 @@ func TestResolveTGWPrefixListReference_NoAttrs(t *testing.T) {
 // A row whose attributes do not decode is returned as an error and costs the
 // row listed after it none of its edges.
 func TestResolveTGWPrefixListReference_DecodeErrorKeepsLaterRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	pl1, att := tgxSeedRefTargets(t, st)
 	upsertTestResourceNamed(t, st, TypeEC2TransitGatewayPrefixListReference, tgxRefID(tgxRT2, tgxPL1), testRegion, `{"PrefixListId":7}`, "a-bad")
@@ -136,6 +140,7 @@ const tgxOtherRegion = "eu-west-1"
 var tgxRTEUARN = ec2ARN(tgxOtherRegion, testAccountID, "transit-gateway-route-table", tgxRT2)
 
 func TestResolveTGWPolicyTableEntry_Edges(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, region, attrs string
 		// want is the NativeID of the one route table linked, "" for none.
@@ -171,6 +176,7 @@ func TestResolveTGWPolicyTableEntry_Edges(t *testing.T) {
 // A row whose attributes do not decode is returned as an error and costs the
 // row listed after it no edge.
 func TestResolveTGWPolicyTableEntry_DecodeErrorKeepsLaterRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	rt1 := tgxSeedEntryTargets(t, st)
 	upsertTestResourceNamed(t, st, TypeEC2TransitGatewayPolicyTableEntry, tgxEntryID(tgxPT1, "50"), testRegion, `{"TargetRouteTableId":7}`, "a-bad")

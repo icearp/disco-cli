@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveSignerProfilePermissionToProfile(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pARN := fmt.Sprintf("arn:aws:signer:%s:%s:/signing-profiles/myprofile", testRegion, acct.ID)

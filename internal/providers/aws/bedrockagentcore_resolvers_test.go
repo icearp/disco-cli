@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveBACGatewayTargetParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gwARN := fmt.Sprintf("arn:aws:bedrock-agentcore:%s:%s:gateway/g1", testRegion, acct.ID)
@@ -22,6 +23,7 @@ func TestResolveBACGatewayTargetParent(t *testing.T) {
 }
 
 func TestResolveBACRuntimeEndpointParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rtARN := fmt.Sprintf("arn:aws:bedrock-agentcore:%s:%s:runtime/rt1", testRegion, acct.ID)
@@ -37,6 +39,7 @@ func TestResolveBACRuntimeEndpointParent(t *testing.T) {
 }
 
 func TestResolveBACPolicyEngine(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	peARN := fmt.Sprintf("arn:aws:bedrock-agentcore:%s:%s:policy-engine/pe1", testRegion, acct.ID)

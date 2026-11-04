@@ -40,6 +40,7 @@ func gluePolicyHandler(any) (any, error) {
 }
 
 func TestScanGlueResourcePolicy_StoresCatalogPolicy(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var asked *string
 	client := glueStubClient(map[string]func(any) (any, error){"GetResourcePolicy": func(in any) (any, error) {
@@ -71,6 +72,7 @@ func TestScanGlueResourcePolicy_StoresCatalogPolicy(t *testing.T) {
 }
 
 func TestScanGlueResourcePolicy_Errors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		err      error
@@ -114,6 +116,7 @@ func glueAssetTypesHandler(in any) (any, error) {
 }
 
 func TestScanGlueAssetTypes_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := glueStubClient(map[string]func(any) (any, error){"ListAssetTypes": glueAssetTypesHandler})
 	total, _, err := scanGlueAssetTypes(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -145,6 +148,7 @@ func glueGlossariesHandler(in any) (any, error) {
 }
 
 func TestScanGlueGlossaries_StoresEveryPageAndReturnsParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := glueStubClient(map[string]func(any) (any, error){"ListGlossaries": glueGlossariesHandler})
 	parents, total, _, err := scanGlueGlossaries(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -172,6 +176,7 @@ func TestScanGlueGlossaries_StoresEveryPageAndReturnsParents(t *testing.T) {
 // TestGlueMetadataListPhases_Errors drives the two parentless list phases
 // through an empty result, a denial and an unmodelled error.
 func TestGlueMetadataListPhases_Errors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op    string
 		typ   string
@@ -252,6 +257,7 @@ func seedGlueGlossaries(t *testing.T, st *store.Store) []childParent {
 }
 
 func TestScanGlueGlossaryTerms_ListsEveryGlossaryUnderItsParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	parents := seedGlueGlossaries(t, st)
 	calls := &parentCalls{}
@@ -283,6 +289,7 @@ func TestScanGlueGlossaryTerms_ListsEveryGlossaryUnderItsParent(t *testing.T) {
 }
 
 func TestScanGlueGlossaryTerms_DeniedGlossaryWarnsOnceAndKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	parents := seedGlueGlossaries(t, st)
 	warns := countOpWarnings(st, "glue:ListGlossaryTerms")
@@ -301,6 +308,7 @@ func TestScanGlueGlossaryTerms_DeniedGlossaryWarnsOnceAndKeepsSiblings(t *testin
 }
 
 func TestScanGlueGlossaryTerms_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	parents := seedGlueGlossaries(t, st)
 	client := glueStubClient(map[string]func(any) (any, error){"ListGlossaryTerms": glueTermsHandler(&parentCalls{}, "g2", glueBadInput)})
@@ -328,6 +336,7 @@ func glueServiceHandlers() map[string]func(any) (any, error) {
 }
 
 func TestScanGlue_NewPhasesStoreRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(glueServiceHandlers(), glueDenied)
@@ -350,6 +359,7 @@ func TestScanGlue_NewPhasesStoreRows(t *testing.T) {
 // A failing new phase must not cost the rows of the phases that ran before it,
 // and its error must reach the dispatcher.
 func TestScanGlue_NewPhaseErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	for _, failing := range []string{"GetResourcePolicy", "ListAssetTypes", "ListGlossaries", "ListGlossaryTerms"} {
 		t.Run(failing, func(t *testing.T) {
 			st := newTestStore(t)
@@ -370,6 +380,7 @@ func TestScanGlue_NewPhaseErrorAfterExistingPhases(t *testing.T) {
 // With no databases listed, the database-independent phases (a pre-existing
 // one and the metadata phase) must still run.
 func TestScanGlue_NoDatabasesStillRunsIndependentPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := glueServiceHandlers()
 	h["GetDatabases"] = func(any) (any, error) { return &glue.GetDatabasesOutput{}, nil }

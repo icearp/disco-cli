@@ -258,6 +258,7 @@ func assertCBRowCounts(t *testing.T, st *store.Store, want int, overrides map[st
 }
 
 func TestScanChatbot_StoresEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	// U2's configuration is a stored row that this scan's listing did not
 	// return, so U2 must not be linked under it.
@@ -362,6 +363,7 @@ func TestScanChatbot_StoresEveryType(t *testing.T) {
 }
 
 func TestScanChatbot_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := map[string]func(any) (any, error){
 		"ListCustomActions": func(any) (any, error) { return &chatbot.ListCustomActionsOutput{}, nil },
@@ -388,6 +390,7 @@ func TestScanChatbot_EmptyListings(t *testing.T) {
 
 // A denied op warns once and costs no other phase its rows.
 func TestScanChatbot_OpDenied(t *testing.T) {
+	t.Parallel()
 	for _, o := range cbOps {
 		t.Run(o.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -411,6 +414,7 @@ func TestScanChatbot_OpDenied(t *testing.T) {
 // ListCustomActions models UnauthorizedException for a denial: it warns once,
 // keeps the pages read before it and fails no phase.
 func TestScanChatbotCustomActions_UnauthorizedIsDenial(t *testing.T) {
+	t.Parallel()
 	unauthorized := apiErr("UnauthorizedException", "not authorized")
 	for _, tc := range []struct {
 		name      string
@@ -448,6 +452,7 @@ func TestScanChatbotCustomActions_UnauthorizedIsDenial(t *testing.T) {
 // An UnauthorizedException denial is not warned about when the write of the
 // page read before it failed.
 func TestScanChatbotCustomActions_UnauthorizedNotWarnedAfterFailedWrite(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeChatbotCustomAction)
 	h := cbHandlers()
@@ -463,6 +468,7 @@ func TestScanChatbotCustomActions_UnauthorizedNotWarnedAfterFailedWrite(t *testi
 
 // A denial on a later page warns and keeps the rows of the page before it.
 func TestScanChatbot_DeniedOnSecondPageKeepsFirst(t *testing.T) {
+	t.Parallel()
 	for _, o := range cbOps {
 		t.Run(o.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -490,6 +496,7 @@ func TestScanChatbot_DeniedOnSecondPageKeepsFirst(t *testing.T) {
 // Every phase runs whatever another returns: a hard error anywhere is
 // returned, and the other phases' rows are stored.
 func TestScanChatbot_PhaseErrorPropagates(t *testing.T) {
+	t.Parallel()
 	for _, o := range cbOps {
 		t.Run(o.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -510,6 +517,7 @@ func TestScanChatbot_PhaseErrorPropagates(t *testing.T) {
 // A failed channel phase stores its identities unlinked: no configuration
 // of it was stored to link them under.
 func TestScanChatbot_FailedChannelPhaseLeavesIdentitiesUnlinked(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ op, childNative string }{
 		{"DescribeSlackChannelConfigurations", cbSlackARN + "/user-identity/T01/U1"},
 		{"ListMicrosoftTeamsChannelConfigurations", cbTeamsARN + "/user-identity/" + cbTeamsUser1},
@@ -532,6 +540,7 @@ func TestScanChatbot_FailedChannelPhaseLeavesIdentitiesUnlinked(t *testing.T) {
 // A hard error after a page was read is returned, and the rows of the page
 // read before it are stored (and identities linked).
 func TestScanChatbot_ErrorOnSecondPageKeepsFirst(t *testing.T) {
+	t.Parallel()
 	for _, o := range cbOps {
 		t.Run(o.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -562,6 +571,7 @@ func TestScanChatbot_ErrorOnSecondPageKeepsFirst(t *testing.T) {
 // A listing whose service repeats the token it was sent ends with
 // errRepeatedNextToken, keeping both pages' rows.
 func TestScanChatbot_RepeatedTokenReturned(t *testing.T) {
+	t.Parallel()
 	for _, o := range cbOps {
 		t.Run(o.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -613,6 +623,7 @@ func setNextToken(out any, token string) {
 // A transient error on a later page of a phase is returned after the rows read
 // before it are stored, never only warned about.
 func TestScanChatbot_TransientAloneReturned(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	for _, o := range cbOps {
 		t.Run(o.op, func(t *testing.T) {
@@ -636,6 +647,7 @@ func TestScanChatbot_TransientAloneReturned(t *testing.T) {
 // A failed write stops the scan: no later phase runs, and no warning claims
 // rows the write lost.
 func TestScanChatbot_StoreWriteStops(t *testing.T) {
+	t.Parallel()
 	order := make([]string, len(cbOps))
 	for i, o := range cbOps {
 		order[i] = o.op
@@ -671,6 +683,7 @@ func TestScanChatbot_StoreWriteStops(t *testing.T) {
 // A ctx that ends mid-listing stops it: the stop is returned and the page read
 // before it is stored.
 func TestScanChatbot_ContextStopReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -703,6 +716,7 @@ func TestScanChatbot_ContextStopReturned(t *testing.T) {
 // pages read before it stays a store write failure, never a warning: the scan
 // must not report success after losing those rows.
 func TestScanChatbot_StoreWriteBesideTransientStaysHardError(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
 	if err != nil {
@@ -734,6 +748,7 @@ func TestScanChatbot_StoreWriteBesideTransientStaysHardError(t *testing.T) {
 // A phase's transient error is demoted to a warning under its op instead of
 // buried in another phase's hard error.
 func TestScanChatbot_TransientPhaseDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	for _, o := range cbOps {
 		hardOp := "ListCustomActions"
@@ -765,6 +780,7 @@ const cbWebhookURL = "https://hooks.chime.aws/incomingwebhooks/abc?token=SECRETT
 // its own key and pasted into the description, goes through the real SDK
 // deserializer, the scanner and the store; the URL must appear in no column.
 func TestScanChatbotChimeWebhooks_WebhookURLNeverStored(t *testing.T) {
+	t.Parallel()
 	body, err := json.Marshal(map[string]any{
 		"WebhookConfigurations": []map[string]any{{
 			"ChatConfigurationArn": cbChimeARN1,
@@ -813,6 +829,7 @@ func TestScanChatbotChimeWebhooks_WebhookURLNeverStored(t *testing.T) {
 // If a model update adds WebhookUrl to ChimeWebhookConfiguration, the
 // descriptor rule keeps it out of the store.
 func TestUpsertChimeWebhookConfiguration_WebhookURLRedacted(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	future := struct {
 		chatbottypes.ChimeWebhookConfiguration

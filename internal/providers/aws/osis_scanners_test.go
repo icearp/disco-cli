@@ -109,6 +109,7 @@ func scanOSISCtx(ctx context.Context, t *testing.T, st *store.Store, handlers ma
 }
 
 func TestScanOSIS_StoresEndpointConnections(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	rec := &osisRecorder{}
 	total, err := scanOSISTopLevel(t, st, osisHandlers(rec))
@@ -145,6 +146,7 @@ func TestScanOSIS_StoresEndpointConnections(t *testing.T) {
 // A connection to a pipeline ListPipelines did not return is stored unlinked,
 // with no pair recorded for the store to warn about.
 func TestScanOSIS_ConnectionToUnlistedPipelineUnlinked(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
@@ -164,6 +166,7 @@ func TestScanOSIS_ConnectionToUnlistedPipelineUnlinked(t *testing.T) {
 }
 
 func TestScanOSIS_EmptyConnections(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := osisHandlers(&osisRecorder{})
 	h["ListPipelineEndpointConnections"] = func(any) (any, error) { return &osis.ListPipelineEndpointConnectionsOutput{}, nil }
@@ -182,6 +185,7 @@ func TestScanOSIS_EmptyConnections(t *testing.T) {
 // A denial warns once, keeps the rows of the pages before it, and costs the
 // older phases nothing.
 func TestScanOSIS_ConnectionsDenied(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		deniedAt int
@@ -231,6 +235,7 @@ func TestScanOSIS_ConnectionsDenied(t *testing.T) {
 // stored: each phase runs whatever the others returned (the connection rows
 // are stored unlinked when ListPipelines fails).
 func TestScanOSIS_PhaseErrorPropagates(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op                                  string
 		wantTotal, wantEndpoints, wantConns int
@@ -265,6 +270,7 @@ func TestScanOSIS_PhaseErrorPropagates(t *testing.T) {
 // A hard error on a later page is returned, and the rows of the page before
 // it are stored and linked.
 func TestScanOSIS_ConnectionErrorOnSecondPageKeepsFirst(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := osisHandlers(&osisRecorder{})
 	first := h["ListPipelineEndpointConnections"]
@@ -290,6 +296,7 @@ func TestScanOSIS_ConnectionErrorOnSecondPageKeepsFirst(t *testing.T) {
 
 // A page that repeats the token it was asked with ends the listing.
 func TestScanOSIS_ConnectionsRepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := osisHandlers(&osisRecorder{})
 	calls := 0
@@ -318,6 +325,7 @@ func TestScanOSIS_ConnectionsRepeatedTokenStops(t *testing.T) {
 // A side's transient error is demoted to a warning under its op instead of
 // buried in the other side's hard error.
 func TestScanOSIS_TransientPhaseDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	cases := []struct {
 		name, transientOp, hardOp, warnOp string
@@ -351,6 +359,7 @@ func TestScanOSIS_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 // A denied blueprint or endpoint listing is warned about once, under its op
 // and the account and region, and is not returned.
 func TestScanOSIS_PhaseDenialWarnsUnderOp(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ apiOp, warnOp string }{
 		{"ListPipelineBlueprints", osisListPipelineBlueprintsOp},
 		{"ListPipelineEndpoints", osisListPipelineEndpointsOp},
@@ -413,6 +422,7 @@ func osisPipelinePages(in any) (any, error) {
 // its tags. An element without an ARN is not stored and is warned about once
 // under its name.
 func TestScanOSIS_PipelineRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warns []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warns = append(warns, w) }
@@ -449,6 +459,7 @@ func TestScanOSIS_PipelineRows(t *testing.T) {
 // still parent their connections, and every other phase still runs: a denial
 // warns once and is not returned, any other error is returned.
 func TestScanOSIS_PipelineLaterPageFails(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -495,6 +506,7 @@ func TestScanOSIS_PipelineLaterPageFails(t *testing.T) {
 // A failed pipeline write stops the scan before any later phase, and warns
 // about nothing: no row was stored.
 func TestScanOSIS_PipelineWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeOSISPipeline)
 	warns := countOpWarnings(st, osisListPipelinesOp)
@@ -519,6 +531,7 @@ func TestScanOSIS_PipelineWriteFailureStops(t *testing.T) {
 // A failed write in a later phase stops the scan before the next phase, with
 // the earlier phases' rows counted.
 func TestScanOSIS_LaterPhaseWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeOSISPipelineBlueprint)
 	h := osisHandlers(&osisRecorder{})
@@ -543,6 +556,7 @@ func TestScanOSIS_LaterPhaseWriteFailureStops(t *testing.T) {
 // a store write failure, so each later phase still makes its first call, which
 // fails as the SDK's transport fails a call under a done ctx.
 func TestScanOSIS_ContextEndsDuringPipelines(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

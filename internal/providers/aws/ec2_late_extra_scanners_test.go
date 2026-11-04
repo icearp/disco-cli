@@ -283,6 +283,7 @@ var elxFanPhases = []elxFanPhase{
 }
 
 func TestEC2LateExtraNativeIDShapes(t *testing.T) {
+	t.Parallel()
 	cases := map[string]string{
 		elxSnapAttrID(elxSnap1):     "arn:aws:ec2:us-east-1:123456789012:snapshot/snap-lx-0001/attribute/createVolumePermission",
 		elxImgAttrID(elxImg1):       "arn:aws:ec2:us-east-1:123456789012:image/ami-lx-0001/attribute/launchPermission",
@@ -301,6 +302,7 @@ func TestEC2LateExtraNativeIDShapes(t *testing.T) {
 // Each fan-out phase queries only the live parents this scan stored in the
 // Region and stores their rows under them.
 func TestScanEC2LateExtraFanOut_StoresRowsUnderParents(t *testing.T) {
+	t.Parallel()
 	for _, ph := range elxFanPhases {
 		t.Run(ph.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -340,6 +342,7 @@ func TestScanEC2LateExtraFanOut_StoresRowsUnderParents(t *testing.T) {
 // With no stored parent nothing is called; a parent with nothing to list
 // stores nothing, except an attribute phase, which keeps one row per parent.
 func TestScanEC2LateExtraFanOut_Empty(t *testing.T) {
+	t.Parallel()
 	for _, ph := range elxFanPhases {
 		t.Run(ph.name+"/no parents", func(t *testing.T) {
 			st := newTestStore(t)
@@ -396,6 +399,7 @@ func elxFailAfterKept(ph elxFanPhase, calls *parentCalls, failErr error) func(an
 // with one warning, keeping the other parent's row; a denial warns once for
 // every parent; anything else fails the phase.
 func TestScanEC2LateExtraFanOut_PerParentErrors(t *testing.T) {
+	t.Parallel()
 	for _, ph := range elxFanPhases {
 		type tc struct {
 			name     string
@@ -592,6 +596,7 @@ func elxWideHandler(ph elxWidePhase, calls *int, fail2 error) func(any) (any, er
 // other-owner) elements and links a row under its parent only when this scan
 // stored the parent.
 func TestScanEC2LateExtraWide_StoresBothPages(t *testing.T) {
+	t.Parallel()
 	for _, ph := range elxWidePhases {
 		t.Run(ph.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -627,6 +632,7 @@ func TestScanEC2LateExtraWide_StoresBothPages(t *testing.T) {
 // returns nil (the denial warns once); after a page, a denial keeps that page
 // and warns, and any other error, a gap code included, keeps it and fails.
 func TestScanEC2LateExtraWide_Errors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name            string
 		first, second   error
@@ -673,6 +679,7 @@ func TestScanEC2LateExtraWide_Errors(t *testing.T) {
 // An empty listing stores nothing; a repeated NextToken ends the loop, and a
 // hand-rolled loop returns errRepeatedNextToken with the listed page stored.
 func TestScanEC2LateExtraWide_EmptyAndRepeatedToken(t *testing.T) {
+	t.Parallel()
 	for _, ph := range elxWidePhases {
 		t.Run(ph.name+"/empty", func(t *testing.T) {
 			st := newTestStore(t)
@@ -748,6 +755,7 @@ func elxScanEC2(st *store.Store, handlers map[string]func(in any) (any, error)) 
 // scanEC2 stores the new rows under the parents its own categories stored
 // this scan.
 func TestScanEC2_StoresLateExtraRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if err := elxScanEC2(st, elxTopLevelHandlers()); err != nil {
 		t.Fatalf("scanEC2: %v", err)
@@ -773,6 +781,7 @@ func TestScanEC2_StoresLateExtraRows(t *testing.T) {
 // leaves an older category's slow call uncancelled, does not stop the other
 // new phases, and reaches the caller.
 func TestScanEC2_LateExtraPhasesAfterOlderCategories(t *testing.T) {
+	t.Parallel()
 	type phase struct{ sdkOp, typ string }
 	var phases []phase
 	for _, ph := range elxFanPhases {
@@ -821,6 +830,7 @@ func TestScanEC2_LateExtraPhasesAfterOlderCategories(t *testing.T) {
 // an older category's hard error. The region-wide phases are used: they are
 // called whether or not an older category stored parents.
 func TestScanEC2_LateExtraTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	type tc struct{ name, transientOp, hardOp, warnOp string }
 	var cases []tc
 	for _, ph := range elxWidePhases {
@@ -867,6 +877,7 @@ func elxAssertKeys(t *testing.T, attrs map[string]any, keys ...string) {
 
 // The stored permission list is the same whatever order EC2 returns it in.
 func TestScanEC2LateExtraAttributes_PermissionOrderIgnored(t *testing.T) {
+	t.Parallel()
 	// Each comparator key has a pair of entries that differ in that key only,
 	// so a comparator missing any key leaves that pair in input order.
 	// PermissionGroup has one value, so the Group pair is "all" against unset.
@@ -943,6 +954,7 @@ func TestScanEC2LateExtraAttributes_PermissionOrderIgnored(t *testing.T) {
 // With no lock listed, the stored snapshots are not read: a stored snapshot
 // whose NativeID would fail that read costs nothing.
 func TestScanEC2LockedSnapshots_NoLocksReadsNoParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tgxSeedParent(t, st, TypeEC2Snapshot, "snap-bare", testRegion, "completed", testScanID)
 	total, _, err := elxRun(scanEC2LockedSnapshots, st, map[string]func(any) (any, error){

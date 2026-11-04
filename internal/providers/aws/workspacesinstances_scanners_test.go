@@ -31,6 +31,7 @@ func (s *stubWorkspacesInstances) ListWorkspaceInstances(_ context.Context, _ *w
 }
 
 func TestScanWorkspacesInstancesIn_EnabledRegionScans(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	instID := "wsinst-abc123"
@@ -58,6 +59,7 @@ func TestScanWorkspacesInstancesIn_EnabledRegionScans(t *testing.T) {
 }
 
 func TestScanWorkspacesInstancesIn_DisabledRegionSkips(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubWorkspacesInstances{}
@@ -76,6 +78,7 @@ func TestScanWorkspacesInstancesIn_DisabledRegionSkips(t *testing.T) {
 }
 
 func TestScanWorkspacesInstancesIn_EmptyEnabledSetSkipsAll(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubWorkspacesInstances{}
@@ -93,6 +96,7 @@ func TestScanWorkspacesInstancesIn_EmptyEnabledSetSkipsAll(t *testing.T) {
 }
 
 func TestListWorkspacesInstancesRegions(t *testing.T) {
+	t.Parallel()
 	stub := &stubWorkspacesInstances{regions: []string{"us-east-1", "eu-west-1"}}
 	set, err := listWorkspacesInstancesRegions(context.Background(), stub)
 	if err != nil {
@@ -109,6 +113,7 @@ func TestListWorkspacesInstancesRegions(t *testing.T) {
 // ListRegions is read from the home region; with none confirmed in the
 // account's partition the scanner makes no call and reports unavailable.
 func TestScanWorkspacesInstances_HomePerPartition(t *testing.T) {
+	t.Parallel()
 	var regions parentCalls
 	acct := testAccountIn("aws")
 	acct.cfg = recordCallRegions(opStubConfig(nil, apiErr("AccessDeniedException", "denied")), &regions)

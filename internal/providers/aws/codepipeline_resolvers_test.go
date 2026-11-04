@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveCodePipelineWebhookToPipeline(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pARN := fmt.Sprintf("arn:aws:codepipeline:%s:%s:p1", testRegion, acct.ID)
@@ -22,6 +23,7 @@ func TestResolveCodePipelineWebhookToPipeline(t *testing.T) {
 }
 
 func TestResolveCodePipelinePipelineRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

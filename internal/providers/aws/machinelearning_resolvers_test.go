@@ -34,6 +34,7 @@ func mlRels(t *testing.T, st *store.Store, id string) map[string]bool {
 func mlEdgeKey(kind, toID string) string { return kind + " -> " + toID }
 
 func TestResolveMachineLearningRefs_LinksScannedTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, mlTestRoleARN, "", "{}")
@@ -87,6 +88,7 @@ func TestResolveMachineLearningRefs_LinksScannedTargets(t *testing.T) {
 // References to objects, roles and pipelines that were not scanned produce no
 // edge, and a row with no attributes produces none and no error.
 func TestResolveMachineLearningRefs_UnscannedAndEmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dsID := upsertTestResource(t, st, "aws", acct.ID, TypeMachineLearningDataSource, mlTestNativeID("datasource", "ds-1"), testRegion, mustJSON(mltypes.DataSource{
@@ -109,6 +111,7 @@ func TestResolveMachineLearningRefs_UnscannedAndEmptyAttrs(t *testing.T) {
 }
 
 func TestResolveMachineLearningRefs_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dsID := upsertTestResource(t, st, "aws", acct.ID, TypeMachineLearningDataSource, mlTestNativeID("datasource", "ds-1"), testRegion, "{}")

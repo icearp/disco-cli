@@ -157,6 +157,7 @@ func lateVifHandler(in any) (any, error) {
 func sdkInt32(v int32) *int32 { return &v }
 
 func TestScanEC2FastSnapshotRestores_StoresEnabledPairsAcrossPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanEC2FastSnapshotRestores(context.Background(), lateClient(map[string]func(any) (any, error){
 		"DescribeFastSnapshotRestores": lateFSRHandler,
@@ -184,6 +185,7 @@ func TestScanEC2FastSnapshotRestores_StoresEnabledPairsAcrossPages(t *testing.T)
 }
 
 func TestScanEC2FastLaunchImages_StoresConfigsAcrossPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanEC2FastLaunchImages(context.Background(), lateClient(map[string]func(any) (any, error){
 		"DescribeFastLaunchImages": lateFLHandler,
@@ -211,6 +213,7 @@ func TestScanEC2FastLaunchImages_StoresConfigsAcrossPages(t *testing.T) {
 }
 
 func TestEC2LateNativeIDShapes(t *testing.T) {
+	t.Parallel()
 	if got, want := lateFSRID(lateSnap1, lateZoneA), "arn:aws:ec2:us-east-1:123456789012:snapshot/snap-0001/fast-snapshot-restore/us-east-1a"; got != want {
 		t.Errorf("fast snapshot restore NativeID = %q, want %q", got, want)
 	}
@@ -222,6 +225,7 @@ func TestEC2LateNativeIDShapes(t *testing.T) {
 // The setting is stored once per Region, not provider-managed, keyed so that
 // two Regions do not share one row.
 func TestScanEC2AllowedImagesSetting_StoresRowPerRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := lateClient(map[string]func(any) (any, error){"GetAllowedImagesSettings": lateAllowedHandler})
 	for _, region := range []string{testRegion, lateOtherZone} {
@@ -249,6 +253,7 @@ func TestScanEC2AllowedImagesSetting_StoresRowPerRegion(t *testing.T) {
 }
 
 func TestScanEC2ReservedInstancesListings_StoresOpenListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanEC2ReservedInstancesListings(context.Background(), lateClient(map[string]func(any) (any, error){
 		"DescribeReservedInstancesListings": lateListingsHandler,
@@ -279,6 +284,7 @@ func TestScanEC2ReservedInstancesListings_StoresOpenListings(t *testing.T) {
 }
 
 func TestScanEC2ServiceLinkVirtualInterfaces_StoresAcrossPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanEC2ServiceLinkVirtualInterfaces(context.Background(), lateClient(map[string]func(any) (any, error){
 		"DescribeServiceLinkVirtualInterfaces": lateVifHandler,
@@ -308,6 +314,7 @@ func TestScanEC2ServiceLinkVirtualInterfaces_StoresAcrossPages(t *testing.T) {
 // A repeated NextToken ends the loop with errRepeatedNextToken instead of
 // spinning or reading as complete; the interface already listed is stored.
 func TestScanEC2ServiceLinkVirtualInterfaces_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := 0
 	_, _, err := scanEC2ServiceLinkVirtualInterfaces(context.Background(), lateClient(map[string]func(any) (any, error){
@@ -385,6 +392,7 @@ var latePhases = []latePhase{
 // error after a good page keeps that page's rows. The Allowed AMIs setting is
 // a singleton with no empty result.
 func TestScanEC2LatePhases_Errors(t *testing.T) {
+	t.Parallel()
 	for _, ph := range latePhases {
 		run := func(c ec2API, st *store.Store) (int, int, error) {
 			return ph.run(context.Background(), c, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -487,6 +495,7 @@ func lateScanEC2(st *store.Store, handlers map[string]func(in any) (any, error))
 }
 
 func TestScanEC2_StoresLateRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := lateScanEC2(st, lateTopLevelHandlers())
 	if err != nil {
@@ -510,6 +519,7 @@ func TestScanEC2_StoresLateRows(t *testing.T) {
 // leaves an older category's slow call uncancelled, does not stop the other
 // late phases, and an older category's failure does not skip them.
 func TestScanEC2_LatePhasesAfterOlderCategories(t *testing.T) {
+	t.Parallel()
 	snapshotID := ec2ARN(testRegion, testAccountID, "snapshot", lateOlderSnapshot)
 	for _, failed := range latePhases {
 		t.Run(failed.name+" fails", func(t *testing.T) {
@@ -563,6 +573,7 @@ func TestScanEC2_LatePhasesAfterOlderCategories(t *testing.T) {
 // A transient error on any side of the join is demoted to one warning under its
 // op instead of buried in another side's hard error.
 func TestScanEC2_LateTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	type tc struct{ name, transientOp, hardOp, warnOp string }
 	cases := []tc{{"transient older category", "DescribeSnapshots", "DescribeFastSnapshotRestores", "ec2"}}
 	for _, ph := range latePhases {

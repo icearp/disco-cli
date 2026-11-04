@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveCognitoReplicaPool(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	primaryARN := cogTestPoolARN(testRegion, "p1")
@@ -35,6 +36,7 @@ func TestResolveCognitoReplicaPool(t *testing.T) {
 }
 
 func TestResolveCognitoReplicaPool_UndecodableAttrsReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeCognitoUserPoolReplica, cogTestPoolARN(testRegion, "p1")+"/replica/us-west-2", testRegion, `{"UserPoolArn":7}`)

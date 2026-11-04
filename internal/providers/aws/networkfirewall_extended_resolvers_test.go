@@ -12,6 +12,7 @@ import (
 )
 
 func TestResolveNFLoggingConfigToFirewall(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fwARN := fmt.Sprintf("arn:aws:network-firewall:%s:%s:firewall/fw1", testRegion, acct.ID)
@@ -31,6 +32,7 @@ func TestResolveNFLoggingConfigToFirewall(t *testing.T) {
 // refs the resolver reads live on DescribeVpcEndpointAssociation, which the
 // scanner does not call.
 func TestResolveNFVpcEndpointAssociationRefs_StoredShapeHasNoRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeNetworkFirewallFirewall, nfARN("firewall", "fw1"), testRegion, "{}")
@@ -61,6 +63,7 @@ func nfContainerAssociationAttrs(t *testing.T, clusterARNs ...string) string {
 }
 
 func TestResolveNFContainerAssociationClusters_ECSAndEKS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ecsARN := fmt.Sprintf("arn:aws:ecs:%s:%s:cluster/web", testRegion, acct.ID)
@@ -86,6 +89,7 @@ func TestResolveNFContainerAssociationClusters_ECSAndEKS(t *testing.T) {
 }
 
 func TestResolveNFContainerAssociationClusters_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeECSCluster, fmt.Sprintf("arn:aws:ecs:%s:%s:cluster/web", testRegion, acct.ID), testRegion, "{}")
@@ -104,6 +108,7 @@ func TestResolveNFContainerAssociationClusters_NoAttrs(t *testing.T) {
 }
 
 func TestNetworkFirewallExtendedResolvers_DecodeErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	fwARN := nfARN("firewall", "fw1")
 	for _, c := range []nfDecodeCase{
 		{

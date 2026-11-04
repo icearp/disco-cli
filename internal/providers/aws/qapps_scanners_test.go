@@ -123,6 +123,7 @@ func qappsLibraryHandler(calls *parentCalls, pages map[string][][]qappstypes.Lib
 }
 
 func TestScanQAppsCategories_Fields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newQAppsTestClient(map[string]func(any) (any, error){
@@ -161,6 +162,7 @@ func TestScanQAppsCategories_Fields(t *testing.T) {
 }
 
 func TestScanQAppsCategories_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newQAppsTestClient(map[string]func(any) (any, error){
@@ -177,6 +179,7 @@ func TestScanQAppsCategories_Empty(t *testing.T) {
 }
 
 func TestScanQAppsLibraryItems_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newQAppsTestClient(map[string]func(any) (any, error){
@@ -236,6 +239,7 @@ func ratedLibraryItem(id string) qappstypes.LibraryItemMember {
 }
 
 func TestScanQAppsQApps_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newQAppsTestClient(map[string]func(any) (any, error){
@@ -269,6 +273,7 @@ func TestScanQAppsQApps_PagesAndFields(t *testing.T) {
 // A hard error on an instance's second page fails the phase but keeps the
 // first page's rows.
 func TestScanQAppsQApps_HardErrorKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newQAppsTestClient(map[string]func(any) (any, error){
@@ -290,6 +295,7 @@ func TestScanQAppsQApps_HardErrorKeepsEarlierPages(t *testing.T) {
 }
 
 func TestScanQAppsLibraryItems_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newQAppsTestClient(map[string]func(any) (any, error){
@@ -349,6 +355,7 @@ var qappsChildPhases = []qappsChildPhase{
 // as many times as the case says (once for both failing instances); any other
 // error fails the phase.
 func TestScanQAppsChildPhases_PerInstanceErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -394,6 +401,7 @@ func TestScanQAppsChildPhases_PerInstanceErrors(t *testing.T) {
 
 // A skip on a second page keeps the first page's rows.
 func TestScanQAppsLibraryItems_SkipKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newQAppsTestClient(map[string]func(any) (any, error){
@@ -413,6 +421,7 @@ func TestScanQAppsLibraryItems_SkipKeepsEarlierPages(t *testing.T) {
 
 // A NextToken that repeats the request's token ends the listing.
 func TestScanQAppsPaginatedPhases_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op   string
 		page func() any
@@ -471,6 +480,7 @@ func qappsTopLevelHandlers(calls *parentCalls) map[string]func(any) (any, error)
 }
 
 func TestScanQApps_ChildrenOfListedApplications(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(qappsTopLevelHandlers(&calls), qappsDenied)}
@@ -497,6 +507,7 @@ func TestScanQApps_ChildrenOfListedApplications(t *testing.T) {
 
 // A hard error in any phase leaves the other phases' rows and is returned.
 func TestScanQApps_PhaseErrorsAreIndependent(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListQApps", "ListCategories", "ListLibraryItems"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -530,6 +541,7 @@ func TestScanQApps_PhaseErrorsAreIndependent(t *testing.T) {
 // one warning, so a later phase's hard error still reaches the dispatcher as
 // a hard error.
 func TestScanQApps_TransientDoesNotMaskLaterError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, qappsListQAppsOp)
 	var calls parentCalls

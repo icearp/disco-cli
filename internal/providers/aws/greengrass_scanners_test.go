@@ -5,6 +5,7 @@ import "testing"
 // Greengrass V1 keeps the commercial hand list for aws accounts, which leaves
 // out regions the SDK lists, and reads the SDK table for every other partition.
 func TestGreengrassV1RegionSupported_PerPartition(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		partition, region string
 		want              bool

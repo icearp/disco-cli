@@ -9,6 +9,7 @@ import (
 )
 
 func TestResolveBackupGatewayPropertyMappingRoles(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	scannedRole := fmt.Sprintf("arn:aws:iam::%s:role/bgw-tags", acct.ID)
@@ -35,6 +36,7 @@ func TestResolveBackupGatewayPropertyMappingRoles(t *testing.T) {
 }
 
 func TestResolveBackupGatewayPropertyMappingRoles_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeBackupGatewayHypervisorPropertyMapping, "hyp-1/property-mappings", testRegion, `{"IamRoleArn":7}`)
@@ -44,6 +46,7 @@ func TestResolveBackupGatewayPropertyMappingRoles_DecodeErrorReturned(t *testing
 }
 
 func TestResolveBackupGatewayRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -62,6 +65,7 @@ func TestResolveBackupGatewayRelationships(t *testing.T) {
 }
 
 func TestResolveBackupGatewayRelationships_NoKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

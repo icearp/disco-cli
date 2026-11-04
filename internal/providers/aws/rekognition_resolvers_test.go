@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveRekProjectChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	projARN := fmt.Sprintf("arn:aws:rekognition:%s:%s:project/myproj/1700000000", testRegion, acct.ID)
@@ -31,6 +32,7 @@ func TestResolveRekProjectChildren(t *testing.T) {
 }
 
 func TestResolveRekProjectChildren_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pvARN := fmt.Sprintf("arn:aws:rekognition:%s:%s:project/myproj/version/v1/1700000001", testRegion, acct.ID)

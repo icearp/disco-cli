@@ -44,6 +44,7 @@ func seedAIRules(t *testing.T, st *store.Store) {
 }
 
 func TestResolveAppIntegrationsAssociationRules_RuleOnIntegrationBus(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		region, integration, assoc, wantRule string
 	}{
@@ -77,6 +78,7 @@ func TestResolveAppIntegrationsAssociationRules_RuleOnIntegrationBus(t *testing.
 // A rule whose EventBusName is the bus ARN still matches the integration's bus
 // name.
 func TestResolveAppIntegrationsAssociationRules_RuleBusAsARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	busARN := "arn:aws:events:us-east-1:123456789012:event-bus/" + appintResPartnerBus
 	upsertTestResource(t, st, "aws", testAccountID, TypeEventsRule, appintResRuleOnBus, "us-east-1", appintRuleAttrs(busARN, "orders-rule"))
@@ -93,6 +95,7 @@ func TestResolveAppIntegrationsAssociationRules_RuleBusAsARN(t *testing.T) {
 }
 
 func TestEventBusNameOf(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ in, want string }{
 		{"default", "default"},
 		{appintResPartnerBus, appintResPartnerBus},
@@ -109,6 +112,7 @@ func TestEventBusNameOf(t *testing.T) {
 // An association whose integration, bus or rule is not scanned, or whose
 // attributes carry no names, emits no edge and no error.
 func TestResolveAppIntegrationsAssociationRules_NoTarget(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, integrationAttrs, assocAttrs string
 	}{
@@ -139,6 +143,7 @@ func TestResolveAppIntegrationsAssociationRules_NoTarget(t *testing.T) {
 // Undecodable attributes on any row the resolver reads fail it rather than
 // silently dropping that row's edge.
 func TestResolveAppIntegrationsAssociationRules_DecodeError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, typ, nativeID string
 	}{
@@ -158,6 +163,7 @@ func TestResolveAppIntegrationsAssociationRules_DecodeError(t *testing.T) {
 }
 
 func TestResolveAppIntegrationsRelationships_EventIntegrationBus(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	busARN := "arn:aws:events:us-east-1:123456789012:event-bus/" + appintResPartnerBus
 	busID := upsertTestResource(t, st, "aws", testAccountID, TypeEventsEventBus, busARN, "us-east-1", "{}")
@@ -173,6 +179,7 @@ func TestResolveAppIntegrationsRelationships_EventIntegrationBus(t *testing.T) {
 }
 
 func TestResolveAppIntegrationsRelationships_NoAttrsAndDecodeError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	eiID := upsertTestResource(t, st, "aws", testAccountID, TypeAppIntegrationsEventIntegration, appintTestEI, "us-east-1", "{}")
 	if err := resolveAppIntegrationsRelationships(newTestAccount(testAccountID), st); err != nil {

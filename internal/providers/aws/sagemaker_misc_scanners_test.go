@@ -47,6 +47,7 @@ func (s *stubSageMakerMisc) ListSubscribedWorkteams(_ context.Context, _ *sagema
 }
 
 func TestScanSageMakerMisc(t *testing.T) {
+	t.Parallel()
 	for _, mode := range smTagModes {
 		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerMisc(t, mode) })
 	}
@@ -99,6 +100,7 @@ func testScanSageMakerMisc(t *testing.T, mode smTagMode) {
 }
 
 func TestScanSageMakerMiscEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerMisc{}
@@ -143,6 +145,7 @@ func smClusterARN(name string) string {
 }
 
 func TestScanSageMakerClusterNodes_PaginatesEachScannedCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "sagemaker:ListClusterNodes")
 	const staleScanID = "11111111111111111111111111111111"
@@ -187,6 +190,7 @@ func TestScanSageMakerClusterNodes_PaginatesEachScannedCluster(t *testing.T) {
 }
 
 func TestScanSageMakerClusterNodes_NoNodes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerCluster, smClusterARN("c1"), testRegion, "{}", "c1")
 	total, _, err := scanSageMakerClusterNodes(context.Background(), &stubSMClusterNodes{}, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -198,6 +202,7 @@ func TestScanSageMakerClusterNodes_NoNodes(t *testing.T) {
 // A resource-scoped deny on one cluster must not hide its siblings' nodes, and
 // two denied clusters warn once.
 func TestScanSageMakerClusterNodes_DeniedClustersKeepSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	denied1, denied2, open := smClusterARN("denied1"), smClusterARN("denied2"), smClusterARN("open")
@@ -221,6 +226,7 @@ func TestScanSageMakerClusterNodes_DeniedClustersKeepSiblings(t *testing.T) {
 }
 
 func TestScanSageMakerClusterNodes_OtherErrorFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	c1 := smClusterARN("c1")
 	upsertTestResourceNamed(t, st, TypeSageMakerCluster, c1, testRegion, "{}", "c1")
@@ -250,6 +256,7 @@ func (s *stubSMSubscribedWorkteams) ListSubscribedWorkteams(_ context.Context, i
 }
 
 func TestScanSageMakerSubscribedWorkteams_Paginates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	w1 := "arn:aws:sagemaker:us-east-1:394669845002:workteam/vendor-crowd/w1"
 	w2 := "arn:aws:sagemaker:us-east-1:394669845002:workteam/vendor-crowd/w2"
@@ -268,6 +275,7 @@ func TestScanSageMakerSubscribedWorkteams_Paginates(t *testing.T) {
 }
 
 func TestScanSageMakerSubscribedWorkteams_NoWorkteams(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanSageMakerSubscribedWorkteams(context.Background(), &stubSMSubscribedWorkteams{}, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
@@ -276,6 +284,7 @@ func TestScanSageMakerSubscribedWorkteams_NoWorkteams(t *testing.T) {
 }
 
 func TestScanSageMakerSubscribedWorkteams_AccessDeniedWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	stub := &stubSMSubscribedWorkteams{err: apiErr("AccessDeniedException", "denied")}

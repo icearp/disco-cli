@@ -19,6 +19,7 @@ import (
 // a parent it no longer finds is skipped silently; a denial warns once under
 // the op; any other error is returned after the rows are stored.
 func TestScanBackup_ChildListingFailsForOneParent(t *testing.T) {
+	t.Parallel()
 	for _, child := range []struct {
 		op, parent string
 		parentOf   func(in any) string
@@ -75,6 +76,7 @@ func TestScanBackup_ChildListingFailsForOneParent(t *testing.T) {
 // Recovery points are listed only for the vaults the vault phase stored this
 // scan, not for a vault row an earlier scan left in the store.
 func TestScanBackup_RecoveryPointsOnlyOfVaultsListedThisScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stale := "stale"
 	if _, err := st.UpsertResource(&store.Resource{
@@ -95,6 +97,7 @@ func TestScanBackup_RecoveryPointsOnlyOfVaultsListedThisScan(t *testing.T) {
 // A legal hold without a Title is named by its ARN; a recovery point without
 // a ResourceName likewise (TestScanBackup_StoresTagsOfEveryType's EBS one).
 func TestScanBackup_LegalHoldWithoutTitleNamedByARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	arn := bkARN("legal-hold:untitled")
 	h := bkHandlers(newBKCalls())
@@ -131,6 +134,7 @@ func bkStoredWithTags(st *store.Store, nativeID string) bool {
 // failure and ctx's end. A vault deleted after its first page was read warns
 // once under the listing's op, as only part of it was stored.
 func TestScanBackup_RecoveryPointPagesWrittenAsRead(t *testing.T) {
+	t.Parallel()
 	isNil := func(err error) bool { return err == nil }
 	for _, c := range []struct {
 		name      string
@@ -201,6 +205,7 @@ func TestScanBackup_RecoveryPointPagesWrittenAsRead(t *testing.T) {
 // scan error. The refusal is tolerated for recovery points only: on a vault
 // it stays an error.
 func TestScanBackup_RecoveryPointTagFailuresWarnOncePerPhase(t *testing.T) {
+	t.Parallel()
 	failing := []string{bkRecoveryPointARN("vault-tagged", "tagged"), bkRecoveryPointARN("vault-bare", "bare")}
 	// The warning names the first vault's row for a denial (parent order)
 	// and the smallest ARN for a refusal (skippedLeast), not the first read

@@ -130,6 +130,7 @@ func rumEvDestID(monitor string) string {
 }
 
 func TestRUMMetricsDestinationNativeID_DistinctPerDestination(t *testing.T) {
+	t.Parallel()
 	m := rumMonitorARN("m1")
 	other := rumEvidently()
 	other.DestinationArn = sdkaws.String("arn:aws:evidently:us-east-1:123456789012:project/p2/experiment/e1")
@@ -149,6 +150,7 @@ func TestRUMMetricsDestinationNativeID_DistinctPerDestination(t *testing.T) {
 }
 
 func TestScanRUMAppMonitors_PagesAndLimit(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var n atomic.Int64
 	client := newRUMTestClient(map[string]func(any) (any, error){
@@ -183,6 +185,7 @@ func TestScanRUMAppMonitors_PagesAndLimit(t *testing.T) {
 // A denial or a hard error on a later page keeps the app monitors stored from
 // the earlier pages and returns them as parents.
 func TestScanRUMAppMonitors_LaterPageErrorKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		err     error
@@ -220,6 +223,7 @@ func TestScanRUMAppMonitors_LaterPageErrorKeepsEarlierPages(t *testing.T) {
 }
 
 func TestScanRUMMetricsDestinations_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newRUMTestClient(map[string]func(any) (any, error){
@@ -273,6 +277,7 @@ func TestScanRUMMetricsDestinations_PagesAndFields(t *testing.T) {
 }
 
 func TestScanRUMMetricsDestinations_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newRUMTestClient(map[string]func(any) (any, error){
@@ -291,6 +296,7 @@ func TestScanRUMMetricsDestinations_Empty(t *testing.T) {
 // app monitors fail, so a skip that warns must warn once for both; a skipped
 // app monitor's destinations are not returned, its sibling's are.
 func TestScanRUMMetricsDestinations_PerParentErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -339,6 +345,7 @@ func TestScanRUMMetricsDestinations_PerParentErrors(t *testing.T) {
 // The listing stops when the service repeats the token it was sent, rather
 // than looping on it.
 func TestScanRUMMetricsDestinations_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var n atomic.Int64
 	client := newRUMTestClient(map[string]func(any) (any, error){
@@ -370,6 +377,7 @@ func rumDests(t *testing.T, st *store.Store, pairs ...rumDestPair) []rumDestinat
 }
 
 func TestScanRUMMetricDefinitions_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var n atomic.Int64
 	client := newRUMTestClient(map[string]func(any) (any, error){
@@ -389,6 +397,7 @@ func TestScanRUMMetricDefinitions_RepeatedTokenStops(t *testing.T) {
 // A denied first page warns, stores nothing, and leaves the child phases no
 // parents.
 func TestScanRUM_AppMonitorsDenied(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, rumListAppMonitorsOp)
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(nil, rumDenied)}
@@ -404,6 +413,7 @@ type rumDestPair struct {
 }
 
 func TestScanRUMMetricDefinitions_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	cwKey := rumDefsKey("m1", rumtypes.MetricDestinationCloudWatch, "")
@@ -457,6 +467,7 @@ func TestScanRUMMetricDefinitions_PagesAndFields(t *testing.T) {
 // A CloudWatch destination is queried without a DestinationArn even if its
 // summary carries one, since the API documents it must not be sent there.
 func TestScanRUMMetricDefinitions_CloudWatchOmitsDestinationArn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	cw := rumCloudWatch()
@@ -472,6 +483,7 @@ func TestScanRUMMetricDefinitions_CloudWatchOmitsDestinationArn(t *testing.T) {
 }
 
 func TestScanRUMMetricDefinitions_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newRUMTestClient(map[string]func(any) (any, error){
@@ -489,6 +501,7 @@ func TestScanRUMMetricDefinitions_Empty(t *testing.T) {
 // Each per-destination error is skipped or returned by its code, as for the
 // destination phase.
 func TestScanRUMMetricDefinitions_PerParentErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -580,6 +593,7 @@ func rumTopLevelHandlers(st *store.Store, destCalls, defCalls *parentCalls) map[
 }
 
 func TestScanRUM_ChildrenOfStoredParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var destCalls, defCalls parentCalls
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(rumTopLevelHandlers(st, &destCalls, &defCalls), rumDenied)}
@@ -608,6 +622,7 @@ func TestScanRUM_ChildrenOfStoredParents(t *testing.T) {
 // A hard destination failure fails the service but keeps the app monitors,
 // and no metric definitions are listed for destinations that were not stored.
 func TestScanRUM_DestinationFailureKeepsAppMonitors(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var destCalls, defCalls parentCalls
 	h := rumTopLevelHandlers(st, &destCalls, &defCalls)
@@ -635,6 +650,7 @@ func TestScanRUM_DestinationFailureKeepsAppMonitors(t *testing.T) {
 // A hard metric definition failure fails the service but keeps the app
 // monitors and destinations.
 func TestScanRUM_DefinitionFailureKeepsParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var destCalls, defCalls parentCalls
 	h := rumTopLevelHandlers(st, &destCalls, &defCalls)
@@ -654,6 +670,7 @@ func TestScanRUM_DefinitionFailureKeepsParents(t *testing.T) {
 // destination error still classifies the service as failed, and the app
 // monitors of the earlier page are kept.
 func TestScanRUM_AppMonitorThrottleDemotedBesideHardChildError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, rumListAppMonitorsOp)
 	var destCalls, defCalls parentCalls

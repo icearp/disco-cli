@@ -147,6 +147,7 @@ func seedODBParents(t *testing.T, st *store.Store, typ string, arn func(string) 
 }
 
 func TestScanODBChildren_PaginatesEveryParentAndWiresHierarchy(t *testing.T) {
+	t.Parallel()
 	for _, op := range odbChildOps {
 		t.Run(op.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -187,6 +188,7 @@ func TestScanODBChildren_PaginatesEveryParentAndWiresHierarchy(t *testing.T) {
 }
 
 func TestScanODBChildren_ErrorHandling(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -230,6 +232,7 @@ func TestScanODBChildren_ErrorHandling(t *testing.T) {
 }
 
 func TestScanODBChildren_NoParentsMakesNoCalls(t *testing.T) {
+	t.Parallel()
 	for _, op := range odbChildOps {
 		t.Run(op.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -459,6 +462,7 @@ func odbRowOf(t *testing.T, st *store.Store, typ, nativeID string) (store.Resour
 // each listing asks for its page cap, every row keeps its Name, and the scan
 // reports no error or warning.
 func TestScanODB_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newODBCalls()
@@ -522,6 +526,7 @@ func TestScanODB_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanODB_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newODBCalls()
 	if _, _, err := odbScan(context.Background(), st, odbHandlers(calls)); err != nil {
@@ -540,6 +545,7 @@ func TestScanODB_RescanInsertsNone(t *testing.T) {
 // which drops it: a denial warns once under odb:ListTagsForResource, a
 // throttle after retries is a transient error, any other code a hard one.
 func TestScanODB_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	targets := []odbRowWant{
 		{typ: TypeODBOdbNetwork, nativeID: odbARN("odb-network", "tagged"), tagARN: odbARN("odb-network", "tagged")},
 		{typ: TypeODBDbNode, nativeID: odbARN("cloud-vm-cluster", "bare") + "/db-node/bare-tagged", tagARN: odbARN("db-node", "bare-tagged")},
@@ -605,6 +611,7 @@ func TestScanODB_TagReadFailures(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanODB_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, odbTagsOp)
 	calls := newODBCalls()
@@ -644,6 +651,7 @@ func odbSingleNetwork(c *odbCalls, arn string) map[string]func(any) (any, error)
 // warns, an own-account not-found drops the row, and the read is sent the
 // listed ARN.
 func TestScanODB_TagReadOwnership(t *testing.T) {
+	t.Parallel()
 	foreign := "arn:aws:odb:" + testRegion + ":210987654321:odb-network/net"
 	for _, c := range []struct {
 		name      string
@@ -695,6 +703,7 @@ func TestScanODB_TagReadOwnership(t *testing.T) {
 // so, and no other op is called. Met after rows were stored, the answer ends
 // that listing silently, keeping its rows, and every later phase runs.
 func TestScanODB_NotOnboarded(t *testing.T) {
+	t.Parallel()
 	t.Run("first listing", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countWarnings(st)
@@ -780,6 +789,7 @@ func TestScanODB_NotOnboarded(t *testing.T) {
 // A denied listing warns under its op label and costs no other listing its
 // rows.
 func TestScanODB_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for sdkOp, lost := range map[string]int{
 		"ListCloudAutonomousVmClusters": 4, "ListCloudExadataInfrastructures": 4, "ListOdbNetworks": 2,
 		"ListOdbPeeringConnections": 2, "ListCloudVmClusters": 6, "ListDbNodes": 4, "ListAutonomousDatabases": 6,
@@ -810,6 +820,7 @@ func TestScanODB_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // since it was listed is skipped silently, a hard error is returned, and the
 // sibling's rows are stored either way.
 func TestScanODB_PerParentListingFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		sdkOp, typ, field string
 		sibling           odbRowWant
@@ -858,6 +869,7 @@ func TestScanODB_PerParentListingFailures(t *testing.T) {
 // A listing's failed page keeps the pages read before it, hands its stored
 // parents to their child listing, and stops no later phase.
 func TestScanODB_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newODBCalls()
 	handlers := odbHandlers(calls)
@@ -880,6 +892,7 @@ func TestScanODB_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanODB_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := odbHandlers(newODBCalls())
 	handlers["ListOdbNetworks"] = func(any) (any, error) {
@@ -900,6 +913,7 @@ func TestScanODB_RepeatedTokenKeepsPages(t *testing.T) {
 // DbNodeArn its tag read is sent is stored without tags, with one warning
 // and no tag read.
 func TestScanODB_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	netWarns := bacWarnings(st, "odb:ListOdbNetworks")
 	nodeWarns := bacWarnings(st, "odb:ListDbNodes")
@@ -948,6 +962,7 @@ func TestScanODB_UnstorableItemsWarn(t *testing.T) {
 // op the region's endpoint does not route is a silent gap on the first page;
 // after a page it is an error that keeps the rows read.
 func TestScanODB_Exascale(t *testing.T) {
+	t.Parallel()
 	vault := func(id string, s odbtypes.ResourceStatus) odbtypes.ExascaleDbStorageVaultSummary {
 		return odbtypes.ExascaleDbStorageVaultSummary{ExascaleDbStorageVaultArn: sdkaws.String(odbARN("exascale-db-storage-vault", id)), ExascaleDbStorageVaultId: sdkaws.String(id), Status: s}
 	}
@@ -1015,6 +1030,7 @@ func TestScanODB_Exascale(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanODB_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeODBOdbNetwork)
@@ -1037,6 +1053,7 @@ func TestScanODB_FailedWriteStopsWithoutWarning(t *testing.T) {
 
 // A failed DB-node write sends no warning for the ARN-less node either.
 func TestScanODB_FailedNodeWriteSendsNoNodeWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeODBDbNode)
@@ -1057,6 +1074,7 @@ func TestScanODB_FailedNodeWriteSendsNoNodeWarning(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is reported once,
 // naming the phases not run, although the phase in flight saw it.
 func TestScanODB_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newODBCalls()
 	handlers := odbHandlers(calls)
@@ -1095,6 +1113,7 @@ func TestScanODB_ContextEndStopsOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanODB_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "odb.us-east-1.api.aws", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)

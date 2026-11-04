@@ -47,6 +47,7 @@ func glNewError(code string) *smithy.GenericAPIError {
 }
 
 func TestScanGLComputes_StoresAnywhereFleetComputes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	fleets := []gltypes.FleetAttributes{
 		glFleet("fleet-a1", gltypes.ComputeTypeAnywhere, gltypes.FleetStatusActive),
@@ -109,6 +110,7 @@ func TestScanGLComputes_StoresAnywhereFleetComputes(t *testing.T) {
 }
 
 func TestScanGLScalingPolicies_StoresHomeRegionPolicies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	fleets := []gltypes.FleetAttributes{
 		glFleet("fleet-e", gltypes.ComputeTypeEc2, gltypes.FleetStatusActive),
@@ -172,6 +174,7 @@ func TestScanGLScalingPolicies_StoresHomeRegionPolicies(t *testing.T) {
 }
 
 func TestScanGLVpcPeeringConnections_StoresAndLinksListedFleets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	fleets := []gltypes.FleetAttributes{glFleet("fleet-e", gltypes.ComputeTypeEc2, gltypes.FleetStatusActive)}
 	glSeedFleets(t, st, fleets)
@@ -269,6 +272,7 @@ func glEmptyOutput(op string) any {
 }
 
 func TestGameLiftFleetChildPhases_Errors(t *testing.T) {
+	t.Parallel()
 	badInput := glNewError("InvalidRequestException")
 	for _, p := range glNewPhases {
 		t.Run(p.op+"/empty", func(t *testing.T) {
@@ -337,6 +341,7 @@ func glTopLevelHandlers(override map[string]func(any) (any, error)) map[string]f
 // The fleet children phases run over the fleets the fleet phase listed, and
 // an earlier phase's error neither stops them nor is lost.
 func TestScanGameLiftIn_RunsFleetChildPhasesOverListedFleets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	aliasErr := glNewError("InvalidRequestException")
 	handlers := glTopLevelHandlers(map[string]func(any) (any, error){
@@ -359,6 +364,7 @@ func TestScanGameLiftIn_RunsFleetChildPhasesOverListedFleets(t *testing.T) {
 // Every new phase runs after the existing phases: their rows are stored and
 // counted when every new phase fails, and each new phase's error is returned.
 func TestScanGameLiftIn_FleetChildPhaseErrorsKeepEarlierRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	override := map[string]func(any) (any, error){}
 	var phaseErrs []error
@@ -388,6 +394,7 @@ func TestScanGameLiftIn_FleetChildPhaseErrorsKeepEarlierRows(t *testing.T) {
 // connection, is reported as a warning under its op instead of buried in the
 // hard error, and does not stop the phases after it.
 func TestScanGameLiftIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
+	t.Parallel()
 	for name, transient := range map[string]error{"throttle": glThrottled, "dropped connection": io.ErrUnexpectedEOF} {
 		t.Run(name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -419,6 +426,7 @@ func TestScanGameLiftIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 // alone, so the dispatcher reports the region unavailable instead of every
 // phase warning a transient error.
 func TestScanGameLiftIn_UnreachableEndpointStopsTheScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
@@ -450,6 +458,7 @@ func TestScanGameLiftIn_UnreachableEndpointStopsTheScan(t *testing.T) {
 // A later phase's lone transient error reaches the dispatcher as transient,
 // with the other phases' counts, so the scan is marked partial.
 func TestScanGameLiftIn_LoneTransientPhaseMarksPartial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := glTopLevelHandlers(map[string]func(any) (any, error){
 		"ListCompute": func(any) (any, error) { return nil, glThrottled },
@@ -467,6 +476,7 @@ func TestScanGameLiftIn_LoneTransientPhaseMarksPartial(t *testing.T) {
 // stored rows, is a failure of this scan, not a region gap: it is returned as
 // an error with the stored rows' counts.
 func TestScanGameLiftIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := glTopLevelHandlers(map[string]func(any) (any, error){
 		"ListCompute": func(any) (any, error) {
@@ -488,6 +498,7 @@ func TestScanGameLiftIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
 // and none is sent when the write fails. DescribeVpcPeeringConnections, one
 // call for the account, warns once on UnauthorizedException.
 func TestGLChildFanOut_DeniedFleetsSkipped(t *testing.T) {
+	t.Parallel()
 	unauthorized := glNewError("UnauthorizedException")
 	phases := []struct {
 		op, typ string

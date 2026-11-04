@@ -28,6 +28,7 @@ func seedWAOrgTree(t *testing.T, st *store.Store) (accountID, ouID string) {
 }
 
 func TestResolveWAShareGrantees(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	accountID, ouID := seedWAOrgTree(t, st)
 	share := func(typ, id, sharedWith string, status watypes.ShareStatus) string {
@@ -67,6 +68,7 @@ func TestResolveWAShareGrantees(t *testing.T) {
 // Only an accepted or associated share grants access; every other state, a
 // pending invitation included, must leave no edge to an in-tree grantee.
 func TestResolveWAShareGrantees_EdgeOnlyForActiveStatus(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		status   watypes.ShareStatus
 		wantEdge bool
@@ -111,6 +113,7 @@ func TestResolveWAShareGrantees_EdgeOnlyForActiveStatus(t *testing.T) {
 }
 
 func TestResolveWAShareGrantees_NoOrgTreeNoEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	id := upsertTestResource(t, st, "aws", testAccountID, TypeWellArchitectedWorkloadShare, waARN("workload", "w1")+"/share/s1", testRegion,
 		mustJSON(watypes.WorkloadShareSummary{ShareId: ptrStr("s1"), SharedWith: ptrStr(waOrgAccountID), Status: watypes.ShareStatusAccepted}))
@@ -150,6 +153,7 @@ func waUsesTargets(t *testing.T, st *store.Store, from string) []string {
 }
 
 func TestResolveWAAgentProfileRoles_ExecutionAndAccessRoles(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	execID := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, waExecRoleARN, "", "{}")
 	accessID := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, waAccessRoleARN, "", "{}")
@@ -166,6 +170,7 @@ func TestResolveWAAgentProfileRoles_ExecutionAndAccessRoles(t *testing.T) {
 }
 
 func TestResolveWAAgentProfileRoles_UnscannedRoleNoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	id := upsertTestResource(t, st, "aws", testAccountID, TypeWellArchitectedAgentProfile, waARN("agent-profile", "p1"), testRegion,
 		waAgentProfileAttrs(waExecRoleARN, waAccessRoleARN))
@@ -178,6 +183,7 @@ func TestResolveWAAgentProfileRoles_UnscannedRoleNoEdge(t *testing.T) {
 }
 
 func TestResolveWAAgentProfileRoles_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, waExecRoleARN, "", "{}")
 	id := upsertTestResource(t, st, "aws", testAccountID, TypeWellArchitectedAgentProfile, waARN("agent-profile", "p1"), testRegion, "{}")
@@ -192,6 +198,7 @@ func TestResolveWAAgentProfileRoles_EmptyAttrs(t *testing.T) {
 // A row whose attributes do not decode is reported and costs the rows after
 // it none of their edges.
 func TestResolveWAAgentProfileRoles_DecodeErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	execID := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, waExecRoleARN, "", "{}")
 	// ListResources orders by name, so the bad row is read first.
@@ -208,6 +215,7 @@ func TestResolveWAAgentProfileRoles_DecodeErrorKeepsOtherRows(t *testing.T) {
 }
 
 func TestResolveWAShareGrantees_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedWAOrgTree(t, st)
 	id := upsertTestResource(t, st, "aws", testAccountID, TypeWellArchitectedLensShare, waARN("lens", "l1")+"/share/s1", testRegion, "{}")

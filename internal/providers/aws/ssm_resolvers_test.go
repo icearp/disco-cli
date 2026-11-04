@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveSSMRelationships_SecureStringToKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -30,6 +31,7 @@ func TestResolveSSMRelationships_SecureStringToKMS(t *testing.T) {
 }
 
 func TestResolveSSMRelationships_SkipsAWSManagedAlias(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -47,6 +49,7 @@ func TestResolveSSMRelationships_SkipsAWSManagedAlias(t *testing.T) {
 }
 
 func TestResolveSSMRelationships_String_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -64,6 +67,7 @@ func TestResolveSSMRelationships_String_NoEdge(t *testing.T) {
 }
 
 func TestResolveSSMAssociationDocument(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	docName := "AWS-RunShellScript"
@@ -89,6 +93,7 @@ func TestResolveSSMAssociationDocument(t *testing.T) {
 }
 
 func TestResolveSSMDocumentRequires(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	regionVal := testRegion
@@ -121,6 +126,7 @@ func TestResolveSSMDocumentRequires(t *testing.T) {
 }
 
 func TestResolveSSMMaintenanceWindowTargetParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	wid := "mw-aaa"
@@ -137,6 +143,7 @@ func TestResolveSSMMaintenanceWindowTargetParent(t *testing.T) {
 }
 
 func TestResolveSSMMaintenanceWindowTaskRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	wid := "mw-aaa"
@@ -159,6 +166,7 @@ func TestResolveSSMMaintenanceWindowTaskRefs(t *testing.T) {
 }
 
 func TestResolveSSMResourceDataSyncRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	bName := "ssm-sync-bucket"

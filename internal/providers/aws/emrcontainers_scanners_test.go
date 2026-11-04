@@ -297,6 +297,7 @@ func assertEMRCRow(t *testing.T, row store.Resource, name, status *string, attrs
 }
 
 func TestScanEMRContainers_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	r := runEMRC(t, st, nil)
 	if r.err != nil {
@@ -347,6 +348,7 @@ var emrcPageOneRows = map[string]map[string][]string{
 // A failed page two keeps the rows read before it, the error is returned, and
 // every later phase still runs, the endpoint phase over the clusters stored.
 func TestScanEMRContainers_FailedPageKeepsRowsAndRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, parent string
 		want       map[string][]string
@@ -371,6 +373,7 @@ func TestScanEMRContainers_FailedPageKeepsRowsAndRunsLaterPhases(t *testing.T) {
 // fans out over clusters (an account-wide listing has no key to name), and is
 // not an error; the other phases keep their rows.
 func TestScanEMRContainers_DeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op      string
 		parents []string
@@ -403,6 +406,7 @@ func TestScanEMRContainers_DeniedWarnsOnce(t *testing.T) {
 // one warning naming it and keeps vc-1's endpoints; for a RUNNING vc-2 it
 // fails the phase.
 func TestScanEMRContainers_EndpointsValidationByClusterState(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		state emrctypes.VirtualClusterState
 		skip  bool
@@ -437,6 +441,7 @@ func TestScanEMRContainers_EndpointsValidationByClusterState(t *testing.T) {
 // scan transient with the rows read before it kept; beside another phase's
 // hard error it is warned about once and the hard error is returned.
 func TestScanEMRContainers_EndpointsTransient(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		hard      bool
@@ -473,6 +478,7 @@ func TestScanEMRContainers_EndpointsTransient(t *testing.T) {
 // ListManagedEndpoints models no not-found code, so ResourceNotFoundException
 // for a cluster fails the phase rather than skipping the cluster.
 func TestScanEMRContainers_EndpointsNotFoundIsAnError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	r := runEMRC(t, st, map[string]map[string]error{"ListManagedEndpoints": {"vc-2/": emrcGone}})
 	if classifyServiceError(r.err) != outcomeError || !isAPIErrorCode(r.err, "ResourceNotFoundException") {
@@ -485,6 +491,7 @@ func TestScanEMRContainers_EndpointsNotFoundIsAnError(t *testing.T) {
 // it stored and counted; beside another phase's hard error it is warned about
 // once and the scan reads as an error.
 func TestScanEMRContainers_TransientPhaseBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListVirtualClusters", "ListSecurityConfigurations", "ListJobTemplates"} {
 		for _, tc := range []struct {
 			name      string
@@ -523,6 +530,7 @@ func TestScanEMRContainers_TransientPhaseBesideHardError(t *testing.T) {
 // A failed endpoint write stops the scan with no warning claiming the lost
 // rows or the skipped cluster.
 func TestScanEMRContainers_EndpointWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeEMRContainersEndpoint)
 	r := runEMRC(t, st, map[string]map[string]error{"ListManagedEndpoints": {"vc-2/": emrcBadInput}})
@@ -538,6 +546,7 @@ func TestScanEMRContainers_EndpointWriteFailureStops(t *testing.T) {
 // A failed virtual-cluster write stops the scan with no warning claiming the
 // lost rows, and no later phase runs.
 func TestScanEMRContainers_VirtualClusterWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeEMRContainersVirtualCluster)
 	r := runEMRC(t, st, nil)

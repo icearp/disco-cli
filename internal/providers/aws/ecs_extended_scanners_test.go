@@ -175,6 +175,7 @@ func scanECSCapacityProvidersWith(st *store.Store, handler func(any) (any, error
 // Tags come from the listed element, and only FARGATE / FARGATE_SPOT are
 // AWS-managed: an Auto Scaling group provider has no Cluster either.
 func TestScanECSCapacityProviders_StoresTagsAndManaged(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ws := ecsWarnings(st)
 	total, inserted, err := scanECSCapacityProvidersWith(st, ecsCapacityProvidersHandler([][]ecstypes.CapacityProvider{
@@ -201,6 +202,7 @@ func TestScanECSCapacityProviders_StoresTagsAndManaged(t *testing.T) {
 // A failed later page keeps the rows of the pages before it: a denial is
 // warned about, any other error is returned.
 func TestScanECSCapacityProviders_LaterPageFails(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		err      error
@@ -233,6 +235,7 @@ func TestScanECSCapacityProviders_LaterPageFails(t *testing.T) {
 // A page that repeats the token it was sent ends the listing as an error,
 // keeping the rows read.
 func TestScanECSCapacityProviders_RepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	pinned := ecsCapacityProvidersHandler([][]ecstypes.CapacityProvider{{ecsCPASG}, {ecsCPFargate}}, nil)
 	total, inserted, err := scanECSCapacityProvidersWith(st, func(in any) (any, error) {
@@ -254,6 +257,7 @@ func TestScanECSCapacityProviders_RepeatedToken(t *testing.T) {
 // A refused write is returned, and nothing is warned about: neither the
 // denial nor the provider without an ARN.
 func TestScanECSCapacityProviders_WriteRefusedWarnsNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeECSCapacityProvider)
 	ws := ecsWarnings(st)
@@ -361,6 +365,7 @@ func scanECSTaskSetsWith(st *store.Store, f *ecsTaskSetFixture, clusters ...stri
 // Every service of every page is read; each failure costs only its own
 // cluster or service, and the errors come back after the rows are stored.
 func TestScanECSTaskSets_StoresTagsAndSettlesEachFailure(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ws := ecsWarnings(st)
 	var f ecsTaskSetFixture
@@ -393,6 +398,7 @@ func TestScanECSTaskSets_StoresTagsAndSettlesEachFailure(t *testing.T) {
 
 // A refused write is returned, and nothing is warned about.
 func TestScanECSTaskSets_WriteRefusedWarnsNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeECSTaskSet)
 	ws := ecsWarnings(st)
@@ -430,6 +436,7 @@ func scanECSExtendedWith(st *store.Store, h map[string]func(any) (any, error)) (
 // A failed phase does not stop the later ones; its transient error is demoted
 // to one warning beside a later phase's hard error, which is returned.
 func TestScanECSExtended_PhaseErrorKeepsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, "ecs:DescribeCapacityProviders")
 	var f ecsTaskSetFixture
@@ -460,6 +467,7 @@ func TestScanECSExtended_PhaseErrorKeepsLaterPhases(t *testing.T) {
 // A hard error in the association phase is returned beside the task-set
 // phase's, which still ran.
 func TestScanECSExtended_AssocErrorKeepsTaskSets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var f ecsTaskSetFixture
 	total, inserted, err := scanECSExtendedWith(st, ecsExtendedHandlers(&f, map[string]error{
@@ -476,6 +484,7 @@ func TestScanECSExtended_AssocErrorKeepsTaskSets(t *testing.T) {
 
 // A failed write stops the phases after it: every later write would fail too.
 func TestScanECSExtended_WriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeECSCapacityProvider)
 	var f ecsTaskSetFixture
@@ -491,6 +500,7 @@ func TestScanECSExtended_WriteFailureStops(t *testing.T) {
 // scanECS reaches the capacity-provider and task-set phases with the clusters
 // it listed.
 func TestScanECS_StoresCapacityProvidersAndTaskSets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var f ecsTaskSetFixture
 	h := ecsTopLevelHandlers()
@@ -541,6 +551,7 @@ func ecsComputeExtraHandlers(f *ecsTaskSetFixture) map[string]func(any) (any, er
 // A task-set error does not cost the extended phases their counts, nor skip
 // the compute-extra phase after them; the error is returned.
 func TestScanECS_ExtendedErrorKeepsCountsAndComputeExtra(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var f ecsTaskSetFixture
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(ecsComputeExtraHandlers(&f), ecsDenied)}
@@ -562,6 +573,7 @@ func TestScanECS_ExtendedErrorKeepsCountsAndComputeExtra(t *testing.T) {
 
 // A hard compute-extra error is returned beside the extended phases' one.
 func TestScanECS_ComputeExtraErrorJoinsExtendedError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var f ecsTaskSetFixture
 	h := ecsComputeExtraHandlers(&f)
@@ -576,6 +588,7 @@ func TestScanECS_ComputeExtraErrorJoinsExtendedError(t *testing.T) {
 // A failed write in the extended phases stops the cluster phases there:
 // compute-extra's writes would fail too.
 func TestScanECS_ExtendedWriteFailureSkipsComputeExtra(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeECSCapacityProvider)
 	var f ecsTaskSetFixture
@@ -598,6 +611,7 @@ func TestScanECS_ExtendedWriteFailureSkipsComputeExtra(t *testing.T) {
 // Once ctx ends mid-page no further service is read; the read ones are
 // stored and the stop is returned.
 func TestScanECSTaskSets_CancelledStopsAndReturns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

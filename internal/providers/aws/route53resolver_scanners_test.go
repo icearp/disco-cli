@@ -64,6 +64,7 @@ func r53rTestParents(t *testing.T, st *store.Store, typ, prefix string, ids ...s
 }
 
 func TestR53RFirewallRuleNativeID(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		rule r53rtypes.FirewallRule
@@ -135,6 +136,7 @@ func scanR53RTestRules(t *testing.T, st *store.Store, handler func(in any) (any,
 }
 
 func TestScanR53RFirewallRules_StoresEveryPageOfEveryGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := scanR53RTestRules(t, st, r53rRuleHandler(t, &calls, nil), "rslvr-frg-a", "rslvr-frg-b")
@@ -167,6 +169,7 @@ func TestScanR53RFirewallRules_StoresEveryPageOfEveryGroup(t *testing.T) {
 }
 
 func TestScanR53RFirewallRules_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanR53RTestRules(t, st, func(any) (any, error) { return &route53resolver.ListFirewallRulesOutput{}, nil }, "rslvr-frg-a")
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeRoute53ResolverFirewallRule)) != 0 {
@@ -178,6 +181,7 @@ func TestScanR53RFirewallRules_Empty(t *testing.T) {
 // protection id are not stored; one warning counts them across groups and
 // names the first's group, name and priority. Keyed siblings are stored.
 func TestScanR53RFirewallRules_UnkeyedRulesWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
@@ -229,6 +233,7 @@ func TestScanR53RFirewallRules_UnkeyedRulesWarnOnce(t *testing.T) {
 // ValidationException and a transient error each warn once for the op and
 // keep the other groups; any other error fails the phase.
 func TestScanR53RFirewallRules_FailedGroup(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		fail      error
@@ -301,6 +306,7 @@ func scanR53RTestIPs(t *testing.T, st *store.Store, handler func(in any) (any, e
 }
 
 func TestScanR53RResolverEndpointIPAddresses_StoresEveryPageOfEveryEndpoint(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := scanR53RTestIPs(t, st, r53rIPHandler(t, &calls, nil), "rslvr-in-a", "rslvr-in-b")
@@ -333,6 +339,7 @@ func TestScanR53RResolverEndpointIPAddresses_StoresEveryPageOfEveryEndpoint(t *t
 }
 
 func TestScanR53RResolverEndpointIPAddresses_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanR53RTestIPs(t, st, func(any) (any, error) { return &route53resolver.ListResolverEndpointIpAddressesOutput{}, nil }, "rslvr-in-a")
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeRoute53ResolverResolverEndpointIPAddress)) != 0 {
@@ -345,6 +352,7 @@ func TestScanR53RResolverEndpointIPAddresses_Empty(t *testing.T) {
 // op models no ValidationException, so like any other error it fails the
 // phase.
 func TestScanR53RResolverEndpointIPAddresses_FailedEndpoint(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		fail      error
@@ -612,6 +620,7 @@ func r53rIPOf(endpointARN string) string { return endpointARN + "/ip-address/rni
 // ListFirewallConfigs. The rules and IP addresses of every rule group and
 // endpoint are listed and contained. No error or warning.
 func TestScanRoute53Resolver_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newR53RCalls()
@@ -671,6 +680,7 @@ func TestScanRoute53Resolver_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanRoute53Resolver_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := r53rScan(context.Background(), st, r53rHandlers(newR53RCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -688,6 +698,7 @@ func TestScanRoute53Resolver_RescanInsertsNone(t *testing.T) {
 // for with the first page's NextToken; a NextToken that repeats keeps the
 // row untagged and fails the scan.
 func TestScanRoute53Resolver_TagPages(t *testing.T) {
+	t.Parallel()
 	k := r53rKindOf(t, "ListOutpostResolvers")
 	arn := k.arn("a")
 	t.Run("two pages", func(t *testing.T) {
@@ -730,6 +741,7 @@ func TestScanRoute53Resolver_TagPages(t *testing.T) {
 // route53resolver:ListTagsForResource; a throttle keeps it and is a
 // transient error; InvalidRequestException keeps it and is a hard error.
 func TestScanRoute53Resolver_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListFirewallDomainLists", "ListFirewallRuleGroups", "ListResolverEndpoints", "ListResolverRules"} {
 		k := r53rKindOf(t, op)
 		arn := k.arn("a")
@@ -809,6 +821,7 @@ func TestScanRoute53Resolver_TagReadFailures(t *testing.T) {
 // Denied tag reads in several phases send one warning for the scan, never
 // one per row or per phase.
 func TestScanRoute53Resolver_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	all := countWarnings(st)
 	warnings := bacWarnings(st, r53rTagsOp)
@@ -847,6 +860,7 @@ func TestScanRoute53Resolver_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanRoute53Resolver_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, r53rTagsOp)
 	calls := newR53RCalls()
@@ -864,6 +878,7 @@ func TestScanRoute53Resolver_TagThrottleDemotedBesideHardError(t *testing.T) {
 // An AWS-default domain list (ManagedOwnerName set) or Resolver rule
 // (autodefined) is stored as managed and its tags are not read.
 func TestScanRoute53Resolver_ManagedRowsNotTagRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newR53RCalls()
 	handlers := r53rHandlers(calls)
@@ -902,6 +917,7 @@ func TestScanRoute53Resolver_ManagedRowsNotTagRead(t *testing.T) {
 // shares with this one is stored untagged and silently when the tag read is
 // denied or finds no such resource; a shared rule group is no rule parent.
 func TestScanRoute53Resolver_SharedRowsKeptUntagged(t *testing.T) {
+	t.Parallel()
 	for _, refusal := range []error{r53rDenied, r53rGone} {
 		t.Run(refusal.Error(), func(t *testing.T) {
 			st := newTestStore(t)
@@ -960,6 +976,7 @@ func TestScanRoute53Resolver_SharedRowsKeptUntagged(t *testing.T) {
 
 // The ARN of an account in another partition reaches the tag op unchanged.
 func TestScanRoute53Resolver_OtherPartitionARNs(t *testing.T) {
+	t.Parallel()
 	gov := "arn:aws-us-gov:route53resolver:us-gov-west-1:123456789012:resolver-endpoint/rslvr-in-gov"
 	calls := newR53RCalls()
 	handlers := r53rHandlers(calls)
@@ -981,6 +998,7 @@ func TestScanRoute53Resolver_OtherPartitionARNs(t *testing.T) {
 // written a page at a time: a listing's first-page row is stored before its
 // second page is asked for.
 func TestScanRoute53Resolver_LargeListingsWrittenPageByPage(t *testing.T) {
+	t.Parallel()
 	ops := []string{"ListFirewallDomainLists", "ListFirewallRuleGroupAssociations", "ListOutpostResolvers", "ListResolverQueryLogConfigs", "ListResolverRules"}
 	st := newTestStore(t)
 	handlers := r53rHandlers(newR53RCalls())
@@ -1008,6 +1026,7 @@ func TestScanRoute53Resolver_LargeListingsWrittenPageByPage(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanRoute53Resolver_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeRoute53ResolverFirewallDomainList)
@@ -1029,6 +1048,7 @@ func TestScanRoute53Resolver_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the listings after it; a rule group not listed is no rule parent.
 func TestScanRoute53Resolver_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op   string
 		lost int
@@ -1064,6 +1084,7 @@ func TestScanRoute53Resolver_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanRoute53Resolver_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := r53rHandlers(newR53RCalls())
 	k := r53rKindOf(t, "ListResolverQueryLogConfigAssociations")
@@ -1088,6 +1109,7 @@ func TestScanRoute53Resolver_RepeatedTokenKeepsPages(t *testing.T) {
 // listing, named by its name or id, or by the fallback text when it has
 // none, and is not stored.
 func TestScanRoute53Resolver_ElementWithoutKeyWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		page          any
@@ -1123,6 +1145,7 @@ func TestScanRoute53Resolver_ElementWithoutKeyWarns(t *testing.T) {
 // A denied listing warns once under its op; a denial on a later page keeps
 // the pages read before it. Every other listing still runs.
 func TestScanRoute53Resolver_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op         string
 		call, lost int
@@ -1155,6 +1178,7 @@ func TestScanRoute53Resolver_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it too.
 func TestScanRoute53Resolver_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newR53RCalls()
 	handlers := r53rHandlers(calls)
@@ -1192,6 +1216,7 @@ func TestScanRoute53Resolver_ContextEndStopsOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanRoute53Resolver_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "route53resolver.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1227,6 +1252,7 @@ func TestScanRoute53Resolver_NXDOMAIN(t *testing.T) {
 // hard error reaches the caller without costing the other child phase its
 // rows.
 func TestScanRoute53Resolver_ChildPhaseErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, lostType string }{
 		{"ListFirewallRules", TypeRoute53ResolverFirewallRule},
 		{"ListResolverEndpointIpAddresses", TypeRoute53ResolverResolverEndpointIPAddress},
@@ -1257,6 +1283,7 @@ func TestScanRoute53Resolver_ChildPhaseErrorKeepsOtherRows(t *testing.T) {
 // its op, so that a child phase's hard error still reaches the dispatcher as
 // a hard error.
 func TestScanRoute53Resolver_TransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	for _, failed := range []string{"ListFirewallRules", "ListResolverEndpointIpAddresses"} {
 		t.Run(failed, func(t *testing.T) {
 			st := newTestStore(t)

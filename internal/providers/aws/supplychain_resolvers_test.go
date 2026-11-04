@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveSupplyChainInstanceChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -33,6 +34,7 @@ func TestResolveSupplyChainInstanceChildren(t *testing.T) {
 }
 
 func TestResolveSupplyChainInstanceChildren_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

@@ -275,6 +275,7 @@ func transferWarnings(w []store.ScanWarning) []string {
 // model's page cap of 1000. Only the directory server's accesses are listed.
 // No error, no warning.
 func TestScanTransfer_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newTransferCalls()
@@ -346,6 +347,7 @@ func TestScanTransfer_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanTransfer_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := transferScan(context.Background(), st, transferHandlers(newTransferCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -365,6 +367,7 @@ func TestScanTransfer_RescanInsertsNone(t *testing.T) {
 // keeps the row untagged and warns once under the tag op; a throttle keeps
 // it and is transient; any other error keeps it and is an error.
 func TestScanTransfer_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagCase struct {
 		name      string
 		arn, typ  string
@@ -440,6 +443,7 @@ func TestScanTransfer_TagReadFailures(t *testing.T) {
 // WebAppId, give no tags: the row is kept untagged and the read is an error.
 // The id-less one is never described.
 func TestScanTransfer_WebAppTagReadWithoutBodyOrID(t *testing.T) {
+	t.Parallel()
 	webApps := transferKindOf(t, "ListWebApps")
 	t.Run("no WebApp in the answer", func(t *testing.T) {
 		st := newTestStore(t)
@@ -487,6 +491,7 @@ func TestScanTransfer_WebAppTagReadWithoutBodyOrID(t *testing.T) {
 // Each web app on a page of several, and on a later page, is described by
 // its own WebAppId and stored with its own tags.
 func TestScanTransfer_WebAppsDescribedByOwnIDAcrossPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newTransferCalls()
 	handlers := transferHandlers(calls)
@@ -523,6 +528,7 @@ func TestScanTransfer_WebAppsDescribedByOwnIDAcrossPages(t *testing.T) {
 // ListTagsForResource pages are all read; a repeated NextToken fails the
 // read, keeping the row untagged.
 func TestScanTransfer_TagPages(t *testing.T) {
+	t.Parallel()
 	arn := transferKindOf(t, "ListConnectors").arn("", "tagged")
 	pageOf := func(next *string, k, v string) *transfer.ListTagsForResourceOutput {
 		return &transfer.ListTagsForResourceOutput{NextToken: next, Tags: []transfertypes.Tag{{Key: sdkaws.String(k), Value: sdkaws.String(v)}}}
@@ -571,6 +577,7 @@ func TestScanTransfer_TagPages(t *testing.T) {
 // Denied tag reads in two phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanTransfer_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newTransferCalls()
@@ -595,6 +602,7 @@ func TestScanTransfer_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanTransfer_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, transferTagsOp)
 	calls := newTransferCalls()
@@ -613,6 +621,7 @@ func TestScanTransfer_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored. A failed server write lists no server's children.
 func TestScanTransfer_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	t.Run("certificates", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := rhWarnRecorder(st)
@@ -657,6 +666,7 @@ func TestScanTransfer_FailedWriteStopsScan(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the later phases. A server not stored has no children read.
 func TestScanTransfer_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op        string
 		wantTotal int
@@ -689,6 +699,7 @@ func TestScanTransfer_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanTransfer_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := transferHandlers(newTransferCalls())
 	k := transferKindOf(t, "ListProfiles")
@@ -714,6 +725,7 @@ func TestScanTransfer_RepeatedTokenKeepsPages(t *testing.T) {
 // rows: a server deleted since it was listed is skipped silently, a denial
 // warns once under the op, and any other error is returned.
 func TestScanTransfer_PerServerListingFailures(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListAgreements", "ListUsers", "ListHostKeys"} {
 		for _, c := range []struct {
 			name      string
@@ -768,6 +780,7 @@ func TestScanTransfer_PerServerListingFailures(t *testing.T) {
 // with an ARN but no ServerId is stored under its ARN, named by it, without
 // its children read, with one warning.
 func TestScanTransfer_ElementWithoutARNOrID(t *testing.T) {
+	t.Parallel()
 	certs := transferKindOf(t, "ListCertificates")
 	servers := transferKindOf(t, "ListServers")
 	noIDServer := servers.arn("", "noid")
@@ -848,6 +861,7 @@ func TestScanTransfer_ElementWithoutARNOrID(t *testing.T) {
 
 // A GovCloud or China ARN reaches the tag op unchanged.
 func TestScanTransfer_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, arn := range []string{
 		"arn:aws-us-gov:transfer:us-gov-west-1:" + testAccountID + ":server/s-gov",
 		"arn:aws-cn:transfer:cn-north-1:" + testAccountID + ":server/s-cn",
@@ -877,6 +891,7 @@ func TestScanTransfer_TagReadsKeepPartitionARNs(t *testing.T) {
 // flight saw it in its listing and its tag reads, and the later phases are
 // not run.
 func TestScanTransfer_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newTransferCalls()
 	handlers := transferHandlers(calls)
@@ -912,6 +927,7 @@ func TestScanTransfer_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanTransfer_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "transfer.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -947,6 +963,7 @@ func TestScanTransfer_NXDOMAIN(t *testing.T) {
 // listing has already been called. Its hard error is returned with every
 // other phase's rows counted.
 func TestScanTransfer_AccessPhaseRunsLast(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newTransferCalls()
 	handlers := transferHandlers(calls)
@@ -973,6 +990,7 @@ func TestScanTransfer_AccessPhaseRunsLast(t *testing.T) {
 }
 
 func TestTransferRow(t *testing.T) {
+	t.Parallel()
 	acct := newTestAccount(testAccountID)
 	element := transfertypes.ListedProfile{ProfileId: sdkaws.String("p-1")}
 	arn := transferTestARNPrefix + "profile/p-1"

@@ -453,6 +453,7 @@ func assertPPRow(t *testing.T, row store.Resource, name, attrs string, wantTags 
 }
 
 func TestScanPinpoint_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	r := runPP(t, st, nil)
 	if r.err != nil {
@@ -508,6 +509,7 @@ func TestScanPinpoint_StoresEveryTypeWithTags(t *testing.T) {
 // The redacted credentials are the stored fields, not lookalikes: the Baidu
 // and GCM channel rows carry the placeholder at Credential.
 func TestScanPinpoint_RedactsChannelCredentials(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if r := runPP(t, st, nil); r.err != nil {
 		t.Fatalf("scanPinpoint: %v", r.err)
@@ -527,6 +529,7 @@ func TestScanPinpoint_RedactsChannelCredentials(t *testing.T) {
 // A failed page two keeps the rows read before it, the error is returned, and
 // every later phase still runs, the per-app phases over the apps stored.
 func TestScanPinpoint_FailedPageKeepsRowsAndRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	appOne := ppAllRows()
 	for _, tc := range []struct {
 		op, key string
@@ -558,6 +561,7 @@ func TestScanPinpoint_FailedPageKeepsRowsAndRunsLaterPhases(t *testing.T) {
 // its phase after the other apps' rows are stored, and every later phase
 // still runs.
 func TestScanPinpoint_PerAppGetErrorReturnedAndLaterPhasesRun(t *testing.T) {
+	t.Parallel()
 	for _, s := range ppSingletons {
 		t.Run(s.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -574,6 +578,7 @@ func TestScanPinpoint_PerAppGetErrorReturnedAndLaterPhasesRun(t *testing.T) {
 // fans out over apps (an account-wide listing has no key to name), and is not
 // an error; the other phases keep their rows.
 func TestScanPinpoint_DeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	type tcase struct {
 		op, label string
 		apps      []string
@@ -618,6 +623,7 @@ func TestScanPinpoint_DeniedWarnsOnce(t *testing.T) {
 // An app the per-app listing no longer finds is skipped silently when nothing
 // was read from it, and with one warning naming it when page one was read.
 func TestScanPinpoint_AppNotFound(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"GetCampaigns", "GetSegments"} {
 		typ := map[string]string{"GetCampaigns": TypePinpointCampaign, "GetSegments": TypePinpointSegment}[op]
 		t.Run(op+"/before any page", func(t *testing.T) {
@@ -645,6 +651,7 @@ func TestScanPinpoint_AppNotFound(t *testing.T) {
 // transient with every other row stored; beside another phase's hard error it
 // is warned about once and the hard error is returned.
 func TestScanPinpoint_TransientBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, label, key string
 		want           map[string][]string
@@ -694,6 +701,7 @@ func TestScanPinpoint_TransientBesideHardError(t *testing.T) {
 // A failed write stops the scan with no warning claiming the lost rows, and no
 // later phase runs.
 func TestScanPinpoint_WriteFailureStops(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		typ, label string
 		ops        []string
@@ -720,6 +728,7 @@ func TestScanPinpoint_WriteFailureStops(t *testing.T) {
 
 // Once ctx ends the per-app phases read no app, and the stop is returned.
 func TestScanPinpoint_ContextStopsPerAppReads(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

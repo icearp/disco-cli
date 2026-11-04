@@ -38,6 +38,7 @@ func edgeSources(t *testing.T, st *store.Store, toID, kind string) []string {
 // A policy's resource-set ARNs are rebuilt with the policy row's region: the
 // eu-west-1 policy reaches its own region's rs1, never us-east-1's rs1 or rs2.
 func TestResolveFMSPolicyResourceSets(t *testing.T) {
+	t.Parallel()
 	const region = "eu-west-1"
 	st := newTestStore(t)
 	rs1 := upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN("aws", region, testAccountID, "rs1"), region, fmsSetAttrs())
@@ -74,6 +75,7 @@ func TestResolveFMSPolicyResourceSets(t *testing.T) {
 }
 
 func TestResolveFMSPolicyResourceSets_NoPolicies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeFMSResourceSet, fmsResourceSetARN("aws", testRegion, testAccountID, "rs1"), testRegion, fmsSetAttrs())
 	if err := resolveFMSPolicyResourceSets(newTestAccount(testAccountID), st); err != nil {
@@ -82,6 +84,7 @@ func TestResolveFMSPolicyResourceSets_NoPolicies(t *testing.T) {
 }
 
 func TestResolveFMSResourceSetMembers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	vpcARN := ec2ARN("us-east-1", testAccountID, "vpc", "vpc-1")
 	sgARN := ec2ARN("us-east-1", fmsOtherAccount, "security-group", "sg-1")
@@ -123,6 +126,7 @@ func TestResolveFMSResourceSetMembers(t *testing.T) {
 // A set row that does not decode is reported and costs no other set its
 // edges; a set row without a Resources key yields none.
 func TestResolveFMSResourceSetMembers_BadAndEmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	vpcARN := ec2ARN("us-east-1", testAccountID, "vpc", "vpc-1")
 	vpc := upsertTestResource(t, st, "aws", testAccountID, TypeEC2VPC, vpcARN, "us-east-1", "{}")
@@ -142,6 +146,7 @@ func TestResolveFMSResourceSetMembers_BadAndEmptyAttrs(t *testing.T) {
 }
 
 func TestFMSMemberOwner(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ accountID, arn, want string }{
 		{"111111111111", "arn:aws:ec2:us-east-1:222222222222:vpc/vpc-1", "111111111111"},
 		{"", "arn:aws:ec2:us-east-1:222222222222:vpc/vpc-1", "222222222222"},

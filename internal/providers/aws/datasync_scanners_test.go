@@ -227,6 +227,7 @@ func dsyRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, b
 // model's page cap, every row stores the body its kind's Describe op
 // returned for its ARN, and the scan reports no error or warning.
 func TestScanDataSync_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newDSYCalls()
@@ -291,6 +292,7 @@ func TestScanDataSync_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanDataSync_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newDSYCalls()
 	if _, _, err := dsyScan(context.Background(), t, st, dsyHandlers(calls)); err != nil {
@@ -311,6 +313,7 @@ func TestScanDataSync_RescanInsertsNone(t *testing.T) {
 // InvalidRequestException, which a deleted resource may also answer, is the
 // hard case.
 func TestScanDataSync_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []dsyRow{
 		{TypeDataSyncAgent, dsyARN("agent", "tagged")},
 		{TypeDataSyncLocationS3, dsyLocationARN("s3", "tagged")},
@@ -369,6 +372,7 @@ func TestScanDataSync_TagReadFailures(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanDataSync_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, dsyListTagsOp)
 	calls := newDSYCalls()
@@ -387,6 +391,7 @@ func TestScanDataSync_TagThrottleDemotedBesideHardError(t *testing.T) {
 // denial warns once under the Describe op of the row's kind, a throttle is a
 // transient error, any other code a hard one.
 func TestScanDataSync_DescribeFailures(t *testing.T) {
+	t.Parallel()
 	targets := []struct{ typ, arn, op, listed string }{
 		{TypeDataSyncAgent, dsyARN("agent", "tagged"), "datasync:DescribeAgent", `"Name":"agent tagged"`},
 		{TypeDataSyncTask, dsyARN("task", "tagged"), "datasync:DescribeTask", `"Name":"task tagged"`},
@@ -442,6 +447,7 @@ func TestScanDataSync_DescribeFailures(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanDataSync_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeDataSyncTask)
@@ -464,6 +470,7 @@ func TestScanDataSync_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A failed location write sends no warning about a location Describe either:
 // a throttled one is returned with the write failure, not demoted beside it.
 func TestScanDataSync_FailedLocationWriteSendsNoDescribeWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeDataSyncLocationSMB)
@@ -483,6 +490,7 @@ func TestScanDataSync_FailedLocationWriteSendsNoDescribeWarning(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and no listing's
 // failure stops the phases after it; a denied listing warns.
 func TestScanDataSync_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, "datasync:ListTasks")
 	calls := newDSYCalls()
@@ -510,6 +518,7 @@ func TestScanDataSync_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // A repeated token ends the listing as an error, keeping its pages; a
 // repeated token in a tag listing keeps the row without tags.
 func TestScanDataSync_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newDSYCalls()
 	handlers := dsyHandlers(calls)
@@ -539,6 +548,7 @@ func TestScanDataSync_RepeatedTokenKeepsPages(t *testing.T) {
 // An element without an ARN, and a location whose URI scheme maps to no
 // type, are warned about under the listing, not stored.
 func TestScanDataSync_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	agentWarns := bacWarnings(st, "datasync:ListAgents")
 	locWarns := bacWarnings(st, "datasync:ListLocations")
@@ -570,6 +580,7 @@ func TestScanDataSync_UnstorableItemsWarn(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is reported once,
 // naming the phases not run, although the phase in flight saw it.
 func TestScanDataSync_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newDSYCalls()
 	handlers := dsyHandlers(calls)
@@ -608,6 +619,7 @@ func TestScanDataSync_ContextEndStopsOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanDataSync_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "datasync.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -642,6 +654,7 @@ func TestScanDataSync_NXDOMAIN(t *testing.T) {
 // A throttled location Describe beside a hard tag error is demoted to one
 // warning under that kind's Describe op, not under the listing.
 func TestScanDataSync_LocationDescribeThrottleDemotedUnderItsOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	listWarns := countOpWarnings(st, "datasync:ListLocations")
 	warns := countOpWarnings(st, "datasync:DescribeLocationNfs")

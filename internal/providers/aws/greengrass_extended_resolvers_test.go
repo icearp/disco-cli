@@ -8,6 +8,7 @@ import (
 )
 
 func TestGreengrassVersionParent(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:greengrass:us-east-1:123:/greengrass/definition/cores/c1/versions/v1", "arn:aws:greengrass:us-east-1:123:/greengrass/definition/cores/c1"},
 		{"arn:aws:greengrass:us-east-1:123:/greengrass/groups/g1/versions/v1", "arn:aws:greengrass:us-east-1:123:/greengrass/groups/g1"},
@@ -22,6 +23,7 @@ func TestGreengrassVersionParent(t *testing.T) {
 }
 
 func TestResolveGreengrassVersionsToParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cdARN := fmt.Sprintf("arn:aws:greengrass:%s:%s:/greengrass/definition/cores/c1", testRegion, acct.ID)

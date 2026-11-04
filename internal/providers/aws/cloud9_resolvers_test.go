@@ -12,6 +12,7 @@ import (
 )
 
 func TestResolveCloud9EnvOwnerUser(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -45,6 +46,7 @@ func cloud9MembershipRow(t *testing.T, st *store.Store, userARN string) string {
 }
 
 func TestResolveCloud9MembershipUsers_ScannedUser(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	userARN := cloud9UserARN("alice")
 	mID := cloud9MembershipRow(t, st, userARN)
@@ -67,6 +69,7 @@ func TestResolveCloud9MembershipUsers_ScannedUser(t *testing.T) {
 // Members that are not a scanned IAM user emit no edge: an unscanned user, an
 // assumed-role session and account root.
 func TestResolveCloud9MembershipUsers_NoScannedTarget(t *testing.T) {
+	t.Parallel()
 	for _, userARN := range []string{
 		cloud9UserARN("unscanned"),
 		fmt.Sprintf("arn:aws:sts::%s:assumed-role/dev/session", testAccountID),
@@ -89,6 +92,7 @@ func TestResolveCloud9MembershipUsers_NoScannedTarget(t *testing.T) {
 }
 
 func TestResolveCloud9MembershipUsers_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	mID := upsertTestResource(t, st, "aws", testAccountID, TypeCloud9EnvironmentMembership, cloud9EnvARN("env1")+"/membership/x", testRegion, "{}")
 	upsertTestResource(t, st, "aws", testAccountID, TypeIAMUser, cloud9UserARN("alice"), "", "{}")
@@ -105,6 +109,7 @@ func TestResolveCloud9MembershipUsers_NoAttrs(t *testing.T) {
 // after it none of its edges. ListResources orders by name, so the names put
 // the bad row first.
 func TestResolveCloud9MembershipUsers_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeCloud9EnvironmentMembership, cloud9EnvARN("env1")+"/membership/x", testRegion, `{"UserArn":7}`, "a-bad")
 	userARN := cloud9UserARN("alice")
@@ -127,6 +132,7 @@ func TestResolveCloud9MembershipUsers_DecodeErrorReturned(t *testing.T) {
 }
 
 func TestResolveCloud9EnvOwnerRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

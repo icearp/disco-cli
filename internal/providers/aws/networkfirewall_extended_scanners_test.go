@@ -220,6 +220,7 @@ func storedNativeIDs(t *testing.T, st *store.Store, rtype string) []string {
 }
 
 func TestScanNFNewPhases_Scenarios(t *testing.T) {
+	t.Parallel()
 	denied := apiErr("AccessDeniedException", "User: x is not authorized to perform: network-firewall:Describe")
 	cases := []struct {
 		name          string
@@ -301,6 +302,7 @@ func TestScanNFNewPhases_Scenarios(t *testing.T) {
 // succeeded the op exists in the region, so a later gap is an error that
 // keeps the rows read.
 func TestScanNFProxies_PreviewRegionGap(t *testing.T) {
+	t.Parallel()
 	gap := apiErr("InvalidRequestException", "The API being called does not exist")
 	t.Run("first page", func(t *testing.T) {
 		st := newTestStore(t)
@@ -329,6 +331,7 @@ func TestScanNFProxies_PreviewRegionGap(t *testing.T) {
 // The preview gap is a proxy-feature condition; container associations are a
 // separate feature where it has not been observed, so it must surface.
 func TestScanNFContainerAssociations_InvalidRequestPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubNFW{assocListErr: apiErr("InvalidRequestException", "The API being called does not exist")}
 	if res := scanNFContainerAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); !isAPIErrorCode(res.err, "InvalidRequestException") {
@@ -339,6 +342,7 @@ func TestScanNFContainerAssociations_InvalidRequestPropagates(t *testing.T) {
 // A DescribeProxy with no Proxy payload keeps the listed proxy as its list
 // element and returns an error, as the other described types do.
 func TestScanNFProxies_NilBodyKeepsListElementAndErrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubNFW{nilProxy: map[string]bool{nfProxyARN("empty"): true}}
 	nfPhases[0].set(stub, nil, []string{"a", "empty"})
@@ -368,6 +372,7 @@ func nfStoredRow(t *testing.T, st *store.Store, nativeID string) (*store.Resourc
 }
 
 func TestScanNFProxies_StoredRow(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubNFW{tags: map[string][]nfwtypes.Tag{nfProxyARN("a"): nfTags("env", "prod")}}
 	nfPhases[0].set(stub, nil, []string{"a", "untagged"})
@@ -394,6 +399,7 @@ func TestScanNFProxies_StoredRow(t *testing.T) {
 }
 
 func TestScanNFContainerAssociations_StoredRow(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubNFW{tags: map[string][]nfwtypes.Tag{nfAssocARN("a"): nfTags("env", "prod")}}
 	nfPhases[1].set(stub, nil, []string{"a", "untagged"})
@@ -450,6 +456,7 @@ func nfTopLevelResponses(override map[string][]stubCall) map[string][]stubCall {
 }
 
 func TestScanNetworkFirewall_StoresProxyAndContainerAssociationRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: cfgWithStub(stubResponses(t, nfTopLevelResponses(nil)), testRegion)}
 	total, _, err := scanNetworkFirewall(context.Background(), acct, testRegion, st, testScanID)
@@ -475,6 +482,7 @@ func TestScanNetworkFirewall_StoresProxyAndContainerAssociationRows(t *testing.T
 // new op's error propagates while the pre-existing phases' rows, up to the
 // last of them (proxy rule groups), are kept.
 func TestScanNetworkFirewall_NewPhaseErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	boom := []stubCall{{Err: apiErr("InternalServerError", "boom")}}
 	for _, op := range []string{"ListProxies", "DescribeProxy", "ListContainerAssociations", "DescribeContainerAssociation"} {
 		t.Run(op, func(t *testing.T) {

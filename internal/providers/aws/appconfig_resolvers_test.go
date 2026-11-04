@@ -9,6 +9,7 @@ import (
 )
 
 func TestAppconfigAppARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:appconfig:us-east-1:123:application/a1/environment/e1", "arn:aws:appconfig:us-east-1:123:application/a1"},
 		{"arn:aws:appconfig:us-east-1:123:application/a1/configurationprofile/c1/hostedconfigurationversion/1", "arn:aws:appconfig:us-east-1:123:application/a1"},
@@ -23,6 +24,7 @@ func TestAppconfigAppARNFromChild(t *testing.T) {
 }
 
 func TestResolveAppConfigChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appARN := fmt.Sprintf("arn:aws:appconfig:%s:%s:application/a1", testRegion, acct.ID)
@@ -52,6 +54,7 @@ func TestResolveAppConfigChildren(t *testing.T) {
 }
 
 func TestResolveAppConfigExtensionAssociation(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	extARN := fmt.Sprintf("arn:aws:appconfig:%s:%s:extension/x1/1", testRegion, acct.ID)
@@ -71,6 +74,7 @@ func TestResolveAppConfigExtensionAssociation(t *testing.T) {
 // environment and configuration profile. A profile of the same id under
 // another application, and an unscanned environment, get no edge.
 func TestResolveAppConfigExperimentDefinitions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	const appARN = "arn:aws:appconfig:us-east-1:123456789012:application/a1"
@@ -114,6 +118,7 @@ func TestResolveAppConfigExperimentDefinitions(t *testing.T) {
 }
 
 func TestResolveAppConfigExperimentDefinitions_NoRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeAppConfigEnvironment,

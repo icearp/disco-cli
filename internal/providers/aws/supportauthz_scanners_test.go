@@ -104,6 +104,7 @@ func runSupportAuthZ(t *testing.T, st *store.Store, handlers map[string]func(in 
 }
 
 func TestScanSupportPermits_StoresEveryPageInTheScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets, regions parentCalls
 	h := saHandlers(&gets)
@@ -171,6 +172,7 @@ func saDecodeJSON(t *testing.T, s string) any {
 // the SDK's {"Value": ...} union encoding loses. A permit with no conditions
 // stores them as null.
 func TestScanSupportPermits_AttributesNameUnionMembers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets parentCalls
 	if _, err := runSupportAuthZ(t, st, saHandlers(&gets)); err != nil {
@@ -204,6 +206,7 @@ func TestScanSupportPermits_AttributesNameUnionMembers(t *testing.T) {
 // A member this SDK version does not model is kept under UnknownMember with
 // its tag; an absent Permit stores null and an absent SigningKeyInfo {}.
 func TestFlattenSupportPermit_UnknownAndAbsentMembers(t *testing.T) {
+	t.Parallel()
 	unknown := &satypes.UnknownUnionMember{Tag: "newMember"}
 	wantUnknown := map[string]any{"UnknownMember": map[string]any{"Tag": "newMember", "Value": nil}}
 	for _, tc := range []struct {
@@ -244,6 +247,7 @@ func TestFlattenSupportPermit_UnknownAndAbsentMembers(t *testing.T) {
 }
 
 func TestScanSupportPermits_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "supportauthz:ListSupportPermits")
 	total, err := runSupportAuthZ(t, st, map[string]func(in any) (any, error){
@@ -256,6 +260,7 @@ func TestScanSupportPermits_Empty(t *testing.T) {
 
 // A list denial warns once and keeps the permits from the pages before it.
 func TestScanSupportPermits_ListDeniedKeepsListedPermits(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		failPage bool // fail page two instead of page one
@@ -289,6 +294,7 @@ func TestScanSupportPermits_ListDeniedKeepsListedPermits(t *testing.T) {
 }
 
 func TestScanSupportPermits_ListErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, err := runSupportAuthZ(t, st, map[string]func(in any) (any, error){
 		"ListSupportPermits": func(any) (any, error) {
@@ -315,6 +321,7 @@ func saGetFails(gets *parentCalls, err error) map[string]func(in any) (any, erro
 // A permit deleted between the list and its Get is dropped silently; its
 // sibling is stored.
 func TestScanSupportPermits_GetNotFoundSkipsPermit(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "supportauthz:GetSupportPermit")
 	var gets parentCalls
@@ -330,6 +337,7 @@ func TestScanSupportPermits_GetNotFoundSkipsPermit(t *testing.T) {
 
 // A denied Get warns once for the op, however many permits it hits.
 func TestScanSupportPermits_GetDeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "supportauthz:GetSupportPermit")
 	var gets parentCalls
@@ -347,6 +355,7 @@ func TestScanSupportPermits_GetDeniedWarnsOnce(t *testing.T) {
 }
 
 func TestScanSupportPermits_GetErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets parentCalls
 	_, err := runSupportAuthZ(t, st, saGetFails(&gets, apiErr("ValidationException", "bad identifier")))
@@ -359,6 +368,7 @@ func TestScanSupportPermits_GetErrorPropagates(t *testing.T) {
 // A service that answers with the token it was sent ends the listing after
 // that page instead of looping.
 func TestScanSupportPermits_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets parentCalls
 	h := saHandlers(&gets)

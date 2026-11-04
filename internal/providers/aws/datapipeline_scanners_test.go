@@ -108,6 +108,7 @@ func scanDPWith(t *testing.T, st *store.Store, stub *stubDataPipeline) (int, int
 }
 
 func TestScanDataPipelinePipelines_StoresDescriptionsWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	listWarns := countOpWarnings(st, dataPipelineListOp)
 	describeWarns := countOpWarnings(st, dataPipelineDescribeOp)
@@ -157,6 +158,7 @@ func TestScanDataPipelinePipelines_StoresDescriptionsWithTags(t *testing.T) {
 // A failed later list page keeps the pipelines of the pages read before it: a
 // denial warns, any other error is returned.
 func TestScanDataPipelinePipelines_ListErrorKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -194,6 +196,7 @@ func TestScanDataPipelinePipelines_ListErrorKeepsEarlierPages(t *testing.T) {
 // again one id at a time: only the ids gone alone are skipped, silently, and
 // an id failing otherwise alone is returned while its batch-mates are kept.
 func TestScanDataPipelinePipelines_GoneBatchDescribedPerID(t *testing.T) {
+	t.Parallel()
 	gone := map[string]error{
 		"df-3": apiErr("PipelineNotFoundException", "gone"),
 		"df-7": apiErr("PipelineDeletedException", "deleted"),
@@ -238,6 +241,7 @@ func TestScanDataPipelinePipelines_GoneBatchDescribedPerID(t *testing.T) {
 }
 
 func TestScanDataPipelinePipelines_DescribeErrorKeepsOtherBatches(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -270,6 +274,7 @@ func TestScanDataPipelinePipelines_DescribeErrorKeepsOtherBatches(t *testing.T) 
 // An account the closed service never onboarded is not entitled; the same
 // empty-message denial after a page was read only warns.
 func TestScanDataPipelinePipelines_ClosedToNewCustomers(t *testing.T) {
+	t.Parallel()
 	closed := apiErr("AccessDeniedException", "")
 	st := newTestStore(t)
 	_, _, err := scanDPWith(t, st, &stubDataPipeline{listErr: map[string]error{"": closed}})
@@ -287,6 +292,7 @@ func TestScanDataPipelinePipelines_ClosedToNewCustomers(t *testing.T) {
 }
 
 func TestScanDataPipelinePipelines_RepeatedMarker(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := dpTwoPageStub()
 	stub.pages["m2"].Marker = ptrStr("m2")
@@ -300,6 +306,7 @@ func TestScanDataPipelinePipelines_RepeatedMarker(t *testing.T) {
 }
 
 func TestScanDataPipelinePipelines_None(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubDataPipeline{}
 	total, inserted, err := scanDPWith(t, st, stub)
@@ -313,6 +320,7 @@ func TestScanDataPipelinePipelines_None(t *testing.T) {
 
 // No warning is reported for pipelines a failed write lost.
 func TestScanDataPipelinePipelines_StoreWriteFailureWarnsNothing(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
@@ -334,6 +342,7 @@ func TestScanDataPipelinePipelines_StoreWriteFailureWarnsNothing(t *testing.T) {
 // the pipelines described before are stored and the error says the rest were
 // not described.
 func TestScanDataPipelinePipelines_StopsDescribingWhenContextDone(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		gone      map[string]error

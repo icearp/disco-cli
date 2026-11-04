@@ -294,6 +294,7 @@ func cfgWants() []cfgWant {
 // each with Limit 50; every listing is sent its model's page cap; the
 // untagged types are stored too. No error or warning.
 func TestScanConfig_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newCfgCalls()
@@ -376,6 +377,7 @@ func TestScanConfig_StoresTagsOfEveryType(t *testing.T) {
 // listed once (two pages), and both rule names reach
 // DescribeRemediationConfigurations.
 func TestScanConfig_RemediationPhasesUseStoredRules(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCfgCalls()
 	if _, _, err := cfgScan(context.Background(), st, cfgHandlers(calls)); err != nil {
@@ -395,6 +397,7 @@ func TestScanConfig_RemediationPhasesUseStoredRules(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanConfig_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCfgCalls()
 	if _, _, err := cfgScan(context.Background(), st, cfgHandlers(calls)); err != nil {
@@ -414,6 +417,7 @@ func TestScanConfig_RescanInsertsNone(t *testing.T) {
 // under config:ListTagsForResource; a throttle after retries keeps it and is
 // a transient error; ValidationException keeps it and is a hard error.
 func TestScanConfig_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct{ typ, arn string }{
 		{TypeConfigStoredQuery, cfgKindARN(cfgKindOf(t, "ListStoredQueries"), "tagged")},
 		{TypeConfigRecorder, cfgRecorderARN("tagged")},
@@ -477,6 +481,7 @@ func TestScanConfig_TagReadFailures(t *testing.T) {
 // A rule the tag read finds deleted is dropped and is not a parent of the
 // remediation phases.
 func TestScanConfig_RuleGoneIsNoRemediationParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCfgCalls()
 	calls.errs[cfgKindARN(cfgKindOf(t, "DescribeConfigRules"), "bare")] = configNotFound
@@ -494,6 +499,7 @@ func TestScanConfig_RuleGoneIsNoRemediationParent(t *testing.T) {
 // Denied tag reads across several phases send one warning per phase, never
 // one per row.
 func TestScanConfig_TagDenialsWarnOncePerPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, cfgTagsOp)
 	calls := newCfgCalls()
@@ -515,6 +521,7 @@ func TestScanConfig_TagDenialsWarnOncePerPhase(t *testing.T) {
 // Tags are read over every page ListTagsForResource returns; a repeated
 // token ends the read as an error, keeping the row without tags.
 func TestScanConfig_TagPages(t *testing.T) {
+	t.Parallel()
 	arn := cfgKindARN(cfgKindOf(t, "ListStoredQueries"), "tagged")
 	pages := func(second *string) func(any) (any, error) {
 		return func(in any) (any, error) {
@@ -558,6 +565,7 @@ func TestScanConfig_TagPages(t *testing.T) {
 // recorder with an Arn but no name is stored and tagged; one with neither is
 // warned about under its listing, not stored.
 func TestScanConfig_RecorderWithoutARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	all := countWarnings(st)
 	tagWarns := bacWarnings(st, cfgTagsOp)
@@ -598,6 +606,7 @@ func TestScanConfig_RecorderWithoutARN(t *testing.T) {
 // A delivery channel without a name is warned about under its listing,
 // named by its bucket, and not stored.
 func TestScanConfig_DeliveryChannelWithoutNameWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	all := countWarnings(st)
 	warns := bacWarnings(st, "config:DescribeDeliveryChannels")
@@ -621,6 +630,7 @@ func TestScanConfig_DeliveryChannelWithoutNameWarns(t *testing.T) {
 // type; every other listing still runs. The organization listings treat
 // OrganizationAccessDeniedException as a denial too.
 func TestScanConfig_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	type deniedOp struct {
 		op, typ string
 		err     error
@@ -683,6 +693,7 @@ func cfgAssertWarning(t *testing.T, warns []store.ScanWarning, op, key string) {
 // the expected answer to a member or standalone account, ends it silently: no
 // row, no warning, no error, and every other phase runs.
 func TestScanConfig_OrgAccessDeniedFirstPageIsSilent(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeOrganizationConfigRules", "DescribeOrganizationConformancePacks"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -713,6 +724,7 @@ func TestScanConfig_OrgAccessDeniedFirstPageIsSilent(t *testing.T) {
 // and warns once under the op; OrganizationAccessDeniedException keeps it
 // and is returned as an error, since the listing had been served.
 func TestScanConfig_OrgDenialAfterFirstPageKeepsIt(t *testing.T) {
+	t.Parallel()
 	k := cfgKindOf(t, "DescribeOrganizationConfigRules")
 	first := cfgKindARN(k, "tagged")
 	t.Run("IAM denial", func(t *testing.T) {
@@ -750,6 +762,7 @@ func TestScanConfig_OrgDenialAfterFirstPageKeepsIt(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the listings after it.
 func TestScanConfig_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeConfigRules", "DescribeAggregationAuthorizations", "ListConnectors"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -779,6 +792,7 @@ func TestScanConfig_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanConfig_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := cfgHandlers(newCfgCalls())
 	k := cfgKindOf(t, "DescribeConfigurationAggregators")
@@ -802,6 +816,7 @@ func TestScanConfig_RepeatedTokenKeepsPages(t *testing.T) {
 // An element without an ARN is warned about under its listing, named by its
 // name, or by the fallback text when it has none, and is not stored.
 func TestScanConfig_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, key string
 		page      any
@@ -838,6 +853,7 @@ func TestScanConfig_ElementWithoutARNWarns(t *testing.T) {
 // throttle keeps it and is transient; any other error keeps it and is
 // returned.
 func TestScanConfig_GetConnectorFailures(t *testing.T) {
+	t.Parallel()
 	k := cfgKindOf(t, "ListConnectors")
 	arn := cfgKindARN(k, "tagged")
 	for _, c := range []struct {
@@ -891,6 +907,7 @@ func TestScanConfig_GetConnectorFailures(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanConfig_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, cfgTagsOp)
 	calls := newCfgCalls()
@@ -908,6 +925,7 @@ func TestScanConfig_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanConfig_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeConfigRecorder)
@@ -929,6 +947,7 @@ func TestScanConfig_FailedWriteStopsWithoutWarning(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it too.
 func TestScanConfig_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCfgCalls()
 	handlers := cfgHandlers(calls)
@@ -967,6 +986,7 @@ func TestScanConfig_ContextEndStopsOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanConfig_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "config.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1025,6 +1045,7 @@ func cfgServiceLinked(c *cfgCalls) map[string]func(any) (any, error) {
 // under the tag op, with no error; the same code on a rule or pack the
 // account created is a hard error.
 func TestScanConfig_ServiceLinkedTagRefusal(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeConfigRules", "DescribeConformancePacks"} {
 		k := cfgKindOf(t, op)
 		t.Run(op+"/service-linked", func(t *testing.T) {
@@ -1074,6 +1095,7 @@ func TestScanConfig_ServiceLinkedTagRefusal(t *testing.T) {
 // A failed write of the rules or packs sends no warning about a
 // service-linked row whose tag read was refused.
 func TestScanConfig_ServiceLinkedRefusalNoWarningAfterFailedWrite(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeConfigRules", "DescribeConformancePacks"} {
 		t.Run(op, func(t *testing.T) {
 			k := cfgKindOf(t, op)
@@ -1098,6 +1120,7 @@ func TestScanConfig_ServiceLinkedRefusalNoWarningAfterFailedWrite(t *testing.T) 
 // return, and a recorder listed without an Arn is stored under an ARN built in
 // the account's partition, its tags not read.
 func TestScanConfig_TagReadInAccountPartition(t *testing.T) {
+	t.Parallel()
 	acct := partitionAccount("aws-us-gov")
 	region := acct.Regions[0]
 	st := newTestStore(t)

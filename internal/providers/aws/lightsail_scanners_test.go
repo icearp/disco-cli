@@ -124,6 +124,7 @@ func lsTaggedStub(t *testing.T) sdkaws.Config {
 // Every tagged Lightsail type stores the tags of its listed element, and an
 // element without tags stores none.
 func TestScanLightsail_StoresListedTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = lsTaggedStub(t)
@@ -155,6 +156,7 @@ func TestScanLightsail_StoresListedTags(t *testing.T) {
 
 // A status the element omits is left unset, not stored as "".
 func TestScanLightsail_StatusOnlyWhenListed(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = lsTaggedStub(t)
@@ -186,6 +188,7 @@ func lsAlarm(id string) lightsailtypes.Alarm {
 // GetAlarms; the contact-methods phase, which runs after it, pins that a
 // failed phase does not stop the later ones.
 func TestScanLightsail_ListErrors(t *testing.T) {
+	t.Parallel()
 	denied := apiErr("AccessDeniedException", "User: x is not authorized to perform: lightsail:GetAlarms")
 	page := func(next *string, alarms ...lightsailtypes.Alarm) stubCall {
 		return stubCall{Output: &lightsail.GetAlarmsOutput{Alarms: alarms, NextPageToken: next}}
@@ -271,6 +274,7 @@ func TestScanLightsail_ListErrors(t *testing.T) {
 
 // GetCertificates paginates; every page is stored.
 func TestScanLightsail_CertificatesReadEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cert := func(id string) lightsailtypes.CertificateSummary {
@@ -311,6 +315,7 @@ func (f *lsStoreFailFake) GetRelationalDatabases(context.Context, *lightsail.Get
 
 // A failed store write stops the later phases: every write would fail too.
 func TestScanLightsail_StoreWriteStopsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	fake := &lsStoreFailFake{closeStore: closeStore}
 	_, _, err := scanLightsailWith(context.Background(), fake, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -380,6 +385,7 @@ var lsPagedOps = []struct {
 // Every paginated op sends the token its previous page returned: page 2 is
 // served only for that token, and any other token fails the call.
 func TestScanLightsail_ForwardsPageToken(t *testing.T) {
+	t.Parallel()
 	handlers := map[string]func(in any) (any, error){}
 	for _, p := range lsPagedOps {
 		handlers[p.op] = func(in any) (any, error) {
@@ -415,6 +421,7 @@ func TestScanLightsail_ForwardsPageToken(t *testing.T) {
 // Outside us-east-1 the distribution and domain ops are never called, while
 // the regional ops still run.
 func TestScanLightsail_DistributionsAndDomainsOnlyInUSEast1(t *testing.T) {
+	t.Parallel()
 	const region = "us-west-2"
 	gated := func(in any) (any, error) {
 		t.Errorf("%T called in %s; want it only in us-east-1", in, region)

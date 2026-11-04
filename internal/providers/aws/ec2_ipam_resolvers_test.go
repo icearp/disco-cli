@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveIPAMScopeRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -33,6 +34,7 @@ func TestResolveIPAMScopeRelationships(t *testing.T) {
 }
 
 func TestResolveIPAMScopeRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -53,6 +55,7 @@ func TestResolveIPAMScopeRelationships_Empty(t *testing.T) {
 }
 
 func TestResolveIPAMPoolRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -79,6 +82,7 @@ func TestResolveIPAMPoolRelationships(t *testing.T) {
 }
 
 func TestResolveIPAMResourceDiscoveryAssociationRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"

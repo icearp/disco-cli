@@ -25,6 +25,7 @@ func scProductARN(id string) string {
 // → product `contains` edges land for each scanned product ARN listed
 // in the portfolio's attrs.
 func TestResolveServiceCatalogPortfolioProducts_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -75,6 +76,7 @@ func scProductAttrs(bareID string) string {
 // TestResolveServiceCatalogPortfolioProducts_FKSafe verifies products
 // not in the store skip without erroring.
 func TestResolveServiceCatalogPortfolioProducts_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -101,6 +103,7 @@ func TestResolveServiceCatalogPortfolioProducts_FKSafe(t *testing.T) {
 // TestResolveServiceCatalogPortfolioProductAssociations_HappyPath
 // verifies the association row links to both portfolio and product.
 func TestResolveServiceCatalogPortfolioProductAssociations_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -128,6 +131,7 @@ func TestResolveServiceCatalogPortfolioProductAssociations_HappyPath(t *testing.
 // TestResolveServiceCatalogPortfolioProductAssociations_FKSafe verifies
 // missing portfolio/product targets skip silently.
 func TestResolveServiceCatalogPortfolioProductAssociations_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -151,6 +155,7 @@ func TestResolveServiceCatalogPortfolioProductAssociations_FKSafe(t *testing.T) 
 // TestResolveServiceCatalogServiceActionAssociations_HappyPath verifies
 // the association row links to product + service-action.
 func TestResolveServiceCatalogServiceActionAssociations_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -179,6 +184,7 @@ func TestResolveServiceCatalogServiceActionAssociations_HappyPath(t *testing.T) 
 // TestResolveServiceCatalogServiceActionAssociations_NoAssocs verifies
 // a store with no association rows fast-paths to nil.
 func TestResolveServiceCatalogServiceActionAssociations_NoAssocs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveServiceCatalogServiceActionAssociations(acct, st); err != nil {
@@ -189,6 +195,7 @@ func TestResolveServiceCatalogServiceActionAssociations_NoAssocs(t *testing.T) {
 // TestResolveServiceCatalogProvisionedProductRefs_HappyPath verifies
 // the provisioned-product row links to its product via ProductId.
 func TestResolveServiceCatalogProvisionedProductRefs_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -213,6 +220,7 @@ func TestResolveServiceCatalogProvisionedProductRefs_HappyPath(t *testing.T) {
 // TestResolveServiceCatalogProvisionedProductRefs_EmptyAttrs verifies
 // missing/empty attrs skip cleanly without panic or edge.
 func TestResolveServiceCatalogProvisionedProductRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -235,6 +243,7 @@ func TestResolveServiceCatalogProvisionedProductRefs_EmptyAttrs(t *testing.T) {
 // TestResolveServiceCatalogPortfolioShares_HappyPath verifies a share
 // row links to its parent portfolio.
 func TestResolveServiceCatalogPortfolioShares_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -259,6 +268,7 @@ func TestResolveServiceCatalogPortfolioShares_HappyPath(t *testing.T) {
 // TestResolveServiceCatalogPortfolioShares_FKSafe verifies an unscanned
 // portfolio target skips without error.
 func TestResolveServiceCatalogPortfolioShares_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -279,6 +289,7 @@ func TestResolveServiceCatalogPortfolioShares_FKSafe(t *testing.T) {
 // TestResolveServiceCatalogPortfolioPrincipals_HappyPath verifies the
 // association row links to portfolio + IAM role principal.
 func TestResolveServiceCatalogPortfolioPrincipals_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -309,6 +320,7 @@ func TestResolveServiceCatalogPortfolioPrincipals_HappyPath(t *testing.T) {
 // IAM_PATTERN principals attach to the portfolio but emit no IAM edge
 // (the wildcard ARN cannot match a concrete IAM resource).
 func TestResolveServiceCatalogPortfolioPrincipals_PatternSkipsIAM(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -335,6 +347,7 @@ func TestResolveServiceCatalogPortfolioPrincipals_PatternSkipsIAM(t *testing.T) 
 // TestResolveServiceCatalogTagOptionAssociations_HappyPath verifies
 // the association row links to its parent tag-option.
 func TestResolveServiceCatalogTagOptionAssociations_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -360,6 +373,7 @@ func TestResolveServiceCatalogTagOptionAssociations_HappyPath(t *testing.T) {
 // TestResolveServiceCatalogTagOptionAssociations_FKSafe verifies an
 // unscanned tag-option target skips silently.
 func TestResolveServiceCatalogTagOptionAssociations_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -380,6 +394,7 @@ func TestResolveServiceCatalogTagOptionAssociations_FKSafe(t *testing.T) {
 // TestResolveServiceCatalogConstraints_HappyPath verifies a launch-role
 // constraint links to both portfolio and product.
 func TestResolveServiceCatalogConstraints_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -409,6 +424,7 @@ func TestResolveServiceCatalogConstraints_HappyPath(t *testing.T) {
 // TestResolveServiceCatalogConstraints_EmptyAttrs verifies a constraint
 // row with empty attrs skips both edges without panic.
 func TestResolveServiceCatalogConstraints_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

@@ -35,6 +35,7 @@ func coUsesEdges(t *testing.T, st *store.Store, from string) []store.Relationshi
 }
 
 func TestResolveComputeOptimizerPreferenceTargets_LinksScannedResources(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	instanceID := upsertTestResource(t, st, "aws", testAccountID, TypeEC2Instance, coInstanceARN, testRegion, "{}")
 	groupID := upsertTestResource(t, st, "aws", testAccountID, TypeAutoScalingGroup, coGroupARN, testRegion, "{}")
@@ -72,6 +73,7 @@ func TestResolveComputeOptimizerPreferenceTargets_LinksScannedResources(t *testi
 // A row with no scope gets no edge; a row whose attributes do not decode is
 // reported without costing the other rows their edges.
 func TestResolveComputeOptimizerPreferenceTargets_NoAttrsAndBadAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	instanceID := upsertTestResource(t, st, "aws", testAccountID, TypeEC2Instance, coInstanceARN, testRegion, "{}")
 	empty := coUpsertPref(t, st, coPref(cotypes.ResourceTypeEbsVolume, cotypes.ScopeNameAccountId, testAccountID), "{}", "b-empty")

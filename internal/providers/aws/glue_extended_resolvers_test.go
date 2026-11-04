@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveGlueTriggerWorkflow(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	wfARN := glueResourceARN("aws", testRegion, acct.ID, "workflow", "etl-flow")
@@ -26,6 +27,7 @@ func TestResolveGlueTriggerWorkflow(t *testing.T) {
 }
 
 func TestResolveGlueDevEndpointRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/glue-dev", acct.ID)
@@ -47,6 +49,7 @@ func TestResolveGlueDevEndpointRefs(t *testing.T) {
 }
 
 func TestResolveGlueMLTransformRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/mlt", acct.ID)
@@ -68,6 +71,7 @@ func TestResolveGlueMLTransformRefs(t *testing.T) {
 }
 
 func TestResolveGlueConnectionRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	subARN := ec2ARN(testRegion, acct.ID, "subnet", "subnet-c")
@@ -83,6 +87,7 @@ func TestResolveGlueConnectionRefs(t *testing.T) {
 }
 
 func TestResolveGlueSchemaRegistry(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	regARN := glueResourceARN("aws", testRegion, acct.ID, "registry", "default")
@@ -98,6 +103,7 @@ func TestResolveGlueSchemaRegistry(t *testing.T) {
 }
 
 func TestResolveGlueSecurityConfigKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/glue-sc-key", testRegion, acct.ID)
@@ -116,6 +122,7 @@ func TestResolveGlueSecurityConfigKMS(t *testing.T) {
 }
 
 func TestResolveGlueDataCatalogEncryptionKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/cat-key", testRegion, acct.ID)
@@ -131,6 +138,7 @@ func TestResolveGlueDataCatalogEncryptionKMS(t *testing.T) {
 }
 
 func TestResolveGlueWorkflowGraphNodes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	jobARN := fmt.Sprintf("arn:aws:glue:%s:%s:job/etl-1", testRegion, acct.ID)
@@ -149,6 +157,7 @@ func TestResolveGlueWorkflowGraphNodes(t *testing.T) {
 }
 
 func TestResolveGlueIdentityCenterRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ssoARN := "arn:aws:sso:::instance/ssoins-abc"

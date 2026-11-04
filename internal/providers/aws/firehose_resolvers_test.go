@@ -9,6 +9,7 @@ import (
 // TestResolveFirehoseDeliveryStreamRelationships verifies source, S3 destination,
 // and KMS edges.
 func TestResolveFirehoseDeliveryStreamRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

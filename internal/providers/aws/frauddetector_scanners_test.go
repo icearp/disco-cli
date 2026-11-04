@@ -236,6 +236,7 @@ func fdtRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, b
 // pages of every account-wide listing are stored, each listing asks for its
 // op's page cap, and the scan reports no error or warning.
 func TestScanFraudDetector_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newFDTCalls()
@@ -300,6 +301,7 @@ func TestScanFraudDetector_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanFraudDetector_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newFDTCalls()
 	if _, _, err := fdtScan(context.Background(), st, fdtHandlers(calls)); err != nil {
@@ -321,6 +323,7 @@ func TestScanFraudDetector_RescanInsertsNone(t *testing.T) {
 // never listed. A rule and a detector version, from per-detector listings,
 // behave alike.
 func TestScanFraudDetector_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []fdtRow{
 		{typ: TypeFraudDetectorDetector, arn: fdtDetector("t")},
 		{typ: TypeFraudDetectorRule, arn: fdtRule("t")},
@@ -386,6 +389,7 @@ func TestScanFraudDetector_TagReadFailures(t *testing.T) {
 // A tag op answering a repeated page token fails the read: the row is kept
 // without tags and the scan returns errRepeatedNextToken.
 func TestScanFraudDetector_TagPagesRepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newFDTCalls()
 	h := fdtHandlers(calls)
@@ -409,6 +413,7 @@ func TestScanFraudDetector_TagPagesRepeatedToken(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanFraudDetector_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, fdListTagsOp)
 	calls := newFDTCalls()
@@ -435,6 +440,7 @@ func fdtListOps() []string {
 // A denied listing warns once under its own op and costs no other phase its
 // rows.
 func TestScanFraudDetector_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, op := range fdtListOps() {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -463,6 +469,7 @@ func TestScanFraudDetector_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // it. Met once rows were stored, or on a later page, it is a denial: warned
 // about under its op, the rows kept, every later phase run.
 func TestScanFraudDetector_ClosedToNewCustomers(t *testing.T) {
+	t.Parallel()
 	empty := func(op string) func(any) (any, error) {
 		return func(any) (any, error) {
 			switch op {
@@ -539,6 +546,7 @@ func TestScanFraudDetector_ClosedToNewCustomers(t *testing.T) {
 // nothing stored, is a denial of its op: the earlier result is kept, the
 // service is not reported not entitled, and every later phase runs.
 func TestScanFraudDetector_ClosedAfterEarlierFailure(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		earlier   error
@@ -578,6 +586,7 @@ func TestScanFraudDetector_ClosedAfterEarlierFailure(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanFraudDetector_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeFraudDetectorDetector)
@@ -602,6 +611,7 @@ func TestScanFraudDetector_FailedWriteStopsWithoutWarning(t *testing.T) {
 // failure stops the phases after it. A detector a per-detector listing no
 // longer finds is skipped silently, its sibling's rows stored.
 func TestScanFraudDetector_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newFDTCalls()
@@ -652,6 +662,7 @@ func TestScanFraudDetector_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) 
 // listing, are not stored and are warned about once per listing, under a
 // key that is never empty.
 func TestScanFraudDetector_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, key string }{
 		{"GetOutcomes", "(an element with no id)"},
 		{"GetRules", "(a rule with no id) of detector detector_"},
@@ -684,6 +695,7 @@ func TestScanFraudDetector_UnstorableItemsWarn(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanFraudDetector_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := fdtHandlers(newFDTCalls())
 	h["GetExternalModels"] = func(any) (any, error) {
@@ -702,6 +714,7 @@ func TestScanFraudDetector_RepeatedTokenKeepsPages(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is reported once
 // although the phase in flight saw it in its listing.
 func TestScanFraudDetector_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newFDTCalls()
 	h := fdtHandlers(calls)
@@ -738,6 +751,7 @@ func TestScanFraudDetector_ContextEndStopsOnce(t *testing.T) {
 // unavailable and runs no later listing. After rows were stored it is a
 // failure of this scan: the counts are kept.
 func TestScanFraudDetector_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "frauddetector.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("first listing", func(t *testing.T) {
 		st := newTestStore(t)

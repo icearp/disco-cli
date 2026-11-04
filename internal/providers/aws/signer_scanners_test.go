@@ -12,6 +12,7 @@ import (
 // TestScanSigner_ProfileReadsTags pins that a signing-profile row carries its
 // listed element's Tags, and that an untagged profile stores none.
 func TestScanSigner_ProfileReadsTags(t *testing.T) {
+	t.Parallel()
 	const (
 		tagged   = "arn:aws:signer:us-east-1:123456789012:/signing-profiles/p1"
 		untagged = "arn:aws:signer:us-east-1:123456789012:/signing-profiles/p2"

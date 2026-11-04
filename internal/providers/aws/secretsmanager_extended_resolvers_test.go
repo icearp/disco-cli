@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveSecretsManagerResourcePolicyToSecret(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	sARN := fmt.Sprintf("arn:aws:secretsmanager:%s:%s:secret:s1-AbC", testRegion, acct.ID)
@@ -21,6 +22,7 @@ func TestResolveSecretsManagerResourcePolicyToSecret(t *testing.T) {
 }
 
 func TestResolveSecretsManagerRotationScheduleRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	sARN := fmt.Sprintf("arn:aws:secretsmanager:%s:%s:secret:s1-AbC", testRegion, acct.ID)

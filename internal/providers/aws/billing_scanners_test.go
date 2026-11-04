@@ -19,6 +19,7 @@ func (s *stubBilling) ListBillingViews(_ context.Context, _ *billing.ListBilling
 }
 
 func TestScanBillingViews(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -43,6 +44,7 @@ func TestScanBillingViews(t *testing.T) {
 }
 
 func TestScanBillingViewsEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubBilling{}
@@ -56,6 +58,7 @@ func TestScanBillingViewsEmpty(t *testing.T) {
 }
 
 func TestScanBillingViewsSkipsBlankARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	blank := ""

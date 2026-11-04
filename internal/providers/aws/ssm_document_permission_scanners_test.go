@@ -135,6 +135,7 @@ func ssmPermBody(t *testing.T, r store.Resource) ssmDocumentPermission {
 // older phase, and stores one row per document under it: doc-a's accounts
 // from both pages, sorted, and doc-b's empty lists.
 func TestScanSSM_StoresDocumentPermissionsLast(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	var log opLog
@@ -199,6 +200,7 @@ func (s *stubSSMDocPerm) DescribeDocumentPermission(_ context.Context, in *ssm.D
 // The stored body does not depend on the order the API returns accounts in,
 // within or across pages.
 func TestDescribeSSMDocumentPermission_SortIsTotal(t *testing.T) {
+	t.Parallel()
 	pages := ssmTestSharedPages()
 	reversed := []*ssm.DescribeDocumentPermissionOutput{
 		{AccountIds: pages[1].AccountIds, AccountSharingInfoList: pages[1].AccountSharingInfoList, NextToken: ptrStr("t2")},
@@ -222,6 +224,7 @@ func TestDescribeSSMDocumentPermission_SortIsTotal(t *testing.T) {
 // stored as the document's whole permission would claim accounts it never
 // listed are not shared.
 func TestDescribeSSMDocumentPermission_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	page := &ssm.DescribeDocumentPermissionOutput{AccountIds: []string{ssmTestAcctLow}, NextToken: ptrStr("same")}
 	stub := &stubSSMDocPerm{pages: []*ssm.DescribeDocumentPermissionOutput{page, page, page}}
 	perm, err := describeSSMDocumentPermission(context.Background(), stub, ssmTestDocA)
@@ -240,6 +243,7 @@ func TestDescribeSSMDocumentPermission_RepeatedTokenFails(t *testing.T) {
 // the share lists null (not read), and the scan returns the error; the
 // sibling document's row keeps its lists.
 func TestScanSSMDocumentPermissions_RepeatedTokenKeepsRowWithoutLists(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	var log opLog
@@ -275,6 +279,7 @@ func TestScanSSMDocumentPermissions_RepeatedTokenKeepsRowWithoutLists(t *testing
 // InvalidDocumentOperation are skipped with one warning for all; each keeps
 // its sibling's row and the scan succeeds.
 func TestScanSSMDocumentPermissions_PerDocumentSkips(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		failing   []string
@@ -320,6 +325,7 @@ func TestScanSSMDocumentPermissions_PerDocumentSkips(t *testing.T) {
 
 // No owned document means no permission call and no row.
 func TestScanSSM_NoDocumentsNoPermissionCalls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	var log opLog
@@ -341,6 +347,7 @@ func TestScanSSM_NoDocumentsNoPermissionCalls(t *testing.T) {
 // permission phase still run, the latter describing every document stored;
 // the error is returned with the counts of every row stored.
 func TestScanSSM_PhaseErrorStillRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		failingOp string
 		wantTotal int
@@ -382,6 +389,7 @@ func TestScanSSM_PhaseErrorStillRunsLaterPhases(t *testing.T) {
 // A hard permission error is returned after every older phase stored its
 // rows and reaches the dispatcher as a hard error.
 func TestScanSSM_DocumentPermissionErrorKeepsOtherPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	var log opLog
@@ -403,6 +411,7 @@ func TestScanSSM_DocumentPermissionErrorKeepsOtherPhases(t *testing.T) {
 // A throttled older phase is demoted to one warning, so the permission phase's
 // hard error still reaches the dispatcher as a hard error.
 func TestScanSSM_ThrottledOlderPhaseKeepsPermissionHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ssmListAssociationsOp)
 	var calls parentCalls

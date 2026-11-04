@@ -8,6 +8,7 @@ import (
 )
 
 func TestIsSCPExplicitDeny(t *testing.T) {
+	t.Parallel()
 	scpDeny := &smithy.GenericAPIError{
 		Code:    "AccessDeniedException",
 		Message: "User: arn:aws:sts::980523845517:assumed-role/Admin/will is not authorized to perform: bedrock:ListGuardrails with an explicit deny in a service control policy: arn:aws:organizations::670108570542:policy/o-ci13gzxxrv/service_control_policy/p-2dkxgl4o",
@@ -36,6 +37,7 @@ func TestIsSCPExplicitDeny(t *testing.T) {
 }
 
 func TestIsMigrationRequiredIAMDeny(t *testing.T) {
+	t.Parallel()
 	migrate := &smithy.GenericAPIError{
 		Code:    "AccessDeniedException",
 		Message: "To use this feature, please obtain the required permissions. Migrate the policies in your account to use the new IAM actions.",
@@ -63,6 +65,7 @@ func TestIsMigrationRequiredIAMDeny(t *testing.T) {
 }
 
 func TestIsFMSAdminOnlyDenial(t *testing.T) {
+	t.Parallel()
 	adminOnly := &smithy.GenericAPIError{
 		Code:    "AccessDeniedException",
 		Message: "Operation ListPolicies is only available to AWS Firewall Manager Administrators",
@@ -97,6 +100,7 @@ func TestIsFMSAdminOnlyDenial(t *testing.T) {
 // warning, so a false positive hides a permission gap as an empty region and
 // nothing downstream would notice — the pair reports zero resources either way.
 func TestIsStorageLensHomeRegionGap(t *testing.T) {
+	t.Parallel()
 	configurations := &smithy.GenericAPIError{
 		Code:    "AccessDenied",
 		Message: "Region is not supported as home region for S3 Storage Lens",

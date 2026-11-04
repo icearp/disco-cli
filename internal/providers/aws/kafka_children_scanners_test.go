@@ -268,6 +268,7 @@ func assertKafkaChildRows(t *testing.T, st *store.Store, want map[string][]strin
 }
 
 func TestScanKafka_StoresClusterChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	total, err := scanKafkaTopLevel(t, st, kafkaHandlers(calls))
@@ -336,6 +337,7 @@ func TestScanKafka_StoresClusterChildren(t *testing.T) {
 }
 
 func TestScanKafka_NoChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := kafkaHandlers(calls)
@@ -371,6 +373,7 @@ func TestScanKafka_NoChildren(t *testing.T) {
 // is disco's own input and is returned, as is any other error. Every other
 // phase, older ones included, still stores its rows.
 func TestScanKafka_FailedChildParent(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		op        string           // the op whose calls fail
@@ -597,6 +600,7 @@ func kafkaRowsWithoutType(want map[string][]string, typ string) map[string][]str
 
 // A topic page that fails after an earlier page was stored keeps that page.
 func TestScanKafka_TopicPagesStoredAsTheyArrive(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, kafkaListTopicsOp)
 	calls := map[string]*parentCalls{}
@@ -626,6 +630,7 @@ func TestScanKafka_TopicPagesStoredAsTheyArrive(t *testing.T) {
 // hard error in an older phase stops the older phases after it, is returned,
 // and costs the child phases nothing; a transient one is demoted to a warning.
 func TestScanKafka_OlderPhaseErrorKeepsChildren(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		err      error
@@ -655,6 +660,7 @@ func TestScanKafka_OlderPhaseErrorKeepsChildren(t *testing.T) {
 
 // A failed cluster phase lists no parents, so no per-cluster op is called.
 func TestScanKafka_ClusterPhaseErrorSkipsClusterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := kafkaHandlers(calls)
@@ -671,6 +677,7 @@ func TestScanKafka_ClusterPhaseErrorSkipsClusterPhases(t *testing.T) {
 // Per-cluster phases fan out over the clusters listed this scan, not a cluster
 // row an earlier scan left in the store.
 func TestScanKafka_PerClusterPhasesSkipStaleClusters(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeMSKCluster, kafkaTestStale, testRegion, "{}")
 	calls := map[string]*parentCalls{}
@@ -688,6 +695,7 @@ func TestScanKafka_PerClusterPhasesSkipStaleClusters(t *testing.T) {
 // a child phase's hard error still classifies the service as failed rather
 // than transient.
 func TestScanKafka_TransientOlderPhaseWithFailedChildPhaseIsAnError(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListTopics", "ListChannels", "DescribeChannel", "ListClientVpcConnections", "ListNodes"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -710,6 +718,7 @@ func TestScanKafka_TransientOlderPhaseWithFailedChildPhaseIsAnError(t *testing.T
 // A ListClustersV2 failure on a later page still hands the child phases the
 // clusters of the pages stored before it, and is returned.
 func TestScanKafka_ClusterPageErrorKeepsStoredClusters(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := kafkaHandlers(calls)
@@ -734,6 +743,7 @@ func TestScanKafka_ClusterPageErrorKeepsStoredClusters(t *testing.T) {
 // A failed cluster write may have left the listed clusters unstored, so no
 // per-cluster phase runs for them.
 func TestScanKafka_ClusterWriteErrorRunsNoClusterPhase(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closed.db"))
 	if err != nil {
@@ -784,6 +794,7 @@ func kafkaTwoExpressHandlers(calls map[string]*parentCalls) map[string]func(in a
 // A DescribeChannel denial on every Express cluster keeps each channel as its
 // ListChannels summary and warns once in all.
 func TestScanKafka_DescribeChannelDeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, kafkaDescribeChannelOp)
 	calls := map[string]*parentCalls{}
@@ -810,6 +821,7 @@ func TestScanKafka_DescribeChannelDeniedWarnsOnce(t *testing.T) {
 // its ListChannels element, warned about once after it is stored; its sibling
 // keeps its DescribeChannel body.
 func TestScanKafka_DescribeChannelFailureKeepsSummary(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		err  error
@@ -856,6 +868,7 @@ func TestScanKafka_DescribeChannelFailureKeepsSummary(t *testing.T) {
 // ListChannels has no paginator: a token the service repeats ends the listing
 // with errRepeatedNextToken rather than looping or reading as complete.
 func TestScanKafka_ChannelsRepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := kafkaHandlers(calls)
@@ -891,6 +904,7 @@ func TestScanKafka_ChannelsRepeatedTokenFails(t *testing.T) {
 // keeps the channels its earlier pages listed, with one warning saying the
 // cluster was partially read.
 func TestScanKafka_ChannelsLaterPageTransientKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warned []string
 	st.OnWarn = func(w store.ScanWarning) {
@@ -924,6 +938,7 @@ func TestScanKafka_ChannelsLaterPageTransientKeepsEarlierPages(t *testing.T) {
 // stored: a hard DescribeChannel error in the same fan-out stores no channel,
 // so no warning may say one was.
 func TestScanKafka_ChannelSummaryWarnsOnlyWhenStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, kafkaDescribeChannelOp)
 	calls := map[string]*parentCalls{}
@@ -950,6 +965,7 @@ func TestScanKafka_ChannelSummaryWarnsOnlyWhenStored(t *testing.T) {
 // tags and one warning says so; when it answers NotFoundException the channel
 // was deleted and is not stored.
 func TestScanKafka_ChannelSummaryReadsTags(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name       string
 		tags       func(any) (any, error)

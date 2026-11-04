@@ -13,6 +13,7 @@ const testCWRegion = "us-east-1"
 // --- resolveAlarmSNSActions ---
 
 func TestResolveAlarmSNSActions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -38,6 +39,7 @@ func TestResolveAlarmSNSActions(t *testing.T) {
 }
 
 func TestResolveAlarmSNSActions_MultipleActions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -68,6 +70,7 @@ func TestResolveAlarmSNSActions_MultipleActions(t *testing.T) {
 }
 
 func TestResolveAlarmSNSActions_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -82,6 +85,7 @@ func TestResolveAlarmSNSActions_NoAttrs(t *testing.T) {
 // --- resolveCompositeAlarmChildren ---
 
 func TestResolveCompositeAlarmChildren_ByARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -109,6 +113,7 @@ func TestResolveCompositeAlarmChildren_ByARN(t *testing.T) {
 }
 
 func TestResolveCompositeAlarmChildren_ByName(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -150,6 +155,7 @@ func TestResolveCompositeAlarmChildren_ByName(t *testing.T) {
 }
 
 func TestResolveCompositeAlarmChildren_NoRule(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -196,6 +202,7 @@ func upsertNamedTestResource(t *testing.T, st *store.Store, rtype, nativeID, nam
 }
 
 func TestResolveAlarmDimension_EC2Instance(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -217,6 +224,7 @@ func TestResolveAlarmDimension_EC2Instance(t *testing.T) {
 }
 
 func TestResolveAlarmDimension_RDSInstance(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -238,6 +246,7 @@ func TestResolveAlarmDimension_RDSInstance(t *testing.T) {
 }
 
 func TestResolveAlarmDimension_LambdaFunction(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -259,6 +268,7 @@ func TestResolveAlarmDimension_LambdaFunction(t *testing.T) {
 }
 
 func TestResolveAlarmDimension_ALB(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -280,6 +290,7 @@ func TestResolveAlarmDimension_ALB(t *testing.T) {
 }
 
 func TestResolveAlarmDimension_EKSCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -301,6 +312,7 @@ func TestResolveAlarmDimension_EKSCluster(t *testing.T) {
 }
 
 func TestResolveAlarmDimension_UnknownNamespace(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -318,6 +330,7 @@ func TestResolveAlarmDimension_UnknownNamespace(t *testing.T) {
 }
 
 func TestResolveAlarmDimension_UnmatchedDimension(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -335,6 +348,7 @@ func TestResolveAlarmDimension_UnmatchedDimension(t *testing.T) {
 }
 
 func TestResolveAlarmDimension_MissingDimensions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -346,6 +360,7 @@ func TestResolveAlarmDimension_MissingDimensions(t *testing.T) {
 }
 
 func TestResolveAlarmDimension_MetricMath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -370,6 +385,7 @@ func TestResolveAlarmDimension_MetricMath(t *testing.T) {
 }
 
 func TestResolveCWMetricStreamRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fhARN := fmt.Sprintf("arn:aws:firehose:%s:%s:deliverystream/cw-stream", testRegion, acct.ID)

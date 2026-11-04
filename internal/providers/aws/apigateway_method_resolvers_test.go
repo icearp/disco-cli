@@ -10,6 +10,7 @@ import (
 // TestResolveAPIGatewayMethodRelationships_Lambda verifies a method with a
 // Lambda integration Uri produces a uses→function edge.
 func TestResolveAPIGatewayMethodRelationships_Lambda(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -33,6 +34,7 @@ func TestResolveAPIGatewayMethodRelationships_Lambda(t *testing.T) {
 
 // TestResolveAPIGatewayMethodRelationships_VPCLink verifies VPC_LINK edge.
 func TestResolveAPIGatewayMethodRelationships_VPCLink(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -56,6 +58,7 @@ func TestResolveAPIGatewayMethodRelationships_VPCLink(t *testing.T) {
 
 // TestAPIGWLambdaInvokeARN verifies Uri parser.
 func TestAPIGWLambdaInvokeARN(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		uri, want string
 	}{
@@ -75,6 +78,7 @@ func TestAPIGWLambdaInvokeARN(t *testing.T) {
 
 // TestResolveAPIGatewayDomainCertRelationships_V1 verifies v1 domain → ACM.
 func TestResolveAPIGatewayDomainCertRelationships_V1(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -97,6 +101,7 @@ func TestResolveAPIGatewayDomainCertRelationships_V1(t *testing.T) {
 
 // TestResolveAPIGatewayDomainCertRelationships_V2 verifies v2 domain → ACM.
 func TestResolveAPIGatewayDomainCertRelationships_V2(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

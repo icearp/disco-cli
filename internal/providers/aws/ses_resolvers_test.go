@@ -18,6 +18,7 @@ const (
 // TestResolveSESEmailIdentityConfigSet_HappyPath verifies that the email
 // identity links to its default configuration set when both are scanned.
 func TestResolveSESEmailIdentityConfigSet_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -41,6 +42,7 @@ func TestResolveSESEmailIdentityConfigSet_HappyPath(t *testing.T) {
 // TestResolveSESEmailIdentityConfigSet_FKSafe verifies missing config-set
 // targets skip without erroring.
 func TestResolveSESEmailIdentityConfigSet_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -63,6 +65,7 @@ func TestResolveSESEmailIdentityConfigSet_FKSafe(t *testing.T) {
 // TestResolveSESEmailIdentityConfigSet_MalformedAttrs ensures invalid attrs
 // JSON skips the row rather than aborting the resolver.
 func TestResolveSESEmailIdentityConfigSet_MalformedAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -78,6 +81,7 @@ func TestResolveSESEmailIdentityConfigSet_MalformedAttrs(t *testing.T) {
 // TestResolveSESEmailIdentityConfigSet_NoIdentityCfg verifies identities
 // without a default config-set don't emit edges or errors.
 func TestResolveSESEmailIdentityConfigSet_NoIdentityCfg(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -117,6 +121,7 @@ func sesIdentityCertAttrs(t *testing.T, from, certARN string) string {
 // An association links to its ACM certificate only when that certificate is
 // scanned; one without a CertificateArn links to nothing.
 func TestResolveSESEmailIdentityCertificateACM_ScannedCertOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	certID := upsertTestResource(t, st, "aws", acct.ID, TypeACMCertificate, sesTestCertARN1, testRegion, "{}")
@@ -149,6 +154,7 @@ func TestResolveSESEmailIdentityCertificateACM_ScannedCertOnly(t *testing.T) {
 // A row that fails to decode is returned as an error and costs a later row
 // none of its edges.
 func TestResolveSESEmailIdentityCertificateACM_DecodeErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	certID := upsertTestResource(t, st, "aws", acct.ID, TypeACMCertificate, sesTestCertARN1, testRegion, "{}")

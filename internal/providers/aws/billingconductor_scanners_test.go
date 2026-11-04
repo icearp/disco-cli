@@ -231,6 +231,7 @@ func bcWarnOps(w []store.ScanWarning) []string {
 // returns (nil for none). ListTagsForResource is sent exactly the ARNs of
 // every row; every listing is sent MaxResults 100. No error, no warning.
 func TestScanBillingConductor_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newBCCalls()
@@ -302,6 +303,7 @@ func bcStoredWithTags(st *store.Store, typ, arn string) bool {
 // Every listing writes its first page, with its tags, before it reads the
 // second.
 func TestScanBillingConductor_PagesWrittenAsRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := bcHandlers(newBCCalls())
 	var (
@@ -334,6 +336,7 @@ func TestScanBillingConductor_PagesWrittenAsRead(t *testing.T) {
 // not sent to the tag op; a customer plan listed beside it is read. A zero
 // CreationTime stores no CreatedAt.
 func TestScanBillingConductor_ManagedPricingPlanNotRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBCCalls()
 	handlers := bcHandlers(calls)
@@ -377,6 +380,7 @@ func TestScanBillingConductor_ManagedPricingPlanNotRead(t *testing.T) {
 // The payer-only refusal of the first call (a member account) reports the
 // account not entitled: nothing stored, no warning, no other call.
 func TestScanBillingConductor_PayerOnlyNotEntitled(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newBCCalls()
@@ -412,6 +416,7 @@ func TestScanBillingConductor_PayerOnlyNotEntitled(t *testing.T) {
 // the refusal is warned about under ListCustomLineItems, and the listings
 // after the refusal are still not run.
 func TestScanBillingConductor_PayerOnlyBeforeAnyRow(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		groups    func() (any, error)
@@ -467,6 +472,7 @@ func TestScanBillingConductor_PayerOnlyBeforeAnyRow(t *testing.T) {
 // warned about under its listing, the rows already listed kept, and the
 // later listings run.
 func TestScanBillingConductor_PayerOnlyAfterAnswersIsDenial(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		op        string
@@ -509,6 +515,7 @@ func TestScanBillingConductor_PayerOnlyAfterAnswersIsDenial(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanBillingConductor_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := bcScan(context.Background(), st, bcHandlers(newBCCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -525,6 +532,7 @@ func TestScanBillingConductor_RescanInsertsNone(t *testing.T) {
 // Empty listings: each listed once, nothing stored, no tag read, no error,
 // no warning.
 func TestScanBillingConductor_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newBCCalls()
@@ -564,6 +572,7 @@ func TestScanBillingConductor_Empty(t *testing.T) {
 // untagged and warns once under the tag op with the scan's scope; a throttle
 // keeps it and is transient; any other error keeps it and is an error.
 func TestScanBillingConductor_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		op        string
@@ -630,6 +639,7 @@ func TestScanBillingConductor_TagReadFailures(t *testing.T) {
 // Denied tag reads in three phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanBillingConductor_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newBCCalls()
@@ -652,6 +662,7 @@ func TestScanBillingConductor_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanBillingConductor_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, bcTagsOp)
 	calls := newBCCalls()
@@ -670,6 +681,7 @@ func TestScanBillingConductor_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanBillingConductor_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeBillingConductorPricingPlan)
@@ -700,6 +712,7 @@ func TestScanBillingConductor_FailedWriteStopsScan(t *testing.T) {
 // error does not stop the later phases. A denied listing is warned about
 // under its op instead, and the later phases run too.
 func TestScanBillingConductor_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		op        string
@@ -759,6 +772,7 @@ func TestScanBillingConductor_ListFailureKeepsPagesAndLaterPhases(t *testing.T) 
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanBillingConductor_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBCCalls()
 	handlers := bcHandlers(calls)
@@ -785,6 +799,7 @@ func TestScanBillingConductor_RepeatedTokenKeepsPages(t *testing.T) {
 // and warned about once under its listing; the rest of the listing is
 // stored.
 func TestScanBillingConductor_ElementWithoutARN(t *testing.T) {
+	t.Parallel()
 	for _, k := range bcKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -826,6 +841,7 @@ func TestScanBillingConductor_ElementWithoutARN(t *testing.T) {
 // without tags, and is not sent to the tag op, without a warning; its
 // 12-digit sibling is read.
 func TestScanBillingConductor_BillingGroupIDOutsideTagPattern(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newBCCalls()
@@ -893,6 +909,7 @@ func bcDropName(t *testing.T, out any) {
 // An element listed with an ARN but no Name is stored named "" (not NULL),
 // with its tags read.
 func TestScanBillingConductor_ElementWithoutName(t *testing.T) {
+	t.Parallel()
 	for _, k := range bcKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -924,6 +941,7 @@ func TestScanBillingConductor_ElementWithoutName(t *testing.T) {
 // A China ARN (the op's ResourceArn pattern admits aws and aws-cn) reaches
 // the tag op unchanged and is the row's NativeID.
 func TestScanBillingConductor_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBCCalls()
 	handlers := bcHandlers(calls)
@@ -959,6 +977,7 @@ func TestScanBillingConductor_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanBillingConductor_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBCCalls()
 	handlers := bcHandlers(calls)
@@ -997,6 +1016,7 @@ func TestScanBillingConductor_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later phase runs.
 func TestScanBillingConductor_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "billingconductor.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

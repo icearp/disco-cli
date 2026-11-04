@@ -220,6 +220,7 @@ func memDBTagReadARNs() []string {
 // multi-region parameter group are stored untagged and never sent to the tag
 // op; a multi-region row has no Region. No error, no warning.
 func TestScanMemoryDB_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newMemDBCalls()
@@ -279,6 +280,7 @@ func TestScanMemoryDB_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanMemoryDB_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := memDBScan(context.Background(), st, memDBHandlers(newMemDBCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -298,6 +300,7 @@ func TestScanMemoryDB_RescanInsertsNone(t *testing.T) {
 // keeps the row untagged and warns once under memorydb:ListTags; a throttle
 // keeps it and is transient; any other error keeps it and is an error.
 func TestScanMemoryDB_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagCase struct {
 		name      string
 		arn, typ  string
@@ -369,6 +372,7 @@ func TestScanMemoryDB_TagReadFailures(t *testing.T) {
 // Denied tag reads in two listings send one warning for the whole scan,
 // under the tag op, naming the first denied row; the rows are kept untagged.
 func TestScanMemoryDB_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, memDBTagsOp)
 	calls := newMemDBCalls()
@@ -402,6 +406,7 @@ func TestScanMemoryDB_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanMemoryDB_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, memDBTagsOp)
 	calls := newMemDBCalls()
@@ -419,6 +424,7 @@ func TestScanMemoryDB_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the scan: no later phase runs and no warning is sent
 // about rows the write lost; the phases before it keep their rows.
 func TestScanMemoryDB_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeMemoryDBParameterGroup)
@@ -451,6 +457,7 @@ func TestScanMemoryDB_FailedWriteStopsScan(t *testing.T) {
 // A listing's failed page keeps the page read before it, and its error does
 // not stop the later listings.
 func TestScanMemoryDB_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := memDBHandlers(newMemDBCalls())
 	k := memDBKindOf(t, "DescribeACLs")
@@ -473,6 +480,7 @@ func TestScanMemoryDB_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // A repeated token ends a listing as an error, keeping its pages, for the
 // tagged listings and the multi-region parameter groups alike.
 func TestScanMemoryDB_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	t.Run("snapshots", func(t *testing.T) {
 		st := newTestStore(t)
 		handlers := memDBHandlers(newMemDBCalls())
@@ -518,6 +526,7 @@ func TestScanMemoryDB_RepeatedTokenKeepsPages(t *testing.T) {
 // warned about once under its listing, named by its name or by the fallback
 // text when it has none.
 func TestScanMemoryDB_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		answer        func(in any) (any, error)
@@ -567,6 +576,7 @@ func TestScanMemoryDB_ElementWithoutARNWarns(t *testing.T) {
 // Rows of the aws-us-gov and aws-cn partitions reach the tag op under their
 // listed ARNs unchanged.
 func TestScanMemoryDB_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -604,6 +614,7 @@ func TestScanMemoryDB_TagReadsKeepPartitionARNs(t *testing.T) {
 // managed, untagged, and never sent to the tag op; the default user is not
 // managed and has its tags read.
 func TestScanMemoryDB_ManagedRowsNotRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newMemDBCalls()
 	handlers := memDBHandlers(calls)
@@ -643,6 +654,7 @@ func TestScanMemoryDB_ManagedRowsNotRead(t *testing.T) {
 // InvalidClusterStateFault on clusters' tag reads keeps the rows untagged
 // and warns once under the tag op naming the smallest ARN, with no error.
 func TestScanMemoryDB_ClusterNotReadyWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newMemDBCalls()
@@ -675,6 +687,7 @@ func TestScanMemoryDB_ClusterNotReadyWarnsOnce(t *testing.T) {
 // InvalidClusterStateFault on any row but a cluster's is an error, as any
 // other code is, and warns nothing.
 func TestScanMemoryDB_NotReadyOnOtherTypeIsError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newMemDBCalls()
@@ -695,6 +708,7 @@ func TestScanMemoryDB_NotReadyOnOtherTypeIsError(t *testing.T) {
 // After a failed write a refused read sends no warning: its row may be one
 // the write lost.
 func TestScanMemoryDB_RefusalAfterFailedWriteWarnsNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeMemoryDBUser)
@@ -715,6 +729,7 @@ func TestScanMemoryDB_RefusalAfterFailedWriteWarnsNothing(t *testing.T) {
 // listing is stored. The same answer on a later page is an error that keeps
 // the page before it.
 func TestScanMemoryDB_MultiRegionGap(t *testing.T) {
+	t.Parallel()
 	gap := apiErr("InvalidParameterValueException", "This API operation is currently unavailable")
 	t.Run("first page", func(t *testing.T) {
 		st := newTestStore(t)
@@ -753,6 +768,7 @@ func TestScanMemoryDB_MultiRegionGap(t *testing.T) {
 // A denied listing warns once under its op; a denial on a later page keeps
 // the page read before it. Every later listing still runs.
 func TestScanMemoryDB_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, call := range []int{1, 2} {
 		t.Run(fmt.Sprintf("page%d", call), func(t *testing.T) {
 			st := newTestStore(t)
@@ -782,6 +798,7 @@ func TestScanMemoryDB_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it in its listing.
 func TestScanMemoryDB_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newMemDBCalls()
 	handlers := memDBHandlers(calls)
@@ -818,6 +835,7 @@ func TestScanMemoryDB_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanMemoryDB_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "memory-db.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -853,6 +871,7 @@ func TestScanMemoryDB_NXDOMAIN(t *testing.T) {
 // Region and the tags read in each, inserted by the first and unchanged by
 // the second.
 func TestScanMemoryDB_MultiRegionClusterListedByTwoRegions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newMemDBCalls()
 	arn := "arn:aws:memorydb::" + testAccountID + ":multiregioncluster/mrc-m"

@@ -11,6 +11,7 @@ import (
 )
 
 func TestResolveGACustomRoutingEndpointGroupSubnets_RoutesToScannedSubnets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN("eu-west-1", acct.ID, "subnet", "subnet-0abc"), "eu-west-1", "{}")
@@ -42,6 +43,7 @@ func TestResolveGACustomRoutingEndpointGroupSubnets_RoutesToScannedSubnets(t *te
 }
 
 func TestResolveGACustomRoutingEndpointGroupSubnets_NoEndpoints(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN("eu-west-1", acct.ID, "subnet", "subnet-0abc"), "eu-west-1", "{}")
@@ -59,6 +61,7 @@ func TestResolveGACustomRoutingEndpointGroupSubnets_NoEndpoints(t *testing.T) {
 }
 
 func TestResolveGACustomRoutingEndpointGroupSubnets_UndecodableAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeGlobalAcceleratorCustomRoutingEndpointGroup, gaTestCREG1, "global", `{"EndpointDescriptions":"not-a-list"}`)
@@ -69,6 +72,7 @@ func TestResolveGACustomRoutingEndpointGroupSubnets_UndecodableAttrs(t *testing.
 }
 
 func TestGAParentARN(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		arn, seg, want string
 	}{
@@ -84,6 +88,7 @@ func TestGAParentARN(t *testing.T) {
 }
 
 func TestResolveGlobalAcceleratorEndpointGroupRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -114,6 +119,7 @@ func TestResolveGlobalAcceleratorEndpointGroupRefs(t *testing.T) {
 }
 
 func TestResolveGlobalAcceleratorListenerParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	accARN := "arn:aws:globalaccelerator::" + acct.ID + ":accelerator/A"

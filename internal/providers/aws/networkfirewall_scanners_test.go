@@ -308,6 +308,7 @@ func nfTags(kv ...string) []nfwtypes.Tag {
 }
 
 func TestStoreNFDescribed_StoresDescribeBodyWithTags(t *testing.T) {
+	t.Parallel()
 	for _, c := range nfDescribedCases {
 		t.Run(c.name, func(t *testing.T) {
 			r := c.run(t, nfDescribedStub{
@@ -331,6 +332,7 @@ func TestStoreNFDescribed_StoresDescribeBodyWithTags(t *testing.T) {
 }
 
 func TestStoreNFDescribed_DescribeFailures(t *testing.T) {
+	t.Parallel()
 	denied := apiErr("AccessDeniedException", "User: x is not authorized to perform: network-firewall:Describe")
 	tags := map[string][]nfwtypes.Tag{"a": nfTags("env", "prod")}
 	cases := []struct {
@@ -396,6 +398,7 @@ func TestStoreNFDescribed_DescribeFailures(t *testing.T) {
 }
 
 func TestStoreNFDescribed_ListFailures(t *testing.T) {
+	t.Parallel()
 	denied := apiErr("AccessDeniedException", "User: x is not authorized to perform: network-firewall:List")
 	cases := []struct {
 		name        string
@@ -456,6 +459,7 @@ func TestStoreNFDescribed_ListFailures(t *testing.T) {
 // still leaves the rule group, proxy and container association rows of the
 // phases after it.
 func TestScanNetworkFirewall_PhaseErrorDoesNotStopLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	responses := nfTopLevelResponses(map[string][]stubCall{
 		"ListFirewalls": {{Err: apiErr("InvalidRequestException", "bad")}},
@@ -478,6 +482,7 @@ func TestScanNetworkFirewall_PhaseErrorDoesNotStopLaterPhases(t *testing.T) {
 // A throttled older phase beside a hard error in a newer one is demoted to a
 // warning, so the scan reports the hard error, not a transient glitch.
 func TestScanNetworkFirewall_TransientBesideHardErrorIsDemoted(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, nfFirewallOps.list)
 	responses := nfTopLevelResponses(map[string][]stubCall{
@@ -498,6 +503,7 @@ func TestScanNetworkFirewall_TransientBesideHardErrorIsDemoted(t *testing.T) {
 // marks the scan partial (transient) when it is the only failure, and is
 // demoted to one warning beside a hard error.
 func TestScanNetworkFirewall_TransientDescribeIsReturned(t *testing.T) {
+	t.Parallel()
 	fw := nfwtypes.FirewallMetadata{FirewallArn: sdkaws.String(nfARN("firewall", "fw")), FirewallName: sdkaws.String("fw")}
 	for _, tc := range []struct {
 		name      string
@@ -593,6 +599,7 @@ var nfListedCases = []nfListedCase{
 }
 
 func TestScanNFListedPhases(t *testing.T) {
+	t.Parallel()
 	denied := apiErr("AccessDeniedException", "User: x is not authorized to perform: network-firewall:List")
 	gap := apiErr("InvalidRequestException", "The API being called does not exist")
 	cases := []struct {
@@ -679,6 +686,7 @@ func TestScanNFListedPhases(t *testing.T) {
 // TestScanNFLoggingConfigurations covers the per-firewall
 // DescribeLoggingConfiguration outcomes over the firewalls phase 1 listed.
 func TestScanNFLoggingConfigurations(t *testing.T) {
+	t.Parallel()
 	const describeOp = "networkfirewall:DescribeLoggingConfiguration"
 	denied := apiErr("AccessDeniedException", "User: x is not authorized to perform: network-firewall:DescribeLoggingConfiguration")
 	cases := []struct {
@@ -750,6 +758,7 @@ func TestScanNFLoggingConfigurations(t *testing.T) {
 // listing them again (stubResponses fails a second ListFirewalls call): a
 // failed second page leaves it the first page's firewall.
 func TestScanNetworkFirewall_LoggingUsesFirewallsPhaseARNs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	fwARN := nfARN("firewall", "a")
 	responses := nfTopLevelResponses(map[string][]stubCall{

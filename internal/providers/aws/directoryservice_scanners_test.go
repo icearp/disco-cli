@@ -232,6 +232,7 @@ func runDSScan(t *testing.T, st *store.Store, handlers map[string]func(any) (any
 }
 
 func TestScanDirectoryServiceIn_StoresDirectoriesAndChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	want := dsWantNativeIDs()
 	total, err := runDSScan(t, st, dsHandlers(map[string]*parentCalls{}, nil))
@@ -284,6 +285,7 @@ func TestScanDirectoryServiceIn_StoresDirectoriesAndChildren(t *testing.T) {
 // Standard/Enterprise Managed Microsoft AD directories; replica regions only
 // of the Enterprise one replicated from this region.
 func TestScanDirectoryServiceIn_FanOutGatedByDirectoryKind(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	if _, err := runDSScan(t, st, dsHandlers(calls, nil)); err != nil {
@@ -302,6 +304,7 @@ func TestScanDirectoryServiceIn_FanOutGatedByDirectoryKind(t *testing.T) {
 }
 
 func TestScanDSRegions_OnlyFromPrimaryRegion(t *testing.T) {
+	t.Parallel()
 	ms := dsDir("d-ms", dstypes.DirectoryTypeMicrosoftAd, dstypes.DirectoryEditionEnterprise, dstypes.DirectoryStageActive)
 	unreplicated := dsDir("d-one", dstypes.DirectoryTypeMicrosoftAd, dstypes.DirectoryEditionEnterprise, dstypes.DirectoryStageActive)
 	unreplicated.RegionsInfo = &dstypes.RegionsInfo{PrimaryRegion: ptrStr(testRegion)}
@@ -326,6 +329,7 @@ func TestScanDSRegions_OnlyFromPrimaryRegion(t *testing.T) {
 }
 
 func TestDSIPRouteKey(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		route dstypes.IpRouteInfo
 		want  string
@@ -344,6 +348,7 @@ func TestDSIPRouteKey(t *testing.T) {
 // A directory deleted between DescribeDirectories and the per-directory call
 // drops only its own children, silently.
 func TestScanDirectoryServiceIn_GoneDirectorySkipped(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, code, typ string
 		dirID         func(any) string
@@ -388,6 +393,7 @@ func TestScanDirectoryServiceIn_GoneDirectorySkipped(t *testing.T) {
 // A denied op warns once (however many directories it was asked for), stores
 // none of its type and keeps every other phase's rows.
 func TestScanDirectoryServiceIn_DeniedOpWarnsOnce(t *testing.T) {
+	t.Parallel()
 	want := dsWantNativeIDs()
 	for op, typ := range map[string]string{
 		"ListCertificates":          TypeDSCertificate,
@@ -426,6 +432,7 @@ func TestScanDirectoryServiceIn_DeniedOpWarnsOnce(t *testing.T) {
 
 // A denial on a region-wide list's second page keeps the first page's rows.
 func TestScanDirectoryServiceIn_DenialMidListKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, typ   string
 		firstPage func(any) bool
@@ -459,6 +466,7 @@ func TestScanDirectoryServiceIn_DenialMidListKeepsEarlierPages(t *testing.T) {
 // Any other error on a region-wide list's second page is returned, and the
 // first page's rows are stored.
 func TestScanDirectoryServiceIn_ErrorMidListKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, typ   string
 		firstPage func(any) bool
@@ -491,6 +499,7 @@ func TestScanDirectoryServiceIn_ErrorMidListKeepsEarlierPages(t *testing.T) {
 // A transient error on a region-wide list's second page joined with the
 // failed write of the first page stays a store write failure, never a warning.
 func TestScanDirectoryServiceIn_StoreWriteBesideTransientStaysHardError(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
 	if err != nil {
@@ -523,6 +532,7 @@ func TestScanDirectoryServiceIn_StoreWriteBesideTransientStaysHardError(t *testi
 
 // Any other error from a phase is returned, and every other phase still runs.
 func TestScanDirectoryServiceIn_PhaseErrorReturnedOthersRun(t *testing.T) {
+	t.Parallel()
 	want := dsWantNativeIDs()
 	for op, typ := range map[string]string{
 		"ListCertificates":          TypeDSCertificate,
@@ -562,6 +572,7 @@ func TestScanDirectoryServiceIn_PhaseErrorReturnedOthersRun(t *testing.T) {
 // A later phase's lone transient error reaches the dispatcher as transient,
 // with the other phases' counts, so the scan is marked partial.
 func TestScanDirectoryServiceIn_LoneTransientPhaseMarksPartial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "ds:DescribeTrusts")
 	handlers := dsHandlers(map[string]*parentCalls{}, map[string]func(any) (any, error){
@@ -577,6 +588,7 @@ func TestScanDirectoryServiceIn_LoneTransientPhaseMarksPartial(t *testing.T) {
 // In a region with no Directory Service endpoint the first phase's NXDOMAIN
 // is returned alone, so the dispatcher reports the region unavailable.
 func TestScanDirectoryServiceIn_UnreachableEndpointStopsTheScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &parentCalls{}
 	handlers := map[string]func(any) (any, error){}
@@ -598,6 +610,7 @@ func TestScanDirectoryServiceIn_UnreachableEndpointStopsTheScan(t *testing.T) {
 // With no directory stored no child op is called: an unanswered op would
 // warn as denied.
 func TestScanDirectoryServiceIn_NoDirectoriesCallsNoChildOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := 0
 	st.OnWarn = func(store.ScanWarning) { warnings++ }
@@ -615,6 +628,7 @@ func TestScanDirectoryServiceIn_NoDirectoriesCallsNoChildOp(t *testing.T) {
 
 // Directories with no children store only themselves.
 func TestScanDirectoryServiceIn_EmptyChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	empty := map[string]func(any) (any, error){
 		"ListCertificates":          func(any) (any, error) { return &directoryservice.ListCertificatesOutput{}, nil },
@@ -637,6 +651,7 @@ func TestScanDirectoryServiceIn_EmptyChildren(t *testing.T) {
 // stored rows, is a failure of this scan, not a region gap: it is returned as
 // an error with the stored rows' counts.
 func TestScanDirectoryServiceIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := dsHandlers(map[string]*parentCalls{}, map[string]func(any) (any, error){
 		"DescribeTrusts": func(any) (any, error) {

@@ -51,6 +51,7 @@ func mcInstance(gateway, id string) mctypes.ListedGatewayInstance {
 }
 
 func TestScanMCGatewayInstances_PaginatesAndContainsUnderListedGateway(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warns []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warns = append(warns, w) }
@@ -98,6 +99,7 @@ func TestScanMCGatewayInstances_PaginatesAndContainsUnderListedGateway(t *testin
 // TestScanMCGatewayInstances_ErrorShapes: a deny on page 2 keeps page 1's rows
 // and warns once; any other error propagates.
 func TestScanMCGatewayInstances_ErrorShapes(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -142,6 +144,7 @@ func TestScanMCGatewayInstances_ErrorShapes(t *testing.T) {
 }
 
 func TestScanMCGatewayInstances_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanMCGatewayInstances(context.Background(), fakeMC{}, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
 	if err != nil || total != 0 {
@@ -179,6 +182,7 @@ func mcServiceStub(t *testing.T, override map[string][]stubCall) sdkaws.Config {
 // service against the real SDK client: the instance is stored and contained by
 // the gateway listed earlier in the same scan.
 func TestScanMediaConnect_GatewayInstancesAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = mcServiceStub(t, nil)
@@ -195,6 +199,7 @@ func TestScanMediaConnect_GatewayInstancesAfterExistingPhases(t *testing.T) {
 // TestScanMediaConnect_GatewayInstanceErrorPropagates pins that the new phase's
 // hard error reaches the service result without costing the phases before it.
 func TestScanMediaConnect_GatewayInstanceErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = mcServiceStub(t, map[string][]stubCall{
@@ -602,6 +607,7 @@ func (f *mcFixture) rowCases() []mcRowCase {
 // described and every listing sends its model's page cap. No error, no
 // warning.
 func TestScanMediaConnect_StoresTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newMCFixture()
@@ -660,6 +666,7 @@ func TestScanMediaConnect_StoresTags(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanMediaConnect_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newMCFixture()
 	if _, _, err := mcScan(context.Background(), st, f, f.handlers()); err != nil {
@@ -674,6 +681,7 @@ func TestScanMediaConnect_RescanInsertsNone(t *testing.T) {
 // Empty listings: each listing called once, no flow described, no tag read,
 // nothing stored, no error, no warning.
 func TestScanMediaConnect_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newMCFixture()
@@ -707,6 +715,7 @@ func TestScanMediaConnect_Empty(t *testing.T) {
 // scope; a throttle keeps it and is transient; any other error keeps it and
 // is an error.
 func TestScanMediaConnect_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	f := newMCFixture()
 	for _, c := range []struct {
 		name      string
@@ -787,6 +796,7 @@ func TestScanMediaConnect_TagReadFailures(t *testing.T) {
 // Denied tag reads across phases send one warning per tag op for the whole
 // scan; the rows are kept.
 func TestScanMediaConnect_TagDenialsWarnOncePerOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newMCFixture()
@@ -812,6 +822,7 @@ func TestScanMediaConnect_TagDenialsWarnOncePerOp(t *testing.T) {
 // A throttled tag read in one phase beside a hard failure of the same op in
 // another is demoted to one warning, so the hard error decides the outcome.
 func TestScanMediaConnect_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, mcTagsOp)
 	f := newMCFixture()
@@ -831,6 +842,7 @@ func TestScanMediaConnect_TagThrottleDemotedBesideHardError(t *testing.T) {
 // denial warns once under DescribeFlow; a throttle is transient; an answer
 // without a flow and any other error are errors.
 func TestScanMediaConnect_DescribeFlowFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name     string
 		err      error // nil: answered without a flow
@@ -902,6 +914,7 @@ func TestScanMediaConnect_DescribeFlowFailures(t *testing.T) {
 // page is warned about under its op instead. A throttled DescribeBridge
 // beside a hard error is demoted to one warning under DescribeBridge.
 func TestScanMediaConnect_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name        string
 		listErrs    map[string]error
@@ -961,6 +974,7 @@ func TestScanMediaConnect_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // A repeated NextToken ends the listing as an error, keeping its pages (the
 // one that repeated it included), and the later phases still run.
 func TestScanMediaConnect_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newMCFixture()
 	handlers := f.handlers()
@@ -992,6 +1006,7 @@ func TestScanMediaConnect_RepeatedTokenKeepsPages(t *testing.T) {
 // DescribeFlow, keyed by its name, or for a nameless VPC interface by its
 // flow's ARN.
 func TestScanMediaConnect_ElementsWithoutIdentifier(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newMCFixture()
@@ -1041,6 +1056,7 @@ func TestScanMediaConnect_ElementsWithoutIdentifier(t *testing.T) {
 // NativeID; a VPC interface's tag ARN is built on its flow's ARN, so it is
 // in the flow's partition.
 func TestScanMediaConnect_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -1078,6 +1094,7 @@ func TestScanMediaConnect_TagReadsKeepPartitionARNs(t *testing.T) {
 // a router phase: no warning about the rows it lost (a denied tag read among
 // them) and no later phase runs.
 func TestScanMediaConnect_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	f := newMCFixture()
 	for _, c := range []struct {
 		name, refused string
@@ -1127,6 +1144,7 @@ func TestScanMediaConnect_FailedWriteStopsScan(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanMediaConnect_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newMCFixture()
 	handlers := f.handlers()
@@ -1169,6 +1187,7 @@ func TestScanMediaConnect_ContextEndReportedOnce(t *testing.T) {
 // Once rows were stored, an NXDOMAIN (a tag read's included) is a failure of
 // this scan.
 func TestScanMediaConnect_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "mediaconnect.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)

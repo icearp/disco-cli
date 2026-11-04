@@ -46,6 +46,7 @@ func gfClient(handlers map[string]func(in any) (any, error)) *grafana.Client {
 }
 
 func TestGrafanaHasServiceAccounts(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		version string
 		want    bool
@@ -88,6 +89,7 @@ func gfWorkspacesHandler(in any) (any, error) {
 // Every workspace is stored; only those whose version has service accounts
 // become fan-out parents.
 func TestScanGrafanaWorkspaces_ParentsSkipPreServiceAccountVersions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := gfClient(map[string]func(any) (any, error){"ListWorkspaces": gfWorkspacesHandler})
 	parents, total, _, err := scanGrafanaWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -112,6 +114,7 @@ func TestScanGrafanaWorkspaces_ParentsSkipPreServiceAccountVersions(t *testing.T
 // authentication summary is, and so is a pre-9 one, which has no service
 // accounts.
 func TestScanGrafanaWorkspaces_PermissionParentsSkipSAMLOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := gfClient(map[string]func(any) (any, error){"ListWorkspaces": gfWorkspacesHandler})
 	parents, _, _, err := scanGrafanaWorkspaces(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -126,6 +129,7 @@ func TestScanGrafanaWorkspaces_PermissionParentsSkipSAMLOnly(t *testing.T) {
 }
 
 func TestGrafanaMayUseIdentityCenter(t *testing.T) {
+	t.Parallel()
 	const sso, saml = grafanatypes.AuthenticationProviderTypesAwsSso, grafanatypes.AuthenticationProviderTypesSaml
 	for _, tc := range []struct {
 		name string
@@ -145,6 +149,7 @@ func TestGrafanaMayUseIdentityCenter(t *testing.T) {
 }
 
 func TestGrafanaHasInstance(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		status grafanatypes.WorkspaceStatus
 		want   bool
@@ -173,6 +178,7 @@ func TestGrafanaHasInstance(t *testing.T) {
 // Workspaces being created or deleted are stored but get no service account
 // fan-out; one mid-update keeps its instance and is fanned out.
 func TestScanGrafanaWorkspaces_ParentsSkipInstancelessStates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ws := func(id string, status grafanatypes.WorkspaceStatus) grafanatypes.WorkspaceSummary {
 		return grafanatypes.WorkspaceSummary{Id: ptrStr(id), GrafanaVersion: ptrStr("10.4"), Status: status}
@@ -243,6 +249,7 @@ func sortedGFAccounts(accounts []grafanaServiceAccount) []grafanaServiceAccount 
 
 // The same service account id in two workspaces stays two rows.
 func TestScanGrafanaServiceAccounts_StoresEveryPageOfEveryWorkspace(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	accounts, total, err := scanGFServiceAccounts(t, st, gfServiceAccountHandler(&calls, nil), "g-a", "g-b")
@@ -275,6 +282,7 @@ func TestScanGrafanaServiceAccounts_StoresEveryPageOfEveryWorkspace(t *testing.T
 }
 
 func TestScanGrafanaServiceAccounts_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	accounts, total, err := scanGFServiceAccounts(t, st, func(any) (any, error) { return &grafana.ListWorkspaceServiceAccountsOutput{}, nil }, "g-a")
 	if err != nil || total != 0 || len(accounts) != 0 || len(rowsByNativeID(t, st, TypeGrafanaWorkspaceServiceAccount)) != 0 {
@@ -287,6 +295,7 @@ func TestScanGrafanaServiceAccounts_Empty(t *testing.T) {
 // parents and the other workspaces are kept. A denial warns once for the op
 // and keeps the other workspaces; any other error fails.
 func TestScanGrafanaServiceAccounts_FailedWorkspace(t *testing.T) {
+	t.Parallel()
 	const op = "grafana:ListWorkspaceServiceAccounts"
 	for _, tc := range []struct {
 		name      string
@@ -381,6 +390,7 @@ func scanGFTokens(t *testing.T, st *store.Store, handler func(in any) (any, erro
 // Each call names the service account's own workspace, and the same token id
 // under two service accounts stays two rows.
 func TestScanGrafanaServiceAccountTokens_StoresEveryPageOfEveryServiceAccount(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := scanGFTokens(t, st, gfTokenHandler(&calls, nil), gfTokenParents[:2])
@@ -406,6 +416,7 @@ func TestScanGrafanaServiceAccountTokens_StoresEveryPageOfEveryServiceAccount(t 
 }
 
 func TestScanGrafanaServiceAccountTokens_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanGFTokens(t, st, func(any) (any, error) { return &grafana.ListWorkspaceServiceAccountTokensOutput{}, nil }, gfTokenParents[:1])
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeGrafanaWorkspaceServiceAccountToken)) != 0 {
@@ -418,6 +429,7 @@ func TestScanGrafanaServiceAccountTokens_Empty(t *testing.T) {
 // either way the others are kept. A denial warns once for the op and keeps the
 // others; any other error fails.
 func TestScanGrafanaServiceAccountTokens_FailedServiceAccount(t *testing.T) {
+	t.Parallel()
 	const op = "grafana:ListWorkspaceServiceAccountTokens"
 	for _, tc := range []struct {
 		name      string
@@ -469,6 +481,7 @@ func TestScanGrafanaServiceAccountTokens_FailedServiceAccount(t *testing.T) {
 // Any new SDK field must be reviewed for credential material (and a Redact
 // rule added to the descriptor if it carries any) before this list grows.
 func TestGrafanaTokenSummary_FieldsReviewedForSecrets(t *testing.T) {
+	t.Parallel()
 	typ := reflect.TypeFor[grafanatypes.ServiceAccountTokenSummary]()
 	var got []string
 	for i := range typ.NumField() {
@@ -498,6 +511,7 @@ func gfTopLevelHandlers(saCalls, tokenCalls, permCalls *parentCalls) map[string]
 // a parent, tokens for every service account stored, permissions for every
 // workspace that may use Identity Center, each under its parent.
 func TestScanGrafana_StoresServiceAccountsTokensAndPermissions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var saCalls, tokenCalls, permCalls parentCalls
@@ -531,6 +545,7 @@ func TestScanGrafana_StoresServiceAccountsTokensAndPermissions(t *testing.T) {
 }
 
 func TestScanGrafana_CallsGoToScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var saCalls, tokenCalls, permCalls, regions parentCalls
@@ -553,6 +568,7 @@ func TestScanGrafana_CallsGoToScannedRegion(t *testing.T) {
 // accounts; a phase's hard error reaches the caller with the counts stored
 // before it, and the permission phase runs whichever older phase fails.
 func TestScanGrafana_PhaseErrorKeepsOtherPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op                                    string
 		err                                   *smithy.GenericAPIError
@@ -601,6 +617,7 @@ func TestScanGrafana_PhaseErrorKeepsOtherPhases(t *testing.T) {
 
 // A failed workspace phase leaves the permission phase no parents.
 func TestScanGrafana_WorkspaceFailureListsNoPermissions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var saCalls, tokenCalls, permCalls parentCalls
@@ -618,6 +635,7 @@ func TestScanGrafana_WorkspaceFailureListsNoPermissions(t *testing.T) {
 // An older phase's transient error is demoted to one warning so that it does
 // not make the dispatcher read the permission phase's hard error as transient.
 func TestScanGrafana_OlderPhaseTransientDoesNotMaskPermissionError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "grafana")
 	acct := newTestAccount(testAccountID)
@@ -697,6 +715,7 @@ func scanGFPermissions(t *testing.T, st *store.Store, handler func(in any) (any,
 // type and id, under its workspace; elements missing the user, its id or its
 // type are dropped.
 func TestScanGrafanaPermissions_StoresEveryPageOfEveryWorkspace(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, inserted, err := scanGFPermissions(t, st, gfPermissionHandler(&calls, nil), "g-a", "g-b")
@@ -730,6 +749,7 @@ func TestScanGrafanaPermissions_StoresEveryPageOfEveryWorkspace(t *testing.T) {
 }
 
 func TestScanGrafanaPermissions_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanGFPermissions(t, st, func(any) (any, error) { return &grafana.ListPermissionsOutput{}, nil }, "g-a")
 	if err != nil || total != 0 {
@@ -745,6 +765,7 @@ func TestScanGrafanaPermissions_Empty(t *testing.T) {
 // after retries warns once however many workspaces hit it; any other error
 // fails the phase.
 func TestScanGrafanaPermissions_FailedWorkspace(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -782,6 +803,7 @@ func TestScanGrafanaPermissions_FailedWorkspace(t *testing.T) {
 }
 
 func TestScanGrafanaWorkspaces_ReadsListedTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := gfClient(map[string]func(any) (any, error){"ListWorkspaces": func(any) (any, error) {
 		return &grafana.ListWorkspacesOutput{Workspaces: []grafanatypes.WorkspaceSummary{

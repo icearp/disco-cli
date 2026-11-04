@@ -49,6 +49,7 @@ func runFSxDecodeCases(t *testing.T, cases []fsxDecodeCase) {
 }
 
 func TestResolveFSx_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	fsARN := fsxARN("aws", testRegion, testAccountID, "file-system", "fs-1")
 	volARN := fsxARN("aws", testRegion, testAccountID, "volume", "fsvol-1")
 	keyARN := "arn:aws:kms:us-east-1:" + testAccountID + ":key/k-fsx"
@@ -71,6 +72,7 @@ func TestResolveFSx_DecodeErrorReturned(t *testing.T) {
 }
 
 func TestResolveFSxChildrenToFileSystem(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fsARN := fsxARN("aws", testRegion, acct.ID, "file-system", "fs-1")
@@ -92,6 +94,7 @@ func TestResolveFSxChildrenToFileSystem(t *testing.T) {
 }
 
 func TestResolveFSxSnapshotToVolume(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vARN := fsxARN("aws", testRegion, acct.ID, "volume", "fsvol-1")
@@ -106,6 +109,7 @@ func TestResolveFSxSnapshotToVolume(t *testing.T) {
 }
 
 func TestResolveFSxFileSystemRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -138,6 +142,7 @@ func TestResolveFSxFileSystemRefs(t *testing.T) {
 // storage virtual machine row holds a reference_only value no bool scans
 // from, so that type's ListResources fails after the volumes were read.
 func TestResolveFSxChildrenToFileSystem_StoreErrorKeepsDecodeErrors(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeFSxVolume, fsxARN("aws", testRegion, acct.ID, "volume", "fsvol-bad"), testRegion, `["not an object"]`)

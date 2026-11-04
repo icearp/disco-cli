@@ -94,6 +94,7 @@ func scanLakeFormationTopLevel(t *testing.T, st *store.Store, handlers map[strin
 }
 
 func TestScanLFOptIns_TwoPagesBothStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls lfOptInCalls
 	h := lfHandlers(&calls)
@@ -133,6 +134,7 @@ func TestScanLFOptIns_TwoPagesBothStored(t *testing.T) {
 }
 
 func TestScanLFOptIns_EmptyStoresNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls lfOptInCalls
 	total, err := scanLakeFormationTopLevel(t, st, lfHandlers(&calls))
@@ -145,6 +147,7 @@ func TestScanLFOptIns_EmptyStoresNothing(t *testing.T) {
 }
 
 func TestScanLFOptIns_SkipsRowsWithoutPrincipalOrResource(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls lfOptInCalls
 	noPrincipal := lfOptInA
@@ -169,6 +172,7 @@ func TestScanLFOptIns_SkipsRowsWithoutPrincipalOrResource(t *testing.T) {
 }
 
 func TestScanLFOptIns_AccessDeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, lfOptInOp)
 	var calls lfOptInCalls
@@ -184,6 +188,7 @@ func TestScanLFOptIns_AccessDeniedWarnsOnce(t *testing.T) {
 }
 
 func TestScanLFOptIns_ErrorAfterPageKeepsListedRows(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		page2Err  error
@@ -219,6 +224,7 @@ func TestScanLFOptIns_ErrorAfterPageKeepsListedRows(t *testing.T) {
 }
 
 func TestScanLFOptIns_StopsOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls lfOptInCalls
 	h := lfHandlers(&calls)
@@ -240,6 +246,7 @@ func TestScanLFOptIns_StopsOnRepeatedToken(t *testing.T) {
 // The opt-in phase runs after the catalog phases and whatever they return: a
 // catalog error costs no opt-in rows, and an opt-in error costs no catalog rows.
 func TestScanLakeFormation_PhasesIndependent(t *testing.T) {
+	t.Parallel()
 	t.Run("catalog error", func(t *testing.T) {
 		st := newTestStore(t)
 		var calls lfOptInCalls
@@ -270,6 +277,7 @@ func TestScanLakeFormation_PhasesIndependent(t *testing.T) {
 // A transient catalog error is demoted to a warning so the opt-in phase's hard
 // error still reaches the dispatcher as a hard error.
 func TestScanLakeFormation_CatalogTransientDoesNotMaskOptInError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "lakeformation")
 	var calls lfOptInCalls
@@ -289,6 +297,7 @@ func TestScanLakeFormation_CatalogTransientDoesNotMaskOptInError(t *testing.T) {
 // A network error in the opt-in phase is demoted to a warning so the catalog
 // phase's hard error still reaches the dispatcher as a hard error.
 func TestScanLakeFormation_OptInTransientDoesNotMaskCatalogError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, lfOptInOp)
 	var calls lfOptInCalls
@@ -308,6 +317,7 @@ func TestScanLakeFormation_OptInTransientDoesNotMaskCatalogError(t *testing.T) {
 }
 
 func TestLFOptInARN_Identity(t *testing.T) {
+	t.Parallel()
 	base := lfOptInA
 	edited := base
 	edited.LastModified = sdkaws.Time(time.Date(2026, 5, 6, 7, 8, 9, 0, time.UTC))
@@ -350,6 +360,7 @@ func mustLFOptInARN(t *testing.T, o lftypes.LakeFormationOptInsInfo) string {
 // Lists inside the resource are sets or ANDs of conditions, so their order
 // must not change the NativeID, while different contents must.
 func TestLFOptInARN_ListOrderIgnored(t *testing.T) {
+	t.Parallel()
 	withLists := func(cols, excluded, values, policyValues []string, swapConditions bool) lftypes.LakeFormationOptInsInfo {
 		conditions := []lftypes.LFTag{
 			{TagKey: sdkaws.String("tier"), TagValues: policyValues},
@@ -392,6 +403,7 @@ func TestLFOptInARN_ListOrderIgnored(t *testing.T) {
 // an empty list on every existing opt-in; the canonical key must not see it.
 // false and 0 are values, not absence, and must still count.
 func TestLFCanonical_IgnoresAbsentMembers(t *testing.T) {
+	t.Parallel()
 	canonical := func(raw string) string {
 		var v any
 		if err := json.Unmarshal([]byte(raw), &v); err != nil {

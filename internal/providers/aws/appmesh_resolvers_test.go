@@ -8,6 +8,7 @@ import (
 )
 
 func TestAppMeshMeshARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:appmesh:us-east-1:123:mesh/m1/virtualGateway/vg1", "arn:aws:appmesh:us-east-1:123:mesh/m1"},
 		{"arn:aws:appmesh:us-east-1:123:mesh/m1/virtualRouter/vr1/route/r1", "arn:aws:appmesh:us-east-1:123:mesh/m1"},
@@ -22,6 +23,7 @@ func TestAppMeshMeshARNFromChild(t *testing.T) {
 }
 
 func TestAppMeshGrandparentARN(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:appmesh:us-east-1:123:mesh/m1/virtualRouter/vr1/route/r1", "arn:aws:appmesh:us-east-1:123:mesh/m1/virtualRouter/vr1"},
 		{"arn:aws:appmesh:us-east-1:123:mesh/m1/virtualGateway/vg1/gatewayRoute/gr1", "arn:aws:appmesh:us-east-1:123:mesh/m1/virtualGateway/vg1"},
@@ -36,6 +38,7 @@ func TestAppMeshGrandparentARN(t *testing.T) {
 }
 
 func TestResolveAppMeshChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	mARN := fmt.Sprintf("arn:aws:appmesh:%s:%s:mesh/m1", testRegion, acct.ID)
@@ -55,6 +58,7 @@ func TestResolveAppMeshChildren(t *testing.T) {
 }
 
 func TestResolveAppMeshRouteParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vrARN := fmt.Sprintf("arn:aws:appmesh:%s:%s:mesh/m1/virtualRouter/vr1", testRegion, acct.ID)
@@ -69,6 +73,7 @@ func TestResolveAppMeshRouteParent(t *testing.T) {
 }
 
 func TestResolveAppMeshGatewayRouteParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vgARN := fmt.Sprintf("arn:aws:appmesh:%s:%s:mesh/m1/virtualGateway/vg1", testRegion, acct.ID)

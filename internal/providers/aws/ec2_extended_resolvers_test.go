@@ -51,6 +51,7 @@ func volOwnerTestAssertNoEdgeNoAccount(t *testing.T, st *store.Store, volID stri
 // Two volumes shared by one owner get one placeholder, and a second resolver
 // run neither adds a row nor changes the first.
 func TestResolveEC2VolumeOwners_ForeignOwnerPlaceholder(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vol1 := volOwnerTestSeed(t, st, "vol-1", ptrStr(iamTestPartnerAccount))
@@ -78,6 +79,7 @@ func TestResolveEC2VolumeOwners_ForeignOwnerPlaceholder(t *testing.T) {
 
 // An owner account that already has a scanned row keeps it unchanged.
 func TestResolveEC2VolumeOwners_ScannedOwnerKeptIntact(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	populated := `{"SummaryMap":{"Users":5}}`
@@ -100,6 +102,7 @@ func TestResolveEC2VolumeOwners_ScannedOwnerKeptIntact(t *testing.T) {
 }
 
 func TestResolveEC2VolumeOwners_SelfOwnerNoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	volID := volOwnerTestSeed(t, st, "vol-1", ptrStr(testAccountID))
@@ -111,6 +114,7 @@ func TestResolveEC2VolumeOwners_SelfOwnerNoEdge(t *testing.T) {
 }
 
 func TestResolveEC2VolumeOwners_NoOwnerNoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	volID := volOwnerTestSeed(t, st, "vol-1", nil)
@@ -124,6 +128,7 @@ func TestResolveEC2VolumeOwners_NoOwnerNoEdge(t *testing.T) {
 // A row whose attributes do not decode fails the resolver without costing a
 // later sibling its edge or placeholder (ListResources orders by name).
 func TestResolveEC2VolumeOwners_DecodeErrorKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResourceNamed(t, st, TypeEC2Volume, ec2ARN(testRegion, testAccountID, "volume", "vol-0"), testRegion, `{"OwnerId":7}`, "vol-0")
@@ -140,6 +145,7 @@ func TestResolveEC2VolumeOwners_DecodeErrorKeepsSiblings(t *testing.T) {
 }
 
 func TestResolveEC2VolumeKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abcd-1234", testRegion, acct.ID)
@@ -156,6 +162,7 @@ func TestResolveEC2VolumeKMS(t *testing.T) {
 }
 
 func TestResolveEC2VolumeKMS_Unscanned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	volARN := ec2ARN(testRegion, acct.ID, "volume", "vol-bbb")
@@ -171,6 +178,7 @@ func TestResolveEC2VolumeKMS_Unscanned(t *testing.T) {
 }
 
 func TestResolveEC2ImageKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/img-key", testRegion, acct.ID)
@@ -190,6 +198,7 @@ func TestResolveEC2ImageKMS(t *testing.T) {
 }
 
 func TestResolveEC2VPNGatewayVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-aa")
@@ -206,6 +215,7 @@ func TestResolveEC2VPNGatewayVPC(t *testing.T) {
 }
 
 func TestResolveEC2NetworkInterfacePermissionENI(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	eniARN := ec2ARN(testRegion, acct.ID, "network-interface", "eni-1")
@@ -222,6 +232,7 @@ func TestResolveEC2NetworkInterfacePermissionENI(t *testing.T) {
 }
 
 func TestResolveEC2TrafficMirrorTargetRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	eniARN := ec2ARN(testRegion, acct.ID, "network-interface", "eni-tm")
@@ -247,6 +258,7 @@ func TestResolveEC2TrafficMirrorTargetRefs(t *testing.T) {
 }
 
 func TestResolveEC2TrafficMirrorFilterRuleParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	filterARN := ec2ARN(testRegion, acct.ID, "traffic-mirror-filter", "tmf-1")
@@ -263,6 +275,7 @@ func TestResolveEC2TrafficMirrorFilterRuleParent(t *testing.T) {
 }
 
 func TestResolveEC2VerifiedAccessInstanceTrustProvider(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tpARN := ec2ARN(testRegion, acct.ID, "verified-access-trust-provider", "vatp-1")
@@ -279,6 +292,7 @@ func TestResolveEC2VerifiedAccessInstanceTrustProvider(t *testing.T) {
 }
 
 func TestResolveEC2ClientVPNAuthorizationRuleEndpoint(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	epARN := ec2ARN(testRegion, acct.ID, "client-vpn-endpoint", "cvpn-1")
@@ -294,6 +308,7 @@ func TestResolveEC2ClientVPNAuthorizationRuleEndpoint(t *testing.T) {
 }
 
 func TestResolveEC2ClientVPNRouteRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	epARN := ec2ARN(testRegion, acct.ID, "client-vpn-endpoint", "cvpn-2")
@@ -313,6 +328,7 @@ func TestResolveEC2ClientVPNRouteRefs(t *testing.T) {
 }
 
 func TestResolveEC2NetworkInsightsPathRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	eniARN := ec2ARN(testRegion, acct.ID, "network-interface", "eni-src")
@@ -333,6 +349,7 @@ func TestResolveEC2NetworkInsightsPathRefs(t *testing.T) {
 }
 
 func TestResolveEC2CapacityReservationPlacementGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pgARN := ec2ARN(testRegion, acct.ID, "placement-group", "pg-1")
@@ -349,6 +366,7 @@ func TestResolveEC2CapacityReservationPlacementGroup(t *testing.T) {
 }
 
 func TestResolveEC2TGPeeringAttachmentParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tgARN := ec2ARN(testRegion, acct.ID, "transit-gateway", "tgw-1")
@@ -365,6 +383,7 @@ func TestResolveEC2TGPeeringAttachmentParents(t *testing.T) {
 }
 
 func TestResolveEC2SpotFleetIAM(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/spot-fleet", acct.ID)
@@ -381,6 +400,7 @@ func TestResolveEC2SpotFleetIAM(t *testing.T) {
 }
 
 func TestResolveEC2FleetLaunchTemplate(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ltARN := ec2ARN(testRegion, acct.ID, "launch-template", "lt-1")
@@ -397,6 +417,7 @@ func TestResolveEC2FleetLaunchTemplate(t *testing.T) {
 }
 
 func TestClientVPNEndpointFromChildARN(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in, want string
 	}{
@@ -413,6 +434,7 @@ func TestClientVPNEndpointFromChildARN(t *testing.T) {
 }
 
 func TestResolveEC2TGWMeteringPolicyRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tgwID := "tgw-aaa"
@@ -434,6 +456,7 @@ func TestResolveEC2TGWMeteringPolicyRefs(t *testing.T) {
 }
 
 func TestResolveEC2VPCEndpointConnectionNotificationRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpceID := "vpce-aaa"
@@ -458,6 +481,7 @@ func TestResolveEC2VPCEndpointConnectionNotificationRefs(t *testing.T) {
 }
 
 func TestResolveEC2RouteServerSNS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	topicARN := fmt.Sprintf("arn:aws:sns:%s:%s:rs-topic", testRegion, acct.ID)
@@ -474,6 +498,7 @@ func TestResolveEC2RouteServerSNS(t *testing.T) {
 }
 
 func TestResolveEC2CapacityReservationFleetMembers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	crID := "cr-aaa"

@@ -11,6 +11,7 @@ import (
 // ── Load Balancer → VPC ───────────────────────────────────────────────────────
 
 func TestResolveELBv2LBRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -38,6 +39,7 @@ func TestResolveELBv2LBRelationships(t *testing.T) {
 }
 
 func TestResolveELBv2LBRelationships_NoVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -60,6 +62,7 @@ func TestResolveELBv2LBRelationships_NoVPC(t *testing.T) {
 // ── Listener → Load Balancer ──────────────────────────────────────────────────
 
 func TestResolveELBv2ListenerRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -88,6 +91,7 @@ func TestResolveELBv2ListenerRelationships(t *testing.T) {
 }
 
 func TestResolveELBv2ListenerRelationships_NoLB(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -109,6 +113,7 @@ func TestResolveELBv2ListenerRelationships_NoLB(t *testing.T) {
 // ── Listener Rule → Listener ──────────────────────────────────────────────────
 
 func TestResolveELBv2RuleRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -137,6 +142,7 @@ func TestResolveELBv2RuleRelationships(t *testing.T) {
 }
 
 func TestResolveELBv2RuleRelationships_NoListener(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -158,6 +164,7 @@ func TestResolveELBv2RuleRelationships_NoListener(t *testing.T) {
 // ── Listener Certificate → Listener ──────────────────────────────────────────
 
 func TestResolveELBv2CertRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -186,6 +193,7 @@ func TestResolveELBv2CertRelationships(t *testing.T) {
 }
 
 func TestResolveELBv2CertRelationships_NoListener(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -207,6 +215,7 @@ func TestResolveELBv2CertRelationships_NoListener(t *testing.T) {
 // ── Target Group → VPC ────────────────────────────────────────────────────────
 
 func TestResolveELBv2TGRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -234,6 +243,7 @@ func TestResolveELBv2TGRelationships(t *testing.T) {
 }
 
 func TestResolveELBv2TGRelationships_NoVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -253,6 +263,7 @@ func TestResolveELBv2TGRelationships_NoVPC(t *testing.T) {
 }
 
 func TestResolveELBv2TGRelationships_LambdaTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -277,6 +288,7 @@ func TestResolveELBv2TGRelationships_LambdaTarget(t *testing.T) {
 }
 
 func TestResolveELBv2TGRelationships_InstanceTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -304,6 +316,7 @@ func TestResolveELBv2TGRelationships_InstanceTarget(t *testing.T) {
 // ── Trust Store Revocation → Trust Store ─────────────────────────────────────
 
 func TestResolveELBv2RevocationRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -332,6 +345,7 @@ func TestResolveELBv2RevocationRelationships(t *testing.T) {
 }
 
 func TestResolveELBv2RevocationRelationships_NoTrustStore(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -352,6 +366,7 @@ func TestResolveELBv2RevocationRelationships_NoTrustStore(t *testing.T) {
 
 // TestResolveELBv2ListenerRelationships_ACM verifies Listener → ACM cert edge.
 func TestResolveELBv2ListenerRelationships_ACM(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"

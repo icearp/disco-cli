@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveMediaLiveCWAlarmTemplateGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gARN := fmt.Sprintf("arn:aws:medialive:%s:%s:cloudwatch-alarm-template-group:g1", testRegion, acct.ID)
@@ -22,6 +23,7 @@ func TestResolveMediaLiveCWAlarmTemplateGroup(t *testing.T) {
 }
 
 func TestResolveMediaLiveEBRuleTemplateGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gARN := fmt.Sprintf("arn:aws:medialive:%s:%s:eventbridge-rule-template-group:g1", testRegion, acct.ID)
@@ -36,6 +38,7 @@ func TestResolveMediaLiveEBRuleTemplateGroup(t *testing.T) {
 }
 
 func TestResolveMediaLiveClusterRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/Cluster", acct.ID)

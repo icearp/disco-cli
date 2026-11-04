@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveWAFv2LoggingConfigToWebACL(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	waARN := fmt.Sprintf("arn:aws:wafv2:%s:%s:regional/webacl/wa-1/uuid", testRegion, acct.ID)
@@ -21,6 +22,7 @@ func TestResolveWAFv2LoggingConfigToWebACL(t *testing.T) {
 }
 
 func TestResolveWAFv2WebACLAssociationRefs_ALB(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	waARN := fmt.Sprintf("arn:aws:wafv2:%s:%s:regional/webacl/wa-1/uuid", testRegion, acct.ID)

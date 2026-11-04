@@ -366,6 +366,7 @@ func cwWantAttrs(k cwKind, suffix string) string {
 // listing sends its model's page cap, and DescribeAlarms asks for both alarm
 // types. No error, no warning.
 func TestScanCloudWatch_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCWCalls()
@@ -451,6 +452,7 @@ func TestScanCloudWatch_StoresTagsOfEveryType(t *testing.T) {
 // Every listing empty: only the OTel singleton is stored, no tag read, no
 // error, no warning.
 func TestScanCloudWatch_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCWCalls()
@@ -478,6 +480,7 @@ func TestScanCloudWatch_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanCloudWatch_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	for _, k := range []cwKind{cwKindOf(t, TypeCloudWatchAlarm), cwKindOf(t, TypeCloudWatchDashboard)} {
 		t.Run(k.typ, func(t *testing.T) {
 			st := newTestStore(t)
@@ -499,6 +502,7 @@ func TestScanCloudWatch_RescanInsertsNone(t *testing.T) {
 // denial keeps the row untagged and warns once under the tag op; a throttle
 // keeps it and is transient; any other modeled code keeps it and is an error.
 func TestScanCloudWatch_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagCase struct {
 		name      string
 		arn, typ  string
@@ -562,6 +566,7 @@ func TestScanCloudWatch_TagReadFailures(t *testing.T) {
 // Denied tag reads in two listings send one warning for the whole scan,
 // under the tag op, naming the first denied row; the rows are kept untagged.
 func TestScanCloudWatch_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, cwTagsOp)
 	calls := newCWCalls()
@@ -596,6 +601,7 @@ func TestScanCloudWatch_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanCloudWatch_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, cwTagsOp)
 	calls := newCWCalls()
@@ -613,6 +619,7 @@ func TestScanCloudWatch_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A throttled listing beside a later phase's hard error is demoted to one
 // warning under its own op; the hard error decides the outcome.
 func TestScanCloudWatch_ListThrottleDemotedBesideLaterHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, cwDescribeAlarmsOp)
 	handlers := cwHandlers(newCWCalls())
@@ -635,6 +642,7 @@ func TestScanCloudWatch_ListThrottleDemotedBesideLaterHardError(t *testing.T) {
 // phase runs and no warning is sent about rows the write lost (here a denied
 // tag read); the phases before it keep their rows.
 func TestScanCloudWatch_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		typ    string
 		later  []string
@@ -682,6 +690,7 @@ func TestScanCloudWatch_FailedWriteStopsScan(t *testing.T) {
 // A listing's failed page keeps the page read before it, and its error does
 // not stop the later listings (the dashboards scan has none).
 func TestScanCloudWatch_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		typ        string
 		lost, last int
@@ -714,6 +723,7 @@ func TestScanCloudWatch_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated token ends a listing as an error, keeping its pages.
 func TestScanCloudWatch_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := cwHandlers(newCWCalls())
 	k := cwKindOf(t, TypeCloudWatchInsightRule)
@@ -737,6 +747,7 @@ func TestScanCloudWatch_RepeatedTokenKeepsPages(t *testing.T) {
 // stored, is not sent to the tag op, and is warned about once under its
 // listing, named by its name or by the fallback text when it has none.
 func TestScanCloudWatch_ElementWithoutIdentifierWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		typ, key string
 		elem     any
@@ -791,6 +802,7 @@ func TestScanCloudWatch_ElementWithoutIdentifierWarns(t *testing.T) {
 // and read under the ARN built in the Service Reference's format with the
 // account's partition.
 func TestScanCloudWatch_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -839,6 +851,7 @@ func TestScanCloudWatch_TagReadsKeepPartitionARNs(t *testing.T) {
 // unavailable and runs no later phase; one after rows were stored is a
 // failure of this scan that keeps their counts.
 func TestScanCloudWatch_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "monitoring.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -875,6 +888,7 @@ func TestScanCloudWatch_NXDOMAIN(t *testing.T) {
 // listed element as the row, its tags read: a denial warns once under the
 // Get op, a throttle is transient, any other error is an error.
 func TestScanCloudWatch_DetailFailures(t *testing.T) {
+	t.Parallel()
 	type detailCase struct {
 		name      string
 		err       error
@@ -967,6 +981,7 @@ func TestScanCloudWatch_DetailFailures(t *testing.T) {
 // GetMetricStream failure, every other stream is still read and stored with
 // its body: one failure cancels no sibling.
 func TestScanCloudWatch_OneDetailFailureCancelsNoSibling(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCWCalls()
 	handlers := cwHandlers(calls)

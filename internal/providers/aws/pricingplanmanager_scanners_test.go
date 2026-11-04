@@ -100,6 +100,7 @@ func ppmPage(token string, subs ...ppmtypes.SubscriptionSummary) func() (*pricin
 // Both pages are stored, in the global region, from the us-east-1 endpoint;
 // an ARN-less summary is skipped.
 func TestScanPricingPlanManager_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	noARN := ppmSummary("", ppmtypes.StatusActive)
 	noARN.Arn = nil
@@ -144,6 +145,7 @@ func TestScanPricingPlanManager_StoresEveryPage(t *testing.T) {
 // A service that returns the token it was sent ends the listing instead of
 // looping.
 func TestScanPricingPlanManager_StopsOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := runPricingPlanManager(t, st, ppmPages(t,
 		ppmPage("p1", ppmSummary(ppmSubA, ppmtypes.StatusActive)),
@@ -159,6 +161,7 @@ func TestScanPricingPlanManager_StopsOnRepeatedToken(t *testing.T) {
 }
 
 func TestScanPricingPlanManager_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := runPricingPlanManager(t, st, ppmPages(t, ppmPage("")))
 	if err != nil {
@@ -175,6 +178,7 @@ func TestScanPricingPlanManager_Empty(t *testing.T) {
 // A denial warns once and is not an error; one after a stored page keeps that
 // page's rows.
 func TestScanPricingPlanManager_AccessDenied(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name  string
 		pages []func() (*pricingplanmanager.ListSubscriptionsOutput, error)
@@ -214,6 +218,7 @@ func TestScanPricingPlanManager_AccessDenied(t *testing.T) {
 
 // Any other error is returned, after the pages read before it are stored.
 func TestScanPricingPlanManager_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := runPricingPlanManager(t, st, ppmPages(t,
 		ppmPage("p1", ppmSummary(ppmSubA, ppmtypes.StatusActive)),

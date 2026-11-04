@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveSSMIRSetKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/k-1", testRegion, acct.ID)
@@ -23,6 +24,7 @@ func TestResolveSSMIRSetKMS(t *testing.T) {
 }
 
 func TestResolveSSMIResponsePlanRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

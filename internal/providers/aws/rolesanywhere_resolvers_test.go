@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveRACRLToTrustAnchor(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	taARN := fmt.Sprintf("arn:aws:rolesanywhere:%s:%s:trust-anchor/ta-1", testRegion, acct.ID)
@@ -23,6 +24,7 @@ func TestResolveRACRLToTrustAnchor(t *testing.T) {
 }
 
 func TestResolveRAProfileRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/ra-role", acct.ID)

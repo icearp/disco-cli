@@ -129,6 +129,7 @@ func cfnStackSetAttrsOf(t *testing.T, r store.Resource) stackSetWithInstances {
 // instances; every listing reads at the page cap with no filter, and a
 // summary without a name warns once.
 func TestScanCloudFormation_StackSetsStoreTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	listWarns := countOpWarnings(st, cfnListStackSetsOp)
 	rec := &cfnInputs{}
@@ -199,6 +200,7 @@ func TestScanCloudFormation_StackSetsStoreTags(t *testing.T) {
 // its second page) other than not-found keeps the set with the first page's
 // instance.
 func TestScanCloudFormation_StackSetOutcomes(t *testing.T) {
+	t.Parallel()
 	notFound := apiErr("StackSetNotFoundException", "gone")
 	hard := apiErr("ValidationError", "bad")
 	for _, c := range []struct {
@@ -272,6 +274,7 @@ func TestScanCloudFormation_StackSetOutcomes(t *testing.T) {
 // warns, and any other error is returned, the ValidationError of an account
 // where StackSets is not active included, since the op models no error.
 func TestScanCloudFormation_StackSetListErrorKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	notActive := apiErr("ValidationError", "StackSets is not active in this account")
 	other := apiErr("InvalidOperationException", "bad")
 	for _, c := range []struct {
@@ -311,6 +314,7 @@ func TestScanCloudFormation_StackSetListErrorKeepsEarlierPages(t *testing.T) {
 }
 
 func TestScanCloudFormation_StackSetsStopOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := cfnHandlers(&cfnInputs{})
 	list := h["ListStackSets"]
@@ -333,6 +337,7 @@ func TestScanCloudFormation_StackSetsStopOnRepeatedToken(t *testing.T) {
 // Every phase runs whatever another phase returns: one phase's hard error is
 // returned and the other phases' rows are stored.
 func TestScanCloudFormation_PhaseErrorDoesNotStopOtherPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op        string
 		wantTotal int
@@ -370,6 +375,7 @@ func TestScanCloudFormation_PhaseErrorDoesNotStopOtherPhases(t *testing.T) {
 // A transient error in one phase is demoted to a warning under its op beside
 // another phase's hard error, which is returned.
 func TestScanCloudFormation_TransientPhaseDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, cfnListStacksOp)
 	h := cfnHandlers(&cfnInputs{})
@@ -387,6 +393,7 @@ func TestScanCloudFormation_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 // A store write failure stops the later phases, and the stack-set phase warns
 // about nothing it did not store.
 func TestScanCloudFormation_StoreWriteStopsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, failing := range []string{"ListStacks", "ListStackSets"} {
 		t.Run(failing, func(t *testing.T) {
 			st, closeStore := openClosingStore(t)
@@ -515,6 +522,7 @@ func cfnStackAttrsOf(t *testing.T, r store.Resource) stackWithResources {
 // returns; ListStacks reads every page with the active-status filter, and a
 // summary without a StackId warns once.
 func TestScanCloudFormation_StacksStoreResourcesAndTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	listWarns := countOpWarnings(st, cfnListStacksOp)
 	rec := &cfnStackInputs{}
@@ -574,6 +582,7 @@ func TestScanCloudFormation_StacksStoreResourcesAndTags(t *testing.T) {
 // without the denied part and warns once, any other error stores it with what
 // was read and is returned. ListStackResources fails on its second page.
 func TestScanCloudFormation_StackOutcomes(t *testing.T) {
+	t.Parallel()
 	gone := apiErr("ValidationError", "Stack with id app does not exist")
 	hard := apiErr("InvalidOperationException", "bad")
 	for _, c := range []struct {
@@ -645,6 +654,7 @@ func TestScanCloudFormation_StackOutcomes(t *testing.T) {
 // A failed later ListStacks page keeps the stacks read before it: a denial
 // warns, any other error, a repeated token included, is returned.
 func TestScanCloudFormation_StackListErrorKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	other := apiErr("InvalidOperationException", "bad")
 	for _, c := range []struct {
 		name      string
@@ -691,6 +701,7 @@ func TestScanCloudFormation_StackListErrorKeepsEarlierPages(t *testing.T) {
 // page at the page cap, warn once about an element without its id, and keep
 // the pages read before a failed page.
 func TestScanCloudFormation_ListPhasesKeepPagesAndWarnEmptyIDs(t *testing.T) {
+	t.Parallel()
 	typeARN := func(n string) *string {
 		return ptrStr("arn:aws:cloudformation:us-east-1:123456789012:type/resource/Acme-" + n)
 	}
@@ -784,6 +795,7 @@ func TestScanCloudFormation_ListPhasesKeepPagesAndWarnEmptyIDs(t *testing.T) {
 // Once ctx is done no listed stack is read: each is stored from its summary
 // alone, and the phase returns ctx's error.
 func TestScanCloudFormationStacks_StopsWhenContextDone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -811,6 +823,7 @@ func TestScanCloudFormationStacks_StopsWhenContextDone(t *testing.T) {
 // Once ctx is done no listed stack set is described, and the phase says so:
 // a set's summary carries no ARN, so it cannot be stored from the listing.
 func TestScanCloudFormationStackSets_StopsWhenContextDone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

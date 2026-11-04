@@ -11,6 +11,7 @@ import (
 )
 
 func TestResolveSecurityHubProductSubscriptions_GuardDuty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -32,6 +33,7 @@ func TestResolveSecurityHubProductSubscriptions_GuardDuty(t *testing.T) {
 }
 
 func TestResolveSecurityHubProductSubscriptions_Macie(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -50,6 +52,7 @@ func TestResolveSecurityHubProductSubscriptions_Macie(t *testing.T) {
 }
 
 func TestResolveSecurityHubProductSubscriptions_SelfSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -66,6 +69,7 @@ func TestResolveSecurityHubProductSubscriptions_SelfSkipped(t *testing.T) {
 }
 
 func TestResolveSecurityHubProductSubscriptions_NoUpstream(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -83,6 +87,7 @@ func TestResolveSecurityHubProductSubscriptions_NoUpstream(t *testing.T) {
 }
 
 func TestResolveSecurityHubProductSubscriptions_ThirdParty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -99,6 +104,7 @@ func TestResolveSecurityHubProductSubscriptions_ThirdParty(t *testing.T) {
 }
 
 func TestParseSecurityHubProductSubscriptionARN(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		arn             string
 		vendor, product string
@@ -141,6 +147,7 @@ func shSeedOrgAccount(t *testing.T, st *store.Store, accountID string) string {
 // A member whose account is in the scanned org tree is attached to it; one
 // outside the tree gets no edge.
 func TestResolveSecurityHubMemberOrgAccount_AttachesScannedAccounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	inOrg := shSeedMember(t, st, "111111111111", mustJSON(shMember("111111111111", "Enabled")))
 	outside := shSeedMember(t, st, "333333333333", mustJSON(shMember("333333333333", "Invited")))
@@ -164,6 +171,7 @@ func TestResolveSecurityHubMemberOrgAccount_AttachesScannedAccounts(t *testing.T
 }
 
 func TestResolveSecurityHubMemberOrgAccount_NoOrgTree(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	mID := shSeedMember(t, st, "111111111111", mustJSON(shMember("111111111111", "Enabled")))
 	if err := resolveSecurityHubMemberOrgAccount(newTestAccount(testAccountID), st); err != nil {
@@ -177,6 +185,7 @@ func TestResolveSecurityHubMemberOrgAccount_NoOrgTree(t *testing.T) {
 // A row whose attributes do not parse is reported, and the rows after it are
 // still wired.
 func TestResolveSecurityHubMemberOrgAccount_MalformedRowReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	shSeedMember(t, st, "000000000000", "{")
 	goodID := shSeedMember(t, st, "111111111111", mustJSON(shMember("111111111111", "Enabled")))
@@ -209,6 +218,7 @@ func shSeedAssoc(t *testing.T, st *store.Store, region, control, standard, attrs
 // An association is attached to the subscription to its standard in its own
 // region only; one whose standard has no stored subscription gets no edge.
 func TestResolveSecurityHubControlAssociationSubscriptions_AttachesSameRegionSubscription(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	cisHere := shSeedSubscription(t, st, testRegion, shStdCIS)
 	shSeedSubscription(t, st, "eu-west-1", shStdCIS)
@@ -233,6 +243,7 @@ func TestResolveSecurityHubControlAssociationSubscriptions_AttachesSameRegionSub
 }
 
 func TestResolveSecurityHubControlAssociationSubscriptions_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeSecurityHubStandardsSubscription,
 		fmt.Sprintf("arn:aws:securityhub:%s:%s:subscription/empty", testRegion, testAccountID), testRegion, "{}")
@@ -248,6 +259,7 @@ func TestResolveSecurityHubControlAssociationSubscriptions_NoAttrs(t *testing.T)
 // A subscription or association whose attributes do not parse is reported,
 // and the other rows are still wired.
 func TestResolveSecurityHubControlAssociationSubscriptions_MalformedRowReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	for _, malformed := range []string{"subscription", "association"} {
 		t.Run(malformed, func(t *testing.T) {
 			st := newTestStore(t)

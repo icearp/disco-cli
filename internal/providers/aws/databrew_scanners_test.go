@@ -156,6 +156,7 @@ func dbScanAll(t *testing.T, st *store.Store, h map[string]func(in any) (any, er
 // stored under the element's ResourceArn with its Name and Region, that the
 // tagged element's TagsJSON is its tags and the untagged one's is nil.
 func TestScanDataBrewAll_StoresRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := dbScanAll(t, st, dbAllHandlers(t))
 	if err != nil {
@@ -209,6 +210,7 @@ func TestScanDataBrewAll_StoresRows(t *testing.T) {
 // account/region scope instead of failing, and an element without a
 // ResourceArn is warned about while its siblings are stored.
 func TestScanDataBrewPhases_ListOutcomes(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("ValidationException", "bad")
 	denied := apiErr("AccessDeniedException", "not authorized to perform: databrew:List")
 	one := func(n string) []dbElem { return []dbElem{{arn: ptrStr("arn:" + n), name: ptrStr(n)}} }
@@ -275,6 +277,7 @@ func TestScanDataBrewPhases_ListOutcomes(t *testing.T) {
 // returns ErrStoreWrite and reports no empty-ARN warning, since none could
 // say the rows read were stored.
 func TestScanDataBrewDatasets_WriteFailsWarnsNothing(t *testing.T) {
+	t.Parallel()
 	p := dbPhases[0]
 	st, closeStore := openClosingStore(t)
 	warns := countOpWarnings(st, p.label)
@@ -296,6 +299,7 @@ func TestScanDataBrewDatasets_WriteFailsWarnsNothing(t *testing.T) {
 // TestScanDataBrewAll_PhaseErrorRunsOtherPhases pins that a failed listing
 // is returned without stopping the other listings, whichever phase fails.
 func TestScanDataBrewAll_PhaseErrorRunsOtherPhases(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("ValidationException", "bad")
 	for _, failed := range dbPhases {
 		t.Run(failed.sdkOp, func(t *testing.T) {
@@ -321,6 +325,7 @@ func TestScanDataBrewAll_PhaseErrorRunsOtherPhases(t *testing.T) {
 // TestScanDataBrewAll_StoreWriteStops pins that a failed write stops the
 // scan: no listing after it calls AWS.
 func TestScanDataBrewAll_StoreWriteStops(t *testing.T) {
+	t.Parallel()
 	calls := map[string]int{}
 	h := dbAllHandlers(t)
 	for op, f := range h {
@@ -349,6 +354,7 @@ func TestScanDataBrewAll_StoreWriteStops(t *testing.T) {
 // throttled listing beside a hard-failing one is demoted to one warning under
 // that listing's op label and the scan classified as an error.
 func TestScanDataBrewAll_TransientBesideHardError(t *testing.T) {
+	t.Parallel()
 	for i, throttled := range dbPhases {
 		hard := dbPhases[(i+1)%len(dbPhases)]
 		t.Run(throttled.sdkOp, func(t *testing.T) {

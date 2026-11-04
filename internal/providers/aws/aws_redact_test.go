@@ -51,6 +51,7 @@ func applyAndDecode(t *testing.T, resourceType string, v any) map[string]any {
 }
 
 func TestRedact_LambdaFunction_EnvVariables(t *testing.T) {
+	t.Parallel()
 	fc := lambdatypes.FunctionConfiguration{
 		FunctionName: ptrStr("my-fn"),
 		Environment: &lambdatypes.EnvironmentResponse{
@@ -77,6 +78,7 @@ func TestRedact_LambdaFunction_EnvVariables(t *testing.T) {
 // fields). Tests round-trip a synthetic shape — the rule still binds to the JSON
 // path, matching what scanners would emit if they ever fetched those fields.
 func TestRedact_EC2Instance_UserData(t *testing.T) {
+	t.Parallel()
 	got := applyAndDecode(t, TypeEC2Instance, map[string]any{
 		"InstanceId": "i-abc",
 		"UserData":   "#!/bin/bash\nexport DB=hunter2",
@@ -90,6 +92,7 @@ func TestRedact_EC2Instance_UserData(t *testing.T) {
 }
 
 func TestRedact_EC2IpamVerificationToken_TokenValue(t *testing.T) {
+	t.Parallel()
 	got := applyAndDecode(t, TypeEC2IpamExternalResourceVerificationToken, map[string]any{
 		"IpamId":     "ipam-aaa",
 		"TokenName":  "my-token",
@@ -104,6 +107,7 @@ func TestRedact_EC2IpamVerificationToken_TokenValue(t *testing.T) {
 }
 
 func TestRedact_EC2KeyPair_KeyMaterial(t *testing.T) {
+	t.Parallel()
 	got := applyAndDecode(t, TypeEC2KeyPair, map[string]any{
 		"KeyName":     "k1",
 		"KeyMaterial": "-----BEGIN PRIVATE KEY-----\nabc\n-----END",
@@ -114,6 +118,7 @@ func TestRedact_EC2KeyPair_KeyMaterial(t *testing.T) {
 }
 
 func TestRedact_SecretsManagerSecret_SecretString(t *testing.T) {
+	t.Parallel()
 	// DescribeSecret response shape; SecretString only appears on
 	// GetSecretValue (disco doesn't call it), but defensively redact.
 	in := map[string]any{
@@ -132,6 +137,7 @@ func TestRedact_SecretsManagerSecret_SecretString(t *testing.T) {
 }
 
 func TestRedact_RDSDBInstance_MasterUserPassword(t *testing.T) {
+	t.Parallel()
 	db := rdstypes.DBInstance{
 		DBInstanceIdentifier: ptrStr("db1"),
 		MasterUsername:       ptrStr("admin"),
@@ -152,6 +158,7 @@ func TestRedact_RDSDBInstance_MasterUserPassword(t *testing.T) {
 }
 
 func TestRedact_IAMAccessKey_SecretAccessKey(t *testing.T) {
+	t.Parallel()
 	ak := iamtypes.AccessKey{
 		AccessKeyId:     ptrStr("AKIATEST"),
 		SecretAccessKey: ptrStr("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"),
@@ -167,6 +174,7 @@ func TestRedact_IAMAccessKey_SecretAccessKey(t *testing.T) {
 }
 
 func TestRedact_LightsailBucketAccessKey_SecretAccessKey(t *testing.T) {
+	t.Parallel()
 	ak := lightsailtypes.AccessKey{
 		AccessKeyId:     ptrStr("AKIATEST"),
 		SecretAccessKey: ptrStr("wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"),
@@ -182,6 +190,7 @@ func TestRedact_LightsailBucketAccessKey_SecretAccessKey(t *testing.T) {
 }
 
 func TestRedact_CognitoAppClient_ClientSecret(t *testing.T) {
+	t.Parallel()
 	c := cognitoidptypes.UserPoolClientType{
 		ClientId:     ptrStr("4example0client0id"),
 		ClientName:   ptrStr("web"),
@@ -197,6 +206,7 @@ func TestRedact_CognitoAppClient_ClientSecret(t *testing.T) {
 }
 
 func TestRedact_CognitoUserPoolClientSecret_ClientSecretValue(t *testing.T) {
+	t.Parallel()
 	s := cognitoidptypes.ClientSecretDescriptorType{
 		ClientSecretId:    ptrStr("client--1700000000"),
 		ClientSecretValue: ptrStr("example0secret0value0not0real"),
@@ -211,6 +221,7 @@ func TestRedact_CognitoUserPoolClientSecret_ClientSecretValue(t *testing.T) {
 }
 
 func TestRedact_CodeBuildProject_PlaintextEnv(t *testing.T) {
+	t.Parallel()
 	proj := codebuildtypes.Project{
 		Name: ptrStr("p1"),
 		Environment: &codebuildtypes.ProjectEnvironment{
@@ -235,6 +246,7 @@ func TestRedact_CodeBuildProject_PlaintextEnv(t *testing.T) {
 }
 
 func TestRedact_DeviceFarmProject_EnvVariables(t *testing.T) {
+	t.Parallel()
 	proj := dftypes.Project{
 		Name: ptrStr("p1"),
 		Arn:  ptrStr("arn:aws:devicefarm:us-west-2:111122223333:project:PROJ-1"),
@@ -259,6 +271,7 @@ func TestRedact_DeviceFarmProject_EnvVariables(t *testing.T) {
 // The URL, every header value and the body of an HTTP_REQUEST function are
 // redacted; header names and the output bindings are kept.
 func TestRedact_MediaTailorFunction_HTTPRequest(t *testing.T) {
+	t.Parallel()
 	fn := mttypes.Function{
 		FunctionId:   ptrStr("enrich"),
 		FunctionType: mttypes.FunctionTypeHttpRequest,
@@ -299,6 +312,7 @@ func TestRedact_MediaTailorFunction_HTTPRequest(t *testing.T) {
 // Every ingest endpoint's password is redacted; its username and URL are
 // kept.
 func TestRedact_MediaPackageChannel_IngestPassword(t *testing.T) {
+	t.Parallel()
 	ch := mptypes.Channel{
 		Id: ptrStr("ch-1"),
 		HlsIngest: &mptypes.HlsIngest{IngestEndpoints: []mptypes.IngestEndpoint{
@@ -323,6 +337,7 @@ func TestRedact_MediaPackageChannel_IngestPassword(t *testing.T) {
 }
 
 func TestRedact_AmplifyWebhook_WebhookUrl(t *testing.T) {
+	t.Parallel()
 	wh := amplifytypes.Webhook{
 		WebhookId:  ptrStr("wh-1"),
 		WebhookArn: ptrStr("arn:aws:amplify:us-east-1:111122223333:apps/a/webhooks/wh-1"),
@@ -372,6 +387,7 @@ func assertAmplifyEnvRedacted(t *testing.T, where string, env any) {
 // those it gives auto-created branches, are redacted, and so are its
 // environment variables' values except references and booleans.
 func TestRedact_AmplifyApp_Credentials(t *testing.T) {
+	t.Parallel()
 	app := amplifytypes.App{
 		AppId:                ptrStr("d1"),
 		Name:                 ptrStr("site"),
@@ -401,6 +417,7 @@ func TestRedact_AmplifyApp_Credentials(t *testing.T) {
 // An Amplify branch's basic-auth credentials are redacted, and so are its
 // environment variables' values except references and booleans.
 func TestRedact_AmplifyBranch_Credentials(t *testing.T) {
+	t.Parallel()
 	b := amplifytypes.Branch{
 		BranchName:           ptrStr("main"),
 		BasicAuthCredentials: ptrStr("dXNlcjpwYXNz"),
@@ -420,6 +437,7 @@ func TestRedact_AmplifyBranch_Credentials(t *testing.T) {
 // redacted: a presigned URL is a bearer link that changes on every read. The
 // production branch's other fields are kept.
 func TestRedact_Amplify_ThumbnailUrl(t *testing.T) {
+	t.Parallel()
 	const thumb = "https://bucket.s3.amazonaws.com/thumb.png?X-Amz-Signature=abc"
 	b := applyAndDecode(t, TypeAmplifyBranch, amplifytypes.Branch{BranchName: ptrStr("main"), ThumbnailUrl: ptrStr(thumb)})
 	if b["ThumbnailUrl"] != redact.Placeholder {
@@ -437,6 +455,7 @@ func TestRedact_Amplify_ThumbnailUrl(t *testing.T) {
 
 // An AppSync API key's Id is the key itself.
 func TestRedact_AppSyncAPIKey_Id(t *testing.T) {
+	t.Parallel()
 	k := appsynctypes.ApiKey{Id: ptrStr("da2-secretkeyvalue"), Description: ptrStr("ci key"), Expires: 1700000000}
 	got := applyAndDecode(t, TypeAppSyncAPIKey, k)
 	if got["Id"] != redact.Placeholder {
@@ -450,6 +469,7 @@ func TestRedact_AppSyncAPIKey_Id(t *testing.T) {
 // The Baidu channel's Credential is its Baidu Cloud Push API key and the GCM
 // channel's is its Google Web API key.
 func TestRedact_PinpointChannels_Credential(t *testing.T) {
+	t.Parallel()
 	for typ, v := range map[string]any{
 		TypePinpointBaiduChannel: pptypes.BaiduChannelResponse{Credential: ptrStr("baidu-api-key"), Platform: ptrStr("BAIDU")},
 		TypePinpointGCMChannel:   pptypes.GCMChannelResponse{Credential: ptrStr("gcm-api-key"), Platform: ptrStr("GCM")},
@@ -468,6 +488,7 @@ func TestRedact_PinpointChannels_Credential(t *testing.T) {
 // token; a DeliveryUri naming a Lambda function by ARN is kept, as is the
 // hook's LambdaFunctionName.
 func TestRedact_PinpointCampaign_WebhookURLs(t *testing.T) {
+	t.Parallel()
 	const url = "https://hooks.example.com/deliver?token=abc123"
 	const fn = "arn:aws:lambda:us-east-1:123456789012:function:deliver"
 	c := pptypes.CampaignResponse{
@@ -506,6 +527,7 @@ func ppURIRedacted(v any) bool {
 
 // A top-level DeliveryUri naming a Lambda function by ARN is kept.
 func TestRedact_PinpointCampaign_DeliveryURIKeepsLambdaARN(t *testing.T) {
+	t.Parallel()
 	const fn = "arn:aws:lambda:us-east-1:123456789012:function:deliver"
 	got := applyAndDecode(t, TypePinpointCampaign, pptypes.CampaignResponse{
 		CustomDeliveryConfiguration: &pptypes.CustomDeliveryConfiguration{DeliveryUri: ptrStr(fn)},
@@ -517,6 +539,7 @@ func TestRedact_PinpointCampaign_DeliveryURIKeepsLambdaARN(t *testing.T) {
 
 // The application settings' campaign hook WebUrl can carry a token.
 func TestRedact_PinpointApplicationSettings_CampaignHookWebUrl(t *testing.T) {
+	t.Parallel()
 	const fn = "arn:aws:lambda:us-east-1:123456789012:function:hook"
 	got := applyAndDecode(t, TypePinpointApplicationSettings, pptypes.ApplicationSettingsResource{
 		CampaignHook: &pptypes.CampaignHook{WebUrl: ptrStr("https://hooks.example.com/x?sig=s3cr3t"), LambdaFunctionName: ptrStr(fn)},
@@ -531,6 +554,7 @@ func TestRedact_PinpointApplicationSettings_CampaignHookWebUrl(t *testing.T) {
 }
 
 func TestRedact_CloudHSMCluster_PreCoPassword(t *testing.T) {
+	t.Parallel()
 	c := cloudhsmv2types.Cluster{
 		ClusterId:     ptrStr("cluster-abc"),
 		PreCoPassword: ptrStr("super-secret"),
@@ -548,6 +572,7 @@ func TestRedact_CloudHSMCluster_PreCoPassword(t *testing.T) {
 // type with no registered rule comes back unchanged, even a key named
 // Password.
 func TestRedact_UnruledTypePassesThrough(t *testing.T) {
+	t.Parallel()
 	in := `{"Password":"x"}`
 	out, err := redact.Apply("aws:fake:type", in)
 	if err != nil || out != in {
@@ -556,6 +581,7 @@ func TestRedact_UnruledTypePassesThrough(t *testing.T) {
 }
 
 func TestRedact_DSSharedDirectory_ShareNotes(t *testing.T) {
+	t.Parallel()
 	s := dstypes.SharedDirectory{
 		SharedDirectoryId: ptrStr("d-consumer"),
 		SharedAccountId:   ptrStr("210987654321"),
@@ -571,6 +597,7 @@ func TestRedact_DSSharedDirectory_ShareNotes(t *testing.T) {
 }
 
 func TestRedact_DSDirectory_ShareNotesAndRadiusSecret(t *testing.T) {
+	t.Parallel()
 	d := dstypes.DirectoryDescription{
 		DirectoryId:    ptrStr("d-1"),
 		ShareNotes:     ptrStr("join with the temporary password Hunter2"),
@@ -596,6 +623,7 @@ func TestRedact_DSDirectory_ShareNotesAndRadiusSecret(t *testing.T) {
 func ptrStr(s string) *string { return &s }
 
 func TestRedact_ConnectTestCase_InitializationData(t *testing.T) {
+	t.Parallel()
 	tc := cttypes.TestCase{
 		Name:               ptrStr("smoke"),
 		Content:            ptrStr(`{"Version":"2019-10-30"}`),
@@ -614,6 +642,7 @@ func TestRedact_ConnectTestCase_InitializationData(t *testing.T) {
 // the Create inputs); the database user name, query and IAM user are not
 // credentials and are kept.
 func TestRedact_MachineLearningDataSource_KeepsNonCredentials(t *testing.T) {
+	t.Parallel()
 	d := mltypes.DataSource{
 		DataSourceId:     ptrStr("ds-1"),
 		CreatedByIamUser: ptrStr("arn:aws:iam::123456789012:user/alice"),
@@ -719,6 +748,7 @@ func assertEMRConfigurationsRedacted(t *testing.T, where string, configs any) {
 }
 
 func TestRedact_EMRCluster_KerberosPasswordsAndConfigurations(t *testing.T) {
+	t.Parallel()
 	got := applyAndDecode(t, TypeEMRCluster, emrtypes.Cluster{
 		Id: ptrStr("j-1"),
 		KerberosAttributes: &emrtypes.KerberosAttributes{
@@ -744,6 +774,7 @@ func TestRedact_EMRCluster_KerberosPasswordsAndConfigurations(t *testing.T) {
 }
 
 func TestRedact_EMRInstanceGroup_Configurations(t *testing.T) {
+	t.Parallel()
 	got := applyAndDecode(t, TypeEMRInstanceGroup, emrtypes.InstanceGroup{
 		Id:                                    ptrStr("ig-1"),
 		Configurations:                        emrTestConfigurations(),
@@ -754,6 +785,7 @@ func TestRedact_EMRInstanceGroup_Configurations(t *testing.T) {
 }
 
 func TestRedact_EMRInstanceFleet_Configurations(t *testing.T) {
+	t.Parallel()
 	got := applyAndDecode(t, TypeEMRInstanceFleet, emrtypes.InstanceFleet{
 		Id: ptrStr("if-1"),
 		InstanceTypeSpecifications: []emrtypes.InstanceTypeSpecification{
@@ -769,6 +801,7 @@ func TestRedact_EMRInstanceFleet_Configurations(t *testing.T) {
 }
 
 func TestRedact_EMRStep_ConfigPropertiesAndArgs(t *testing.T) {
+	t.Parallel()
 	args := []string{
 		"spark.hadoop.fs.s3a.secret.key=abc",
 		"-Djavax.jdo.option.ConnectionPassword=abc",
@@ -894,6 +927,7 @@ func glueDig(t *testing.T, v any, segs []string) map[string]any {
 // under a secret-looking key or of a credential shape is replaced, a
 // reference and a plain setting are kept, and the row's name is untouched.
 func TestRedact_Glue_ArgumentAndOptionMaps(t *testing.T) {
+	t.Parallel()
 	jobNodes := []string{
 		"CatalogDeltaSource.AdditionalDeltaOptions",
 		"CatalogHudiSource.AdditionalHudiOptions",
@@ -977,6 +1011,7 @@ func TestRedact_Glue_ArgumentAndOptionMaps(t *testing.T) {
 // PASSWORD out of GetConnections, but not ENCRYPTED_PASSWORD or the Kafka
 // passwords.
 func TestRedact_GlueConnection_PropertyKeys(t *testing.T) {
+	t.Parallel()
 	props := map[string]string{}
 	want := map[string]any{}
 	for _, k := range gluetypes.ConnectionPropertyKey("").Values() {
@@ -1014,6 +1049,7 @@ func TestRedact_GlueConnection_PropertyKeys(t *testing.T) {
 
 // A Redshift node's advanced options are judged by each option's Key.
 func TestRedact_GlueJob_RedshiftAdvancedOptions(t *testing.T) {
+	t.Parallel()
 	opts := []gluetypes.AmazonRedshiftAdvancedOption{
 		{Key: ptrStr("password"), Value: ptrStr("hunter2")},
 		{Key: ptrStr("tempformat"), Value: ptrStr("CSV")},
@@ -1038,6 +1074,7 @@ func TestRedact_GlueJob_RedshiftAdvancedOptions(t *testing.T) {
 // A job's source-control token is replaced unless it is a reference to
 // where the token lives.
 func TestRedact_GlueJob_SourceControlAuthToken(t *testing.T) {
+	t.Parallel()
 	ref := "arn:aws:secretsmanager:us-east-1:123456789012:secret:gh-AbCdEf"
 	for token, want := range map[string]any{
 		"ghp_0123456789abcdefghijABCDEFGHIJ012345": redact.PlaceholderKeyName,
@@ -1056,6 +1093,7 @@ func TestRedact_GlueJob_SourceControlAuthToken(t *testing.T) {
 
 // A dev endpoint's SSH public keys are not secrets and are kept.
 func TestRedact_GlueDevEndpoint_PublicKeysKept(t *testing.T) {
+	t.Parallel()
 	key := "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC user@host"
 	got := applyAndDecode(t, TypeGlueDevEndpoint, gluetypes.DevEndpoint{PublicKey: ptrStr(key), PublicKeys: []string{key}})
 	if got["PublicKey"] != key {
@@ -1069,6 +1107,7 @@ func TestRedact_GlueDevEndpoint_PublicKeysKept(t *testing.T) {
 // A connection's OAuth2 token URL is replaced whatever it holds: its key
 // name says "token", and the grant type beside it is kept.
 func TestRedact_GlueConnection_TokenURL(t *testing.T) {
+	t.Parallel()
 	for _, url := range []string{
 		"https://login.example.com/oauth2/token",
 		"https://app:hunter2@login.example.com/oauth2/token",
@@ -1090,6 +1129,7 @@ func TestRedact_GlueConnection_TokenURL(t *testing.T) {
 // A schema-version metadata value, its current one and each older one, is
 // replaced when it has a credential shape and kept otherwise.
 func TestRedact_GlueSchemaVersionMetadata_Values(t *testing.T) {
+	t.Parallel()
 	for value, want := range map[string]any{
 		"postgres://app:hunter2@db.internal/app": redact.PlaceholderValueShape,
 		"team-data-platform":                     "team-data-platform",

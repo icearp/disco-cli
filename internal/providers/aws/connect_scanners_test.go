@@ -441,6 +441,7 @@ func (c connectTagCase) listedIDs() [2]string {
 // Each Describe-backed type stores the Describe body's tags, and a resource
 // described without tags stores none.
 func TestConnectDescribedTypes_StoreTags(t *testing.T) {
+	t.Parallel()
 	for _, c := range connectTagCases {
 		t.Run(c.typ, func(t *testing.T) {
 			st := newTestStore(t)
@@ -477,6 +478,7 @@ func TestConnectDescribedTypes_StoreTags(t *testing.T) {
 // A denied Describe stores every listed resource as its list summary, without
 // tags, and warns once for the op.
 func TestConnectDescribedTypes_DeniedDescribeKeepsSummary(t *testing.T) {
+	t.Parallel()
 	for _, c := range connectTagCases {
 		t.Run(c.typ, func(t *testing.T) {
 			st := newTestStore(t)
@@ -530,6 +532,7 @@ func runQueues(t *testing.T, st *store.Store, fail error) (int, error) {
 }
 
 func TestConnectDescribe_NotFoundSkipsTheResource(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "connect:DescribeQueue")
 	total, err := runQueues(t, st, &smithy.GenericAPIError{Code: "ResourceNotFoundException", Message: "gone"})
@@ -549,6 +552,7 @@ func TestConnectDescribe_NotFoundSkipsTheResource(t *testing.T) {
 }
 
 func TestConnectDescribe_TransientKeepsSummaryAndWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "connect:DescribeQueue")
 	total, err := runQueues(t, st, connectThrottled)
@@ -566,6 +570,7 @@ func TestConnectDescribe_TransientKeepsSummaryAndWarns(t *testing.T) {
 
 // Any other Describe error keeps the summary row and is returned after it is stored.
 func TestConnectDescribe_OtherErrorKeepsSummaryAndReturns(t *testing.T) {
+	t.Parallel()
 	for name, fail := range map[string]error{"api error": connectHardErr, "no body": nil} {
 		t.Run(name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -601,6 +606,7 @@ func TestConnectDescribe_OtherErrorKeepsSummaryAndReturns(t *testing.T) {
 
 // A queue listed without an ARN is not stored and is warned about once.
 func TestConnectListing_NoARNWarnsNotStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "connect:ListQueues")
 	c := queueCase(t)
@@ -623,6 +629,7 @@ func TestConnectListing_NoARNWarnsNotStored(t *testing.T) {
 // Failed listings on the instances around i-2 keep its queues, which are
 // stored before the error is returned; denials on several instances warn once.
 func TestConnectListing_FailedInstanceKeepsTheOthers(t *testing.T) {
+	t.Parallel()
 	c := queueCase(t)
 	byInstance := func(fail error) map[string]func(any) (any, error) {
 		h := c.handlers(true)
@@ -659,6 +666,7 @@ func TestConnectListing_FailedInstanceKeepsTheOthers(t *testing.T) {
 // A traffic distribution group listing refused by a resource-based policy
 // (no Global Resiliency instance) is expected state: no warning, no error.
 func TestConnectTrafficDistributionGroups_ResourcePolicyDenySilent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "connect:ListTrafficDistributionGroups")
 	h := map[string]func(any) (any, error){
@@ -675,6 +683,7 @@ func TestConnectTrafficDistributionGroups_ResourcePolicyDenySilent(t *testing.T)
 // A phase error does not stop the later phases, their counts are summed and
 // the error is returned; a failed store write stops the phases at once.
 func TestConnectRunPhases(t *testing.T) {
+	t.Parallel()
 	acct := newTestAccount(testAccountID)
 	t.Run("hard error", func(t *testing.T) {
 		st := newTestStore(t)
@@ -703,6 +712,7 @@ func TestConnectRunPhases(t *testing.T) {
 
 // Notifications carry their tags on the listed element.
 func TestScanConnectNotifications_Tags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	arn := func(id string) string { return connectTestInstanceARN + "/notification/" + id }
 	h := map[string]func(any) (any, error){
@@ -727,6 +737,7 @@ func TestScanConnectNotifications_Tags(t *testing.T) {
 // A denied notification listing warns; a failed one keeps the other
 // instances' notifications and returns the error; one without an ARN warns.
 func TestScanConnectNotifications_ListingErrors(t *testing.T) {
+	t.Parallel()
 	arn := connectTestInstanceARN + "/notification/n-1"
 	handlers := func(fail error) map[string]func(any) (any, error) {
 		return map[string]func(any) (any, error){
@@ -786,6 +797,7 @@ func connectCase(t *testing.T, typ string) connectTagCase {
 // the summary row is kept, one warning covers every such flow, and the scan
 // does not fail.
 func TestConnectContactFlow_NotPublishedKeepsSummaryAndWarnsOnce(t *testing.T) {
+	t.Parallel()
 	c := connectCase(t, TypeConnectContactFlow)
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "connect:DescribeContactFlow")
@@ -835,6 +847,7 @@ func connectFlowsHandlers(extra map[string]func(any) (any, error)) map[string]fu
 
 // Denied version and alias listings each warn once and do not fail the scan.
 func TestConnectFlows_DeniedChildListingsWarnOncePerOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ops := []string{"connect:ListContactFlowVersions", "connect:ListContactFlowModuleVersions", "connect:ListContactFlowModuleAliases"}
 	warned := make([]*int, len(ops))
@@ -855,6 +868,7 @@ func TestConnectFlows_DeniedChildListingsWarnOncePerOp(t *testing.T) {
 // Module versions report the rows the store inserted: a rescan of the same
 // versions inserts none.
 func TestConnectFlowModuleVersions_InsertedIsTheStoreCount(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := connectFlowsHandlers(map[string]func(any) (any, error){
 		"ListContactFlowModuleVersions": func(any) (any, error) {
@@ -878,6 +892,7 @@ func TestConnectFlowModuleVersions_InsertedIsTheStoreCount(t *testing.T) {
 // A denied DescribeContactFlowModuleAlias keeps each alias's summary row and
 // warns once.
 func TestConnectFlowModuleAliases_DeniedDescribeKeepsSummary(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "connect:DescribeContactFlowModuleAlias")
 	arn := connectTestInstanceARN + "/flow-module/m-1/alias/a-1"
@@ -904,6 +919,7 @@ func TestConnectFlowModuleAliases_DeniedDescribeKeepsSummary(t *testing.T) {
 // A denied DescribePredefinedAttribute keeps each attribute's summary row and
 // warns once.
 func TestConnectPredefinedAttributes_DeniedDescribeKeepsSummary(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "connect:DescribePredefinedAttribute")
 	h := map[string]func(any) (any, error){
@@ -928,6 +944,7 @@ func TestConnectPredefinedAttributes_DeniedDescribeKeepsSummary(t *testing.T) {
 // A denied email-address search on several instances warns once and keeps
 // the addresses found on the others.
 func TestConnectEmailAddresses_DeniedSearchWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "connect:SearchEmailAddresses")
 	arn := connectTestInstanceARN + "/email-address/e-1"
@@ -955,6 +972,7 @@ func TestConnectEmailAddresses_DeniedSearchWarnsOnce(t *testing.T) {
 
 // A repeated NextToken keeps the rows of every page read and is returned.
 func TestConnectTokenPager_RepeatedTokenKeepsRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	arn := func(id string) string { return connectTestInstanceARN + "/notification/" + id }
 	h := map[string]func(any) (any, error){
@@ -982,6 +1000,7 @@ func TestConnectTokenPager_RepeatedTokenKeepsRows(t *testing.T) {
 // A ListInstances page that fails after the first keeps the instances read:
 // a denial warns, any other error is returned with them.
 func TestListConnectInstances_LaterPageFailureKeepsInstances(t *testing.T) {
+	t.Parallel()
 	for name, tc := range map[string]struct {
 		fail     error
 		wantCode string
@@ -1019,6 +1038,7 @@ func TestListConnectInstances_LaterPageFailureKeepsInstances(t *testing.T) {
 // A family that fails does not cancel the others: the users family, still
 // listing when the routing family fails, stores its users.
 func TestScanConnectFamilies_FailedFamilyDoesNotCancelOthers(t *testing.T) {
+	t.Parallel()
 	users := connectCase(t, TypeConnectUser)
 	h := map[string]func(context.Context, any) (any, error){
 		"ListQueues": func(context.Context, any) (any, error) { return nil, connectHardErr },
@@ -1042,6 +1062,7 @@ func TestScanConnectFamilies_FailedFamilyDoesNotCancelOthers(t *testing.T) {
 // Each instance-level listing asks for its documented page cap, so an
 // instance with many resources costs the fewest calls.
 func TestScanConnectFamilies_ListingsAskForThePageCap(t *testing.T) {
+	t.Parallel()
 	want := map[string]int32{
 		"ListTrafficDistributionGroups": 10, "ListInstanceStorageConfigs": 10,
 		"ListPhoneNumbersV2": 1000, "ListQueues": 1000, "ListRoutingProfiles": 1000, "ListHoursOfOperations": 1000,
@@ -1082,6 +1103,7 @@ func TestScanConnectFamilies_ListingsAskForThePageCap(t *testing.T) {
 // A failed ListInstances page is returned by scanConnect, after the families
 // have scanned the instances read before it.
 func TestScanConnect_ListInstancesErrorReturned(t *testing.T) {
+	t.Parallel()
 	acct := newTestAccount(testAccountID)
 	acct.cfg = connectStubConfig(map[string]func(any) (any, error){
 		"ListInstances": func(in any) (any, error) {
@@ -1098,6 +1120,7 @@ func TestScanConnect_ListInstancesErrorReturned(t *testing.T) {
 // A cancelled scan starts no Describe and returns the cancel, not a failure
 // per resource.
 func TestConnectDescribe_CancelledStartsNoDescribe(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	var calls atomic.Int32

@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveSSMContactsChannelToContact(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cARN := fmt.Sprintf("arn:aws:ssm-contacts:%s:%s:contact/c-1", testRegion, acct.ID)
@@ -23,6 +24,7 @@ func TestResolveSSMContactsChannelToContact(t *testing.T) {
 }
 
 func TestResolveSSMContactsRotationContacts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cARN := fmt.Sprintf("arn:aws:ssm-contacts:%s:%s:contact/c-1", testRegion, acct.ID)

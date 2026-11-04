@@ -19,6 +19,7 @@ func backupRecoveryPointAttrs(t *testing.T, rp backuptypes.RecoveryPointByBackup
 }
 
 func TestResolveBackupRecoveryPointRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -54,6 +55,7 @@ func TestResolveBackupRecoveryPointRefs(t *testing.T) {
 // A recovery point with unscanned vault/key/role (cross-account or AWS-managed
 // default key) emits no edges and doesn't panic on minimal attrs.
 func TestResolveBackupRecoveryPointRefs_Unscanned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

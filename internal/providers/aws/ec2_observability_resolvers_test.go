@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveFlowLogRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	flARN := ec2ARN(testRegion, acct.ID, "vpc-flow-log", "fl-001")
@@ -28,6 +29,7 @@ func TestResolveFlowLogRelationships(t *testing.T) {
 }
 
 func TestResolveFlowLogRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	flID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2FlowLog, ec2ARN(testRegion, acct.ID, "vpc-flow-log", "fl-bare"), testRegion, "{}")
@@ -41,6 +43,7 @@ func TestResolveFlowLogRelationships_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNetworkInsightsAnalysisRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -68,6 +71,7 @@ func TestResolveNetworkInsightsAnalysisRelationships(t *testing.T) {
 }
 
 func TestResolveNetworkInsightsAnalysisRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -85,6 +89,7 @@ func TestResolveNetworkInsightsAnalysisRelationships_Empty(t *testing.T) {
 }
 
 func TestResolveNetworkInsightsAccessScopeAnalysisRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -112,6 +117,7 @@ func TestResolveNetworkInsightsAccessScopeAnalysisRelationships(t *testing.T) {
 }
 
 func TestResolveNetworkInsightsAccessScopeAnalysisRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 

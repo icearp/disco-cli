@@ -8,6 +8,7 @@ import (
 )
 
 func TestGuarddutyDetectorARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:guardduty:us-east-1:123:detector/abc/filter/f1", "arn:aws:guardduty:us-east-1:123:detector/abc"},
 		{"arn:aws:guardduty:us-east-1:123:detector/abc/publishingdestination/p1", "arn:aws:guardduty:us-east-1:123:detector/abc"},
@@ -24,6 +25,7 @@ func TestGuarddutyDetectorARNFromChild(t *testing.T) {
 }
 
 func TestResolveGuardDutyChildrenToDetector(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := fmt.Sprintf("arn:aws:guardduty:%s:%s:detector/abc", testRegion, acct.ID)

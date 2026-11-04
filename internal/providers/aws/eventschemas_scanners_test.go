@@ -282,6 +282,7 @@ func assertESWarnings(t *testing.T, run esRun, op string, keys ...string) {
 }
 
 func TestScanEventSchemas_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newESCalls()
 	run := scanESTopLevel(t, st, nil, calls)
@@ -321,6 +322,7 @@ func TestScanEventSchemas_StoresEveryTypeWithTags(t *testing.T) {
 // A failed page two keeps the rows read before it, the error is returned, and
 // every later phase still runs over the registries stored.
 func TestScanEventSchemas_FailedPageKeepsRowsAndRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, parent string
 		want       map[string][]string
@@ -355,6 +357,7 @@ func TestScanEventSchemas_FailedPageKeepsRowsAndRunsLaterPhases(t *testing.T) {
 // A denied op warns once, naming the first key it lost when it fans out over
 // registries, and is no error; the other phases keep their rows.
 func TestScanEventSchemas_DeniedOpWarnsOnce(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op   string
 		fail map[string]error
@@ -382,6 +385,7 @@ func TestScanEventSchemas_DeniedOpWarnsOnce(t *testing.T) {
 // denial, an unmodeled not-found and a throttle included, are returned after
 // the other registries' policies are stored.
 func TestScanEventSchemas_PolicyErrorsAreReturned(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		err  error
@@ -412,6 +416,7 @@ func TestScanEventSchemas_PolicyErrorsAreReturned(t *testing.T) {
 // A throttled phase alone leaves the scan transient; beside another phase's
 // hard error it is warned about once and the scan reads as an error.
 func TestScanEventSchemas_TransientPhaseBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		hard      bool
@@ -441,6 +446,7 @@ func TestScanEventSchemas_TransientPhaseBesideHardError(t *testing.T) {
 // A failed registry write stops the scan with no warning claiming the lost
 // rows, and no schema or policy is read; the discoverers stay stored.
 func TestScanEventSchemas_RegistryWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeEventSchemasRegistry)
 	calls := newESCalls()
@@ -460,6 +466,7 @@ func TestScanEventSchemas_RegistryWriteFailureStops(t *testing.T) {
 // ListSchemas models no not-found code, so a registry the service no longer
 // finds fails the phase; the other registries' schemas are still stored.
 func TestScanEventSchemas_SchemasNotFoundFailsPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	run := scanESTopLevel(t, st, map[string]map[string]error{"ListSchemas": {"reg-b/": esNotFound}}, newESCalls())
 	if classifyServiceError(run.err) != outcomeError || !errors.Is(run.err, esNotFound) {
@@ -486,6 +493,7 @@ func esRunWith(ctx context.Context, st *store.Store, wrap func(op string, h func
 // A context ended after the schemas were read stops the policy phase, and
 // the scan returns that stop.
 func TestScanEventSchemas_ContextEndStopsPolicyPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -518,6 +526,7 @@ func TestScanEventSchemas_ContextEndStopsPolicyPhase(t *testing.T) {
 
 // A failed discoverer write stops the scan before the registries are listed.
 func TestScanEventSchemas_DiscovererWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeEventSchemasDiscoverer)
 	var calls parentCalls

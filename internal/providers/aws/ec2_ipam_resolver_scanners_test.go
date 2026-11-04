@@ -160,6 +160,7 @@ func plrRules(t *testing.T, r store.Resource) (rules []ec2types.IpamPrefixListRe
 }
 
 func TestScanIPAMPrefixListResolvers_EmbedsSortedRules(t *testing.T) {
+	t.Parallel()
 	for _, reversed := range []bool{false, true} {
 		name := "API order"
 		if reversed {
@@ -213,6 +214,7 @@ func TestScanIPAMPrefixListResolvers_EmbedsSortedRules(t *testing.T) {
 // sink: skipIfTransient marks its warnings "transient:", skipIfAccessDenied
 // does not.
 func TestScanIPAMPrefixListResolvers_UnreadRulesKeepRow(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name                      string
 		errA, errB                error
@@ -270,6 +272,7 @@ func TestScanIPAMPrefixListResolvers_UnreadRulesKeepRow(t *testing.T) {
 // leaves the resolver unstored and fails the phase without a warning. The
 // delete-complete resolver, never read, is still stored.
 func TestScanIPAMPrefixListResolvers_HardRulesReadError(t *testing.T) {
+	t.Parallel()
 	notFound := apiErr(plrNotFnd, "The resolver does not exist")
 	cases := []struct {
 		name   string
@@ -304,6 +307,7 @@ func TestScanIPAMPrefixListResolvers_HardRulesReadError(t *testing.T) {
 // returned and costs the failed resolver its row; a denial or a transient
 // failure keeps the row without Rules.
 func TestScanIPAMPrefixListResolvers_FailureKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -338,6 +342,7 @@ func TestScanIPAMPrefixListResolvers_FailureKeepsSiblings(t *testing.T) {
 }
 
 func TestScanIPAMPrefixListResolvers_RepeatedRulesTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := map[string]func(in any) (any, error){
 		"DescribeIpamPrefixListResolvers": func(any) (any, error) {
@@ -361,6 +366,7 @@ func TestScanIPAMPrefixListResolvers_RepeatedRulesTokenFails(t *testing.T) {
 // A resolver listed without its ARN (the NativeID) or without the id its
 // rules read takes is warned, once for however many, and not stored.
 func TestScanIPAMPrefixListResolvers_IncompleteListingWarned(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name  string
 		strip func(*ec2types.IpamPrefixListResolver)
@@ -393,6 +399,7 @@ func TestScanIPAMPrefixListResolvers_IncompleteListingWarned(t *testing.T) {
 }
 
 func TestScanIPAMPrefixListResolvers_ListingErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -424,6 +431,7 @@ func TestScanIPAMPrefixListResolvers_ListingErrors(t *testing.T) {
 // A denial after a listed page keeps that page's resolvers, as the scanner
 // did before rules were embedded; a gap after one is a hard error.
 func TestScanIPAMPrefixListResolvers_ErrorAfterFirstPage(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		err      error
@@ -458,6 +466,7 @@ func TestScanIPAMPrefixListResolvers_ErrorAfterFirstPage(t *testing.T) {
 // scanEC2 stores the resolvers with their rules, and a failed rules read
 // neither cancels an older category nor the resolver targets.
 func TestScanEC2_IPAMPrefixListResolvers(t *testing.T) {
+	t.Parallel()
 	targetARN := ec2ARN(testRegion, testAccountID, "ipam-prefix-list-resolver-target", "ipam-prefix-list-resolver-target-01")
 	handlers := func(calls *parentCalls, rulesErr error) map[string]func(in any) (any, error) {
 		h := ipxTopLevelHandlers(calls)

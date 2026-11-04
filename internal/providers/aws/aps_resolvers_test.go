@@ -53,6 +53,7 @@ func assertNoRelationshipTo(t *testing.T, rels []store.Relationship, toID string
 }
 
 func TestResolveAPSScraperTargets_EKSSourceAMPDestination(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	f := seedAPSScraperTargets(t, st, acct)
@@ -83,6 +84,7 @@ func TestResolveAPSScraperTargets_EKSSourceAMPDestination(t *testing.T) {
 }
 
 func TestResolveAPSScraperTargets_VPCSourceCloudWatchDestination(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	f := seedAPSScraperTargets(t, st, acct)
@@ -113,6 +115,7 @@ func TestResolveAPSScraperTargets_VPCSourceCloudWatchDestination(t *testing.T) {
 }
 
 func TestResolveAPSScraperTargets_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	seedAPSScraperTargets(t, st, acct)
@@ -133,6 +136,7 @@ func TestResolveAPSScraperTargets_NoAttrs(t *testing.T) {
 
 // An undecodable row is reported and costs its siblings none of their edges.
 func TestResolveAPSScraperTargets_DecodeErrorKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	f := seedAPSScraperTargets(t, st, acct)
@@ -155,6 +159,7 @@ func TestResolveAPSScraperTargets_DecodeErrorKeepsSiblings(t *testing.T) {
 }
 
 func TestResolveAPSRelationships_WorkspaceDecodeErrorKeepsScraperEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	f := seedAPSScraperTargets(t, st, acct)
@@ -179,6 +184,7 @@ func TestResolveAPSRelationships_WorkspaceDecodeErrorKeepsScraperEdges(t *testin
 // A member this SDK version cannot name is stored with a base64 string Value;
 // it yields no member edges and must not cost the row its role edge.
 func TestResolveAPSScraperTargets_UnknownUnionMemberKeepsRoleEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	f := seedAPSScraperTargets(t, st, acct)

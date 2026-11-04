@@ -6,6 +6,8 @@ import (
 
 	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/licensemanager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	smithymw "github.com/aws/smithy-go/middleware"
 	"github.com/icearp/disco-cli/store"
@@ -29,6 +31,7 @@ func newSQSClientWithStub(stub func(*smithymw.Stack) error, region string) *sqs.
 // end-to-end — proving the scanner works against real client wiring, not
 // just a hand-rolled stub.
 func TestScanSQSQueues_ViaSDKMiddleware(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -65,6 +68,7 @@ func TestScanSQSQueues_ViaSDKMiddleware(t *testing.T) {
 // but proving classification works on an error that traversed the real SDK
 // option chain.
 func TestScanSQSQueues_AccessDeniedListShortCircuits_ViaSDK(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	warnings := 0
@@ -84,5 +88,55 @@ func TestScanSQSQueues_AccessDeniedListShortCircuits_ViaSDK(t *testing.T) {
 	}
 	if warnings != 1 {
 		t.Errorf("warnings=%d, want 1", warnings)
+	}
+}
+
+// TestStubHarnessesReturnFreshOutput proves each stub harness answers a call
+// with a copy of its fixture, never the fixture itself. The SDK writes
+// ResultMetadata into the output a call returns, so a shared fixture would be
+// written by every concurrent call; plain go test cannot see that write, only
+// -race can.
+func TestStubHarnessesReturnFreshOutput(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	queues := &sqs.ListQueuesOutput{}
+	buckets := &s3.ListBucketsOutput{}
+	licenses := &licensemanager.ListLicensesOutput{}
+	cases := []struct {
+		harness string
+		fixture any
+		call    func() (any, error)
+	}{
+		{"stubResponses", queues, func() (any, error) {
+			stub := stubResponses(t, map[string][]stubCall{"ListQueues": {{Output: queues}}})
+			return sqs.NewFromConfig(cfgWithStub(stub, testRegion)).ListQueues(ctx, &sqs.ListQueuesInput{})
+		}},
+		{"opStubConfig", queues, func() (any, error) {
+			cfg := opStubConfig(map[string]func(any) (any, error){
+				"ListQueues": func(any) (any, error) { return queues, nil },
+			}, nil)
+			return sqs.NewFromConfig(cfg).ListQueues(ctx, &sqs.ListQueuesInput{})
+		}},
+		{"s3StubConfig", buckets, func() (any, error) {
+			cfg := s3StubConfig(map[string]func(string, any) (any, error){
+				"ListBuckets": func(string, any) (any, error) { return buckets, nil },
+			})
+			return s3.NewFromConfig(cfg).ListBuckets(ctx, &s3.ListBucketsInput{})
+		}},
+		{"lmRetryingConfig", licenses, func() (any, error) {
+			cfg := lmRetryingConfig(map[string]func(any) (any, error){
+				"ListLicenses": func(any) (any, error) { return licenses, nil },
+			})
+			return licensemanager.NewFromConfig(cfg).ListLicenses(ctx, &licensemanager.ListLicensesInput{})
+		}},
+	}
+	for _, tc := range cases {
+		got, err := tc.call()
+		if err != nil {
+			t.Fatalf("%s: call failed: %v", tc.harness, err)
+		}
+		if got == tc.fixture {
+			t.Errorf("%s returned its fixture itself; wrap the output in freshOutput", tc.harness)
+		}
 	}
 }

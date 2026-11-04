@@ -11,6 +11,7 @@ import (
 )
 
 func TestAppsyncApiARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:appsync:us-east-1:123:apis/abc/datasources/my-ds", "arn:aws:appsync:us-east-1:123:apis/abc"},
 		{"arn:aws:appsync:us-east-1:123:apis/abc/types/Query/resolvers/getX", "arn:aws:appsync:us-east-1:123:apis/abc"},
@@ -25,6 +26,7 @@ func TestAppsyncApiARNFromChild(t *testing.T) {
 }
 
 func TestResolveAppSyncApiChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	apiARN := fmt.Sprintf("arn:aws:appsync:%s:%s:apis/api-abc", testRegion, acct.ID)
@@ -40,6 +42,7 @@ func TestResolveAppSyncApiChildren(t *testing.T) {
 }
 
 func TestResolveAppSyncDataSourceTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/appsync-role", acct.ID)
@@ -77,6 +80,7 @@ func TestResolveAppSyncDataSourceTargets(t *testing.T) {
 // rows before and after it still get their edges, in every AppSync resolver
 // that decodes attributes.
 func TestResolveAppSync_DecodeErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	acct := newTestAccount(testAccountID)
 	roleARN := "arn:aws:iam::" + testAccountID + ":role/r"
 	lambdaARN := "arn:aws:lambda:" + testRegion + ":" + testAccountID + ":function:f"
@@ -169,6 +173,7 @@ func TestResolveAppSync_DecodeErrorKeepsOtherRows(t *testing.T) {
 // by the resolvers that index data sources by name, and a data source
 // indexed after it still gets its edge.
 func TestResolveAppSync_DataSourceIndexDecodeError(t *testing.T) {
+	t.Parallel()
 	acct := newTestAccount(testAccountID)
 	apiARN := asyARN("apis/api-1")
 	for _, tc := range []struct {
@@ -201,6 +206,7 @@ func TestResolveAppSync_DataSourceIndexDecodeError(t *testing.T) {
 // ARNs rebuilt from bare ids (a DynamoDB table, a Cognito user pool, the API
 // a domain is associated with) take the partition of the row naming them.
 func TestResolveAppSync_RebuiltARNsKeepPartition(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	const region = "cn-north-1"
@@ -245,6 +251,7 @@ func TestResolveAppSync_RebuiltARNsKeepPartition(t *testing.T) {
 }
 
 func TestResolveAppSyncResolverDataSource(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	apiARN := fmt.Sprintf("arn:aws:appsync:%s:%s:apis/api-z", testRegion, acct.ID)
@@ -262,6 +269,7 @@ func TestResolveAppSyncResolverDataSource(t *testing.T) {
 }
 
 func TestResolveAppSyncDomainNameApiAssoc(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dnARN := fmt.Sprintf("arn:aws:appsync:%s:%s:domainnames/api.example.com", testRegion, acct.ID)
@@ -282,6 +290,7 @@ func TestResolveAppSyncDomainNameApiAssoc(t *testing.T) {
 }
 
 func TestResolveAppSyncGraphQLAPIRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -309,6 +318,7 @@ func TestResolveAppSyncGraphQLAPIRefs(t *testing.T) {
 }
 
 func TestResolveAppSyncEventApiRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -342,6 +352,7 @@ func TestResolveAppSyncEventApiRefs(t *testing.T) {
 // rebuilt from it: that is returned as an error, and the row's other edges
 // are still emitted.
 func TestResolveAppSync_UnparseableNativeIDReported(t *testing.T) {
+	t.Parallel()
 	acct := newTestAccount(testAccountID)
 	roleARN := "arn:aws:iam::" + testAccountID + ":role/r"
 	pool := &appsynctypes.UserPoolConfig{UserPoolId: ptrStr("p"), AwsRegion: ptrStr(testRegion)}
@@ -382,6 +393,7 @@ func TestResolveAppSync_UnparseableNativeIDReported(t *testing.T) {
 // A failed edge write is returned joined with the decode errors of the rows
 // before it.
 func TestResolveAppSync_WriteFailureKeepsDecodeErrors(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := "arn:aws:iam::" + testAccountID + ":role/r"

@@ -205,6 +205,7 @@ func scanAITopLevel(t *testing.T, st *store.Store, handlers map[string]func(in a
 }
 
 func TestScanApplicationInsights_StoresChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAICalls()
 	total, err := scanAITopLevel(t, st, aiHandlers(calls))
@@ -261,6 +262,7 @@ func TestScanApplicationInsights_StoresChildren(t *testing.T) {
 }
 
 func TestScanApplicationInsights_ChildRowContents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, err := scanAITopLevel(t, st, aiHandlers(newAICalls())); err != nil {
 		t.Fatalf("scanApplicationInsights: %v", err)
@@ -301,6 +303,7 @@ func TestScanApplicationInsights_ChildRowContents(t *testing.T) {
 }
 
 func TestScanApplicationInsights_NoChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAICalls()
 	h := aiHandlers(calls)
@@ -357,6 +360,7 @@ func aiFailKey(op string, in any) string {
 // and is returned, while the other child family and the applications are
 // still stored.
 func TestScanApplicationInsights_FailedChildParent(t *testing.T) {
+	t.Parallel()
 	type kind struct {
 		name      string
 		err       error
@@ -430,6 +434,7 @@ func TestScanApplicationInsights_FailedChildParent(t *testing.T) {
 // component that vanished between ListComponents and DescribeComponent gets no
 // ListWorkloads call, so no workload is stored under a missing parent row.
 func TestScanApplicationInsights_WorkloadsOnlyUnderStoredComponents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAICalls()
 	h := aiHandlers(calls)
@@ -454,6 +459,7 @@ func TestScanApplicationInsights_WorkloadsOnlyUnderStoredComponents(t *testing.T
 // A hard error on the second ListApplications page still lets the child
 // phases run over the application stored from the first page, and is returned.
 func TestScanApplicationInsights_ApplicationsErrorStillRunsChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := aiHandlers(newAICalls())
 	next := h["ListApplications"]
@@ -480,6 +486,7 @@ func TestScanApplicationInsights_ApplicationsErrorStillRunsChildren(t *testing.T
 // A transient ListApplications error is demoted to a warning so that a child
 // phase's hard error still reaches the dispatcher as a hard error.
 func TestScanApplicationInsights_ApplicationsTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "applicationinsights:ListApplications")
 	h := aiHandlers(newAICalls())
@@ -502,6 +509,7 @@ func TestScanApplicationInsights_ApplicationsTransientDoesNotMaskHardError(t *te
 }
 
 func TestScanApplicationInsights_ApplicationsDenied(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "applicationinsights:ListApplications")
 	calls := newAICalls()
@@ -523,6 +531,7 @@ func TestScanApplicationInsights_ApplicationsDenied(t *testing.T) {
 // pattern family's ListLogPatternSets call, which a sequential run would only
 // make after the whole component family returned.
 func TestScanApplicationInsights_FamiliesRunConcurrently(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := aiHandlers(newAICalls())
 	setsCalled := make(chan struct{})
@@ -551,6 +560,7 @@ func TestScanApplicationInsights_FamiliesRunConcurrently(t *testing.T) {
 // A failed closure write leaves the rows stored before it counted, and the
 // children of the stored parents still listed.
 func TestScanApplicationInsights_ClosureFailureKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseClosureWrites(t, st)
 	total, err := scanAITopLevel(t, st, aiHandlers(newAICalls()))
@@ -571,6 +581,7 @@ func TestScanApplicationInsights_ClosureFailureKeepsCounts(t *testing.T) {
 // asked for, so no child is stored under a missing parent, and the other
 // family still stores its rows.
 func TestScanApplicationInsights_UnstoredParentListsNoChildren(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		refusedType, childOp, childType, otherType string
 	}{
@@ -607,6 +618,7 @@ func TestScanApplicationInsights_UnstoredParentListsNoChildren(t *testing.T) {
 // is returned as transient, so the scan is partial; the first page's
 // applications and their children are kept.
 func TestScanApplicationInsights_LoneApplicationsThrottleMarksPartial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "applicationinsights:ListApplications")
 	h := aiHandlers(newAICalls())

@@ -15,6 +15,7 @@ import (
 // TestResolveS3BucketPolicyRelationships verifies that a bucket policy is
 // linked to its bucket by stripping the "/policy" suffix from the NativeID.
 func TestResolveS3BucketPolicyRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -39,6 +40,7 @@ func TestResolveS3BucketPolicyRelationships(t *testing.T) {
 // TestResolveS3BucketPolicyRelationships_Empty verifies that no error is
 // returned when there are no bucket policies.
 func TestResolveS3BucketPolicyRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -52,6 +54,7 @@ func TestResolveS3BucketPolicyRelationships_Empty(t *testing.T) {
 // TestResolveS3AccessGrantRelationships verifies that access grants are linked
 // to their access grants instance in the same region.
 func TestResolveS3AccessGrantRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -77,6 +80,7 @@ func TestResolveS3AccessGrantRelationships(t *testing.T) {
 // TestResolveS3AccessGrantRelationships_Empty verifies graceful handling when
 // there are no access grants.
 func TestResolveS3AccessGrantRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -90,6 +94,7 @@ func TestResolveS3AccessGrantRelationships_Empty(t *testing.T) {
 // TestResolveS3AccessGrantsLocationRelationships verifies that each location
 // is linked to the access grants instance in its region.
 func TestResolveS3AccessGrantsLocationRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -115,6 +120,7 @@ func TestResolveS3AccessGrantsLocationRelationships(t *testing.T) {
 // TestResolveS3AccessGrantsLocationRelationships_Empty verifies graceful
 // handling when there are no locations.
 func TestResolveS3AccessGrantsLocationRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -128,6 +134,7 @@ func TestResolveS3AccessGrantsLocationRelationships_Empty(t *testing.T) {
 // TestResolveS3AccessPointRelationships verifies that an access point is
 // linked to its bucket by constructing the bucket ARN from the Bucket field.
 func TestResolveS3AccessPointRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -153,6 +160,7 @@ func TestResolveS3AccessPointRelationships(t *testing.T) {
 // TestResolveS3AccessPointRelationships_NoAttrs verifies that an access point
 // with no Bucket attribute does not produce a relationship (no nil-pointer panic).
 func TestResolveS3AccessPointRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -176,6 +184,7 @@ func TestResolveS3AccessPointRelationships_NoAttrs(t *testing.T) {
 // TestResolveS3MRAPPolicyRelationships verifies that an MRAP policy is linked
 // to its MRAP by stripping the "/policy" suffix from the NativeID.
 func TestResolveS3MRAPPolicyRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -200,6 +209,7 @@ func TestResolveS3MRAPPolicyRelationships(t *testing.T) {
 // TestResolveS3MRAPPolicyRelationships_Empty verifies graceful handling when
 // there are no MRAP policies.
 func TestResolveS3MRAPPolicyRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -229,6 +239,7 @@ func sseConfig(alg, keyID string) *s3types.ServerSideEncryptionConfiguration {
 // TestResolveS3BucketEncryption_KMSKey verifies that a bucket with an
 // aws:kms SSE rule and a bare key ID produces a bucket→KMS `uses` edge.
 func TestResolveS3BucketEncryption_KMSKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -259,6 +270,7 @@ func TestResolveS3BucketEncryption_KMSKey(t *testing.T) {
 // TestResolveS3BucketEncryption_DSSE verifies that aws:kms:dsse also emits
 // a bucket→KMS edge.
 func TestResolveS3BucketEncryption_DSSE(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -287,6 +299,7 @@ func TestResolveS3BucketEncryption_DSSE(t *testing.T) {
 // already in full-ARN form is used verbatim and can target a key in another
 // region.
 func TestResolveS3BucketEncryption_FullKeyARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -313,6 +326,7 @@ func TestResolveS3BucketEncryption_FullKeyARN(t *testing.T) {
 // TestResolveS3BucketEncryption_SSE_S3 verifies that AES256 (SSE-S3) buckets
 // produce no KMS edge.
 func TestResolveS3BucketEncryption_SSE_S3(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -339,6 +353,7 @@ func TestResolveS3BucketEncryption_SSE_S3(t *testing.T) {
 // default S3 key (alias/aws/s3) is skipped rather than producing a dangling
 // edge, since that key is never scanned.
 func TestResolveS3BucketEncryption_AWSManagedKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -364,6 +379,7 @@ func TestResolveS3BucketEncryption_AWSManagedKey(t *testing.T) {
 // TestResolveS3BucketEncryption_Empty verifies that an account with no
 // collected encryption configs returns nil and emits no edges.
 func TestResolveS3BucketEncryption_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -385,6 +401,7 @@ func inventoryConfigAttrs(t *testing.T, dest *s3types.InventoryDestination) stri
 }
 
 func TestResolveS3InventoryDestinations(t *testing.T) {
+	t.Parallel()
 	toBucket := func(arn string) *s3types.InventoryDestination {
 		return &s3types.InventoryDestination{S3BucketDestination: &s3types.InventoryS3BucketDestination{Bucket: sdkaws.String(arn)}}
 	}

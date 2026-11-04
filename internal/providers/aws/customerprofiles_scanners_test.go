@@ -332,6 +332,7 @@ func cpClient(h map[string]func(in any) (any, error)) *customerprofiles.Client {
 // with the model's MaxResults cap; the domain's tags come from its ListDomains
 // element and its attributes from GetDomain.
 func TestScanCPAll_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, inserted, err := scanCPAll(context.Background(), cpClient(cpHandlers(t, map[string]int{})), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
@@ -394,6 +395,7 @@ func TestScanCPAll_StoresEveryTypeWithTags(t *testing.T) {
 // handled, through ListCalculatedAttributeDefinitions: the other domain's rows
 // are always stored, and rows read before the failure are kept.
 func TestCPListChildren_ErrorBranches(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("BadRequestException", "bad")
 	denied := apiErr("AccessDeniedException", "denied")
 	gone := apiErr("ResourceNotFoundException", "gone")
@@ -458,6 +460,7 @@ func TestCPListChildren_ErrorBranches(t *testing.T) {
 // TestCPListChildren_FailedWriteWarnsNothing pins that a phase whose write
 // failed records neither its denial nor its unnamed-item warning.
 func TestCPListChildren_FailedWriteWarnsNothing(t *testing.T) {
+	t.Parallel()
 	cc := cpChildCases()[0]
 	st, closeStore := openClosingStore(t)
 	warns := countOpWarnings(st, cpCalcAttrDefsOp)
@@ -482,6 +485,7 @@ func TestCPListChildren_FailedWriteWarnsNothing(t *testing.T) {
 // TestScanCPDomains_GetDomainErrors pins each GetDomain outcome: the row kept
 // or dropped, where its attributes come from, the warning and the error.
 func TestScanCPDomains_GetDomainErrors(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("BadRequestException", "bad")
 	for _, c := range []struct {
 		name      string
@@ -546,6 +550,7 @@ func TestScanCPDomains_GetDomainErrors(t *testing.T) {
 // TestScanCPDomains_ListErrors pins that a failed ListDomains page keeps the
 // domains read before it and hands them to the child phases.
 func TestScanCPDomains_ListErrors(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("BadRequestException", "bad")
 	denied := apiErr("AccessDeniedException", "denied")
 	d1 := cptypes.ListDomainItem{DomainName: ptrStr("d1")}
@@ -620,6 +625,7 @@ func isTransientWarning(w store.ScanWarning) bool {
 // TestScanCPDomains_FailedWriteWarnsNothing pins that a failed domain write is
 // returned and records no warning about the domains it did not store.
 func TestScanCPDomains_FailedWriteWarnsNothing(t *testing.T) {
+	t.Parallel()
 	h := cpHandlers(t, map[string]int{})
 	st, closeStore := openClosingStore(t)
 	h["ListDomains"] = func(any) (any, error) {
@@ -642,6 +648,7 @@ func TestScanCPDomains_FailedWriteWarnsNothing(t *testing.T) {
 // TestScanCPAll_PhaseErrorRunsLaterPhases pins that a hard failure in a list
 // phase, the domain listing included, does not stop the phases after it.
 func TestScanCPAll_PhaseErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("BadRequestException", "bad")
 	for _, c := range cpChildCases()[:len(cpChildCases())-1] {
 		t.Run(c.op, func(t *testing.T) {
@@ -680,6 +687,7 @@ func TestScanCPAll_PhaseErrorRunsLaterPhases(t *testing.T) {
 // TestScanCPAll_StoreWriteStopsPhases pins that a failed write stops the
 // phases after it and is returned as ErrStoreWrite.
 func TestScanCPAll_StoreWriteStopsPhases(t *testing.T) {
+	t.Parallel()
 	cases := cpChildCases()
 	for _, c := range []struct{ closeIn, notAfter string }{
 		{"ListDomains", cases[0].op},
@@ -709,6 +717,7 @@ func TestScanCPAll_StoreWriteStopsPhases(t *testing.T) {
 // TestScanCPAll_TransientBesideHardError pins that a throttled phase beside a
 // hard-failed one is demoted to one warning, so the scan reads as an error.
 func TestScanCPAll_TransientBesideHardError(t *testing.T) {
+	t.Parallel()
 	cases := cpChildCases()
 	h := cpHandlers(t, map[string]int{})
 	h[cases[0].op] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }

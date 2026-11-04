@@ -26,6 +26,7 @@ func connectProfileARN(region, acct, instance, id string) string {
 }
 
 func TestConnectInstanceIDFromARN(t *testing.T) {
+	t.Parallel()
 	got := connectInstanceIDFromARN(connectQueueARN("us-east-1", "111", "inst-A", "q-1"))
 	if got != "inst-A" {
 		t.Fatalf("expected inst-A, got %q", got)
@@ -36,6 +37,7 @@ func TestConnectInstanceIDFromARN(t *testing.T) {
 }
 
 func TestResolveConnectQueueRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -69,6 +71,7 @@ func TestResolveConnectQueueRefs(t *testing.T) {
 }
 
 func TestResolveConnectQueueRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	queueID := upsertTestResource(t, st, "aws", acct.ID, TypeConnectQueue,
@@ -83,6 +86,7 @@ func TestResolveConnectQueueRefs_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveConnectRoutingProfileRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	q1 := upsertTestResource(t, st, "aws", acct.ID, TypeConnectQueue,

@@ -245,6 +245,7 @@ func (ph cogChildPhase) seedParents(t *testing.T, st *store.Store, keys ...strin
 }
 
 func TestScanCognitoUserPoolReplicas_PagesStoredUnderPrimary(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ph := cogChildPhases()[0]
 	ph.seedParents(t, st, "p1", "p2-gone")
@@ -305,6 +306,7 @@ func TestScanCognitoUserPoolReplicas_PagesStoredUnderPrimary(t *testing.T) {
 // secondary pool's listing (its region's scan sees the same replica set) and
 // a listing with no PRIMARY entry store nothing.
 func TestScanCognitoUserPoolReplicas_ListingNotFromPrimaryNotStored(t *testing.T) {
+	t.Parallel()
 	cases := map[string][]cognitoidptypes.UserPoolReplicaType{
 		"secondary-listing": {
 			cogReplica("us-west-2", cognitoidptypes.ReplicaRoleTypePrimary, cognitoidptypes.ReplicaStatusTypeActive),
@@ -332,6 +334,7 @@ func TestScanCognitoUserPoolReplicas_ListingNotFromPrimaryNotStored(t *testing.T
 }
 
 func TestScanCognitoUserPoolClientSecrets_PagesStoredUnderClient(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ph := cogChildPhases()[1]
 	ph.seedParents(t, st, "c1", "c2-gone")
@@ -376,6 +379,7 @@ func TestScanCognitoUserPoolClientSecrets_PagesStoredUnderClient(t *testing.T) {
 }
 
 func TestScanCognitoChildren_Empty(t *testing.T) {
+	t.Parallel()
 	for _, ph := range cogChildPhases() {
 		t.Run(ph.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -400,6 +404,7 @@ func TestScanCognitoChildren_Empty(t *testing.T) {
 // instead of looping or reading as complete, and that every parent's rows read
 // before the repeat are stored.
 func TestScanCognitoChildren_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	for _, ph := range cogChildPhases() {
 		t.Run(ph.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -433,6 +438,7 @@ func TestScanCognitoChildren_RepeatedTokenFails(t *testing.T) {
 // error class: skipped ones keep the third parent's row, warned ones warn once
 // per op however many parents fail, and any other error is returned.
 func TestScanCognitoChildren_ParentErrors(t *testing.T) {
+	t.Parallel()
 	type errCase struct {
 		name         string
 		err          error
@@ -529,6 +535,7 @@ func cogChildRowsStored(t *testing.T, st *store.Store) (replica, secret bool) {
 }
 
 func TestScanCognitoAll_StoresChildrenOfListedParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := cogTopLevelFake()
 	total, _, err := runCognitoAll(f, st)
@@ -566,6 +573,7 @@ func TestScanCognitoAll_StoresChildrenOfListedParents(t *testing.T) {
 // error in an older phase that runs after the pool phase neither skips the
 // child phases nor is lost.
 func TestScanCognitoAll_ChildPhasesRunAfterOlderPhaseFailure(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := cogTopLevelFake()
 	f.groupsErr = bcmPCAPIErr("InvalidParameterException", "bad")
@@ -584,6 +592,7 @@ func TestScanCognitoAll_ChildPhasesRunAfterOlderPhaseFailure(t *testing.T) {
 // TestScanCognitoAll_ChildPhaseErrorKeepsOtherPhases fails each child op in
 // turn: its error is returned and every other phase still stores its rows.
 func TestScanCognitoAll_ChildPhaseErrorKeepsOtherPhases(t *testing.T) {
+	t.Parallel()
 	for _, failing := range []string{"ListUserPoolReplicas " + cogP1, "ListUserPoolClientSecrets " + cogP1 + "/c1"} {
 		t.Run(failing, func(t *testing.T) {
 			st := newTestStore(t)
@@ -611,6 +620,7 @@ func TestScanCognitoAll_ChildPhaseErrorKeepsOtherPhases(t *testing.T) {
 // older phase's transient error is demoted to a warning, so the dispatcher
 // sees a child phase's hard error rather than a transient join.
 func TestScanCognitoAll_OlderTransientDoesNotHideChildHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, "cognito-idp")
 	f := cogTopLevelFake()
@@ -629,6 +639,7 @@ func TestScanCognitoAll_OlderTransientDoesNotHideChildHardError(t *testing.T) {
 // failed DescribeUserPool is returned without costing the other pools, their
 // children or the pool's own row.
 func TestScanCognitoAll_PoolDescribeFailureKeepsChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := cogTopLevelFake()
 	f.errs["DescribeUserPool p2"] = bcmPCAPIErr("InvalidParameterException", "bad")

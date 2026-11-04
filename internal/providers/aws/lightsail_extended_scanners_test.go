@@ -76,6 +76,7 @@ func runLSBucketAccessKeys(st *store.Store, fake *fakeLightsail, buckets []child
 }
 
 func TestScanLSBucketAccessKeys_StoresEveryBucketsKeysUnderItsBucket(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, lsGetBucketAccessKeysOp)
 	buckets := seedLSBuckets(t, st, "b1", "b2")
@@ -118,6 +119,7 @@ func TestScanLSBucketAccessKeys_StoresEveryBucketsKeysUnderItsBucket(t *testing.
 }
 
 func TestScanLSBucketAccessKeys_BucketErrorHandling(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -166,6 +168,7 @@ func TestScanLSBucketAccessKeys_BucketErrorHandling(t *testing.T) {
 }
 
 func TestScanLSBucketAccessKeys_NoBucketsMakesNoCalls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	fake := &fakeLightsail{}
 	if err := runLSBucketAccessKeys(st, fake, nil); err != nil {
@@ -177,6 +180,7 @@ func TestScanLSBucketAccessKeys_NoBucketsMakesNoCalls(t *testing.T) {
 }
 
 func TestScanLSBucketAccessKeys_BucketWithoutKeysStoresNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	fake := &fakeLightsail{}
 	if err := runLSBucketAccessKeys(st, fake, seedLSBuckets(t, st, "b1")); err != nil {
@@ -237,6 +241,7 @@ var lsContactMethodARN = fmt.Sprintf("arn:aws:lightsail:%s:%s:ContactMethod/cm-i
 // GetBuckets pages hand their named buckets to the access-key phase, and the
 // nameless bucket is stored but never queried.
 func TestScanLightsail_BucketAccessKeysFanOutOverListedBuckets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = lsServiceStub(t, nil)
@@ -268,6 +273,7 @@ func TestScanLightsail_BucketAccessKeysFanOutOverListedBuckets(t *testing.T) {
 // the access-key phase's hard error reaches the service result and that the
 // last pre-existing phase (contact methods) ran before it.
 func TestScanLightsail_BucketAccessKeyErrorPropagatesAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	boom := stubCall{Err: apiErr("ServiceException", "boom")}
@@ -303,6 +309,7 @@ func lsTLSCert(id string) lightsailtypes.LoadBalancerTlsCertificate {
 
 // One load balancer's failure keeps the other load balancers' certificates.
 func TestScanLSLBTlsCertificates_LoadBalancerErrorHandling(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -353,6 +360,7 @@ func TestScanLSLBTlsCertificates_LoadBalancerErrorHandling(t *testing.T) {
 
 // A certificate listed without an ARN is warned about and not stored.
 func TestScanLSLBTlsCertificates_CertificateWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, lsGetLoadBalancerTLSCertsOp)
 	fake := &lsTLSFake{certs: map[string][]lightsailtypes.LoadBalancerTlsCertificate{

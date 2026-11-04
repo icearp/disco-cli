@@ -166,6 +166,7 @@ func runGDPhase(t *testing.T, st *store.Store, h *gdPhaseHandler) (int, error) {
 }
 
 func TestGDCustomRulePhases_TwoPagesStored(t *testing.T) {
+	t.Parallel()
 	for _, p := range gdRulePhases {
 		t.Run(p.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -202,6 +203,7 @@ func TestGDCustomRulePhases_TwoPagesStored(t *testing.T) {
 }
 
 func TestScanGDCustomRuleAssociations_StoresRow(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, err := runGDPhase(t, st, &gdPhaseHandler{p: gdAssocPhase, maxCalls: 2}); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -222,6 +224,7 @@ func TestScanGDCustomRuleAssociations_StoresRow(t *testing.T) {
 // Both modes of one rule are separate configurations (Get/Update/Delete key
 // on RuleId and Mode), so each gets its own row.
 func TestScanGDCustomRuleOrgConfigurations_KeysOnRuleAndMode(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := map[string]func(any) (any, error){
 		"ListCustomDetectionRuleOrgConfigurations": func(any) (any, error) {
@@ -255,6 +258,7 @@ func TestScanGDCustomRuleOrgConfigurations_KeysOnRuleAndMode(t *testing.T) {
 // An empty listing stores nothing and warns nothing; items without the id
 // their row needs are not stored and are warned about once per listing.
 func TestGDCustomRulePhases_EmptyAndIDlessItems(t *testing.T) {
+	t.Parallel()
 	idless := map[string]any{
 		gdAssocPhase.op: &guardduty.ListCustomDetectionRuleAssociationsOutput{
 			RuleAssociations: []gdtypes.AssociationSummary{{AssociationId: sdkaws.String("no-arn")}},
@@ -291,6 +295,7 @@ func TestGDCustomRulePhases_EmptyAndIDlessItems(t *testing.T) {
 // A page that repeats the token it was asked with ends the listing as an
 // error instead of looping, keeping the pages read.
 func TestGDCustomRulePhases_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	for _, p := range gdRulePhases {
 		t.Run(p.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -310,6 +315,7 @@ func TestGDCustomRulePhases_RepeatedTokenStops(t *testing.T) {
 }
 
 func TestGDCustomRulePhases_ErrorLadder(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		token     string // page that fails: "" first, "p2" second
@@ -420,6 +426,7 @@ func countGDCalls(h map[string]func(any) (any, error), op string) *int {
 // The whole service stores both custom-detection-rule types when the region
 // has a detector; total counts them with the older rows.
 func TestScanGuardDuty_StoresCustomDetectionRuleRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanGDTopLevel(t, st, gdTopLevelHandlers())
 	if err != nil {
@@ -436,6 +443,7 @@ func TestScanGuardDuty_StoresCustomDetectionRuleRows(t *testing.T) {
 }
 
 func TestScanGuardDuty_NoDetectorSkipsCustomDetectionRuleOps(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := gdTopLevelHandlers()
 	h["ListDetectors"] = func(any) (any, error) { return &guardduty.ListDetectorsOutput{}, nil }
@@ -457,6 +465,7 @@ func TestScanGuardDuty_NoDetectorSkipsCustomDetectionRuleOps(t *testing.T) {
 // administrator's, so the organization-level rule list is not called there and
 // adds no warning of its own; associations are still listed.
 func TestScanGuardDuty_OrgConfigRefusedSkipsRuleOrgConfigurations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := recordGDWarnings(st)
 	h := gdTopLevelHandlers()
@@ -485,6 +494,7 @@ func TestScanGuardDuty_OrgConfigRefusedSkipsRuleOrgConfigurations(t *testing.T) 
 // In a region that served the organization configuration, a BadRequestException
 // from the organization-level rule list is an ordinary hard error.
 func TestScanGuardDuty_RuleOrgConfigurationsBadRequestPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := recordGDWarnings(st)
 	h := gdTopLevelHandlers()
@@ -502,6 +512,7 @@ func TestScanGuardDuty_RuleOrgConfigurationsBadRequestPropagates(t *testing.T) {
 // transient, so the scan is partial, and every other phase keeps its rows and
 // counts.
 func TestScanGuardDuty_OrgConfigTransientKeepsOtherCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := recordGDWarnings(st)
 	h := gdTopLevelHandlers()
@@ -529,6 +540,7 @@ func TestScanGuardDuty_OrgConfigTransientKeepsOtherCounts(t *testing.T) {
 // one costs neither the older rows nor the other new phase's rows, and reaches
 // the dispatcher as a hard error.
 func TestScanGuardDuty_CustomDetectionRulePhaseFailureIsIsolated(t *testing.T) {
+	t.Parallel()
 	for _, failed := range gdRulePhases {
 		t.Run(failed.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -562,6 +574,7 @@ func TestScanGuardDuty_CustomDetectionRulePhaseFailureIsIsolated(t *testing.T) {
 // A throttle on either side is demoted to one warning, so the other side's
 // hard error still reaches the dispatcher as a hard error.
 func TestScanGuardDuty_CustomDetectionRuleTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	type side struct{ op, warnOp string }
 	older := side{"DescribeOrganizationConfiguration", "guardduty:DescribeOrganizationConfiguration"}
 	var pairs [][2]side

@@ -65,6 +65,7 @@ func (s *gsStub) ListSatellites(_ context.Context, in *groundstation.ListSatelli
 }
 
 func TestScanGSSatellites_PaginatesAndSkipsARNless(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	noARN := gsSatellite("c")
 	noARN.SatelliteArn = nil
@@ -99,6 +100,7 @@ func TestScanGSSatellites_PaginatesAndSkipsARNless(t *testing.T) {
 // the dispatcher passes, every call stores the same row under Region "global"
 // and the row never version-splits.
 func TestGroundStationSatellites_OneRowAcrossRegions(t *testing.T) {
+	t.Parallel()
 	idx := slices.IndexFunc(registeredServices, func(e serviceEntry) bool { return e.name == "aws:ground-station-satellites" })
 	if idx < 0 {
 		t.Fatal("aws:ground-station-satellites not registered")
@@ -152,6 +154,7 @@ func TestGroundStationSatellites_OneRowAcrossRegions(t *testing.T) {
 }
 
 func TestScanGSSatellites_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanGSSatellites(context.Background(), &gsStub{pages: []gsPage{{}}}, newTestAccount(testAccountID), st, testScanID)
 	if err != nil || total != 0 {
@@ -163,6 +166,7 @@ func TestScanGSSatellites_Empty(t *testing.T) {
 }
 
 func TestScanGSSatellites_AccessDeniedKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := 0
 	st.OnWarn = func(store.ScanWarning) { warnings++ }
@@ -183,6 +187,7 @@ func TestScanGSSatellites_AccessDeniedKeepsEarlierPages(t *testing.T) {
 }
 
 func TestScanGSSatellites_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, _, err := scanGSSatellites(context.Background(), &gsStub{pages: []gsPage{{err: apiErr("InvalidParameterException", "bad")}}}, newTestAccount(testAccountID), st, testScanID)
 	if !isAPIErrorCode(err, "InvalidParameterException") {

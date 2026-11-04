@@ -16,6 +16,7 @@ import (
 // TestExtractPolicyID covers the SCP ARN → p-xxxx id parser used by the
 // resolver; shape taken from real Organizations SCP ARNs.
 func TestExtractPolicyID(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in, want string
 	}{
@@ -40,6 +41,7 @@ func TestExtractPolicyID(t *testing.T) {
 // in the attributes JSON (as the scanner does) and verifies the resolver's
 // translation index resolves each id to the correct ARN and type.
 func TestLoadOrgTargetIndex(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -85,6 +87,7 @@ func scpTargetsAcct() *account {
 }
 
 func TestResolveOrganizationsSCPTargets_AttachesRootOUAndAccount(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	scpID := upsertTestResource(t, st, "aws", testAccountID, TypeOrganizationsSCP, orgTestSCPARN, "", "{}")
 	rootID := upsertTestResource(t, st, "aws", testAccountID, TypeOrganizationsRoot, orgTestRootARN, "",
@@ -112,6 +115,7 @@ func TestResolveOrganizationsSCPTargets_AttachesRootOUAndAccount(t *testing.T) {
 // TestResolveOrganizationsSCPTargets_RootWithoutAttrs pins that a root row
 // whose attributes carry no Id is left out of the index: no edge, no error.
 func TestResolveOrganizationsSCPTargets_RootWithoutAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	scpID := upsertTestResource(t, st, "aws", testAccountID, TypeOrganizationsSCP, orgTestSCPARN, "", "{}")
 	_ = upsertTestResource(t, st, "aws", testAccountID, TypeOrganizationsRoot, orgTestRootARN, "", "{}")
@@ -131,6 +135,7 @@ func TestResolveOrganizationsSCPTargets_RootWithoutAttrs(t *testing.T) {
 // A denied ListTargetsForPolicy leaves the SCP without edges, and the denial
 // is a scan warning rather than an SCP that silently attaches to nothing.
 func TestResolveOrganizationsSCPTargets_DeniedTargetsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	scpID := upsertTestResource(t, st, "aws", testAccountID, TypeOrganizationsSCP, orgTestSCPARN, "", "{}")
 	warnings := countOpWarnings(st, "organizations:ListTargetsForPolicy")
@@ -152,6 +157,7 @@ func TestResolveOrganizationsSCPTargets_DeniedTargetsWarn(t *testing.T) {
 // however many items were denied, and the items that were not denied still
 // get their edges.
 func TestResolveOrganizations_PerItemDenialsShareOneWarning(t *testing.T) {
+	t.Parallel()
 	deny := &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"}
 	scpARN := func(id string) string {
 		return "arn:aws:organizations::" + testAccountID + ":policy/o-abc/service_control_policy/" + id
@@ -268,6 +274,7 @@ func delegatedAdminEdgeAttrs(t *testing.T, st *store.Store, orgID, adminID strin
 }
 
 func TestResolveOrganizationsDelegatedAdmins_ServicesOnEdge(t *testing.T) {
+	t.Parallel()
 	st, orgID, adminID := seedDelegatedAdminStore(t)
 
 	if err := resolveOrganizationsDelegatedAdmins(delegatedAdminAcct([]string{"guardduty.amazonaws.com"}), st); err != nil {
@@ -290,6 +297,7 @@ func TestResolveOrganizationsDelegatedAdmins_ServicesOnEdge(t *testing.T) {
 // ListDelegatedAdministrators proved, but records no DelegatedServices list:
 // an empty list would claim the account administers no service.
 func TestResolveOrganizationsDelegatedAdmins_DeniedServicesKeepEdgeWithoutList(t *testing.T) {
+	t.Parallel()
 	st, orgID, adminID := seedDelegatedAdminStore(t)
 	warnings := countOpWarnings(st, "organizations:ListDelegatedServicesForAccount")
 
@@ -305,6 +313,7 @@ func TestResolveOrganizationsDelegatedAdmins_DeniedServicesKeepEdgeWithoutList(t
 }
 
 func TestResolveOrganizationsDelegatedAdmins_DeniedAdminsWarn(t *testing.T) {
+	t.Parallel()
 	st, orgID, _ := seedDelegatedAdminStore(t)
 	warnings := countOpWarnings(st, "organizations:ListDelegatedAdministrators")
 	acct := newTestAccount(testAccountID)
@@ -325,6 +334,7 @@ func TestResolveOrganizationsDelegatedAdmins_DeniedAdminsWarn(t *testing.T) {
 // listed before and after it are still wired. Names a, b, c fix the listing
 // order (ListResources orders by type, then name).
 func TestResolveOrganizationsManagementAccount_BadAttrsReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	masterID := upsertTestResource(t, st, "aws", testAccountID, TypeOrganizationsAccount, orgTestAcct1ARN, "",

@@ -191,6 +191,7 @@ func dmsRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, b
 // docs state a page maximum are sent 100; the others are sent none. The scan
 // reports no error or warning.
 func TestScanDMS_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newDMSCalls()
@@ -246,6 +247,7 @@ func TestScanDMS_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanDMS_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newDMSCalls()
 	if _, _, err := dmsScan(context.Background(), st, dmsHandlers(calls)); err != nil {
@@ -268,6 +270,7 @@ func TestScanDMS_RescanInsertsNone(t *testing.T) {
 // a row whose ARN is synthesized and is a hard error: there it more likely
 // means the ARN is wrong.
 func TestScanDMS_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		op        string
 		synthetic bool
@@ -346,6 +349,7 @@ func TestScanDMS_TagReadFailures(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanDMS_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, dmsTagsOp)
 	calls := newDMSCalls()
@@ -363,6 +367,7 @@ func TestScanDMS_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A denied listing warns once under its own op, stores nothing of its type,
 // and every other listing still runs and stores its rows.
 func TestScanDMS_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, k := range dmsKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -391,6 +396,7 @@ func TestScanDMS_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanDMS_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeDMSEndpoint)
@@ -412,6 +418,7 @@ func TestScanDMS_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the listings after it.
 func TestScanDMS_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := dmsHandlers(newDMSCalls())
 	handlers["DescribeCertificates"] = failOnCall(2, dmsBadState, handlers["DescribeCertificates"])
@@ -433,6 +440,7 @@ func TestScanDMS_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 
 // A repeated Marker ends the listing as an error, keeping its pages.
 func TestScanDMS_RepeatedMarkerKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := dmsHandlers(newDMSCalls())
 	k := dmsKindOf(t, "DescribeEndpoints")
@@ -463,6 +471,7 @@ func TestScanDMS_RepeatedMarkerKeepsPages(t *testing.T) {
 // under its listing, not stored; one with an ARN but no identifier is stored,
 // named by its ARN.
 func TestScanDMS_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	all := countWarnings(st)
 	certWarns := bacWarnings(st, "dms:DescribeCertificates")
@@ -514,6 +523,7 @@ func TestScanDMS_UnstorableItemsWarn(t *testing.T) {
 // Rows of an account in another partition are sent to the tag op under
 // their own ARNs, the synthesized ones built in that partition.
 func TestScanDMS_TagReadInAccountPartition(t *testing.T) {
+	t.Parallel()
 	acct := partitionAccount("aws-us-gov")
 	region := acct.Regions[0]
 	st := newTestStore(t)
@@ -551,6 +561,7 @@ func TestScanDMS_TagReadInAccountPartition(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it too.
 func TestScanDMS_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newDMSCalls()
 	handlers := dmsHandlers(calls)
@@ -588,6 +599,7 @@ func TestScanDMS_ContextEndStopsOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanDMS_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "dms.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)

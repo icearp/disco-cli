@@ -37,6 +37,7 @@ func (s *stubDZProfiles) SearchUserProfiles(_ context.Context, in *datazone.Sear
 }
 
 func TestScanDataZoneProfiles(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubDZProfiles{

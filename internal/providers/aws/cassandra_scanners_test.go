@@ -77,6 +77,7 @@ func scanKSStreamsWith(st *store.Store, tableARNs map[cassandraTableKey]string, 
 // is skipped, and each stream whose table the tables phase stored is contained
 // by it.
 func TestScanCassandraStreams_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedParentRows(t, st, TypeCassandraTable, ksTable1ARN, ksTable2ARN)
 	var pages ksStreamPages
@@ -126,6 +127,7 @@ func TestScanCassandraStreams_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanCassandraStreams_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanKSStreamsWith(st, nil, func(any) (any, error) { return &keyspacesstreams.ListStreamsOutput{}, nil })
 	if err != nil || total != 0 {
@@ -137,6 +139,7 @@ func TestScanCassandraStreams_Empty(t *testing.T) {
 // an NXDOMAIN or a denial warns once; any other error, a refused connection
 // included, is returned.
 func TestScanCassandraStreams_FirstPageError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name          string
 		err           error
@@ -180,6 +183,7 @@ func TestScanCassandraStreams_FirstPageError(t *testing.T) {
 // table. The NXDOMAIN is returned as a plain error, so the dispatcher does not
 // report the region unavailable and drop the counts.
 func TestScanCassandraStreams_PageTwoError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name        string
 		err         error
@@ -229,6 +233,7 @@ func TestScanCassandraStreams_PageTwoError(t *testing.T) {
 
 // A failed write of the rows listed before a list error reports both errors.
 func TestScanCassandraStreams_WriteAndListErrorsBothReported(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closed.db"))
 	if err != nil {
@@ -280,6 +285,7 @@ func cassandraScanHandlers(streams *ksStreamPages, overrides map[string]func(any
 // The stream phase runs in the scan's own region after the keyspace phases,
 // and contains each stream under the table that phase stored.
 func TestScanCassandra_StoresStreamsUnderTables(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var streams ksStreamPages
@@ -309,6 +315,7 @@ func TestScanCassandra_StoresStreamsUnderTables(t *testing.T) {
 // its rows: the keyspace phases' failures leave the streams stored, and a
 // stream failure leaves the keyspace, tables and type stored.
 func TestScanCassandra_PhaseErrorKeepsOtherPhases(t *testing.T) {
+	t.Parallel()
 	fail := func(any) (any, error) { return nil, ksValidation }
 	for _, tc := range []struct {
 		name      string
@@ -345,6 +352,7 @@ func TestScanCassandra_PhaseErrorKeepsOtherPhases(t *testing.T) {
 // keyspace phases' rows and counts survive dispatch instead of the whole
 // service being reported unavailable in the region.
 func TestScanCassandra_StreamsNXDOMAINKeepsOtherPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "cassandra:ListStreams")
 	acct := newTestAccount(testAccountID)
@@ -372,6 +380,7 @@ func TestScanCassandra_StreamsNXDOMAINKeepsOtherPhases(t *testing.T) {
 // A table whose GetTable failed is stored from its summary and still contains
 // its stream.
 func TestScanCassandra_SummaryOnlyTableParentsStream(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var streams ksStreamPages
@@ -400,6 +409,7 @@ func TestScanCassandra_SummaryOnlyTableParentsStream(t *testing.T) {
 // A throttled streams listing beside no other error is returned, so the scan
 // is marked partial with the keyspace phases' rows counted.
 func TestScanCassandra_LoneStreamsThrottleMarksPartial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "cassandra streams")
 	acct := newTestAccount(testAccountID)
@@ -421,6 +431,7 @@ func TestScanCassandra_LoneStreamsThrottleMarksPartial(t *testing.T) {
 // is a plain error, so the dispatcher does not report the region unavailable
 // and drop the counts of the rows already stored.
 func TestScanCassandra_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListTables", "ListTypes"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -446,6 +457,7 @@ func TestScanCassandra_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
 // A region whose Keyspaces endpoint does not resolve has no Keyspaces, so the
 // streams endpoint is not probed and warns nothing.
 func TestScanCassandra_KeyspacesNXDOMAINSkipsStreams(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "cassandra:ListStreams")
 	acct := newTestAccount(testAccountID)

@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveEMRChildrenToCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clARN := emrARN("aws", testRegion, acct.ID, "cluster", "j-ABC")
@@ -29,6 +30,7 @@ func TestResolveEMRChildrenToCluster(t *testing.T) {
 }
 
 func TestResolveEMRStudioSessionMappingToStudio(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stARN := emrARN("aws", testRegion, acct.ID, "studio", "es-1")
@@ -43,6 +45,7 @@ func TestResolveEMRStudioSessionMappingToStudio(t *testing.T) {
 }
 
 func TestResolveEMRStudioVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
@@ -57,6 +60,7 @@ func TestResolveEMRStudioVPC(t *testing.T) {
 }
 
 func TestResolveEMRClusterRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

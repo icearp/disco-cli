@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveThinClientDeviceEnvironment(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -30,6 +31,7 @@ func TestResolveThinClientDeviceEnvironment(t *testing.T) {
 }
 
 func TestResolveThinClientDeviceEnvironment_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

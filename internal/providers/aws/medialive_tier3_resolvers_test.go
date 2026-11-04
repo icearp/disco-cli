@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveMediaLiveISGRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	chARN := mediaLiveColonARN("aws", testRegion, acct.ID, "channel", "ch-1")
@@ -26,6 +27,7 @@ func TestResolveMediaLiveISGRefs(t *testing.T) {
 }
 
 func TestResolveMediaLiveSdiSourceRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	inARN := mediaLiveColonARN("aws", testRegion, acct.ID, "input", "in-1")
@@ -41,6 +43,7 @@ func TestResolveMediaLiveSdiSourceRefs(t *testing.T) {
 }
 
 func TestResolveMediaLiveNetworkRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clARN := mediaLiveColonARN("aws", testRegion, acct.ID, "cluster", "cl-1")

@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveECSContainerInstanceRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -24,6 +25,7 @@ func TestResolveECSContainerInstanceRelationships(t *testing.T) {
 }
 
 func TestResolveECSContainerInstanceRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -38,6 +40,7 @@ func TestResolveECSContainerInstanceRelationships_NoAttrs(t *testing.T) {
 }
 
 func TestResolveECSTaskRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -62,6 +65,7 @@ func TestResolveECSTaskRelationships(t *testing.T) {
 }
 
 func TestResolveECSTaskRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

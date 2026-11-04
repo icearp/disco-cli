@@ -226,6 +226,7 @@ func fcAttrKeys(t *testing.T, r store.Resource) map[string]json.RawMessage {
 // exactly the ARN of every row. Every listing page is sent MaxResults 100.
 // No error, no warning.
 func TestScanForecast_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newFCCalls()
@@ -293,6 +294,7 @@ func TestScanForecast_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanForecast_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := fcScan(context.Background(), st, fcHandlers(newFCCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -311,6 +313,7 @@ func TestScanForecast_RescanInsertsNone(t *testing.T) {
 // the tag op; a throttle keeps it and is transient; any other error keeps it
 // and is an error.
 func TestScanForecast_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, x := range []struct{ kind, typ string }{
 		{"dataset", TypeForecastDataset},
 		{"predictor", TypeForecastPredictor},
@@ -376,6 +379,7 @@ func TestScanForecast_TagReadFailures(t *testing.T) {
 // Denied tag reads in several phases send one warning for the whole scan;
 // the rows are kept.
 func TestScanForecast_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newFCCalls()
@@ -398,6 +402,7 @@ func TestScanForecast_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanForecast_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, forecastTagsOp)
 	calls := newFCCalls()
@@ -417,6 +422,7 @@ func TestScanForecast_TagThrottleDemotedBesideHardError(t *testing.T) {
 // as the row, tags read, and warns once under the Describe; a throttle keeps
 // it and is transient; any other error keeps it and is an error.
 func TestScanForecast_DescribeFailures(t *testing.T) {
+	t.Parallel()
 	for _, x := range []struct{ kind, typ, op string }{
 		{"dataset", TypeForecastDataset, "forecast:DescribeDataset"},
 		{"dataset-group", TypeForecastDatasetGroup, "forecast:DescribeDatasetGroup"},
@@ -496,6 +502,7 @@ func TestScanForecast_DescribeFailures(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanForecast_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeForecastPredictor)
@@ -523,6 +530,7 @@ func TestScanForecast_FailedWriteStopsScan(t *testing.T) {
 // A listing's failed later page keeps the page read before it, and its
 // error does not stop the later phases.
 func TestScanForecast_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListDatasets", "ListExplainabilities"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -549,6 +557,7 @@ func TestScanForecast_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanForecast_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newFCCalls()
 	handlers := fcHandlers(calls)
@@ -571,6 +580,7 @@ func TestScanForecast_RepeatedTokenKeepsPages(t *testing.T) {
 // Describe, and is warned about once under its listing, keyed by its name or
 // by the fallback text when it has none.
 func TestScanForecast_ElementWithoutARN(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, key string
 		name    *string
@@ -614,6 +624,7 @@ func TestScanForecast_ElementWithoutARN(t *testing.T) {
 
 // A GovCloud or China account's listed ARNs reach the tag op unchanged.
 func TestScanForecast_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -643,6 +654,7 @@ func TestScanForecast_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanForecast_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newFCCalls()
 	handlers := fcHandlers(calls)
@@ -678,6 +690,7 @@ func TestScanForecast_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanForecast_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "forecast.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -715,6 +728,7 @@ func TestScanForecast_NXDOMAIN(t *testing.T) {
 // (a message naming the action) instead warns once under that listing's op,
 // and every other listing is stored.
 func TestScanForecast_FirstPageDenials(t *testing.T) {
+	t.Parallel()
 	for _, l := range fcListings {
 		for _, c := range []struct {
 			name  string

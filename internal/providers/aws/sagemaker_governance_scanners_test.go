@@ -145,6 +145,7 @@ func smPlanARN(name string) string {
 }
 
 func TestScanSageMakerUltraServers_PaginatesEachReservedCapacity(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "sagemaker:ListUltraServersByReservedCapacity")
 	rc1, rc2, rcGone, rc3, rcInstance := smRCARN("rc1"), smRCARN("rc2"), smRCARN("expired"), smRCARN("rc3"), smRCARN("instances")
@@ -180,6 +181,7 @@ func TestScanSageMakerUltraServers_PaginatesEachReservedCapacity(t *testing.T) {
 }
 
 func TestScanSageMakerUltraServers_NoUltraServers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerTrainingPlan, smPlanARN("p1"), testRegion, smPlanAttrs(smUltraCapacity(smRCARN("rc"))), "p1")
 	total, _, err := scanSageMakerUltraServers(context.Background(), &stubSMUltraServers{}, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -191,6 +193,7 @@ func TestScanSageMakerUltraServers_NoUltraServers(t *testing.T) {
 // A deny on one reserved capacity must not hide its siblings in the same plan,
 // and two denies in one phase warn once.
 func TestScanSageMakerUltraServers_DeniedCapacityKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	denied1, denied2, open := smRCARN("denied1"), smRCARN("denied2"), smRCARN("open")
@@ -216,6 +219,7 @@ func TestScanSageMakerUltraServers_DeniedCapacityKeepsSiblings(t *testing.T) {
 // against the real SDK client: the UltraServer phase must see the training plan
 // the earlier phase stored in the same scan.
 func TestScanSageMakerGovernance_TrainingPlanThenUltraServers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	rc := smRCARN("rc1")
 	planARN := smPlanARN("p1")
@@ -255,6 +259,7 @@ func TestScanSageMakerGovernance_TrainingPlanThenUltraServers(t *testing.T) {
 // lineage groups, whose tags are not read (scanSageMakerLineageGroups), are
 // never asked for.
 func TestScanSageMakerGovernance_StoresTags(t *testing.T) {
+	t.Parallel()
 	for _, mode := range smTagModes {
 		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerGovernanceTags(t, mode) })
 	}
@@ -347,6 +352,7 @@ func testScanSageMakerGovernanceTags(t *testing.T, mode smTagMode) {
 // warned about after the write, a throttled one is an error demoted under op
 // beside a hard one, and the hard one is returned.
 func TestScanSageMakerChildren_FailedListingKeepsOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	acct := newTestAccount(testAccountID)
@@ -391,6 +397,7 @@ func TestScanSageMakerChildren_FailedListingKeepsOthers(t *testing.T) {
 // A summary listing keeps the pages before a failed one, and warns about a
 // summary without an ARN instead of dropping it silently.
 func TestScanSagemakerSummaryList_FailedPageKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "sagemaker:ListActions")
 	actionARN := smTestARN("action", "a")
@@ -423,6 +430,7 @@ func TestScanSagemakerSummaryList_FailedPageKeepsEarlierPages(t *testing.T) {
 // ListHubs repeating its NextToken stops the listing with an error, and the
 // hubs of the pages read are stored.
 func TestScanSageMakerHubs_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	hubA, hubB := smTestARN("hub", "a"), smTestARN("hub", "b")
 	tags := newSMTags(smUntagged)
@@ -448,6 +456,7 @@ func TestScanSageMakerHubs_RepeatedTokenKeepsPages(t *testing.T) {
 // pages, a denied one is warned about, and a vanished hub is skipped
 // silently.
 func TestScanSageMakerHubContents_ListsThisScansHubs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	upsertTestResourceNamed(t, st, TypeSageMakerHub, smTestARN("hub", "h1"), testRegion, "{}", "h1")
@@ -529,6 +538,7 @@ func smAliasListing(errs map[string]error) func(context.Context, store.Resource)
 // A child listing's warnings (a denied listing, items skipped as empty, a
 // nameless parent) are sent only after the rows are written.
 func TestScanSageMakerChildren_WarnsOnlyAfterWrite(t *testing.T) {
+	t.Parallel()
 	for _, writeFails := range []bool{false, true} {
 		t.Run(fmt.Sprintf("writeFails=%v", writeFails), func(t *testing.T) {
 			st := newTestStore(t)
@@ -562,6 +572,7 @@ func TestScanSageMakerChildren_WarnsOnlyAfterWrite(t *testing.T) {
 // A child listing's NXDOMAIN, after the parents' phase reached the endpoint,
 // is a plain error, and the other listings' rows are kept.
 func TestScanSageMakerChildren_LateNXDOMAINIsAnError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	for _, name := range []string{"ok", "lost"} {
 		upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN(name), testRegion, "{}", name)
@@ -578,6 +589,7 @@ func TestScanSageMakerChildren_LateNXDOMAINIsAnError(t *testing.T) {
 // Child listings cut short by ctx are one error member, however many were in
 // flight.
 func TestScanSageMakerChildren_StopIsOneMember(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	names := []string{"a", "b", "c"}
 	for _, name := range names {
@@ -606,6 +618,7 @@ func TestScanSageMakerChildren_StopIsOneMember(t *testing.T) {
 // A hub-content listing still throttled after the SDK's retries is returned,
 // and the other listings' rows are kept.
 func TestScanSageMakerHubContents_ThrottledListingReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerHub, smTestARN("hub", "h1"), testRegion, "{}", "h1")
 	model := smTestARN("hub-content", "h1/Model/m")
@@ -628,6 +641,7 @@ func TestScanSageMakerHubContents_ThrottledListingReturned(t *testing.T) {
 // Every content type of a hub is listed; a content without an ARN and a hub
 // without a name are each warned about instead of dropped silently.
 func TestScanSageMakerHubContents_EveryTypeAndSkipsWarned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	upsertTestResourceNamed(t, st, TypeSageMakerHub, smTestARN("hub", "h1"), testRegion, "{}", "h1")
@@ -656,6 +670,7 @@ func TestScanSageMakerHubContents_EveryTypeAndSkipsWarned(t *testing.T) {
 
 // A failed write of the hub contents is returned.
 func TestScanSageMakerHubContents_FailedWriteReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerHub, smTestARN("hub", "h1"), testRegion, "{}", "h1")
 	refuseStoreWrites(t, st, TypeSageMakerHubContent)
@@ -675,6 +690,7 @@ func TestScanSageMakerHubContents_FailedWriteReturned(t *testing.T) {
 
 // A failed query for the parents is returned, not read as no parents.
 func TestScanSageMakerChildren_ParentQueryErrorReturned(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	closeStore()
 	_, _, err := scanSageMakerChildren(context.Background(), newTestAccount(testAccountID), testRegion, st, testScanID,

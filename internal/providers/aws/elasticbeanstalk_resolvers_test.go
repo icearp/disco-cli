@@ -23,6 +23,7 @@ func ebEnvironmentARN() string {
 // TestResolveBeanstalkEnvironmentTargets verifies application → environment
 // `contains` edge lands when both are scanned.
 func TestResolveBeanstalkEnvironmentTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -58,6 +59,7 @@ func TestResolveBeanstalkEnvironmentTargets(t *testing.T) {
 // TestResolveBeanstalkEnvironmentTargets_FKSafe verifies environments
 // with no scanned application skip without erroring.
 func TestResolveBeanstalkEnvironmentTargets_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

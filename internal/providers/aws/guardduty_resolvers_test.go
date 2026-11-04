@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveGuardDutyRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -47,6 +48,7 @@ func TestResolveGuardDutyRelationships(t *testing.T) {
 }
 
 func TestResolveGuardDutyRelationships_HttpsS3URL(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -70,6 +72,7 @@ func TestResolveGuardDutyRelationships_HttpsS3URL(t *testing.T) {
 // attached-to → its aws:organizations:account row when both are present in
 // the same scan.
 func TestResolveGuardDutyMemberOrgAccount(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -93,6 +96,7 @@ func TestResolveGuardDutyMemberOrgAccount(t *testing.T) {
 // TestResolveGuardDutyMemberOrgAccount_NoOrgTree verifies a no-op when the
 // org tree was not scanned (loadOrgTargetIndex returns empty).
 func TestResolveGuardDutyMemberOrgAccount_NoOrgTree(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -113,6 +117,7 @@ func TestResolveGuardDutyMemberOrgAccount_NoOrgTree(t *testing.T) {
 // partition, and rejects the same forms on a host with the partition's suffix
 // but a region of another partition (foreignRegion).
 func TestParseS3Bucket_EveryPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range matcherPartitions {
 		p, r := pf.partition, pf.region
 		suffix, _ := dnsSuffix(p)

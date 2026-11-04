@@ -168,6 +168,7 @@ func (s *smTagPages) ListTags(_ context.Context, in *sagemaker.ListTagsInput, _ 
 }
 
 func TestSageMakerStoreTagged_ReadsEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	arn := smTestARN("model", "m")
 	tags := &smTagPages{}
@@ -184,6 +185,7 @@ func TestSageMakerStoreTagged_ReadsEveryPage(t *testing.T) {
 // under sagemaker:ListTags, and a throttle or any other code is returned. The
 // sibling keeps its tags either way.
 func TestSageMakerStoreTagged_ReadFailures(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		err      error
@@ -252,6 +254,7 @@ func smWarnServices(warns []store.ScanWarning) map[string]int {
 // warning under sagemaker:ListTags, not under its phase's List op or the
 // service.
 func TestSageMakerTagErrors_KeepListTagsOpThroughRunners(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	acct := newTestAccount(testAccountID)
@@ -277,6 +280,7 @@ func TestSageMakerTagErrors_KeepListTagsOpThroughRunners(t *testing.T) {
 // A phase's throttle beside a hard error in a sibling phase is demoted under
 // the throttled phase's op, which only an unjoined phase result carries up.
 func TestRunSageMakerPhases_ThrottleBesideHardPhaseDemotedUnderItsOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	_, _, err := runSageMakerFamilies(context.Background(), st, newTestAccount(testAccountID), testRegion,
@@ -333,6 +337,7 @@ func (s *smGatedTags) ListTags(_ context.Context, _ *sagemaker.ListTagsInput, _ 
 // together they never have more than fanoutMed reads in flight, though each
 // family alone would allow fanoutMed (readRowTags).
 func TestSageMakerTagReads_ShareOneBoundAcrossFamilies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tags := &smGatedTags{slots: make(chan struct{}, fanoutMed), full: make(chan struct{})}
@@ -357,6 +362,7 @@ func TestSageMakerTagReads_ShareOneBoundAcrossFamilies(t *testing.T) {
 }
 
 func TestRunSageMakerPhases_FailedPhaseRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	ran := false
 	total, _, err := runSageMakerPhases(
 		sagemakerPhase{"sagemaker:ListModels", func() (int, int, error) { return 1, 1, apiErr("ValidationException", "bad") }},
@@ -372,6 +378,7 @@ func TestRunSageMakerPhases_FailedPhaseRunsLaterPhases(t *testing.T) {
 }
 
 func TestRunSageMakerPhases_FailedWriteStops(t *testing.T) {
+	t.Parallel()
 	ran := false
 	_, _, err := runSageMakerPhases(
 		sagemakerPhase{"sagemaker:ListModels", func() (int, int, error) { return 0, 0, fmt.Errorf("upsert: %w", store.ErrStoreWrite) }},
@@ -392,6 +399,7 @@ func TestRunSageMakerPhases_FailedWriteStops(t *testing.T) {
 // is still live after the runner returns, which a cancelling runner (errgroup)
 // would have ended by then.
 func TestRunSageMakerFamilies_ErrorDoesNotCancelSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var sibling context.Context
 	total, _, err := runSageMakerFamilies(context.Background(), st, newTestAccount(testAccountID), testRegion,
@@ -413,6 +421,7 @@ func TestRunSageMakerFamilies_ErrorDoesNotCancelSiblings(t *testing.T) {
 // A family's throttle beside another family's hard error is demoted, so the
 // hard error decides the outcome.
 func TestRunSageMakerFamilies_TransientDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, sagemakerService)
 	_, _, err := runSageMakerFamilies(context.Background(), st, newTestAccount(testAccountID), testRegion,
@@ -431,6 +440,7 @@ func TestRunSageMakerFamilies_TransientDemotedBesideHardError(t *testing.T) {
 // the Studio family's tag read ran on is still live after the scan returns,
 // though the training family failed.
 func TestScanSageMaker_FamilyErrorDoesNotCancelOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	domainARN := smTestARN("domain", "d-1")
 	var (
@@ -508,6 +518,7 @@ func smModelDescribe(pages [][]string, listErr error, errs map[string]error) sag
 // the write, a throttled one is an error demoted under the describe op beside
 // a hard one, and the hard one is returned.
 func TestSageMakerDescribe_ClassifiesEachKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	acct := newTestAccount(testAccountID)
@@ -538,6 +549,7 @@ func TestSageMakerDescribe_ClassifiesEachKey(t *testing.T) {
 // A failed page keeps the keys of the pages before it, which are described
 // and stored; a denied page is warned about rather than returned.
 func TestSageMakerDescribe_FailedPageKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		err      error
@@ -572,6 +584,7 @@ func TestSageMakerDescribe_FailedPageKeepsEarlierPages(t *testing.T) {
 // Every SageMaker listing asks for its model's page cap, the in-use probe's
 // one-item ListDomains apart.
 func TestScanSageMaker_ListsAtModelPageCap(t *testing.T) {
+	t.Parallel()
 	ops := []string{
 		"ListActions", "ListAIWorkloadConfigs", "ListAlgorithms", "ListAliases", "ListAppImageConfigs", "ListApps",
 		"ListClusterNodes", "ListClusters", "ListClusterSchedulerConfigs", "ListCodeRepositories", "ListComputeQuotas",
@@ -682,6 +695,7 @@ func smLeaves(err error) []error {
 // describe data is lost. Without listed, or when the listing has no ARN, the
 // key is not stored, and a key deleted since its listing never is.
 func TestSageMakerDescribe_DeniedOrTransientKeptFromListing(t *testing.T) {
+	t.Parallel()
 	for _, withListed := range []bool{true, false} {
 		t.Run(fmt.Sprintf("listed=%v", withListed), func(t *testing.T) {
 			st := newTestStore(t)
@@ -744,6 +758,7 @@ func TestSageMakerDescribe_DeniedOrTransientKeptFromListing(t *testing.T) {
 // describe, is returned as a failure of this scan, not as a region gap the
 // dispatcher would report while discarding the rows stored.
 func TestSageMakerDescribe_LateNXDOMAINIsAnError(t *testing.T) {
+	t.Parallel()
 	nxdomain := &net.DNSError{Err: "no such host", Name: "api.sagemaker.us-east-1.amazonaws.com", IsNotFound: true}
 	cases := []struct {
 		name     string
@@ -778,6 +793,7 @@ func TestSageMakerDescribe_LateNXDOMAINIsAnError(t *testing.T) {
 // A probe NXDOMAIN is the region gap itself: returned as is, before any
 // family runs.
 func TestScanSageMaker_ProbeNXDOMAINIsReturned(t *testing.T) {
+	t.Parallel()
 	nxdomain := &net.DNSError{Err: "no such host", Name: "api.sagemaker.us-east-1.amazonaws.com", IsNotFound: true}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(map[string]func(any) (any, error){
@@ -792,6 +808,7 @@ func TestScanSageMaker_ProbeNXDOMAINIsReturned(t *testing.T) {
 // during the describes in flight or before some started, and every key cut
 // short or never described is stored from its listing.
 func TestSageMakerDescribe_StopIsOneMember(t *testing.T) {
+	t.Parallel()
 	for _, n := range []int{3, fanoutMed + 2} {
 		t.Run(strconv.Itoa(n)+" keys", func(t *testing.T) {
 			st := newTestStore(t)
@@ -833,6 +850,7 @@ func TestSageMakerDescribe_StopIsOneMember(t *testing.T) {
 
 // The production client gives every family the same tag-read bound.
 func TestNewSageMakerClient_OneTagBound(t *testing.T) {
+	t.Parallel()
 	c := newSageMakerClient(opStubConfig(nil, apiErr("AccessDeniedException", "op not stubbed")), testRegion)
 	first, second := c.tagReadSlots(), c.tagReadSlots()
 	if first != second {
@@ -847,6 +865,7 @@ func TestNewSageMakerClient_OneTagBound(t *testing.T) {
 // when the listing carries its ARN, and the error is still returned; without
 // listed it is not stored.
 func TestSageMakerDescribe_HardErrorKeptFromListing(t *testing.T) {
+	t.Parallel()
 	for _, withListed := range []bool{true, false} {
 		t.Run(fmt.Sprintf("listed=%v", withListed), func(t *testing.T) {
 			st := newTestStore(t)
@@ -903,6 +922,7 @@ func smFilledOutput(op string, outType reflect.Type) any {
 // still stored from its listing: under the ARN field of its summary, with the
 // status field its describe stores ("" for none).
 func TestScanSageMaker_DeniedDescribesKeepListedRows(t *testing.T) {
+	t.Parallel()
 	type listedType struct{ op, arnField, statusField string }
 	listedTypes := map[string]listedType{
 		TypeSageMakerAppImageConfig:                   {"ListAppImageConfigs", "AppImageConfigArn", ""},
@@ -981,6 +1001,7 @@ func TestScanSageMaker_DeniedDescribesKeepListedRows(t *testing.T) {
 // is returned before any family runs; one answered with an API error lets
 // every family run.
 func TestScanSageMaker_ProbeRunsFamiliesOnlyOnceAnswered(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		probeErr error

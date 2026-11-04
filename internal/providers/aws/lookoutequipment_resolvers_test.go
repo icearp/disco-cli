@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveLookoutEquipmentSchedulerRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -40,6 +41,7 @@ func TestResolveLookoutEquipmentSchedulerRefs(t *testing.T) {
 }
 
 func TestResolveLookoutEquipmentModelVersionRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -60,6 +62,7 @@ func TestResolveLookoutEquipmentModelVersionRefs(t *testing.T) {
 // TestResolveLookoutEquipmentModelVersionRefs_NoAttrs guards the nil/empty
 // attrs path: a model version with no ModelArn emits no edge and never panics.
 func TestResolveLookoutEquipmentModelVersionRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

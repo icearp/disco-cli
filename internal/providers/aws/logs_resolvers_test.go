@@ -7,6 +7,7 @@ import (
 // --- resolveLogsDeliveryLinks ---
 
 func TestResolveLogsDeliveryLinks(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -36,6 +37,7 @@ func TestResolveLogsDeliveryLinks(t *testing.T) {
 }
 
 func TestResolveLogsDeliveryLinks_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -49,6 +51,7 @@ func TestResolveLogsDeliveryLinks_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveLogsDeliveryLinks_NoDeliveries(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -61,6 +64,7 @@ func TestResolveLogsDeliveryLinks_NoDeliveries(t *testing.T) {
 // --- resolveLogsGroupAnomalyDetectors ---
 
 func TestResolveLogsGroupAnomalyDetectors(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -90,6 +94,7 @@ func TestResolveLogsGroupAnomalyDetectors(t *testing.T) {
 }
 
 func TestResolveLogsGroupAnomalyDetectors_EmptyList(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -102,6 +107,7 @@ func TestResolveLogsGroupAnomalyDetectors_EmptyList(t *testing.T) {
 }
 
 func TestResolveLogsGroupAnomalyDetectors_NoDetectors(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -114,6 +120,7 @@ func TestResolveLogsGroupAnomalyDetectors_NoDetectors(t *testing.T) {
 // --- resolveLogsDeliveryDestTarget ---
 
 func TestResolveLogsDeliveryDestTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

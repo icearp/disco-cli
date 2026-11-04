@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveLocalGatewayRouteTableVPCAssociationRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -40,6 +41,7 @@ func TestResolveLocalGatewayRouteTableVPCAssociationRelationships(t *testing.T) 
 }
 
 func TestResolveLocalGatewayRouteTableVPCAssociationRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -60,6 +62,7 @@ func TestResolveLocalGatewayRouteTableVPCAssociationRelationships_Empty(t *testi
 }
 
 func TestResolveLocalGatewayRouteTableVIGAssociationRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"

@@ -222,6 +222,7 @@ func iswRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, b
 // page cap, the described types store their Describe body, every child is
 // contained by its parent, and the scan reports no error or warning.
 func TestScanIoTSiteWise_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newISWCalls()
@@ -304,6 +305,7 @@ func TestScanIoTSiteWise_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanIoTSiteWise_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newISWCalls()
 	if _, _, err := iswScan(context.Background(), t, st, iswHandlers(calls)); err != nil {
@@ -324,6 +326,7 @@ func TestScanIoTSiteWise_RescanInsertsNone(t *testing.T) {
 // read no longer finds is dropped, and its projects are never listed; a
 // gateway, from an account-wide listing, likewise.
 func TestScanIoTSiteWise_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []iswRow{
 		{TypeIoTSWPortal, iswARN("portal", "tagged")},
 		{TypeIoTSWGateway, iswARN("gateway", "tagged")},
@@ -387,6 +390,7 @@ func TestScanIoTSiteWise_TagReadFailures(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanIoTSiteWise_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iotSWListTagsOp)
 	calls := newISWCalls()
@@ -407,6 +411,7 @@ func TestScanIoTSiteWise_TagThrottleDemotedBesideHardError(t *testing.T) {
 // DescribeAssetModel no longer finds is dropped and its assets are never
 // listed.
 func TestScanIoTSiteWise_DescribeFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		typ, arn, op, id string
 	}{
@@ -467,6 +472,7 @@ func TestScanIoTSiteWise_DescribeFailures(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanIoTSiteWise_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeIoTSWAsset)
@@ -491,6 +497,7 @@ func TestScanIoTSiteWise_FailedWriteStopsWithoutWarning(t *testing.T) {
 // failure stops the phases after it. A model ListAssets no longer finds is
 // skipped silently.
 func TestScanIoTSiteWise_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newISWCalls()
@@ -541,6 +548,7 @@ func TestScanIoTSiteWise_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // listing silently; on a later page the same answer is an error, and the
 // pages before it are kept. Per workspace too.
 func TestScanIoTSiteWise_FeatureGap(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, op string
 		failCall int
@@ -585,6 +593,7 @@ func TestScanIoTSiteWise_FeatureGap(t *testing.T) {
 // An item that cannot be stored is warned about in one warning per op that
 // names it; its siblings are stored.
 func TestScanIoTSiteWise_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, "iotsitewise:ListGateways")
 	handlers := iswHandlers(newISWCalls())
@@ -606,6 +615,7 @@ func TestScanIoTSiteWise_UnstorableItemsWarn(t *testing.T) {
 // An application whose workspace was not stored this scan is stored
 // unlinked.
 func TestScanIoTSiteWise_ApplicationOfUnlistedWorkspaceUnlinked(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := iswHandlers(newISWCalls())
 	handlers["ListApplications"] = func(any) (any, error) {
@@ -632,6 +642,7 @@ func TestScanIoTSiteWise_ApplicationOfUnlistedWorkspaceUnlinked(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanIoTSiteWise_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := iswHandlers(newISWCalls())
 	handlers["ListGateways"] = func(any) (any, error) {
@@ -651,6 +662,7 @@ func TestScanIoTSiteWise_RepeatedTokenKeepsPages(t *testing.T) {
 // naming the phases not run, although the phase in flight saw it in its
 // listing and its tag reads.
 func TestScanIoTSiteWise_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newISWCalls()
 	handlers := iswHandlers(calls)
@@ -692,6 +704,7 @@ func TestScanIoTSiteWise_ContextEndStopsOnce(t *testing.T) {
 // The monitor host failing to resolve after the api host stored rows is an
 // error too, on its first page or a later one.
 func TestScanIoTSiteWise_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "api.iotsitewise.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later api phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -755,6 +768,7 @@ func TestScanIoTSiteWise_NXDOMAIN(t *testing.T) {
 // A workspace ListPipelines or ListTasks no longer finds is skipped
 // silently; its sibling's children are stored.
 func TestScanIoTSiteWise_DeletedWorkspaceSkipped(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ op, typ, kind string }{
 		{"ListPipelines", TypeIoTSWPipeline, "pipeline"},
 		{"ListTasks", TypeIoTSWTask, "task"},
@@ -786,6 +800,7 @@ func TestScanIoTSiteWise_DeletedWorkspaceSkipped(t *testing.T) {
 // An asset model listed without an Id cannot be described: it is stored as
 // its list element with its tags, and one warning names it by its ARN.
 func TestScanIoTSiteWise_ElementWithoutIDStoredUndescribed(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, "iotsitewise:DescribeAssetModel")
 	calls := newISWCalls()
@@ -817,6 +832,7 @@ func TestScanIoTSiteWise_ElementWithoutIDStoredUndescribed(t *testing.T) {
 // An asset model listed without an Id whose tag read finds it deleted is
 // dropped, and no warning claims it was stored.
 func TestScanIoTSiteWise_ElementWithoutIDDroppedByTagRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newISWCalls()

@@ -47,6 +47,7 @@ func (v1OnlyRetryer) GetRetryToken(context.Context, error) (func(error) error, e
 func (v1OnlyRetryer) GetInitialToken() func(error) error { return func(error) error { return nil } }
 
 func TestWithNonRetryableCodes(t *testing.T) {
+	t.Parallel()
 	r := withNonRetryableCodes(alwaysRetryV2{}, "AuthorizerConfigurationException")
 
 	if r.IsErrorRetryable(apiErr("AuthorizerConfigurationException", "Internal server error")) {
@@ -67,6 +68,7 @@ func TestWithNonRetryableCodes(t *testing.T) {
 }
 
 func TestWithNonRetryableCodes_NonV2Unchanged(t *testing.T) {
+	t.Parallel()
 	v1 := v1OnlyRetryer{}
 	got := withNonRetryableCodes(v1, "AuthorizerConfigurationException")
 	// A retryer that is not a RetryerV2 is returned as-is: better to keep its full
@@ -84,6 +86,7 @@ func apiErr(code, msg string) error {
 }
 
 func TestIsAccountNotInitialized(t *testing.T) {
+	t.Parallel()
 	// DRS + MGN return this before the account is onboarded; it must route
 	// through markServiceDisabled (errServiceDisabled sentinel), not a scan error.
 	uninit := apiErr("UninitializedAccountException", "Account not initialized")
@@ -102,6 +105,7 @@ func TestIsAccountNotInitialized(t *testing.T) {
 }
 
 func TestMarkServiceNotEntitled(t *testing.T) {
+	t.Parallel()
 	// Distinct sentinel from errServiceDisabled — the dispatch loop switches on
 	// each separately to pick the right progress-line suffix.
 	wrapped := markServiceNotEntitled(apiErr("AccessDeniedException", "Access denied due to support level"))
@@ -114,6 +118,7 @@ func TestMarkServiceNotEntitled(t *testing.T) {
 }
 
 func TestIsProxyPreviewRegionGap(t *testing.T) {
+	t.Parallel()
 	// NetworkFirewall proxy ops (public preview, us-east-2 only) return this from
 	// any region where the preview isn't served — silent per-region skip.
 	if !isProxyPreviewRegionGap(apiErr("InvalidRequestException", "The API being called does not exist.")) {
@@ -129,6 +134,7 @@ func TestIsProxyPreviewRegionGap(t *testing.T) {
 }
 
 func TestIsAPIErrorCode(t *testing.T) {
+	t.Parallel()
 	if !isAPIErrorCode(apiErr("AccessDenied", ""), "AccessDenied") {
 		t.Error("expected match")
 	}
@@ -144,6 +150,7 @@ func TestIsAPIErrorCode(t *testing.T) {
 }
 
 func TestIsAPIErrorCodeStripsSmithyNamespace(t *testing.T) {
+	t.Parallel()
 	// rpc-v2-cbor deserializers return GenericAPIError carrying the raw __type
 	// for an error the operation does not model, so the code arrives namespaced.
 	// This is the shape that reached a live scan and made every one `partial`:
@@ -171,6 +178,7 @@ func TestIsAPIErrorCodeStripsSmithyNamespace(t *testing.T) {
 }
 
 func TestErrorShapeName(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ in, want string }{
 		{"AccessDenied", "AccessDenied"},
 		{"com.amazon.coral.service#InvalidParameterValueException", "InvalidParameterValueException"},
@@ -187,6 +195,7 @@ func TestErrorShapeName(t *testing.T) {
 }
 
 func TestNonRetryableMatchesNamespacedCode(t *testing.T) {
+	t.Parallel()
 	// The retry-budget guard reads codes the same way; a namespaced code slipping
 	// past it would burn a service's whole budget on attempts known to be doomed.
 	r := withNonRetryableCodes(retry.NewStandard(), "AuthorizerConfigurationException")
@@ -200,6 +209,7 @@ func TestNonRetryableMatchesNamespacedCode(t *testing.T) {
 }
 
 func TestIsAccessDenied(t *testing.T) {
+	t.Parallel()
 	codes := []string{
 		"AccessDenied", "UnauthorizedOperation", "AuthFailure",
 		"AccessDeniedException", "NotAuthorized", "NotAuthorizedException", "ForbiddenException",
@@ -218,6 +228,7 @@ func TestIsAccessDenied(t *testing.T) {
 }
 
 func TestIsAPIErrorWithMessage(t *testing.T) {
+	t.Parallel()
 	if !isAPIErrorWithMessage(apiErr("ValidationException", "Feature not supported yet"), "ValidationException", "Feature not supported") {
 		t.Error("expected code+needle match")
 	}
@@ -236,6 +247,7 @@ func TestIsAPIErrorWithMessage(t *testing.T) {
 }
 
 func TestIsAccessDeniedWithMessage(t *testing.T) {
+	t.Parallel()
 	for _, c := range accessDeniedCodes {
 		if !isAccessDeniedWithMessage(apiErr(c, "Macie is not enabled"), "Macie is not enabled") {
 			t.Errorf("%s + needle should match", c)
@@ -253,6 +265,7 @@ func TestIsAccessDeniedWithMessage(t *testing.T) {
 }
 
 func TestIsAuditManagerNotEnabled(t *testing.T) {
+	t.Parallel()
 	yes := apiErr("AccessDeniedException", "Please complete AWS Audit Manager setup from the home page")
 	if !isAuditManagerNotEnabled(yes) {
 		t.Error("setup-hint message should be classified not-enabled")
@@ -264,6 +277,7 @@ func TestIsAuditManagerNotEnabled(t *testing.T) {
 }
 
 func TestIsMacieNotEnabled(t *testing.T) {
+	t.Parallel()
 	yes := apiErr("AccessDeniedException", "Macie is not enabled")
 	if !isMacieNotEnabled(yes) {
 		t.Error("'Macie is not enabled' should be classified not-enabled")
@@ -277,6 +291,7 @@ func TestIsMacieNotEnabled(t *testing.T) {
 }
 
 func TestIsServiceNotAvailableInRegion(t *testing.T) {
+	t.Parallel()
 	yes := apiErr("AccessDeniedException", "Unable to determine service/operation name to be authorized")
 	if !isServiceNotAvailableInRegion(yes) {
 		t.Error("region-gap gateway message should be classified service-not-in-region")
@@ -302,6 +317,7 @@ func TestIsServiceNotAvailableInRegion(t *testing.T) {
 }
 
 func TestIsSecurityHubNotEnabled(t *testing.T) {
+	t.Parallel()
 	for _, c := range []string{"InvalidAccessException", "ResourceNotFoundException"} {
 		if !isSecurityHubNotEnabled(apiErr(c, "")) {
 			t.Errorf("%s should classify SecurityHub not-enabled", c)
@@ -313,6 +329,7 @@ func TestIsSecurityHubNotEnabled(t *testing.T) {
 }
 
 func TestIsShieldNotSubscribed(t *testing.T) {
+	t.Parallel()
 	if !isShieldNotSubscribed(apiErr("ResourceNotFoundException", "")) {
 		t.Error("ResourceNotFoundException should classify Shield not-subscribed")
 	}
@@ -322,6 +339,7 @@ func TestIsShieldNotSubscribed(t *testing.T) {
 }
 
 func TestIsControlTowerNotEnabled(t *testing.T) {
+	t.Parallel()
 	hints := []string{
 		"AWSControlTowerAdmin role missing", "not the management account",
 		"landing zone is not configured", "AWS Control Tower has not been deployed",
@@ -346,6 +364,7 @@ func TestIsControlTowerNotEnabled(t *testing.T) {
 }
 
 func TestIsCacheSecurityGroupsNotPermitted(t *testing.T) {
+	t.Parallel()
 	yes := apiErr("InvalidParameterValue",
 		"Use of cache security groups is not permitted in this API version for your account.")
 	if !isCacheSecurityGroupsNotPermitted(yes) {
@@ -361,6 +380,7 @@ func TestIsCacheSecurityGroupsNotPermitted(t *testing.T) {
 }
 
 func TestMarkServiceDisabled(t *testing.T) {
+	t.Parallel()
 	upstream := errors.New("Macie is not enabled")
 	wrapped := markServiceDisabled(upstream)
 	if !errors.Is(wrapped, errServiceDisabled) {
@@ -372,6 +392,7 @@ func TestMarkServiceDisabled(t *testing.T) {
 }
 
 func TestMarkServiceUnavailable(t *testing.T) {
+	t.Parallel()
 	upstream := errors.New("Unable to determine service/operation name to be authorized")
 	wrapped := markServiceUnavailable(upstream)
 	if !errors.Is(wrapped, errServiceUnavailable) {
@@ -386,6 +407,7 @@ func TestMarkServiceUnavailable(t *testing.T) {
 }
 
 func TestSkipIfAccessDenied_RecordsWarningReturnsNil(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var got store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { got = w }
@@ -406,6 +428,7 @@ func TestSkipIfAccessDenied_RecordsWarningReturnsNil(t *testing.T) {
 // in every region the account was never enabled for — an availability fact no
 // IAM change fixes, so it must silent-skip rather than warn on every scan.
 func TestSkipIfAccessDenied_NotAuthorizedForRegionIsSilent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := false
 	st.OnWarn = func(store.ScanWarning) { warned = true }
@@ -423,6 +446,7 @@ func TestSkipIfAccessDenied_NotAuthorizedForRegionIsSilent(t *testing.T) {
 // principal and action ("is not authorized to perform: <action>") and carries no
 // "authorized for region" phrasing, so it still warns.
 func TestSkipIfAccessDenied_RealDenialStillWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := false
 	st.OnWarn = func(store.ScanWarning) { warned = true }
@@ -438,6 +462,7 @@ func TestSkipIfAccessDenied_RealDenialStillWarns(t *testing.T) {
 }
 
 func TestIsNotAuthorizedForRegion(t *testing.T) {
+	t.Parallel()
 	if !isNotAuthorizedForRegion(apiErr("AccessDeniedException", "Account: 123456789012 is not authorized for region: eu-north-1.")) {
 		t.Error("region-entitlement message should match")
 	}
@@ -458,6 +483,7 @@ func TestIsNotAuthorizedForRegion(t *testing.T) {
 }
 
 func TestSkipIfAccessDenied_GlobalScope(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var got store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { got = w }
@@ -474,6 +500,7 @@ func TestSkipIfAccessDenied_GlobalScope(t *testing.T) {
 }
 
 func TestSkipIfTransient_RecordsWarningReturnsNil(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var got store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { got = w }
@@ -491,6 +518,7 @@ func TestSkipIfTransient_RecordsWarningReturnsNil(t *testing.T) {
 // The guard exists because one DNS blip during DescribeAlarms otherwise
 // aborts the entire scan.
 func TestIsTransientNetworkError(t *testing.T) {
+	t.Parallel()
 	dns := &net.DNSError{Err: "no such host", Name: "monitoring.us-east-1.amazonaws.com", IsNotFound: true}
 	opDial := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
 	opRead := &net.OpError{Op: "read", Net: "tcp", Err: errors.New("broken pipe")}
@@ -566,6 +594,7 @@ func TestIsTransientNetworkError(t *testing.T) {
 }
 
 func TestHTTPStatusCode(t *testing.T) {
+	t.Parallel()
 	respErr := func(code int) error {
 		return &smithyhttp.ResponseError{
 			Response: &smithyhttp.Response{Response: &http.Response{StatusCode: code}},
@@ -592,6 +621,7 @@ func TestHTTPStatusCode(t *testing.T) {
 // identifies it. Seen live on servicequotas:ListAWSDefaultServiceQuotas, where
 // it marked the whole scan `partial`.
 func TestIsTransientBodylessTimeout(t *testing.T) {
+	t.Parallel()
 	resp := func(code int) error {
 		return &smithyhttp.ResponseError{
 			Response: &smithyhttp.Response{Response: &http.Response{StatusCode: code}},
@@ -615,6 +645,7 @@ func TestIsTransientBodylessTimeout(t *testing.T) {
 }
 
 func TestIsHTTP404(t *testing.T) {
+	t.Parallel()
 	resp := func(code int) error {
 		return &smithyhttp.ResponseError{
 			Response: &smithyhttp.Response{Response: &http.Response{StatusCode: code}},
@@ -639,6 +670,7 @@ func TestIsHTTP404(t *testing.T) {
 }
 
 func TestIsOpNotDeployed(t *testing.T) {
+	t.Parallel()
 	const gatewayMsg = "Unable to determine service/operation name to be authorized"
 	cases := []struct {
 		name string
@@ -665,6 +697,7 @@ func TestIsOpNotDeployed(t *testing.T) {
 }
 
 func TestIsHTTP403(t *testing.T) {
+	t.Parallel()
 	if !isHTTP403(respErrCode(403)) {
 		t.Error("403 response should match")
 	}
@@ -705,6 +738,7 @@ func respErrMsg(code int, msg string) error {
 // skipped, while an ordinary 403 permission denial must NOT be — that one a
 // policy fix would repair, so swallowing it would hide a real misconfiguration.
 func TestIsServiceBlocked(t *testing.T) {
+	t.Parallel()
 	// The exact shape AWS Telco Network Builder returns from every operation in
 	// every region it is offered in.
 	tnb := respErrMsg(403, "AWS Telco Network Builder is deprecated. All API operations are blocked.")
@@ -754,6 +788,7 @@ func TestIsServiceBlocked(t *testing.T) {
 // dispatch ladder, not just that the predicate works — a correct predicate wired
 // in below a rung that already matches would still report a hard error.
 func TestClassifyServiceError_Blocked(t *testing.T) {
+	t.Parallel()
 	blocked := fmt.Errorf("tnb:ListSolFunctionPackages: %w",
 		respErrMsg(403, "AWS Telco Network Builder is deprecated. All API operations are blocked."))
 	if got := classifyServiceError(blocked); got != outcomeBlocked {
@@ -784,6 +819,7 @@ func TestClassifyServiceError_Blocked(t *testing.T) {
 }
 
 func TestMHOListErr(t *testing.T) {
+	t.Parallel()
 	// Closed-to-new-customers → not-entitled sentinel (halts the whole service).
 	handled, out := mhoListErr(apiErr("AccessDeniedException", "This service is no longer open to new customers"))
 	if !handled || !errors.Is(out, errServiceNotEntitled) {
@@ -811,6 +847,7 @@ func (timeoutError) Temporary() bool { return true }
 // A "Unable to determine service/operation name" denial is a region-routing gap,
 // not a real IAM deny: skipIfAccessDenied returns nil AND records NO warning.
 func TestSkipIfAccessDenied_RegionGapSilent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := false
 	st.OnWarn = func(store.ScanWarning) { warned = true }
@@ -832,6 +869,7 @@ func TestSkipIfAccessDenied_RegionGapSilent(t *testing.T) {
 }
 
 func TestTranslateBlockListed(t *testing.T) {
+	t.Parallel()
 	if !translateBlockListed(apiErr("NotAuthorizedException",
 		"Your account has been block-listed for access to Amazon Translate. Please contact AWS Support")) {
 		t.Error("block-listed message must match")
@@ -845,6 +883,7 @@ func TestTranslateBlockListed(t *testing.T) {
 }
 
 func TestConnectCampaignsNotProvisioned(t *testing.T) {
+	t.Parallel()
 	if !connectCampaignsNotProvisioned(apiErr("AccessDeniedException",
 		"User: arn:aws:sts::1:assumed-role/r is not authorized to perform: null")) {
 		t.Error("null-action denial (no Connect instance) must match")
@@ -864,6 +903,7 @@ func TestConnectCampaignsNotProvisioned(t *testing.T) {
 // error code, so a needle widened to the bare code would silence a real IAM
 // problem with nothing reporting it.
 func TestIsWorkSpacesPoolsGap(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		msg  string
@@ -907,6 +947,7 @@ func TestIsWorkSpacesPoolsGap(t *testing.T) {
 // not EOF-shaped to begin with. That property is guarded where the wrapping
 // lives, by store.TestStoreWriteError_BreaksTheCauseChain.
 func TestStoreWriteErrorMatchesNoAWSSkipPredicate(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a deliberately closed
 	// store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closed.db"))
@@ -958,6 +999,7 @@ func TestStoreWriteErrorMatchesNoAWSSkipPredicate(t *testing.T) {
 // database would be classified transient and reported as a cloud-side glitch
 // that a rescan fixes.
 func TestClassifyServiceError_StoreWriteBeatsEveryOtherRung(t *testing.T) {
+	t.Parallel()
 	// Each cause independently matches a lower rung; carrying the sentinel must
 	// override all of them.
 	causes := []struct {
@@ -990,6 +1032,7 @@ func TestClassifyServiceError_StoreWriteBeatsEveryOtherRung(t *testing.T) {
 // The rungs below outcomeStoreWrite must keep working — the guard is a
 // prepended rung, not a replacement for the ladder.
 func TestClassifyServiceError_Rungs(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		err  error

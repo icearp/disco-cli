@@ -130,6 +130,7 @@ func asNotifyAttrs(t *testing.T, r store.Resource) autoScalingNotificationConfig
 }
 
 func TestScanAutoScaling_StoresNotificationConfigurationPerGroupTopic(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
@@ -193,6 +194,7 @@ func TestScanAutoScaling_StoresNotificationConfigurationPerGroupTopic(t *testing
 }
 
 func TestScanAutoScaling_NotificationConfigurationOutcomes(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		page1Err  error
@@ -253,6 +255,7 @@ func TestScanAutoScaling_NotificationConfigurationOutcomes(t *testing.T) {
 }
 
 func TestScanAutoScaling_OlderTransientDoesNotMaskNotificationHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "autoscaling:DescribePolicies")
 	var calls asCallLog
@@ -308,6 +311,7 @@ func asTwoPageGroups(inputs *[]autoscaling.DescribeAutoScalingGroupsInput, page2
 // Groups store the Tags their element carries, every page is read with the
 // page cap and no filter, and a group without a name warns once.
 func TestScanAutoScaling_GroupsStoreTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	groupWarns := countOpWarnings(st, autoScalingGroupsOp)
 	var calls asCallLog
@@ -363,6 +367,7 @@ func TestScanAutoScaling_GroupsStoreTags(t *testing.T) {
 // per-group phases still run over them: a denial warns, any other error is
 // returned.
 func TestScanAutoScaling_GroupPageErrorKeepsEarlierGroups(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		page2Err  error
@@ -408,6 +413,7 @@ func TestScanAutoScaling_GroupPageErrorKeepsEarlierGroups(t *testing.T) {
 // Every phase runs whatever another phase returns: one phase's hard error is
 // returned and the other phases' rows are stored.
 func TestScanAutoScaling_PhaseErrorDoesNotStopOtherPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op        string
 		wantTotal int
@@ -453,6 +459,7 @@ func TestScanAutoScaling_PhaseErrorDoesNotStopOtherPhases(t *testing.T) {
 // A store write failure stops the later phases: every later write would fail
 // too.
 func TestScanAutoScaling_StoreWriteStopsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, failing := range []string{"DescribeAutoScalingGroups", "DescribeLaunchConfigurations"} {
 		t.Run(failing, func(t *testing.T) {
 			st, closeStore := openClosingStore(t)
@@ -496,6 +503,7 @@ func asTwoGroups(h map[string]func(in any) (any, error)) {
 // a denial warns once and is not returned, any other error is returned after
 // the other group's row is stored, and a hook without a name warns once.
 func TestScanAutoScaling_PerGroupFanOutOutcomes(t *testing.T) {
+	t.Parallel()
 	hard := apiErr("ResourceContentionFault", "busy")
 	apiHook := "arn:aws:autoscaling:us-east-1:123456789012:lifecycle-hook/api/drain"
 	apiPool := "arn:aws:autoscaling:us-east-1:123456789012:warm-pool/api"
@@ -577,6 +585,7 @@ func TestScanAutoScaling_PerGroupFanOutOutcomes(t *testing.T) {
 // with no filter, warn once about elements without the id their row needs,
 // and keep the pages read before a failed page.
 func TestScanAutoScaling_ListPhasesKeepPagesAndWarnEmptyIDs(t *testing.T) {
+	t.Parallel()
 	lcARN := func(n string) *string {
 		return ptrStr("arn:aws:autoscaling:us-east-1:123456789012:launchConfiguration:1:launchConfigurationName/" + n)
 	}
@@ -681,6 +690,7 @@ func TestScanAutoScaling_ListPhasesKeepPagesAndWarnEmptyIDs(t *testing.T) {
 // A store write failure in a per-group phase stops the scan before that
 // phase warns about a group it denied.
 func TestScanAutoScaling_GroupPhaseStoreWriteFailureWarnsNothing(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
@@ -708,6 +718,7 @@ func TestScanAutoScaling_GroupPhaseStoreWriteFailureWarnsNothing(t *testing.T) {
 // Once ctx is done a per-group phase reads no group and says so rather than
 // returning as if no group had hooks.
 func TestScanAutoScalingLifecycleHooks_StopsWhenContextDone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

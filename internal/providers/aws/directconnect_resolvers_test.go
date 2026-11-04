@@ -12,6 +12,7 @@ import (
 )
 
 func TestResolveDXLagMembers_Interconnect(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	lagID := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectLag, dxLagARN("aws", testRegion, acct.ID, "dxlag-aaa"), testRegion, "{}")
@@ -32,6 +33,7 @@ func TestResolveDXLagMembers_Interconnect(t *testing.T) {
 }
 
 func TestResolveDXResiliencyGroupConnections(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	conn1 := upsertTestResource(t, st, "aws", acct.ID, TypeDirectConnectConnection, dxConnectionARN("aws", testRegion, acct.ID, "dxcon-1"), testRegion, "{}")
@@ -66,6 +68,7 @@ func TestResolveDXResiliencyGroupConnections(t *testing.T) {
 }
 
 func TestResolveDXLagMembers_Connection(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	lagARN := dxLagARN("aws", testRegion, acct.ID, "dxlag-aaa")
@@ -80,6 +83,7 @@ func TestResolveDXLagMembers_Connection(t *testing.T) {
 }
 
 func TestResolveDXVIRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	connARN := dxConnectionARN("aws", testRegion, acct.ID, "dxcon-bbb")
@@ -103,6 +107,7 @@ func TestResolveDXVIRefs(t *testing.T) {
 }
 
 func TestResolveDXGatewayAssociationRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dxgwARN := dxGatewayARN("aws", acct.ID, "g-1")
@@ -125,6 +130,7 @@ func TestResolveDXGatewayAssociationRefs(t *testing.T) {
 // rows named before and after it (ListResources orders by name) got their
 // edges.
 func TestResolveDX_UndecodableAttrsKeepOtherRows(t *testing.T) {
+	t.Parallel()
 	acct := newTestAccount(testAccountID)
 	for _, tc := range []struct {
 		name    string
@@ -196,6 +202,7 @@ func TestResolveDX_UndecodableAttrsKeepOtherRows(t *testing.T) {
 // account's self-node, inserted as a placeholder; one owned by the scanned
 // account is linked to the gateway itself and not to an account.
 func TestResolveDXGatewayAssociationRefs_CrossAccountGatewayOwner(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	const other = "210987654321"
@@ -245,6 +252,7 @@ func TestResolveDXGatewayAssociationRefs_CrossAccountGatewayOwner(t *testing.T) 
 // A failed edge or placeholder write returns the store write error together
 // with the decode errors collected before it, so neither hides the other.
 func TestResolveDX_WriteFailureKeepsDecodeErrors(t *testing.T) {
+	t.Parallel()
 	acct := newTestAccount(testAccountID)
 	const other = "210987654321"
 	vgw := ec2ARN(testRegion, acct.ID, "vpn-gateway", "vgw-1")

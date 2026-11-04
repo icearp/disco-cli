@@ -369,6 +369,7 @@ func bkWants() []bkWant {
 // Every listing and ListTags is sent MaxResults 1000, except
 // ListBackupAccessPoints, sent 100. No error or warning.
 func TestScanBackup_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newBKCalls()
@@ -441,6 +442,7 @@ func TestScanBackup_StoresTagsOfEveryType(t *testing.T) {
 // name. Selections are linked under their plans and restore access vaults
 // under their air-gapped vault.
 func TestScanBackup_ChildListingsGetTheParentsStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBKCalls()
 	if _, _, err := bkScan(context.Background(), st, bkHandlers(calls)); err != nil {
@@ -472,6 +474,7 @@ func TestScanBackup_ChildListingsGetTheParentsStored(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanBackup_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBKCalls()
 	if _, _, err := bkScan(context.Background(), st, bkHandlers(calls)); err != nil {
@@ -494,6 +497,7 @@ func TestScanBackup_RescanInsertsNone(t *testing.T) {
 // vault), a row also read with GetBackupPlan (a plan) and a child listing's
 // row (a recovery point).
 func TestScanBackup_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		typ, arn string
 		goneLost int // rows lost when the target is not found: itself and its children
@@ -566,6 +570,7 @@ func TestScanBackup_TagReadFailures(t *testing.T) {
 
 // Two denied tag reads in one phase send one warning.
 func TestScanBackup_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, bkTagsOp)
 	calls := newBKCalls()
@@ -588,6 +593,7 @@ func TestScanBackup_TagDenialsWarnOnce(t *testing.T) {
 // in it) is kept untagged and silent when ListTags denies it or does not find
 // it; this account's rows keep the usual rules (TestScanBackup_TagReadFailures).
 func TestScanBackup_OtherAccountRowKeptOnTagGap(t *testing.T) {
+	t.Parallel()
 	shared := bkRestoreVaultARN(bkOtherAccount, "shared")
 	sharedRP := bkARNIn(bkOtherAccount, "recovery-point:shared-1")
 	for _, target := range []struct{ typ, arn string }{
@@ -644,6 +650,7 @@ func TestScanBackup_OtherAccountRowKeptOnTagGap(t *testing.T) {
 // A ListTags read whose next token repeats keeps the row untagged and fails
 // the scan with errRepeatedNextToken.
 func TestScanBackup_TagReadRepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBKCalls()
 	h := bkHandlers(calls)
@@ -670,6 +677,7 @@ func TestScanBackup_TagReadRepeatedToken(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanBackup_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, bkTagsOp)
 	calls := newBKCalls()
@@ -687,6 +695,7 @@ func TestScanBackup_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanBackup_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeBackupVault)
@@ -710,6 +719,7 @@ func TestScanBackup_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A plan kept as its list element is warned about only once it is stored: a
 // failed write returns the store error and no "stored as" warning.
 func TestScanBackup_KeptPlanWarnsOnlyOnceStored(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	warns := countOpWarnings(st, "backup:GetBackupPlan")
 	h := bkHandlers(newBKCalls())
@@ -729,6 +739,7 @@ func TestScanBackup_KeptPlanWarnsOnlyOnceStored(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the listings after it.
 func TestScanBackup_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListBackupVaults", "ListFrameworks"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -754,6 +765,7 @@ func TestScanBackup_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanBackup_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := bkHandlers(newBKCalls())
 	k := bkKindOf(t, "ListReportPlans")
@@ -783,6 +795,7 @@ func TestScanBackup_RepeatedTokenKeepsPages(t *testing.T) {
 // An element without an ARN is not stored and is warned about once under its
 // listing, keyed by its name, or by a fixed text when it has none.
 func TestScanBackup_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op   string
 		out  any
@@ -832,6 +845,7 @@ func TestScanBackup_ElementWithoutARNWarns(t *testing.T) {
 // every parent warns once. A denied GetBackupPlan keeps the plans as their
 // list elements.
 func TestScanBackup_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	lost := map[string]int{
 		"ListBackupVaults": 11, "ListBackupPlans": 4, "ListRestoreTestingPlans": 4,
 		"ListBackupSelections": 2, "ListRestoreTestingSelections": 2,
@@ -887,6 +901,7 @@ func bkPlanBody(t *testing.T, r store.Resource) bool {
 // denial warns once under backup:GetBackupPlan, a throttle after retries is a
 // transient error, any other error a hard one.
 func TestScanBackup_PlanReadFailures(t *testing.T) {
+	t.Parallel()
 	failed := bkPlanARN("plan-tagged")
 	for _, c := range []struct {
 		name      string
@@ -953,6 +968,7 @@ func TestScanBackup_PlanReadFailures(t *testing.T) {
 // a denial warns once; any other error is returned, a transient one too, so
 // that the scan is partial rather than warned about.
 func TestScanBackup_SelectionsPerPlan(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -1005,6 +1021,7 @@ func TestScanBackup_SelectionsPerPlan(t *testing.T) {
 // A failed closure write leaves the plans and selections stored before it
 // counted, and stops the scan.
 func TestScanBackup_ClosureFailureKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseClosureWrites(t, st)
 	calls := newBKCalls()
@@ -1027,6 +1044,7 @@ func TestScanBackup_ClosureFailureKeepsCounts(t *testing.T) {
 // so the scan is partial; beside a hard error of another phase they are
 // demoted to one warning under their op.
 func TestScanBackup_PhaseErrorJoin(t *testing.T) {
+	t.Parallel()
 	throttledVaults := func() map[string]func(in any) (any, error) {
 		h := bkHandlers(newBKCalls())
 		h["ListBackupVaults"] = func(any) (any, error) { return nil, bkThrottle }
@@ -1059,6 +1077,7 @@ func TestScanBackup_PhaseErrorJoin(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it too.
 func TestScanBackup_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBKCalls()
 	handlers := bkHandlers(calls)
@@ -1096,6 +1115,7 @@ func TestScanBackup_ContextEndStopsOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanBackup_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "backup.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		handlers := bkHandlers(newBKCalls())
@@ -1127,6 +1147,7 @@ func TestScanBackup_NXDOMAIN(t *testing.T) {
 
 // The client is pinned to the scanned region, not the config's default.
 func TestScanBackup_CallsGoToScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var regions parentCalls

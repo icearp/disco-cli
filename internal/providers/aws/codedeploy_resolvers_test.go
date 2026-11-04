@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveCodeDeployDGRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appARN := codeDeployARN("aws", testRegion, acct.ID, "application", "myApp")

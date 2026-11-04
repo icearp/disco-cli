@@ -6,6 +6,7 @@ import "testing"
 // runs without error and emits no relationships. Replace with real
 // assertions once Cost Explorer cost-category modeling lands.
 func TestResolveBcmPricingCalculatorRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

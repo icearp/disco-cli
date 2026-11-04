@@ -191,6 +191,7 @@ func waChildID(parent, segment, child string) string {
 }
 
 func TestWAChildPhases_ListEveryParentUnderItsParent(t *testing.T) {
+	t.Parallel()
 	for _, c := range waChildCases() {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -225,6 +226,7 @@ func TestWAChildPhases_ListEveryParentUnderItsParent(t *testing.T) {
 }
 
 func TestWAChildPhases_ParentErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		fail     func(parent string) error
@@ -291,6 +293,7 @@ func TestWAChildPhases_ParentErrors(t *testing.T) {
 // or an account-less ARN; both must land on one row, while a custom lens's
 // ARN, which names its owner account, is kept whole.
 func TestScanWALensReviews_LensAliasFormsKeyOneNativeID(t *testing.T) {
+	t.Parallel()
 	workload := childParent{id: "w1", arn: waARN("workload", "w1")}
 	customARN := waARN("lens", "0123abcd")
 	cases := []struct {
@@ -372,6 +375,7 @@ func waServiceHandlers() map[string]func(any) (any, error) {
 }
 
 func TestScanWellArchitected_ChildPhasesStoreRowsUnderParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(waServiceHandlers(), waDenied)
@@ -396,6 +400,7 @@ func TestScanWellArchitected_ChildPhasesStoreRowsUnderParents(t *testing.T) {
 // A failing child phase must not cost the rows of the list phases before it,
 // and its error must reach the dispatcher.
 func TestScanWellArchitected_ChildPhaseErrorAfterListPhases(t *testing.T) {
+	t.Parallel()
 	for _, failing := range []string{"ListLensReviews", "ListWorkloadShares", "ListLensShares", "ListProfileShares", "ListTemplateShares"} {
 		t.Run(failing, func(t *testing.T) {
 			st := newTestStore(t)
@@ -460,6 +465,7 @@ func runWAAgentProfiles(t *testing.T, st *store.Store, handler func(any) (any, e
 }
 
 func TestScanWAAgentProfiles_TwoPagesStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	created := time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC)
 	first := waAgentProfile("p1")
@@ -509,6 +515,7 @@ func TestScanWAAgentProfiles_TwoPagesStored(t *testing.T) {
 }
 
 func TestScanWAAgentProfiles_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls int
 	total, err := runWAAgentProfiles(t, st, waAgentProfilePages(&calls, waAgentPage()))
@@ -519,6 +526,7 @@ func TestScanWAAgentProfiles_Empty(t *testing.T) {
 
 // A token the service repeats must end the listing, not loop on it.
 func TestScanWAAgentProfiles_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls int
 	total, err := runWAAgentProfiles(t, st, func(any) (any, error) {
@@ -536,6 +544,7 @@ func TestScanWAAgentProfiles_RepeatedTokenStops(t *testing.T) {
 // Each failure is skipped, warned or returned by its code and page; rows read
 // before a later failure are kept.
 func TestScanWAAgentProfiles_ErrorLadder(t *testing.T) {
+	t.Parallel()
 	gap := apiErr("UnknownOperationException", "unknown operation")
 	unknownOp := &watypes.ValidationException{Message: ptrStr("unknown operation"), Reason: watypes.ValidationExceptionReasonUnknownOperation}
 	fieldInvalid := &watypes.ValidationException{Message: ptrStr("bad field"), Reason: watypes.ValidationExceptionReasonFieldValidationFailed}
@@ -592,6 +601,7 @@ func waAgentServiceHandlers() map[string]func(any) (any, error) {
 }
 
 func TestScanWellArchitected_StoresAgentProfilesWithToolRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(waAgentServiceHandlers(), waDenied)
@@ -625,6 +635,7 @@ func TestScanWellArchitected_StoresAgentProfilesWithToolRows(t *testing.T) {
 // transient, so the scan is partial, and the rows the earlier phases and the
 // agent phase stored are still counted.
 func TestScanWellArchitected_ThrottledToolPhaseKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "wellarchitected:ListTemplateShares")
 	h := waAgentServiceHandlers()
@@ -647,6 +658,7 @@ func TestScanWellArchitected_ThrottledToolPhaseKeepsCounts(t *testing.T) {
 
 // A failed store write must not lose the listing error read before it.
 func TestScanWAAgentProfiles_StoreWriteFailureKeepsListError(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
 	if err != nil {
@@ -678,6 +690,7 @@ func TestScanWAAgentProfiles_StoreWriteFailureKeepsListError(t *testing.T) {
 // and a transient on either side is demoted to one warning so it cannot hide
 // the other side's hard error.
 func TestScanWellArchitected_AgentProfilesIndependentOfToolPhases(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("ThrottlingException", "Rate exceeded")
 	for _, tc := range []struct {
 		name                          string
@@ -855,6 +868,7 @@ func waAgentChildHandler(c waAgentChildCase, calls *waAgentChildCalls, fail func
 func noAgentFail(string, int) error { return nil }
 
 func TestWAAgentChildPhases_TwoPagesStoredUnderProfiles(t *testing.T) {
+	t.Parallel()
 	for _, c := range waAgentChildCases() {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -899,6 +913,7 @@ func TestWAAgentChildPhases_TwoPagesStoredUnderProfiles(t *testing.T) {
 }
 
 func TestWAAgentChildPhases_Empty(t *testing.T) {
+	t.Parallel()
 	for _, c := range waAgentChildCases() {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -914,6 +929,7 @@ func TestWAAgentChildPhases_Empty(t *testing.T) {
 
 // A token the service repeats must end a profile's listing, not loop on it.
 func TestWAAgentChildPhases_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	for _, c := range waAgentChildCases() {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -937,6 +953,7 @@ func TestWAAgentChildPhases_RepeatedTokenStops(t *testing.T) {
 // Each per-profile failure is skipped, warned or returned by its code and
 // page; a skipped profile costs no sibling its rows.
 func TestWAAgentChildPhases_ErrorLadder(t *testing.T) {
+	t.Parallel()
 	gap := apiErr("UnknownOperationException", "unknown operation")
 	unknownOp := &watypes.ValidationException{Message: ptrStr("unknown operation"), Reason: watypes.ValidationExceptionReasonUnknownOperation}
 	fieldInvalid := &watypes.ValidationException{Message: ptrStr("bad field"), Reason: watypes.ValidationExceptionReasonFieldValidationFailed}
@@ -1004,6 +1021,7 @@ func TestWAAgentChildPhases_ErrorLadder(t *testing.T) {
 // phase stored: a page-two profile is listed, an ARN-less one is not, and a
 // denied profile listing hands them none.
 func TestScanWellArchitected_AgentChildrenListStoredProfiles(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name         string
 		profiles     func(any) (any, error)
@@ -1050,6 +1068,7 @@ func TestScanWellArchitected_AgentChildrenListStoredProfiles(t *testing.T) {
 // costing the tool, profile or sibling rows, and is not hidden by a transient
 // error elsewhere.
 func TestScanWellArchitected_AgentChildPhaseErrors(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("ThrottlingException", "Rate exceeded")
 	for _, tc := range []struct {
 		name, failing, sibling, sibType string
@@ -1308,6 +1327,7 @@ var waFixtureWarnOps = []string{waListLensesOp, waListProfilesOp, waListReviewTe
 // without an ARN. Every tool listing (ListWorkloads, ListLenses,
 // ListProfiles, ListReviewTemplates) sends MaxResults 50.
 func TestScanWA_StoresTagsOfTaggedTypes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newWAFixture("aws", testRegion)
@@ -1400,6 +1420,7 @@ func TestScanWA_StoresTagsOfTaggedTypes(t *testing.T) {
 }
 
 func TestScanWA_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newWAFixture("aws", testRegion)
 	if _, _, err := f.scan(context.Background(), st); err != nil {
@@ -1413,6 +1434,7 @@ func TestScanWA_RescanInsertsNone(t *testing.T) {
 
 // With every tool listing empty, no tag read and no child listing is made.
 func TestScanWA_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newWAFixture("aws", testRegion)
 	handlers := f.handlers()
@@ -1452,6 +1474,7 @@ func TestScanWA_EmptyListings(t *testing.T) {
 // error keeps it and is an error. A resource another account owns (Owner)
 // whose read is denied or not found is kept untagged and silent.
 func TestScanWA_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	f0 := newWAFixture("aws", testRegion)
 	for _, c := range []struct {
 		name, arn, typ string
@@ -1524,6 +1547,7 @@ func TestScanWA_TagReadFailures(t *testing.T) {
 // Denied tag reads in every tool listing send one warning for the whole
 // scan; the rows are kept.
 func TestScanWA_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, waTagsOp)
 	f := newWAFixture("aws", testRegion)
@@ -1543,6 +1567,7 @@ func TestScanWA_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanWA_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, waTagsOp)
 	f := newWAFixture("aws", testRegion)
@@ -1561,6 +1586,7 @@ func TestScanWA_TagThrottleDemotedBesideHardError(t *testing.T) {
 // later phase runs: a hard error is returned, a denial warns once. A failing
 // first page costs that listing only.
 func TestScanWA_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, key string
 		err       error
@@ -1610,6 +1636,7 @@ func TestScanWA_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // A repeated NextToken ends the listing with errRepeatedNextToken after its
 // first page is stored.
 func TestScanWA_RepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newWAFixture("aws", testRegion)
 	handlers := f.handlers()
@@ -1635,6 +1662,7 @@ func TestScanWA_RepeatedToken(t *testing.T) {
 }
 
 func TestScanWA_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "wellarchitected.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1667,6 +1695,7 @@ func TestScanWA_NXDOMAIN(t *testing.T) {
 // flight saw it in its listing; the later phases are not run, and the rows
 // stored before it are kept.
 func TestScanWA_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newWAFixture("aws", testRegion)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1702,6 +1731,7 @@ func TestScanWA_ContextEndReportedOnce(t *testing.T) {
 // denied tag read among them), no later phase runs, and the rows of the
 // phases before it stay stored.
 func TestScanWA_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeWellArchitectedLens)
@@ -1728,6 +1758,7 @@ func TestScanWA_FailedWriteStopsScan(t *testing.T) {
 // A workload stored without a WorkloadId on page one is not warned about
 // when page two's write fails: no warning follows a failed write.
 func TestScanWA_FailedWorkloadWriteSendsNoChildIDWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newWAFixture("aws", testRegion)
@@ -1769,6 +1800,7 @@ func TestScanWA_FailedWorkloadWriteSendsNoChildIDWarning(t *testing.T) {
 // A GovCloud or China ARN reaches the tag op unchanged and is the row's
 // NativeID.
 func TestScanWA_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range partitionFixtures {
 		t.Run(c.partition, func(t *testing.T) {
 			st := newTestStore(t)

@@ -231,6 +231,7 @@ func rekRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, b
 // base scan's Name, Status, Region and attributes; CreatedAt is the
 // element's CreationTimestamp where it has one.
 func TestScanRekognition_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newRekCalls()
@@ -312,6 +313,7 @@ func rekSamePtr(a, b *string) bool { return (a == nil) == (b == nil) && sv(a) ==
 // ARNs: the one its listing returns, and those built for collections and
 // stream processors in the account's partition.
 func TestScanRekognition_GovCloudARNsReachTagOp(t *testing.T) {
+	t.Parallel()
 	const (
 		govRegion  = "us-gov-west-1"
 		collection = "arn:aws-us-gov:rekognition:us-gov-west-1:123456789012:collection/faces-gov"
@@ -365,6 +367,7 @@ func TestScanRekognition_GovCloudARNsReachTagOp(t *testing.T) {
 // Empty listings store nothing, make no per-project listing, read no tags
 // and report nothing.
 func TestScanRekognition_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newRekCalls()
@@ -387,6 +390,7 @@ func TestScanRekognition_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanRekognition_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newRekCalls()
 	if _, _, err := rekScan(context.Background(), t, st, rekHandlers(calls)); err != nil {
@@ -407,6 +411,7 @@ func TestScanRekognition_RescanInsertsNone(t *testing.T) {
 // not-found drops the row. A project dropped as not found is no parent: its
 // datasets are not stored and its versions and policies not listed.
 func TestScanRekognition_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		typ, arn string
 		goneRows int
@@ -476,6 +481,7 @@ func TestScanRekognition_TagReadFailures(t *testing.T) {
 
 // Denied tag reads in several phases are one warning for the scan.
 func TestScanRekognition_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, rekTagsOp)
 	calls := newRekCalls()
@@ -505,6 +511,7 @@ func TestScanRekognition_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanRekognition_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, rekTagsOp)
 	calls := newRekCalls()
@@ -523,6 +530,7 @@ func TestScanRekognition_TagThrottleDemotedBesideHardError(t *testing.T) {
 // per-project listing, and costs no other phase its rows; denied projects
 // leave the per-project phases no project to read.
 func TestScanRekognition_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op   string
 		lost int
@@ -562,6 +570,7 @@ func TestScanRekognition_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // and sends no warning about the rows it lost, their denied tag reads
 // included.
 func TestScanRekognition_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	later := []string{"DescribeProjects", "DescribeProjectVersions", "ListStreamProcessors", "ListProjectPolicies"}
 	for _, c := range []struct {
 		typ, deniedARN string
@@ -601,6 +610,7 @@ func TestScanRekognition_FailedWriteStopsWithoutWarning(t *testing.T) {
 // before its versions were listed is skipped silently, and no listing's
 // failure stops the phases after it.
 func TestScanRekognition_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newRekCalls()
@@ -646,6 +656,7 @@ func TestScanRekognition_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // versions was read, and with one warning when its listing stopped part way.
 // The other project's versions are stored either way.
 func TestScanRekognition_ProjectGoneBeforeVersions(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		failPage  int
@@ -692,6 +703,7 @@ func TestScanRekognition_ProjectGoneBeforeVersions(t *testing.T) {
 // warned about once per listing, under a key that is never empty: a dataset
 // or version names its project.
 func TestScanRekognition_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	projectWithBareDataset := rekProject("t")
 	projectWithBareDataset.Datasets = append(projectWithBareDataset.Datasets, rekognitiontypes.DatasetMetadata{})
 	for _, c := range []struct {
@@ -735,6 +747,7 @@ func TestScanRekognition_UnstorableItemsWarn(t *testing.T) {
 // Each listed collection keeps the face model version at its index in
 // FaceModelVersions; one past the end of that list is stored without one.
 func TestScanRekognition_CollectionFaceModelVersions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := rekHandlers(newRekCalls())
 	h["ListCollections"] = func(any) (any, error) {
@@ -762,6 +775,7 @@ func TestScanRekognition_CollectionFaceModelVersions(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanRekognition_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	// out builds a new output per call: the SDK writes ResultMetadata into
 	// the output, and the projects' DescribeProjectVersions calls run
 	// concurrently.
@@ -794,6 +808,7 @@ func TestScanRekognition_RepeatedTokenKeepsPages(t *testing.T) {
 
 // Once ctx ends no further phase starts, and the stop is reported once.
 func TestScanRekognition_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newRekCalls()
 	h := rekHandlers(calls)
@@ -826,6 +841,7 @@ func TestScanRekognition_ContextEndStopsOnce(t *testing.T) {
 // stored) is unavailable and makes no other listing. An NXDOMAIN after rows
 // were stored is a failure of this scan: the counts are kept.
 func TestScanRekognition_Unreachable(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "rekognition.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("endpoint absent", func(t *testing.T) {
 		st := newTestStore(t)
@@ -855,6 +871,7 @@ func TestScanRekognition_Unreachable(t *testing.T) {
 // none of them, silently. The same answer on a later page follows a page the
 // op served, so it is warned about as a denial and the page read is kept.
 func TestScanRekognition_ClosedToNewCustomers(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op  string
 		page      int
@@ -888,6 +905,7 @@ func TestScanRekognition_ClosedToNewCustomers(t *testing.T) {
 }
 
 func TestScanRekognition_StoresProjectPolicies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newRekCalls()
 	if _, _, err := rekScan(context.Background(), t, st, rekHandlers(calls)); err != nil {
@@ -923,6 +941,7 @@ func TestScanRekognition_StoresProjectPolicies(t *testing.T) {
 }
 
 func TestScanRekognition_ProjectsWithoutPolicies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newRekCalls()
 	h := rekHandlers(calls)
@@ -947,6 +966,7 @@ func TestScanRekognition_ProjectsWithoutPolicies(t *testing.T) {
 // error fails the phase (childFanOut stores none of its rows) and is returned;
 // the earlier phases' rows stay.
 func TestScanRekognition_FailedPolicyParent(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		fail      map[string]error
@@ -998,6 +1018,7 @@ func TestScanRekognition_FailedPolicyParent(t *testing.T) {
 // A hard error in an earlier phase still lets the policy phase run over the
 // stored projects, and is returned.
 func TestScanRekognition_EarlierPhaseErrorStillRunsPolicies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := rekHandlers(newRekCalls())
 	h["ListStreamProcessors"] = func(any) (any, error) { return nil, rekBadInput }
@@ -1015,6 +1036,7 @@ func TestScanRekognition_EarlierPhaseErrorStillRunsPolicies(t *testing.T) {
 // op so that the policy phase's hard error still reaches the dispatcher as a
 // hard error.
 func TestScanRekognition_EarlierPhaseTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, rekListStreamProcessorsOp)
 	h := rekHandlers(newRekCalls())

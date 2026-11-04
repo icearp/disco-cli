@@ -16,6 +16,7 @@ const (
 
 // TestResolveDocDBClusterTargets verifies cluster → KMS + SG edges.
 func TestResolveDocDBClusterTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -47,6 +48,7 @@ func TestResolveDocDBClusterTargets(t *testing.T) {
 // Name set (cluster lookup is name-keyed) — bypass upsertTestResource
 // to populate Name.
 func TestResolveDocDBInstanceCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

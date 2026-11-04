@@ -20,6 +20,7 @@ const kafkaTestScramSecret = "arn:aws:secretsmanager:us-east-1:123456789012:secr
 // warning however many clusters hit it; the other clusters are still scanned.
 // Any other code fails the scan, naming the cluster.
 func TestScanKafka_PerClusterPhaseErrors(t *testing.T) {
+	t.Parallel()
 	both := []string{kafkaTestClusterA, kafkaTestClusterX}
 	onlyA := []string{kafkaTestClusterA}
 	for _, tc := range []struct {
@@ -101,6 +102,7 @@ func TestScanKafka_PerClusterPhaseErrors(t *testing.T) {
 // A ListScramSecrets listing that ends after its first page, with an error or
 // a repeated token, keeps the secrets that page listed and returns the error.
 func TestScanKafka_ScramLaterPageFailureKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		page2   func() (any, error)
@@ -177,6 +179,7 @@ func kafkaScramSecondPage(calls map[string]*parentCalls, err error) func(any) (a
 // in the op's model) took its associations with it: the rows of its earlier
 // pages are not stored, and the scan succeeds.
 func TestScanKafka_ScramClusterGoneMidListingDropsItsRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := kafkaHandlers(calls)
@@ -197,6 +200,7 @@ func TestScanKafka_ScramClusterGoneMidListingDropsItsRows(t *testing.T) {
 // warned about once, as partially read, and only after its first page is
 // stored.
 func TestScanKafka_ScramPartialReadWarnsAfterStore(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	h := kafkaHandlers(calls)

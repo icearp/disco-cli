@@ -8,6 +8,7 @@ import (
 )
 
 func TestApigatewayV2APIARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:apigateway:us-east-1::/apis/abc/routes/r1", "arn:aws:apigateway:us-east-1::/apis/abc"},
 		{"arn:aws:apigateway:us-east-1::/apis/abc/integrations/i1/integrationresponses/ir1", "arn:aws:apigateway:us-east-1::/apis/abc"},
@@ -22,6 +23,7 @@ func TestApigatewayV2APIARNFromChild(t *testing.T) {
 }
 
 func TestApigatewayV2DomainARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:apigateway:us-east-1::/domainnames/d.example.com/apimappings/m1", "arn:aws:apigateway:us-east-1::/domainnames/d.example.com"},
 		{"arn:aws:apigateway:us-east-1::/domainnames/d.example.com/routingrules/rr1", "arn:aws:apigateway:us-east-1::/domainnames/d.example.com"},
@@ -35,6 +37,7 @@ func TestApigatewayV2DomainARNFromChild(t *testing.T) {
 }
 
 func TestResolveAPIGatewayV2APIChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	apiARN := fmt.Sprintf("arn:aws:apigateway:%s::/apis/abc", testRegion)
@@ -53,6 +56,7 @@ func TestResolveAPIGatewayV2APIChildren(t *testing.T) {
 }
 
 func TestResolveAPIGatewayV2GrandparentChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	intARN := fmt.Sprintf("arn:aws:apigateway:%s::/apis/abc/integrations/i1", testRegion)
@@ -73,6 +77,7 @@ func TestResolveAPIGatewayV2GrandparentChildren(t *testing.T) {
 }
 
 func TestResolveAPIGatewayV2DomainChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := fmt.Sprintf("arn:aws:apigateway:%s::/domainnames/d.example.com", testRegion)
@@ -87,6 +92,7 @@ func TestResolveAPIGatewayV2DomainChildren(t *testing.T) {
 }
 
 func TestResolveAPIGatewayV2BasePathMappingTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	apiARN := fmt.Sprintf("arn:aws:apigateway:%s::/apis/abc", testRegion)
@@ -105,6 +111,7 @@ func TestResolveAPIGatewayV2BasePathMappingTargets(t *testing.T) {
 }
 
 func TestResolveAPIGatewayV2RouteTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	authARN := fmt.Sprintf("arn:aws:apigateway:%s::/apis/abc/authorizers/a1", testRegion)
@@ -123,6 +130,7 @@ func TestResolveAPIGatewayV2RouteTargets(t *testing.T) {
 }
 
 func TestResolveAPIGatewayV2IntegrationVpcLink(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vlARN := fmt.Sprintf("arn:aws:apigateway:%s::/vpclinks/vl1", testRegion)
@@ -141,6 +149,7 @@ func TestResolveAPIGatewayV2IntegrationVpcLink(t *testing.T) {
 }
 
 func TestResolveAPIGatewayV2StageRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	depARN := fmt.Sprintf("arn:aws:apigateway:%s::/apis/abc/deployments/d1", testRegion)

@@ -89,6 +89,7 @@ func ccTemplateRepoNames(t *testing.T, r store.Resource) (names []string, ok boo
 }
 
 func TestScanCCApprovalRuleTemplates_StoresEachTemplate(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &parentCalls{}
 	total, _, err := scanCCApprovalRuleTemplates(context.Background(), ccClient(ccTemplateHandlers(calls, nil)), newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -122,6 +123,7 @@ func TestScanCCApprovalRuleTemplates_StoresEachTemplate(t *testing.T) {
 }
 
 func TestScanCCApprovalRuleTemplates_SkipsGoneAndIDLessTemplates(t *testing.T) {
+	t.Parallel()
 	for name, override := range map[string]map[string]func(any) (any, error){
 		"get not found": {"GetApprovalRuleTemplate": func(in any) (any, error) {
 			if n := *in.(*codecommit.GetApprovalRuleTemplateInput).ApprovalRuleTemplateName; n == "t-2" {
@@ -157,6 +159,7 @@ func TestScanCCApprovalRuleTemplates_SkipsGoneAndIDLessTemplates(t *testing.T) {
 }
 
 func TestScanCCApprovalRuleTemplates_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := map[string]func(any) (any, error){
 		"ListApprovalRuleTemplates": func(any) (any, error) { return &codecommit.ListApprovalRuleTemplatesOutput{}, nil },
@@ -170,6 +173,7 @@ func TestScanCCApprovalRuleTemplates_Empty(t *testing.T) {
 // A denial on any template op warns once for that op; a denied association
 // listing keeps the template with a null association list.
 func TestScanCCApprovalRuleTemplates_AccessDenied(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op        string
 		wantTotal int
@@ -200,6 +204,7 @@ func TestScanCCApprovalRuleTemplates_AccessDenied(t *testing.T) {
 }
 
 func TestScanCCApprovalRuleTemplates_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListApprovalRuleTemplates", "GetApprovalRuleTemplate", "ListRepositoriesForApprovalRuleTemplate"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -231,6 +236,7 @@ func ccTrigger(name string) codecommittypes.RepositoryTrigger {
 }
 
 func TestScanCCRepositoryTriggers_StoresEachRepositorysTriggers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	repos := ccSeedRepos(t, st, "r-a", "r-b", "r-c")
 	calls := &parentCalls{}
@@ -278,6 +284,7 @@ func TestScanCCRepositoryTriggers_StoresEachRepositorysTriggers(t *testing.T) {
 }
 
 func TestScanCCRepositoryTriggers_Errors(t *testing.T) {
+	t.Parallel()
 	t.Run("access denied warns once", func(t *testing.T) {
 		st := newTestStore(t)
 		repos := ccSeedRepos(t, st, "r-a", "r-b")
@@ -304,6 +311,7 @@ func TestScanCCRepositoryTriggers_Errors(t *testing.T) {
 // One repository whose KMS key CodeCommit cannot use costs only that
 // repository's triggers: the others are stored and one warning is recorded.
 func TestScanCCRepositoryTriggers_BrokenKeySkipsOnlyThatRepository(t *testing.T) {
+	t.Parallel()
 	for _, code := range ccEncryptionKeyCodes {
 		t.Run(code, func(t *testing.T) {
 			st := newTestStore(t)
@@ -336,6 +344,7 @@ func TestScanCCRepositoryTriggers_BrokenKeySkipsOnlyThatRepository(t *testing.T)
 // A KMS error on one template's association listing keeps the template with a
 // null association list and warns once.
 func TestScanCCApprovalRuleTemplates_BrokenKeyKeepsTemplate(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "codecommit:ListRepositoriesForApprovalRuleTemplate")
 	keyErr := &smithy.GenericAPIError{Code: "EncryptionKeyDisabledException", Message: "key"}
@@ -366,6 +375,7 @@ func TestScanCCApprovalRuleTemplates_BrokenKeyKeepsTemplate(t *testing.T) {
 // Repositories are listed over every page and stored with GetRepository's
 // metadata as their attributes.
 func TestScanCCRepositories_StoresEachPageWithMetadata(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := map[string]func(any) (any, error){
 		"ListRepositories": func(in any) (any, error) {
@@ -439,6 +449,7 @@ func ccTopLevelHandlers(override map[string]func(any) (any, error)) map[string]f
 }
 
 func TestScanCodeCommitIn_RunsNewPhasesOverListedRepositories(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanCodeCommitIn(context.Background(), ccClient(ccTopLevelHandlers(nil)), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 3 {
@@ -454,6 +465,7 @@ func TestScanCodeCommitIn_RunsNewPhasesOverListedRepositories(t *testing.T) {
 // The new phases run after the repository phase: its row is stored and counted
 // when every new phase fails, and each new phase's error is returned.
 func TestScanCodeCommitIn_NewPhaseErrorsKeepRepositories(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	listErr := &smithy.GenericAPIError{Code: "InvalidMaxResultsException", Message: "templates"}
 	trigErr := &smithy.GenericAPIError{Code: "InvalidRepositoryNameException", Message: "triggers"}
@@ -472,6 +484,7 @@ func TestScanCodeCommitIn_NewPhaseErrorsKeepRepositories(t *testing.T) {
 
 // A repository-listing error is returned and the template phase still runs.
 func TestScanCodeCommitIn_RepositoryErrorKeepsTemplates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := ccTopLevelHandlers(map[string]func(any) (any, error){
 		"ListRepositories": func(any) (any, error) { return nil, ccBadInput },
@@ -488,6 +501,7 @@ func TestScanCodeCommitIn_RepositoryErrorKeepsTemplates(t *testing.T) {
 // A later phase's transient error alone is returned, so the scan is marked
 // partial rather than complete, with the earlier phase's rows counted.
 func TestScanCodeCommitIn_LoneTransientPhaseMarksPartial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "codecommit:ListApprovalRuleTemplates")
 	handlers := ccTopLevelHandlers(map[string]func(any) (any, error){
@@ -508,6 +522,7 @@ func TestScanCodeCommitIn_LoneTransientPhaseMarksPartial(t *testing.T) {
 // A later phase's NXDOMAIN is flattened to a plain error, so the dispatcher
 // does not report the region unavailable and drop the rows already stored.
 func TestScanCodeCommitIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := ccTopLevelHandlers(map[string]func(any) (any, error){
 		"ListApprovalRuleTemplates": func(any) (any, error) {
@@ -526,6 +541,7 @@ func TestScanCodeCommitIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
 // In a region with no codecommit endpoint the first phase's NXDOMAIN is
 // returned alone, so the dispatcher reports the region unavailable.
 func TestScanCodeCommitIn_UnreachableEndpointStopsTheScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &parentCalls{}
 	handlers := map[string]func(any) (any, error){}

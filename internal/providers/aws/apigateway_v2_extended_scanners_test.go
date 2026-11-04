@@ -331,6 +331,7 @@ func scanAGV2World(t *testing.T, st *store.Store, acct *account, region string, 
 }
 
 func TestScanAPIGatewayV2_StoresEveryListing(t *testing.T) {
+	t.Parallel()
 	for _, partition := range []string{"aws", "aws-cn", "aws-us-gov"} {
 		t.Run(partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -399,6 +400,7 @@ func assertAttrsOf(t *testing.T, attrs string, element any) {
 // The tags each listed API, domain name, VPC link and stage carries are
 // stored; an element without tags stores none.
 func TestScanAPIGatewayV2_StoresElementTags(t *testing.T) {
+	t.Parallel()
 	tags := map[string]string{"env": "prod", "team": "api"}
 	w := newAGV2World()
 	w.set("GetApis", "", agv2Page{items: []any{apigwv2types.Api{ApiId: sdkaws.String("a1"), Tags: tags}, apigwv2types.Api{ApiId: sdkaws.String("a2")}}})
@@ -431,6 +433,7 @@ func TestScanAPIGatewayV2_StoresElementTags(t *testing.T) {
 // Every listing, given a failure of its own, keeps what it read, warns or
 // returns under its own op, and costs no other listing its rows.
 func TestScanAPIGatewayV2_ListingFailures(t *testing.T) {
+	t.Parallel()
 	denied := apiErr("AccessDeniedException", "User: x is not authorized to perform: apigateway:GET")
 	type outcome struct {
 		rows    int              // rows of the failing listing
@@ -524,6 +527,7 @@ func agv2DependsOn(child, parent agv2Listing) bool {
 // One integration's failed responses listing costs the other integrations
 // none of theirs, and is returned under GetIntegrationResponses.
 func TestScanAPIGatewayV2_OneParentFailureKeepsSiblingParents(t *testing.T) {
+	t.Parallel()
 	w := newAGV2World()
 	w.set("GetIntegrationResponses", "a1/i1", agv2Page{err: apiErr("BadRequestException", "bad")})
 	w.set("GetIntegrationResponses", "a1/i2", agv2Page{items: []any{apigwv2types.IntegrationResponse{IntegrationResponseId: sdkaws.String("x")}}})
@@ -553,6 +557,7 @@ func TestScanAPIGatewayV2_OneParentFailureKeepsSiblingParents(t *testing.T) {
 // warning under its own op, which shows the op each error is filed under;
 // the hard error alone is returned.
 func TestScanAPIGatewayV2_TransientBesideHardErrorWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, parent string }{
 		{"GetStages", "a1"},
 		{"GetIntegrationResponses", "a1/i1"},
@@ -581,6 +586,7 @@ func TestScanAPIGatewayV2_TransientBesideHardErrorWarnsUnderItsOp(t *testing.T) 
 // An error in one family stores every other family's rows, the developer
 // portals' included, and counts them.
 func TestScanAPIGatewayV2_FamilyErrorKeepsOtherFamilies(t *testing.T) {
+	t.Parallel()
 	w := newAGV2World()
 	w.set("GetStages", "a1", agv2Page{err: apiErr("BadRequestException", "bad")})
 	w.set("GetVpcLinks", "", agv2Page{err: apiErr("ConflictException", "boom")})
@@ -608,6 +614,7 @@ func TestScanAPIGatewayV2_FamilyErrorKeepsOtherFamilies(t *testing.T) {
 // on every first call, with nothing stored, stays the region-unavailable
 // signal.
 func TestScanAPIGatewayV2_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	dns := &net.DNSError{Err: "no such host", Name: "apigateway.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("late", func(t *testing.T) {
 		w := newAGV2World()
@@ -668,6 +675,7 @@ func countStops(err error) int {
 
 // A ctx end seen by several families at once is one error, not one per family.
 func TestScanAPIGatewayV2_CtxEndIsOneStop(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	w := newAGV2World()
@@ -693,6 +701,7 @@ func TestScanAPIGatewayV2_CtxEndIsOneStop(t *testing.T) {
 // A failed write returns the write error and sends no warning: the rows the
 // warnings vouch for were not stored.
 func TestScanAPIGatewayV2_FailedWriteSendsNoWarning(t *testing.T) {
+	t.Parallel()
 	w := newAGV2World()
 	w.set("GetStages", "a1", agv2Page{items: []any{apigwv2types.Stage{StageName: sdkaws.String("prod")}, apigwv2types.Stage{}}, next: sdkaws.String("1")},
 		agv2Page{err: apiErr("AccessDeniedException", "User: x is not authorized to perform: apigateway:GET")})
@@ -711,6 +720,7 @@ func TestScanAPIGatewayV2_FailedWriteSendsNoWarning(t *testing.T) {
 }
 
 func TestAGV2ChildKey_RoundTrips(t *testing.T) {
+	t.Parallel()
 	for _, c := range [][2]string{{"a1b2c3", "i9"}, {"x", ""}} {
 		if api, child := agv2SplitKey(agv2ChildKey(c[0], c[1])); api != c[0] || child != c[1] {
 			t.Errorf("agv2SplitKey(agv2ChildKey(%q, %q)) = %q, %q", c[0], c[1], api, child)

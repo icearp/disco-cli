@@ -270,6 +270,7 @@ func (c rhParentCase) returnsParents() bool { return c.typ != TypeResilienceHubP
 // and an element with no ARN is skipped with one warning under the listing.
 // Services and systems hand their stored ARNs on as fan-out parents.
 func TestRHV2ParentScanners_PaginatesHomedRowsOnly(t *testing.T) {
+	t.Parallel()
 	for _, c := range rhParentCases() {
 		t.Run(c.name, func(t *testing.T) {
 			own1, own2 := rhARN(testAccountID, c.kind, "a"), rhARN(testAccountID, c.kind, "b")
@@ -320,6 +321,7 @@ func TestRHV2ParentScanners_PaginatesHomedRowsOnly(t *testing.T) {
 }
 
 func TestRHV2ParentScanners_Empty(t *testing.T) {
+	t.Parallel()
 	for _, c := range rhParentCases() {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -333,6 +335,7 @@ func TestRHV2ParentScanners_Empty(t *testing.T) {
 }
 
 func TestRHV2ParentScanners_AccessDeniedWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range rhParentCases() {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -350,6 +353,7 @@ func TestRHV2ParentScanners_AccessDeniedWarns(t *testing.T) {
 }
 
 func TestRHV2ParentScanners_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	for _, c := range rhParentCases() {
 		t.Run(c.name, func(t *testing.T) {
 			stub := &rhV2Stub{errs: map[string]error{c.op: apiErr("ValidationException", "bad")}}
@@ -364,6 +368,7 @@ func TestRHV2ParentScanners_OtherErrorPropagates(t *testing.T) {
 // An unrouted first ListPolicies call in a region where only v1 is deployed
 // reports the v2 API absent, silently: no error, no warning, no row.
 func TestRHV2Policies_NotDeployedReportsAbsent(t *testing.T) {
+	t.Parallel()
 	for name, gap := range map[string]error{
 		"UnknownOperationException": apiErr("UnknownOperationException", ""),
 		"NotFoundException":         apiErr("NotFoundException", "Unable to determine service/operation name to be authorized"),
@@ -387,6 +392,7 @@ func TestRHV2Policies_NotDeployedReportsAbsent(t *testing.T) {
 // not-deployed shape on a later page is a real failure, not a skip, and the
 // first page's row is kept.
 func TestRHV2Policies_NotDeployedShapeAfterFirstPageErrors(t *testing.T) {
+	t.Parallel()
 	policyARN := rhARN(testAccountID, "policy", "a")
 	c := rhParentCases()[0]
 	stub := &rhV2Stub{
@@ -526,6 +532,7 @@ func assertRHChild(t *testing.T, st *store.Store, rows map[string]store.Resource
 }
 
 func TestRHV2ChildScanners_PaginatesEveryParent(t *testing.T) {
+	t.Parallel()
 	for _, c := range rhChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			p1, p2 := c.parent("p1"), c.parent("p2")
@@ -549,6 +556,7 @@ func TestRHV2ChildScanners_PaginatesEveryParent(t *testing.T) {
 }
 
 func TestRHV2ChildScanners_Empty(t *testing.T) {
+	t.Parallel()
 	for _, c := range rhChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			total, rows, warns, _ := runRHChild(t, c, &rhV2Stub{}, []string{c.parent("p1")})
@@ -560,6 +568,7 @@ func TestRHV2ChildScanners_Empty(t *testing.T) {
 }
 
 func TestRHV2ChildScanners_NoParentsMakesNoCalls(t *testing.T) {
+	t.Parallel()
 	for _, c := range rhChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			stub := &rhV2Stub{}
@@ -574,6 +583,7 @@ func TestRHV2ChildScanners_NoParentsMakesNoCalls(t *testing.T) {
 }
 
 func TestRHV2ChildScanners_ParentNotFoundSkipped(t *testing.T) {
+	t.Parallel()
 	for _, c := range rhChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			p1, p2 := c.parent("p1"), c.parent("p2")
@@ -591,6 +601,7 @@ func TestRHV2ChildScanners_ParentNotFoundSkipped(t *testing.T) {
 }
 
 func TestRHV2ChildScanners_AccessDeniedWarnsOnceAndContinues(t *testing.T) {
+	t.Parallel()
 	for _, c := range rhChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			p1, p2, p3 := c.parent("p1"), c.parent("p2"), c.parent("p3")
@@ -612,6 +623,7 @@ func TestRHV2ChildScanners_AccessDeniedWarnsOnceAndContinues(t *testing.T) {
 }
 
 func TestRHV2ChildScanners_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	for _, c := range rhChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			p1 := c.parent("p1")

@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveKAV2ChildrenToApp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appARN := fmt.Sprintf("arn:aws:kinesisanalytics:%s:%s:application/app1", testRegion, acct.ID)
@@ -26,6 +27,7 @@ func TestResolveKAV2ChildrenToApp(t *testing.T) {
 }
 
 func TestResolveKAV2AppRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

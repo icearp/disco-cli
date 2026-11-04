@@ -24,6 +24,7 @@ func logStreamJSON(t *testing.T, s logsTypes.LogStream) string {
 // against the real SDK shape — an UploadSequenceToken field rename breaks this
 // on `go mod tidy`, the same drift catch aws_redact_test.go provides.
 func TestVolatile_LogStream_DropsUploadSequenceToken(t *testing.T) {
+	t.Parallel()
 	s := logsTypes.LogStream{
 		LogStreamName:       ptrStr("2026/06/26/[$LATEST]abc"),
 		Arn:                 ptrStr("arn:aws:logs:us-east-2:111:log-group:/g:log-stream:s"),
@@ -53,6 +54,7 @@ func TestVolatile_LogStream_DropsUploadSequenceToken(t *testing.T) {
 // not version-split (the aws init() registers the rule; UpsertResources runs
 // volatile.Apply before its jsonEqual comparison).
 func TestVolatile_LogStream_NoSplitOnTokenChange(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 
 	base := logsTypes.LogStream{
@@ -80,6 +82,7 @@ func TestVolatile_LogStream_NoSplitOnTokenChange(t *testing.T) {
 // TestVolatile_LogStream_SplitOnRealChange is the negative-space companion: a
 // real activity change (LastEventTimestamp advancing) still version-splits.
 func TestVolatile_LogStream_SplitOnRealChange(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 
 	base := logsTypes.LogStream{

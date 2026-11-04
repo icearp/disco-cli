@@ -124,6 +124,7 @@ func scanSynCtx(ctx context.Context, t *testing.T, st *store.Store, handlers map
 // as attributes, and its tags. A canary without a name is not stored and is
 // warned about once under its id.
 func TestScanSynthetics_CanaryRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warns []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) {
@@ -163,6 +164,7 @@ func TestScanSynthetics_CanaryRows(t *testing.T) {
 // A failed later page keeps the canaries read before it: a denial warns once
 // and is not returned, any other error and a repeated token are returned.
 func TestScanSynthetics_CanaryLaterPageFails(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -207,6 +209,7 @@ func TestScanSynthetics_CanaryLaterPageFails(t *testing.T) {
 
 // A hard error in either phase is returned, and the other phase still runs.
 func TestScanSynthetics_PhaseErrorPropagates(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op                      string
 		wantTotal, wantCanaries int
@@ -240,6 +243,7 @@ func TestScanSynthetics_PhaseErrorPropagates(t *testing.T) {
 // A throttled phase beside the other phase's hard error is demoted to one
 // warning under its op, so the scan reads as an error, not as transient.
 func TestScanSynthetics_TransientPhaseDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	for _, c := range []struct{ throttled, hard string }{
 		{"DescribeCanaries", "ListGroups"},
@@ -268,6 +272,7 @@ func TestScanSynthetics_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 // A throttled canary phase alone is returned, so the scan reads as partial,
 // with the group phase's rows counted.
 func TestScanSynthetics_TransientCanaryPhaseReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := synHandlers()
 	h["DescribeCanaries"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "Rate exceeded") }
@@ -283,6 +288,7 @@ func TestScanSynthetics_TransientCanaryPhaseReturned(t *testing.T) {
 // A failed canary write stops the scan before the group phase, and warns
 // about nothing: no row was stored.
 func TestScanSynthetics_CanaryWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeSyntheticsCanary)
 	warns := countOpWarnings(st, synDescribeCanariesOp)
@@ -305,6 +311,7 @@ func TestScanSynthetics_CanaryWriteFailureStops(t *testing.T) {
 // the first page's canary is stored and the stop is returned. A ctx stop is
 // not a store write failure, so the group phase still makes its call.
 func TestScanSynthetics_ContextEndsDuringCanaries(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -342,6 +349,7 @@ func TestScanSynthetics_ContextEndsDuringCanaries(t *testing.T) {
 // ARN, Name, the element verbatim as attributes, and no tags. A group without
 // an ARN is not stored and is warned about once under its id.
 func TestScanSynthetics_GroupRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warns []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) {
@@ -380,6 +388,7 @@ func TestScanSynthetics_GroupRows(t *testing.T) {
 // warns once and is not returned, any other error and a repeated token are
 // returned.
 func TestScanSynthetics_GroupLaterPageFails(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -425,6 +434,7 @@ func TestScanSynthetics_GroupLaterPageFails(t *testing.T) {
 // A denied first ListGroups page stores no group and warns once, and the
 // canaries are still counted.
 func TestScanSynthetics_GroupsDenied(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, synListGroupsOp)
 	h := synHandlers()
@@ -444,6 +454,7 @@ func TestScanSynthetics_GroupsDenied(t *testing.T) {
 // A rescan of unchanged canaries and groups on the same store reports the
 // real total and nothing inserted.
 func TestScanSynthetics_RescanInsertsNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	h := synHandlers()

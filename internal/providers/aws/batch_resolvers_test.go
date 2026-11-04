@@ -37,6 +37,7 @@ func batchJobDefARN() string {
 // TestResolveBatchComputeEnvironmentTargets exercises every compute-env
 // edge: service role, instance role, subnet, SG.
 func TestResolveBatchComputeEnvironmentTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -71,6 +72,7 @@ func TestResolveBatchComputeEnvironmentTargets(t *testing.T) {
 // TestResolveBatchJobQueueComputeEnvs verifies job-queue → compute-env
 // edges with ordered priority preserved in edge attrs.
 func TestResolveBatchJobQueueComputeEnvs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -93,6 +95,7 @@ func TestResolveBatchJobQueueComputeEnvs(t *testing.T) {
 // TestResolveBatchJobDefinitionTargets verifies job-def → IAM roles +
 // ECR repo edges.
 func TestResolveBatchJobDefinitionTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -122,6 +125,7 @@ func TestResolveBatchJobDefinitionTargets(t *testing.T) {
 }
 
 func TestResolveBatchQuotaShareJobQueue(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -142,6 +146,7 @@ func TestResolveBatchQuotaShareJobQueue(t *testing.T) {
 }
 
 func TestResolveBatchQuotaShareJobQueue_UnscannedQueue(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -165,6 +170,7 @@ func TestResolveBatchQuotaShareJobQueue_UnscannedQueue(t *testing.T) {
 // A row whose attributes do not decode is returned as an error after the
 // walk, and costs the rows on either side of it none of their edges.
 func TestResolveBatch_DecodeErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/%s", testAccountID, testBatchJobRole)
 	for _, tc := range []struct {
 		name                string

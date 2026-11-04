@@ -95,6 +95,7 @@ func scanSSMITopLevel(t *testing.T, st *store.Store, handlers map[string]func(in
 }
 
 func TestScanSSMIncidents_StoresResourcePoliciesUnderTheirPlan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls parentCalls
 	if _, _, err := scanSSMITopLevel(t, st, ssmiHandlers(&policyCalls)); err != nil {
@@ -131,6 +132,7 @@ func TestScanSSMIncidents_StoresResourcePoliciesUnderTheirPlan(t *testing.T) {
 // Two plans each holding a pol-a keep two identities, and neither shares its
 // plan's identity.
 func TestScanSSMIncidents_ResourcePolicyIdentityIsScopedToItsPlan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls parentCalls
 	if _, _, err := scanSSMITopLevel(t, st, ssmiHandlers(&policyCalls)); err != nil {
@@ -146,6 +148,7 @@ func TestScanSSMIncidents_ResourcePolicyIdentityIsScopedToItsPlan(t *testing.T) 
 }
 
 func TestScanSSMIncidents_NoPlansNoPolicyCalls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls parentCalls
 	h := ssmiHandlers(&policyCalls)
@@ -165,6 +168,7 @@ func TestScanSSMIncidents_NoPlansNoPolicyCalls(t *testing.T) {
 // a denial warns once however many plans hit it, and any other error fails
 // the scan.
 func TestScanSSMIncidents_FailedResourcePolicyPlan(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		err      error
@@ -203,6 +207,7 @@ func TestScanSSMIncidents_FailedResourcePolicyPlan(t *testing.T) {
 // The resource-policy phase runs after every pre-existing phase, and its hard
 // error reaches the caller.
 func TestScanSSMIncidents_ResourcePolicyErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls parentCalls
 	h := ssmiHandlers(&policyCalls)
@@ -227,6 +232,7 @@ func TestScanSSMIncidents_ResourcePolicyErrorAfterExistingPhases(t *testing.T) {
 // Every stored row counts once in the totals: 1 replication set, 2 response
 // plans and 3 resource policies. On a fresh store every row is new.
 func TestScanSSMIncidents_TotalsCountEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls parentCalls
 	total, inserted, err := scanSSMITopLevel(t, st, ssmiHandlers(&policyCalls))
@@ -240,6 +246,7 @@ func TestScanSSMIncidents_TotalsCountEveryPhase(t *testing.T) {
 
 // The client is pinned to the scanned region, not the config's default.
 func TestScanSSMIncidents_CallsGoToScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var policyCalls, regions parentCalls
@@ -318,6 +325,7 @@ func assertSSMIRowsFrom(t *testing.T, st *store.Store, want string) {
 // it is the lexically first scanned member, ahead of ap-south-1, which sorts
 // first but is not in the set. Either scan order gives the same result.
 func TestScanSSMIncidents_StoresRegionlessRowsFromOneRegion(t *testing.T) {
+	t.Parallel()
 	scanned := []string{"us-west-2", "eu-west-1", "ap-south-1"}
 	for _, order := range [][]string{scanned, {"ap-south-1", "eu-west-1", "us-west-2"}} {
 		t.Run(order[0]+" first", func(t *testing.T) {
@@ -343,6 +351,7 @@ func TestScanSSMIncidents_StoresRegionlessRowsFromOneRegion(t *testing.T) {
 // When the scan leaves out the first member, the lexically first scanned
 // member stores; when it covers no member, the lexically first scanned region.
 func TestScanSSMIncidents_StoreRegionFallback(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		scanned []string
@@ -461,6 +470,7 @@ func reversed(s []string) []string {
 // Each region warns once, however many sets it listed, beside its one
 // GetReplicationSet denial warning, and probes the other region once.
 func TestScanSSMIncidents_BlindEverywhereStoresOnce(t *testing.T) {
+	t.Parallel()
 	scanned := []string{"us-west-2", "eu-west-1"}
 	for _, order := range [][]string{scanned, reversed(scanned)} {
 		t.Run(order[0]+" first", func(t *testing.T) {
@@ -503,6 +513,7 @@ func TestScanSSMIncidents_BlindEverywhereStoresOnce(t *testing.T) {
 // another twice or probes itself, and eu-west-1 stops at blind ap-south-1. A
 // denied probe adds no warning; only each blind region's own scan warns.
 func TestScanSSMIncidents_ReaderElectsPastBlindRegions(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name       string
 		scanned    []string
@@ -565,6 +576,7 @@ func TestScanSSMIncidents_ReaderElectsPastBlindRegions(t *testing.T) {
 // region; a reader behind a readable candidate probes that candidate once,
 // elects it, and probes no further.
 func TestScanSSMIncidents_ProbesStopAtElection(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		region    string
@@ -592,6 +604,7 @@ func TestScanSSMIncidents_ProbesStopAtElection(t *testing.T) {
 // A probe that finds the set missing (modelled ResourceNotFoundException)
 // skips that candidate: the reader behind it elects itself and stores.
 func TestScanSSMIncidents_ProbeNotFoundSkipsCandidate(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls parentCalls
 	h, calls := ssmiGetByRegion(ssmiRegionMapHandlers(&policyCalls, "eu-west-1", "us-west-2"), map[string]error{"eu-west-1": ssmiGone})
@@ -607,6 +620,7 @@ func TestScanSSMIncidents_ProbeNotFoundSkipsCandidate(t *testing.T) {
 // say whether the candidate can store the rows. The same holds for a reader
 // and for a blind region.
 func TestScanSSMIncidents_ProbeErrorFailsScan(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		errs map[string]error
@@ -635,6 +649,7 @@ func TestScanSSMIncidents_ProbeErrorFailsScan(t *testing.T) {
 // every listed set, an unreadable one with empty attributes, without the blind
 // warning.
 func TestScanSSMIncidents_PartlyReadableRegionElects(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := ssmiWarningsByService(st)
 	var policyCalls parentCalls
@@ -669,6 +684,7 @@ func TestScanSSMIncidents_PartlyReadableRegionElects(t *testing.T) {
 // as before, so the lexically first scanned region stores the response plans
 // and their policies, without a warning.
 func TestScanSSMIncidents_NoSetListedElectsFirstScanned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := ssmiWarningsByService(st)
 	var policyCalls parentCalls
@@ -690,6 +706,7 @@ func TestScanSSMIncidents_NoSetListedElectsFirstScanned(t *testing.T) {
 // and, once it has stored rows, warns once that it elected without a
 // RegionMap. A region that reads the set stays quiet.
 func TestScanSSMIncidents_ListDeniedElectionWarns(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		list     func(any) (any, error)
@@ -719,6 +736,7 @@ func TestScanSSMIncidents_ListDeniedElectionWarns(t *testing.T) {
 // stores nothing, so it does not warn that it stored the rows; the region that
 // reads the set stores them.
 func TestScanSSMIncidents_RegionDeniedDoesNotWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ssmIncidentsService)
 	var policyCalls parentCalls
@@ -753,6 +771,7 @@ func TestScanSSMIncidents_RegionDeniedDoesNotWarn(t *testing.T) {
 // A replication set deleted between ListReplicationSets and GetReplicationSet
 // (modelled ResourceNotFoundException) is skipped; its sibling is stored.
 func TestScanSSMIncidents_ReplicationSetDeletedSinceListing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls parentCalls
 	h := ssmiRegionMapHandlers(&policyCalls, testRegion)
@@ -804,6 +823,7 @@ func scanSSMIAccount(t *testing.T, h map[string]func(in any) (any, error), confi
 // A configured region the account has not opted into is never elected, even
 // as the lexically first member: the scan never runs there.
 func TestScanSSMIncidents_NotOptedInRegionNotElected(t *testing.T) {
+	t.Parallel()
 	var policyCalls parentCalls
 	h := ssmiRegionMapHandlers(&policyCalls, "ap-northeast-1", "us-west-2")
 	var planRegions parentCalls
@@ -819,6 +839,7 @@ func TestScanSSMIncidents_NotOptedInRegionNotElected(t *testing.T) {
 // there.
 // Depends on the shipped SDK table (awsregions) having no ssm-incidents endpoint in af-south-1.
 func TestScanSSMIncidents_FallbackSkipsRegionWithoutService(t *testing.T) {
+	t.Parallel()
 	var policyCalls parentCalls
 	h := ssmiRegionMapHandlers(&policyCalls, "ap-northeast-1")
 	regions := []string{"af-south-1", "us-west-2", "eu-west-1"}
@@ -831,6 +852,7 @@ func TestScanSSMIncidents_FallbackSkipsRegionWithoutService(t *testing.T) {
 }
 
 func TestSSMIncidentsCandidates(t *testing.T) {
+	t.Parallel()
 	set := func(status map[string]ssmitypes.RegionStatus) []ssmIReplicationSet {
 		m := map[string]ssmitypes.RegionInfo{}
 		for r, st := range status {
@@ -870,6 +892,7 @@ func TestSSMIncidentsCandidates(t *testing.T) {
 // since listing is skipped with its policies, and any other error fails the
 // scan.
 func TestScanSSMIncidents_GetResponsePlanErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -933,6 +956,7 @@ func ssmiDenyAllIn(withCtx map[string]func(context.Context, any) (any, error), r
 // region's probe of it finds it cannot store and goes on: blind us-west-2 is
 // then the first blind region and stores, once, in either scan order.
 func TestScanSSMIncidents_AllDeniedRegionIsNotBlind(t *testing.T) {
+	t.Parallel()
 	scanned := []string{"eu-west-1", "us-west-2"}
 	for _, order := range [][]string{scanned, reversed(scanned)} {
 		t.Run(order[0]+" first", func(t *testing.T) {
@@ -971,6 +995,7 @@ func ssmiThreeSetHandlers(policyCalls *parentCalls, readable func(region, arn st
 // find it blind, and the rows would be stored twice. Both a reader's probe and a blind region's
 // probe are covered, each in either scan order.
 func TestScanSSMIncidents_ProbeUsesSmallestARN(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		readable func(region, arn string) bool
@@ -1011,6 +1036,7 @@ func TestScanSSMIncidents_ProbeUsesSmallestARN(t *testing.T) {
 // out. ap-south-1's own scan is not run: it lists no set and would elect by
 // the scanned-region fallback (a known gap on ssmIncidentsStoreRegion).
 func TestScanSSMIncidents_BlindProbeSkipsNotFound(t *testing.T) {
+	t.Parallel()
 	scanned := []string{"ap-south-1", "eu-west-1", "us-west-2"}
 	for _, order := range [][]string{{"eu-west-1", "us-west-2"}, {"us-west-2", "eu-west-1"}} {
 		t.Run(order[0]+" first", func(t *testing.T) {
@@ -1038,6 +1064,7 @@ func ssmiClientIn(handlers map[string]func(context.Context, any) (any, error)) f
 // The blind election reports which way it went: a reader found, a blind
 // region ahead, or region itself elected, naming the deciding region.
 func TestSSMIncidentsBlindElection_Outcome(t *testing.T) {
+	t.Parallel()
 	blindSets := []ssmIReplicationSet{{arn: ssmiRSetARN}}
 	scanned := []string{"ap-south-1", "eu-west-1", "us-west-2"}
 	for _, tc := range []struct {
@@ -1069,6 +1096,7 @@ func TestSSMIncidentsBlindElection_Outcome(t *testing.T) {
 // A region missing from the scanned list cannot take part in either election;
 // both return an error rather than electing nobody.
 func TestSSMIncidentsElection_RegionNotScanned(t *testing.T) {
+	t.Parallel()
 	var policyCalls parentCalls
 	h, _ := ssmiGetByRegion(ssmiHandlers(&policyCalls), nil)
 	clientIn := ssmiClientIn(h)
@@ -1085,6 +1113,7 @@ func TestSSMIncidentsElection_RegionNotScanned(t *testing.T) {
 // A probe maps the candidate's GetReplicationSet and, after a denial, its
 // ListReplicationSets answer to what the candidate can do in the election.
 func TestSSMIncidentsProbeReplicationSet(t *testing.T) {
+	t.Parallel()
 	listed := func(any) (any, error) {
 		return &ssmincidents.ListReplicationSetsOutput{ReplicationSetArns: []string{ssmiRSetARN}}, nil
 	}
@@ -1127,6 +1156,7 @@ func TestSSMIncidentsProbeReplicationSet(t *testing.T) {
 // reads the set and stores, us-west-2 is blind and stores nothing, in either
 // scan order.
 func TestScanSSMIncidents_BlindStaysOutForReaderAhead(t *testing.T) {
+	t.Parallel()
 	scanned := []string{"eu-west-1", "us-west-2"}
 	for _, order := range [][]string{scanned, reversed(scanned)} {
 		t.Run(order[0]+" first", func(t *testing.T) {

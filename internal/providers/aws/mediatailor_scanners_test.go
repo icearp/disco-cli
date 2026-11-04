@@ -87,6 +87,7 @@ func scanMTFunctionsWith(st *store.Store, handler func(in any) (any, error)) (in
 // Both pages are stored at page size 100, and an element without an ARN is
 // skipped.
 func TestScanMTFunctions_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var pages mtFunctionPages
 	total, err := scanMTFunctionsWith(st, pages.handler(nil))
@@ -126,6 +127,7 @@ func TestScanMTFunctions_StoresEveryPage(t *testing.T) {
 // Elements listed without an ARN are not stored, and the region gets exactly
 // one warning for them however many there are.
 func TestScanMTFunctions_ARNlessElementsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var scopes []string
 	st.OnWarn = func(w store.ScanWarning) {
@@ -147,6 +149,7 @@ func TestScanMTFunctions_ARNlessElementsWarnOnce(t *testing.T) {
 }
 
 func TestScanMTFunctions_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanMTFunctionsWith(st, func(any) (any, error) { return &mediatailor.ListFunctionsOutput{}, nil })
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeMediaTailorFunction)) != 0 {
@@ -157,6 +160,7 @@ func TestScanMTFunctions_Empty(t *testing.T) {
 // On the first call, the unrouted-operation shapes are a silent feature gap
 // and a denial warns once; any other error is returned.
 func TestScanMTFunctions_FirstPageError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -190,6 +194,7 @@ func TestScanMTFunctions_FirstPageError(t *testing.T) {
 // every other error, the not-deployed shapes included, is returned with page
 // one's row stored.
 func TestScanMTFunctions_PageTwoError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -231,6 +236,7 @@ func TestScanMTFunctions_PageTwoError(t *testing.T) {
 
 // A failed write of the rows listed before a list error reports both errors.
 func TestScanMTFunctions_WriteAndListErrorsBothReported(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closed.db"))
 	if err != nil {
@@ -271,6 +277,7 @@ func mediaTailorScanHandlers(fns *mtFunctionPages, overrides map[string]func(any
 // The function phase runs in the scan's own region alongside the playback
 // configurations.
 func TestScanMediaTailor_StoresFunctions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var fns mtFunctionPages
@@ -300,6 +307,7 @@ func TestScanMediaTailor_StoresFunctions(t *testing.T) {
 // A function-phase hard error reaches the caller with the playback
 // configuration and the functions' own page-one row stored and counted.
 func TestScanMediaTailor_FunctionErrorAfterMediaPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var fns mtFunctionPages
@@ -323,6 +331,7 @@ func TestScanMediaTailor_FunctionErrorAfterMediaPhase(t *testing.T) {
 // A hard error in the media phase does not cost the functions: they are stored
 // and counted, and the media error still reaches the caller.
 func TestScanMediaTailor_MediaErrorStillScansFunctions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var fns mtFunctionPages
@@ -493,6 +502,7 @@ func assertMTRow(t *testing.T, st *store.Store, typ, arn, name string, element a
 // Every media type is stored with its listed element as attributes and the
 // element's tags; an untagged element stores no tags.
 func TestScanMediaTailorAll_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls mtCalls
 	var fns mtFunctionPages
@@ -534,6 +544,7 @@ func TestScanMediaTailorAll_StoresEveryTypeWithTags(t *testing.T) {
 // Each call carries the parent it was made for, the token of the page before,
 // the model's page cap of 100, and no other filter.
 func TestScanMediaTailorAll_RequestInputs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls mtCalls
 	var fns mtFunctionPages
@@ -608,6 +619,7 @@ func TestScanMediaTailorAll_RequestInputs(t *testing.T) {
 // A failed second channel page keeps ch1, whose policy and schedule are still
 // read; every later phase runs; the error is returned.
 func TestScanMediaTailorAll_ChannelPageTwoErrorKeepsPageOne(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls mtCalls
 	var fns mtFunctionPages
@@ -634,6 +646,7 @@ func TestScanMediaTailorAll_ChannelPageTwoErrorKeepsPageOne(t *testing.T) {
 // A hard error in every account-wide listing but functions still lets each
 // later phase run, and every error reaches the caller.
 func TestScanMediaTailorAll_PhaseErrorsDoNotStopLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls mtCalls
 	var fns mtFunctionPages
@@ -660,6 +673,7 @@ func TestScanMediaTailorAll_PhaseErrorsDoNotStopLaterPhases(t *testing.T) {
 // A denied per-channel read warns once for its op, naming the account and
 // region, and costs no other row.
 func TestScanMediaTailorAll_ChildDenialWarnsOncePerOp(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op        string
 		wantTotal int
@@ -703,6 +717,7 @@ func TestScanMediaTailorAll_ChildDenialWarnsOncePerOp(t *testing.T) {
 // A hard error for one parent keeps its siblings' rows and is returned. The
 // child listings model no error, so a not-found answer is returned too.
 func TestScanMediaTailorAll_ChildErrorKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		err  error
@@ -735,6 +750,7 @@ func TestScanMediaTailorAll_ChildErrorKeepsSiblings(t *testing.T) {
 // The policy and schedule reads model no error, so a not-found or bad-request
 // answer for ch2 is returned, and ch1's policy and program are still stored.
 func TestScanMediaTailorAll_ChannelReadErrorKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"GetChannelPolicy", "GetChannelSchedule"} {
 		for _, tc := range []struct {
 			err  error
@@ -774,6 +790,7 @@ func TestScanMediaTailorAll_ChannelReadErrorKeepsSiblings(t *testing.T) {
 // A playback configuration listed without a name is stored, its prefetch
 // schedules are not read, and the region gets one warning for it.
 func TestScanMediaTailorAll_NamelessParentWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "mediatailor:ListPlaybackConfigurations")
 	var calls mtCalls
@@ -801,6 +818,7 @@ func TestScanMediaTailorAll_NamelessParentWarns(t *testing.T) {
 // A failed store write stops the scan: no later phase is called, and a
 // nameless channel is not warned about, since its row was not stored either.
 func TestScanMediaTailorAll_StoreWriteStops(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closed.db"))
 	if err != nil {

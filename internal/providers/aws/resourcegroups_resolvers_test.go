@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveResourceGroupsTagSyncTaskToGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gARN := fmt.Sprintf("arn:aws:resource-groups:%s:%s:group/g1", testRegion, acct.ID)

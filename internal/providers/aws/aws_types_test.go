@@ -21,6 +21,7 @@ import (
 // file in the package — emits decl, scanner upsert call, resolver edge
 // emit, test fixture, redact rule, etc. all count.
 func TestEveryTypeConstantIsUsed(t *testing.T) {
+	t.Parallel()
 	declared := parseTypeConstants(t, "aws_types.go")
 	used := collectIdentRefs(t, ".", "aws_types.go")
 

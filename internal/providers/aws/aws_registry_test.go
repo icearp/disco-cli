@@ -15,6 +15,7 @@ import (
 // Tests call resolvers directly, so a dropped registerResolver call otherwise
 // leaves the package green while production never runs the resolver.
 func TestEveryResolverIsRegistered(t *testing.T) {
+	t.Parallel()
 	candidates := parseResolverShapedFuncs(t, ".")
 	if len(candidates) == 0 {
 		t.Fatal("parsed no resolver-shaped functions; the signature match is broken")

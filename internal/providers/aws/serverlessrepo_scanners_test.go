@@ -93,6 +93,7 @@ func sarPolicyHandler(calls *parentCalls, statements map[string][]sartypes.Appli
 }
 
 func TestScanServerlessRepoApplicationVersions_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	first := sarVersion("1.0.0")
 	first.SourceCodeUrl = sdkaws.String("https://example.com/src")
@@ -147,6 +148,7 @@ func TestScanServerlessRepoApplicationVersions_PagesAndFields(t *testing.T) {
 }
 
 func TestScanServerlessRepoApplicationVersions_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls, maxItems parentCalls
 	client := newSARTestClient(map[string]func(any) (any, error){
@@ -177,6 +179,7 @@ var sarPerAppErrorCases = []struct {
 }
 
 func TestScanServerlessRepoApplicationVersions_PerApplicationErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range sarPerAppErrorCases {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -211,6 +214,7 @@ func TestScanServerlessRepoApplicationVersions_PerApplicationErrors(t *testing.T
 // whole, its first-page versions included, with one warning; its sibling's
 // versions are stored.
 func TestScanServerlessRepoApplicationVersions_SecondPageFailureDropsApplication(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, sarListApplicationVersionsOp)
 	var calls, maxItems parentCalls
@@ -233,6 +237,7 @@ func TestScanServerlessRepoApplicationVersions_SecondPageFailureDropsApplication
 // The listing stops when the service repeats the token it was sent, rather
 // than looping on it.
 func TestScanServerlessRepoApplicationVersions_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var n atomic.Int64
 	client := newSARTestClient(map[string]func(any) (any, error){
@@ -252,6 +257,7 @@ func TestScanServerlessRepoApplicationVersions_RepeatedTokenStops(t *testing.T) 
 // An application whose policy has statements gets one policy row under the
 // application; one with no statements gets none.
 func TestScanServerlessRepoApplicationPolicies_StoredAndEmptySkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newSARTestClient(map[string]func(any) (any, error){
@@ -297,6 +303,7 @@ func TestScanServerlessRepoApplicationPolicies_StoredAndEmptySkipped(t *testing.
 }
 
 func TestScanServerlessRepoApplicationPolicies_PerApplicationErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range sarPerAppErrorCases {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -374,6 +381,7 @@ func sarTopLevelHandlers(st *store.Store, versionCalls, policyCalls *parentCalls
 // The top-level scan stores both pages of applications, then the version and
 // policy of every stored application, each contained by its application.
 func TestScanServerlessRepoAll_ChildrenOfStoredApplications(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var versionCalls, policyCalls parentCalls
 	client := newSARTestClient(sarTopLevelHandlers(st, &versionCalls, &policyCalls))
@@ -419,6 +427,7 @@ func failSARListApplicationsPage(h map[string]func(any) (any, error), page int, 
 // and is dropped; any other error is returned. A first-page failure lists no
 // application, so no child call is made.
 func TestScanServerlessRepoAll_ApplicationPageError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		page      int
@@ -474,6 +483,7 @@ func TestScanServerlessRepoAll_ApplicationPageError(t *testing.T) {
 // The application listing stops when the service repeats the token it was
 // sent, rather than looping on it.
 func TestScanServerlessRepoApplications_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var n atomic.Int64
 	client := newSARTestClient(map[string]func(any) (any, error){
@@ -494,6 +504,7 @@ func TestScanServerlessRepoApplications_RepeatedTokenStops(t *testing.T) {
 // phases' errors reach the dispatcher as a hard error with every stored row
 // counted.
 func TestScanServerlessRepoAll_ChildPhasesIndependent(t *testing.T) {
+	t.Parallel()
 	for _, failing := range []string{"ListApplicationVersions", "GetApplicationPolicy"} {
 		t.Run(failing, func(t *testing.T) {
 			st := newTestStore(t)
@@ -516,6 +527,7 @@ func TestScanServerlessRepoAll_ChildPhasesIndependent(t *testing.T) {
 // A throttled child phase is demoted to one warning, so the other child
 // phase's hard error still reaches the dispatcher as a hard error.
 func TestScanServerlessRepoAll_TransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, sarListApplicationVersionsOp)
 	var versionCalls, policyCalls parentCalls
@@ -540,6 +552,7 @@ func TestScanServerlessRepoAll_TransientDoesNotMaskHardError(t *testing.T) {
 // phase's hard error still reaches the dispatcher as a hard error, and the
 // applications listed before the throttle stay stored.
 func TestScanServerlessRepoAll_ApplicationTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, sarListApplicationsOp)
 	var versionCalls, policyCalls parentCalls
@@ -583,6 +596,7 @@ func sarClosedStore(t *testing.T) *store.Store {
 // as a store-write failure, even when a later page was throttled (a throttle
 // alone would be demoted to a warning).
 func TestScanServerlessRepoAll_ApplicationWriteErrorRunsNoChildPhase(t *testing.T) {
+	t.Parallel()
 	st := sarClosedStore(t)
 	var childCalls parentCalls
 	h := sarTopLevelHandlers(st, nil, nil)

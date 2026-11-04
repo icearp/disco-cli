@@ -34,6 +34,7 @@ func assertUsesEdges(t *testing.T, st *store.Store, from string, wants ...string
 // Apps link to their service and compute roles and branches to their compute
 // role, only when the role was scanned; a row without role ARNs gets no edge.
 func TestResolveAmplifyRelationships_RoleEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	svcRole := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, ampRoleARN("svc"), "", "{}")
@@ -68,6 +69,7 @@ func TestResolveAmplifyRelationships_RoleEdges(t *testing.T) {
 // A row whose attributes do not decode is returned as an error after the
 // other rows' edges are written.
 func TestResolveAmplifyRelationships_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	role := upsertTestResource(t, st, "aws", testAccountID, TypeIAMRole, ampRoleARN("ssr"), "", "{}")
@@ -93,6 +95,7 @@ func TestResolveAmplifyRelationships_DecodeErrorKeepsOtherEdges(t *testing.T) {
 // before it, from each of the three edge sites: app service role, app compute
 // role, branch compute role. Rows list by name, so app "a-bad" comes first.
 func TestResolveAmplifyRelationships_WriteFailureKeepsDecodeErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name   string
 		app    *amplifytypes.App

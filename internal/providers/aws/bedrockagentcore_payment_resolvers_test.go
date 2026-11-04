@@ -20,6 +20,7 @@ func bacAttrs(t *testing.T, v any) string {
 }
 
 func TestResolveBACPaymentEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -52,6 +53,7 @@ func TestResolveBACPaymentEdges(t *testing.T) {
 // A manager whose RoleArn points at an unscanned role, a manager with no
 // RoleArn, and a connector referencing an unscanned manager all emit no edge.
 func TestResolveBACPaymentEdges_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

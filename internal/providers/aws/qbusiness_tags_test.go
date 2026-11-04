@@ -284,6 +284,7 @@ func qbWarningOps(w []store.ScanWarning) []string {
 // subscriptions and chat controls. Every listing sends the model's page cap.
 // No error, no warning.
 func TestScanQBusiness_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newQBCalls()
@@ -352,6 +353,7 @@ func TestScanQBusiness_StoresTagsOfEveryType(t *testing.T) {
 // No application: no child listing, chat controls or tag read is made, and
 // nothing is stored.
 func TestScanQBusiness_EmptyListing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newQBCalls()
@@ -377,6 +379,7 @@ func TestScanQBusiness_EmptyListing(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanQBusiness_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := qbScan(context.Background(), st, qbHandlers(newQBCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -395,6 +398,7 @@ func TestScanQBusiness_RescanInsertsNone(t *testing.T) {
 // denial keeps the row untagged and warns once under the tag op; a throttle
 // keeps it and is transient; any other error keeps it and is an error.
 func TestScanQBusiness_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	a1 := qbTestARNPrefix + "application/a1"
 	for _, x := range []struct {
 		arn, typ string
@@ -468,6 +472,7 @@ func TestScanQBusiness_TagReadFailures(t *testing.T) {
 // Denied tag reads in several phases send one warning for the whole scan;
 // the rows are kept.
 func TestScanQBusiness_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newQBCalls()
@@ -492,6 +497,7 @@ func TestScanQBusiness_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanQBusiness_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, qbTagsOp)
 	calls := newQBCalls()
@@ -510,6 +516,7 @@ func TestScanQBusiness_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored. A failed index write lists no data sources.
 func TestScanQBusiness_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeQBusinessIndex)
@@ -536,6 +543,7 @@ func TestScanQBusiness_FailedWriteStopsScan(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the later phases. An application not stored has no children read.
 func TestScanQBusiness_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newQBCalls()
 	handlers := qbHandlers(calls)
@@ -561,6 +569,7 @@ func TestScanQBusiness_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // A repeated NextToken ends the listing as an error, keeping its pages and
 // the later phases.
 func TestScanQBusiness_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newQBCalls()
 	handlers := qbHandlers(calls)
@@ -583,6 +592,7 @@ func TestScanQBusiness_RepeatedTokenKeepsPages(t *testing.T) {
 // rows: a parent deleted since it was listed is skipped silently, a denial
 // warns once under the op, and any other error is returned.
 func TestScanQBusiness_PerParentListingFailures(t *testing.T) {
+	t.Parallel()
 	a1 := qbTestARNPrefix + "application/a1/"
 	byApp := func(in any) bool { return qbTestAppOf(in) == "a1" }
 	for _, p := range []struct {
@@ -659,6 +669,7 @@ func TestScanQBusiness_PerParentListingFailures(t *testing.T) {
 // its display name, another id, or the fallback text when it has none. An
 // application not stored has no children read.
 func TestScanQBusiness_ElementWithoutID(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		answer        any
@@ -730,6 +741,7 @@ func TestScanQBusiness_ElementWithoutID(t *testing.T) {
 // A GovCloud or China account's built ARNs, and a data accessor ARN the
 // listing returns, reach the tag op unchanged.
 func TestScanQBusiness_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -763,6 +775,7 @@ func TestScanQBusiness_TagReadsKeepPartitionARNs(t *testing.T) {
 // flight saw it in its listing and its tag reads, and the later phases are
 // not run.
 func TestScanQBusiness_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newQBCalls()
 	handlers := qbHandlers(calls)
@@ -798,6 +811,7 @@ func TestScanQBusiness_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanQBusiness_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "qbusiness.us-east-1.api.aws", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -833,6 +847,7 @@ func TestScanQBusiness_NXDOMAIN(t *testing.T) {
 // chat controls phase still runs last: when an op is first called, every op
 // listed before it has been called.
 func TestScanQBusiness_PhaseOrder(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newQBCalls()
 	if _, _, err := qbScan(context.Background(), st, qbHandlers(calls)); err != nil {
@@ -868,6 +883,7 @@ func TestScanQBusiness_PhaseOrder(t *testing.T) {
 // The status ListApplications returns reaches the chat controls phase: a
 // FAILED application's chat controls are not read, its other rows are.
 func TestScanQBusiness_FailedApplicationHasNoChatControls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newQBCalls()
 	handlers := qbHandlers(calls)
@@ -893,6 +909,7 @@ func TestScanQBusiness_FailedApplicationHasNoChatControls(t *testing.T) {
 // returned, even where it differs from the built NativeID, and the built
 // NativeID when the listing returned none. The NativeID stays built.
 func TestScanQBusiness_ChatResponseConfigurationTagReadSendsListedARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newQBCalls()
 	built := qbTestARNPrefix + "application/a1/chat-response-configuration/c1"

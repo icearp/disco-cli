@@ -28,6 +28,7 @@ func isCommercialARNLiteral(v string) bool {
 // ("arn:" + "aws:") or formatted from a partition-free pattern with an "aws"
 // argument (fmt.Sprintf("arn:%s:…", "aws")) escapes it.
 func TestNoCommercialARNLiterals(t *testing.T) {
+	t.Parallel()
 	fset := token.NewFileSet()
 	files := productionFiles(t, fset)
 	for _, file := range files {
@@ -111,6 +112,7 @@ func partitionTakers(files []*ast.File) (funcs, methods map[string]bool) {
 // spell "arn:aws:". Methods are matched by name alone, so a same-named method
 // of another type called with a literal first argument also fails.
 func TestPartitionArgumentIsNeverALiteral(t *testing.T) {
+	t.Parallel()
 	fset := token.NewFileSet()
 	files := productionFiles(t, fset)
 	funcs, methods := partitionTakers(files)
@@ -160,6 +162,7 @@ func TestPartitionArgumentIsNeverALiteral(t *testing.T) {
 // TestIsCommercialARNLiteral pins the literal predicate, including the
 // partition-aware forms it must not count.
 func TestIsCommercialARNLiteral(t *testing.T) {
+	t.Parallel()
 	for v, want := range map[string]bool{
 		"arn:aws:ec2:%s:%s:instance/%s": true,
 		"arn:aws":                       true,

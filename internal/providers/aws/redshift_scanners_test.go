@@ -359,6 +359,7 @@ func rsListedClient(c rsListedCase, fail1, fail2 error) *redshift.Client {
 // present, and an element without an id is not stored but warned about, named
 // by its position.
 func TestScanRedshiftLists_TagsEveryPageWarnIDless(t *testing.T) {
+	t.Parallel()
 	for _, c := range rsListedCases() {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -410,6 +411,7 @@ func TestScanRedshiftLists_TagsEveryPageWarnIDless(t *testing.T) {
 // A snapshot without an ARN is stored under one built from its cluster and
 // snapshot identifiers.
 func TestScanRedshiftSnapshots_NoARNFallsBackToIdentifiers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := rsClient(map[string]func(any) (any, error){"DescribeClusterSnapshots": func(any) (any, error) {
 		return &redshift.DescribeClusterSnapshotsOutput{Snapshots: []redshifttypes.Snapshot{
@@ -428,6 +430,7 @@ func TestScanRedshiftSnapshots_NoARNFallsBackToIdentifiers(t *testing.T) {
 // A failed first page stores nothing: a denial or a warn code warns, a skip
 // code is silent, and any other error fails the phase.
 func TestScanRedshiftLists_FailedFirstPage(t *testing.T) {
+	t.Parallel()
 	for _, c := range rsListedCases() {
 		for _, tc := range rsFailCases(c.skip, c.warn) {
 			t.Run(c.op+"/"+tc.name, func(t *testing.T) {
@@ -454,6 +457,7 @@ func TestScanRedshiftLists_FailedFirstPage(t *testing.T) {
 // anything else, a first-page skip code included, leaves the listing
 // incomplete and fails the phase.
 func TestScanRedshiftLists_FailedLaterPageKeepsRows(t *testing.T) {
+	t.Parallel()
 	for _, c := range rsListedCases() {
 		cases := []rsFailCase{{name: "denied", err: rsDenied, wantWarn: 1}, {name: "other", err: rsBadInput, wantErr: true}}
 		for _, code := range append(slices.Clone(c.skip), c.warn...) {
@@ -483,6 +487,7 @@ func TestScanRedshiftLists_FailedLaterPageKeepsRows(t *testing.T) {
 // A Marker repeated by the service ends the listing as incomplete instead of
 // looping, after storing what was read.
 func TestScanRedshiftLists_RepeatedMarker(t *testing.T) {
+	t.Parallel()
 	c := rsListedCases()[0]
 	client := rsClient(map[string]func(any) (any, error){c.op: func(in any) (any, error) {
 		if in.(*redshift.DescribeClustersInput).Marker == nil {
@@ -514,6 +519,7 @@ func rsFailOp(handlers map[string]func(any) (any, error), op string, err error) 
 // A hard error in any phase, the cluster phase included, does not stop the
 // phases after it, and still reaches the caller.
 func TestScanRedshift_PhaseErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeClusters", "DescribeClusterSubnetGroups", "DescribeClusterSnapshots"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -538,6 +544,7 @@ func TestScanRedshift_PhaseErrorRunsLaterPhases(t *testing.T) {
 // A throttled phase beside a hard-failed one is demoted to one warning, so
 // the scan is reported as failed rather than as a transient glitch.
 func TestScanRedshift_TransientBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "redshift:DescribeClusters")
 	acct := newTestAccount(testAccountID)
@@ -558,6 +565,7 @@ func TestScanRedshift_TransientBesideHardError(t *testing.T) {
 
 // A failed store write stops the later phases: every write would fail too.
 func TestScanRedshift_StoreWriteStopsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	acct := newTestAccount(testAccountID)
 	var calls parentCalls

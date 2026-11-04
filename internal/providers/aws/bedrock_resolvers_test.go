@@ -10,6 +10,7 @@ import (
 // TestResolveBedrockAgentRefs covers both the bare-ID and full-ARN forms
 // of GuardrailConfiguration.GuardrailIdentifier.
 func TestResolveBedrockAgentRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gARN := bedrockGuardrailARN("aws", testRegion, acct.ID, "g-1")
@@ -32,6 +33,7 @@ func TestResolveBedrockAgentRefs(t *testing.T) {
 }
 
 func TestResolveBedrockAgentRefs_UnscannedSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	agentARN := bedrockAgentARN("aws", testRegion, acct.ID, "agent-1")
@@ -47,6 +49,7 @@ func TestResolveBedrockAgentRefs_UnscannedSkipped(t *testing.T) {
 }
 
 func TestResolveBedrockAgentAlias(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	agentARN := bedrockAgentARN("aws", testRegion, acct.ID, "agent-1")
@@ -69,6 +72,7 @@ func TestResolveBedrockAgentAlias(t *testing.T) {
 }
 
 func TestResolveBedrockAgentAlias_UnscannedSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	aliasARN := bedrockAgentAliasARN("aws", testRegion, acct.ID, "agent-x", "alias-1")
@@ -83,6 +87,7 @@ func TestResolveBedrockAgentAlias_UnscannedSkipped(t *testing.T) {
 }
 
 func TestResolveBedrockDataSourceKB(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	kbARN := bedrockKBARN("aws", testRegion, acct.ID, "kb-1")
@@ -105,6 +110,7 @@ func TestResolveBedrockDataSourceKB(t *testing.T) {
 }
 
 func TestResolveBedrockDataSourceKB_UnscannedSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dsARN := bedrockDataSourceARN("aws", testRegion, acct.ID, "kb-missing", "ds-1")
@@ -120,6 +126,7 @@ func TestResolveBedrockDataSourceKB_UnscannedSkipped(t *testing.T) {
 }
 
 func TestResolveBedrockGuardrailVersion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gARN := bedrockGuardrailARN("aws", testRegion, acct.ID, "g-1")
@@ -142,6 +149,7 @@ func TestResolveBedrockGuardrailVersion(t *testing.T) {
 }
 
 func TestResolveBedrockGuardrailVersion_UnscannedSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gvNative := bedrockGuardrailARN("aws", testRegion, acct.ID, "missing") + ":1"
@@ -156,6 +164,7 @@ func TestResolveBedrockGuardrailVersion_UnscannedSkipped(t *testing.T) {
 }
 
 func TestResolveBedrockPromptVersion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	promptARN := fmt.Sprintf("arn:aws:bedrock:%s:%s:prompt/PROMPT1", testRegion, acct.ID)
@@ -178,6 +187,7 @@ func TestResolveBedrockPromptVersion(t *testing.T) {
 }
 
 func TestResolveBedrockPromptVersion_UnscannedSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pvNative := fmt.Sprintf("arn:aws:bedrock:%s:%s:prompt/MISSING:1", testRegion, acct.ID)
@@ -192,6 +202,7 @@ func TestResolveBedrockPromptVersion_UnscannedSkipped(t *testing.T) {
 }
 
 func TestResolveBedrockFlowAlias(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	flowARN := fmt.Sprintf("arn:aws:bedrock:%s:%s:flow/FLOW1", testRegion, acct.ID)
@@ -215,6 +226,7 @@ func TestResolveBedrockFlowAlias(t *testing.T) {
 }
 
 func TestResolveBedrockFlowAlias_UnscannedSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	aliasARN := fmt.Sprintf("arn:aws:bedrock:%s:%s:flow/MISSING/alias/ALIAS1", testRegion, acct.ID)
@@ -230,6 +242,7 @@ func TestResolveBedrockFlowAlias_UnscannedSkipped(t *testing.T) {
 }
 
 func TestResolveBedrockFlowVersion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	flowARN := fmt.Sprintf("arn:aws:bedrock:%s:%s:flow/FLOW1", testRegion, acct.ID)
@@ -253,6 +266,7 @@ func TestResolveBedrockFlowVersion(t *testing.T) {
 }
 
 func TestResolveBedrockFlowVersion_UnscannedSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	versionARN := fmt.Sprintf("arn:aws:bedrock:%s:%s:flow/MISSING/version/1", testRegion, acct.ID)
@@ -268,6 +282,7 @@ func TestResolveBedrockFlowVersion_UnscannedSkipped(t *testing.T) {
 }
 
 func TestResolveBedrockARPolicyVersion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pARN := fmt.Sprintf("arn:aws:bedrock:%s:%s:automated-reasoning-policy/p-1", testRegion, acct.ID)
@@ -282,6 +297,7 @@ func TestResolveBedrockARPolicyVersion(t *testing.T) {
 }
 
 func TestResolveBedrockKBStorageRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/kb-role", acct.ID)
@@ -300,6 +316,7 @@ func TestResolveBedrockKBStorageRefs(t *testing.T) {
 }
 
 func TestResolveBedrockDataSourceRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	bARN := "arn:aws:s3:::my-bucket"

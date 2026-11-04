@@ -9,6 +9,7 @@ import (
 )
 
 func TestWisdomVersionParentARN(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:wisdom:us-east-1:123:assistant/abc/aiagent/x:5", "arn:aws:wisdom:us-east-1:123:assistant/abc/aiagent/x"},
 		{"arn:aws:wisdom:us-east-1:123:assistant/abc/aiagent/x", ""},
@@ -23,6 +24,7 @@ func TestWisdomVersionParentARN(t *testing.T) {
 }
 
 func TestResolveWisdomAssistantChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	asARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:assistant/abc", testRegion, acct.ID)
@@ -38,6 +40,7 @@ func TestResolveWisdomAssistantChildren(t *testing.T) {
 }
 
 func TestResolveWisdomVersionParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	agARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:assistant/abc/aiagent/x", testRegion, acct.ID)
@@ -63,6 +66,7 @@ func wisdomTestKBAssociation(kbARN string) string {
 }
 
 func TestResolveWisdomAssistantAssociationKnowledgeBase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	kbARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1", testRegion, acct.ID)
@@ -81,6 +85,7 @@ func TestResolveWisdomAssistantAssociationKnowledgeBase(t *testing.T) {
 // (the other AssociationData member), or one with a member the SDK cannot
 // name, gets no edge to a knowledge base and no error.
 func TestResolveWisdomAssistantAssociationKnowledgeBase_NoEdge(t *testing.T) {
+	t.Parallel()
 	kbARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1", testRegion, testAccountID)
 	for _, c := range []struct{ name, attrs string }{
 		{"no attrs", "{}"},
@@ -112,6 +117,7 @@ func TestResolveWisdomAssistantAssociationKnowledgeBase_NoEdge(t *testing.T) {
 }
 
 func TestResolveWisdomKnowledgeBaseChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	kbARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1", testRegion, acct.ID)
@@ -127,6 +133,7 @@ func TestResolveWisdomKnowledgeBaseChildren(t *testing.T) {
 }
 
 func TestResolveWisdomContentToKnowledgeBase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	kbARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1", testRegion, acct.ID)
@@ -142,6 +149,7 @@ func TestResolveWisdomContentToKnowledgeBase(t *testing.T) {
 }
 
 func TestResolveWisdomContentToKnowledgeBase_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1/content/c-1", testRegion, acct.ID)
@@ -156,6 +164,7 @@ func TestResolveWisdomContentToKnowledgeBase_NoAttrs(t *testing.T) {
 }
 
 func TestResolveWisdomContentAssociationParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1/content/c-1", testRegion, acct.ID)
@@ -171,6 +180,7 @@ func TestResolveWisdomContentAssociationParent(t *testing.T) {
 }
 
 func TestResolveWisdomContentAssociationParent_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	caARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1/content/c-1/association/ca-1", testRegion, acct.ID)
@@ -185,6 +195,7 @@ func TestResolveWisdomContentAssociationParent_NoAttrs(t *testing.T) {
 }
 
 func TestResolveWisdomKMSRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/k-1", testRegion, acct.ID)
@@ -209,6 +220,7 @@ func TestResolveWisdomKMSRefs(t *testing.T) {
 // error, and that the row read after it still gets its edge. ListResources
 // orders by name, so the bad row "a" is read before the valid row "b".
 func TestResolveWisdom_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	asARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:assistant/abc", testRegion, testAccountID)
 	kbARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1", testRegion, testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/k-1", testRegion, testAccountID)
@@ -258,6 +270,7 @@ func TestResolveWisdom_DecodeErrorReturned(t *testing.T) {
 // child type that fails to decode costs the other child types none of their
 // edges.
 func TestResolveWisdomChildren_DecodeErrorKeepsOtherTypes(t *testing.T) {
+	t.Parallel()
 	asARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:assistant/abc", testRegion, testAccountID)
 	kbARN := fmt.Sprintf("arn:aws:wisdom:%s:%s:knowledge-base/kb-1", testRegion, testAccountID)
 	for _, c := range []struct {

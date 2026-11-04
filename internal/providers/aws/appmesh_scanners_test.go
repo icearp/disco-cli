@@ -281,6 +281,7 @@ func amWarnings(w []store.ScanWarning) []string {
 // MeshOwner. Routes are listed per router and gateway routes per gateway.
 // No error, no warning.
 func TestScanAppMesh_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newAMCalls(t)
@@ -358,6 +359,7 @@ func TestScanAppMesh_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanAppMesh_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := amScan(context.Background(), st, amHandlers(newAMCalls(t))); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -374,6 +376,7 @@ func TestScanAppMesh_RescanInsertsNone(t *testing.T) {
 // No mesh: nothing stored, no child listing or tag read, no error, no
 // warning.
 func TestScanAppMesh_NoMeshes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newAMCalls(t)
@@ -403,6 +406,7 @@ func TestScanAppMesh_NoMeshes(t *testing.T) {
 // tag op with the scan's scope; a throttle keeps it and is transient; any
 // other error keeps it and is an error.
 func TestScanAppMesh_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	route := amKindOf(t, "ListRoutes").arns(t)[0]
 	mesh := amTestMeshARN(testAccountID, "mesh-bare")
 	// mesh-bare's children: four per-mesh listings of two, and two routes and
@@ -470,6 +474,7 @@ func TestScanAppMesh_TagReadFailures(t *testing.T) {
 // ListTagsForResource pages are all read; a repeated nextToken fails the
 // read, keeping the row untagged.
 func TestScanAppMesh_TagPages(t *testing.T) {
+	t.Parallel()
 	arn := amKindOf(t, "ListVirtualNodes").arns(t)[1]
 	pageOf := func(next *string, k, v string) *appmesh.ListTagsForResourceOutput {
 		return &appmesh.ListTagsForResourceOutput{NextToken: next, Tags: []amtypes.TagRef{{Key: sdkaws.String(k), Value: sdkaws.String(v)}}}
@@ -521,6 +526,7 @@ func TestScanAppMesh_TagPages(t *testing.T) {
 // Denied tag reads in two phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanAppMesh_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newAMCalls(t)
@@ -545,6 +551,7 @@ func TestScanAppMesh_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanAppMesh_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, amTagsOp)
 	calls := newAMCalls(t)
@@ -563,6 +570,7 @@ func TestScanAppMesh_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored. A failed mesh write lists no mesh's children.
 func TestScanAppMesh_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	t.Run("virtual routers", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := rhWarnRecorder(st)
@@ -608,6 +616,7 @@ func TestScanAppMesh_FailedWriteStopsScan(t *testing.T) {
 // error does not stop the later phases. A mesh not stored has no children
 // read.
 func TestScanAppMesh_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, mesh            string
 		kept, lost          string
@@ -662,6 +671,7 @@ func TestScanAppMesh_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanAppMesh_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAMCalls(t)
 	handlers := amHandlers(calls)
@@ -689,6 +699,7 @@ func TestScanAppMesh_RepeatedTokenKeepsPages(t *testing.T) {
 // rows: a parent deleted since it was listed is skipped silently, a denial
 // warns once under the op, and any other error is returned.
 func TestScanAppMesh_PerParentListingFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, parentField, parent string
 	}{
@@ -768,6 +779,7 @@ func TestScanAppMesh_PerParentListingFailures(t *testing.T) {
 // stored under its ARN (a mesh named by it) without its children read, with
 // one warning naming the empty field.
 func TestScanAppMesh_ElementWithoutARNOrName(t *testing.T) {
+	t.Parallel()
 	noNameMesh := amTestMeshARN(testAccountID, "x")
 	noNameRouter := amTestMeshARN(testAccountID, "mesh-tagged") + "/virtualRouter/x"
 	noNameGateway := amTestMeshARN(testAccountID, "mesh-tagged") + "/virtualGateway/x"
@@ -879,6 +891,7 @@ func TestScanAppMesh_ElementWithoutARNOrName(t *testing.T) {
 // keeps them untagged without a warning, while this account's rows are read
 // as usual.
 func TestScanAppMesh_SharedMesh(t *testing.T) {
+	t.Parallel()
 	shared := amTestMeshARN(amTestOtherAccount, "mesh-shared")
 	for _, c := range []struct {
 		name string
@@ -938,6 +951,7 @@ func TestScanAppMesh_SharedMesh(t *testing.T) {
 // own: a denial keeps it untagged and warns once, a not-found drops it. The
 // shared mesh's other rows, owned by the mesh owner, stay silent.
 func TestScanAppMesh_OwnRowInSharedMesh(t *testing.T) {
+	t.Parallel()
 	shared := amTestMeshARN(amTestOtherAccount, "mesh-shared")
 	node := shared + "/virtualNode/vn-own"
 	for _, c := range []struct {
@@ -995,6 +1009,7 @@ func TestScanAppMesh_OwnRowInSharedMesh(t *testing.T) {
 
 // A GovCloud or China ARN reaches the tag op unchanged.
 func TestScanAppMesh_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, arn := range []string{
 		"arn:aws-us-gov:appmesh:us-gov-west-1:" + testAccountID + ":mesh/m-gov",
 		"arn:aws-cn:appmesh:cn-north-1:" + testAccountID + ":mesh/m-cn",
@@ -1024,6 +1039,7 @@ func TestScanAppMesh_TagReadsKeepPartitionARNs(t *testing.T) {
 // flight saw it in its listing and its tag reads, and the later phases are
 // not run.
 func TestScanAppMesh_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAMCalls(t)
 	handlers := amHandlers(calls)
@@ -1059,6 +1075,7 @@ func TestScanAppMesh_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanAppMesh_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "appmesh.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

@@ -104,6 +104,7 @@ func scanSocialMessagingTopLevel(t *testing.T, st *store.Store, handlers map[str
 }
 
 func TestScanSocialMessaging_StoresFlowsAndTemplates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := scanSocialMessagingTopLevel(t, st, smHandlers(&calls, socialmessagingtypes.RegistrationStatusComplete))
@@ -157,6 +158,7 @@ func TestScanSocialMessaging_StoresFlowsAndTemplates(t *testing.T) {
 }
 
 func TestScanSocialMessaging_EmptyChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, socialMessagingListTemplatesOp)
 	var calls parentCalls
@@ -187,6 +189,7 @@ func TestScanSocialMessaging_EmptyChildren(t *testing.T) {
 // fails that op's phase and is returned; the other new phase and the older
 // phases keep their rows.
 func TestScanSocialMessaging_FailedChildParent(t *testing.T) {
+	t.Parallel()
 	type phase struct {
 		op, typ   string
 		rows      []string // rows when every WABA succeeds
@@ -263,6 +266,7 @@ func TestScanSocialMessaging_FailedChildParent(t *testing.T) {
 // A hard error in an older phase after the WABAs were stored still lets the
 // new phases run over them, and is returned.
 func TestScanSocialMessaging_OlderPhaseErrorStillRunsNewPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	h := smHandlers(&calls, socialmessagingtypes.RegistrationStatusComplete)
@@ -284,6 +288,7 @@ func TestScanSocialMessaging_OlderPhaseErrorStillRunsNewPhases(t *testing.T) {
 // A transient error in an older phase is demoted to a warning so that a new
 // phase's hard error still reaches the dispatcher as a hard error.
 func TestScanSocialMessaging_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListWhatsAppFlows", "ListWhatsAppMessageTemplates"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -306,6 +311,7 @@ func TestScanSocialMessaging_OlderPhaseTransientDoesNotMaskHardError(t *testing.
 
 // A WABA listing that fails stores nothing and queries no children.
 func TestScanSocialMessaging_WABAListDeniedSkipsChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	h := smHandlers(&calls, socialmessagingtypes.RegistrationStatusComplete)
@@ -322,6 +328,7 @@ func TestScanSocialMessaging_WABAListDeniedSkipsChildren(t *testing.T) {
 // instead of looping. The handlers fail after a few calls so a regression
 // fails the test rather than hanging it.
 func TestScanSocialMessaging_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ op, typ string }{
 		{"ListWhatsAppFlows", TypeSocialMessagingWhatsAppFlow},
 		{"ListWhatsAppMessageTemplates", TypeSocialMessagingWhatsAppMessageTemplate},
@@ -369,6 +376,7 @@ func TestScanSocialMessaging_RepeatedTokenStops(t *testing.T) {
 // Templates without MetaTemplateId are not stored; however many there are,
 // across WABAs, one warning reports them.
 func TestScanSocialMessaging_TemplateWithoutIDWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, socialMessagingListTemplatesOp)
 	var calls parentCalls
@@ -395,6 +403,7 @@ func TestScanSocialMessaging_TemplateWithoutIDWarnsOnce(t *testing.T) {
 // A skipped WABA's warning names the error code, how many WABAs it skipped
 // and the first of them.
 func TestScanSocialMessaging_SkipWarningNamesCodeCountFirst(t *testing.T) {
+	t.Parallel()
 	for _, code := range []string{"ThrottledRequestException", "DependencyException", "InternalServiceException", "AccessDeniedByMetaException", "InvalidParametersException"} {
 		t.Run(code, func(t *testing.T) {
 			st := newTestStore(t)
@@ -426,6 +435,7 @@ func TestScanSocialMessaging_SkipWarningNamesCodeCountFirst(t *testing.T) {
 
 // The client retries the service's 429 throttle code; the SDK alone does not.
 func TestSocialMessagingClientOptions_RetriesThrottledRequest(t *testing.T) {
+	t.Parallel()
 	cfg := sdkaws.Config{Region: testRegion, Retryer: func() sdkaws.Retryer { return retry.NewStandard() }}
 	r := socialmessaging.NewFromConfig(cfg, socialMessagingClientOptions(testRegion)).Options().Retryer
 	if !r.IsErrorRetryable(&smithy.GenericAPIError{Code: "ThrottledRequestException"}) {

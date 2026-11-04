@@ -14,6 +14,7 @@ import (
 // rules while CollectEmits silently dedups the coverage decl. Post-migration
 // the legacy sets are empty; the test guards against a future half-migration.
 func TestNoDoubleDeclaredTypes(t *testing.T) {
+	t.Parallel()
 	legacy := make(map[string]bool)
 	for _, s := range registeredServices {
 		for _, d := range s.emits {
@@ -41,6 +42,7 @@ func TestNoDoubleDeclaredTypes(t *testing.T) {
 // DeleteServiceQuotaIncreaseRequestFromTemplate),
 // so it is the one servicequotas type allowed in `resources`.
 func TestServiceQuotasQuotaLimitsDeclareNoResourceType(t *testing.T) {
+	t.Parallel()
 	notQuotas := map[string]bool{TypeServiceQuotasServiceQuotaIncreaseRequestInTemplate: true}
 	for _, d := range registeredDescriptors {
 		if d.Service == "servicequotas" && !notQuotas[d.Type] {
@@ -87,6 +89,7 @@ func serviceRegistered(name string) bool {
 // literals. Dual-natured types (IAMPolicy, LambdaLayerVersion) are
 // deliberately absent — their managed flag stays per-row scanner-set.
 func TestUnconditionalManagedStampedByType(t *testing.T) {
+	t.Parallel()
 	wantManaged := []string{
 		TypeBedrockFoundationModel, TypeSecurityHubStandard, TypeTrustedAdvisorChecks,
 	}
@@ -108,6 +111,7 @@ func TestUnconditionalManagedStampedByType(t *testing.T) {
 // the row and no API deletes it: managed rows are left out of default
 // `disco check` input, so a policy rule about this posture would see nothing.
 func TestCustomerPostureTypesNotManaged(t *testing.T) {
+	t.Parallel()
 	for _, ty := range []string{
 		TypeACMAccount, TypeAPIGatewayAccount, TypeARCZonalShiftObserverStatus,
 		TypeCloudWatchOTelEnrichment, TypeConnectAttachedFilesConfiguration,
@@ -135,6 +139,7 @@ func TestCustomerPostureTypesNotManaged(t *testing.T) {
 // the Service Reference does list as taggable: they must stay in the
 // denominator.
 func TestUntaggableTypesDeclared(t *testing.T) {
+	t.Parallel()
 	for _, ty := range []string{
 		TypeACMAccount, TypeAPIGatewayAccount, TypeARCZonalShiftObserverStatus,
 		TypeCloudWatchOTelEnrichment, TypeConnectAttachedFilesConfiguration,

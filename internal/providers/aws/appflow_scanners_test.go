@@ -61,6 +61,7 @@ func (s *stubAppFlow) DescribeConnectorProfiles(_ context.Context, _ *appflow.De
 }
 
 func TestAppFlowConnectorNativeID(t *testing.T) {
+	t.Parallel()
 	got := appflowConnectorNativeID("aws", "us-east-1", "111111111111", "MyCustom")
 	want := "arn:aws:appflow:us-east-1:111111111111:connector/MyCustom"
 	if got != want {
@@ -69,6 +70,7 @@ func TestAppFlowConnectorNativeID(t *testing.T) {
 }
 
 func TestScanAppFlowConnectors(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion
@@ -97,6 +99,7 @@ func TestScanAppFlowConnectors(t *testing.T) {
 }
 
 func TestScanAppFlowConnectorsEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubAppFlow{}
@@ -110,6 +113,7 @@ func TestScanAppFlowConnectorsEmpty(t *testing.T) {
 }
 
 func TestScanAppFlowConnectorProfiles(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion

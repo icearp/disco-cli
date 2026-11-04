@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveBackupRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -48,6 +49,7 @@ func TestResolveBackupRelationships(t *testing.T) {
 }
 
 func TestResolveBackupRelationships_LogicallyAirGappedVaultKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -66,6 +68,7 @@ func TestResolveBackupRelationships_LogicallyAirGappedVaultKMS(t *testing.T) {
 }
 
 func TestResolveBackupRelationships_SkipsManagedKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -83,6 +86,7 @@ func TestResolveBackupRelationships_SkipsManagedKey(t *testing.T) {
 }
 
 func TestResolveBackupPlanVaultRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

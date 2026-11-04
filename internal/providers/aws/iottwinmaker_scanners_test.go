@@ -197,6 +197,7 @@ func itmRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, b
 // or warning. Each row keeps the base scan's Name, Region and verbatim
 // element, and no CreatedAt or Status.
 func TestScanIoTTwinMaker_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newITMCalls()
@@ -270,6 +271,7 @@ func TestScanIoTTwinMaker_StoresTagsOfEveryType(t *testing.T) {
 // An aws-us-gov account scanned in us-gov-west-1 sends the gov ARNs its
 // listings return to the tag op unchanged and stores their tags.
 func TestScanIoTTwinMaker_GovCloudARNsReachTagOp(t *testing.T) {
+	t.Parallel()
 	const govRegion = "us-gov-west-1"
 	wsARN := arnFor("aws-us-gov", "iottwinmaker", govRegion, testAccountID, "workspace/ws-gov")
 	entityARN := wsARN + "/entity/en-gov"
@@ -317,6 +319,7 @@ func TestScanIoTTwinMaker_GovCloudARNsReachTagOp(t *testing.T) {
 // No workspace stores nothing, makes no child listing, reads no tags and
 // reports nothing.
 func TestScanIoTTwinMaker_NoWorkspaces(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newITMCalls()
@@ -340,6 +343,7 @@ func TestScanIoTTwinMaker_NoWorkspaces(t *testing.T) {
 // A workspace whose child listings are empty stores only itself, reads only
 // its tags and reports nothing.
 func TestScanIoTTwinMaker_EmptyWorkspace(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newITMCalls()
@@ -367,6 +371,7 @@ func TestScanIoTTwinMaker_EmptyWorkspace(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanIoTTwinMaker_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newITMCalls()
 	if _, _, err := itmScan(context.Background(), t, st, itmHandlers(calls)); err != nil {
@@ -387,6 +392,7 @@ func TestScanIoTTwinMaker_RescanInsertsNone(t *testing.T) {
 // not-found drops the row. A workspace dropped as not found is no parent:
 // its children are not listed.
 func TestScanIoTTwinMaker_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		typ, arn string
 		goneRows int
@@ -454,6 +460,7 @@ func TestScanIoTTwinMaker_TagReadFailures(t *testing.T) {
 // The tag op's pages are all read and merged into one tag set; a repeated
 // token fails the read, keeping the row untagged and returning the error.
 func TestScanIoTTwinMaker_TagPages(t *testing.T) {
+	t.Parallel()
 	scene := itmTestARN("workspace/ws-b/scene/sc-b")
 	pages := func(repeat bool) func(any) (any, error) {
 		return func(in any) (any, error) {
@@ -501,6 +508,7 @@ func TestScanIoTTwinMaker_TagPages(t *testing.T) {
 
 // Denied tag reads in several phases are one warning for the scan.
 func TestScanIoTTwinMaker_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, itmTagsOp)
 	calls := newITMCalls()
@@ -529,6 +537,7 @@ func TestScanIoTTwinMaker_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanIoTTwinMaker_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, itmTagsOp)
 	calls := newITMCalls()
@@ -547,6 +556,7 @@ func TestScanIoTTwinMaker_TagThrottleDemotedBesideHardError(t *testing.T) {
 // child listing, and costs no other phase its rows; a denied workspace
 // listing leaves the child listings no workspace to read.
 func TestScanIoTTwinMaker_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, op := range append([]string{"ListWorkspaces"}, itmChildOps...) {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -580,6 +590,7 @@ func TestScanIoTTwinMaker_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // A failed write of any type stops the scan before any later listing and
 // sends no warning about the rows it lost, their denied tag reads included.
 func TestScanIoTTwinMaker_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		typ, deniedARN string
 		later          []string
@@ -618,6 +629,7 @@ func TestScanIoTTwinMaker_FailedWriteStopsWithoutWarning(t *testing.T) {
 // listing's failure stops the phases after it. The child listings model no
 // not-found code, so ResourceNotFoundException is returned like any other.
 func TestScanIoTTwinMaker_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newITMCalls()
 	h := itmHandlers(calls)
@@ -664,6 +676,7 @@ func TestScanIoTTwinMaker_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // A workspace listing whose second page fails keeps the first page's
 // workspace, which is still read as a parent, and returns the error.
 func TestScanIoTTwinMaker_WorkspacePageFailureKeepsPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newITMCalls()
 	h := itmHandlers(calls)
@@ -685,6 +698,7 @@ func TestScanIoTTwinMaker_WorkspacePageFailureKeepsPage(t *testing.T) {
 // each child listing returns the element for both. A workspace without a
 // WorkspaceId is stored, warned about, and its children are not listed.
 func TestScanIoTTwinMaker_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		out           any
@@ -725,6 +739,7 @@ func TestScanIoTTwinMaker_UnstorableItemsWarn(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanIoTTwinMaker_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, typ, arn string }{
 		{"ListWorkspaces", TypeIoTTwinMakerWorkspace, itmTestARN("workspace/ws-t")},
 		{"ListEntities", TypeIoTTwinMakerEntity, itmTestARN("workspace/ws-t/entity/en-t")},
@@ -753,6 +768,7 @@ func TestScanIoTTwinMaker_RepeatedTokenKeepsPages(t *testing.T) {
 
 // Once ctx ends no further phase starts, and the stop is reported once.
 func TestScanIoTTwinMaker_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newITMCalls()
 	h := itmHandlers(calls)
@@ -785,6 +801,7 @@ func TestScanIoTTwinMaker_ContextEndStopsOnce(t *testing.T) {
 // stored) is unavailable and makes no child listing. An NXDOMAIN after rows
 // were stored is a failure of this scan: the counts are kept.
 func TestScanIoTTwinMaker_Unreachable(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "api.iottwinmaker.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("endpoint absent", func(t *testing.T) {
 		st := newTestStore(t)

@@ -306,6 +306,7 @@ func assertBedrockChild(t *testing.T, st *store.Store, rows map[string]store.Res
 }
 
 func TestBedrockChildScanners_PaginatesEveryParent(t *testing.T) {
+	t.Parallel()
 	for _, c := range bedrockChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			p1, p2 := c.parents[0], c.parents[1]
@@ -330,6 +331,7 @@ func TestBedrockChildScanners_PaginatesEveryParent(t *testing.T) {
 }
 
 func TestBedrockChildScanners_Empty(t *testing.T) {
+	t.Parallel()
 	for _, c := range bedrockChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			total, rows, warns, _ := runBedrockChild(t, c, &bedrockChildStub{})
@@ -341,6 +343,7 @@ func TestBedrockChildScanners_Empty(t *testing.T) {
 }
 
 func TestBedrockChildScanners_NoParentsMakesNoCalls(t *testing.T) {
+	t.Parallel()
 	for _, c := range bedrockChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			stub := &bedrockChildStub{}
@@ -356,6 +359,7 @@ func TestBedrockChildScanners_NoParentsMakesNoCalls(t *testing.T) {
 }
 
 func TestBedrockChildScanners_ParentNotFoundSkipped(t *testing.T) {
+	t.Parallel()
 	for _, c := range bedrockChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			p1, p2 := c.parents[0], c.parents[1]
@@ -373,6 +377,7 @@ func TestBedrockChildScanners_ParentNotFoundSkipped(t *testing.T) {
 }
 
 func TestBedrockChildScanners_AccessDeniedWarnsOnceAndContinues(t *testing.T) {
+	t.Parallel()
 	for _, c := range bedrockChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			p1, p2 := c.parents[0], c.parents[1]
@@ -403,6 +408,7 @@ func TestBedrockChildScanners_AccessDeniedWarnsOnceAndContinues(t *testing.T) {
 // empty-message closed-account 403 and an SCP explicit deny — skip the parent
 // without a warning, and the readable sibling is still stored.
 func TestBedrockChildScanners_SilentDenialsSkipped(t *testing.T) {
+	t.Parallel()
 	denials := map[string]error{
 		"SCPExplicitDeny": apiErr("AccessDeniedException", "User: arn:aws:iam::1:user/u is not authorized to perform: x with an explicit deny in a service control policy"),
 		"FeatureGate":     apiErr("AccessDeniedException", "Your account is not authorized to invoke this API operation."),
@@ -429,6 +435,7 @@ func TestBedrockChildScanners_SilentDenialsSkipped(t *testing.T) {
 // A ctx that ended before the parents were read is returned, not read as an
 // empty listing.
 func TestBedrockChildScanners_ContextEndIsReturned(t *testing.T) {
+	t.Parallel()
 	for _, c := range bedrockChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
@@ -442,6 +449,7 @@ func TestBedrockChildScanners_ContextEndIsReturned(t *testing.T) {
 }
 
 func TestBedrockChildScanners_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	for _, c := range bedrockChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			stub := &bedrockChildStub{errs: map[string]error{c.op + "/" + c.parents[0]: apiErr("ValidationException", "bad")}}
@@ -456,6 +464,7 @@ func TestBedrockChildScanners_OtherErrorPropagates(t *testing.T) {
 
 // DRAFT is the agent's working copy, already represented by the agent row.
 func TestScanBedrockAgentVersions_SkipsDraft(t *testing.T) {
+	t.Parallel()
 	c := bedrockChildCases()[0]
 	stub := &bedrockChildStub{pages: map[string]map[string]any{
 		c.op + "/a1": {"": c.page([]string{"DRAFT", "1"}, nil)},

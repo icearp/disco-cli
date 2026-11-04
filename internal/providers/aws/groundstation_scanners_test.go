@@ -276,6 +276,7 @@ func gsJSONValue(t *testing.T, v any) map[string]any {
 // endpoint groups and mission profiles; DescribeEphemeris is sent exactly the
 // ephemeris ids. Every listing is sent MaxResults 100. No error, no warning.
 func TestScanGroundStation_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newGSTestCalls()
@@ -347,6 +348,7 @@ func TestScanGroundStation_StoresTagsOfEveryType(t *testing.T) {
 // ahead of any upload, every status, and no satellite (an ephemeris bound to
 // none would be missed).
 func TestScanGroundStation_EphemeridesSendWideWindowAndEveryStatus(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGSTestCalls()
 	if _, _, err := gsTestScan(context.Background(), st, gsTestHandlers(calls)); err != nil {
@@ -380,6 +382,7 @@ func TestScanGroundStation_EphemeridesSendWideWindowAndEveryStatus(t *testing.T)
 // A service-managed ephemeris is stored provider-managed, and its tags are
 // not read; an uploaded one is read.
 func TestScanGroundStation_ServiceManagedEphemerisNotRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newGSTestCalls()
@@ -416,6 +419,7 @@ func TestScanGroundStation_ServiceManagedEphemerisNotRead(t *testing.T) {
 // An ephemeris listed without a Name is named by its id, and one without a
 // Status has none.
 func TestScanGroundStation_EphemerisWithoutNameOrStatus(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	eph := gsTestKindOf(t, "ListEphemerides")
 	handlers := gsTestHandlers(newGSTestCalls())
@@ -442,6 +446,7 @@ func TestScanGroundStation_EphemerisWithoutNameOrStatus(t *testing.T) {
 // Every listing writes its first page, with its tags, before it reads the
 // second.
 func TestScanGroundStation_PagesWrittenAsRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := gsTestHandlers(newGSTestCalls())
 	var (
@@ -473,6 +478,7 @@ func TestScanGroundStation_PagesWrittenAsRead(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanGroundStation_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := gsTestScan(context.Background(), st, gsTestHandlers(newGSTestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -489,6 +495,7 @@ func TestScanGroundStation_RescanInsertsNone(t *testing.T) {
 // Empty listings: each listed once, nothing stored, no tag read, no error,
 // no warning.
 func TestScanGroundStation_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newGSTestCalls()
@@ -531,6 +538,7 @@ func TestScanGroundStation_Empty(t *testing.T) {
 // scope; a throttle keeps it and is transient; any other error keeps it and
 // is an error.
 func TestScanGroundStation_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		op        string
@@ -600,6 +608,7 @@ func TestScanGroundStation_TagReadFailures(t *testing.T) {
 // Denied tag reads in three phases send one warning per tag op for the
 // whole scan; the rows are kept.
 func TestScanGroundStation_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newGSTestCalls()
@@ -625,6 +634,7 @@ func TestScanGroundStation_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanGroundStation_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "groundstation:ListTagsForResource")
 	calls := newGSTestCalls()
@@ -643,6 +653,7 @@ func TestScanGroundStation_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanGroundStation_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeGroundStationDataflowEndpointGroup)
@@ -673,6 +684,7 @@ func TestScanGroundStation_FailedWriteStopsScan(t *testing.T) {
 // error does not stop the other phases. Every listing's first page denied
 // is warned about under its op, and the other phases run too.
 func TestScanGroundStation_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	type listFailure struct {
 		name      string
 		op        string
@@ -742,6 +754,7 @@ func TestScanGroundStation_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanGroundStation_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGSTestCalls()
 	handlers := gsTestHandlers(calls)
@@ -769,6 +782,7 @@ func TestScanGroundStation_RepeatedTokenKeepsPages(t *testing.T) {
 // scope, the warning naming the listing's elements and the element; the rest
 // of the listing is stored.
 func TestScanGroundStation_ElementWithoutIdentifier(t *testing.T) {
+	t.Parallel()
 	type variant struct {
 		name    string
 		element any
@@ -874,6 +888,7 @@ func gsCheckElementWithoutIdentifier(t *testing.T, k gsTestKind, element any, ke
 // ephemeris's NativeID is built in the account's partition and region while
 // DescribeEphemeris is sent its id.
 func TestScanGroundStation_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	const partition, region = "aws-us-gov", "us-gov-west-1"
 	st := newTestStore(t)
 	calls := newGSTestCalls()
@@ -908,6 +923,7 @@ func TestScanGroundStation_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanGroundStation_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGSTestCalls()
 	handlers := gsTestHandlers(calls)
@@ -946,6 +962,7 @@ func TestScanGroundStation_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later phase runs.
 func TestScanGroundStation_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "groundstation.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

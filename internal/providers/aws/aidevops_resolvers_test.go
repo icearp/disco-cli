@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveAidevopsRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -52,6 +53,7 @@ func TestResolveAidevopsRefs(t *testing.T) {
 // TestResolveAidevopsRefs_NoAttrs guards the empty-attrs path: rows with no
 // cross-resource fields must produce no edges and no panic.
 func TestResolveAidevopsRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

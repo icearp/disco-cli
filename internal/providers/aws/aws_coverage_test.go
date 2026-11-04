@@ -32,6 +32,7 @@ func canonicalKey(k string) string {
 // resource to the same identity. Genuine service renames (CFN MWAA vs SR
 // airflow) are not bridged: they surface as registry-only drift.
 func TestCanonicalKey(t *testing.T) {
+	t.Parallel()
 	same := []struct{ a, b string }{
 		{"AWS::Amplify::App", "AWS::amplify::apps"},                                      // plural
 		{"AWS::Amplify::Branch", "AWS::amplify::branches"},                               // -es plural
@@ -65,6 +66,7 @@ func TestCanonicalKey(t *testing.T) {
 // "AWS::apigateway::Resources" into ("apigateway",""). A service ending in "s"
 // (aidevops) must also survive — services are not de-pluralized.
 func TestCanonicalKey_NeverEmptySegment(t *testing.T) {
+	t.Parallel()
 	for _, k := range []string{
 		"AWS::apigateway::Resources", "AWS::apigateway::Resource",
 		"AWS::aidevops::service", "AWS::Logs::LogGroup", "AWS::ECS::Cluster",
@@ -88,6 +90,7 @@ func TestCanonicalKey_NeverEmptySegment(t *testing.T) {
 // twin is cfn-only, a twinned one keeps no reason, and the CFN service is
 // spelled the way the Service Reference spells it.
 func TestMarkCFNOnly(t *testing.T) {
+	t.Parallel()
 	cfn := []coverage.UpstreamType{
 		{Key: "AWS::EC2::Instance", Service: "EC2"},
 		{Key: "AWS::EC2::SecurityGroupIngress", Service: "EC2"},
@@ -109,6 +112,7 @@ func TestMarkCFNOnly(t *testing.T) {
 // it must stay on `coverage resolvers --missing`; one with any other edge
 // kind must leave it.
 func TestResolverEdgeSources_SkipsContainsOnly(t *testing.T) {
+	t.Parallel()
 	kinds := map[string][]string{}
 	for _, e := range CollectResolverEdges() {
 		kinds[e.Source] = append(kinds[e.Source], e.Kind)
@@ -166,6 +170,8 @@ func isolateCoverageProfiles(t *testing.T) {
 // A China or GovCloud profile's credentials fail in us-east-1, so the coverage
 // fetches call in the profile's own region and fall back to the commercial
 // home only when nothing names one.
+//
+//nolint:paralleltest // isolateCoverageProfiles calls t.Setenv
 func TestLoadCoverageConfig_Region(t *testing.T) {
 	isolateCoverageProfiles(t)
 	tests := []struct {

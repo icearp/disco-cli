@@ -10,6 +10,7 @@ import (
 // names; a child of an unstored directory gets no edge, and no pair is
 // offered for it (the store would warn about its missing parent).
 func TestResolveDSDataHierarchy_LinksStoredDirectories(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	missingParent := countOpWarnings(st, "hierarchy")
 	ms, gone := dsDirARN("d-ms"), dsDirARN("d-gone")
@@ -41,6 +42,7 @@ func TestResolveDSDataHierarchy_LinksStoredDirectories(t *testing.T) {
 
 // With no users or groups stored the resolver records nothing.
 func TestResolveDSDataHierarchy_NoRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeDSMicrosoftAD, dsDirARN("d-ms"), testRegion, "{}")
 	if err := resolveDSDataHierarchy(newTestAccount(testAccountID), st); err != nil {
@@ -54,6 +56,7 @@ func TestResolveDSDataHierarchy_NoRows(t *testing.T) {
 // A NativeID that names no directory is returned as an error, and the rows
 // after it are still linked. The bad row is unnamed so it lists first.
 func TestResolveDSDataHierarchy_BadNativeIDReportedOthersLinked(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ms := dsDirARN("d-ms")
 	good := ms + "/user/" + dsSID("1104")
@@ -73,6 +76,8 @@ func TestResolveDSDataHierarchy_BadNativeIDReportedOthersLinked(t *testing.T) {
 }
 
 // More children than one page are all linked, a page at a time.
+//
+//nolint:paralleltest // lowers the package-level dsDataResolvePageSize
 func TestResolveDSDataHierarchy_LinksEveryPage(t *testing.T) {
 	old := dsDataResolvePageSize
 	dsDataResolvePageSize = 2

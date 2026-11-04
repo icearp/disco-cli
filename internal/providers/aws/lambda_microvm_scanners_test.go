@@ -231,6 +231,7 @@ func lmvListCases() []lmvListCase {
 }
 
 func TestLambdaNewListScanners_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	for _, tc := range lmvListCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -284,6 +285,7 @@ func TestLambdaNewListScanners_PagesAndFields(t *testing.T) {
 }
 
 func TestLambdaNewListScanners_Empty(t *testing.T) {
+	t.Parallel()
 	for _, tc := range lmvListCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -302,6 +304,7 @@ func TestLambdaNewListScanners_Empty(t *testing.T) {
 // the gateway's AccessDenied and is skipped without a warning, keeping the
 // rows of the pages read before it.
 func TestLambdaNewListScanners_ErrorHandling(t *testing.T) {
+	t.Parallel()
 	deny := apiErr("AccessDeniedException", "User: arn:aws:iam::123456789012:role/x is not authorized to perform: lambda:List")
 	gap := apiErr("AccessDeniedException", "Unable to determine service/operation name to be authorized")
 	for _, tc := range lmvListCases() {
@@ -352,6 +355,7 @@ func TestLambdaNewListScanners_ErrorHandling(t *testing.T) {
 // The parents are the images stored: not the id-less one, nor one the tag
 // read no longer finds.
 func TestScanLambdaMicrovmImages_ReturnsStoredImagesAsParents(t *testing.T) {
+	t.Parallel()
 	stub := &stubLambdaNew{
 		images:  [][]lambdamicrovmstypes.MicrovmImageSummary{{lmvImage("a"), {Name: sdkaws.String("x")}, lmvImage("gone")}, {lmvImage("c")}},
 		tagErrs: map[string]error{lmvARN("microvm-image", "gone"): apiErr("ResourceNotFoundException", "gone")},
@@ -395,6 +399,7 @@ func lmvVersionsFixture(t *testing.T, st *store.Store) (*stubLambdaNew, []childP
 }
 
 func TestScanLambdaMicrovmImageVersions_PagesEveryImage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub, parents := lmvVersionsFixture(t, st)
 
@@ -449,6 +454,7 @@ func TestScanLambdaMicrovmImageVersions_PagesEveryImage(t *testing.T) {
 }
 
 func TestScanLambdaMicrovmImageVersions_PerImageErrors(t *testing.T) {
+	t.Parallel()
 	deny := apiErr("AccessDeniedException", "User: arn:aws:iam::123456789012:role/x is not authorized to perform: lambda:ListMicrovmImageVersions")
 	for _, tc := range []struct {
 		name         string

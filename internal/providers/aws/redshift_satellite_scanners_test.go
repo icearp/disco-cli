@@ -124,6 +124,7 @@ func rsQev2Handler(in any) (any, error) {
 }
 
 func TestScanRedshiftListPhases_StoreEveryElementWarnIDless(t *testing.T) {
+	t.Parallel()
 	for _, c := range rsListCases() {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -152,6 +153,7 @@ func TestScanRedshiftListPhases_StoreEveryElementWarnIDless(t *testing.T) {
 }
 
 func TestScanRedshiftListPhases_Empty(t *testing.T) {
+	t.Parallel()
 	for _, c := range rsListCases() {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -187,6 +189,7 @@ func rsFailCases(skip, warn []string) []rsFailCase {
 // A denial or warn code warns once, a skip code is silent; neither stores a
 // row. Any other error fails the phase.
 func TestScanRedshiftListPhases_FailedPage(t *testing.T) {
+	t.Parallel()
 	for _, c := range rsListCases() {
 		for _, tc := range rsFailCases(c.skipCodes, c.warnCodes) {
 			t.Run(c.op+"/"+tc.name, func(t *testing.T) {
@@ -212,6 +215,7 @@ func TestScanRedshiftListPhases_FailedPage(t *testing.T) {
 }
 
 func TestScanRedshiftListPhases_RowFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	client := rsClient(map[string]func(any) (any, error){
@@ -294,6 +298,7 @@ func rsDomainHandler(fail error) func(in any) (any, error) {
 }
 
 func TestScanRedshiftCustomDomainAssociations_PairsUnderStoredClusters(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeRedshiftCluster, rsClusterARN("c1"), testRegion, "{}")
 	upsertTestResource(t, st, "aws", testAccountID, TypeRedshiftCluster, rsClusterARN("c2"), testRegion, "{}")
@@ -336,6 +341,7 @@ func TestScanRedshiftCustomDomainAssociations_PairsUnderStoredClusters(t *testin
 }
 
 func TestScanRedshiftCustomDomainAssociations_NoClustersNoCall(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := rsClient(map[string]func(any) (any, error){"DescribeCustomDomainAssociations": func(any) (any, error) {
 		t.Fatal("DescribeCustomDomainAssociations called with no clusters")
@@ -350,6 +356,7 @@ func TestScanRedshiftCustomDomainAssociations_NoClustersNoCall(t *testing.T) {
 // A failed first page stores nothing: a skip code is silent, a denial warns,
 // any other error fails the phase.
 func TestScanRedshiftCustomDomainAssociations_FailedFirstPage(t *testing.T) {
+	t.Parallel()
 	for _, tc := range rsFailCases([]string{"CustomDomainAssociationNotFoundFault", "UnsupportedOperation"}, nil) {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -374,6 +381,7 @@ func TestScanRedshiftCustomDomainAssociations_FailedFirstPage(t *testing.T) {
 // A page failing after one was read keeps page one's pairs. A denial warns;
 // anything else, a first-page skip code included, fails the phase.
 func TestScanRedshiftCustomDomainAssociations_FailedLaterPageKeepsPairs(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []rsFailCase{
 		{name: "denied", err: rsDenied, wantWarn: 1},
 		{name: "skip code", err: &smithy.GenericAPIError{Code: "CustomDomainAssociationNotFoundFault"}, wantErr: true},
@@ -403,6 +411,7 @@ func TestScanRedshiftCustomDomainAssociations_FailedLaterPageKeepsPairs(t *testi
 // A Marker repeated by the service ends the listing as incomplete instead of
 // looping, after storing what was read.
 func TestScanRedshiftCustomDomainAssociations_RepeatedMarker(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeRedshiftCluster, rsClusterARN("c1"), testRegion, "{}")
 	client := rsClient(map[string]func(any) (any, error){"DescribeCustomDomainAssociations": func(in any) (any, error) {
@@ -441,6 +450,7 @@ func rsPartnerHandler(calls *parentCalls, fail map[string]error) func(in any) (a
 func rsPartnerID(cluster string) string { return rsClusterARN(cluster) + "/partner/dev/Fivetran" }
 
 func TestScanRedshiftPartners_EveryClusterQueried(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeRedshiftCluster, rsClusterARN("c1"), testRegion, "{}")
 	upsertTestResource(t, st, "aws", testAccountID, TypeRedshiftCluster, rsClusterARN("c2"), testRegion, "{}")
@@ -474,6 +484,7 @@ func TestScanRedshiftPartners_EveryClusterQueried(t *testing.T) {
 // skipped silently, and so is UnsupportedOperation; a denial or a warn code
 // warns once however many clusters hit it, and any other error fails the phase.
 func TestScanRedshiftPartners_FailedCluster(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		err      error
@@ -533,6 +544,7 @@ func rsTopLevelHandlers(calls *parentCalls) map[string]func(in any) (any, error)
 }
 
 func TestScanRedshift_StoresSatellitesUnderListedClusters(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var calls parentCalls
@@ -559,6 +571,7 @@ func TestScanRedshift_StoresSatellitesUnderListedClusters(t *testing.T) {
 // A region-wide satellite phase that hits a skip code ends quietly, and the
 // phases after it still run: the cluster satellites, last in order, are stored.
 func TestScanRedshift_SkipCodeLetsLaterPhasesRun(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ op, code string }{
 		{"DescribeAuthenticationProfiles", "AuthenticationProfileNotFoundFault"},
 		{"DescribeReservedNodes", "ReservedNodeNotFound"},
@@ -592,6 +605,7 @@ func TestScanRedshift_SkipCodeLetsLaterPhasesRun(t *testing.T) {
 // Each satellite phase runs after every pre-existing phase, and its hard error
 // reaches the caller.
 func TestScanRedshift_SatelliteErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{
 		"DescribeAuthenticationProfiles", "DescribeReservedNodes", "DescribeQev2IdcApplications",
 		"DescribeCustomDomainAssociations", "DescribePartners",

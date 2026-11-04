@@ -28,6 +28,7 @@ func (s *stubBCM) GetExport(_ context.Context, in *bcmdataexports.GetExportInput
 }
 
 func TestScanBCMDataExportsExports(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

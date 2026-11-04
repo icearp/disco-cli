@@ -224,6 +224,7 @@ func ctowerEmbedded(t *testing.T, st *store.Store, baseline string) []string {
 // The elements without an ARN are warned about once each, under their
 // listing.
 func TestScanControlTower_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCtowerCalls()
@@ -293,6 +294,7 @@ func TestScanControlTower_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanControlTower_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := ctowerScan(context.Background(), st, ctowerHandlers(newCtowerCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -309,6 +311,7 @@ func TestScanControlTower_RescanInsertsNone(t *testing.T) {
 // An account with no landing zone and no baselines stores nothing and reads
 // no tags, details or controls.
 func TestScanControlTower_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCtowerCalls()
 	h := ctowerHandlers(calls)
@@ -334,6 +337,7 @@ func TestScanControlTower_Empty(t *testing.T) {
 // was stored, or its listing failed, the same answer from the baselines is an
 // error, the counts and the earlier failure kept.
 func TestScanControlTower_NotSetUp(t *testing.T) {
+	t.Parallel()
 	notSetUp := apiErr("ValidationException", "AWSControlTowerAdmin role is missing")
 	t.Run("landing zones", func(t *testing.T) {
 		st := newTestStore(t)
@@ -413,6 +417,7 @@ func TestScanControlTower_NotSetUp(t *testing.T) {
 // throttle keeps it and is transient; any other error keeps it and is an
 // error.
 func TestScanControlTower_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, k := range []struct{ typ, arn string }{
 		{TypeControlTowerLandingZone, ctowerTestLZ},
 		{TypeControlTowerEnabledBaseline, ctowerTestB1},
@@ -476,6 +481,7 @@ func TestScanControlTower_TagReadFailures(t *testing.T) {
 // Denied tag reads in both phases send one warning for the whole scan, and
 // the rows are kept untagged.
 func TestScanControlTower_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := bacWarnings(st, ctowerTagsOp)
 	calls := newCtowerCalls()
@@ -503,6 +509,7 @@ func TestScanControlTower_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanControlTower_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ctowerTagsOp)
 	calls := newCtowerCalls()
@@ -523,6 +530,7 @@ func TestScanControlTower_TagThrottleDemotedBesideHardError(t *testing.T) {
 // without its LandingZone and any other error are errors; the baselines are
 // stored either way.
 func TestScanControlTower_GetLandingZoneFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -595,6 +603,7 @@ func TestScanControlTower_GetLandingZoneFailures(t *testing.T) {
 // error is returned; on a later page a ValidationException is returned too,
 // with no refused-target warning.
 func TestScanControlTower_ControlListingFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name     string
 		err      error
@@ -697,6 +706,7 @@ func TestScanControlTower_ControlListingFailures(t *testing.T) {
 // times: naming the first to answer instead passes all of them only by
 // chance.
 func TestScanControlTower_RefusedTargetsWarnOnce(t *testing.T) {
+	t.Parallel()
 	const ctowerOrderRuns = 10
 	for range ctowerOrderRuns {
 		st := newTestStore(t)
@@ -731,6 +741,7 @@ func TestScanControlTower_RefusedTargetsWarnOnce(t *testing.T) {
 // Each control page is written, with its tags, before the next is
 // requested.
 func TestScanControlTower_WritesEachControlPageBeforeTheNext(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := ctowerHandlers(newCtowerCalls())
 	list := h["ListEnabledControls"]
@@ -761,6 +772,7 @@ func TestScanControlTower_WritesEachControlPageBeforeTheNext(t *testing.T) {
 // A failed later page of the baseline listing keeps the page read before it,
 // with its targets' controls, and is returned.
 func TestScanControlTower_BaselineListingKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := ctowerHandlers(newCtowerCalls())
 	h["ListEnabledBaselines"] = failOnCall(2, ctowerConflict, func(any) (any, error) {
@@ -783,6 +795,7 @@ func TestScanControlTower_BaselineListingKeepsEarlierPages(t *testing.T) {
 // A repeated token ends a listing as an error after its second call,
 // keeping both pages.
 func TestScanControlTower_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	same := sdkaws.String("same")
 	t.Run("baselines", func(t *testing.T) {
 		st := newTestStore(t)
@@ -840,6 +853,7 @@ func TestScanControlTower_RepeatedTokenKeepsPages(t *testing.T) {
 // a failed landing-zone write lists no baselines, and a failed control write
 // writes no baseline.
 func TestScanControlTower_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		typ       string
 		wantTotal int
@@ -878,6 +892,7 @@ func TestScanControlTower_FailedWriteStopsScan(t *testing.T) {
 
 // A denied baseline listing warns under its op; the landing zone is kept.
 func TestScanControlTower_BaselinesDenied(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ctowerListBaselines)
 	h := ctowerHandlers(newCtowerCalls())
@@ -895,6 +910,7 @@ func TestScanControlTower_BaselinesDenied(t *testing.T) {
 // listed ARNs unchanged; a landing zone whose body has no Status is stored
 // without one.
 func TestScanControlTower_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -946,6 +962,7 @@ func TestScanControlTower_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it in its listing.
 func TestScanControlTower_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCtowerCalls()
 	h := ctowerHandlers(calls)
@@ -976,6 +993,7 @@ func TestScanControlTower_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after the landing zone was stored is a failure of this scan,
 // with the counts kept; with nothing stored the region is unavailable.
 func TestScanControlTower_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "controltower.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("after the landing zone", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1004,6 +1022,7 @@ func TestScanControlTower_NXDOMAIN(t *testing.T) {
 // is warned about once under its listing; the baselines and controls are
 // stored as ever.
 func TestScanControlTower_LandingZoneWithoutARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCtowerCalls()
@@ -1042,6 +1061,7 @@ func TestScanControlTower_LandingZoneWithoutARN(t *testing.T) {
 // listed and stored, though that baseline is not; a baseline without a
 // target is stored with no controls, and no listing is sent an empty target.
 func TestScanControlTower_BaselineTargets(t *testing.T) {
+	t.Parallel()
 	const (
 		ou2 = "arn:aws:organizations::123456789012:ou/o-abc/ou-2"
 		b4  = ctowerTestPrefix + "enabledbaseline/b4"

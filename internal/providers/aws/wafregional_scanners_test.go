@@ -257,6 +257,7 @@ func wafRegionalAssocARN(id, tail string) string {
 // load balancers and API Gateway stages, one association row each. No
 // error, no warning.
 func TestScanWAFRegional_StoresEveryListingWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newWAFRegionalCalls("aws", testRegion)
@@ -351,6 +352,7 @@ func TestScanWAFRegional_StoresEveryListingWithTags(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanWAFRegional_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion))); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -367,6 +369,7 @@ func TestScanWAFRegional_RescanInsertsNone(t *testing.T) {
 // Empty listings: nothing stored, no tag read, no association listing, no
 // error, no warning.
 func TestScanWAFRegional_NoResources(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newWAFRegionalCalls("aws", testRegion)
@@ -405,6 +408,7 @@ func TestScanWAFRegional_NoResources(t *testing.T) {
 // the tag op with the scan's scope; a throttle keeps it and is transient;
 // any other error keeps it and is an error.
 func TestScanWAFRegional_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	arn := wafRegionalTestKindOf(t, "ListWebACLs").arn("aws", testRegion, "1")
 	for _, c := range []struct {
 		name       string
@@ -468,6 +472,7 @@ func TestScanWAFRegional_TagReadFailures(t *testing.T) {
 
 // ListTagsForResource pages are all read, each sent the Limit cap.
 func TestScanWAFRegional_TagPages(t *testing.T) {
+	t.Parallel()
 	arn := wafRegionalTestKindOf(t, "ListRuleGroups").arn("aws", testRegion, "2")
 	st := newTestStore(t)
 	calls := newWAFRegionalCalls("aws", testRegion)
@@ -503,6 +508,7 @@ func TestScanWAFRegional_TagPages(t *testing.T) {
 
 // A tag response without TagInfoForResource reads as no tags.
 func TestScanWAFRegional_TagResponseWithoutInfo(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newWAFRegionalCalls("aws", testRegion)
 	handlers := wafRegionalHandlers(calls)
@@ -529,6 +535,7 @@ func TestScanWAFRegional_TagResponseWithoutInfo(t *testing.T) {
 // Denied tag reads in two phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanWAFRegional_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newWAFRegionalCalls("aws", testRegion)
@@ -550,6 +557,7 @@ func TestScanWAFRegional_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanWAFRegional_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, wafRegionalTestTagsOp)
 	calls := newWAFRegionalCalls("aws", testRegion)
@@ -570,6 +578,7 @@ func TestScanWAFRegional_TagThrottleDemotedBesideHardError(t *testing.T) {
 // also collects the parents of the associations) included; an untagged one
 // writes once, after its last page.
 func TestScanWAFRegional_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op  string
 		listCalls int
@@ -610,6 +619,7 @@ func TestScanWAFRegional_FailedWriteStopsScan(t *testing.T) {
 // A failed association write is returned as the write failure; the listed
 // rows stay stored.
 func TestScanWAFRegional_FailedAssociationWrite(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeWAFRegionalWebACLAssociation)
 	_, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion)))
@@ -627,6 +637,7 @@ func TestScanWAFRegional_FailedAssociationWrite(t *testing.T) {
 // web ACL read (base skipped every association). A repeated NextMarker ends
 // the listing as an error, keeping its pages.
 func TestScanWAFRegional_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op  string
 		failPage  string // "1", "2", or "repeat" for a repeated NextMarker
@@ -697,6 +708,7 @@ func TestScanWAFRegional_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // scope, and the other phases run; a denied web ACL listing leaves no web
 // ACL to read associations for.
 func TestScanWAFRegional_DeniedListingWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op        string
 		wantTotal int
@@ -732,6 +744,7 @@ func TestScanWAFRegional_DeniedListingWarns(t *testing.T) {
 // listing is sent for it; one warning under the listing's op names it by
 // its name, or by noIdentifier when it has none (base skipped it silently).
 func TestScanWAFRegional_ElementWithoutID(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op  string
 		elem      *string
@@ -794,6 +807,7 @@ func TestScanWAFRegional_ElementWithoutID(t *testing.T) {
 // op, with the scan's scope; any other error is returned after the rows are
 // stored.
 func TestScanWAFRegional_AssociationFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		failed    map[string]error // "<web ACL id> <resource type>"
@@ -876,6 +890,7 @@ func TestScanWAFRegional_AssociationFailures(t *testing.T) {
 // demoted to one warning under the association op, so the hard error
 // decides the outcome.
 func TestScanWAFRegional_AssociationThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, wafRegionalTestAssocOp)
 	calls := newWAFRegionalCalls("aws", testRegion)
@@ -893,6 +908,7 @@ func TestScanWAFRegional_AssociationThrottleDemotedBesideHardError(t *testing.T)
 // A GovCloud or China account stores its rows under ARNs in its partition
 // and region, and those ARNs reach the tag op unchanged.
 func TestScanWAFRegional_PartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -927,6 +943,7 @@ func TestScanWAFRegional_PartitionARNs(t *testing.T) {
 // phase is read, the associations included. The page in flight is stored,
 // its row untagged.
 func TestScanWAFRegional_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newWAFRegionalCalls("aws", testRegion)
 	handlers := wafRegionalHandlers(calls)
@@ -975,6 +992,7 @@ func TestScanWAFRegional_ContextEndReportedOnce(t *testing.T) {
 // are kept. With nothing stored it stays region-unavailable and no later
 // listing is called.
 func TestScanWAFRegional_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "waf-regional.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

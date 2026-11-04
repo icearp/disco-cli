@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveACMPCARelationships_CRLBucket(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -29,6 +30,7 @@ func TestResolveACMPCARelationships_CRLBucket(t *testing.T) {
 }
 
 func TestResolveACMPCARelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

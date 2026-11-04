@@ -152,6 +152,7 @@ func runMGN(t *testing.T, st *store.Store, stub *stubMGN) (int, error) {
 // not listed under, a server deleted mid-scan is skipped, and each action is
 // contained by its server.
 func TestScanMGN_SourceServerActions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	s := sdkaws.String
@@ -202,6 +203,7 @@ func TestScanMGN_SourceServerActions(t *testing.T) {
 }
 
 func TestScanMGN_TemplateActions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	s := sdkaws.String
@@ -256,6 +258,7 @@ func TestScanMGN_TemplateActions(t *testing.T) {
 // propagates, and every one of the eight pre-existing types still has its rows
 // stored, so each action phase runs after all pre-existing phases.
 func TestScanMGN_ActionErrorShapes(t *testing.T) {
+	t.Parallel()
 	ops := []struct {
 		op    string
 		rtype string
@@ -316,6 +319,7 @@ func TestScanMGN_ActionErrorShapes(t *testing.T) {
 }
 
 func TestScanMGN_UninitializedAccountDisabled(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubMGN{t: t, errs: map[string]error{"DescribeSourceServers": apiErr("UninitializedAccountException", "Account not initialized")}}
 	if _, err := runMGN(t, st, stub); !errors.Is(err, errServiceDisabled) {

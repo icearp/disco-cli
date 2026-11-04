@@ -85,6 +85,7 @@ func newCloud9TestClient(handlers map[string]func(in any) (any, error)) *cloud9.
 }
 
 func TestScanCloud9Memberships_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	owner := cloud9Member("env1", "alice", cloud9types.PermissionsOwner)
 	owner.LastAccess = sdkaws.Time(time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC))
@@ -139,6 +140,7 @@ func TestScanCloud9Memberships_PagesAndFields(t *testing.T) {
 }
 
 func TestScanCloud9Memberships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newCloud9TestClient(map[string]func(any) (any, error){
@@ -156,6 +158,7 @@ func TestScanCloud9Memberships_Empty(t *testing.T) {
 // Each per-environment error is skipped or returned by its code. Two of three
 // environments fail, so a skip that warns must warn once for both.
 func TestScanCloud9Memberships_PerEnvironmentErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -200,6 +203,7 @@ func TestScanCloud9Memberships_PerEnvironmentErrors(t *testing.T) {
 
 // A skipped environment keeps the rows its earlier pages stored.
 func TestScanCloud9Memberships_SkipKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newCloud9TestClient(map[string]func(any) (any, error){
@@ -219,6 +223,7 @@ func TestScanCloud9Memberships_SkipKeepsEarlierPages(t *testing.T) {
 // The listing stops when the service repeats the token it was sent, rather
 // than looping on it.
 func TestScanCloud9Memberships_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var n atomic.Int64
 	client := newCloud9TestClient(map[string]func(any) (any, error){
@@ -263,6 +268,7 @@ func cloud9TopLevelHandlers(st *store.Store, calls *parentCalls) map[string]func
 // The top-level scan lists the memberships of every stored environment, and
 // only those, after the environment phase.
 func TestScanCloud9_MembershipsOfStoredEnvironments(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(cloud9TopLevelHandlers(st, &calls), cloud9Denied)}
@@ -283,6 +289,7 @@ func TestScanCloud9_MembershipsOfStoredEnvironments(t *testing.T) {
 // A membership phase error reaches the dispatcher as a hard error, and the
 // environment rows stay.
 func TestScanCloud9_MembershipErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	h := cloud9TopLevelHandlers(st, &calls)
@@ -302,6 +309,7 @@ func TestScanCloud9_MembershipErrorPropagates(t *testing.T) {
 // propagation only: a failed environment phase returns no parents, so whether
 // the membership phase is gated on it cannot be observed here.
 func TestScanCloud9_EnvironmentErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	h := cloud9TopLevelHandlers(st, &calls)
@@ -319,6 +327,7 @@ func TestScanCloud9_EnvironmentErrorPropagates(t *testing.T) {
 // closed-to-new-customers signal for never-onboarded accounts) maps to the
 // not-entitled sentinel — Cloud9 can't be self-enabled — with no warning.
 func TestScanCloud9_ClosedToAccountExplicitMessage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := 0
 	st.OnWarn = func(_ store.ScanWarning) { warnings++ }
@@ -342,6 +351,7 @@ func TestScanCloud9_ClosedToAccountExplicitMessage(t *testing.T) {
 // silent-skip doesn't swallow a genuine per-op IAM denial — those carry an
 // action-identifying message and must still warn.
 func TestScanCloud9_RealIAMDenialStillWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := 0
 	st.OnWarn = func(_ store.ScanWarning) { warnings++ }

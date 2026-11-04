@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveSchedulerScheduleTargets_LambdaAndGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -36,6 +37,7 @@ func TestResolveSchedulerScheduleTargets_LambdaAndGroup(t *testing.T) {
 }
 
 func TestResolveSchedulerScheduleTargets_UnscannedTargetSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -53,6 +55,7 @@ func TestResolveSchedulerScheduleTargets_UnscannedTargetSkipped(t *testing.T) {
 }
 
 func TestResolveSchedulerScheduleTargets_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

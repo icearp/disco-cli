@@ -30,6 +30,7 @@ import (
 // awsTagKV's type switch (or a case names a non-member). The compiler accepts a
 // missing case, and awsTagKV would then panic only when a scan meets that type.
 func TestAWSTagKV_CoversUnion(t *testing.T) {
+	t.Parallel()
 	f, err := parser.ParseFile(token.NewFileSet(), "aws_tags.go", nil, 0)
 	if err != nil {
 		t.Fatalf("parse aws_tags.go: %v", err)
@@ -100,6 +101,7 @@ func collectCaseTypes(body *ast.BlockStmt, into map[string]bool) {
 // TestAWSTagsJSON_AllUnionMembers checks that each awsTagKV case reads its own
 // type's Key and Value; TestAWSTagKV_CoversUnion only checks that the case exists.
 func TestAWSTagsJSON_AllUnionMembers(t *testing.T) {
+	t.Parallel()
 	k, v := "K", "V"
 	tests := []struct {
 		name string
@@ -147,6 +149,7 @@ func assertTagsMap(t *testing.T, got *string, want map[string]string) {
 // entry by, so the tag is skipped; a nil Value (the ElastiCache model documents
 // "May be null") keeps the key with "".
 func TestAWSTagsJSON_NilKeySkippedNilValueKept(t *testing.T) {
+	t.Parallel()
 	k, keyOnly, v := "Real", "KeyOnly", "Value"
 	tags := []elasticachetypes.Tag{
 		{Key: nil, Value: &v},
@@ -162,6 +165,7 @@ type kvTestTag struct{ K, V *string }
 func kvTestTagKV(t kvTestTag) (key, value *string) { return t.K, t.V }
 
 func TestKVTagsJSON_EmptyIsNil(t *testing.T) {
+	t.Parallel()
 	if got := kvTagsJSON(nil, kvTestTagKV); got != nil {
 		t.Errorf("kvTagsJSON(nil) = %q, want nil", *got)
 	}
@@ -175,6 +179,7 @@ func TestKVTagsJSON_EmptyIsNil(t *testing.T) {
 }
 
 func TestKVTagsJSON_ReadsThroughAccessor(t *testing.T) {
+	t.Parallel()
 	k1, k2, keyOnly, v := "env", "team", "flag", "prod"
 	tags := []kvTestTag{
 		{K: &k1, V: &v},
@@ -188,6 +193,7 @@ func TestKVTagsJSON_ReadsThroughAccessor(t *testing.T) {
 // TestMapTagsJSON covers the alternative helper for services whose SDK returns
 // tags as map[string]string rather than typed slices.
 func TestMapTagsJSON(t *testing.T) {
+	t.Parallel()
 	if got := mapTagsJSON(nil); got != nil {
 		t.Errorf("nil map: got %q, want nil", *got)
 	}
@@ -210,6 +216,7 @@ func TestMapTagsJSON(t *testing.T) {
 // TestAWSTagsJSON_EC2Tags verifies that EC2 SDK tag slices are converted to
 // the expected JSON map format stored in resources.tags.
 func TestAWSTagsJSON_EC2Tags(t *testing.T) {
+	t.Parallel()
 	k1, v1, k2, v2 := "Name", "web-server", "env", "prod"
 	tags := []ec2types.Tag{
 		{Key: &k1, Value: &v1},
@@ -236,6 +243,7 @@ func TestAWSTagsJSON_EC2Tags(t *testing.T) {
 // TestAWSTagsJSON_Empty verifies that nil is returned for an empty tag slice,
 // matching the nullable column expectation in the database.
 func TestAWSTagsJSON_Empty(t *testing.T) {
+	t.Parallel()
 	if got := awsTagsJSON([]ec2types.Tag{}); got != nil {
 		t.Errorf("awsTagsJSON(empty): got %q, want nil", *got)
 	}
@@ -243,6 +251,7 @@ func TestAWSTagsJSON_Empty(t *testing.T) {
 
 // TestEC2TagName_Found verifies that the "Name" tag value is extracted.
 func TestEC2TagName_Found(t *testing.T) {
+	t.Parallel()
 	k1, v1 := "env", "prod"
 	k2, v2 := "Name", "my-instance"
 	tags := []ec2types.Tag{
@@ -257,6 +266,7 @@ func TestEC2TagName_Found(t *testing.T) {
 
 // TestEC2TagName_Absent verifies that nil is returned when no "Name" tag exists.
 func TestEC2TagName_Absent(t *testing.T) {
+	t.Parallel()
 	k1, v1 := "env", "prod"
 	tags := []ec2types.Tag{{Key: &k1, Value: &v1}}
 	if got := ec2TagName(tags); got != nil {
@@ -266,6 +276,7 @@ func TestEC2TagName_Absent(t *testing.T) {
 
 // TestEC2TagName_EmptySlice verifies that nil is returned for an empty tag slice.
 func TestEC2TagName_EmptySlice(t *testing.T) {
+	t.Parallel()
 	if got := ec2TagName(nil); got != nil {
 		t.Errorf("ec2TagName(nil): got %q, want nil", *got)
 	}

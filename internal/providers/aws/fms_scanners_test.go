@@ -351,6 +351,7 @@ func fmsAssertRow(t *testing.T, r store.Resource, name, status string) {
 // notification channel has its tags read with its ARN, exactly once, and
 // stores them (nil for none).
 func TestScanFMS_StoresEveryRowWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := fmsWarningsByOp(st)
 	var calls fmsCalls
@@ -453,6 +454,7 @@ func TestScanFMS_StoresEveryRowWithTags(t *testing.T) {
 
 // A rescan of unchanged resources inserts nothing.
 func TestScanFMS_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls fmsCalls
 	if _, _, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls)); err != nil {
@@ -470,6 +472,7 @@ func TestScanFMS_RescanInsertsNone(t *testing.T) {
 // A region with nothing listed stores nothing, reads no tags and warns
 // nothing.
 func TestScanFMS_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := fmsWarningsByOp(st)
 	var calls fmsCalls
@@ -497,6 +500,7 @@ func TestScanFMS_Empty(t *testing.T) {
 // throttle keeps it and marks the scan partial; any other error keeps it and
 // fails the scan, while the later phases still store their rows.
 func TestScanFMS_MemberReadFailure(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -573,6 +577,7 @@ func TestScanFMS_MemberReadFailure(t *testing.T) {
 // A member listing whose NextToken repeats stopped incomplete, so the set is
 // stored without its partial member list, and the scan fails.
 func TestScanFMS_MemberRepeatedTokenKeepsSetWithoutMembers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls fmsCalls
 	h := fmsHandlers(&calls)
@@ -617,6 +622,7 @@ var fmsListings = []struct {
 // A repeated NextToken ends each listing as an error, keeping the rows of
 // its page; the later phases still run.
 func TestScanFMS_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, l := range fmsListings {
 		t.Run(l.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -641,6 +647,7 @@ func TestScanFMS_RepeatedTokenKeepsPages(t *testing.T) {
 // phases still run. Any error but a denial fails the scan; the admin-only
 // denial after a page was read is warned about as a denial, under the op.
 func TestScanFMS_LaterPageFailureKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, l := range fmsListings {
 		for _, tc := range []struct {
 			name   string
@@ -696,6 +703,7 @@ func TestScanFMS_LaterPageFailureKeepsPages(t *testing.T) {
 // Each listing writes a page before it reads the next: the first page's row
 // is stored when the second page is requested.
 func TestScanFMS_WritesEachPageBeforeTheNext(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls fmsCalls
 	h := fmsHandlers(&calls)
@@ -729,6 +737,7 @@ func TestScanFMS_WritesEachPageBeforeTheNext(t *testing.T) {
 // once; a throttle keeps it and marks the scan partial; a response without
 // a body or an unmodelled error keeps it and fails the scan.
 func TestScanFMS_GetPolicyFailure(t *testing.T) {
+	t.Parallel()
 	unmodelled := apiErr("InvalidOperationException", "no")
 	cases := []struct {
 		name         string
@@ -805,6 +814,7 @@ func TestScanFMS_GetPolicyFailure(t *testing.T) {
 // A transient policy-phase error is demoted to a warning, so the resource-set
 // phase's hard error still reaches the dispatcher as a hard error.
 func TestScanFMS_TransientDoesNotMaskMemberError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "fms:ListPolicies")
 	var calls fmsCalls
@@ -826,6 +836,7 @@ func TestScanFMS_TransientDoesNotMaskMemberError(t *testing.T) {
 // A transient failure on one key does not soften a hard error on another:
 // the phase fails and the scan's outcome is an error.
 func TestScanFMS_TransientKeyWithHardKeyFails(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, op string
 		key      func(in any) string
@@ -860,6 +871,7 @@ func TestScanFMS_TransientKeyWithHardKeyFails(t *testing.T) {
 // later phases still run. A rescan stores the same rows again without
 // inserting any, and still warns rather than reports the service disabled.
 func TestScanFMS_DisabledAfterEarlierPhase(t *testing.T) {
+	t.Parallel()
 	notOnboarded := func(any) (any, error) { return nil, fmsNoDefaultAdmin }
 	cases := []struct {
 		name      string
@@ -927,6 +939,7 @@ func TestScanFMS_DisabledAfterEarlierPhase(t *testing.T) {
 // stores nothing and makes no later call, whether ListPolicies says so on
 // its first page or on a later page after an empty one.
 func TestScanFMS_NotEnabled(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		list func(in any) (any, error)
@@ -965,6 +978,7 @@ func TestScanFMS_NotEnabled(t *testing.T) {
 // throttle keeps it and is transient; any other error keeps it and is an
 // error.
 func TestScanFMS_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	rows := map[string]string{
 		TypeFMSPolicy:        fmsPolicyARN("p1"),
 		TypeFMSResourceSet:   fmsSetARN("rs1"),
@@ -1035,6 +1049,7 @@ func TestScanFMS_TagReadFailures(t *testing.T) {
 // Denied tag reads in every phase send one warning for the whole scan; the
 // rows are kept.
 func TestScanFMS_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "fms:ListTagsForResource")
 	calls := fmsCalls{tagErrs: map[string]error{
@@ -1055,6 +1070,7 @@ func TestScanFMS_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanFMS_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "fms:ListTagsForResource")
 	calls := fmsCalls{tagErrs: map[string]error{fmsPolicyARN("p1"): fmsThrottled, fmsProtoARN("l2"): apiErr("InvalidInputException", "bad arn")}}
@@ -1072,6 +1088,7 @@ func TestScanFMS_TagThrottleDemotedBesideHardError(t *testing.T) {
 // phases stored stand: the fixture's two fms:ListPolicies warnings, its
 // fms:ListResourceSets warning, and the denied tag read of the stored p1.
 func TestScanFMS_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	afterPolicies := map[string]int{"fms:ListPolicies": 2, "fms:ListTagsForResource": 1}
 	afterSets := map[string]int{"fms:ListPolicies": 2, "fms:ListResourceSets": 1, "fms:ListTagsForResource": 1}
 	for _, c := range []struct {
@@ -1113,6 +1130,7 @@ func TestScanFMS_FailedWriteStopsScan(t *testing.T) {
 // listing's warnings, though the first page, with the summary listed
 // without PolicyId, was stored.
 func TestScanFMS_FailedLaterPageWriteSendsNoWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	if _, err := st.DB().Exec(`CREATE TRIGGER refuse_p2 BEFORE INSERT ON resources
@@ -1137,6 +1155,7 @@ func TestScanFMS_FailedLaterPageWriteSendsNoWarning(t *testing.T) {
 // set's ARN and the ARN of a policy listed without PolicyArn are built in
 // the account's partition.
 func TestScanFMS_PartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			arn := func(resource string) string { return partitionARN(pf.partition, "fms", pf.region, resource) }
@@ -1185,6 +1204,7 @@ func TestScanFMS_PartitionARNs(t *testing.T) {
 
 // Once ctx ends no further phase starts, and the stop is reported once.
 func TestScanFMS_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls fmsCalls
 	h := fmsHandlers(&calls)
@@ -1221,6 +1241,7 @@ func TestScanFMS_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanFMS_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "fms.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1321,6 +1342,7 @@ func fmsServiceEntry(t *testing.T) serviceEntry {
 // notification channel singleton) are two rows, each policy using its own
 // region's resource set.
 func TestScanFMS_RegionalRowsPerRegion(t *testing.T) {
+	t.Parallel()
 	entry := fmsServiceEntry(t)
 	if entry.global {
 		t.Fatal("aws:fms is global; want regional (one scan per region)")
@@ -1392,6 +1414,7 @@ func TestScanFMS_RegionalRowsPerRegion(t *testing.T) {
 // member region stores nothing and warns nothing, and a not-onboarded region
 // reports the service disabled even after another region stored rows.
 func TestScanFMS_NonAdminPerRegion(t *testing.T) {
+	t.Parallel()
 	const adminRegion = "eu-west-1"
 	cases := []struct {
 		mode         string
@@ -1449,6 +1472,7 @@ func TestScanFMS_NonAdminPerRegion(t *testing.T) {
 // warns once; any other error fails the scan. The other phases' rows are kept
 // in every case.
 func TestScanFMS_NotificationChannelErrors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -1488,6 +1512,7 @@ func TestScanFMS_NotificationChannelErrors(t *testing.T) {
 // A listed applications or protocols list with no ListArn cannot be named,
 // so it is not stored and is warned about once per op.
 func TestScanFMS_ListsWithoutARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := fmsWarningsByOp(st)
 	var calls fmsCalls

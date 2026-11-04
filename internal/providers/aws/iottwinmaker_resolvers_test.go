@@ -8,6 +8,7 @@ import (
 )
 
 func TestIoTTMWorkspaceARN(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:iottwinmaker:us-east-1:123:workspace/ws-1/component-type/ct-1", "arn:aws:iottwinmaker:us-east-1:123:workspace/ws-1"},
 		{"arn:aws:iottwinmaker:us-east-1:123:workspace/ws-1/entity/e-1", "arn:aws:iottwinmaker:us-east-1:123:workspace/ws-1"},
@@ -22,6 +23,7 @@ func TestIoTTMWorkspaceARN(t *testing.T) {
 }
 
 func TestResolveIoTTwinMakerChildrenToWorkspace(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	wsARN := fmt.Sprintf("arn:aws:iottwinmaker:%s:%s:workspace/ws-1", testRegion, acct.ID)

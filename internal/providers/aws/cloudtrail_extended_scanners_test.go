@@ -193,6 +193,7 @@ func scanCloudTrailTopLevel(t *testing.T, st *store.Store, handlers map[string]f
 }
 
 func TestScanCloudTrail_StoresParentConfigurations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var insightCalls, evCfgCalls parentCalls
 	total, err := scanCloudTrailTopLevel(t, st, cloudTrailHandlers(&insightCalls, &evCfgCalls))
@@ -266,6 +267,7 @@ func TestScanCloudTrail_StoresParentConfigurations(t *testing.T) {
 }
 
 func TestScanCloudTrail_NoParentsReadsNoConfigurations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var insightCalls, evCfgCalls parentCalls
 	h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
@@ -284,6 +286,7 @@ func TestScanCloudTrail_NoParentsReadsNoConfigurations(t *testing.T) {
 }
 
 func TestGetCloudTrailEventConfiguration_StoresOnlyConfiguredParents(t *testing.T) {
+	t.Parallel()
 	aggregation := []cloudtrailtypes.AggregationConfiguration{{EventCategory: cloudtrailtypes.EventCategoryAggregationData}}
 	selectors := []cloudtrailtypes.ContextKeySelector{{Type: cloudtrailtypes.TypeRequestContext, Equals: []string{"k"}}}
 	for _, tc := range []struct {
@@ -328,6 +331,7 @@ func (s ctEvCfgStub) GetEventConfiguration(context.Context, *cloudtrail.GetEvent
 // fan-out still stores its rows. Every case runs after every older phase
 // stored its rows.
 func TestScanCloudTrail_FailedConfigurationParent(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("ThrottlingException", "slow down")
 	notPermitted := apiErr("OperationNotPermittedException", "no")
 	for _, tc := range []struct {
@@ -416,6 +420,7 @@ func typeOfCloudTrailParent(arn string) string {
 // A hard error in an older phase still lets the configuration phases run over
 // the parents stored before the failure, and is returned.
 func TestScanCloudTrail_OlderPhaseErrorStillRunsConfigurations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var insightCalls, evCfgCalls parentCalls
 	h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
@@ -437,6 +442,7 @@ func TestScanCloudTrail_OlderPhaseErrorStillRunsConfigurations(t *testing.T) {
 // configuration phase's hard error still reaches the dispatcher as a hard
 // error.
 func TestScanCloudTrail_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ctListChannelsOp)
 	var insightCalls, evCfgCalls parentCalls
@@ -484,6 +490,7 @@ func ctWithLakeHandlers(h map[string]func(in any) (any, error), next *string, la
 // listing's rows and every listed target's resource policy are stored, and
 // the error is returned.
 func TestScanCloudTrail_ExtendedPhasesIndependent(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		fail, typ, kept string
 	}{
@@ -514,6 +521,7 @@ func TestScanCloudTrail_ExtendedPhasesIndependent(t *testing.T) {
 // A Lake listing that fails or repeats its token after its first page keeps
 // that page's item and reads its resource policy, and returns the error.
 func TestScanCloudTrail_LakeLaterPageFailureKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		later   func() (any, error)
@@ -557,6 +565,7 @@ func TestScanCloudTrail_LakeLaterPageFailureKeepsEarlierPages(t *testing.T) {
 // A channel or dashboard listed without an ARN is not stored and is warned
 // about once under its list op.
 func TestScanCloudTrail_ARNlessLakeItemsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var mu sync.Mutex
 	warns := map[string]int{}
@@ -585,6 +594,7 @@ func TestScanCloudTrail_ARNlessLakeItemsWarn(t *testing.T) {
 // event-data-store phase stored: a store GetEventDataStore no longer finds is
 // neither stored nor read, and the stores are listed once.
 func TestScanCloudTrail_PoliciesReadForStoredEventDataStores(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var insightCalls, evCfgCalls parentCalls
 	h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
@@ -619,6 +629,7 @@ func TestScanCloudTrail_PoliciesReadForStoredEventDataStores(t *testing.T) {
 // A denied GetResourcePolicy skips that target with one warning for all such;
 // any other error ends the reads, and the policies read before it are stored.
 func TestScanCloudTrail_ResourcePolicyFailures(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "cloudtrail:GetResourcePolicy")
 	var insightCalls, evCfgCalls parentCalls
@@ -653,6 +664,7 @@ func TestScanCloudTrail_ResourcePolicyFailures(t *testing.T) {
 // denied and transient reads warn once and the scan succeeds, any other error
 // is returned. An item the read no longer finds was deleted and is not stored.
 func TestScanCloudTrail_LakeDetailFailureKeepsListElement(t *testing.T) {
+	t.Parallel()
 	transient := &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset")}
 	for _, op := range []struct {
 		name, label, typ, arn, notFound string
@@ -723,6 +735,7 @@ func TestScanCloudTrail_LakeDetailFailureKeepsListElement(t *testing.T) {
 // other item: a denial warns once and the scan succeeds, any other error is
 // returned. Either way the item is stored as its list element.
 func TestScanCloudTrail_ManagedLakeItemDetailFailureReported(t *testing.T) {
+	t.Parallel()
 	for _, op := range []struct {
 		name, typ, arn string
 		in             func(in any) string
@@ -794,6 +807,7 @@ func TestScanCloudTrail_ManagedLakeItemDetailFailureReported(t *testing.T) {
 // A failed write stores no channel, so the warning that a channel was stored
 // as its list element is not given.
 func TestScanCTChannels_NoKeptWarningAfterFailedWrite(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
 	if err != nil {
@@ -828,6 +842,7 @@ func TestScanCTChannels_NoKeptWarningAfterFailedWrite(t *testing.T) {
 // skips only that target, with one warning; the other targets' policies are
 // read and stored and the scan succeeds.
 func TestScanCloudTrail_TransientResourcePolicySkipsOnlyItsTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "cloudtrail:GetResourcePolicy")
 	var insightCalls, evCfgCalls parentCalls

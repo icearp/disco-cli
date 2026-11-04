@@ -64,6 +64,7 @@ func (s *stubConnectRouting) DescribeQuickConnect(_ context.Context, in *connect
 }
 
 func TestScanConnectRouting(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -121,6 +122,7 @@ func TestScanConnectRouting(t *testing.T) {
 }
 
 func TestScanConnectRoutingEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubConnectRouting{}

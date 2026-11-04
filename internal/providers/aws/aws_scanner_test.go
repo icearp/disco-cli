@@ -336,6 +336,7 @@ var expectedAWSServices = []string{
 // registerService panics on duplicates at runtime; this test surfaces the bug
 // in CI rather than at startup.
 func TestRegisteredServices_NoDuplicates(t *testing.T) {
+	t.Parallel()
 	seen := make(map[string]bool, len(registeredServices))
 	for _, svc := range registeredServices {
 		if seen[svc.name] {
@@ -348,6 +349,7 @@ func TestRegisteredServices_NoDuplicates(t *testing.T) {
 // TestRegisteredServices_ExpectedNames verifies that every expected service is
 // registered. Fails if a service is accidentally removed or renamed.
 func TestRegisteredServices_ExpectedNames(t *testing.T) {
+	t.Parallel()
 	registered := make(map[string]bool, len(registeredServices))
 	for _, svc := range registeredServices {
 		registered[svc.name] = true
@@ -392,6 +394,7 @@ func optInCount() int {
 // non-opt-in service and omits aws:servicequotas (which is opt-in) unless explicitly
 // included.
 func TestFilteredServices_DefaultExcludesOptIn(t *testing.T) {
+	t.Parallel()
 	got := filteredServiceNames(nil, false)
 	if want := len(registeredServices) - optInCount(); len(got) != want {
 		t.Errorf("filteredServices(nil, false): got %d, want %d (registered minus opt-in)", len(got), want)
@@ -404,6 +407,8 @@ func TestFilteredServices_DefaultExcludesOptIn(t *testing.T) {
 // TestFilteredServices_IncludeOptIn verifies the includeServiceQuotas flag adds
 // only the quotas-tagged opt-in services to the default set, and that explicit
 // selection by name works for any opt-in service.
+//
+//nolint:paralleltest // swaps the package-level registeredServices
 func TestFilteredServices_IncludeOptIn(t *testing.T) {
 	// No registered opt-in service lacks the quotas tag, so add one to prove the
 	// flag leaves such a service out. Swapping the package global means this
@@ -435,6 +440,7 @@ func TestFilteredServices_IncludeOptIn(t *testing.T) {
 // adds: exactly the two quota scanners carry quotas, and every other opt-in
 // service is listed here, so a new opt-in service forces a decision.
 func TestRegisteredServices_QuotasTags(t *testing.T) {
+	t.Parallel()
 	quotaServices := []string{"aws:servicequotas", "aws:servicequotas-template"}
 	var optInOnly []string
 	for _, s := range registeredServices {
@@ -453,6 +459,7 @@ func TestRegisteredServices_QuotasTags(t *testing.T) {
 
 // TestFilteredServices_Subset verifies that a named filter returns only the matching service.
 func TestFilteredServices_Subset(t *testing.T) {
+	t.Parallel()
 	got := filteredServices([]string{"aws:ec2"}, false)
 	if len(got) != 1 {
 		t.Fatalf("filteredServices([aws:ec2]): got %d results, want 1", len(got))
@@ -465,6 +472,7 @@ func TestFilteredServices_Subset(t *testing.T) {
 // TestFilteredServices_Unknown verifies that an unknown service name returns an
 // empty slice without panicking.
 func TestFilteredServices_Unknown(t *testing.T) {
+	t.Parallel()
 	got := filteredServices([]string{"aws:nonexistent"}, false)
 	if len(got) != 0 {
 		t.Errorf("filteredServices([aws:nonexistent]): got %d results, want 0", len(got))
@@ -473,6 +481,7 @@ func TestFilteredServices_Unknown(t *testing.T) {
 
 // TestFilteredServices_Multiple verifies that multiple services can be selected at once.
 func TestFilteredServices_Multiple(t *testing.T) {
+	t.Parallel()
 	got := filteredServices([]string{"aws:ec2", "aws:s3"}, false)
 	if len(got) != 2 {
 		t.Errorf("filteredServices([aws:ec2,aws:s3]): got %d results, want 2", len(got))
@@ -480,6 +489,7 @@ func TestFilteredServices_Multiple(t *testing.T) {
 }
 
 func TestMustJSON_ResultMetadata(t *testing.T) {
+	t.Parallel()
 	// The SDK fills ResultMetadata on every call; set a value so the case
 	// matches a real output rather than a zero one.
 	identity := &sts.GetCallerIdentityOutput{Account: ptrStr("123456789012"), Arn: ptrStr("arn:aws:iam::123456789012:root"), UserId: ptrStr("AIDA1")}
@@ -643,6 +653,8 @@ func runDispatched(t *testing.T, name string, global bool, err error) dispatchOu
 // in both dispatcher lanes. A clean run in each lane stays complete, and a
 // disabled sentinel reports zero counts and the disabled status without an
 // error.
+//
+//nolint:paralleltest // runDispatched swaps the package-level registeredServices
 func TestDispatch_TransientAfterRows(t *testing.T) {
 	transient := fmt.Errorf("list page 2: %w", io.ErrUnexpectedEOF)
 	disabled := markServiceDisabled(errors.New("not subscribed"))
@@ -693,6 +705,7 @@ func TestDispatch_TransientAfterRows(t *testing.T) {
 // credential sent to commercial us-east-1 would be refused and the scan would
 // lose its filter.
 func TestProbeEnabledRegions_PartitionHome(t *testing.T) {
+	t.Parallel()
 	for partition, want := range map[string]string{"aws": "us-east-1", "aws-us-gov": "us-gov-west-1", "aws-cn": "cn-northwest-1"} {
 		t.Run(partition, func(t *testing.T) {
 			var regions parentCalls

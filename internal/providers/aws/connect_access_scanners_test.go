@@ -139,6 +139,7 @@ func (c connectAccessCase) seedParents(t *testing.T, st *store.Store) {
 }
 
 func TestConnectAccessPhases_PagesEveryParentOfThisScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range connectAccessCases() {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -183,6 +184,7 @@ func TestConnectAccessPhases_PagesEveryParentOfThisScan(t *testing.T) {
 }
 
 func TestConnectAccessPhases_Errors(t *testing.T) {
+	t.Parallel()
 	for _, c := range connectAccessCases() {
 		t.Run(c.name+"/empty", func(t *testing.T) {
 			st := newTestStore(t)
@@ -261,6 +263,7 @@ func TestConnectAccessPhases_Errors(t *testing.T) {
 
 // Permissions listed in either order store the same row.
 func TestScanConnectSecurityProfilePermissions_OrderIsNoChange(t *testing.T) {
+	t.Parallel()
 	var attrs []string
 	for _, perms := range [][]string{{"b", "a", "c"}, {"c", "b", "a"}} {
 		st := newTestStore(t)
@@ -279,6 +282,7 @@ func TestScanConnectSecurityProfilePermissions_OrderIsNoChange(t *testing.T) {
 }
 
 func TestScanConnectSecurityProfilePermissions_EmptyIsAnEmptyList(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeConnectSecurityProfile, connectTestInstanceARN+"/security-profile/sp-1", testRegion, "{}")
 	client := connectStubClient(map[string]func(any) (any, error){"ListSecurityProfilePermissions": func(any) (any, error) {
@@ -312,6 +316,7 @@ func lambdaFunctionsHandler(calls *parentCalls) func(any) (any, error) {
 }
 
 func TestScanConnectLambdaFunctions_OneRowPerInstanceAndFunction(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedConnectInstances(t, st, "i-1", "i-2")
 	upsertTestResource(t, st, "aws", testAccountID, TypeConnectInstance, "arn:aws:connect:eu-west-1:123456789012:instance/i-west", "eu-west-1", "{}")
@@ -345,6 +350,7 @@ func TestScanConnectLambdaFunctions_OneRowPerInstanceAndFunction(t *testing.T) {
 }
 
 func TestScanConnectLambdaFunctions_Errors(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	t.Run("empty", func(t *testing.T) {
 		st := newTestStore(t)
@@ -399,6 +405,7 @@ func TestScanConnectLambdaFunctions_Errors(t *testing.T) {
 }
 
 func TestLambdaFunctionNameFromARN(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		arn  string
 		want *string
@@ -466,6 +473,7 @@ func connectScanWith(t *testing.T, st *store.Store, h map[string]func(any) (any,
 }
 
 func TestScanConnect_AccessReadsParentsTheFamiliesStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := connectAccessFamilyHandlers()
 	maps.Copy(h, connectChildOps)
@@ -483,6 +491,7 @@ func TestScanConnect_AccessReadsParentsTheFamiliesStored(t *testing.T) {
 // A failing access phase must cost no family or child row and no sibling
 // access row.
 func TestScanConnect_AccessPhaseErrorAfterEveryOtherPhase(t *testing.T) {
+	t.Parallel()
 	earlierRows := map[string]string{
 		TypeConnectSecurityProfile:          connectTestInstanceARN + "/security-profile/sp-1",
 		TypeConnectRoutingProfile:           connectTestInstanceARN + "/routing-profile/rp-1",
@@ -519,6 +528,7 @@ func TestScanConnect_AccessPhaseErrorAfterEveryOtherPhase(t *testing.T) {
 
 // A child phase's hard error must not skip the access phases.
 func TestScanConnect_ChildErrorDoesNotSkipAccess(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := connectAccessFamilyHandlers()
 	maps.Copy(h, connectChildOps)
@@ -537,6 +547,7 @@ func TestScanConnect_ChildErrorDoesNotSkipAccess(t *testing.T) {
 // A throttled earlier phase is demoted to one warning so that an access
 // phase's hard error still classifies the service as failed.
 func TestScanConnect_EarlierTransientDoesNotMaskAccessError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "connect")
 	h := connectAccessFamilyHandlers()
@@ -559,6 +570,7 @@ func TestScanConnect_EarlierTransientDoesNotMaskAccessError(t *testing.T) {
 // Each access phase's transient is demoted on its own, so a sibling's hard
 // error still classifies the service as failed.
 func TestScanConnectAccess_TransientDoesNotMaskSiblingError(t *testing.T) {
+	t.Parallel()
 	for throttled := range connectAccessOps {
 		t.Run(throttled, func(t *testing.T) {
 			st := newTestStore(t)
@@ -590,6 +602,7 @@ func TestScanConnectAccess_TransientDoesNotMaskSiblingError(t *testing.T) {
 // Entries missing the model-required QueueId or Channel are not stored and
 // are reported in one warning; their siblings are stored.
 func TestScanConnectRoutingProfileQueues_IncompleteEntriesWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	for _, id := range []string{"rp-1", "rp-2"} {
 		upsertTestResource(t, st, "aws", testAccountID, TypeConnectRoutingProfile, connectTestInstanceARN+"/routing-profile/"+id, testRegion, "{}")
@@ -618,6 +631,7 @@ func TestScanConnectRoutingProfileQueues_IncompleteEntriesWarnOnce(t *testing.T)
 }
 
 func TestScanConnectRoutingProfileQueues_CompleteEntriesDoNotWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeConnectRoutingProfile, connectTestInstanceARN+"/routing-profile/rp-1", testRegion, "{}")
 	warns := countOpWarnings(st, connectListRoutingProfileQueuesOp)
@@ -641,6 +655,7 @@ func seedConnectAccessParent(t *testing.T, st *store.Store) {
 // A family's hard error skips the children but not the access family, which
 // still lists the children of the parents stored before that error.
 func TestScanConnect_FamilyErrorDoesNotSkipAccess(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedConnectAccessParent(t, st)
 	h := connectAccessFamilyHandlers()
@@ -659,6 +674,7 @@ func TestScanConnect_FamilyErrorDoesNotSkipAccess(t *testing.T) {
 // A throttled family is demoted to one warning so that an access phase's hard
 // error still classifies the service as failed.
 func TestScanConnect_FamilyTransientDoesNotMaskAccessError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedConnectAccessParent(t, st)
 	warned := countOpWarnings(st, "connect")
@@ -697,6 +713,7 @@ func rendezvous(h func(any) (any, error), started, other chan struct{}, once *sy
 // access call each wait for the other, so either order run one after the
 // other times out.
 func TestScanConnect_ChildrenAndAccessRunConcurrently(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := connectAccessFamilyHandlers()
 	maps.Copy(h, connectChildOps)
@@ -713,6 +730,7 @@ func TestScanConnect_ChildrenAndAccessRunConcurrently(t *testing.T) {
 // A family's hard error does not skip the children: they list the children
 // of the parents stored this scan, and the service still returns the error.
 func TestScanConnect_FamilyErrorDoesNotSkipChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeConnectWorkspace, connectTestInstanceARN+"/workspace/w-1", testRegion, "{}")
 	h := connectAccessFamilyHandlers()

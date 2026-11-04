@@ -22,6 +22,7 @@ func upsertMemDBNamed(t *testing.T, st *store.Store, acct *account, rtype, arn, 
 }
 
 func TestResolveMemoryDBClusterRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/mdb-key", testRegion, acct.ID)
@@ -53,6 +54,7 @@ func TestResolveMemoryDBClusterRefs(t *testing.T) {
 }
 
 func TestResolveMemoryDBSubnetGroupRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
@@ -71,6 +73,7 @@ func TestResolveMemoryDBSubnetGroupRefs(t *testing.T) {
 }
 
 func TestResolveMemoryDBACLUsers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	uARN := fmt.Sprintf("arn:aws:memorydb:%s:%s:user/admin", testRegion, acct.ID)

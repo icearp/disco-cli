@@ -20,6 +20,7 @@ func arRecordAttrs(t *testing.T, sources ...artypes.ProvenanceSummary) string {
 }
 
 func TestResolveAgentRegistryRecordSources_LinksScannedSources(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	runtimeARN := bacARN("aws", testRegion, testAccountID, "runtime", "rt-1")
 	gatewayARN := bacARN("aws", testRegion, testAccountID, "gateway", "gw-1")
@@ -59,6 +60,7 @@ func TestResolveAgentRegistryRecordSources_LinksScannedSources(t *testing.T) {
 // row whose attributes do not decode is reported without costing the other
 // rows their edges.
 func TestResolveAgentRegistryRecordSources_NoProvenanceAndBadAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	runtimeARN := bacARN("aws", testRegion, testAccountID, "runtime", "rt-1")
 	runtimeID := upsertTestResource(t, st, "aws", testAccountID, TypeBedrockAgentCoreRuntime, runtimeARN, testRegion, "{}")

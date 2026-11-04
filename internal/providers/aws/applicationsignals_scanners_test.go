@@ -68,6 +68,7 @@ func (s *stubApplicationSignals) ListInstrumentationConfigurations(_ context.Con
 }
 
 func TestApplicationSignalsGroupingConfigurationNativeID(t *testing.T) {
+	t.Parallel()
 	got := applicationSignalsGroupingConfigurationNativeID("aws", "us-east-1", "111111111111")
 	want := "arn:aws:application-signals:us-east-1:111111111111:grouping-configuration"
 	if got != want {
@@ -76,6 +77,7 @@ func TestApplicationSignalsGroupingConfigurationNativeID(t *testing.T) {
 }
 
 func TestScanApplicationSignalsGroupingConfiguration_Populated(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion
@@ -109,6 +111,7 @@ func TestScanApplicationSignalsGroupingConfiguration_Populated(t *testing.T) {
 }
 
 func TestApplicationSignalsServiceNativeID_StableAcrossMapOrder(t *testing.T) {
+	t.Parallel()
 	a := applicationSignalsServiceNativeID("aws", "us-east-1", "111111111111", map[string]string{"Type": "Service", "Name": "checkout", "Environment": "prod"})
 	b := applicationSignalsServiceNativeID("aws", "us-east-1", "111111111111", map[string]string{"Name": "checkout", "Environment": "prod", "Type": "Service"})
 	if a != b {
@@ -121,6 +124,7 @@ func TestApplicationSignalsServiceNativeID_StableAcrossMapOrder(t *testing.T) {
 }
 
 func TestScanApplicationSignalsServices_Populated(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion
@@ -151,6 +155,7 @@ func TestScanApplicationSignalsServices_Populated(t *testing.T) {
 }
 
 func TestScanApplicationSignalsServices_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -166,6 +171,7 @@ func TestScanApplicationSignalsServices_Empty(t *testing.T) {
 }
 
 func TestScanApplicationSignalsGroupingConfiguration_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -263,6 +269,7 @@ func seedAppSignalsServices(t *testing.T, st *store.Store, services []applicatio
 }
 
 func TestScanApplicationSignalsInstrumentationConfigurations_ProbesOfEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	services := []applicationSignalsService{appSignalsTestService("checkout"), appSignalsTestService("cart")}
 	seedAppSignalsServices(t, st, services)
@@ -304,6 +311,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_ProbesOfEveryPage(t
 }
 
 func TestScanApplicationSignalsInstrumentationConfigurations_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	services := []applicationSignalsService{appSignalsTestService("checkout")}
 	seedAppSignalsServices(t, st, services)
@@ -333,6 +341,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_Empty(t *testing.T)
 }
 
 func TestScanApplicationSignalsInstrumentationConfigurations_EmptyARNSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	services := []applicationSignalsService{appSignalsTestService("checkout")}
 	seedAppSignalsServices(t, st, services)
@@ -359,6 +368,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_EmptyARNSkipped(t *
 // Two service rows sharing a name and environment (other KeyAttributes differ)
 // are queried once, and each configuration is stored once under the first.
 func TestScanApplicationSignalsInstrumentationConfigurations_SharedNameEnvironmentQueriedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	first := appSignalsTestService("checkout")
 	attrs := appSignalsServiceKeyAttrs("checkout")
@@ -390,6 +400,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_SharedNameEnvironme
 
 // Per service error policy: cart fails with code, checkout succeeds.
 func TestScanApplicationSignalsInstrumentationConfigurations_ErrorPolicy(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		code      string
@@ -452,6 +463,7 @@ func TestScanApplicationSignalsInstrumentationConfigurations_ErrorPolicy(t *test
 }
 
 func TestScanApplicationSignalsServices_ReturnsStoredInstrumentedServices(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := appSignalsClient(map[string]func(any) (any, error){
 		"ListServices": func(in any) (any, error) {
@@ -511,6 +523,7 @@ func appSignalsTopLevelHandlers(calls *parentCalls) map[string]func(any) (any, e
 }
 
 func TestScanApplicationSignals_ListsConfigurationsOfStoredServices(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(appSignalsTopLevelHandlers(&calls), appSignalsDenied)}
@@ -530,6 +543,7 @@ func TestScanApplicationSignals_ListsConfigurationsOfStoredServices(t *testing.T
 // A hard configuration failure fails the service but keeps the rows of every
 // earlier phase.
 func TestScanApplicationSignals_ConfigurationFailureKeepsEarlierPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	h := appSignalsTopLevelHandlers(&calls)
@@ -549,6 +563,7 @@ func TestScanApplicationSignals_ConfigurationFailureKeepsEarlierPhases(t *testin
 // configuration error still classifies the service as failed, and the
 // configurations of the services on the earlier page are queried.
 func TestScanApplicationSignals_ServicesThrottleDemotedBesideHardConfigError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, appSignalsListServicesOp)
 	var calls parentCalls

@@ -11,6 +11,7 @@ import (
 )
 
 func TestResolveGameLiftAliasFleet(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fARN := fmt.Sprintf("arn:aws:gamelift:%s:%s:fleet/fleet-1", testRegion, acct.ID)
@@ -26,6 +27,7 @@ func TestResolveGameLiftAliasFleet(t *testing.T) {
 }
 
 func TestResolveGameLiftFleetRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	bARN := fmt.Sprintf("arn:aws:gamelift:%s:%s:build/b1", testRegion, acct.ID)
@@ -44,6 +46,7 @@ func TestResolveGameLiftFleetRefs(t *testing.T) {
 }
 
 func TestResolveGameLiftContainerFleetRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/CFleet", acct.ID)
@@ -62,6 +65,7 @@ func TestResolveGameLiftContainerFleetRefs(t *testing.T) {
 }
 
 func TestResolveGameLiftGameServerGroupRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/GSG", acct.ID)
@@ -80,6 +84,7 @@ func TestResolveGameLiftGameServerGroupRefs(t *testing.T) {
 }
 
 func TestResolveGameLiftGameSessionQueueRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fARN := fmt.Sprintf("arn:aws:gamelift:%s:%s:fleet/f1", testRegion, acct.ID)
@@ -101,6 +106,7 @@ func TestResolveGameLiftGameSessionQueueRefs(t *testing.T) {
 }
 
 func TestResolveGameLiftMatchmakingConfigRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	qARN := fmt.Sprintf("arn:aws:gamelift:%s:%s:gamesessionqueue/q1", testRegion, acct.ID)
@@ -119,6 +125,7 @@ func TestResolveGameLiftMatchmakingConfigRefs(t *testing.T) {
 }
 
 func TestResolveGameLiftVpcPeeringPeerVPC_LinksScannedPeerOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC, ec2ARN(testRegion, acct.ID, "vpc", "vpc-1"), testRegion, "{}")
@@ -150,6 +157,7 @@ func TestResolveGameLiftVpcPeeringPeerVPC_LinksScannedPeerOnly(t *testing.T) {
 }
 
 func TestResolveGameLiftVpcPeeringPeerVPC_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeGameLiftVpcPeeringConnection,

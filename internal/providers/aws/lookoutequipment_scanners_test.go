@@ -287,6 +287,7 @@ func leAttrs(t *testing.T, r store.Resource) map[string]any {
 // every row; every listing is sent MaxResults 500; versions are listed for
 // both models and both schedulers described. No error, no warning.
 func TestScanLookoutEquipment_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newLECalls()
@@ -388,6 +389,7 @@ func TestScanLookoutEquipment_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanLookoutEquipment_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := leScan(context.Background(), st, leHandlers(newLECalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -404,6 +406,7 @@ func TestScanLookoutEquipment_RescanInsertsNone(t *testing.T) {
 // Empty listings: nothing stored, no Describe, version listing or tag read,
 // no error, no warning.
 func TestScanLookoutEquipment_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newLECalls()
@@ -450,6 +453,7 @@ func TestScanLookoutEquipment_Empty(t *testing.T) {
 // warns once under the tag op with the scan's scope; a throttle keeps it and
 // is transient; any other error keeps it and is an error.
 func TestScanLookoutEquipment_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	version := leTestVersionARN("model-tagged", 1)
 	versionID := leTestVersionID("model-tagged", 1)
 	model := leKindOf(t, "ListModels").arn("bare")
@@ -517,6 +521,7 @@ func TestScanLookoutEquipment_TagReadFailures(t *testing.T) {
 // Denied tag reads in three phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanLookoutEquipment_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newLECalls()
@@ -539,6 +544,7 @@ func TestScanLookoutEquipment_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanLookoutEquipment_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, leTagsOp)
 	calls := newLECalls()
@@ -561,6 +567,7 @@ func TestScanLookoutEquipment_TagThrottleDemotedBesideHardError(t *testing.T) {
 // described: it is stored as its summary and the scan reports
 // errLESchedulerNoName.
 func TestScanLookoutEquipment_DescribeFailures(t *testing.T) {
+	t.Parallel()
 	const describeOp = "lookoutequipment:DescribeInferenceScheduler"
 	arn := leKindOf(t, "ListInferenceSchedulers").arn("tagged")
 	for _, c := range []struct {
@@ -651,6 +658,7 @@ func TestScanLookoutEquipment_DescribeFailures(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phase's rows
 // stay stored.
 func TestScanLookoutEquipment_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeLookoutEquipmentDataset)
@@ -680,6 +688,7 @@ func TestScanLookoutEquipment_FailedWriteStopsScan(t *testing.T) {
 // A listing's failed later page keeps the page read before it, and its error
 // does not stop the later phases. A model not stored has no versions read.
 func TestScanLookoutEquipment_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op                   string
 		wantTotal, wantLater int
@@ -723,6 +732,7 @@ func TestScanLookoutEquipment_ListFailureKeepsPagesAndLaterPhases(t *testing.T) 
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanLookoutEquipment_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newLECalls()
 	handlers := leHandlers(calls)
@@ -750,6 +760,7 @@ func TestScanLookoutEquipment_RepeatedTokenKeepsPages(t *testing.T) {
 // about when part of its listing was read; a denial warns once under the op;
 // any other error is returned.
 func TestScanLookoutEquipment_PerModelVersionFailures(t *testing.T) {
+	t.Parallel()
 	const versionsOp = "lookoutequipment:ListModelVersions"
 	for _, c := range []struct {
 		name       string
@@ -817,6 +828,7 @@ func TestScanLookoutEquipment_PerModelVersionFailures(t *testing.T) {
 // model version without a ModelVersionArn is stored untagged and the scan
 // reports errLEVersionNoARN.
 func TestScanLookoutEquipment_ElementsWithoutIDs(t *testing.T) {
+	t.Parallel()
 	t.Run("dataset without ARN", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := rhWarnRecorder(st)
@@ -943,6 +955,7 @@ func TestScanLookoutEquipment_ElementsWithoutIDs(t *testing.T) {
 // ModelVersionArn included, and the version's NativeID is built from its
 // model's ARN in that partition.
 func TestScanLookoutEquipment_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -991,6 +1004,7 @@ func TestScanLookoutEquipment_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phase is not run.
 func TestScanLookoutEquipment_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newLECalls()
 	handlers := leHandlers(calls)
@@ -1027,6 +1041,7 @@ func TestScanLookoutEquipment_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later phase runs.
 func TestScanLookoutEquipment_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "lookoutequipment.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

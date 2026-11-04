@@ -22,6 +22,7 @@ const (
 // TestResolveRedshiftClusterTargets_HappyPath exercises every cluster
 // edge: subnet-group, VPC, security group, IAM role, KMS key.
 func TestResolveRedshiftClusterTargets_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -64,6 +65,7 @@ func TestResolveRedshiftClusterTargets_HappyPath(t *testing.T) {
 // TestResolveRedshiftClusterTargets_FKSafe verifies missing targets emit
 // no edges (cross-account / unscanned).
 func TestResolveRedshiftClusterTargets_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -86,6 +88,7 @@ func TestResolveRedshiftClusterTargets_FKSafe(t *testing.T) {
 // TestResolveRedshiftSubnetGroupTargets_HappyPath verifies subnet-group
 // → VPC + subnet-group → subnet edges.
 func TestResolveRedshiftSubnetGroupTargets_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -115,6 +118,7 @@ func TestResolveRedshiftSubnetGroupTargets_HappyPath(t *testing.T) {
 }
 
 func TestResolveRedshiftIntegrationRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -141,6 +145,7 @@ func TestResolveRedshiftIntegrationRefs(t *testing.T) {
 // --- Service-Reference-only Redshift types ---
 
 func TestResolveRedshiftSnapshotRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftCluster,
@@ -156,6 +161,7 @@ func TestResolveRedshiftSnapshotRefs(t *testing.T) {
 }
 
 func TestResolveRedshiftSnapshotRefs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	snID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSnapshot,
@@ -169,6 +175,7 @@ func TestResolveRedshiftSnapshotRefs_Empty(t *testing.T) {
 }
 
 func TestResolveRedshiftUsageLimitRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftCluster,
@@ -184,6 +191,7 @@ func TestResolveRedshiftUsageLimitRefs(t *testing.T) {
 }
 
 func TestResolveRedshiftUsageLimitRefs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ulID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftUsageLimit,
@@ -197,6 +205,7 @@ func TestResolveRedshiftUsageLimitRefs_Empty(t *testing.T) {
 }
 
 func TestResolveRedshiftSnapshotCopyGrantRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	kARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", testRegion, acct.ID, testRedshiftKMSKeyID)
@@ -212,6 +221,7 @@ func TestResolveRedshiftSnapshotCopyGrantRefs(t *testing.T) {
 }
 
 func TestResolveRedshiftSnapshotCopyGrantRefs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gID := upsertTestResource(t, st, "aws", acct.ID, TypeRedshiftSnapshotCopyGrant,

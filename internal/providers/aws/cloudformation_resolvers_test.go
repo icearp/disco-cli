@@ -22,6 +22,7 @@ func cfnStackSetARN(region, acct, name string) string {
 // containing an S3 bucket, a Lambda function, and an IAM role — all scanned —
 // emits three contains edges with NativeIDs synthesized correctly per binding.
 func TestResolveCloudFormationStackResources(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -62,6 +63,7 @@ func TestResolveCloudFormationStackResources(t *testing.T) {
 // TestResolveCloudFormationStackResources_UnmappedType verifies an unmapped
 // CloudFormation type silently skips, neither emitting an edge nor erroring.
 func TestResolveCloudFormationStackResources_UnmappedType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -85,6 +87,7 @@ func TestResolveCloudFormationStackResources_UnmappedType(t *testing.T) {
 // rows with empty PhysicalResourceId, CREATE_FAILED, and DELETE_COMPLETE are
 // all skipped — these point at non-existent or no-longer-existent targets.
 func TestResolveCloudFormationStackResources_EmptyAndFailedStatus(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -116,6 +119,7 @@ func TestResolveCloudFormationStackResources_EmptyAndFailedStatus(t *testing.T) 
 // TestResolveCloudFormationStackResources_FKSafe verifies cross-account /
 // unscanned targets do not cause a FK error or phantom edge.
 func TestResolveCloudFormationStackResources_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -138,6 +142,7 @@ func TestResolveCloudFormationStackResources_FKSafe(t *testing.T) {
 // TestResolveCloudFormationStackResources_SQSURLConversion verifies the queue
 // URL → ARN conversion path matches a scanned SQS queue's NativeID.
 func TestResolveCloudFormationStackResources_SQSURLConversion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -164,6 +169,7 @@ func TestResolveCloudFormationStackResources_SQSURLConversion(t *testing.T) {
 // happy default-bus rule synth path resolves to the scanned rule, while a
 // pipe-form custom-bus PhysicalResourceId is rejected (no edge).
 func TestResolveCloudFormationStackResources_EventBusRule(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -194,6 +200,7 @@ func TestResolveCloudFormationStackResources_EventBusRule(t *testing.T) {
 // TestResolveCloudFormationStackResources_NestedStack verifies a nested
 // AWS::CloudFormation::Stack child emits a stack→stack contains edge.
 func TestResolveCloudFormationStackResources_NestedStack(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -218,6 +225,7 @@ func TestResolveCloudFormationStackResources_NestedStack(t *testing.T) {
 // contains edge per deployed instance whose StackId is in the scan, while
 // instances pointing at unscanned stacks skip.
 func TestResolveCloudFormationStackSetInstances(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -250,6 +258,7 @@ func TestResolveCloudFormationStackSetInstances(t *testing.T) {
 // whose attrs do not decode is returned as an error, and the stacks on either
 // side of it (rows are read in name order) keep their edges.
 func TestResolveCloudFormationStackResources_DecodeErrorKeepsOtherStacks(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -284,6 +293,7 @@ func TestResolveCloudFormationStackResources_DecodeErrorKeepsOtherStacks(t *test
 // stack-set whose attrs do not decode is returned as an error, and the sets on
 // either side of it keep their edges.
 func TestResolveCloudFormationStackSetInstances_DecodeErrorKeepsOtherSets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

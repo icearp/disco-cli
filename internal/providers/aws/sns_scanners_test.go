@@ -100,6 +100,7 @@ func snsClient(h map[string]func(any) (any, error)) *sns.Client {
 }
 
 func TestSNSOriginationNumberNativeID(t *testing.T) {
+	t.Parallel()
 	got := snsOriginationNumberNativeID("aws", "eu-west-1", "111122223333", snsPhone1)
 	if want := "arn:aws:sns:eu-west-1:111122223333:origination-number/+12065550100"; got != want {
 		t.Errorf("NativeID = %q; want %q", got, want)
@@ -107,6 +108,7 @@ func TestSNSOriginationNumberNativeID(t *testing.T) {
 }
 
 func TestScanSNSPlatformApplications_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := snsAppHandler([][]snstypes.PlatformApplication{
 		{snsApp(snsAppARN1), {Attributes: map[string]string{"Enabled": "true"}}},
@@ -137,6 +139,7 @@ func TestScanSNSPlatformApplications_PagesAndFields(t *testing.T) {
 }
 
 func TestScanSNSOriginationNumbers_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var limits []int32
 	h := snsPhoneHandler([][]snstypes.PhoneNumberInformation{
@@ -220,6 +223,7 @@ func snsPhaseCases(calls *atomic.Int32) []snsPhaseCase {
 }
 
 func TestScanSNSNewPhases_Empty(t *testing.T) {
+	t.Parallel()
 	for _, c := range snsPhaseCases(new(atomic.Int32)) {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -236,6 +240,7 @@ func TestScanSNSNewPhases_Empty(t *testing.T) {
 }
 
 func TestScanSNSNewPhases_Errors(t *testing.T) {
+	t.Parallel()
 	notDeployed := apiErr("UnknownOperationException", "")
 	hard := apiErr("InvalidParameter", "bad")
 	for _, c := range snsPhaseCases(new(atomic.Int32)) {
@@ -281,6 +286,7 @@ func TestScanSNSNewPhases_Errors(t *testing.T) {
 }
 
 func TestScanSNSNewPhases_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	var calls atomic.Int32
 	for _, c := range snsPhaseCases(&calls) {
 		t.Run(c.name, func(t *testing.T) {
@@ -297,6 +303,7 @@ func TestScanSNSNewPhases_RepeatedTokenStops(t *testing.T) {
 // Through the real awsquery deserializer: a listing that carries push
 // credentials stores none of them, and keeps the non-secret attributes.
 func TestScanSNSPlatformApplications_CredentialsNeverStored(t *testing.T) {
+	t.Parallel()
 	const body = `<ListPlatformApplicationsResponse xmlns="http://sns.amazonaws.com/doc/2010-03-31/">
   <ListPlatformApplicationsResult>
     <PlatformApplications>
@@ -381,6 +388,7 @@ func snsMerge(hs ...map[string]func(any) (any, error)) map[string]func(any) (any
 }
 
 func TestScanSNS_StoresEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := snsMerge(snsTopicHandlers(nil),
 		snsAppHandler([][]snstypes.PlatformApplication{{snsApp(snsAppARN1)}}, nil),
@@ -401,6 +409,7 @@ func TestScanSNS_StoresEveryPhase(t *testing.T) {
 // A hard failure of either new phase fails the service but keeps the rows of
 // the topic phases and of the other new phase.
 func TestScanSNS_NewPhaseFailureKeepsOtherPhases(t *testing.T) {
+	t.Parallel()
 	hard := apiErr("InvalidParameter", "bad")
 	for _, failing := range []string{"ListPlatformApplications", "ListOriginationNumbers"} {
 		t.Run(failing, func(t *testing.T) {
@@ -424,6 +433,7 @@ func TestScanSNS_NewPhaseFailureKeepsOtherPhases(t *testing.T) {
 
 // A hard topic failure fails the service but the new phases still run.
 func TestScanSNS_TopicFailureStillRunsNewPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := snsMerge(snsTopicHandlers(apiErr("InvalidParameter", "bad")),
 		snsAppHandler([][]snstypes.PlatformApplication{{snsApp(snsAppARN1)}}, nil),
@@ -442,6 +452,7 @@ func TestScanSNS_TopicFailureStillRunsNewPhases(t *testing.T) {
 // A transient error in any phase is demoted to one warning, so a hard error
 // in another phase still classifies the service as failed.
 func TestScanSNS_TransientDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	transient := &smithyhttp.RequestSendError{Err: io.EOF}
 	hard := apiErr("InvalidParameter", "bad")
 	for _, tc := range []struct {
@@ -490,6 +501,7 @@ func snsWarnings(st *store.Store) func() map[string]int {
 // SNS's own denial code on the topic phases warns once per denied op, is not
 // an error, and leaves every other phase's rows.
 func TestScanSNS_TopicPhasesAuthorizationErrorWarns(t *testing.T) {
+	t.Parallel()
 	sub := snstypes.Subscription{SubscriptionArn: sdkaws.String(snsTopicARN + ":sub-1"), TopicArn: sdkaws.String(snsTopicARN)}
 	for _, tc := range []struct {
 		name      string

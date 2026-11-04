@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveIVSChannelRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rcARN := fmt.Sprintf("arn:aws:ivs:%s:%s:recording-configuration/rc1", testRegion, acct.ID)
@@ -26,6 +27,7 @@ func TestResolveIVSChannelRefs(t *testing.T) {
 }
 
 func TestResolveIVSStreamKeyChannel(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	chARN := fmt.Sprintf("arn:aws:ivs:%s:%s:channel/c1", testRegion, acct.ID)
@@ -41,6 +43,7 @@ func TestResolveIVSStreamKeyChannel(t *testing.T) {
 }
 
 func TestResolveIVSIngestConfigStage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stARN := fmt.Sprintf("arn:aws:ivs:%s:%s:stage/s1", testRegion, acct.ID)
@@ -56,6 +59,7 @@ func TestResolveIVSIngestConfigStage(t *testing.T) {
 }
 
 func TestResolveIVSRecordingConfigS3(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	bName := "ivs-rec-bucket"
@@ -71,6 +75,7 @@ func TestResolveIVSRecordingConfigS3(t *testing.T) {
 }
 
 func TestResolveIVSStorageConfigS3(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	bName := "ivs-store-bucket"
@@ -86,6 +91,7 @@ func TestResolveIVSStorageConfigS3(t *testing.T) {
 }
 
 func TestResolveIVSStageStorageConfig(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	scARN := fmt.Sprintf("arn:aws:ivs:%s:%s:storage-configuration/sc-1", testRegion, acct.ID)

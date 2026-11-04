@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveLocationTrackerConsumerRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tName := "fleet-tracker"
@@ -27,6 +28,7 @@ func TestResolveLocationTrackerConsumerRefs(t *testing.T) {
 }
 
 func TestResolveLocationKMSRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc-123", testRegion, acct.ID)
@@ -47,6 +49,7 @@ func TestResolveLocationKMSRefs(t *testing.T) {
 }
 
 func TestResolveLocationAPIKeyResources(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

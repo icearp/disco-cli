@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveWAFRegionalWebACLAssociations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -31,6 +32,7 @@ func TestResolveWAFRegionalWebACLAssociations(t *testing.T) {
 // TestResolveWAFRegionalWebACLAssociations_NoAttrs guards the empty-attrs path:
 // an association row with no WebACLId must produce no edge and no panic.
 func TestResolveWAFRegionalWebACLAssociations_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

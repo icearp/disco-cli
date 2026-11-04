@@ -29,6 +29,7 @@ func (s *stubConnectDataTable) ListDataTablePrimaryValues(_ context.Context, in 
 }
 
 func TestScanConnectDataTable(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -73,6 +74,7 @@ func TestScanConnectDataTable(t *testing.T) {
 }
 
 func TestScanConnectDataTableEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubConnectDataTable{}

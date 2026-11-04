@@ -33,6 +33,7 @@ func seedGFPermission(t *testing.T, st *store.Store, nativeID, attrs string) str
 // group, each matched by id and type only: the grant to a user id that is
 // stored only as a group links nowhere.
 func TestResolveGrafanaPermissionPrincipals_UserAndGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	userID := upsertTestResource(t, st, "aws", acct.ID, TypeIdentityStoreUser, identityStoreUserNativeID(acct.ID, "d-1", "u-1"), "", "{}")
@@ -56,6 +57,7 @@ func TestResolveGrafanaPermissionPrincipals_UserAndGroup(t *testing.T) {
 // A grant with no user, or to a principal that is not stored, gets no edge
 // and no error.
 func TestResolveGrafanaPermissionPrincipals_NoAttrsOrUnscanned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeIdentityStoreUser, identityStoreUserNativeID(acct.ID, "d-1", "u-1"), "", "{}")
@@ -75,6 +77,7 @@ func TestResolveGrafanaPermissionPrincipals_NoAttrsOrUnscanned(t *testing.T) {
 // A principal stored under another account is not matched, though its id is
 // the grant's.
 func TestResolveGrafanaPermissionPrincipals_OtherAccountPrincipalUnmatched(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	const other = "210987654321"
@@ -92,6 +95,7 @@ func TestResolveGrafanaPermissionPrincipals_OtherAccountPrincipalUnmatched(t *te
 // A grant whose attributes do not decode is reported, and the other grants
 // still get their edges.
 func TestResolveGrafanaPermissionPrincipals_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	userID := upsertTestResource(t, st, "aws", acct.ID, TypeIdentityStoreUser, identityStoreUserNativeID(acct.ID, "d-1", "u-1"), "", "{}")

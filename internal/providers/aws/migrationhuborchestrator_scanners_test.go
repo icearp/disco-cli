@@ -159,6 +159,7 @@ func mhoContains(t *testing.T, st *store.Store, parentNativeID, childNativeID st
 // --- plugins ---------------------------------------------------------------
 
 func TestScanMHOPlugins_TwoPagesStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	s := sdkaws.String
 	stub := &stubMHO{t: t, plugins: [][]mhotypes.PluginSummary{
@@ -190,6 +191,7 @@ func TestScanMHOPlugins_TwoPagesStored(t *testing.T) {
 }
 
 func TestScanMHOPlugins_ErrorShapes(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name            string
 		err             error
@@ -241,6 +243,7 @@ func TestScanMHOPlugins_ErrorShapes(t *testing.T) {
 // workflow deleted mid-scan is skipped, and each child is contained by its
 // parent.
 func TestScanMHO_WorkflowChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	s := sdkaws.String
@@ -320,6 +323,7 @@ func TestScanMHO_WorkflowChildren(t *testing.T) {
 // template's id even when two templates share a step-group id; a template or
 // step group deleted mid-scan is skipped.
 func TestScanMHO_TemplateChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	s := sdkaws.String
@@ -483,6 +487,7 @@ func mhoChildCases() []mhoChildCase {
 
 // Denied parents warn once per op in total; the other parent is still stored.
 func TestScanMHO_ChildDeniedWarnsOnceKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	for _, tc := range mhoChildCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -506,6 +511,7 @@ func TestScanMHO_ChildDeniedWarnsOnceKeepsSiblings(t *testing.T) {
 
 // Any other error fails the scan, and the rows of the earlier phases are kept.
 func TestScanMHO_ChildOtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	for _, tc := range mhoChildCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -529,6 +535,7 @@ func TestScanMHO_ChildOtherErrorPropagates(t *testing.T) {
 // ListWorkflowSteps does not model ResourceNotFoundException, so it is not
 // tolerated as a vanished parent.
 func TestScanMHO_WorkflowStepsNotFoundPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	s := sdkaws.String
 	stub := &stubMHO{
@@ -546,6 +553,7 @@ func TestScanMHO_WorkflowStepsNotFoundPropagates(t *testing.T) {
 // keeps a parent's rows only when its whole listing succeeded), and its step
 // groups are not handed on to the steps phase.
 func TestScanMHO_ChildDeniedOnSecondPageDropsParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	s := sdkaws.String
@@ -571,6 +579,7 @@ func TestScanMHO_ChildDeniedOnSecondPageDropsParent(t *testing.T) {
 // A workflow-steps failure (ListWorkflowSteps tolerates no vanished parent)
 // must not cost the plugins or the template children: their phases run first.
 func TestScanMHO_WorkflowStepsErrorKeepsTemplateChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	s := sdkaws.String
 	tpl := mhoTplARN("tpl")
@@ -594,6 +603,7 @@ func TestScanMHO_WorkflowStepsErrorKeepsTemplateChildren(t *testing.T) {
 
 // With no workflows or templates no child op is called and nothing is stored.
 func TestScanMHO_EmptyMakesNoChildCalls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubMHO{t: t}
 	total, err := runMHO(t, st, stub)
@@ -610,6 +620,7 @@ func TestScanMHO_EmptyMakesNoChildCalls(t *testing.T) {
 // service against the real SDK client (its input validators included): every
 // child phase runs after its parent phase and is contained by it.
 func TestScanMigrationHubOrchestrator_ChildrenContainedByParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	s := sdkaws.String
 	one := func(out any) []stubCall { return []stubCall{{Output: out}} }

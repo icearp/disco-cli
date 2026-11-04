@@ -28,6 +28,7 @@ func nfRuleGroupARN(region, acct, name string) string {
 // firewall → policy (uses), firewall → vpc (attached-to), firewall → subnets
 // (attached-to).
 func TestResolveNetworkFirewallFirewallRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -70,6 +71,7 @@ func TestResolveNetworkFirewallFirewallRelationships(t *testing.T) {
 // TestResolveNetworkFirewallPolicyRelationships verifies policy → rule-group
 // edges for both stateless + stateful references.
 func TestResolveNetworkFirewallPolicyRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -101,6 +103,7 @@ func TestResolveNetworkFirewallPolicyRelationships(t *testing.T) {
 // TestResolveNetworkFirewallFirewall_UnscannedTargets verifies FK-safe skip
 // when the referenced policy, VPC, and subnet are not in the store.
 func TestResolveNetworkFirewallFirewall_UnscannedTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -129,6 +132,7 @@ func TestResolveNetworkFirewallFirewall_UnscannedTargets(t *testing.T) {
 // TestResolveNetworkFirewall_EmptyAttrs verifies no panic and no edges when
 // attributes are empty for both firewall and policy resolvers.
 func TestResolveNetworkFirewall_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -146,6 +150,7 @@ func TestResolveNetworkFirewall_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNetworkFirewallRuleGroupKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -163,6 +168,7 @@ func TestResolveNetworkFirewallRuleGroupKMS(t *testing.T) {
 }
 
 func TestResolveNetworkFirewallTLSInspectionRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -237,6 +243,7 @@ func (c nfDecodeCase) run(t *testing.T) {
 }
 
 func TestNetworkFirewallResolvers_DecodeErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	keyARN := "arn:aws:kms:" + testRegion + ":" + testAccountID + ":key/k1"
 	rgARN := nfRuleGroupARN(testRegion, testAccountID, "rg")
 	encryption := &nfwtypes.EncryptionConfiguration{KeyId: &keyARN, Type: nfwtypes.EncryptionTypeCustomerKms}

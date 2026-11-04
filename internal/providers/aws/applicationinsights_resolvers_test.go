@@ -19,6 +19,7 @@ func aiComponentAttrs(resources ...string) string {
 }
 
 func TestResolveAppInsightsComponentMembers_ScannedMembersOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	instance := "arn:aws:ec2:us-east-1:123456789012:instance/i-0abc"
 	queue := "arn:aws:sqs:us-east-1:123456789012:orders"
@@ -51,6 +52,7 @@ func TestResolveAppInsightsComponentMembers_ScannedMembersOnly(t *testing.T) {
 }
 
 func TestResolveAppInsightsComponentMembers_CorruptAttributes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeEC2Instance, "arn:aws:ec2:us-east-1:123456789012:instance/i-0abc", testRegion, "{}")
 	upsertTestResource(t, st, "aws", testAccountID, TypeApplicationInsightsComponent, aiTestCompWeb, testRegion, `{"ResourceList":"not-a-list"}`)
@@ -61,6 +63,7 @@ func TestResolveAppInsightsComponentMembers_CorruptAttributes(t *testing.T) {
 }
 
 func TestResolveAppInsightsComponentMembers_NoResourceList(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeEC2Instance, "arn:aws:ec2:us-east-1:123456789012:instance/i-0abc", testRegion, "{}")
 	compID := upsertTestResource(t, st, "aws", testAccountID, TypeApplicationInsightsComponent, aiTestCompWeb, testRegion, "{}")

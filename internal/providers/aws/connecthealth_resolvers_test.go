@@ -23,6 +23,7 @@ func haEdgeTargets(t *testing.T, st *store.Store, fromID, kind string) []string 
 }
 
 func TestResolveHealthAgentDomainRefs_KeyAndRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ctxKeyARN := "arn:aws:kms:" + haRegion + ":" + testAccountID + ":key/2222bbbb-0000-0000-0000-000000000000"
@@ -55,6 +56,7 @@ func TestResolveHealthAgentDomainRefs_KeyAndRole(t *testing.T) {
 // A domain with no key, no web app configuration, or refs to unscanned
 // targets gets no edge.
 func TestResolveHealthAgentDomainRefs_NoEdges(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		out  *connecthealth.GetDomainOutput
@@ -84,6 +86,7 @@ func TestResolveHealthAgentDomainRefs_NoEdges(t *testing.T) {
 // A row whose attributes do not decode is reported, and the other rows still
 // get their edges.
 func TestResolveHealthAgentDomainRefs_DecodeErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeHealthAgentDomain, haDomARNB, haRegion, `{"KmsKeyArn":7}`)

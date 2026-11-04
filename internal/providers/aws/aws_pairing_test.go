@@ -34,6 +34,7 @@ func pairScanners(t *testing.T) (*pairing.Result, map[string]string) {
 // function, its helpers or its callers). SDK skew — a call the pinned
 // snapshot no longer has — is logged, not fatal: it moves with the pin.
 func TestScannerOpLabelsResolve(t *testing.T) {
+	t.Parallel()
 	res, _ := pairScanners(t)
 	fatal := map[string]bool{"label-no-op": true, "label-no-anchor": true, "label-malformed": true, "unresolved-receiver": true}
 	skew := 0
@@ -51,6 +52,7 @@ func TestScannerOpLabelsResolve(t *testing.T) {
 // with an SDK call in reach, or is explained — no SDK module in its file,
 // rows built from a non-listing op, or SDK skew.
 func TestEveryEmittedTypePaired(t *testing.T) {
+	t.Parallel()
 	res, unpaired := pairScanners(t)
 	for typ, reason := range unpaired {
 		if reason == "unexplained" {
@@ -69,6 +71,7 @@ func TestEveryEmittedTypePaired(t *testing.T) {
 // catalog matched it and neither holds. A type whose candidates the extractor
 // says nothing about keeps whatever it declares.
 func TestUntaggableMatchesServiceReference(t *testing.T) {
+	t.Parallel()
 	in, err := coverage.InputsFromCache(context.Background(), sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}, coverageProvider{}, ".")
 	if errors.Is(err, sdkinv.ErrNotFetched) {
 		t.Skip(err)
@@ -118,6 +121,7 @@ func TestUntaggableMatchesServiceReference(t *testing.T) {
 // is a candidate op the scanners list, so its row is credited through the
 // declared edges. A misspelled or unlisted op would credit nothing, silently.
 func TestMembershipEdgesCreditTheirListing(t *testing.T) {
+	t.Parallel()
 	in, err := coverage.InputsFromCache(context.Background(), sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}, coverageProvider{}, ".")
 	if errors.Is(err, sdkinv.ErrNotFetched) {
 		t.Skip(err)

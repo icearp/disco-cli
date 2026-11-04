@@ -72,6 +72,7 @@ func (s *stubWorkSpaces) DescribeTags(context.Context, *workspaces.DescribeTagsI
 // both canned availability shapes are silent, a genuine denial warns, and
 // neither aborts the scan.
 func TestScanWSWorkspacesPools_SkipsAvailabilityGapsAndWarnsOnDenial(t *testing.T) {
+	t.Parallel()
 	const denial = "User: arn:aws:sts::123456789012:assumed-role/disco/scan is not " +
 		"authorized to perform: workspaces:DescribeWorkspacesPools on resource: *"
 
@@ -234,6 +235,7 @@ func wsAttrs(t *testing.T, r store.Resource) map[string]any {
 }
 
 func TestScanWorkSpaces_StoresAccountLinksAndConnectClientAddIns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var addInCalls parentCalls
 	total, err := scanWorkSpacesTopLevel(t, st, wsTopLevelHandlers(&addInCalls))
@@ -283,6 +285,7 @@ func TestScanWorkSpaces_StoresAccountLinksAndConnectClientAddIns(t *testing.T) {
 }
 
 func TestScanWorkSpaces_NoDirectoriesOrLinks(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var addInCalls parentCalls
 	h := wsTopLevelHandlers(&addInCalls)
@@ -311,6 +314,7 @@ func TestScanWorkSpaces_NoDirectoriesOrLinks(t *testing.T) {
 // serve is silent on the first page only; anything else, a transient error
 // included, fails the scan.
 func TestScanWorkSpaces_FailedAccountLinksPage(t *testing.T) {
+	t.Parallel()
 	notDeployed := apiErr("UnknownOperationException", "unknown operation")
 	unavailable := apiErr("ServiceUnavailableException", "try later")
 	for _, tc := range []struct {
@@ -375,6 +379,7 @@ func TestScanWorkSpaces_FailedAccountLinksPage(t *testing.T) {
 // A hard error in an older phase still lets the account-link and add-in
 // phases run, over the directories listed before the failure, and is returned.
 func TestScanWorkSpaces_OlderPhaseErrorStillRunsNewPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var addInCalls parentCalls
 	h := wsTopLevelHandlers(&addInCalls)
@@ -398,6 +403,7 @@ func TestScanWorkSpaces_OlderPhaseErrorStillRunsNewPhases(t *testing.T) {
 // as a hard error, not hidden inside a join the dispatcher would read as
 // transient.
 func TestScanWorkSpaces_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "workspaces:DescribeApplications")
 	var addInCalls parentCalls
@@ -419,6 +425,7 @@ func TestScanWorkSpaces_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 // directories hit it, and any other error fails the scan after every other
 // phase has stored its rows.
 func TestScanWorkSpaces_FailedAddInDirectory(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name       string
 		failDirs   []string
@@ -464,6 +471,7 @@ func TestScanWorkSpaces_FailedAddInDirectory(t *testing.T) {
 }
 
 func TestListWSConnectClientAddIns_FailsOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	var calls atomic.Int32
 	cfg := opStubConfig(map[string]func(in any) (any, error){
 		"DescribeConnectClientAddIns": func(any) (any, error) {

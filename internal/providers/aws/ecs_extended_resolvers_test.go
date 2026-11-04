@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveECSCapacityProviderToASG(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	asgARN := fmt.Sprintf("arn:aws:autoscaling:%s:%s:autoScalingGroup:abc:autoScalingGroupName/asg-1", testRegion, acct.ID)
@@ -23,6 +24,7 @@ func TestResolveECSCapacityProviderToASG(t *testing.T) {
 }
 
 func TestResolveECSCCPARefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clARN := fmt.Sprintf("arn:aws:ecs:%s:%s:cluster/cl-1", testRegion, acct.ID)
@@ -41,6 +43,7 @@ func TestResolveECSCCPARefs(t *testing.T) {
 }
 
 func TestResolveECSTaskSetRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clARN := fmt.Sprintf("arn:aws:ecs:%s:%s:cluster/cl-1", testRegion, acct.ID)

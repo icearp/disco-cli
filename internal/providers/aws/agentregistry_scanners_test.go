@@ -64,6 +64,7 @@ func arSeedRegistries(t *testing.T, st *store.Store, ids ...string) []childParen
 }
 
 func TestScanAgentRegistryRegistries_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		mu       sync.Mutex
@@ -119,6 +120,7 @@ func TestScanAgentRegistryRegistries_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanAgentRegistryRegistries_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -157,6 +159,7 @@ func TestScanAgentRegistryRegistries_Errors(t *testing.T) {
 // A failure on a later page keeps the earlier pages' rows and returns their
 // registries, so the records phase still lists them.
 func TestScanAgentRegistryRegistries_LaterPageErrorKeepsStoredRegistries(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := map[string]func(any) (any, error){
 		"ListRegistries": func(in any) (any, error) {
@@ -176,6 +179,7 @@ func TestScanAgentRegistryRegistries_LaterPageErrorKeepsStoredRegistries(t *test
 }
 
 func TestScanAgentRegistryRecords_StoresEachRegistrysRecords(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	regs := arSeedRegistries(t, st, "r1", "r2", "r3")
 	calls := &parentCalls{}
@@ -241,6 +245,7 @@ func TestScanAgentRegistryRecords_StoresEachRegistrysRecords(t *testing.T) {
 
 // One registry fails with code; the other two keep their records.
 func TestScanAgentRegistryRecords_PerRegistryErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -311,6 +316,7 @@ func arTopLevelHandlers(override map[string]func(any) (any, error)) map[string]f
 
 // The records phase queries exactly the registries the first phase listed.
 func TestScanAgentRegistryAll_ListsRecordsOfListedRegistries(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanAgentRegistryAll(context.Background(), arClient(arTopLevelHandlers(nil)), newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil {
@@ -328,6 +334,7 @@ func TestScanAgentRegistryAll_ListsRecordsOfListedRegistries(t *testing.T) {
 // A throttled registries page is demoted to a warning so that the records
 // phase's hard error still classifies the service as failed.
 func TestScanAgentRegistryAll_TransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, agentRegistryListRegistriesOp)
 	handlers := arTopLevelHandlers(map[string]func(any) (any, error){
@@ -357,6 +364,7 @@ func TestScanAgentRegistryAll_TransientDoesNotMaskHardError(t *testing.T) {
 // In a region with no agent-registry endpoint the NXDOMAIN reaches the
 // dispatcher unchanged, which reports the region unavailable.
 func TestScanAgentRegistryAll_UnreachableEndpointIsUnavailable(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }

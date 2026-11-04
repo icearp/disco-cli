@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveB2BICapabilityS3(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -27,6 +28,7 @@ func TestResolveB2BICapabilityS3(t *testing.T) {
 }
 
 func TestResolveB2BIPartnershipRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -48,6 +50,7 @@ func TestResolveB2BIPartnershipRefs(t *testing.T) {
 }
 
 func TestResolveB2BIProfileLogGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

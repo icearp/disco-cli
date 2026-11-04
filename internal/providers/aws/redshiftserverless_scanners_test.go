@@ -236,6 +236,7 @@ func seedRSSParents(t *testing.T, st *store.Store) {
 }
 
 func TestScanRSSSingleCallPhases_PagesStoreEveryRow(t *testing.T) {
+	t.Parallel()
 	for _, ph := range rssSingleCallPhases() {
 		t.Run(ph.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -269,6 +270,7 @@ func TestScanRSSSingleCallPhases_PagesStoreEveryRow(t *testing.T) {
 }
 
 func TestScanRSSSingleCallPhases_Errors(t *testing.T) {
+	t.Parallel()
 	deny := apiErr("AccessDeniedException", "User: arn:aws:iam::123456789012:role/x is not authorized to perform: redshift-serverless:List")
 	for _, ph := range rssSingleCallPhases() {
 		for _, tc := range []struct {
@@ -316,6 +318,7 @@ func TestScanRSSSingleCallPhases_Errors(t *testing.T) {
 }
 
 func TestScanRSSReservations_FieldsAndAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubRSS{reservations: [][]rsstypes.Reservation{{rssReservation("r1"), {ReservationArn: sdkaws.String(rssARN("reservation", "r0")), Status: sdkaws.String("")}}}}
 	if _, _, err := scanRSSReservations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
@@ -339,6 +342,7 @@ func TestScanRSSReservations_FieldsAndAttrs(t *testing.T) {
 }
 
 func TestScanRSSCustomDomainAssociations_KeyedAndContainedByWorkgroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedRSSParents(t, st)
 	stub := &stubRSS{domains: [][]rsstypes.Association{{
@@ -381,6 +385,7 @@ func TestScanRSSCustomDomainAssociations_KeyedAndContainedByWorkgroup(t *testing
 }
 
 func TestScanRSSScheduledActions_KeyedAndContainedByNamespace(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedRSSParents(t, st)
 	stub := &stubRSS{actions: [][]rsstypes.ScheduledActionAssociation{{
@@ -424,6 +429,7 @@ func TestScanRSSScheduledActions_KeyedAndContainedByNamespace(t *testing.T) {
 }
 
 func TestScanRSSNamedChildren_NoParentsNoCall(t *testing.T) {
+	t.Parallel()
 	acct := newTestAccount(testAccountID)
 	for _, tc := range []struct {
 		op   string
@@ -463,6 +469,7 @@ func rssPhasesStub() *stubRSS {
 // pin that the namespace and workgroup phases hand their lists to the
 // scheduled-action and custom-domain phases.
 func TestScanRSSPhases_ChildrenUseListedParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := scanRSSPhases(context.Background(), rssPhasesStub(), newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -479,6 +486,7 @@ func TestScanRSSPhases_ChildrenUseListedParents(t *testing.T) {
 // in turn: the error surfaces, the namespace and workgroup rows are stored,
 // and every other phase still runs.
 func TestScanRSSPhases_PhaseErrorKeepsLaterPhases(t *testing.T) {
+	t.Parallel()
 	ops := []string{"ListReservations", "ListSnapshotCopyConfigurations", "ListUsageLimits", "ListScheduledActions", "ListCustomDomainAssociations"}
 	for _, failing := range ops {
 		t.Run(failing, func(t *testing.T) {
@@ -508,6 +516,7 @@ func TestScanRSSPhases_PhaseErrorKeepsLaterPhases(t *testing.T) {
 // under its listing, and does not become the parent of a child whose parent
 // name is missing.
 func TestScanRSSPhases_NamelessParentAdoptsNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	stub := rssPhasesStub()
@@ -719,6 +728,7 @@ func rssScan(ctx context.Context, st *store.Store, handlers map[string]func(in a
 // each listing call sends MaxResults 100. The recovery point is stored
 // untagged and never sent to the tag op. No error, no warning.
 func TestScanRedshiftServerless_StoresTagsOfTaggedTypes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newRSSCalls()
@@ -785,6 +795,7 @@ func TestScanRedshiftServerless_StoresTagsOfTaggedTypes(t *testing.T) {
 
 // Empty listings store nothing, read no tags and send no warning.
 func TestScanRedshiftServerless_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newRSSCalls()
@@ -808,6 +819,7 @@ func TestScanRedshiftServerless_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanRedshiftServerless_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := rssScan(context.Background(), st, rssHandlers(newRSSCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -825,6 +837,7 @@ func TestScanRedshiftServerless_RescanInsertsNone(t *testing.T) {
 // denial keeps the row untagged and warns once under the tag op; a throttle
 // keeps it and is transient; any other error keeps it and is an error.
 func TestScanRedshiftServerless_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagCase struct {
 		name      string
 		arn, typ  string
@@ -887,6 +900,7 @@ func TestScanRedshiftServerless_TagReadFailures(t *testing.T) {
 // Denied tag reads in two listings send one warning for the whole scan,
 // under the tag op, naming the first denied row; the rows are kept untagged.
 func TestScanRedshiftServerless_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, rssTagsOp)
 	calls := newRSSCalls()
@@ -920,6 +934,7 @@ func TestScanRedshiftServerless_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanRedshiftServerless_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, rssTagsOp)
 	calls := newRSSCalls()
@@ -940,6 +955,7 @@ func TestScanRedshiftServerless_TagThrottleDemotedBesideHardError(t *testing.T) 
 // refused read of the scanning account's own row, listed on the next page,
 // is kept untagged and is the one warning.
 func TestScanRedshiftServerless_OtherAccountRowsKeptUntagged(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListSnapshots", "ListWorkgroups"} {
 		for _, c := range []struct {
 			name string
@@ -996,6 +1012,7 @@ var rssPhaseOps = []string{
 // further page, no later phase runs and no warning is sent about rows the
 // write lost; the phases before it keep their rows.
 func TestScanRedshiftServerless_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op        string
 		wantTotal int // the 2 rows of each earlier tagged listing
@@ -1034,6 +1051,7 @@ func TestScanRedshiftServerless_FailedWriteStopsScan(t *testing.T) {
 // A listing's failed page keeps the page read before it, and its error does
 // not stop the later listings.
 func TestScanRedshiftServerless_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListNamespaces", "ListSnapshots", "ListWorkgroups"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1061,6 +1079,7 @@ func TestScanRedshiftServerless_ListFailureKeepsPagesAndLaterPhases(t *testing.T
 // A denied listing warns once under its op; a denial on a later page keeps
 // the page read before it. Every later listing still runs.
 func TestScanRedshiftServerless_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, call := range []int{1, 2} {
 		t.Run(fmt.Sprintf("page%d", call), func(t *testing.T) {
 			st := newTestStore(t)
@@ -1089,6 +1108,7 @@ func TestScanRedshiftServerless_DeniedListingWarnsUnderItsOp(t *testing.T) {
 
 // A repeated token ends a tagged listing as an error, keeping its pages.
 func TestScanRedshiftServerless_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newRSSCalls()
 	handlers := rssHandlers(calls)
@@ -1119,6 +1139,7 @@ func TestScanRedshiftServerless_RepeatedTokenKeepsPages(t *testing.T) {
 // warned about once under its listing, named by its name or by the fallback
 // text when it has none.
 func TestScanRedshiftServerless_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, name, key string }{
 		{"ListNamespaces", "ns-x", "ns-x"},
 		{"ListSnapshots", "snap-x", "snap-x"},
@@ -1164,6 +1185,7 @@ func TestScanRedshiftServerless_ElementWithoutARNWarns(t *testing.T) {
 // Rows of the aws-us-gov and aws-cn partitions reach the tag op under their
 // listed ARNs unchanged.
 func TestScanRedshiftServerless_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -1202,6 +1224,7 @@ func TestScanRedshiftServerless_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it in its listing.
 func TestScanRedshiftServerless_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newRSSCalls()
 	handlers := rssHandlers(calls)
@@ -1238,6 +1261,7 @@ func TestScanRedshiftServerless_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanRedshiftServerless_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "redshift-serverless.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

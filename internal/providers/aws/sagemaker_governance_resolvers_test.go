@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveSageMakerExperimentTrial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	expARN := sagemakerARN("aws", testRegion, acct.ID, "experiment", "exp-1")
@@ -30,6 +31,7 @@ func TestResolveSageMakerExperimentTrial(t *testing.T) {
 }
 
 func TestResolveSageMakerExperimentTrial_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	trialARN := fmt.Sprintf("arn:aws:sagemaker:%s:%s:experiment-trial/trial-1", testRegion, acct.ID)
@@ -44,6 +46,7 @@ func TestResolveSageMakerExperimentTrial_NoAttrs(t *testing.T) {
 }
 
 func TestResolveSageMakerHubContent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	hubARN := sagemakerARN("aws", testRegion, acct.ID, "hub", "hub-1")
@@ -66,6 +69,7 @@ func TestResolveSageMakerHubContent(t *testing.T) {
 }
 
 func TestResolveSageMakerHubContent_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	hcARN := fmt.Sprintf("arn:aws:sagemaker:%s:%s:hub-content/hub-1/Model/content-1", testRegion, acct.ID)
@@ -80,6 +84,7 @@ func TestResolveSageMakerHubContent_NoAttrs(t *testing.T) {
 }
 
 func TestResolveSageMakerComputeQuota(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clusterARN := sagemakerARN("aws", testRegion, acct.ID, "cluster", "cluster-1")
@@ -102,6 +107,7 @@ func TestResolveSageMakerComputeQuota(t *testing.T) {
 }
 
 func TestResolveSageMakerComputeQuota_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cqARN := fmt.Sprintf("arn:aws:sagemaker:%s:%s:compute-quota/cq-1", testRegion, acct.ID)
@@ -116,6 +122,7 @@ func TestResolveSageMakerComputeQuota_NoAttrs(t *testing.T) {
 }
 
 func TestResolveSageMakerClusterSchedulerConfig(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clusterARN := sagemakerARN("aws", testRegion, acct.ID, "cluster", "cluster-1")
@@ -138,6 +145,7 @@ func TestResolveSageMakerClusterSchedulerConfig(t *testing.T) {
 }
 
 func TestResolveSageMakerClusterSchedulerConfig_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cscARN := fmt.Sprintf("arn:aws:sagemaker:%s:%s:cluster-scheduler-config/csc-1", testRegion, acct.ID)
@@ -152,6 +160,7 @@ func TestResolveSageMakerClusterSchedulerConfig_NoAttrs(t *testing.T) {
 }
 
 func TestResolveSageMakerEdgeDeploymentPlan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fleetARN := sagemakerARN("aws", testRegion, acct.ID, "device-fleet", "fleet-1")
@@ -174,6 +183,7 @@ func TestResolveSageMakerEdgeDeploymentPlan(t *testing.T) {
 }
 
 func TestResolveSageMakerEdgeDeploymentPlan_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	planARN := fmt.Sprintf("arn:aws:sagemaker:%s:%s:edge-deployment/plan-1", testRegion, acct.ID)

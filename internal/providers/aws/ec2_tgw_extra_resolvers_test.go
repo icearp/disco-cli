@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveTGWPolicyTableRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -24,6 +25,7 @@ func TestResolveTGWPolicyTableRelationships(t *testing.T) {
 }
 
 func TestResolveTGWPolicyTableRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -38,6 +40,7 @@ func TestResolveTGWPolicyTableRelationships_NoAttrs(t *testing.T) {
 }
 
 func TestResolveTGWRouteTableAnnouncementRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -62,6 +65,7 @@ func TestResolveTGWRouteTableAnnouncementRelationships(t *testing.T) {
 }
 
 func TestResolveTGWRouteTableAnnouncementRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

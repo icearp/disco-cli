@@ -68,6 +68,7 @@ func scanLMTokensForTest(t *testing.T, st *store.Store, list func(in *licenseman
 }
 
 func TestScanLMReceivedLicenses_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	arnB := "arn:aws:license-manager::444455556666:license:l-b"
 	var pages int
@@ -115,6 +116,7 @@ func TestScanLMReceivedLicenses_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanLMReceivedLicenses_EmptyStoresNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanLMReceivedForTest(t, st, func(*licensemanager.ListReceivedLicensesInput) (any, error) {
 		return &licensemanager.ListReceivedLicensesOutput{}, nil
@@ -125,6 +127,7 @@ func TestScanLMReceivedLicenses_EmptyStoresNothing(t *testing.T) {
 }
 
 func TestScanLMReceivedLicenses_SkipsDeletedAndArnless(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanLMReceivedForTest(t, st, func(*licensemanager.ListReceivedLicensesInput) (any, error) {
 		return &licensemanager.ListReceivedLicensesOutput{Licenses: []lmtypes.GrantedLicense{
@@ -152,6 +155,7 @@ var lmListingDenials = []struct {
 }
 
 func TestScanLMReceivedLicenses_DeniedWarnsAndKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, denial := range lmListingDenials {
 		t.Run(denial.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -176,6 +180,7 @@ func TestScanLMReceivedLicenses_DeniedWarnsAndKeepsEarlierPages(t *testing.T) {
 }
 
 func TestScanLMReceivedLicenses_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, err := scanLMReceivedForTest(t, st, func(*licensemanager.ListReceivedLicensesInput) (any, error) {
 		return nil, lmBadInput
@@ -187,6 +192,7 @@ func TestScanLMReceivedLicenses_OtherErrorPropagates(t *testing.T) {
 
 // A repeated token fails the listing; the license already listed is stored.
 func TestScanLMReceivedLicenses_FailsOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls int
 	_, err := scanLMReceivedForTest(t, st, func(*licensemanager.ListReceivedLicensesInput) (any, error) {
@@ -208,6 +214,7 @@ func TestScanLMReceivedLicenses_FailsOnRepeatedToken(t *testing.T) {
 }
 
 func TestScanLMTokens_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var pages int
 	total, err := scanLMTokensForTest(t, st, func(in *licensemanager.ListTokensInput) (any, error) {
@@ -250,6 +257,7 @@ func TestScanLMTokens_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanLMTokens_EmptyStoresNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanLMTokensForTest(t, st, func(*licensemanager.ListTokensInput) (any, error) {
 		return &licensemanager.ListTokensOutput{}, nil
@@ -260,6 +268,7 @@ func TestScanLMTokens_EmptyStoresNothing(t *testing.T) {
 }
 
 func TestScanLMTokens_SkipsDeletedAndIncomplete(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanLMTokensForTest(t, st, func(*licensemanager.ListTokensInput) (any, error) {
 		return &licensemanager.ListTokensOutput{Tokens: []lmtypes.TokenData{
@@ -278,6 +287,7 @@ func TestScanLMTokens_SkipsDeletedAndIncomplete(t *testing.T) {
 }
 
 func TestScanLMTokens_DeniedWarnsAndKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, denial := range lmListingDenials {
 		t.Run(denial.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -299,6 +309,7 @@ func TestScanLMTokens_DeniedWarnsAndKeepsEarlierPages(t *testing.T) {
 }
 
 func TestScanLMTokens_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, err := scanLMTokensForTest(t, st, func(*licensemanager.ListTokensInput) (any, error) {
 		return nil, lmBadInput
@@ -310,6 +321,7 @@ func TestScanLMTokens_OtherErrorPropagates(t *testing.T) {
 
 // A repeated token fails the listing; the token already listed is stored.
 func TestScanLMTokens_FailsOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls int
 	_, err := scanLMTokensForTest(t, st, func(*licensemanager.ListTokensInput) (any, error) {
@@ -356,6 +368,7 @@ func scanLicenseManagerForTest(t *testing.T, st *store.Store, received, tokens f
 }
 
 func TestScanLicenseManager_StoresReceivedLicensesAndTokens(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanLicenseManagerForTest(t, st,
 		func(any) (any, error) {
@@ -381,6 +394,7 @@ func TestScanLicenseManager_StoresReceivedLicensesAndTokens(t *testing.T) {
 }
 
 func TestScanLicenseManager_NewPhaseErrorsKeepEveryOtherPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanLicenseManagerForTest(t, st,
 		func(any) (any, error) { return nil, lmBadInput },
@@ -410,6 +424,7 @@ func TestScanLicenseManager_NewPhaseErrorsKeepEveryOtherPhase(t *testing.T) {
 }
 
 func TestScanLicenseManager_TransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, "license-manager:ListReceivedLicenses")
 	_, err := scanLicenseManagerForTest(t, st,
@@ -428,6 +443,7 @@ func TestScanLicenseManager_TransientDoesNotMaskHardError(t *testing.T) {
 // Alone, it is returned as a transient error, so the scan reads as partial,
 // and the rows listed before it are kept.
 func TestScanLicenseManager_RateLimitExceededIsTransientAndKeepsRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, "license-manager:ListTokens")
 	rateLimited := &lmtypes.RateLimitExceededException{Message: ptrStr("Too many requests have been submitted. Try again after a brief wait.")}
@@ -460,7 +476,7 @@ func lmRetryingConfig(handlers map[string]func(any) (any, error)) sdkaws.Config 
 					return smithymw.FinalizeOutput{}, smithymw.Metadata{}, lmDenied
 				}
 				out, err := h(nil)
-				return smithymw.FinalizeOutput{Result: out}, smithymw.Metadata{}, err
+				return smithymw.FinalizeOutput{Result: freshOutput(out)}, smithymw.Metadata{}, err
 			}), "Retry", smithymw.After)
 	}
 	return sdkaws.Config{
@@ -479,6 +495,7 @@ func lmRetryingConfig(handlers map[string]func(any) (any, error)) sdkaws.Config 
 // A single throttle is retried by the client scanLicenseManager builds, so the
 // retried call's rows are stored and no warning is recorded.
 func TestScanLicenseManager_RateLimitExceededOnceIsRetried(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, "license-manager:ListTokens")
 	var calls int
@@ -506,6 +523,7 @@ func TestScanLicenseManager_RateLimitExceededOnceIsRetried(t *testing.T) {
 }
 
 func TestScanLMReceivedLicenses_StatusUnsetWithoutReceivedMetadata(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, err := scanLMReceivedForTest(t, st, func(*licensemanager.ListReceivedLicensesInput) (any, error) {
 		return &licensemanager.ListReceivedLicensesOutput{Licenses: []lmtypes.GrantedLicense{
@@ -521,6 +539,7 @@ func TestScanLMReceivedLicenses_StatusUnsetWithoutReceivedMetadata(t *testing.T)
 }
 
 func TestScanLMPhases_ServiceRoleMissingWarnsAndKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	notSetUp := &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "Service role not found"}
 	for _, tc := range []struct {
 		name string
@@ -589,6 +608,7 @@ func scanLicenseManagerWith(t *testing.T, st *store.Store, h map[string]func(any
 // A failing phase does not stop the phases after it: the first phase's error
 // is returned with the rows of every later phase.
 func TestScanLicenseManager_FailedPhaseRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanLicenseManagerWith(t, st, map[string]func(any) (any, error){
 		"ListLicenses": func(any) (any, error) { return nil, lmBadInput },
@@ -611,6 +631,7 @@ func TestScanLicenseManager_FailedPhaseRunsLaterPhases(t *testing.T) {
 // A listing that fails or repeats its token after its first page keeps that
 // page's rows and returns the error.
 func TestScanLicenseManager_LaterPageErrorKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		page2   func() (any, error)
@@ -647,6 +668,7 @@ func TestScanLicenseManager_LaterPageErrorKeepsEarlierPages(t *testing.T) {
 // A received-license or token listing that fails after its first page keeps
 // that page's rows and returns the error.
 func TestScanLMReceivedAndTokens_LaterPageErrorKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanLMReceivedForTest(t, st, func(in *licensemanager.ListReceivedLicensesInput) (any, error) {
 		if in.NextToken == nil {
@@ -679,6 +701,7 @@ func TestScanLMReceivedAndTokens_LaterPageErrorKeepsEarlierPages(t *testing.T) {
 // stored a row, whatever its order, and no phase failed otherwise; else it is a
 // partial denial that warns once and keeps the other phases' rows.
 func TestScanLicenseManager_NotSetUpSentinelOnlyWhenNothingElse(t *testing.T) {
+	t.Parallel()
 	type handlers = map[string]func(any) (any, error)
 	notSetUp := func(any) (any, error) {
 		return nil, &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "Service role not found"}
@@ -735,6 +758,7 @@ func TestScanLicenseManager_NotSetUpSentinelOnlyWhenNothingElse(t *testing.T) {
 // An item listed without the identifier its row is keyed by is not stored and
 // is warned about once under its op.
 func TestScanLicenseManager_UnkeyedItemsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var mu sync.Mutex
 	warned := map[string]int{}
@@ -991,6 +1015,7 @@ func lmTagScan(ctx context.Context, st *store.Store, partition string, h map[str
 // generator's, which its element carries. A row without tags stores none.
 // Received licenses and tokens are never sent.
 func TestScanLicenseManager_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newLMCalls("aws", testRegion)
 	total, _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(calls, "aws", testRegion))
@@ -1038,6 +1063,7 @@ func TestScanLicenseManager_StoresTagsOfEveryType(t *testing.T) {
 }
 
 func TestScanLicenseManager_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(newLMCalls("aws", testRegion), "aws", testRegion)); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -1053,6 +1079,7 @@ func TestScanLicenseManager_RescanInsertsNone(t *testing.T) {
 // throttle is transient; any other error, a not-found code the op does not
 // model included, is an error.
 func TestScanLicenseManager_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagCase struct {
 		name      string
 		arn, typ  string
@@ -1116,6 +1143,7 @@ func TestScanLicenseManager_TagReadFailures(t *testing.T) {
 
 // Denied tag reads in two listings send one warning for the whole scan.
 func TestScanLicenseManager_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, lmTagsOp)
 	calls := newLMCalls("aws", testRegion)
@@ -1135,6 +1163,7 @@ func TestScanLicenseManager_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanLicenseManager_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, lmTagsOp)
 	calls := newLMCalls("aws", testRegion)
@@ -1154,6 +1183,7 @@ func TestScanLicenseManager_TagThrottleDemotedBesideHardError(t *testing.T) {
 // untagged without a warning. Only license configurations get that leniency:
 // a refused license of another account still warns.
 func TestScanLicenseManager_OtherAccountConfigurationUntaggedSilently(t *testing.T) {
+	t.Parallel()
 	const other = "444455556666"
 	sharedConfig := "arn:aws:license-manager:us-east-1:" + other + ":license-configuration:lic-shared"
 	otherLicense := "arn:aws:license-manager::" + other + ":license:l-other"
@@ -1192,6 +1222,7 @@ func TestScanLicenseManager_OtherAccountConfigurationUntaggedSilently(t *testing
 // A failed write stops the scan: no later phase runs and no warning is sent
 // about rows the write lost; the phases before it keep their rows.
 func TestScanLicenseManager_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeLicenseManagerLicenseConfiguration)
@@ -1220,6 +1251,7 @@ func TestScanLicenseManager_FailedWriteStopsScan(t *testing.T) {
 // unchanged and stores their tags. License Manager has no SDK-confirmed home
 // in aws-us-gov or aws-cn, so no call is made there; aws-iso-b has one.
 func TestScanLicenseManager_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	const partition, home = "aws-iso-b", "us-isob-east-1"
 	st := newTestStore(t)
 	calls := newLMCalls(partition, home)
@@ -1244,6 +1276,7 @@ func TestScanLicenseManager_TagReadsKeepPartitionARNs(t *testing.T) {
 // Every listing returning nothing stores nothing, reads no tags and reports
 // nothing.
 func TestScanLicenseManager_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newLMCalls("aws", testRegion)
@@ -1266,6 +1299,7 @@ func TestScanLicenseManager_EmptyListings(t *testing.T) {
 // "Service role not found" on the first page of any listing, with every
 // other listing empty, reports License Manager not set up and warns nothing.
 func TestScanLicenseManager_NotSetUpOnAnyListingIsDisabled(t *testing.T) {
+	t.Parallel()
 	notSetUp := &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "Service role not found"}
 	ops := []string{"ListReceivedLicenses", "ListTokens"}
 	for _, k := range lmKinds() {
@@ -1295,6 +1329,7 @@ func TestScanLicenseManager_NotSetUpOnAnyListingIsDisabled(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is reported once,
 // although the phase in flight saw it in its listing.
 func TestScanLicenseManager_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newLMCalls("aws", testRegion)
 	h := lmTagHandlers(calls, "aws", testRegion)
@@ -1343,6 +1378,7 @@ func lmPageWithNext(out any, next string) any {
 // scan does not fail: refused on its first page it stores nothing; refused
 // after it, the row of the page read before it is kept with its tags.
 func TestScanLicenseManager_AuthorizationExceptionListingWarns(t *testing.T) {
+	t.Parallel()
 	refused := apiErr(lmAuthorizationDenied, "not permitted")
 	for _, k := range lmKinds() {
 		for _, afterFirst := range []bool{false, true} {
@@ -1386,6 +1422,7 @@ func TestScanLicenseManager_AuthorizationExceptionListingWarns(t *testing.T) {
 // refused, fails the scan without warning about later pages: the rows the
 // warning would speak for were lost with the write.
 func TestScanLMReportGenerators_DenialAfterFailedWriteNotWarned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeLicenseManagerReportGenerator)
@@ -1410,6 +1447,7 @@ func TestScanLMReportGenerators_DenialAfterFailedWriteNotWarned(t *testing.T) {
 // A tagged listing writes each page, with its rows' tags, before it reads
 // the next, so a large listing is never held whole.
 func TestScanLicenseManager_TaggedListingWritesEachPageBeforeTheNext(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newLMCalls("aws", testRegion)
 	h := lmTagHandlers(calls, "aws", testRegion)
@@ -1442,6 +1480,7 @@ func TestScanLicenseManager_TaggedListingWritesEachPageBeforeTheNext(t *testing.
 // not serve License Manager: no later listing is called, nothing is warned
 // about, and the scan reads as unavailable.
 func TestScanLicenseManager_FirstListingNXDOMAINSkipsTheRest(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newLMCalls("aws", testRegion)

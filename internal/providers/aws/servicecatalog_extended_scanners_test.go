@@ -93,6 +93,7 @@ func scanSCCtx(ctx context.Context, t *testing.T, st *store.Store, handlers map[
 // its tags. An element without an ARN is not stored and is warned about once
 // under its id.
 func TestScanServiceCatalog_ProvisionedProductRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warns []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) {
@@ -129,6 +130,7 @@ func TestScanServiceCatalog_ProvisionedProductRows(t *testing.T) {
 // A failed later page keeps the products read before it: a denial warns once
 // and is not returned, any other error and a repeated token are returned.
 func TestScanServiceCatalog_ProvisionedProductLaterPageFails(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -175,6 +177,7 @@ func TestScanServiceCatalog_ProvisionedProductLaterPageFails(t *testing.T) {
 // earlier phase's failure does not cost the provisioned products, and theirs
 // does not cost the service actions.
 func TestScanServiceCatalog_PhaseErrorPropagates(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op                 string
 		wantTotal, wantPPs int
@@ -291,6 +294,7 @@ func scFailPhase(h map[string]func(any) (any, error), op string, err error) {
 // The portfolio-keyed phases each read the portfolio the portfolio phase
 // listed and store its share, principal association and constraint.
 func TestScanServiceCatalog_PortfolioPhasesStoreRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var rec scFullCalls
 	total, err := scanSCTopLevel(t, st, scFullHandlers(&rec))
@@ -326,6 +330,7 @@ func TestScanServiceCatalog_PortfolioPhasesStoreRows(t *testing.T) {
 // A portfolio-keyed phase's error is returned, and the other phases' rows are
 // stored.
 func TestScanServiceCatalog_PortfolioPhaseErrorPropagates(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ op, typ string }{
 		{"DescribePortfolioShares", TypeServiceCatalogPortfolioShare},
 		{"ListPrincipalsForPortfolio", TypeServiceCatalogPortfolioPrincipalAssociation},
@@ -354,6 +359,7 @@ func TestScanServiceCatalog_PortfolioPhaseErrorPropagates(t *testing.T) {
 // warning under that phase's op, so the scan reads as an error, not as
 // transient.
 func TestScanServiceCatalog_TransientPhaseDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	for _, op := range []string{
 		"ListPortfolios", "SearchProductsAsAdmin", "ListAcceptedPortfolioShares", "SearchProvisionedProducts",
@@ -388,6 +394,7 @@ func TestScanServiceCatalog_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 // listed, and the product association phase runs over the products listed
 // first, with its error returned beside the stored rows.
 func TestScanServiceCatalog_LaterPhasesGetEarlierIDs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := scHandlers()
 	h["SearchProductsAsAdmin"] = func(any) (any, error) {
@@ -429,6 +436,7 @@ func TestScanServiceCatalog_LaterPhasesGetEarlierIDs(t *testing.T) {
 // the scan before any later phase. The failed provisioned product write warns
 // about nothing: no row was stored.
 func TestScanServiceCatalog_WriteFailureStops(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		typ, op   string
 		wantTotal int
@@ -482,6 +490,7 @@ func TestScanServiceCatalog_WriteFailureStops(t *testing.T) {
 // read: the first page's product is stored and the stop is returned. A ctx
 // stop is not a store write failure, so the next phase still makes its call.
 func TestScanServiceCatalog_ContextEndsDuringProvisionedProducts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

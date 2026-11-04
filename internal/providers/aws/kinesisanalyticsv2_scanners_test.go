@@ -22,6 +22,7 @@ import (
 // store, each differing upsert is a version split, so every scan added two
 // rows and reported the application as changed.
 func TestScanKinesisAnalyticsV2_OneVersionPerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	arn := "arn:aws:kinesisanalytics:us-east-1:123456789012:application/app1"
 	name := "app1"
@@ -81,6 +82,7 @@ func TestScanKinesisAnalyticsV2_OneVersionPerScan(t *testing.T) {
 // DescribeApplication the application is still stored, once, from its
 // summary — the detail read is an enrichment, not a precondition.
 func TestScanKinesisAnalyticsV2_DeniedDetailKeepsSummary(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	arn := "arn:aws:kinesisanalytics:us-east-1:123456789012:application/app1"
 	name := "app1"
@@ -113,6 +115,7 @@ func TestScanKinesisAnalyticsV2_DeniedDetailKeepsSummary(t *testing.T) {
 // detail-read failure on one application must not cost the ones after it
 // their rows; each falls back to its summary and the failure is returned.
 func TestScanKinesisAnalyticsV2_FailedDetailStillStoresEveryApplication(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	arns := []string{
 		"arn:aws:kinesisanalytics:us-east-1:123456789012:application/app1",
@@ -212,6 +215,7 @@ func newKAV2TestClient(handlers map[string]func(in any) (any, error)) *kinesisan
 }
 
 func TestScanKAV2ApplicationSnapshots_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	first := kav2Snapshot("snap-1")
@@ -267,6 +271,7 @@ func TestScanKAV2ApplicationSnapshots_PagesAndFields(t *testing.T) {
 }
 
 func TestScanKAV2ApplicationSnapshots_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newKAV2TestClient(map[string]func(any) (any, error){
@@ -284,6 +289,7 @@ func TestScanKAV2ApplicationSnapshots_Empty(t *testing.T) {
 // Each per-application error is skipped or returned by its code. Two of three
 // applications fail, so a skip that warns must warn once for both.
 func TestScanKAV2ApplicationSnapshots_PerApplicationErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -328,6 +334,7 @@ func TestScanKAV2ApplicationSnapshots_PerApplicationErrors(t *testing.T) {
 
 // The two skipped codes each warn once, so neither hides the other.
 func TestScanKAV2ApplicationSnapshots_OneWarningPerSkippedCode(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, kav2ListApplicationSnapshotsOp)
 	var calls parentCalls
@@ -345,6 +352,7 @@ func TestScanKAV2ApplicationSnapshots_OneWarningPerSkippedCode(t *testing.T) {
 
 // A skipped application keeps the rows its earlier pages stored.
 func TestScanKAV2ApplicationSnapshots_SkipKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newKAV2TestClient(map[string]func(any) (any, error){
@@ -364,6 +372,7 @@ func TestScanKAV2ApplicationSnapshots_SkipKeepsEarlierPages(t *testing.T) {
 // The listing stops when the service repeats the token it was sent, rather
 // than looping on it.
 func TestScanKAV2ApplicationSnapshots_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var n atomic.Int64
 	client := newKAV2TestClient(map[string]func(any) (any, error){
@@ -417,6 +426,7 @@ func kav2TopLevelHandlers(st *store.Store, calls *parentCalls) map[string]func(a
 // application phase, whether the application row came from its detail body
 // or its summary.
 func TestScanKinesisAnalyticsV2_SnapshotsOfStoredApplications(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(kav2TopLevelHandlers(st, &calls), kav2Denied)}
@@ -440,6 +450,7 @@ func TestScanKinesisAnalyticsV2_SnapshotsOfStoredApplications(t *testing.T) {
 // dropped silently: no error, no warning, no row, and no snapshot listing,
 // while its sibling is stored with its snapshots.
 func TestScanKinesisAnalyticsV2_ApplicationGoneBeforeDetailSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "kinesisanalyticsv2")
 	var calls parentCalls
@@ -473,6 +484,7 @@ func TestScanKinesisAnalyticsV2_ApplicationGoneBeforeDetailSkipped(t *testing.T)
 // phase's hard error still reaches the dispatcher as a hard error, and the
 // application rows stay.
 func TestScanKinesisAnalyticsV2_ApplicationTransientDoesNotMaskSnapshotError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "kinesisanalyticsv2")
 	var calls parentCalls

@@ -83,6 +83,7 @@ func scanKinesisChannelsWith(st *store.Store, handler func(in any) (any, error))
 // skipped, a DELETING channel is kept, and Status is set only when the summary
 // carries one.
 func TestScanKinesisChannels_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var pages kinChannelPages
 	total, err := scanKinesisChannelsWith(st, pages.handler(nil))
@@ -123,6 +124,7 @@ func TestScanKinesisChannels_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanKinesisChannels_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanKinesisChannelsWith(st, func(any) (any, error) { return &kinesis.ListChannelsOutput{}, nil })
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeKinesisChannel)) != 0 {
@@ -133,6 +135,7 @@ func TestScanKinesisChannels_Empty(t *testing.T) {
 // On the first call, the unrouted-operation shapes are a silent feature gap
 // and a denial warns once; any other error is returned.
 func TestScanKinesisChannels_FirstPageError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -166,6 +169,7 @@ func TestScanKinesisChannels_FirstPageError(t *testing.T) {
 // every other error, the not-deployed shapes included, is returned with page
 // one's row stored.
 func TestScanKinesisChannels_PageTwoError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -207,6 +211,7 @@ func TestScanKinesisChannels_PageTwoError(t *testing.T) {
 
 // A failed write of the rows listed before a list error reports both errors.
 func TestScanKinesisChannels_WriteAndListErrorsBothReported(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closed.db"))
 	if err != nil {
@@ -254,6 +259,7 @@ func kinesisScanHandlers(channels *kinChannelPages, overrides map[string]func(an
 // The channel phase runs in the scan's own region alongside streams and
 // consumers.
 func TestScanKinesis_StoresChannels(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var channels kinChannelPages
@@ -283,6 +289,7 @@ func TestScanKinesis_StoresChannels(t *testing.T) {
 // A channel-phase hard error reaches the caller with the stream and consumer
 // rows and the channels' own page-one row stored and counted.
 func TestScanKinesis_ChannelErrorAfterEarlierPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var channels kinChannelPages
@@ -309,6 +316,7 @@ func TestScanKinesis_ChannelErrorAfterEarlierPhases(t *testing.T) {
 // A hard error in the consumer phase does not cost the channels: they are
 // stored and counted, and the consumer error still reaches the caller.
 func TestScanKinesis_ConsumerErrorStillScansChannels(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var channels kinChannelPages
@@ -329,6 +337,7 @@ func TestScanKinesis_ConsumerErrorStillScansChannels(t *testing.T) {
 // A hard error in the stream listing does not cost the channels, and the error
 // reaches the caller.
 func TestScanKinesis_StreamErrorStillScansChannels(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var channels kinChannelPages
@@ -345,6 +354,7 @@ func TestScanKinesis_StreamErrorStillScansChannels(t *testing.T) {
 
 // A denied stream listing warns and does not cost the channels.
 func TestScanKinesis_StreamDenialStillScansChannels(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var channels kinChannelPages

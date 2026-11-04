@@ -44,6 +44,7 @@ func (s *stubDocDB) DescribeGlobalClusters(context.Context, *docdb.DescribeGloba
 }
 
 func TestScanDocDBInstances_FiltersNonDocDBEngine(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion
@@ -105,6 +106,7 @@ func (s *stubNeptune) DescribeGlobalClusters(context.Context, *neptune.DescribeG
 }
 
 func TestScanNeptuneInstances_FiltersNonNeptuneEngine(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion
@@ -135,6 +137,7 @@ func TestScanNeptuneInstances_FiltersNonNeptuneEngine(t *testing.T) {
 }
 
 func TestScanNeptuneDBPGs_FiltersNonNeptuneFamily(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := testRegion

@@ -187,6 +187,7 @@ func assertEBOlderRows(t *testing.T, st *store.Store) {
 }
 
 func TestScanElasticBeanstalk_StoresConfigurationTemplates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := scanEBTopLevel(t, st, ebHandlers(&calls))
@@ -230,6 +231,7 @@ func TestScanElasticBeanstalk_StoresConfigurationTemplates(t *testing.T) {
 // its case says, no replaced value is stored as any string of the row, and each
 // setting's Namespace, OptionName and ResourceName stay and no setting is lost.
 func TestScanElasticBeanstalk_RedactsOptionValues(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	if _, err := scanEBTopLevel(t, st, ebHandlers(&calls)); err != nil {
@@ -276,6 +278,7 @@ func jsonText(t *testing.T, s string) string {
 // reported in one warning however many templates hit it; a full response
 // warns nothing.
 func TestScanElasticBeanstalk_ResponseWithoutRequestedTemplate(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		empty     []string
@@ -315,6 +318,7 @@ func TestScanElasticBeanstalk_ResponseWithoutRequestedTemplate(t *testing.T) {
 }
 
 func TestScanElasticBeanstalk_ApplicationsWithoutTemplates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	h := ebHandlers(&calls)
@@ -343,6 +347,7 @@ func TestScanElasticBeanstalk_ApplicationsWithoutTemplates(t *testing.T) {
 // that beside a hard error they are demoted to one warning. The older
 // phases' rows stay.
 func TestScanElasticBeanstalk_FailedTemplate(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("ThrottlingException", "slow down")
 	const noErr serviceOutcome = -1
 	for _, tc := range []struct {
@@ -398,6 +403,7 @@ func TestScanElasticBeanstalk_FailedTemplate(t *testing.T) {
 // about once under DescribeApplications, which listed it, naming the
 // application; its other templates are stored.
 func TestScanElasticBeanstalk_EmptyTemplateNameWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls parentCalls
@@ -419,6 +425,7 @@ func TestScanElasticBeanstalk_EmptyTemplateNameWarns(t *testing.T) {
 // A hard error in any older phase after the applications were stored still
 // lets the template phase run over them, and is returned.
 func TestScanElasticBeanstalk_OlderPhaseErrorStillRunsTemplates(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeEnvironments", "DescribeApplicationVersions", "ListPlatformVersions"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -438,6 +445,7 @@ func TestScanElasticBeanstalk_OlderPhaseErrorStillRunsTemplates(t *testing.T) {
 // own op so that the template phase's hard error still reaches the
 // dispatcher as a hard error.
 func TestScanElasticBeanstalk_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "elasticbeanstalk:ListPlatformVersions")
 	var calls parentCalls
@@ -457,6 +465,7 @@ func TestScanElasticBeanstalk_OlderPhaseTransientDoesNotMaskHardError(t *testing
 // A denied DescribeApplications leaves the template phase no parents: no
 // template call, no error.
 func TestScanElasticBeanstalk_ApplicationsDenied(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	h := ebHandlers(&calls)

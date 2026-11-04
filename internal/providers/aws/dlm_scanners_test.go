@@ -12,6 +12,7 @@ import (
 // TestScanDLM_ReadsTags pins that a lifecycle-policy row carries the Tags of
 // its GetLifecyclePolicies summary, and that an untagged policy stores none.
 func TestScanDLM_ReadsTags(t *testing.T) {
+	t.Parallel()
 	handlers := map[string]func(in any) (any, error){
 		"GetLifecyclePolicies": func(any) (any, error) {
 			return &dlm.GetLifecyclePoliciesOutput{Policies: []dlmtypes.LifecyclePolicySummary{

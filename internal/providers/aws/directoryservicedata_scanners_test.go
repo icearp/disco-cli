@@ -154,6 +154,7 @@ func dsDataNotFirstPage(in any) bool {
 // provider-managed. The directories themselves and the contains edges are
 // left to aws:directory-service and resolveDSDataHierarchy.
 func TestScanDirectoryServiceDataIn_StoresUsersAndGroups(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	total, err := runDSDataScan(t, st, dsDataHandlers(calls, nil))
@@ -209,6 +210,7 @@ func TestScanDirectoryServiceDataIn_StoresUsersAndGroups(t *testing.T) {
 // Groups are listed before users, so a deadline during the users phase still
 // leaves the groups stored.
 func TestScanDirectoryServiceDataIn_GroupsBeforeUsers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		mu    sync.Mutex
@@ -233,6 +235,7 @@ func TestScanDirectoryServiceDataIn_GroupsBeforeUsers(t *testing.T) {
 }
 
 func TestDSDataWellKnown(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		sid  string
 		want bool
@@ -255,6 +258,7 @@ func TestDSDataWellKnown(t *testing.T) {
 // Directory Service Data is asked only of live owner-side Standard and
 // Enterprise Managed Microsoft AD directories whose primary region is this one.
 func TestDSDataReadable(t *testing.T) {
+	t.Parallel()
 	dir := func(typ dstypes.DirectoryType, edition dstypes.DirectoryEdition, stage dstypes.DirectoryStage, regions *dstypes.RegionsInfo) dstypes.DirectoryDescription {
 		d := dsDir("d-x", typ, edition, stage)
 		d.RegionsInfo = regions
@@ -283,6 +287,7 @@ func TestDSDataReadable(t *testing.T) {
 // A directory without Directory Service Data enabled is skipped silently; its
 // siblings keep their rows.
 func TestScanDirectoryServiceDataIn_DisabledSkippedSilently(t *testing.T) {
+	t.Parallel()
 	for _, c := range dsDataOps {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -310,6 +315,7 @@ func TestScanDirectoryServiceDataIn_DisabledSkippedSilently(t *testing.T) {
 // A real denial, however many directories it hits, warns once and stores none
 // of the op's type; the other phase keeps its rows.
 func TestScanDirectoryServiceDataIn_DeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	for _, c := range dsDataOps {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -333,6 +339,7 @@ func TestScanDirectoryServiceDataIn_DeniedWarnsOnce(t *testing.T) {
 // A directory that cannot serve the call is skipped with one warning per op,
 // keeping the page stored before it failed and its siblings' rows.
 func TestScanDirectoryServiceDataIn_UnavailableWarnsOnceKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, c := range dsDataOps {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -373,6 +380,7 @@ func TestScanDirectoryServiceDataIn_UnavailableWarnsOnceKeepsPages(t *testing.T)
 // Any other error is returned as a hard error beside the other phase's
 // transient warning, and the other phase's rows are kept.
 func TestScanDirectoryServiceDataIn_ErrorReturnedBesideTransient(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ failing, throttled string }{
 		{"ListUsers", "ListGroups"},
 		{"ListGroups", "ListUsers"},
@@ -408,6 +416,7 @@ func TestScanDirectoryServiceDataIn_ErrorReturnedBesideTransient(t *testing.T) {
 // An unresolvable Directory Service Data host reaches the dispatcher as the
 // DNS error, which it reports as the region unavailable without a warning.
 func TestScanDirectoryServiceDataIn_HostUnresolvedIsUnavailable(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := 0
 	st.OnWarn = func(store.ScanWarning) { warnings++ }
@@ -426,6 +435,7 @@ func TestScanDirectoryServiceDataIn_HostUnresolvedIsUnavailable(t *testing.T) {
 // error reported with the groups' count, which the unavailable outcome would
 // discard, so the scan is marked partial.
 func TestScanDirectoryServiceDataIn_HostUnresolvedAfterRowsFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "ds-data:ListUsers")
 	nxdomain := &net.DNSError{Err: "no such host", Name: "ds-data.us-east-1.amazonaws.com", IsNotFound: true}
@@ -441,6 +451,7 @@ func TestScanDirectoryServiceDataIn_HostUnresolvedAfterRowsFails(t *testing.T) {
 // A denied or unreachable directory listing calls no Directory Service Data
 // op: denied warns once, an unresolvable host is reported unavailable.
 func TestScanDirectoryServiceDataIn_DirectoryListingFails(t *testing.T) {
+	t.Parallel()
 	t.Run("denied", func(t *testing.T) {
 		st := newTestStore(t)
 		warned := countOpWarnings(st, "ds:DescribeDirectories")
@@ -466,6 +477,7 @@ func TestScanDirectoryServiceDataIn_DirectoryListingFails(t *testing.T) {
 
 // Directories with no users or groups store nothing and fail nothing.
 func TestScanDirectoryServiceDataIn_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := dsDataHandlers(map[string]*parentCalls{}, map[string]func(any) (any, error){
 		"ListUsers":  func(any) (any, error) { return &directoryservicedata.ListUsersOutput{}, nil },
@@ -479,6 +491,7 @@ func TestScanDirectoryServiceDataIn_Empty(t *testing.T) {
 // Both clients call the region being scanned, the directory's own, not the
 // region the account config names.
 func TestScanDirectoryServiceData_CallsScanRegion(t *testing.T) {
+	t.Parallel()
 	const region = "eu-west-1"
 	st := newTestStore(t)
 	var regions parentCalls

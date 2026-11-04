@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveBACResourceParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -53,6 +54,7 @@ func TestResolveBACResourceParents(t *testing.T) {
 
 // A child with an unscanned parent, and one with empty attrs, emit no edge.
 func TestResolveBACResourceParents_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

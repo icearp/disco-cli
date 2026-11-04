@@ -125,6 +125,7 @@ func runBACCapacityProviders(st *store.Store, stub *stubBAC) (int, int, error) {
 // Account-wide lists: both pages stored, an element without an ARN dropped,
 // and each scanner's ARN, name, status and created time carried to the row.
 func TestScanBACAccountLists_TwoPages(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		run  func(st *store.Store) (int, int, error)
@@ -190,6 +191,7 @@ func TestScanBACAccountLists_TwoPages(t *testing.T) {
 // Account-wide lists: empty is not an error, a denial warns and yields nil,
 // a first-page region gap is silent, any other code propagates.
 func TestScanBACAccountLists_Errors(t *testing.T) {
+	t.Parallel()
 	scanners := map[string]func(st *store.Store, err error) (int, int, error){
 		"capacity providers": func(st *store.Store, err error) (int, int, error) {
 			return runBACCapacityProviders(st, &stubBAC{capacityErr: err})
@@ -305,6 +307,7 @@ func bacGatewayChildCases() []bacGatewayChildCase {
 // it was listed (ResourceNotFoundException) is skipped silently without
 // failing its siblings.
 func TestScanBACGatewayChildren_FanOut(t *testing.T) {
+	t.Parallel()
 	for _, tc := range bacGatewayChildCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -335,6 +338,7 @@ func TestScanBACGatewayChildren_FanOut(t *testing.T) {
 // the "after a page" cases gw-a serves x1 before failing, and that row must
 // be kept.
 func TestScanBACGatewayChildren_Errors(t *testing.T) {
+	t.Parallel()
 	deny := apiErr("AccessDeniedException", "User: x is not authorized to perform: y")
 	cases := []struct {
 		name      string

@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveOSSCollectionRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/k-1", testRegion, acct.ID)
@@ -26,6 +27,7 @@ func TestResolveOSSCollectionRefs(t *testing.T) {
 }
 
 func TestResolveOSSVpcEndpointRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

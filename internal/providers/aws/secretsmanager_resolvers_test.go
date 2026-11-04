@@ -10,6 +10,7 @@ import (
 // TestResolveSecretToKMSKey verifies a secret with a customer-managed KmsKeyId
 // produces a secret→key uses edge.
 func TestResolveSecretToKMSKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -33,6 +34,7 @@ func TestResolveSecretToKMSKey(t *testing.T) {
 // TestResolveSecretToKMSKey_NoKey verifies the AWS-managed default key
 // (KmsKeyId omitted) produces no edge and no error.
 func TestResolveSecretToKMSKey_NoKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -51,6 +53,7 @@ func TestResolveSecretToKMSKey_NoKey(t *testing.T) {
 // TestResolveSecretsManagerRotation verifies a secret with rotation enabled
 // links to its rotation Lambda.
 func TestResolveSecretsManagerRotation(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -72,6 +75,7 @@ func TestResolveSecretsManagerRotation(t *testing.T) {
 }
 
 func TestResolveSecretsManagerReplication(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

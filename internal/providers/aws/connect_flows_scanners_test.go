@@ -54,6 +54,7 @@ func (s *stubConnectFlows) DescribeContactFlowModuleAlias(_ context.Context, in 
 }
 
 func TestScanConnectFlows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -119,6 +120,7 @@ func TestScanConnectFlows(t *testing.T) {
 }
 
 func TestScanConnectFlowsEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubConnectFlows{}

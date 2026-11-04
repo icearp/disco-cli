@@ -80,6 +80,7 @@ func (s *stubSageMakerStudio) DescribeStudioLifecycleConfig(_ context.Context, i
 }
 
 func TestScanSageMakerStudio(t *testing.T) {
+	t.Parallel()
 	for _, mode := range smTagModes {
 		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerStudio(t, mode) })
 	}
@@ -162,6 +163,7 @@ func testScanSageMakerStudio(t *testing.T, mode smTagMode) {
 }
 
 func TestScanSageMakerStudioEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerStudio{}
@@ -177,6 +179,7 @@ func TestScanSageMakerStudioEmpty(t *testing.T) {
 // An app listed without the user profile or space DescribeApp needs is not
 // described; one warning says so, and the other apps are stored.
 func TestScanSageMakerApps_AppWithoutOwnerWarned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "sagemaker:ListApps")
 	appARN := smTestARN("app", "d-1/u/JupyterServer/default")

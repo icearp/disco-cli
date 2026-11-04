@@ -73,6 +73,7 @@ func (s *stubSageMakerMonitoring) ListMonitoringAlerts(_ context.Context, in *sa
 }
 
 func TestScanSageMakerMonitoring(t *testing.T) {
+	t.Parallel()
 	for _, mode := range smTagModes {
 		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerMonitoring(t, mode) })
 	}
@@ -142,6 +143,7 @@ func testScanSageMakerMonitoring(t *testing.T, mode smTagMode) {
 }
 
 func TestScanSageMakerMonitoringEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerMonitoring{}
@@ -182,6 +184,7 @@ func smScheduleARN(name string) string {
 }
 
 func TestScanSageMakerMonitoringAlerts_PaginatesEachScannedSchedule(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, smScheduleARN("nameless"), testRegion, "{}", "")
@@ -215,6 +218,7 @@ func TestScanSageMakerMonitoringAlerts_PaginatesEachScannedSchedule(t *testing.T
 }
 
 func TestScanSageMakerMonitoringAlerts_NoAlerts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, smScheduleARN("s1"), testRegion, "{}", "s1")
 	total, _, err := scanSageMakerMonitoringAlerts(context.Background(), &stubSMAlerts{}, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -224,6 +228,7 @@ func TestScanSageMakerMonitoringAlerts_NoAlerts(t *testing.T) {
 }
 
 func TestScanSageMakerMonitoringAlerts_AccessDeniedWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	upsertTestResourceNamed(t, st, TypeSageMakerMonitoringSchedule, smScheduleARN("s1"), testRegion, "{}", "s1")

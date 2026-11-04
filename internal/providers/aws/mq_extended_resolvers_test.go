@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveMQConfigurationAssociationRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	bARN := fmt.Sprintf("arn:aws:mq:%s:%s:broker:b-1", testRegion, acct.ID)

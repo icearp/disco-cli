@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveMSKChildrenToCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clARN := fmt.Sprintf("arn:aws:kafka:%s:%s:cluster/c1/uuid-1", testRegion, acct.ID)
@@ -29,6 +30,7 @@ func TestResolveMSKChildrenToCluster(t *testing.T) {
 }
 
 func TestResolveMSKVpcConnectionRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clARN := fmt.Sprintf("arn:aws:kafka:%s:%s:cluster/c1/uuid-1", testRegion, acct.ID)
@@ -47,6 +49,7 @@ func TestResolveMSKVpcConnectionRefs(t *testing.T) {
 }
 
 func TestResolveMSKReplicatorRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clARN := fmt.Sprintf("arn:aws:kafka:%s:%s:cluster/c1/uuid-1", testRegion, acct.ID)

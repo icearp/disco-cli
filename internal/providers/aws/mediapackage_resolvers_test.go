@@ -24,6 +24,7 @@ func mpRelsFrom(t *testing.T, st *store.Store, id string) []store.Relationship {
 // ChannelId, built in the endpoint's own partition (aws-cn here); an
 // endpoint with no ChannelId, or naming an unscanned channel, gets none.
 func TestResolveMPV1OriginEndpointToChannel(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cnARN := func(kind, id string) string {
@@ -51,6 +52,7 @@ func TestResolveMPV1OriginEndpointToChannel(t *testing.T) {
 // its S3 source object and to its ingest role. An asset with no references
 // gets none.
 func TestResolveMPV1AssetRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pgID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaPackagePackagingGroup, mpTestARN("mediapackage-vod", "packaging-groups", "pg1"), testRegion, "{}")
@@ -81,6 +83,7 @@ func TestResolveMPV1AssetRefs(t *testing.T) {
 // under the mediapackage-vod ARN; a configuration with no PackagingGroupId
 // gets none.
 func TestResolveMPV1PackagingConfigToGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pgID := upsertTestResource(t, st, "aws", acct.ID, TypeMediaPackagePackagingGroup, mpTestARN("mediapackage-vod", "packaging-groups", "pg1"), testRegion, "{}")
@@ -114,6 +117,7 @@ var mpV1ResolverCases = []struct {
 // returned as an error while the good rows on both sides of it keep their
 // edges. Rows are named so ListResources returns them in that order.
 func TestResolveMPV1_BadRowKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	for _, c := range mpV1ResolverCases {
 		for _, bad := range []struct{ name, nativeID, attrs string }{
 			{"undecodable attributes", mpTestARN(c.svc, c.kind, "b"), `{"` + c.refField + `":7}`},
@@ -145,6 +149,7 @@ func TestResolveMPV1_BadRowKeepsOtherRows(t *testing.T) {
 // TestResolveMPV1_WriteFailureKeepsDecodeErrors pins, per v1 resolver, that
 // an edge write failing after a row failed to decode returns both errors.
 func TestResolveMPV1_WriteFailureKeepsDecodeErrors(t *testing.T) {
+	t.Parallel()
 	for _, c := range mpV1ResolverCases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -189,6 +194,7 @@ func TestResolveMPV1_WriteFailureKeepsDecodeErrors(t *testing.T) {
 // error is returned and its S3 and role edges, which need no ARN of its own,
 // are still written.
 func TestResolveMPV1AssetRefs_NotARNKeepsDirectEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeMediaPackagePackagingGroup, mpTestARN("mediapackage-vod", "packaging-groups", "pg1"), testRegion, "{}")
 	bktARN := "arn:aws:s3:::vod-source"
@@ -212,6 +218,7 @@ func TestResolveMPV1AssetRefs_NotARNKeepsDirectEdges(t *testing.T) {
 // naming no parent is not reported for a NativeID that is not an ARN: it
 // needs no sibling ARN built from it.
 func TestResolveMPV1_NoRefNotARNIsNoError(t *testing.T) {
+	t.Parallel()
 	for _, c := range mpV1ResolverCases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -227,6 +234,7 @@ func TestResolveMPV1_NoRefNotARNIsNoError(t *testing.T) {
 // TestMPSiblingARN pins the sibling ARN keeping the source's partition,
 // service, region and account, and the rejection of a non-ARN.
 func TestMPSiblingARN(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		in, want string
 		ok       bool
@@ -244,6 +252,7 @@ func TestMPSiblingARN(t *testing.T) {
 }
 
 func TestResolveMPV2ChildrenToChannelGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cgARN := fmt.Sprintf("arn:aws:mediapackagev2:%s:%s:channelGroup/cg1", testRegion, acct.ID)

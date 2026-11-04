@@ -8,6 +8,7 @@ import (
 )
 
 func TestApigatewayRestAPIARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:apigateway:us-east-1::/restapis/abc/resources/r1", "arn:aws:apigateway:us-east-1::/restapis/abc"},
 		{"arn:aws:apigateway:us-east-1::/restapis/abc/models/MyModel", "arn:aws:apigateway:us-east-1::/restapis/abc"},
@@ -22,6 +23,7 @@ func TestApigatewayRestAPIARNFromChild(t *testing.T) {
 }
 
 func TestResolveAPIGatewayRestApiChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	apiARN := fmt.Sprintf("arn:aws:apigateway:%s::/restapis/abc", testRegion)
@@ -41,6 +43,7 @@ func TestResolveAPIGatewayRestApiChildren(t *testing.T) {
 }
 
 func TestResolveAPIGatewayVpcLinkTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	nlbARN := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/net/my-nlb/abc", testRegion, acct.ID)

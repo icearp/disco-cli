@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveBeanstalkApplicationVersionRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -24,6 +25,7 @@ func TestResolveBeanstalkApplicationVersionRelationships(t *testing.T) {
 }
 
 func TestResolveBeanstalkApplicationVersionRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

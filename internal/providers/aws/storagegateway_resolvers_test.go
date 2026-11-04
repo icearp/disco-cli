@@ -12,6 +12,7 @@ func sgwGatewayARN(region, acct, id string) string {
 }
 
 func TestResolveStorageGatewayChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -36,6 +37,7 @@ func TestResolveStorageGatewayChildren(t *testing.T) {
 }
 
 func TestResolveStorageGatewayChildren_NoGatewayARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -56,6 +58,7 @@ func TestResolveStorageGatewayChildren_NoGatewayARN(t *testing.T) {
 }
 
 func TestResolveStorageGatewayDevices(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -73,6 +76,7 @@ func TestResolveStorageGatewayDevices(t *testing.T) {
 }
 
 func TestResolveStorageGatewayDevices_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	// No gateways scanned — resolver short-circuits, no error.

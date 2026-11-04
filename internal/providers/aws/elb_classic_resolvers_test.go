@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveELBClassicRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -38,6 +39,7 @@ func TestResolveELBClassicRelationships(t *testing.T) {
 // TestResolveELBClassicRelationships_NoVPC covers EC2-Classic LBs (no VPC)
 // and the empty-attrs guard.
 func TestResolveELBClassicRelationships_NoVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"

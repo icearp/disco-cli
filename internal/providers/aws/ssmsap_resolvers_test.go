@@ -72,6 +72,7 @@ func assertNoEdges(t *testing.T, st *store.Store, from string) {
 // Each component links to the application of its own region and
 // ApplicationId, not to a same-named application elsewhere.
 func TestResolveSSMSAPComponentApplication(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	f := seedSAPResolverFixture(t, st)
@@ -86,6 +87,7 @@ func TestResolveSSMSAPComponentApplication(t *testing.T) {
 // A database links to the component of its own region, application and
 // ComponentId; with no such component it links to its application.
 func TestResolveSSMSAPDatabaseParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	f := seedSAPResolverFixture(t, st)
@@ -103,6 +105,7 @@ func TestResolveSSMSAPDatabaseParent(t *testing.T) {
 }
 
 func TestResolveSSMSAPResolvers_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	seedSAPResolverFixture(t, st)
@@ -125,6 +128,7 @@ func TestResolveSSMSAPResolvers_NoAttrs(t *testing.T) {
 // other row still gets its edge. The bad row has no name, so it is read
 // before the named fixture rows.
 func TestResolveSSMSAPResolvers_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, badType string
 		dbResolver    bool

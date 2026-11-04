@@ -11,6 +11,7 @@ import (
 )
 
 func TestScanMacieFindingsFilters_ReadsListedTags(t *testing.T) {
+	t.Parallel()
 	const (
 		tagged   = "arn:aws:macie2:us-east-1:123456789012:findings-filter/f1"
 		untagged = "arn:aws:macie2:us-east-1:123456789012:findings-filter/f2"

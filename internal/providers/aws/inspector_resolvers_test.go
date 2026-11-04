@@ -16,6 +16,7 @@ const testInspector2Member = "444444444444"
 // TestResolveInspector2MemberOrgAccount_HappyPath verifies that the
 // member row links to the Organizations account when both are scanned.
 func TestResolveInspector2MemberOrgAccount_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -40,6 +41,7 @@ func TestResolveInspector2MemberOrgAccount_HappyPath(t *testing.T) {
 // TestResolveInspector2MemberOrgAccount_FKSafe verifies that members in
 // a partial-coverage scan (no Org tree) skip without erroring.
 func TestResolveInspector2MemberOrgAccount_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -63,6 +65,7 @@ func TestResolveInspector2MemberOrgAccount_FKSafe(t *testing.T) {
 // whose attributes do not decode is returned as an error while every other
 // member still gets its edge.
 func TestResolveInspector2MemberOrgAccount_MalformedAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -106,6 +109,7 @@ func seedI2OrgAccount(t *testing.T, st *store.Store, accountID string) string {
 }
 
 func TestResolveInspector2DelegatedAdminOrgAccount_LinksOrgAccount(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	adminID := seedI2DelegatedAdmin(t, st, testInspector2Member, i2types.DelegatedAdminAccount{
@@ -128,6 +132,7 @@ func TestResolveInspector2DelegatedAdminOrgAccount_LinksOrgAccount(t *testing.T)
 }
 
 func TestResolveInspector2DelegatedAdminOrgAccount_NoAccountID(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	adminID := seedI2DelegatedAdmin(t, st, testInspector2Member, i2types.DelegatedAdminAccount{})
@@ -145,6 +150,7 @@ func TestResolveInspector2DelegatedAdminOrgAccount_NoAccountID(t *testing.T) {
 // partial-coverage short-circuit: no Organizations rows means no edges and no
 // error, even for a row whose attributes would not decode.
 func TestResolveInspector2DelegatedAdminOrgAccount_NoOrgTree(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	adminID := seedI2DelegatedAdmin(t, st, testInspector2Member, i2types.DelegatedAdminAccount{AccountId: sdkaws.String(testInspector2Member)})
@@ -163,6 +169,7 @@ func TestResolveInspector2DelegatedAdminOrgAccount_NoOrgTree(t *testing.T) {
 // pins that a row whose attributes do not decode is returned as an error
 // while every other row still gets its edge.
 func TestResolveInspector2DelegatedAdminOrgAccount_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeInspector2DelegatedAdminAccount,

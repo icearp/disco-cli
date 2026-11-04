@@ -18,6 +18,7 @@ import (
 // an actionable hint while preserving the wrapped SDK error, and that non-assume
 // errors pass through unchanged.
 func TestExplainConfigLoadError(t *testing.T) {
+	t.Parallel()
 	const roleARN = "arn:aws:iam::131546573061:role/OrganizationAccountAccessRole"
 	arErr := awsconfig.SharedConfigAssumeRoleError{Profile: "default", RoleARN: roleARN, Err: nil}
 
@@ -66,6 +67,7 @@ func TestExplainConfigLoadError(t *testing.T) {
 // TestChainAssumeRoles_Empty returns nil for empty input — caller falls back
 // to baseCfg credentials.
 func TestChainAssumeRoles_Empty(t *testing.T) {
+	t.Parallel()
 	got := chainAssumeRoles(sdkaws.Config{Region: "us-east-1"}, nil, "")
 	if got != nil {
 		t.Errorf("expected nil for empty chain, got %#v", got)
@@ -77,6 +79,7 @@ func TestChainAssumeRoles_Empty(t *testing.T) {
 // (sts.NewFromConfig + stscreds.NewAssumeRoleProvider); actual STS calls
 // only fire on first credentials retrieval, which we don't do here.
 func TestChainAssumeRoles_BuildsCache(t *testing.T) {
+	t.Parallel()
 	cache := chainAssumeRoles(sdkaws.Config{Region: "us-east-1"}, []string{
 		"arn:aws:iam::111111111111:role/Hub",
 		"arn:aws:iam::222222222222:role/Audit",
@@ -121,6 +124,7 @@ func TestEmulatorAccountIDOverride(t *testing.T) {
 // TestSetRoleOverride_PinsScannerState verifies the capability interface
 // stores both fields and is read back unchanged by SetRoleOverride.
 func TestSetRoleOverride_PinsScannerState(t *testing.T) {
+	t.Parallel()
 	s := &Scanner{}
 	s.SetRoleOverride("arn:aws:iam::111111111111:role/Disco", "ext-id-123")
 	if s.roleARN != "arn:aws:iam::111111111111:role/Disco" {
@@ -139,6 +143,7 @@ func TestSetRoleOverride_PinsScannerState(t *testing.T) {
 // TestSetIncludeServiceQuotas verifies the capability-interface setter flips the
 // Scanner field that opts the default-off aws:servicequotas scanner into the scan.
 func TestSetIncludeServiceQuotas(t *testing.T) {
+	t.Parallel()
 	s := &Scanner{}
 	if s.includeServiceQuotas {
 		t.Fatal("default should be false (servicequotas opt-in)")
@@ -157,6 +162,7 @@ func TestSetIncludeServiceQuotas(t *testing.T) {
 // the fields it was given, and returns nil when there's nothing to set (so
 // callers pass a no-op extra rather than an empty closure).
 func TestAssumeRoleOpts(t *testing.T) {
+	t.Parallel()
 	if assumeRoleOpts("", "") != nil {
 		t.Error("both empty should return nil closure")
 	}
@@ -200,6 +206,7 @@ func TestAssumeRoleOpts(t *testing.T) {
 
 // TestResolveSourceIdentity covers the off / auto / literal resolution.
 func TestResolveSourceIdentity(t *testing.T) {
+	t.Parallel()
 	const scanID = "0123456789abcdef0123456789abcdef"
 	cases := []struct {
 		configured string
@@ -219,6 +226,7 @@ func TestResolveSourceIdentity(t *testing.T) {
 // TestValidateSourceIdentity pins the AWS SourceIdentity constraint (2-64 chars
 // from [A-Za-z0-9_+=,.@-]). The 32-hex scan ID must always pass.
 func TestValidateSourceIdentity(t *testing.T) {
+	t.Parallel()
 	valid := []string{
 		"0123456789abcdef0123456789abcdef", // scan-ID shape
 		"a@b.c-1",
@@ -247,6 +255,7 @@ func TestValidateSourceIdentity(t *testing.T) {
 // TestSetSourceIdentity_PinsScannerState verifies the capability setter stores
 // the raw configured value unchanged.
 func TestSetSourceIdentity_PinsScannerState(t *testing.T) {
+	t.Parallel()
 	s := &Scanner{}
 	s.SetSourceIdentity("auto")
 	if s.sourceIdentity != "auto" {
@@ -258,6 +267,7 @@ func TestSetSourceIdentity_PinsScannerState(t *testing.T) {
 // set, preserving order; disabled regions land in skipped (not silently
 // dropped) so the caller can warn about them.
 func TestFilterToEnabled(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name        string
 		requested   []string
@@ -317,6 +327,7 @@ func (s stubDescribeRegions) DescribeRegions(context.Context, *ec2.DescribeRegio
 // TestEnabledRegionSet builds the enabled-region set from a DescribeRegions
 // response and tolerates a nil RegionName entry (no panic, just skipped).
 func TestEnabledRegionSet(t *testing.T) {
+	t.Parallel()
 	out := &ec2.DescribeRegionsOutput{Regions: []ec2types.Region{
 		{RegionName: sp("us-east-1")},
 		{RegionName: sp("eu-west-1")},
@@ -340,6 +351,7 @@ func TestEnabledRegionSet(t *testing.T) {
 // TestEnabledRegionSet_Error propagates the probe error so the caller can fall
 // back to the full region list rather than scanning nothing.
 func TestEnabledRegionSet_Error(t *testing.T) {
+	t.Parallel()
 	sentinel := errors.New("ec2:DescribeRegions denied")
 	got, err := enabledRegionSet(context.Background(), stubDescribeRegions{err: sentinel})
 	if !errors.Is(err, sentinel) {

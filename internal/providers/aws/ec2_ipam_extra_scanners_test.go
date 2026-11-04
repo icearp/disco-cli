@@ -15,6 +15,7 @@ import (
 // errRepeatedNextToken instead of looping or reading as complete, and the row
 // already listed is stored.
 func TestScanEC2IPAMExtra_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	policyARN := ec2ARN(testRegion, testAccountID, "ipam-policy", "ipam-policy-1")
 	tokenARN := ec2ARN(testRegion, testAccountID, "ipam-external-resource-verification-token", "ipam-ext-res-ver-token-1")
 	for _, tc := range []struct {
@@ -69,6 +70,7 @@ func TestScanEC2IPAMExtra_RepeatedTokenFails(t *testing.T) {
 // A repeated token in the IPAM policy listing fails scanEC2IPAMExtra but does
 // not cancel the sibling verification-token listing, whose row is stored.
 func TestScanEC2IPAMExtra_RepeatedPolicyTokenKeepsSibling(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	policyARN := ec2ARN(testRegion, testAccountID, "ipam-policy", "ipam-policy-1")
 	tokenARN := ec2ARN(testRegion, testAccountID, "ipam-external-resource-verification-token", "ipam-ext-res-ver-token-1")

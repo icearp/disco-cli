@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveMediaLiveChannelRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/medialive", acct.ID)
@@ -26,6 +27,7 @@ func TestResolveMediaLiveChannelRefs(t *testing.T) {
 }
 
 func TestResolveMediaLiveInputSecurityGroups(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	isgARN := fmt.Sprintf("arn:aws:medialive:%s:%s:inputsg/isg-1", testRegion, acct.ID)
@@ -40,6 +42,7 @@ func TestResolveMediaLiveInputSecurityGroups(t *testing.T) {
 }
 
 func TestResolveMediaLiveChannelPlacementGroupCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clARN := fmt.Sprintf("arn:aws:medialive:%s:%s:cluster/cl-1", testRegion, acct.ID)
@@ -54,6 +57,7 @@ func TestResolveMediaLiveChannelPlacementGroupCluster(t *testing.T) {
 }
 
 func TestResolveMediaLiveMultiplexProgramParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	mxARN := fmt.Sprintf("arn:aws:medialive:%s:%s:multiplex:mx-1", testRegion, acct.ID)

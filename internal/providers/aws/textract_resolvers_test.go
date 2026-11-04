@@ -9,6 +9,7 @@ import (
 )
 
 func TestResolveTextractAdapterVersion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -28,6 +29,7 @@ func TestResolveTextractAdapterVersion(t *testing.T) {
 }
 
 func TestResolveTextractAdapterVersion_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

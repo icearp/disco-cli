@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveAutoScalingNotificationTopicEdges_ScannedTopic(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	topicID := upsertTestResource(t, st, "aws", testAccountID, TypeSNSTopic, asTestTopicA, testRegion, `{}`)
@@ -42,6 +43,7 @@ func TestResolveAutoScalingNotificationTopicEdges_ScannedTopic(t *testing.T) {
 }
 
 func TestResolveAutoScalingNotificationTopicEdges_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeSNSTopic, asTestTopicA, testRegion, `{}`)
 	id := upsertTestResource(t, st, "aws", testAccountID, TypeAutoScalingNotificationConfiguration, asTestNotifyWebA, testRegion, `{}`)
@@ -59,6 +61,7 @@ func TestResolveAutoScalingNotificationTopicEdges_NoAttrs(t *testing.T) {
 }
 
 func TestResolveAutoScalingNotificationTopicEdges_UndecodableAttrsIsError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeAutoScalingNotificationConfiguration, asTestNotifyWebA, testRegion, `{"TopicARN":7}`)
 
@@ -91,6 +94,7 @@ func countJSONSyntaxErrors(err error) int {
 // costs neither the rows on either side of it (rows are read in name order)
 // nor the other families any edge.
 func TestResolveAutoScalingRelationships_DecodeErrorsKeepOtherRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := "arn:aws:iam::123456789012:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling"
@@ -141,6 +145,7 @@ func TestResolveAutoScalingRelationships_DecodeErrorsKeepOtherRows(t *testing.T)
 // A warm pool is stored as its WarmPoolConfiguration, which names no group,
 // so its edge to the group comes from the NativeID the scanner keys on it.
 func TestResolveAutoScalingChildEdges_WarmPoolToGroup(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, attrs string
 	}{
@@ -175,6 +180,7 @@ func TestResolveAutoScalingChildEdges_WarmPoolToGroup(t *testing.T) {
 // Group names are unique per region only: a child links to the same-named
 // group in its own region and never to the one in another region.
 func TestResolveAutoScalingChildEdges_SameGroupNameInTwoRegions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	groupIDs := map[string]string{}
 	for _, region := range []string{"us-east-1", "us-west-2"} {
@@ -209,6 +215,7 @@ func TestResolveAutoScalingChildEdges_SameGroupNameInTwoRegions(t *testing.T) {
 // A child links only to a group of the account being resolved: another
 // account's same-named group in the same region gets no edge.
 func TestResolveAutoScalingChildEdges_OtherAccountGroupIgnored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	const otherAccount = "210987654321"
 	if _, err := st.UpsertResource(&store.Resource{

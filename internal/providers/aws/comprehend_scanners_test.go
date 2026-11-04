@@ -286,6 +286,7 @@ func comprehendWarnOps(w []store.ScanWarning) []string {
 // every row, ListDatasets the ARN of every flywheel stored, and every
 // listing MaxResults 500. No error, no warning.
 func TestScanComprehend_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newComprehendFixture()
@@ -391,6 +392,7 @@ func comprehendStoredWithTags(st *store.Store, typ, arn string) bool {
 // Every account-wide listing writes its first page, with its tags, before it
 // reads the second.
 func TestScanComprehend_PagesWrittenAsRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newComprehendFixture()
 	handlers := f.handlers()
@@ -426,6 +428,7 @@ func TestScanComprehend_PagesWrittenAsRead(t *testing.T) {
 // An element listed with an empty status is stored with Status "", not nil,
 // except a dataset, stored with none.
 func TestScanComprehend_EmptyStatus(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newComprehendFixture()
 	f.noStatus = true
@@ -451,6 +454,7 @@ func TestScanComprehend_EmptyStatus(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanComprehend_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := comprehendScan(context.Background(), st, testRegion, newComprehendFixture().handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -467,6 +471,7 @@ func TestScanComprehend_RescanInsertsNone(t *testing.T) {
 // Empty listings: each account-wide listing called once, no dataset listing
 // (no flywheel), no tag read, nothing stored, no error, no warning.
 func TestScanComprehend_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newComprehendFixture()
@@ -497,6 +502,7 @@ func TestScanComprehend_Empty(t *testing.T) {
 // untagged and warns once under the tag op with the scan's scope; a throttle
 // keeps it and is transient; any other error keeps it and is an error.
 func TestScanComprehend_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		typ       string
@@ -566,6 +572,7 @@ func TestScanComprehend_TagReadFailures(t *testing.T) {
 // A flywheel whose tag read finds it deleted is not stored, so its datasets
 // are not listed.
 func TestScanComprehend_FlywheelGoneListsNoDatasets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newComprehendFixture()
 	f.errs[f.flywheelARN("tagged")] = comprehendTestGone
@@ -585,6 +592,7 @@ func TestScanComprehend_FlywheelGoneListsNoDatasets(t *testing.T) {
 // Denied tag reads in three phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanComprehend_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newComprehendFixture()
@@ -607,6 +615,7 @@ func TestScanComprehend_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanComprehend_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, comprehendTagsOp)
 	f := newComprehendFixture()
@@ -625,6 +634,7 @@ func TestScanComprehend_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanComprehend_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeComprehendEntityRecognizerEndpoint)
@@ -656,6 +666,7 @@ func TestScanComprehend_FailedWriteStopsScan(t *testing.T) {
 // A failed write of the datasets is returned as a store write failure and
 // sends no warning about the rows it lost.
 func TestScanComprehend_FailedDatasetWrite(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeComprehendDataset)
@@ -678,6 +689,7 @@ func TestScanComprehend_FailedDatasetWrite(t *testing.T) {
 // error (unsupported) or denial warning (not enabled), for an account-wide
 // listing and for a flywheel's dataset listing alike.
 func TestScanComprehend_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		op        string
@@ -751,6 +763,7 @@ func TestScanComprehend_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // A repeated NextToken ends the listing as an error, keeping its pages; a
 // dataset listing's too.
 func TestScanComprehend_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, typ string }{
 		{"ListFlywheels", TypeComprehendFlywheel},
 		{"ListDatasets", TypeComprehendDataset},
@@ -795,6 +808,7 @@ func setComprehendNextToken(out any, next *string) {
 // and warned about once under its listing; the rest of the listing is
 // stored.
 func TestScanComprehend_ElementWithoutARN(t *testing.T) {
+	t.Parallel()
 	for _, k := range comprehendKinds() {
 		t.Run(k.typ, func(t *testing.T) {
 			st := newTestStore(t)
@@ -826,6 +840,7 @@ func TestScanComprehend_ElementWithoutARN(t *testing.T) {
 // A GovCloud or China ARN reaches the tag op unchanged and is the row's
 // NativeID.
 func TestScanComprehend_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -853,6 +868,7 @@ func TestScanComprehend_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanComprehend_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newComprehendFixture()
 	handlers := f.handlers()
@@ -891,6 +907,7 @@ func TestScanComprehend_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later phase runs.
 func TestScanComprehend_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "comprehend.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -949,6 +966,7 @@ func TestScanComprehend_NXDOMAIN(t *testing.T) {
 // other phases run. A real IAM denial of the same listing still warns under
 // its op.
 func TestScanComprehend_RegionGapIsSilent(t *testing.T) {
+	t.Parallel()
 	realDeny := apiErr("NotAuthorizedException", "User: arn:aws:sts::123456789012:assumed-role/DiscoScanner/x is not authorized to perform: comprehend:List")
 	for _, op := range []string{"ListDocumentClassifiers", "ListEntityRecognizers", "ListEndpoints", "ListFlywheels", "ListDatasets"} {
 		for name, c := range map[string]struct {
@@ -1003,6 +1021,7 @@ func TestScanComprehend_RegionGapIsSilent(t *testing.T) {
 // mid-listing; a denial warns once under ListDatasets; any other error is
 // returned after the datasets are stored.
 func TestScanComprehend_DatasetListingFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		flywheel  string // the flywheel whose listing fails
@@ -1060,6 +1079,7 @@ func TestScanComprehend_DatasetListingFailures(t *testing.T) {
 }
 
 func TestIsComprehendNotEnabled(t *testing.T) {
+	t.Parallel()
 	if !isComprehendNotEnabled(apiErr("NotAuthorizedException", "Your account is not authorized to make this call.")) {
 		t.Error("not-subscribed message should match")
 	}

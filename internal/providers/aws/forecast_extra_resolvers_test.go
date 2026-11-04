@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveForecastForecastRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -27,6 +28,7 @@ func TestResolveForecastForecastRefs(t *testing.T) {
 }
 
 func TestResolveForecastForecastRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -41,6 +43,7 @@ func TestResolveForecastForecastRefs_NoAttrs(t *testing.T) {
 }
 
 func TestResolveForecastWhatIfForecastRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

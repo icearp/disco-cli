@@ -9,6 +9,7 @@ import (
 // TestResolveECRRepositoryRelationships_KMS verifies KMS link for repositories
 // with customer-managed KMS encryption.
 func TestResolveECRRepositoryRelationships_KMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -32,6 +33,7 @@ func TestResolveECRRepositoryRelationships_KMS(t *testing.T) {
 // TestResolveECRRepositoryRelationships_AES256 verifies that AES256-encrypted
 // repositories (no KmsKey) produce no relationships.
 func TestResolveECRRepositoryRelationships_AES256(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -54,6 +56,7 @@ func TestResolveECRRepositoryRelationships_AES256(t *testing.T) {
 
 // TestResolveECRRepositoryRelationships_NoAttrs verifies empty attrs is a no-op.
 func TestResolveECRRepositoryRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -69,6 +72,7 @@ func TestResolveECRRepositoryRelationships_NoAttrs(t *testing.T) {
 // replication-configuration to matching repos, an empty filter list links every
 // repo in the region, and other regions are not crossed.
 func TestResolveECRReplicationConfiguration(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -110,6 +114,7 @@ func TestResolveECRReplicationConfiguration(t *testing.T) {
 // TestResolveECRReplicationConfiguration_NoRules verifies a config with no rules
 // (default state) emits no edges.
 func TestResolveECRReplicationConfiguration_NoRules(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

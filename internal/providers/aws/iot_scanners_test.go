@@ -295,6 +295,7 @@ func iotFixtureHandlers(tags *iotTagCalls) map[string]func(any) (any, error) {
 // Every tagged IoT type is stored with the tags ListTagsForResource returns
 // for its own ARN, or none, and only those types' rows are tag-read.
 func TestScanIoT_StoresTagsOfEveryTaggedType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tags := &iotTagCalls{}
@@ -349,6 +350,7 @@ func runIoTPolicies(t *testing.T, st *store.Store, tags *iotTagCalls, handlers m
 // Tags on several pages are all read, the second page asked for with the
 // first page's NextToken.
 func TestIoTTagReader_ReadsEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	arn := iotTestARN("policy", "tagged")
 	tags := &iotTagCalls{pages: map[string][][]iottypes.Tag{arn: {
@@ -374,6 +376,7 @@ func TestIoTTagReader_ReadsEveryPage(t *testing.T) {
 // finds, which is not stored; a denial warns once, a transient error and any
 // other error are returned.
 func TestScanIoTPolicies_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		err      error
@@ -439,6 +442,7 @@ func TestScanIoTPolicies_TagReadFailures(t *testing.T) {
 // about and not stored; any other GetPolicy error drops the policy and is
 // returned. The sibling is stored in every case.
 func TestScanIoTPolicies_DescribeFailures(t *testing.T) {
+	t.Parallel()
 	const getPolicy = "iot:GetPolicy"
 	cases := []struct {
 		name     string
@@ -489,6 +493,7 @@ func TestScanIoTPolicies_DescribeFailures(t *testing.T) {
 // A job, OTA update or stream without an ARN is warned about and not stored,
 // rather than dropped silently.
 func TestScanIoTInventory_EmptyARNNotStored(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op, typ string
 		out     any
@@ -527,6 +532,7 @@ func TestScanIoTInventory_EmptyARNNotStored(t *testing.T) {
 
 // ListJobs, ListOTAUpdates and ListStreams ask for the model's page cap.
 func TestScanIoTInventory_ListsAtPageCap(t *testing.T) {
+	t.Parallel()
 	var (
 		mu  sync.Mutex
 		got = map[string]int32{}
@@ -561,6 +567,7 @@ func TestScanIoTInventory_ListsAtPageCap(t *testing.T) {
 // other families: the later certs-family phase and another family's rows are
 // stored, and the error is returned.
 func TestScanIoT_PhaseErrorRunsEveryOtherPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	handlers := iotFixtureHandlers(&iotTagCalls{})
@@ -580,6 +587,7 @@ func TestScanIoT_PhaseErrorRunsEveryOtherPhase(t *testing.T) {
 // another family, called after the failing op, is handed a ctx that nothing
 // can cancel.
 func TestScanIoT_FamilyErrorDoesNotCancelOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	failed := make(chan struct{})
@@ -620,6 +628,7 @@ func TestScanIoT_FamilyErrorDoesNotCancelOthers(t *testing.T) {
 // warning under the tag op, so the service is reported as failed with the
 // hard error, not as transient.
 func TestScanIoT_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	warns := countOpWarnings(st, iotListTagsOp)
@@ -641,6 +650,7 @@ func TestScanIoT_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the family it happens in and the phases after the
 // families: no later certs-family op and no ListAuditSuppressions is called.
 func TestScanIoT_FailedWriteStops(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	acct := newTestAccount(testAccountID)
 	var (
@@ -681,6 +691,7 @@ func TestScanIoT_FailedWriteStops(t *testing.T) {
 // Provider-managed domain configurations (named iot:...) are stored without a
 // tag read; a customer's one is tag-read.
 func TestScanIoTDomainConfigurations_ManagedNotTagRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	managed, custom := iotTestARN("domainconfiguration", "iot:Data-ATS"), iotTestARN("domainconfiguration", "custom")
 	tagged := [][]iottypes.Tag{{{Key: ptrStr("k"), Value: ptrStr("v")}}}
@@ -720,6 +731,7 @@ func TestScanIoTDomainConfigurations_ManagedNotTagRead(t *testing.T) {
 // pages read before it and returns the error; every page asks for the model's
 // page cap.
 func TestScanIoT_ListPageErrorKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op, typ, kind string
 		page          func(in any) (token *string, size int32)
@@ -802,6 +814,7 @@ func iotDenyA[In any](key func(*In) *string, out func(n *string) any) func(any) 
 // no ARN, drops that resource behind one warning under the describe op and
 // stores its sibling.
 func TestScanIoT_UntaggedDescribeDenialWarns(t *testing.T) {
+	t.Parallel()
 	arn := func(n *string) *string { return ptrStr(iotTestARN("x", *n)) }
 	cases := []struct {
 		describeOp, typ string
@@ -872,6 +885,7 @@ func TestScanIoT_UntaggedDescribeDenialWarns(t *testing.T) {
 // GetTopicRuleDestination models no ResourceNotFoundException, so one is
 // returned rather than read as a destination IoT no longer finds.
 func TestScanIoT_TopicRuleDestinationNotFoundReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(map[string]func(any) (any, error){
@@ -889,6 +903,7 @@ func TestScanIoT_TopicRuleDestinationNotFoundReturned(t *testing.T) {
 // warns once, any other error is returned, and the other package's versions
 // are stored.
 func TestScanIoTSoftware_PackageVersionListFailures(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	warns := countOpWarnings(st, "iot:ListPackageVersions")
@@ -934,6 +949,7 @@ func TestScanIoTSoftware_PackageVersionListFailures(t *testing.T) {
 // warning under that op: the phase and its principal phase share the one
 // listing, and nothing is warned about under the principal op.
 func TestScanIoT_PrincipalPhaseListErrorsLabelledByListOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	want := map[string]int{"iot:ListPolicies": 1, "iot:ListThings": 1, "iot:ListPolicyPrincipals": 0, "iot:ListThingPrincipals": 0}
@@ -963,6 +979,7 @@ func TestScanIoT_PrincipalPhaseListErrorsLabelledByListOp(t *testing.T) {
 // the read checked is that type's family's; a family given a bound of its
 // own leaves every slot free.
 func TestScanIoT_TagReadsHoldTheSharedBound(t *testing.T) {
+	t.Parallel()
 	for _, f := range iotTaggedFixtures() {
 		t.Run(f.typ, func(t *testing.T) {
 			var (
@@ -1132,6 +1149,7 @@ func iotFailOn(errs map[string]error) func(string) error {
 // stored; beside a hard error of another key it is demoted to one warning
 // under its op, and the hard error is returned.
 func TestScanIoT_PerKeyTransient(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	for _, c := range iotPerKeyCases() {
 		t.Run(c.op+"/alone", func(t *testing.T) {
@@ -1172,6 +1190,7 @@ func TestScanIoT_PerKeyTransient(t *testing.T) {
 // A denial of a per-key read warns only after the rows are written: when the
 // write fails, nothing is warned about under the op.
 func TestScanIoT_FailedWriteSendsNoDenialWarning(t *testing.T) {
+	t.Parallel()
 	for _, c := range iotPerKeyCases() {
 		t.Run(c.op, func(t *testing.T) {
 			st, closeStore := openClosingStore(t)
@@ -1213,6 +1232,7 @@ func iotMembers(err error) int {
 // hard error, whether keys were left unread (and reads cut short) or only
 // reads were cut short, and every key, read or not, keeps its fallback row.
 func TestIoTReadEach_CtxEndIsOneMember(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		keys int
@@ -1252,6 +1272,7 @@ func TestIoTReadEach_CtxEndIsOneMember(t *testing.T) {
 // Once ctx ends, no further package's versions are listed, and one error
 // says how many were not.
 func TestScanIoTSoftwarePackageVersions_CtxEndIsOneMember(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1284,6 +1305,7 @@ func TestScanIoTSoftwarePackageVersions_CtxEndIsOneMember(t *testing.T) {
 // a tagged type still has its tags read; an item without an ARN in its list
 // element is dropped behind the warning.
 func TestScanIoT_DescribeDeniedKeepsListedElement(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		describeOp, typ, kind string
 		tagged                bool
@@ -1376,6 +1398,7 @@ func TestScanIoT_DescribeDeniedKeepsListedElement(t *testing.T) {
 // phase's listing, not listed again, and every page asks for the model's
 // page cap.
 func TestScanIoT_PrincipalListing(t *testing.T) {
+	t.Parallel()
 	type principalOp struct {
 		op, listOp, typ, kind string
 		handlers              func(page func(key string, token *string, size int32) (any, error)) map[string]func(any) (any, error)
@@ -1507,6 +1530,7 @@ func principalsOut(op string, principals []string, next *string) any {
 // from a describe, from a package's version listing with nothing stored, and
 // from any phase's listing once rows were stored, whose counts are kept.
 func TestScanIoT_LateNXDOMAINNotRegionUnavailable(t *testing.T) {
+	t.Parallel()
 	nx := func(any) (any, error) {
 		return nil, &net.DNSError{Err: "no such host", Name: "iot.us-east-1.amazonaws.com", IsNotFound: true}
 	}
@@ -1556,6 +1580,7 @@ func TestScanIoT_LateNXDOMAINNotRegionUnavailable(t *testing.T) {
 
 // The listings with a cap other than 250 ask for their own.
 func TestScanIoT_ListsAtTheirPageCaps(t *testing.T) {
+	t.Parallel()
 	var (
 		mu  sync.Mutex
 		got = map[string]int32{}
@@ -1605,6 +1630,7 @@ func TestScanIoT_ListsAtTheirPageCaps(t *testing.T) {
 
 // A rescan of unchanged resources reports them all and none as inserted.
 func TestScanIoT_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(iotFixtureHandlers(&iotTagCalls{}), iotDenied)
@@ -1623,6 +1649,7 @@ func TestScanIoT_RescanInsertsNone(t *testing.T) {
 // A denied describe of an AWS-default domain configuration stores its list
 // element as a provider-managed row, without a tag read.
 func TestScanIoT_DescribeDeniedManagedDomainKeptUntagged(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	arn := iotTestARN("domainconfiguration", "iot:Data-ATS")
 	tags := &iotTagCalls{pages: map[string][][]iottypes.Tag{arn: {{{Key: ptrStr("k"), Value: ptrStr("v")}}}}}
@@ -1654,6 +1681,7 @@ func TestScanIoT_DescribeDeniedManagedDomainKeptUntagged(t *testing.T) {
 // the policy phase in the same family, and the policy phase have rows, so the
 // policy write is the only one that fails.
 func TestScanIoT_FailedWriteBesideNXDOMAIN(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	acct := newTestAccount(testAccountID)
 	policy := iotFixtureFor(t, TypeIoTPolicy).handlers
@@ -1686,6 +1714,7 @@ func TestScanIoT_FailedWriteBesideNXDOMAIN(t *testing.T) {
 // carries its ARN, still stores the item as its list element, tags read, and
 // the error is returned; a not-found drops it.
 func TestScanIoT_DescribeFailureKeepsListedElement(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		err      error
@@ -1741,6 +1770,7 @@ func TestScanIoT_DescribeFailureKeepsListedElement(t *testing.T) {
 // An NXDOMAIN with nothing stored is left as is, so the dispatcher reports
 // the region unavailable.
 func TestScanIoT_NXDOMAINWithNothingStoredIsRegionUnavailable(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(nil, &net.DNSError{Err: "no such host", Name: "iot.us-east-1.amazonaws.com", IsNotFound: true})
@@ -1754,6 +1784,7 @@ func TestScanIoT_NXDOMAINWithNothingStoredIsRegionUnavailable(t *testing.T) {
 // A rescan that stores only rows it already had still keeps its counts
 // beside a late NXDOMAIN.
 func TestScanIoT_RescanKeepsCountsBesideLateNXDOMAIN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	handlers := iotFixtureHandlers(&iotTagCalls{})
@@ -1776,6 +1807,7 @@ func TestScanIoT_RescanKeepsCountsBesideLateNXDOMAIN(t *testing.T) {
 // A describe answered without an ARN, of a listed item that carries its ARN,
 // stores the item as its list element behind one warning.
 func TestScanIoT_DescribeWithoutARNKeepsListedElement(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "iot:DescribeThingGroup")
 	arn := iotTestARN("thinggroup", "a")
@@ -1806,6 +1838,7 @@ func TestScanIoT_DescribeWithoutARNKeepsListedElement(t *testing.T) {
 // another key's hard error, is demoted to one warning, and the hard error is
 // returned; both items are stored.
 func TestScanIoT_FallbackThrottleBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "iot:DescribeThingGroup")
 	var groups []iottypes.GroupNameAndArn

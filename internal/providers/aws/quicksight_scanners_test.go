@@ -29,6 +29,7 @@ import (
 // a denial, a decoded ResourceNotFoundException the op does not list, and
 // any code on a later page reach the caller.
 func TestQSPages(t *testing.T) {
+	t.Parallel()
 	resp404 := &smithyhttp.ResponseError{
 		Response: &smithyhttp.Response{Response: &http.Response{StatusCode: 404}},
 		Err:      apiErr("UnknownError", "deserialization failed"),
@@ -162,6 +163,7 @@ func templateAlias(templateID, name string, version int64) qstypes.TemplateAlias
 }
 
 func TestScanQSTemplateAliases_PaginatesEveryTemplateAndWiresHierarchy(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	parents := seedQSParents(t, st, TypeQuickSightTemplate, "template", "t1", "t2")
 	fake := fakeQSChildren{templateAliases: map[string]map[string]*quicksight.ListTemplateAliasesOutput{
@@ -258,6 +260,7 @@ var qsChildOps = []struct {
 // two listing one child each, which are stored whatever the failing one
 // answers.
 func TestScanQSChildren_ErrorHandling(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -303,6 +306,7 @@ func TestScanQSChildren_ErrorHandling(t *testing.T) {
 }
 
 func TestScanQSChildren_AccessDeniedWarnsOncePerOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	parents := seedQSParents(t, st, TypeQuickSightTemplate, "template", "d1", "d2", "d3", "ok")
@@ -333,6 +337,7 @@ func themeAlias(themeID, name string) qstypes.ThemeAlias {
 }
 
 func TestScanQSThemeAliases_PaginatesAndSkipsDeletedTheme(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	parents := seedQSParents(t, st, TypeQuickSightTheme, "theme", "th1", "th2", "bad")
@@ -380,6 +385,7 @@ func TestScanQSThemeAliases_PaginatesAndSkipsDeletedTheme(t *testing.T) {
 // other themes, another account's shared one included, are handed to the
 // alias phase.
 func TestScanQSThemes_StarterThemesManagedAndNotHandedOn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	mine, starter := qsTestARN("theme", "mine"), "arn:aws:quicksight::aws:theme/CLASSIC"
 	shared := "arn:aws:quicksight:" + testRegion + ":999999999999:theme/shared"
@@ -431,6 +437,7 @@ func topicSchedule(datasetID, datasetName string) qstypes.TopicRefreshScheduleSu
 }
 
 func TestScanQSTopicRefreshSchedules_StoresPerDatasetSchedules(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	parents := seedQSParents(t, st, TypeQuickSightTopic, "topic", "tp1", "tp2", "gone")
 	fake := fakeQSChildren{
@@ -480,6 +487,7 @@ func TestScanQSTopicRefreshSchedules_StoresPerDatasetSchedules(t *testing.T) {
 }
 
 func TestScanQSKeyRegistration(t *testing.T) {
+	t.Parallel()
 	keyARN := "arn:aws:kms:us-east-1:123456789012:key/k1"
 	registered := &quicksight.DescribeKeyRegistrationOutput{
 		AwsAccountId:    sdkaws.String(testAccountID),
@@ -562,6 +570,7 @@ func TestScanQSKeyRegistration(t *testing.T) {
 // theme and topic phases hand what they listed to the child phases, which run
 // after the phases that list their parents.
 func TestScanQuickSight_ChildPhasesUseListedParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tplARN, themeARN, topicARN := qsTestARN("template", "t1"), qsTestARN("theme", "th1"), qsTestARN("topic", "tp1")
 	stub := stubResponses(t, map[string][]stubCall{
@@ -851,6 +860,7 @@ func qsListClient(t *testing.T, c qsListCase, pages map[string]qsListPage) (*qui
 }
 
 func TestScanQSAccountLists_PaginatesAndStores(t *testing.T) {
+	t.Parallel()
 	for _, c := range qsListCases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -909,6 +919,7 @@ func TestScanQSAccountLists_PaginatesAndStores(t *testing.T) {
 }
 
 func TestScanQSAccountLists_EmptyStoresNothing(t *testing.T) {
+	t.Parallel()
 	for _, c := range qsListCases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -925,6 +936,7 @@ func TestScanQSAccountLists_EmptyStoresNothing(t *testing.T) {
 }
 
 func TestScanQSAccountLists_StopsOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	for _, c := range qsListCases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -956,6 +968,7 @@ var qsTestCodes = []string{
 // warned about; every other first-page code, and every code on a later page
 // but a denial, is returned with the rows read before it.
 func TestScanQSAccountLists_ErrorHandling(t *testing.T) {
+	t.Parallel()
 	resp404 := &smithyhttp.ResponseError{
 		Response: &smithyhttp.Response{Response: &http.Response{StatusCode: 404}},
 		Err:      apiErr("UnknownError", "deserialization failed"),
@@ -1015,6 +1028,7 @@ func TestScanQSAccountLists_ErrorHandling(t *testing.T) {
 // region is that region's to store. ARNs that cannot be placed in a region are
 // kept rather than lost.
 func TestScanQSGovernanceLists_DropOtherRegionRows(t *testing.T) {
+	t.Parallel()
 	arns := func(kind string) (match, foreign, regionless, unparseable string) {
 		return qsTestARN(kind, "here"),
 			fmt.Sprintf("arn:aws:quicksight:eu-west-1:%s:%s/there", testAccountID, kind),
@@ -1113,6 +1127,7 @@ var qsNotServed = apiErr("UnknownOperationException", "not served in this region
 // every account-level list phase runs, after the older phases, and a hard
 // error on either side costs the other side no rows.
 func TestScanQuickSight_AccountListPhasesIndependentOfOlderPhases(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, failOp string
 	}{
@@ -1163,6 +1178,7 @@ func TestScanQuickSight_AccountListPhasesIndependentOfOlderPhases(t *testing.T) 
 // A transient error on one side is demoted to a warning, so the other side's
 // hard error still reaches the dispatcher as a hard error.
 func TestScanQuickSight_TransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	type side struct{ op, warnOp string }
 	older := side{"ListDataSets", qsListDataSetsOp}
 	var pairs [][2]side
@@ -1238,6 +1254,7 @@ func qsGroupMembershipsKey(in any) (string, *string, *int32) {
 }
 
 func TestScanQSFolderMembers_PaginatesEveryFolder(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	folders := seedQSParents(t, st, TypeQuickSightFolder, "folder", "f1", "f2")
@@ -1304,6 +1321,7 @@ func TestScanQSFolderMembers_PaginatesEveryFolder(t *testing.T) {
 }
 
 func TestScanQSGroupMemberships_PaginatesEveryGroupInItsNamespace(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	groups := append(seedQSGroups(t, st, "default", "admins"), seedQSGroups(t, st, "team", "Role/readers")...)
@@ -1424,6 +1442,7 @@ func qsOneMemberPage(fail map[string]error) qsMemberPager {
 }
 
 func TestScanQSMemberPhases_EmptyStoresNothing(t *testing.T) {
+	t.Parallel()
 	for _, p := range qsMemberPhases {
 		t.Run(p.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1439,6 +1458,7 @@ func TestScanQSMemberPhases_EmptyStoresNothing(t *testing.T) {
 }
 
 func TestScanQSMemberPhases_ErrorHandling(t *testing.T) {
+	t.Parallel()
 	type outcome int
 	const (
 		skipped outcome = iota // the parent is dropped silently
@@ -1496,6 +1516,7 @@ func TestScanQSMemberPhases_ErrorHandling(t *testing.T) {
 }
 
 func TestScanQSMemberPhases_WarnOncePerCode(t *testing.T) {
+	t.Parallel()
 	for _, p := range qsMemberPhases {
 		for name, failure := range map[string]error{
 			"denied":    apiErr("AccessDeniedException", "User: x is not authorized to perform: quicksight:List"),
@@ -1538,6 +1559,7 @@ func TestScanQSMemberPhases_WarnOncePerCode(t *testing.T) {
 // the parent phase says so in one warning: under its own list op for folders
 // (storeParentList), under the member op for groups.
 func TestScanQSParentPhases_WarnOnceForParentsWithoutKey(t *testing.T) {
+	t.Parallel()
 	h := map[string]func(any) (any, error){
 		"ListTagsForResource": func(any) (any, error) { return &quicksight.ListTagsForResourceOutput{}, nil },
 		"ListFolders": func(any) (any, error) {
@@ -1591,6 +1613,7 @@ func TestScanQSParentPhases_WarnOnceForParentsWithoutKey(t *testing.T) {
 }
 
 func TestScanQSMemberPhases_StopsOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	for _, p := range qsMemberPhases {
 		t.Run(p.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1668,6 +1691,7 @@ const (
 // when a later older phase fails, and a member phase's hard error costs no
 // other phase its rows.
 func TestScanQuickSight_MemberPhasesRunAfterOlderPhases(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, failOp             string
 		wantFolderMember, wantGM bool
@@ -1738,6 +1762,7 @@ func TestScanQuickSight_MemberPhasesRunAfterOlderPhases(t *testing.T) {
 // phase's hard error still reaches the dispatcher as a hard error, and the
 // other way round.
 func TestScanQuickSight_MemberPhaseTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	type side struct{ op, warnOp string }
 	older := side{"DescribeKeyRegistration", "quicksight:DescribeKeyRegistration"}
 	var pairs [][2]side
@@ -2005,6 +2030,7 @@ func newQSFixture() (*qsFixture, map[string]func(any) (any, error)) {
 // returns for its own ARN, or none; exactly those rows are tag-read; every
 // list op asks for its model's page cap, 100; and a rescan inserts nothing.
 func TestScanQuickSight_StoresTagsOfEveryTaggedType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	f, h := newQSFixture()
@@ -2061,6 +2087,7 @@ func TestScanQuickSight_StoresTagsOfEveryTaggedType(t *testing.T) {
 // with the account/region scope; a transient error and any other error are
 // returned, the other phases' rows stored in every case.
 func TestScanQuickSight_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		err     error
@@ -2134,6 +2161,7 @@ func TestScanQuickSight_TagReadFailures(t *testing.T) {
 // ListTagsForResource, is demoted to one warning under that op, so the hard
 // error still reaches the dispatcher as a hard error.
 func TestScanQuickSight_TagThrottleBesideHardTagErrorDemoted(t *testing.T) {
+	t.Parallel()
 	for _, throttled := range []string{qsTestARN("analysis", "tagged"), qsTestARN("user", "tagged")} {
 		t.Run(throttled, func(t *testing.T) {
 			st := newTestStore(t)
@@ -2161,6 +2189,7 @@ func TestScanQuickSight_TagThrottleBesideHardTagErrorDemoted(t *testing.T) {
 // returned as is, with no later phase called. Once rows are stored, a later
 // NXDOMAIN, a tag read's or a listing's, is a failure of this scan.
 func TestScanQuickSight_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "quicksight.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("first phase, nothing stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -2214,6 +2243,7 @@ func TestScanQuickSight_NXDOMAIN(t *testing.T) {
 // the parent phases stored rows the scan fails (resultLateNXDOMAIN); a member
 // phase that stored nothing returns the NXDOMAIN as is, the region gap.
 func TestScanQSMemberPhases_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "quicksight.us-east-1.amazonaws.com", IsNotFound: true}
 	for _, p := range qsMemberPhases {
 		t.Run(p.name+"/rows stored", func(t *testing.T) {
@@ -2251,6 +2281,7 @@ func TestScanQSMemberPhases_NXDOMAIN(t *testing.T) {
 // A failed write stops the scan: no later phase's op is called, and no tag
 // denial of the lost rows is warned about.
 func TestScanQuickSight_FailedWriteStopsAndSendsNoTagWarning(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ kind, nextOp string }{
 		{"analysis", "ListDashboards"},
 		{"user", "ListApps"},
@@ -2294,6 +2325,7 @@ func TestScanQuickSight_FailedWriteStopsAndSendsNoTagWarning(t *testing.T) {
 // synthesized NativeID without a tag read, which ListTagsForResource would
 // reject.
 func TestScanQSAccountCustomization_Tags(t *testing.T) {
+	t.Parallel()
 	synthesized := fmt.Sprintf("arn:aws:quicksight:%s:%s:account-customization", testRegion, testAccountID)
 	for _, c := range []struct {
 		name, arn, wantNativeID string
@@ -2407,6 +2439,7 @@ func qsNamespaceInput(in any) (ns string, token *string, maxResults int32) {
 // The namespaces listed before and after the failing one keep their rows,
 // and every request asks for the model's page cap, 100.
 func TestScanQSNamespacePhases_Failures(t *testing.T) {
+	t.Parallel()
 	codes := append([]string{"ResourceNotFoundException"}, qsTestCodes...)
 	for _, ph := range qsNamespacePhases() {
 		for _, later := range []bool{false, true} {
@@ -2477,6 +2510,7 @@ func TestScanQSNamespacePhases_Failures(t *testing.T) {
 // errRepeatedNextToken, keeping the rows read, and the later namespaces are
 // still read.
 func TestScanQSNamespacePhases_StopOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	for _, ph := range qsNamespacePhases() {
 		t.Run(ph.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -2506,6 +2540,7 @@ func TestScanQSNamespacePhases_StopOnRepeatedToken(t *testing.T) {
 // When ctx ends while a namespace is read, no further namespace is read, the
 // users read are stored without a tag read, and the stop is one error.
 func TestScanQSUsers_ContextStopIsOneError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -2547,6 +2582,7 @@ func TestScanQSUsers_ContextStopIsOneError(t *testing.T) {
 // A user without a UserName is stored under its ARN as its name; the
 // namespace names it only in the warning about a user without an ARN.
 func TestScanQSUsers_NameFallsBackToARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := recordWarnings(st)
 	arn := qsTestARN("user", "default/anon")
@@ -2573,6 +2609,7 @@ func TestScanQSUsers_NameFallsBackToARN(t *testing.T) {
 // A user QuickSight no longer finds when its tags are read was deleted since
 // it was listed, and is not stored.
 func TestScanQSUsers_TagReadNotFoundDropsUser(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	gone, kept := qsTestARN("user", "default/gone"), qsTestARN("user", "default/kept")
 	tags := &qsTagCalls{errs: map[string]error{gone: apiErr("ResourceNotFoundException", "x")}}
@@ -2624,6 +2661,7 @@ var qsTaggedSkipCodes = map[string][]string{
 // codes, warns about a denial, and returns every other code; on a later
 // page only a denial is not returned, and the rows read before it are kept.
 func TestScanQuickSight_TaggedListErrors(t *testing.T) {
+	t.Parallel()
 	codes := append([]string{"InternalFailure"}, qsTestCodes...)
 	for _, fx := range qsTaggedFixtures() {
 		if fx.page == nil {
@@ -2695,6 +2733,7 @@ func (f fakeQSActionConnectors) ListActionConnectors(_ context.Context, _ *quick
 // InternalFailure the global retry budget would spend minutes on, so each
 // call is held to two attempts.
 func TestScanQSActionConnectors_ClampsRetries(t *testing.T) {
+	t.Parallel()
 	var got int
 	var p phaseTotals
 	scanQSActionConnectors(context.Background(), fakeQSActionConnectors{maxAttempts: &got}, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID, &p)
@@ -2706,6 +2745,7 @@ func TestScanQSActionConnectors_ClampsRetries(t *testing.T) {
 // An alias listing that repeats its NextToken stops with
 // errRepeatedNextToken; the aliases read are stored.
 func TestScanQSAliases_StopOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	ctx, acct := context.Background(), newTestAccount(testAccountID)
 	cases := []struct {
 		name, parentType, kind, childType string
@@ -2744,6 +2784,7 @@ func TestScanQSAliases_StopOnRepeatedToken(t *testing.T) {
 // no longer finds is skipped silently, a denial warns once, and any other
 // code is returned with the other data sets' schedules stored.
 func TestScanQSRefreshSchedules_DataSetFailures(t *testing.T) {
+	t.Parallel()
 	codes := append([]string{"LimitExceededException"}, qsTestCodes...)
 	for _, code := range append(codes, "ResourceNotFoundException") {
 		t.Run(code, func(t *testing.T) {
@@ -2785,6 +2826,7 @@ func TestScanQSRefreshSchedules_DataSetFailures(t *testing.T) {
 // not-found (the account has none) and an op the region does not serve; a
 // denial warns; any other code is returned.
 func TestScanQSAccountSingletons_Errors(t *testing.T) {
+	t.Parallel()
 	runs := map[string]func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error){
 		"DescribeAccountSettings": func(ctx context.Context, client quickSightAPI, st *store.Store) (int, int, error) {
 			return scanQSAccountSettings(ctx, client, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -2833,6 +2875,7 @@ func qsSubscribed(any) (any, error) {
 // a "not subscribed" one is; any other gate error is returned beside what the
 // phases stored.
 func TestScanQuickSight_SubscriptionGate(t *testing.T) {
+	t.Parallel()
 	// qsGateNoError marks a case whose scan returns no error.
 	const qsGateNoError serviceOutcome = -1
 	notFound := func(any) (any, error) { return nil, apiErr("ResourceNotFoundException", "directory not found") }
@@ -2932,6 +2975,7 @@ func TestScanQuickSight_SubscriptionGate(t *testing.T) {
 // A member listing whose later page fails keeps the members read before it
 // and returns the error.
 func TestScanQSMemberPhases_FailedPageKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, p := range qsMemberPhases {
 		t.Run(p.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -2954,6 +2998,7 @@ func TestScanQSMemberPhases_FailedPageKeepsEarlierPages(t *testing.T) {
 // A member phase whose write fails sends none of its warnings, the
 // transient-skip one included: none may claim rows the write lost.
 func TestScanQSMemberPhases_NoWarningAfterFailedWrite(t *testing.T) {
+	t.Parallel()
 	for _, p := range qsMemberPhases {
 		t.Run(p.name, func(t *testing.T) {
 			st, closeStore := openClosingStore(t)
@@ -2977,6 +3022,7 @@ func TestScanQSMemberPhases_NoWarningAfterFailedWrite(t *testing.T) {
 
 // A parent deleted between its pages keeps its first page and warns once.
 func TestScanQSMemberPhases_ParentGoneMidListingWarns(t *testing.T) {
+	t.Parallel()
 	for _, p := range qsMemberPhases {
 		t.Run(p.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -3003,6 +3049,7 @@ func TestScanQSMemberPhases_ParentGoneMidListingWarns(t *testing.T) {
 // A failed closure write after the rows were stored sends none of the
 // warnings: not the transient skip, not the denied parent.
 func TestScanQSMemberPhases_NoWarningAfterFailedClosure(t *testing.T) {
+	t.Parallel()
 	for _, p := range qsMemberPhases {
 		t.Run(p.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -3052,6 +3099,7 @@ func qsStopMembers(err, stop error) int {
 // with no phase called, no warning and no service disabled, whatever code
 // the cut-short call answered.
 func TestScanQuickSight_ContextStopIsOneError(t *testing.T) {
+	t.Parallel()
 	t.Run("in flight beside a hard error", func(t *testing.T) {
 		st := newTestStore(t)
 		ctx, cancel := context.WithCancel(context.Background())

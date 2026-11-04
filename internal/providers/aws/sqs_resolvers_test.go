@@ -10,6 +10,7 @@ import (
 // TestResolveSQSQueueRelationships_KMSAndDLQ verifies KMS + DLQ edges for an
 // SQS queue with a customer-managed key and a redrive policy.
 func TestResolveSQSQueueRelationships_KMSAndDLQ(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

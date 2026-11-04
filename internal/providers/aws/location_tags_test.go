@@ -257,6 +257,7 @@ func locConsumerNativeID(id string) string {
 // tracker's consumer and each collection's geofence are stored. No error,
 // no warning.
 func TestScanLocation_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newLocCalls()
@@ -336,6 +337,7 @@ func TestScanLocation_StoresTagsOfEveryType(t *testing.T) {
 // read or per-parent listing is sent, and each listing is asked once for
 // MaxResults 100.
 func TestScanLocation_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newLocCalls()
@@ -382,6 +384,7 @@ func TestScanLocation_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanLocation_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := locScan(context.Background(), st, locHandlers(newLocCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -400,6 +403,7 @@ func TestScanLocation_RescanInsertsNone(t *testing.T) {
 // the tag op; a throttle keeps it and is transient; any other error keeps it
 // and is an error.
 func TestScanLocation_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, x := range []struct{ kind, typ string }{
 		{"api-key", TypeLocationAPIKey},
 		{"route-calculator", TypeLocationRouteCalculator},
@@ -464,6 +468,7 @@ func TestScanLocation_TagReadFailures(t *testing.T) {
 // Denied tag reads in several phases send one warning for the whole scan;
 // the rows are kept.
 func TestScanLocation_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newLocCalls()
@@ -486,6 +491,7 @@ func TestScanLocation_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanLocation_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, locTagsOp)
 	calls := newLocCalls()
@@ -507,6 +513,7 @@ func TestScanLocation_TagThrottleDemotedBesideHardError(t *testing.T) {
 // children: a denial warns once under the Describe; a throttle is transient;
 // any other error is an error.
 func TestScanLocation_DescribeFailures(t *testing.T) {
+	t.Parallel()
 	for _, x := range []struct{ kind, typ, op, childOp string }{
 		{"geofence-collection", TypeLocationGeofenceCollection, "geo:DescribeGeofenceCollection", "ListGeofences"},
 		{"tracker", TypeLocationTracker, "geo:DescribeTracker", "ListTrackerConsumers"},
@@ -589,6 +596,7 @@ func TestScanLocation_DescribeFailures(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanLocation_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeLocationMap)
@@ -617,6 +625,7 @@ func TestScanLocation_FailedWriteStopsScan(t *testing.T) {
 // error does not stop the later phases; a tracker on the lost page has no
 // consumers listed.
 func TestScanLocation_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op   string
 		lost int
@@ -649,6 +658,7 @@ func TestScanLocation_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanLocation_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := locHandlers(newLocCalls())
 	l := locListingOf(t, "ListMaps")
@@ -670,6 +680,7 @@ func TestScanLocation_RepeatedTokenKeepsPages(t *testing.T) {
 // stored, not sent to the tag op or a Describe, and is warned about once
 // under its listing. A tracker without a name has no consumers listed.
 func TestScanLocation_ElementWithoutName(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op         string
 		describeOp string
@@ -722,6 +733,7 @@ func TestScanLocation_ElementWithoutName(t *testing.T) {
 // A GovCloud or China account's ARNs are built in its partition and reach
 // the tag op as such.
 func TestScanLocation_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -756,6 +768,7 @@ func TestScanLocation_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanLocation_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newLocCalls()
 	handlers := locHandlers(calls)
@@ -794,6 +807,7 @@ func TestScanLocation_ContextEndReportedOnce(t *testing.T) {
 // collection's geofences, a tag read) is a failure of this scan, counts
 // kept. With nothing stored the region is unavailable.
 func TestScanLocation_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "cp.maps.geo.us-east-1.amazonaws.com", IsNotFound: true}
 	// Each part's first listing missing in turn costs only that listing's
 	// rows and their children: every other listing's two rows, each stored
@@ -884,6 +898,7 @@ func TestScanLocation_NXDOMAIN(t *testing.T) {
 // denial warns once under the op, any other error is returned. A consumer
 // with an empty ARN is not stored and is warned about, naming its tracker.
 func TestScanLocation_TrackerConsumerFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		err     error

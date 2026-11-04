@@ -50,6 +50,7 @@ func (s *stubConnectIntegration) DescribeRule(_ context.Context, in *connect.Des
 }
 
 func TestScanConnectIntegration(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	now := time.Unix(1700000000, 0).UTC()
@@ -109,6 +110,7 @@ func TestScanConnectIntegration(t *testing.T) {
 }
 
 func TestScanConnectIntegrationEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubConnectIntegration{}

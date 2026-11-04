@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveClientVPNEndpointRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -33,6 +34,7 @@ func TestResolveClientVPNEndpointRelationships(t *testing.T) {
 }
 
 func TestResolveClientVPNEndpointRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -53,6 +55,7 @@ func TestResolveClientVPNEndpointRelationships_Empty(t *testing.T) {
 }
 
 func TestResolveClientVPNTargetNetworkAssociationRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"

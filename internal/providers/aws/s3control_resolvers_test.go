@@ -9,6 +9,7 @@ import (
 // TestResolveStorageLens_IncludeBuckets verifies uses edges from a Storage Lens
 // configuration to each bucket in Include.Buckets[].
 func TestResolveStorageLens_IncludeBuckets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -35,6 +36,7 @@ func TestResolveStorageLens_IncludeBuckets(t *testing.T) {
 // TestResolveStorageLens_ExportBucket verifies uses edge to the S3 data-export
 // destination bucket.
 func TestResolveStorageLens_ExportBucket(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -59,6 +61,7 @@ func TestResolveStorageLens_ExportBucket(t *testing.T) {
 // the Storage Lens references a bucket not present in the store (cross-account
 // export target case).
 func TestResolveStorageLens_UnscannedBucket(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -81,6 +84,7 @@ func TestResolveStorageLens_UnscannedBucket(t *testing.T) {
 // TestResolveStorageLens_EmptyAttrs verifies no panic/edges when neither
 // Include nor DataExport is set.
 func TestResolveStorageLens_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -94,6 +98,7 @@ func TestResolveStorageLens_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveS3MRAPRegionBuckets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

@@ -233,6 +233,7 @@ func glueRowOf(t *testing.T, st *store.Store, typ, nativeID string) (store.Resou
 // every listing are stored, each listing asks for its model's page cap, and
 // the scan reports no error or warning.
 func TestScanGlue_StoresTagsOfEveryTaggedType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newGlueCalls()
@@ -305,6 +306,7 @@ func TestScanGlue_StoresTagsOfEveryTaggedType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanGlue_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGlueCalls()
 	if _, _, err := glueScan(context.Background(), t, st, glueHandlers(calls)); err != nil {
@@ -325,6 +327,7 @@ func TestScanGlue_RescanInsertsNone(t *testing.T) {
 // finds is dropped and its tables are never listed; a schema, read in the
 // per-registry phase, and a catalog, read by its ResourceArn, likewise.
 func TestScanGlue_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct{ typ, nativeID, tagARN string }{
 		{TypeGlueDatabase, glueARN("database")("tagged"), glueARN("database")("tagged")},
 		{TypeGlueSchema, glueTestARNPrefix + "schema/tagged/tagged", glueTestARNPrefix + "schema/tagged/tagged"},
@@ -393,6 +396,7 @@ func glueTagReadFailures(t *testing.T, typ, nativeID, tagARN string) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanGlue_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, glueGetTagsOp)
 	calls := newGlueCalls()
@@ -411,6 +415,7 @@ func TestScanGlue_TagThrottleDemotedBesideHardError(t *testing.T) {
 // warning about the rows it lost: not the tag denial, and not a denied
 // GetWorkflow or schema listing.
 func TestScanGlue_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		typ, deniedARN, laterOp string
 		deny                    func(h map[string]func(any) (any, error))
@@ -478,6 +483,7 @@ func TestScanGlue_FailedWriteStopsWithoutWarning(t *testing.T) {
 // failure, a pre-existing phase's failure nor a parent listing's failure
 // stops the phases after it.
 func TestScanGlue_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGlueCalls()
 	handlers := glueHandlers(calls)
@@ -511,6 +517,7 @@ func TestScanGlue_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // error is returned, a throttle as transient; the other workflow is stored
 // with its tags either way.
 func TestScanGlue_WorkflowReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -566,6 +573,7 @@ func TestScanGlue_WorkflowReadFailures(t *testing.T) {
 // warning under glue:GetWorkflow and the hard error decides the outcome: one
 // error joining both would classify as transient and hide the hard one.
 func TestScanGlue_WorkflowThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "glue:GetWorkflow")
 	handlers := glueHandlers(newGlueCalls())
@@ -587,6 +595,7 @@ func TestScanGlue_WorkflowThrottleDemotedBesideHardError(t *testing.T) {
 // A catalog listed without a ResourceArn is stored without tags, never sent
 // to GetTags, and fails the scan so the gap is seen.
 func TestScanGlue_CatalogWithoutARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGlueCalls()
 	handlers := glueHandlers(calls)
@@ -615,6 +624,7 @@ func TestScanGlue_CatalogWithoutARN(t *testing.T) {
 // A registry ListSchemas no longer finds is skipped without a warning; the
 // other registry's schema is stored.
 func TestScanGlue_SchemaRegistryGoneIsSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "glue:ListSchemas")
 	calls := newGlueCalls()
@@ -641,6 +651,7 @@ func TestScanGlue_SchemaRegistryGoneIsSkipped(t *testing.T) {
 // Items that cannot be stored are warned about in one warning per op that
 // names the first, or says it has none; their siblings are stored.
 func TestScanGlue_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, op, key, typ string
 		answer             func(any) (any, error)
@@ -687,6 +698,7 @@ func TestScanGlue_UnstorableItemsWarn(t *testing.T) {
 // A repeated token ends the listing as an error, keeping its pages; the
 // hand-paged catalog and integration listings included.
 func TestScanGlue_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, typ, nativeID string
 		out               any
@@ -719,6 +731,7 @@ func TestScanGlue_RepeatedTokenKeepsPages(t *testing.T) {
 // naming the phases not run, although the phase in flight saw it in its
 // listing and its tag reads; a hard error beside it is kept.
 func TestScanGlue_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGlueCalls()
 	handlers := glueHandlers(calls)
@@ -761,6 +774,7 @@ func TestScanGlue_ContextEndStopsOnce(t *testing.T) {
 // gap: the counts are kept. A tag read's NXDOMAIN is one too. With nothing
 // stored it stays region-unavailable.
 func TestScanGlue_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "glue.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)

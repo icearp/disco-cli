@@ -341,6 +341,7 @@ func afParent(k afKind, arn string) string { return arn[:strings.LastIndex(arn, 
 // listing the model's maxResults cap of 100, every child listing its
 // parent's ARNs, and every Get its row's ARNs. No error, no warning.
 func TestScanAppFabric_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newAFCalls()
@@ -441,6 +442,7 @@ func TestScanAppFabric_StoresEveryTypeWithTags(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanAppFabric_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := afScan(context.Background(), st, newAFCalls().handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -456,6 +458,7 @@ func TestScanAppFabric_RescanInsertsNone(t *testing.T) {
 
 // No bundle: nothing stored, no other call, no error, no warning.
 func TestScanAppFabric_NoBundles(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newAFCalls()
@@ -488,6 +491,7 @@ func TestScanAppFabric_NoBundles(t *testing.T) {
 // once under the tag op with the scan's scope; a throttle keeps it and is
 // transient; any other error keeps it and is an error.
 func TestScanAppFabric_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	c0 := newAFCalls()
 	dest := c0.arns(afKindOf("ListIngestionDestinations"))[0]
 	auth := c0.arns(afKindOf("ListAppAuthorizations"))[1]
@@ -559,6 +563,7 @@ func TestScanAppFabric_TagReadFailures(t *testing.T) {
 // Denied tag reads in three phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanAppFabric_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newAFCalls()
@@ -583,6 +588,7 @@ func TestScanAppFabric_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanAppFabric_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, afTagsOp)
 	calls := newAFCalls()
@@ -604,6 +610,7 @@ func TestScanAppFabric_TagThrottleDemotedBesideHardError(t *testing.T) {
 // its tags: a denial warns once under the Get op, a throttle is transient,
 // any other error is an error.
 func TestScanAppFabric_GetFailures(t *testing.T) {
+	t.Parallel()
 	c0 := newAFCalls()
 	bundle := c0.arns(afKindOf("ListAppBundles"))[0]
 	dest := c0.arns(afKindOf("ListIngestionDestinations"))[2]
@@ -694,6 +701,7 @@ func TestScanAppFabric_GetFailures(t *testing.T) {
 // a later page refused, the phase has rows to be the later phases' parents,
 // so it is the failure alone that keeps those phases from running.
 func TestScanAppFabric_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	c0 := newAFCalls()
 	bundles := c0.arns(afKindOf("ListAppBundles"))
 	ingestions := c0.arns(afKindOf("ListIngestions"))
@@ -774,6 +782,7 @@ func TestScanAppFabric_FailedWriteStopsScan(t *testing.T) {
 // every ingestion of a bundle's one page its destinations, sent with the
 // bundle it was listed under.
 func TestScanAppFabric_EveryElementOfAPageIsAParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAFCalls()
 	handlers := calls.handlers()
@@ -823,6 +832,7 @@ func TestScanAppFabric_EveryElementOfAPageIsAParent(t *testing.T) {
 // error does not stop the later phases. A bundle not stored has no children
 // read.
 func TestScanAppFabric_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	c0 := newAFCalls()
 	bundles := c0.arns(afKindOf("ListAppBundles"))
 	ingestions := c0.arns(afKindOf("ListIngestions"))
@@ -871,6 +881,7 @@ func TestScanAppFabric_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated nextToken ends the listing as an error, keeping its pages.
 func TestScanAppFabric_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListAppAuthorizations", "ListIngestionDestinations"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -907,6 +918,7 @@ func TestScanAppFabric_RepeatedTokenKeepsPages(t *testing.T) {
 // rows: a parent deleted since it was listed is skipped silently, a denial
 // warns once under the op, and any other error is returned.
 func TestScanAppFabric_PerParentListingFailures(t *testing.T) {
+	t.Parallel()
 	c0 := newAFCalls()
 	bundle := c0.arns(afKindOf("ListAppBundles"))[0]
 	ingestion := c0.arns(afKindOf("ListIngestions"))[3]
@@ -988,6 +1000,7 @@ func TestScanAppFabric_PerParentListingFailures(t *testing.T) {
 // warned about once under its listing; its siblings are stored. The fixture
 // adds one to the first page of every parent's listing.
 func TestScanAppFabric_ElementWithoutARN(t *testing.T) {
+	t.Parallel()
 	for _, k := range afKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1024,6 +1037,7 @@ func TestScanAppFabric_ElementWithoutARN(t *testing.T) {
 // A GovCloud scan sends its rows' ARNs to every child listing, Get and tag
 // read unchanged.
 func TestScanAppFabric_GovCloudARNsUnchanged(t *testing.T) {
+	t.Parallel()
 	const region = "us-gov-west-1"
 	st := newTestStore(t)
 	calls := newAFCallsIn("aws-us-gov", region)
@@ -1059,6 +1073,7 @@ func TestScanAppFabric_GovCloudARNsUnchanged(t *testing.T) {
 // flight saw it in its listing and its tag reads, and the later phases are
 // not run.
 func TestScanAppFabric_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAFCalls()
 	handlers := calls.handlers()
@@ -1097,6 +1112,7 @@ func TestScanAppFabric_ContextEndReportedOnce(t *testing.T) {
 // the first fanoutMed waits for a slot, which only a finished listing frees,
 // and every listing cancels ctx before it finishes.
 func TestScanAppFabric_ContextEndDuringDestinations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAFCalls()
 	handlers := calls.handlers()
@@ -1129,6 +1145,7 @@ func TestScanAppFabric_ContextEndDuringDestinations(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanAppFabric_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "appfabric.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

@@ -84,6 +84,7 @@ func kmsXKSStore() kmstypes.CustomKeyStoresListEntry {
 }
 
 func TestScanKMSCustomKeyStores_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		mu     sync.Mutex
@@ -140,6 +141,7 @@ func TestScanKMSCustomKeyStores_PagesAndFields(t *testing.T) {
 }
 
 func TestScanKMSCustomKeyStores_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		mu     sync.Mutex
@@ -158,6 +160,7 @@ func TestScanKMSCustomKeyStores_Empty(t *testing.T) {
 }
 
 func TestScanKMSCustomKeyStores_DeniedWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "kms:DescribeCustomKeyStores")
 	client := newKMSTestClient(nil)
@@ -171,6 +174,7 @@ func TestScanKMSCustomKeyStores_DeniedWarns(t *testing.T) {
 }
 
 func TestScanKMSCustomKeyStores_OtherErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := newKMSTestClient(map[string]func(any) (any, error){
 		"DescribeCustomKeyStores": func(any) (any, error) { return nil, apiErr("KMSInternalException", "boom") },
@@ -205,6 +209,7 @@ func kmsTopLevelHandlers() map[string]func(any) (any, error) {
 }
 
 func TestScanKMS_StoresKeysAndCustomKeyStores(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := &account{ID: testAccountID, Name: "Test Account", cfg: opStubConfig(kmsTopLevelHandlers(), kmsDenied)}
 
@@ -226,6 +231,7 @@ func TestScanKMS_StoresKeysAndCustomKeyStores(t *testing.T) {
 // Key stores are listed before the key fan-out, so a deadline that expires
 // during the keys does not lose them.
 func TestScanKMS_KeyStoresListedBeforeKeyDeadline(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -256,6 +262,7 @@ func TestScanKMS_KeyStoresListedBeforeKeyDeadline(t *testing.T) {
 // A hard key-phase error still leaves the key store phase to run, and both
 // phases' errors are returned.
 func TestScanKMS_KeyPhaseErrorStillScansKeyStores(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := kmsTopLevelHandlers()
 	h["ListKeys"] = func(any) (any, error) { return nil, apiErr("KMSInternalException", "keys down") }
@@ -276,6 +283,7 @@ func TestScanKMS_KeyPhaseErrorStillScansKeyStores(t *testing.T) {
 // A transient key-phase error is demoted to a warning, so the key store
 // phase's hard error still reaches the dispatcher as a hard error.
 func TestScanKMS_TransientKeyPhaseDoesNotMaskKeyStoreError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "kms")
 	h := kmsTopLevelHandlers()
@@ -298,6 +306,7 @@ func TestScanKMS_TransientKeyPhaseDoesNotMaskKeyStoreError(t *testing.T) {
 // A transient key store error is demoted to a warning under its op instead of
 // buried in the key phase's hard error, and the key rows stay.
 func TestScanKMS_TransientKeyStorePhaseDoesNotMaskKeyError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "kms:DescribeCustomKeyStores")
 	h := kmsTopLevelHandlers()

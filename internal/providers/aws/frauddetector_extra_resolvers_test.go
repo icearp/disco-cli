@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveFraudDetectorRuleRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -23,6 +24,7 @@ func TestResolveFraudDetectorRuleRelationships(t *testing.T) {
 }
 
 func TestResolveFraudDetectorRuleRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

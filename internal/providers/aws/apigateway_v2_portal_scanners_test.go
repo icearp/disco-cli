@@ -171,6 +171,7 @@ func countPortalRows(t *testing.T, st *store.Store, rtype string) int {
 }
 
 func TestScanAPIGatewayV2PortalList_Scenarios(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		stub      *stubPortalAPI
@@ -225,6 +226,7 @@ func TestScanAPIGatewayV2PortalList_Scenarios(t *testing.T) {
 }
 
 func TestScanAPIGatewayV2PortalList_StoredRow(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubPortalAPI{portalPages: [][]apigwv2types.PortalSummary{{testPortal("a")}}}
 	if _, _, err := scanAPIGatewayV2PortalList(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
@@ -256,6 +258,7 @@ func (s *repeatTokenPortalAPI) ListPortals(_ context.Context, _ *apigatewayv2.Li
 // A repeated token stops the listing with errRepeatedNextToken, and the
 // portal already listed is stored.
 func TestScanAPIGatewayV2PortalList_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &repeatTokenPortalAPI{}
 	_, _, err := scanAPIGatewayV2PortalList(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -297,6 +300,7 @@ func (s *repeatTokenPortalAPI) ListProductRestEndpointPages(_ context.Context, _
 // The product list and both per-product page lists fail on a repeated token
 // after two calls instead of reading as complete; each keeps the row it read.
 func TestScanAPIGatewayV2PortalChildren_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	products := []childParent{{id: "p1", arn: portalTestARN(testAccountID, "portalproducts", "p1")}}
 	for _, tc := range []struct {
 		name     string
@@ -371,6 +375,7 @@ func (s *repeatingPortalPhases) ListPortalProducts(ctx context.Context, in *apig
 // A repeated token in the portal or product listing fails the scan, but the
 // later phases still run: every product's pages are stored.
 func TestScanAPIGatewayV2Portals_RepeatedTokenRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name              string
 		portals, products bool
@@ -406,6 +411,7 @@ func TestScanAPIGatewayV2Portals_RepeatedTokenRunsLaterPhases(t *testing.T) {
 }
 
 func TestScanAPIGatewayV2PortalProducts_Scenarios(t *testing.T) {
+	t.Parallel()
 	const otherAccount = "210987654321"
 	cases := []struct {
 		name         string
@@ -485,6 +491,7 @@ func TestScanAPIGatewayV2PortalProducts_Scenarios(t *testing.T) {
 }
 
 func TestScanAPIGatewayV2PortalProducts_StoredRow(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubPortalAPI{productPages: [][]apigwv2types.PortalProductSummary{{testPortalProduct(testAccountID, "p1")}}}
 	if _, _, _, err := scanAPIGatewayV2PortalProducts(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID); err != nil {
@@ -570,6 +577,7 @@ var portalChildPhases = []portalChildPhase{
 }
 
 func TestScanAPIGatewayV2PortalChildren_FanOut(t *testing.T) {
+	t.Parallel()
 	for _, ph := range portalChildPhases {
 		t.Run(ph.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -607,6 +615,7 @@ func TestScanAPIGatewayV2PortalChildren_FanOut(t *testing.T) {
 }
 
 func TestScanAPIGatewayV2PortalChildren_Errors(t *testing.T) {
+	t.Parallel()
 	deny := apiErr("AccessDeniedException", "User: x is not authorized to perform: apigateway:GET")
 	for _, ph := range portalChildPhases {
 		t.Run(ph.name+"/no products", func(t *testing.T) {
@@ -661,6 +670,7 @@ func apigwv2CoreResponses(vpcLinkErr error) map[string][]stubCall {
 }
 
 func TestScanAPIGatewayV2_StoresPortalRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	responses := apigwv2CoreResponses(nil)
 	responses["ListPortals"] = []stubCall{{Output: &apigatewayv2.ListPortalsOutput{Items: []apigwv2types.PortalSummary{testPortal("a")}}}}
@@ -686,6 +696,7 @@ func TestScanAPIGatewayV2_StoresPortalRows(t *testing.T) {
 // TestScanAPIGatewayV2_PortalErrorAfterCorePhases checks that a failing portal
 // op's error propagates while the other families' rows are kept.
 func TestScanAPIGatewayV2_PortalErrorAfterCorePhases(t *testing.T) {
+	t.Parallel()
 	boom := apiErr("ConflictException", "boom")
 	product := &apigatewayv2.ListPortalProductsOutput{Items: []apigwv2types.PortalProductSummary{testPortalProduct(testAccountID, "p1")}}
 	cases := map[string]map[string][]stubCall{
@@ -728,6 +739,7 @@ func TestScanAPIGatewayV2_PortalErrorAfterCorePhases(t *testing.T) {
 // not depend on the other families: a failed VPC link listing still stores
 // the portal, and its error is returned.
 func TestScanAPIGatewayV2_CoreErrorStillStoresPortals(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	responses := apigwv2CoreResponses(apiErr("ConflictException", "boom"))
 	responses["ListPortals"] = []stubCall{{Output: &apigatewayv2.ListPortalsOutput{Items: []apigwv2types.PortalSummary{testPortal("a")}}}}
@@ -746,6 +758,7 @@ func TestScanAPIGatewayV2_CoreErrorStillStoresPortals(t *testing.T) {
 // a broken store is not an incomplete listing, and the later phases would
 // only fail their writes too.
 func TestScanAPIGatewayV2Portals_RepeatedTokenWithStoreWriteStops(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
 	if err != nil {

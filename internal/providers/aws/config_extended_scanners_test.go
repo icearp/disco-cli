@@ -45,6 +45,7 @@ func configRetentionHandler(in any) (any, error) {
 }
 
 func TestScanConfigRetentionConfigurations_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := configStubClient(map[string]func(any) (any, error){"DescribeRetentionConfigurations": configRetentionHandler})
 	total, _, err := scanConfigRetentionConfigurations(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -92,6 +93,7 @@ func configSingleListCases() []singleListCase {
 }
 
 func TestConfigListPhases_Errors(t *testing.T) {
+	t.Parallel()
 	empty := map[string]any{
 		"DescribeRetentionConfigurations": &configservice.DescribeRetentionConfigurationsOutput{},
 	}
@@ -158,6 +160,7 @@ func configConnectorBody(arn string) (any, error) {
 // most 25 names, every rule once, and each returned configuration must be
 // stored.
 func TestScanConfigRemediationConfigs_BatchesEveryListedRule(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		names []string
@@ -246,6 +249,7 @@ func configExceptionHandler(calls *parentCalls, fail map[string]error) func(any)
 }
 
 func TestScanConfigRemediationExceptions_PagesEveryRule(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	rules := configRules(t, st, "r1", "r2")
 	calls := &parentCalls{}
@@ -282,6 +286,7 @@ func TestScanConfigRemediationExceptions_PagesEveryRule(t *testing.T) {
 }
 
 func TestScanConfigRemediationExceptions_Errors(t *testing.T) {
+	t.Parallel()
 	t.Run("no rules", func(t *testing.T) {
 		st := newTestStore(t)
 		total, _, err := scanConfigRemediationExceptions(context.Background(), configStubClient(nil), nil, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -355,6 +360,7 @@ func configServiceHandlers() map[string]func(any) (any, error) {
 const configStoredQueryARN = "arn:aws:config:us-east-1:123456789012:stored-query/q/q-1"
 
 func TestScanConfig_NewPhasesStoreRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = configStubConfig(configServiceHandlers())
@@ -375,6 +381,7 @@ func TestScanConfig_NewPhasesStoreRows(t *testing.T) {
 
 // A failing new phase must not cost the rows of the phases that ran before it.
 func TestScanConfig_NewPhaseErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	for _, failing := range []string{"DescribeRetentionConfigurations", "ListConnectors", "GetConnector", "DescribeRemediationExceptions"} {
 		t.Run(failing, func(t *testing.T) {
 			st := newTestStore(t)
@@ -396,6 +403,7 @@ func TestScanConfig_NewPhaseErrorAfterExistingPhases(t *testing.T) {
 // may fail with an unmodelled error in some regions, and last is where an
 // unknown gap costs the fewest rows. This pins that order.
 func TestScanConfig_ConnectorErrorKeepsOtherNewPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := configServiceHandlers()
 	h["ListConnectors"] = func(any) (any, error) { return nil, configBadParam }

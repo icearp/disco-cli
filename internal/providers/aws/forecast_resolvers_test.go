@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveForecastDatasetRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -29,6 +30,7 @@ func TestResolveForecastDatasetRefs(t *testing.T) {
 }
 
 func TestResolveForecastDatasetGroupMembers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

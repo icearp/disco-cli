@@ -177,6 +177,7 @@ func assertUnknownMember(t *testing.T, members map[string]json.RawMessage, tag, 
 }
 
 func TestScanACM_StoresAcmeEndpointsAndChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls acmChildCalls
 	total, err := scanACMTopLevel(t, st, acmTopLevelHandlers(&calls))
@@ -275,6 +276,7 @@ func TestScanACM_StoresAcmeEndpointsAndChildren(t *testing.T) {
 // One AccountUrl under two endpoints is two accounts; the endpoint ARN in the
 // NativeID keeps their identities apart.
 func TestScanACM_SameAccountURLUnderTwoEndpointsKeepsTwoIdentities(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls acmChildCalls
 	if _, err := scanACMTopLevel(t, st, acmTopLevelHandlers(&calls)); err != nil {
@@ -288,6 +290,7 @@ func TestScanACM_SameAccountURLUnderTwoEndpointsKeepsTwoIdentities(t *testing.T)
 }
 
 func TestScanACM_NoAcmeEndpointsNoChildCalls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls acmChildCalls
 	h := acmTopLevelHandlers(&calls)
@@ -312,6 +315,7 @@ func TestScanACM_NoAcmeEndpointsNoChildCalls(t *testing.T) {
 // A denial on the endpoints' second page warns once and keeps page one's
 // endpoint and its children; any other error fails the scan.
 func TestScanACM_FailedAcmeEndpointsPage(t *testing.T) {
+	t.Parallel()
 	failPageTwo := func(next func(in any) (any, error), err error) func(in any) (any, error) {
 		return func(in any) (any, error) {
 			if in.(*acm.ListAcmeEndpointsInput).NextToken != nil {
@@ -361,6 +365,7 @@ func TestScanACM_FailedAcmeEndpointsPage(t *testing.T) {
 // listing is silent, a denial warns once however many endpoints hit it, and
 // any other error fails the scan.
 func TestScanACM_FailedChildEndpoint(t *testing.T) {
+	t.Parallel()
 	failEndpoints := func(next func(in any) (any, error), err error) func(in any) (any, error) {
 		return func(in any) (any, error) {
 			var ep string
@@ -427,6 +432,7 @@ func TestScanACM_FailedChildEndpoint(t *testing.T) {
 // error reaches the caller, and the returned total keeps the rows the earlier
 // phases stored.
 func TestScanACM_AcmePhaseErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op        string
 		wantTotal int
@@ -464,6 +470,7 @@ func TestScanACM_AcmePhaseErrorAfterExistingPhases(t *testing.T) {
 // A phase that fails after storing rows still counts them: the certificate on
 // page one is in the total returned with page two's error.
 func TestScanACM_FailedPhaseKeepsItsPartialCount(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls acmChildCalls
 	h := acmTopLevelHandlers(&calls)
@@ -485,6 +492,7 @@ func TestScanACM_FailedPhaseKeepsItsPartialCount(t *testing.T) {
 
 // The client is pinned to the scanned region, not the config's default.
 func TestScanACM_CallsGoToScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var calls acmChildCalls

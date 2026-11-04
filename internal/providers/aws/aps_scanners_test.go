@@ -54,6 +54,7 @@ func apsAllHandlers(calls map[string]int) map[string]func(in any) (any, error) {
 // scraper listing does not stop the phases after it: the error is returned and
 // every other phase's rows are stored.
 func TestScanAPSAll_PhaseErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("InternalServerException", "boom")
 	for _, c := range []struct {
 		failOp  string
@@ -87,6 +88,7 @@ func TestScanAPSAll_PhaseErrorRunsLaterPhases(t *testing.T) {
 // phases after it, both after the workspace phase and between the
 // per-workspace phases, and is returned as ErrStoreWrite.
 func TestScanAPSAll_StoreWriteStopsPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		closeIn  string // the op whose call closes the store
 		notAfter string // a later op that must not be called
@@ -120,6 +122,7 @@ func TestScanAPSAll_StoreWriteStopsPhases(t *testing.T) {
 // TestScanAPSAll_DeniedWorkspacesListedOnce pins that a denied ListWorkspaces
 // is called and warned once, with the scrapers still stored.
 func TestScanAPSAll_DeniedWorkspacesListedOnce(t *testing.T) {
+	t.Parallel()
 	calls := map[string]int{}
 	h := apsAllHandlers(calls)
 	h["ListWorkspaces"] = func(any) (any, error) {
@@ -148,6 +151,7 @@ func TestScanAPSAll_DeniedWorkspacesListedOnce(t *testing.T) {
 // TestScanAPSAll_EmptyARNWarnsOncePerOp pins that listed items with no ARN
 // are not stored and warn once per op, beside the stored items.
 func TestScanAPSAll_EmptyARNWarnsOncePerOp(t *testing.T) {
+	t.Parallel()
 	h := apsAllHandlers(map[string]int{})
 	h["ListWorkspaces"] = func(any) (any, error) {
 		return &amp.ListWorkspacesOutput{Workspaces: []amptypes.WorkspaceSummary{
@@ -197,6 +201,7 @@ func TestScanAPSAll_EmptyARNWarnsOncePerOp(t *testing.T) {
 // ListWorkspaces page fails, the workspaces of the pages before still feed
 // the anomaly-detector, rule-groups-namespace and resource-policy phases.
 func TestScanAPSAll_WorkspacesPageFailsKeepsChildren(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		err     error
@@ -235,6 +240,7 @@ func TestScanAPSAll_WorkspacesPageFailsKeepsChildren(t *testing.T) {
 // but no WorkspaceId is stored, is not handed to the per-workspace phases,
 // and warns once.
 func TestScanAPSWorkspaces_NoIDStoredAndWarns(t *testing.T) {
+	t.Parallel()
 	h := map[string]func(in any) (any, error){
 		"ListWorkspaces": func(any) (any, error) {
 			return &amp.ListWorkspacesOutput{Workspaces: []amptypes.WorkspaceSummary{
@@ -266,6 +272,7 @@ func TestScanAPSWorkspaces_NoIDStoredAndWarns(t *testing.T) {
 // returns ErrStoreWrite and none of its skip warnings, which would claim
 // that the rows read were stored.
 func TestScanAPS_WriteFailsWarnsNothing(t *testing.T) {
+	t.Parallel()
 	t.Run("workspaces", func(t *testing.T) {
 		st, closeStore := openClosingStore(t)
 		warns := countOpWarnings(st, "amp:ListWorkspaces")
@@ -357,6 +364,7 @@ func TestScanAPS_WriteFailsWarnsNothing(t *testing.T) {
 // DescribeResourcePolicy with ValidationException warn once and are skipped,
 // with the readable workspace's policy stored.
 func TestScanAPSResourcePolicies_NotReadyWarnsOnce(t *testing.T) {
+	t.Parallel()
 	h := map[string]func(in any) (any, error){
 		"DescribeResourcePolicy": func(in any) (any, error) {
 			if sv(in.(*amp.DescribeResourcePolicyInput).WorkspaceId) == "ws-ok" {

@@ -40,6 +40,7 @@ func listSSMRows(t *testing.T, st *store.Store, rtype string) map[string]store.R
 }
 
 func TestScanSSMActivations_PaginatesAndStores(t *testing.T) {
+	t.Parallel()
 	const (
 		arn1 = "arn:aws:ssm:us-east-1:123456789012:activation/act-1"
 		arn2 = "arn:aws:ssm:us-east-1:123456789012:activation/act-2"

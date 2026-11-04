@@ -116,6 +116,7 @@ func lateEdgesFrom(t *testing.T, st *store.Store, fromID string) []store.Relatio
 }
 
 func TestResolveEC2LateRefs_LinksScannedTargets(t *testing.T) {
+	t.Parallel()
 	for _, c := range lateResolverCases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -161,6 +162,7 @@ func TestResolveEC2LateRefs_LinksScannedTargets(t *testing.T) {
 // A row whose attributes do not decode is reported and costs no other row its
 // edges. The good row is named so that it sorts after the unnamed bad row.
 func TestResolveEC2LateRefs_DecodeErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	for _, c := range lateResolverCases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)

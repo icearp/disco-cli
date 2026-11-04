@@ -8,6 +8,7 @@ import (
 )
 
 func TestConnectInstanceARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:connect:us-east-1:123:instance/abc/contact-flow/cf1", "arn:aws:connect:us-east-1:123:instance/abc"},
 		{"arn:aws:connect:us-east-1:123:instance/abc", ""},
@@ -21,6 +22,7 @@ func TestConnectInstanceARNFromChild(t *testing.T) {
 }
 
 func TestResolveConnectInstanceServiceRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/aws-service-role/connect.amazonaws.com/AWSServiceRoleForAmazonConnect_abc", acct.ID)
@@ -36,6 +38,7 @@ func TestResolveConnectInstanceServiceRole(t *testing.T) {
 }
 
 func TestResolveConnectChildrenToInstance(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	iARN := fmt.Sprintf("arn:aws:connect:%s:%s:instance/abc", testRegion, acct.ID)
@@ -54,6 +57,7 @@ func TestResolveConnectChildrenToInstance(t *testing.T) {
 }
 
 func TestResolveConnectChildrenToInstance_TestCase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	iARN := fmt.Sprintf("arn:aws:connect:%s:%s:instance/abc", testRegion, acct.ID)
@@ -70,6 +74,7 @@ func TestResolveConnectChildrenToInstance_TestCase(t *testing.T) {
 }
 
 func TestResolveConnectChildrenToInstance_Analytics(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ typ, kind string }{
 		{TypeConnectExtractionDefinition, "extraction-definition"},
 		{TypeConnectMetric, "metric"},
@@ -105,6 +110,7 @@ func TestResolveConnectChildrenToInstance_Analytics(t *testing.T) {
 }
 
 func TestResolveConnectViewVersionToView(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vARN := fmt.Sprintf("arn:aws:connect:%s:%s:instance/abc/view/v1", testRegion, acct.ID)
@@ -119,6 +125,7 @@ func TestResolveConnectViewVersionToView(t *testing.T) {
 }
 
 func TestResolveConnectDataTableChildrenToTable(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tARN := fmt.Sprintf("arn:aws:connect:%s:%s:instance/abc/data-table/t1", testRegion, acct.ID)

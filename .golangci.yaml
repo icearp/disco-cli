@@ -5,6 +5,7 @@ linters:
     - gocritic
     - gocyclo
     - misspell
+    - paralleltest
     - revive
     - tagliatelle
     - unconvert
@@ -17,6 +18,9 @@ linters:
         - hdinsight
     gocyclo:
       min-complexity: 30
+    paralleltest:
+      # Subtests stay serial unless a test is slow enough to repay the edit.
+      ignore-missing-subtests: true
     govet:
       disable:
         - loopclosure
@@ -66,6 +70,12 @@ linters:
       # the bar is set against.
       - path: _test\.go$
         linters: [gocyclo]
+      # paralleltest is scoped to the aws package's own test files (not its
+      # subpackages); widen this path for any package whose tests adopt
+      # t.Parallel. The guard fires only where golangci-lint runs (make lint),
+      # so check that CI runs it before relying on it.
+      - path-except: ^internal/providers/aws/[^/]+_test\.go$
+        linters: [paralleltest]
     paths:
       - third_party$
       - builtin$

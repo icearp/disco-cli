@@ -9,6 +9,7 @@ import (
 )
 
 func TestResolveRSSNamespaceRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	kARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc", testRegion, acct.ID)
@@ -27,6 +28,7 @@ func TestResolveRSSNamespaceRefs(t *testing.T) {
 }
 
 func TestResolveRSSWorkgroupRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	nsARN := rssNamespaceARN("aws", testRegion, acct.ID, "ns1")
@@ -48,6 +50,7 @@ func TestResolveRSSWorkgroupRefs(t *testing.T) {
 }
 
 func TestResolveRSSSnapshotRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	nsARN := rssNamespaceARN("aws", testRegion, acct.ID, "ns1")
@@ -66,6 +69,7 @@ func TestResolveRSSSnapshotRefs(t *testing.T) {
 }
 
 func TestResolveRSSEndpointAccessRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	wgARN := fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:workgroup/wg-guid", testRegion, acct.ID)
@@ -82,6 +86,7 @@ func TestResolveRSSEndpointAccessRefs(t *testing.T) {
 }
 
 func TestResolveRSSEndpointAccessRefs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	epARN := fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:managedvpcendpoint/ep-1", testRegion, acct.ID)
@@ -95,6 +100,7 @@ func TestResolveRSSEndpointAccessRefs_Empty(t *testing.T) {
 }
 
 func TestResolveRSSRecoveryPointRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	nsARN := rssNamespaceARN("aws", testRegion, acct.ID, "ns1")
@@ -110,6 +116,7 @@ func TestResolveRSSRecoveryPointRefs(t *testing.T) {
 }
 
 func TestResolveRSSRecoveryPointRefs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rpARN := fmt.Sprintf("arn:aws:redshift-serverless:%s:%s:recovery-point/rp-1", testRegion, acct.ID)

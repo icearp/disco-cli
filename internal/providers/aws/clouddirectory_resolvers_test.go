@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveCloudDirectoryAppliedSchema(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -28,6 +29,7 @@ func TestResolveCloudDirectoryAppliedSchema(t *testing.T) {
 // An applied schema whose DirectoryArn points at an unscanned directory, or has
 // none at all, emits no edge.
 func TestResolveCloudDirectoryAppliedSchema_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

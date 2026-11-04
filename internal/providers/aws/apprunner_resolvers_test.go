@@ -39,6 +39,7 @@ func arECRRepoARN() string {
 
 // TestResolveAppRunnerServiceTargets exercises every service edge.
 func TestResolveAppRunnerServiceTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -88,6 +89,7 @@ func TestResolveAppRunnerServiceTargets(t *testing.T) {
 // TestResolveAppRunnerServiceConnection_Unscanned: an unscanned ConnectionArn
 // emits no edge (FK-safe) and doesn't panic on a service with minimal attrs.
 func TestResolveAppRunnerServiceConnection_Unscanned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -110,6 +112,7 @@ func TestResolveAppRunnerServiceConnection_Unscanned(t *testing.T) {
 // TestResolveAppRunnerVPCConnectorTargets verifies vpc-connector →
 // subnet + SG edges.
 func TestResolveAppRunnerVPCConnectorTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

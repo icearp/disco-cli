@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveFDDetectorEventType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	etARN := fdARN("aws", testRegion, acct.ID, "event-type", "purchase")
@@ -22,6 +23,7 @@ func TestResolveFDDetectorEventType(t *testing.T) {
 }
 
 func TestResolveFDEventTypeRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	enARN := fdARN("aws", testRegion, acct.ID, "entity-type", "buyer")

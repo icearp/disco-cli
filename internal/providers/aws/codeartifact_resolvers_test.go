@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveCodeArtifactDomainToKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	kARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/abc", testRegion, acct.ID)
@@ -22,6 +23,7 @@ func TestResolveCodeArtifactDomainToKMS(t *testing.T) {
 }
 
 func TestResolveCodeArtifactChildrenToDomain(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := codeArtifactDomainARN("aws", testRegion, acct.ID, "d1")

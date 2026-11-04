@@ -205,6 +205,7 @@ func (c connectChildCase) seedParents(t *testing.T, st *store.Store) {
 }
 
 func TestConnectChildPhases_PagesEveryParentOfThisScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range connectChildCases() {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -244,6 +245,7 @@ func TestConnectChildPhases_PagesEveryParentOfThisScan(t *testing.T) {
 }
 
 func TestConnectChildPhases_ParentErrors(t *testing.T) {
+	t.Parallel()
 	for _, c := range connectChildCases() {
 		t.Run(c.name+"/not found parent skipped", func(t *testing.T) {
 			st := newTestStore(t)
@@ -305,6 +307,7 @@ func TestConnectChildPhases_ParentErrors(t *testing.T) {
 }
 
 func TestConnectChildARNIDs(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ arn, inst, id string }{
 		{connectTestInstanceARN + "/operating-hours/h-1", "i-1", "h-1"},
 		{connectTestInstanceARN, "", ""},
@@ -347,6 +350,7 @@ func describedTestCase(id string) (any, error) {
 }
 
 func TestScanConnectTestCases_DescribesEveryListedCase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var lists parentCalls
 	client := connectStubClient(testCaseHandlers(&lists, describedTestCase))
@@ -372,6 +376,7 @@ func TestScanConnectTestCases_DescribesEveryListedCase(t *testing.T) {
 }
 
 func TestScanConnectTestCases_Errors(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	t.Run("deleted instance skipped", func(t *testing.T) {
 		st := newTestStore(t)
@@ -459,6 +464,7 @@ func attachedFilesHandler(calls *parentCalls) func(any) (any, error) {
 func aws64(v int64) *int64 { return &v }
 
 func TestScanConnectAttachedFilesConfigurations_OneRowPerScope(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedConnectInstances(t, st, "i-1", "i-2")
 	warns := countWarnings(st)
@@ -502,6 +508,7 @@ func seedConnectInstances(t *testing.T, st *store.Store, ids ...string) {
 }
 
 func TestScanConnectAttachedFilesConfigurations_Errors(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	t.Run("deleted instance skipped", func(t *testing.T) {
 		st := newTestStore(t)
@@ -609,6 +616,7 @@ var connectChildRowIDs = map[string]string{
 }
 
 func TestScanConnect_ChildrenReadParentsTheFamiliesStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := connectFamilyHandlers()
 	maps.Copy(h, connectChildOps)
@@ -626,6 +634,7 @@ func TestScanConnect_ChildrenReadParentsTheFamiliesStored(t *testing.T) {
 
 // A failing child phase must not cost the rows of the families that ran before it.
 func TestScanConnect_ChildPhaseErrorAfterFamilies(t *testing.T) {
+	t.Parallel()
 	familyRows := map[string]string{
 		TypeConnectHoursOfOperation:       connectTestInstanceARN + "/operating-hours/h-1",
 		TypeConnectIntegrationAssociation: connectTestInstanceARN + "/integration-association/ia-1",

@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveBCMDataExportsRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -27,6 +28,7 @@ func TestResolveBCMDataExportsRelationships(t *testing.T) {
 }
 
 func TestResolveBCMDataExportsRelationships_UnscannedBucket(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

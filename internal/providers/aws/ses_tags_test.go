@@ -288,6 +288,7 @@ func sesAttrs(t *testing.T, r store.Resource) map[string]any {
 // event destinations are read for the stored configuration sets without
 // listing them again, and no tag read or Get warns.
 func TestScanSES_StoresTagsOfEveryTaggedType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warns []*int
 	for _, op := range []string{sesListTagsOp, mmListTagsOp, sesGetIdentityOp, sesGetConfigSetOp, "mailmanager:GetArchive", "mailmanager:GetIngressPoint"} {
@@ -366,6 +367,7 @@ func TestScanSES_StoresTagsOfEveryTaggedType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanSES_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSESCalls()
 	if _, _, err := sesTagScan(t, st, sesHandlers(calls)); err != nil {
@@ -385,6 +387,7 @@ func TestScanSES_RescanInsertsNone(t *testing.T) {
 // after retries is a transient error; any other code a hard one; the op's
 // modeled not-found code drops the row silently.
 func TestScanSES_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		row  sesFixtureRow
 		gone error
@@ -444,6 +447,7 @@ func TestScanSES_TagReadFailures(t *testing.T) {
 // error, any other code a hard one. A kept row of a type whose tags come
 // from the Get body has them read with ListTagsForResource instead.
 func TestScanSES_GetFailuresKeepTheListElement(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		row       sesFixtureRow
 		getOp     string
@@ -533,6 +537,7 @@ func TestScanSES_GetFailuresKeepTheListElement(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanSES_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, sesListTagsOp)
 	calls := newSESCalls()
@@ -550,6 +555,7 @@ func TestScanSES_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanSES_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeSESContactList)
@@ -571,6 +577,7 @@ func TestScanSES_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A failed write is returned with the Get errors of the rows it lost, not
 // warned about or dropped: both reach the dispatcher in one error.
 func TestScanSES_FailedWriteKeepsGetError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeSESEmailIdentity)
 	calls := newSESCalls()
@@ -586,6 +593,7 @@ func TestScanSES_FailedWriteKeepsGetError(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and no phase's
 // failure stops the phases after it, on either host.
 func TestScanSES_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSESCalls()
 	handlers := sesHandlers(calls)
@@ -612,6 +620,7 @@ func TestScanSES_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanSES_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSESCalls()
 	handlers := sesHandlers(calls)
@@ -631,6 +640,7 @@ func TestScanSES_RepeatedTokenKeepsPages(t *testing.T) {
 // Listed items without a name, id or ARN are warned about once per op,
 // naming a key that is never empty; their siblings are stored.
 func TestScanSES_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := map[string]*[]store.ScanWarning{}
 	for _, op := range []string{"sesv2:ListContactLists", "sesv2:ListTenants", "mailmanager:ListRelays"} {
@@ -673,6 +683,7 @@ func TestScanSES_UnstorableItemsWarn(t *testing.T) {
 // the email endpoint is reported unavailable; an NXDOMAIN from Mail Manager
 // after it stored rows is a failure of this scan.
 func TestScanSES_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := func(host string) error {
 		return &net.DNSError{Err: "no such host", Name: host + "." + testRegion + ".amazonaws.com", IsNotFound: true}
 	}
@@ -739,6 +750,7 @@ func TestScanSES_NXDOMAIN(t *testing.T) {
 // A configuration set deleted since it was listed has no event destinations
 // and is skipped silently; its sibling's are stored.
 func TestScanSES_EventDestinationsOfDeletedSetSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, sesEventDestinationsOp)
 	calls := newSESCalls()

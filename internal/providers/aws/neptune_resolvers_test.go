@@ -16,6 +16,7 @@ const (
 
 // TestResolveNeptuneClusterTargets verifies cluster → KMS + SG edges.
 func TestResolveNeptuneClusterTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -45,6 +46,7 @@ func TestResolveNeptuneClusterTargets(t *testing.T) {
 // TestResolveNeptuneInstanceCluster verifies instance → cluster closure
 // when both are scanned.
 func TestResolveNeptuneInstanceCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

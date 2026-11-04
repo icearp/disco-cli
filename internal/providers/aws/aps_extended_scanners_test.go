@@ -15,6 +15,7 @@ import (
 // rule-groups-namespace rows carry the Tags of their list elements, and that
 // an untagged element stores none.
 func TestScanAPSExtended_ReadsTags(t *testing.T) {
+	t.Parallel()
 	const (
 		wsARN      = "arn:aws:aps:us-east-1:123456789012:workspace/ws-1"
 		adTagged   = wsARN + "/anomalydetector/ad-1"
@@ -116,6 +117,7 @@ func apsRepeatingClient() *amp.Client {
 // whose service repeats its NextToken returns errRepeatedNextToken with the
 // rows read so far stored, and that it does not stop the later phases.
 func TestScanAPSExtended_RepeatedTokenKeepsRowsAndPhases(t *testing.T) {
+	t.Parallel()
 	workspaces := []apsWorkspaceRef{{ID: "ws-1", ARN: "arn:aws:aps:us-east-1:123456789012:workspace/ws-1"}}
 	acct := newTestAccount(testAccountID)
 	for _, c := range []struct {
@@ -156,6 +158,7 @@ func TestScanAPSExtended_RepeatedTokenKeepsRowsAndPhases(t *testing.T) {
 // workspace's listing or policy read keeps the rows already read for it and
 // every other workspace's rows, and is returned.
 func TestScanAPSExtended_HardErrorKeepsRows(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("InternalServerException", "boom")
 	isBad := func(err error) bool { return isAPIErrorCode(err, "InternalServerException") }
 	page := func(wid string, tok *string) (string, *string, error) {
@@ -228,6 +231,7 @@ func TestScanAPSExtended_HardErrorKeepsRows(t *testing.T) {
 // or rule-groups-namespace listing warns once for all denied workspaces and
 // keeps the other workspace's rows, with no error.
 func TestScanAPSExtended_ListDeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	deny := apiErr("AccessDeniedException", "not authorized to perform: aps:List")
 	handlers := map[string]func(in any) (any, error){
 		"ListAnomalyDetectors": func(in any) (any, error) {
@@ -286,6 +290,7 @@ func TestScanAPSExtended_ListDeniedWarnsOnce(t *testing.T) {
 // no policy (ResourceNotFoundException) is skipped silently, and a readable
 // policy is stored.
 func TestScanAPSResourcePolicies_DeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	handlers := map[string]func(in any) (any, error){
 		"DescribeResourcePolicy": func(in any) (any, error) {
 			switch sv(in.(*amp.DescribeResourcePolicyInput).WorkspaceId) {
@@ -330,6 +335,7 @@ func TestScanAPSResourcePolicies_DeniedWarnsOnce(t *testing.T) {
 // ResourceNotFoundException (workspace deleted while paged) warns once with no
 // error, ValidationException is returned.
 func TestScanAPSExtended_ListErrorByPage(t *testing.T) {
+	t.Parallel()
 	workspaces := []apsWorkspaceRef{{ID: "ws-1", ARN: "arn:aws:aps:us-east-1:123456789012:workspace/ws-1"}}
 	acct := newTestAccount(testAccountID)
 	for _, c := range []struct {

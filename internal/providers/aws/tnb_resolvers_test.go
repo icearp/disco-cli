@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveTnbRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -59,6 +60,7 @@ func TestResolveTnbRelationships(t *testing.T) {
 }
 
 func TestResolveTnbRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

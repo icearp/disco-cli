@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveBillingConductorCustomLineItemToBillingGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -42,6 +43,7 @@ func TestResolveBillingConductorCustomLineItemToBillingGroup(t *testing.T) {
 }
 
 func TestResolveBillingConductorEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveBillingConductor(acct, st); err != nil {
@@ -50,6 +52,7 @@ func TestResolveBillingConductorEmpty(t *testing.T) {
 }
 
 func TestResolveBillingConductorSkipsUnscannedTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -75,6 +78,7 @@ func TestResolveBillingConductorSkipsUnscannedTarget(t *testing.T) {
 }
 
 func TestBillingConductorRegistrationCovered(t *testing.T) {
+	t.Parallel()
 	want := map[string]bool{
 		TypeBillingConductorBillingGroup:   false,
 		TypeBillingConductorCustomLineItem: false,

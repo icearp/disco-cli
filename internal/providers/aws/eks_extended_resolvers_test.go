@@ -8,6 +8,7 @@ import (
 )
 
 func TestEKSClusterNameFromChildARN(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:eks:us-east-1:123:addon/prod/vpc-cni", "prod"},
 		{"arn:aws:eks:us-east-1:123:nodegroup/prod/ng1/abc-uuid", "prod"},
@@ -25,6 +26,7 @@ func TestEKSClusterNameFromChildARN(t *testing.T) {
 }
 
 func TestResolveEKSChildrenToCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cARN := fmt.Sprintf("arn:aws:eks:%s:%s:cluster/prod", testRegion, acct.ID)

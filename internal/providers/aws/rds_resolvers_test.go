@@ -12,6 +12,7 @@ const rdsTestRegion = "us-east-1"
 // --- Service-Reference-only RDS types (snapshots, backups, tenant DBs) ---
 
 func TestResolveRDSSnapshotRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	instID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBInstance,
@@ -27,6 +28,7 @@ func TestResolveRDSSnapshotRefs(t *testing.T) {
 }
 
 func TestResolveRDSSnapshotRefs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	// No source instance present; edge must not be emitted.
@@ -42,6 +44,7 @@ func TestResolveRDSSnapshotRefs_Empty(t *testing.T) {
 }
 
 func TestResolveRDSClusterSnapshotRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster,
@@ -57,6 +60,7 @@ func TestResolveRDSClusterSnapshotRefs(t *testing.T) {
 }
 
 func TestResolveRDSClusterSnapshotRefs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	csID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSClusterSnapshot,
@@ -70,6 +74,7 @@ func TestResolveRDSClusterSnapshotRefs_Empty(t *testing.T) {
 }
 
 func TestResolveRDSClusterEndpointRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBCluster,
@@ -85,6 +90,7 @@ func TestResolveRDSClusterEndpointRefs(t *testing.T) {
 }
 
 func TestResolveRDSClusterEndpointRefs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	epID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSClusterEndpoint,
@@ -98,6 +104,7 @@ func TestResolveRDSClusterEndpointRefs_Empty(t *testing.T) {
 }
 
 func TestResolveRDSAutoBackupRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	instARN := rdsARN(rdsTestRegion, acct.ID, "db", "my-db")
@@ -113,6 +120,7 @@ func TestResolveRDSAutoBackupRefs(t *testing.T) {
 }
 
 func TestResolveRDSAutoBackupRefs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	abID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSAutoBackup,
@@ -126,6 +134,7 @@ func TestResolveRDSAutoBackupRefs_Empty(t *testing.T) {
 }
 
 func TestResolveRDSClusterAutoBackupRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clARN := rdsARN(rdsTestRegion, acct.ID, "cluster", "my-cluster")
@@ -141,6 +150,7 @@ func TestResolveRDSClusterAutoBackupRefs(t *testing.T) {
 }
 
 func TestResolveRDSClusterAutoBackupRefs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	abID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSClusterAutoBackup,
@@ -154,6 +164,7 @@ func TestResolveRDSClusterAutoBackupRefs_Empty(t *testing.T) {
 }
 
 func TestResolveRDSTenantDatabaseRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	instID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSDBInstance,
@@ -169,6 +180,7 @@ func TestResolveRDSTenantDatabaseRefs(t *testing.T) {
 }
 
 func TestResolveRDSTenantDatabaseRefs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tdID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSTenantDatabase,
@@ -182,6 +194,7 @@ func TestResolveRDSTenantDatabaseRefs_Empty(t *testing.T) {
 }
 
 func TestResolveRDSSnapshotTenantDatabaseRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	snapID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSSnapshot,
@@ -197,6 +210,7 @@ func TestResolveRDSSnapshotTenantDatabaseRefs(t *testing.T) {
 }
 
 func TestResolveRDSSnapshotTenantDatabaseRefs_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stdID := upsertTestResource(t, st, "aws", acct.ID, TypeRDSSnapshotTenantDatabase,
@@ -214,6 +228,7 @@ func TestResolveRDSSnapshotTenantDatabaseRefs_Empty(t *testing.T) {
 // TestResolveRDSInstanceRelationships verifies that a DB instance's VPC, cluster,
 // and subnet group are all linked from the nested JSON structure.
 func TestResolveRDSInstanceRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -253,6 +268,7 @@ func TestResolveRDSInstanceRelationships(t *testing.T) {
 // TestResolveRDSInstanceRelationships_Empty verifies graceful handling when
 // DBSubnetGroup and DBClusterIdentifier are absent.
 func TestResolveRDSInstanceRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -276,6 +292,7 @@ func TestResolveRDSInstanceRelationships_Empty(t *testing.T) {
 // TestResolveDBClusterRelationships verifies that a DB cluster is linked to its
 // subnet group by constructing the subnet group ARN from the name field.
 func TestResolveDBClusterRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -303,6 +320,7 @@ func TestResolveDBClusterRelationships(t *testing.T) {
 // TestResolveDBClusterRelationships_NoSubnetGroup verifies graceful handling
 // when the DBSubnetGroup field is absent.
 func TestResolveDBClusterRelationships_NoSubnetGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -326,6 +344,7 @@ func TestResolveDBClusterRelationships_NoSubnetGroup(t *testing.T) {
 // TestResolveDBSubnetGroupRelationships verifies that a DB subnet group is
 // linked to its VPC.
 func TestResolveDBSubnetGroupRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -352,6 +371,7 @@ func TestResolveDBSubnetGroupRelationships(t *testing.T) {
 // TestResolveDBSubnetGroupRelationships_NoVPC verifies graceful handling when
 // VpcId is absent.
 func TestResolveDBSubnetGroupRelationships_NoVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -374,6 +394,7 @@ func TestResolveDBSubnetGroupRelationships_NoVPC(t *testing.T) {
 
 // TestResolveDBProxyRelationships verifies that a DB proxy is linked to its VPC.
 func TestResolveDBProxyRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -401,6 +422,7 @@ func TestResolveDBProxyRelationships(t *testing.T) {
 // TestResolveDBProxyRelationships_NoVPC verifies graceful handling when VpcId
 // is absent.
 func TestResolveDBProxyRelationships_NoVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -424,6 +446,7 @@ func TestResolveDBProxyRelationships_NoVPC(t *testing.T) {
 // TestResolveDBProxyEndpointRelationships verifies that a DB proxy endpoint is
 // linked to its parent proxy by name lookup.
 func TestResolveDBProxyEndpointRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -452,6 +475,7 @@ func TestResolveDBProxyEndpointRelationships(t *testing.T) {
 // TestResolveDBProxyEndpointRelationships_NoProxy verifies graceful handling
 // when no matching proxy exists.
 func TestResolveDBProxyEndpointRelationships_NoProxy(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -476,6 +500,7 @@ func TestResolveDBProxyEndpointRelationships_NoProxy(t *testing.T) {
 // TestResolveDBProxyTargetGroupRelationships verifies that a DB proxy target
 // group is linked to its parent proxy by name lookup.
 func TestResolveDBProxyTargetGroupRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -504,6 +529,7 @@ func TestResolveDBProxyTargetGroupRelationships(t *testing.T) {
 // TestResolveDBProxyTargetGroupRelationships_NoProxy verifies graceful handling
 // when no matching proxy exists.
 func TestResolveDBProxyTargetGroupRelationships_NoProxy(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -528,6 +554,7 @@ func TestResolveDBProxyTargetGroupRelationships_NoProxy(t *testing.T) {
 // TestResolveDBShardGroupRelationships verifies that a DB shard group is linked
 // to its DB cluster.
 func TestResolveDBShardGroupRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -555,6 +582,7 @@ func TestResolveDBShardGroupRelationships(t *testing.T) {
 // TestResolveDBShardGroupRelationships_NoCluster verifies graceful handling
 // when DBClusterIdentifier is absent.
 func TestResolveDBShardGroupRelationships_NoCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -578,6 +606,7 @@ func TestResolveDBShardGroupRelationships_NoCluster(t *testing.T) {
 // TestResolveGlobalClusterRelationships verifies that a global cluster is linked
 // to its member DB clusters, with account extracted from the member ARN.
 func TestResolveGlobalClusterRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -607,6 +636,7 @@ func TestResolveGlobalClusterRelationships(t *testing.T) {
 // TestResolveGlobalClusterRelationships_NoMembers verifies graceful handling
 // when GlobalClusterMembers is empty.
 func TestResolveGlobalClusterRelationships_NoMembers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 
@@ -629,6 +659,7 @@ func TestResolveGlobalClusterRelationships_NoMembers(t *testing.T) {
 // TestResolveRDSInstanceRelationships_KMSAndOptionGroup verifies the KMS and
 // option group edges added by the instance resolver.
 func TestResolveRDSInstanceRelationships_KMSAndOptionGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -657,6 +688,7 @@ func TestResolveRDSInstanceRelationships_KMSAndOptionGroup(t *testing.T) {
 
 // TestResolveRDSInstanceRelationships_ParameterGroup verifies the instance→pg edge.
 func TestResolveRDSInstanceRelationships_ParameterGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -679,6 +711,7 @@ func TestResolveRDSInstanceRelationships_ParameterGroup(t *testing.T) {
 
 // TestResolveDBClusterRelationships_ParameterGroup verifies cluster→cluster-pg edge.
 func TestResolveDBClusterRelationships_ParameterGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -701,6 +734,7 @@ func TestResolveDBClusterRelationships_ParameterGroup(t *testing.T) {
 
 // TestResolveDBClusterRelationships_KMS verifies KMS link for encrypted clusters.
 func TestResolveDBClusterRelationships_KMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"
@@ -722,6 +756,7 @@ func TestResolveDBClusterRelationships_KMS(t *testing.T) {
 }
 
 func TestResolveRDSIntegrationRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount("123456789012")
 	region := "us-east-1"

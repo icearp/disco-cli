@@ -61,6 +61,7 @@ func asUser(accountID, name string) astypes.User {
 // region per scan looked like success until an SDK change stopped the swallow
 // from matching.
 func TestScanASUsersAsksUserpoolOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -95,6 +96,7 @@ func TestScanASUsersAsksUserpoolOnly(t *testing.T) {
 
 // TestScanASUsersEmpty guards the empty-pool path: no rows, no error.
 func TestScanASUsersEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	total, _, err := scanASUsers(context.Background(), &stubAppStreamUsers{}, acct, testRegion, st, testScanID)
@@ -228,6 +230,7 @@ func scanAppStreamTopLevel(t *testing.T, st *store.Store, handlers map[string]fu
 }
 
 func TestScanAppStream_StoresImagePermissionsAndSoftwareAssociations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var permCalls, saCalls parentCalls
 	total, err := scanAppStreamTopLevel(t, st, asTopLevelHandlers(&permCalls, &saCalls))
@@ -296,6 +299,7 @@ func TestScanAppStream_StoresImagePermissionsAndSoftwareAssociations(t *testing.
 // No images or builders means no child calls and no rows; images and builders
 // without grants or associations store none either.
 func TestScanAppStream_NoImageChildren(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name          string
 		noParents     bool
@@ -366,6 +370,7 @@ func assertASPhaseRan(t *testing.T, st *store.Store, otherType string, otherWant
 // a denial or a transient error after retries warns once, and any other error
 // fails the scan after every other phase stored its rows.
 func TestScanAppStream_FailedImagePermissions(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []asChildFailure{
 		{"image gone", []string{"img-b"}, asGone, "", []string{asTestPermA111, asTestPermA222}, 0},
 		{"denied on every image", []string{"img-a", "img-b"}, asDenied, "", nil, 1},
@@ -402,6 +407,7 @@ func TestScanAppStream_FailedImagePermissions(t *testing.T) {
 // transient error after retries warns once however many owners hit it; any
 // other error fails the scan after every other phase stored its rows.
 func TestScanAppStream_FailedSoftwareAssociations(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []asChildFailure{
 		{"builder gone", []string{asTestBuilder}, asGone, "", []string{asTestOfficeA}, 0},
 		{
@@ -462,6 +468,7 @@ func assertASScanErr(t *testing.T, err error, wantCode string) {
 // A hard error in an older phase after the image phase still lets the child
 // phases run over the images and builders stored, and is returned.
 func TestScanAppStream_OlderPhaseErrorStillRunsChildPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var permCalls, saCalls parentCalls
 	h := asTopLevelHandlers(&permCalls, &saCalls)
@@ -485,6 +492,7 @@ func TestScanAppStream_OlderPhaseErrorStillRunsChildPhases(t *testing.T) {
 // op so that a child phase's hard error still reaches the dispatcher as a
 // hard error.
 func TestScanAppStream_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "appstream:DescribeUsers")
 	var permCalls, saCalls parentCalls
@@ -499,6 +507,7 @@ func TestScanAppStream_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 }
 
 func TestListASSoftwareAssociations_FailsOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	var calls atomic.Int32
 	cfg := opStubConfig(map[string]func(in any) (any, error){
 		"DescribeSoftwareAssociations": func(any) (any, error) {
@@ -529,6 +538,7 @@ func TestListASSoftwareAssociations_FailsOnRepeatedToken(t *testing.T) {
 // AppStream keeps the commercial hand list for aws accounts, which leaves out
 // regions the SDK lists, and reads the SDK table for every other partition.
 func TestAppStreamRegionSupported_PerPartition(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		partition, region string
 		want              bool
@@ -752,6 +762,7 @@ func asTagReadARNs() []string {
 // listed again for their application associations, which are read for the
 // fleets stored. No error, no warning.
 func TestScanAppStream_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newASCalls()
@@ -836,6 +847,7 @@ func TestScanAppStream_StoresTagsOfEveryType(t *testing.T) {
 
 // Empty listings store nothing, read no tags and warn nothing.
 func TestScanAppStream_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newASCalls()
@@ -870,6 +882,7 @@ func TestScanAppStream_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanAppStream_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := asTagScan(context.Background(), st, asTagHandlers(newASCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -889,6 +902,7 @@ func TestScanAppStream_RescanInsertsNone(t *testing.T) {
 // under the tag op; a throttle keeps it and is transient; any other error
 // keeps it and is an error.
 func TestScanAppStream_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagCase struct {
 		name      string
 		arn, typ  string
@@ -958,6 +972,7 @@ func TestScanAppStream_TagReadFailures(t *testing.T) {
 // association listing, an image no permission or software listing, an image
 // builder no software listing.
 func TestScanAppStream_ParentGoneHasNoChildReads(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op         string
 		childOps   []string
@@ -994,6 +1009,7 @@ func TestScanAppStream_ParentGoneHasNoChildReads(t *testing.T) {
 // Denied tag reads in two listings send one warning for the whole scan,
 // under the tag op, naming the first denied row; the rows are kept untagged.
 func TestScanAppStream_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, asTestTagsOp)
 	calls := newASCalls()
@@ -1027,6 +1043,7 @@ func TestScanAppStream_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanAppStream_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, asTestTagsOp)
 	calls := newASCalls()
@@ -1044,6 +1061,7 @@ func TestScanAppStream_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the scan: no later phase runs and no warning is sent
 // about rows the write lost; the phases before it keep their rows.
 func TestScanAppStream_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeAppStreamApplication)
@@ -1076,6 +1094,7 @@ func TestScanAppStream_FailedWriteStopsScan(t *testing.T) {
 // no later listing. The stacks listing, which once ended the whole scan on
 // its first error, now keeps its first page and its children.
 func TestScanAppStream_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeStacks", "DescribeAppBlocks", "DescribeImages"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1105,6 +1124,7 @@ func TestScanAppStream_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated token ends a listing as an error, keeping its pages.
 func TestScanAppStream_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := asTagHandlers(newASCalls())
 	k := asKindOf(t, "DescribeImages")
@@ -1132,6 +1152,7 @@ func TestScanAppStream_RepeatedTokenKeepsPages(t *testing.T) {
 // read for children, and is warned about once under its listing, named by
 // its name or by the fallback text when it has none.
 func TestScanAppStream_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		answer        func(in any) (any, error)
@@ -1174,6 +1195,7 @@ func TestScanAppStream_ElementWithoutARNWarns(t *testing.T) {
 // An application listed with an ARN but no name (the model requires
 // neither) is stored named by its ARN, with its tags read.
 func TestScanAppStream_NamelessRowNamedByARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newASCalls()
 	handlers := asTagHandlers(calls)
@@ -1195,6 +1217,7 @@ func TestScanAppStream_NamelessRowNamedByARN(t *testing.T) {
 // Rows of the aws-us-gov and aws-cn partitions reach the tag op under their
 // listed ARNs unchanged.
 func TestScanAppStream_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -1225,6 +1248,7 @@ func TestScanAppStream_TagReadsKeepPartitionARNs(t *testing.T) {
 // A denied listing warns once under its op; a denial on a later page keeps
 // the page read before it. Every later listing still runs.
 func TestScanAppStream_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, call := range []int{1, 2} {
 		t.Run(fmt.Sprintf("page%d", call), func(t *testing.T) {
 			st := newTestStore(t)
@@ -1254,6 +1278,7 @@ func TestScanAppStream_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it in its listing.
 func TestScanAppStream_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newASCalls()
 	handlers := asTagHandlers(calls)
@@ -1290,6 +1315,7 @@ func TestScanAppStream_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanAppStream_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "appstream2.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1345,6 +1371,7 @@ func asAppFleetAssocNativeID(fleet, app string) string {
 // errors are filed under that op. An association without an application ARN
 // is warned about, naming its fleet, and not stored.
 func TestScanAppStream_AppFleetAssociations(t *testing.T) {
+	t.Parallel()
 	fleets := asKindOf(t, "DescribeFleets")
 	first, second := fleets.name("tagged"), fleets.name("bare")
 	const op = "appstream:DescribeApplicationFleetAssociations"
@@ -1442,6 +1469,7 @@ func TestScanAppStream_AppFleetAssociations(t *testing.T) {
 // tags, is not read for children, and is warned about once under its
 // listing, naming its ARN.
 func TestScanAppStream_NamelessParentWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newASCalls()
@@ -1474,6 +1502,7 @@ func TestScanAppStream_NamelessParentWarns(t *testing.T) {
 // A nameless stack stored on the first page sends no warning when the second
 // page's write fails: no warning goes out after a failed write.
 func TestScanAppStream_NamelessParentFailedWriteWarnsNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	k := asKindOf(t, "DescribeStacks")

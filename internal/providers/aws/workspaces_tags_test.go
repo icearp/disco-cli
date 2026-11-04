@@ -247,6 +247,7 @@ func wsTagReadIDs() []string {
 // 25 where it takes one and is called once per page. The directories and the
 // owned aliases stored are read for their children. No error, no warning.
 func TestScanWorkSpaces_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newWSTagCalls()
@@ -325,6 +326,7 @@ func TestScanWorkSpaces_StoresTagsOfEveryType(t *testing.T) {
 
 // Empty listings store nothing, read no tags or children and warn nothing.
 func TestScanWorkSpaces_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newWSTagCalls()
@@ -359,6 +361,7 @@ func TestScanWorkSpaces_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanWorkSpaces_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := wsTagScan(context.Background(), st, wsTagHandlers(newWSTagCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -378,6 +381,7 @@ func TestScanWorkSpaces_RescanInsertsNone(t *testing.T) {
 // the tag op; a throttle keeps it and is transient; any other error keeps it
 // and is an error.
 func TestScanWorkSpaces_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagCase struct {
 		name      string
 		k         wsKind
@@ -454,6 +458,7 @@ func TestScanWorkSpaces_TagReadFailures(t *testing.T) {
 // Denied tag reads in two listings send one warning for the whole scan,
 // under the tag op, naming the first denied row; the rows are kept untagged.
 func TestScanWorkSpaces_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, wsTestTagsOp)
 	calls := newWSTagCalls()
@@ -488,6 +493,7 @@ func TestScanWorkSpaces_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanWorkSpaces_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, wsTestTagsOp)
 	calls := newWSTagCalls()
@@ -505,6 +511,7 @@ func TestScanWorkSpaces_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the scan: no later phase runs and no warning is sent
 // about rows the write lost; the phases before it keep their rows.
 func TestScanWorkSpaces_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeWorkSpacesWorkspaceBundle)
@@ -537,6 +544,7 @@ func TestScanWorkSpaces_FailedWriteStopsScan(t *testing.T) {
 // no later listing. The workspaces listing, which once ended every older
 // phase on its first error, now keeps its first page and lets the rest run.
 func TestScanWorkSpaces_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeWorkspaces", "DescribeWorkspaceDirectories", "DescribeIpGroups"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -566,6 +574,7 @@ func TestScanWorkSpaces_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated token ends a listing as an error, keeping its pages.
 func TestScanWorkSpaces_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newWSTagCalls()
 	handlers := wsTagHandlers(calls)
@@ -598,6 +607,7 @@ func TestScanWorkSpaces_RepeatedTokenKeepsPages(t *testing.T) {
 // children, and is warned about once under its listing, named by its name or
 // by the fallback text when it has none.
 func TestScanWorkSpaces_ElementWithoutIDWarns(t *testing.T) {
+	t.Parallel()
 	for _, k := range wsKinds() {
 		for _, name := range []string{"named", ""} {
 			t.Run(k.op+"/"+cmp.Or(name, "nameless"), func(t *testing.T) {
@@ -668,6 +678,7 @@ func wsWithoutID(t *testing.T, elem any) any {
 // An AMAZON bundle is stored ManagedByProvider and has no tags read; the
 // account's own bundles are read.
 func TestScanWorkSpaces_AmazonBundleNotTagRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newWSTagCalls()
 	handlers := wsTagHandlers(calls)
@@ -714,6 +725,7 @@ func TestScanWorkSpaces_AmazonBundleNotTagRead(t *testing.T) {
 // read drops it. Only an alias the account owns is read for permissions; an
 // alias without OwnerAccountId adds its own warning under the permission op.
 func TestScanWorkSpaces_SharedInRowsReadUnderOwner(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeWorkspaceImages", "DescribeConnectionAliases"} {
 		for _, c := range []struct {
 			name       string
@@ -809,6 +821,7 @@ func TestScanWorkSpaces_SharedInRowsReadUnderOwner(t *testing.T) {
 // sends DescribeTags each row's id; a shared image there whose read is
 // denied stays silent.
 func TestScanWorkSpaces_PartitionRows(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -851,6 +864,7 @@ func TestScanWorkSpaces_PartitionRows(t *testing.T) {
 // later page follows a page the op served: the first page is kept and the
 // denial is warned about under the listing.
 func TestScanWorkSpaces_PoolsGap(t *testing.T) {
+	t.Parallel()
 	gap := apiErr("AccessDeniedException", "You do not have the permissions required to perform this action. Refer to "+
 		"https://docs.aws.amazon.com/workspaces/latest/adminguide/workspaces-access-control.html")
 	k := wsKindOf(t, "DescribeWorkspacesPools")
@@ -883,6 +897,7 @@ func TestScanWorkSpaces_PoolsGap(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it in its listing.
 func TestScanWorkSpaces_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newWSTagCalls()
 	handlers := wsTagHandlers(calls)
@@ -919,6 +934,7 @@ func TestScanWorkSpaces_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanWorkSpaces_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "workspaces.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

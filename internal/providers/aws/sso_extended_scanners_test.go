@@ -319,6 +319,7 @@ func ssoChildFixture(t *testing.T, st *store.Store, tc ssoChildCase) (*stubSSOAd
 }
 
 func TestSSOChildScanners_PagesEveryParent(t *testing.T) {
+	t.Parallel()
 	for _, tc := range ssoChildCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -379,6 +380,7 @@ func TestSSOChildScanners_PagesEveryParent(t *testing.T) {
 }
 
 func TestSSOChildScanners_Empty(t *testing.T) {
+	t.Parallel()
 	for _, tc := range ssoChildCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -395,6 +397,7 @@ func TestSSOChildScanners_Empty(t *testing.T) {
 }
 
 func TestSSOChildScanners_PerParentErrors(t *testing.T) {
+	t.Parallel()
 	deny := apiErr("AccessDeniedException", "User: arn:aws:iam::123456789012:role/x is not authorized to perform: sso:List")
 	for _, tc := range ssoChildCases() {
 		for _, ec := range []struct {
@@ -450,6 +453,7 @@ func TestSSOChildScanners_PerParentErrors(t *testing.T) {
 // instance); the other parent's rows are kept. The code skipped by the other
 // family is not tolerated here.
 func TestSSOChildScanners_SkippedParent(t *testing.T) {
+	t.Parallel()
 	for _, tc := range ssoChildCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -479,6 +483,7 @@ func TestSSOChildScanners_SkippedParent(t *testing.T) {
 // encoding/json renders a Smithy document as {}, so the IAM actor policy must
 // reach the stored attributes through the document's own marshaler.
 func TestScanSSOApplicationAuthenticationMethods_KeepsActorPolicy(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	app := ssoTestAppARN("a")
 	upsertTestResource(t, st, "aws", testAccountID, TypeSSOApplication, app, testRegion, "{}")
@@ -565,6 +570,7 @@ func ssoTopLevelResponses() map[string][]stubCall {
 // fails, and a throttle on one cannot turn the other's hard error into a
 // transient one.
 func TestScanSSOAdmin_NewPhasesWiredAndOrdered(t *testing.T) {
+	t.Parallel()
 	type row struct{ typ, nativeID string }
 	app := ssoTestAppARN("a")
 	application := row{TypeSSOApplication, app}
@@ -687,6 +693,7 @@ func TestScanSSOAdmin_NewPhasesWiredAndOrdered(t *testing.T) {
 // after the listing (dropped silently). The account assignments fan-out
 // drops a denied triple (one warning) and a deleted one (silent).
 func TestScanSSOAdmin_PolicyListsOnlyForStoredPermissionSets(t *testing.T) {
+	t.Parallel()
 	stored, denied, denied2 := ssoTestPermissionSetARN("a"), ssoTestPermissionSetARN("b"), ssoTestPermissionSetARN("f")
 	noARN, noSet, gone := ssoTestPermissionSetARN("c"), ssoTestPermissionSetARN("d"), ssoTestPermissionSetARN("e")
 	const okAcct, deniedAcct, deniedAcct2, goneAcct = "222222222201", "222222222202", "222222222203", "222222222204"
@@ -812,6 +819,7 @@ func TestScanSSOAdmin_PolicyListsOnlyForStoredPermissionSets(t *testing.T) {
 // reach the scan as that throttle (transient, so the scan is partial), not as
 // the context.Canceled the cancelled siblings see.
 func TestScanSSOAdmin_FanOutThrottleIsTransient(t *testing.T) {
+	t.Parallel()
 	const keys = 30 // above fanoutMed (DescribePermissionSet) and fanoutHigh (ListAccountAssignments)
 	sets := make([]string, keys)
 	accounts := make([]string, keys)

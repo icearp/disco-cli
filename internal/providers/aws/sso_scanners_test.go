@@ -395,6 +395,7 @@ const ssoTagRowCount = 2 * 4
 // MaxResults 100 (the handlers reject anything else). A rescan inserts
 // nothing new.
 func TestScanSSOAdmin_TagsEveryTaggableType(t *testing.T) {
+	t.Parallel()
 	s := newSSOTagScan()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
@@ -460,6 +461,7 @@ func assertSSOAttr(t *testing.T, r store.Resource, key, want string) {
 // Denied tag reads keep their rows untagged and are one warning for the
 // scan, although they span three listings.
 func TestScanSSOAdmin_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	s := newSSOTagScan()
 	denied := []string{
 		s.arn(ssoTagKindOf(t, TypeSSOPermissionSet), "ps-tagged"),
@@ -498,6 +500,7 @@ func TestScanSSOAdmin_TagDenialsWarnOnce(t *testing.T) {
 // listed under it: an instance's children, an application's assignments and
 // child listings, a permission set's policies.
 func TestScanSSOAdmin_TagNotFoundDropsRow(t *testing.T) {
+	t.Parallel()
 	for _, k := range ssoTagKinds() {
 		t.Run(k.typ, func(t *testing.T) {
 			s := newSSOTagScan()
@@ -545,6 +548,7 @@ func TestScanSSOAdmin_TagNotFoundDropsRow(t *testing.T) {
 // A tag read's other failure keeps its row untagged; a lone transient one
 // leaves the scan partial, beside a hard error it is demoted to one warning.
 func TestScanSSOAdmin_TagReadErrors(t *testing.T) {
+	t.Parallel()
 	app, tti := ssoTagKindOf(t, TypeSSOApplication), ssoTagKindOf(t, TypeSSOTrustedTokenIssuer)
 	for _, tc := range []struct {
 		name     string
@@ -588,6 +592,7 @@ func TestScanSSOAdmin_TagReadErrors(t *testing.T) {
 // view), a denied or not-found tag read of the instance or a permission set,
 // whose ARNs name no account, keeps the row untagged and silent.
 func TestScanSSOAdmin_TagsOwnedElsewhere(t *testing.T) {
+	t.Parallel()
 	owned := []ssoTagKind{ssoTagKindOf(t, TypeSSOInstance), ssoTagKindOf(t, TypeSSOPermissionSet)}
 	for _, c := range []struct {
 		name    string
@@ -630,6 +635,7 @@ func TestScanSSOAdmin_TagsOwnedElsewhere(t *testing.T) {
 // scan's one warning and a not-found drops the row, while the instance's and
 // permission sets' own failures stay silent.
 func TestScanSSOAdmin_ApplicationAndIssuerTagsJudgedByTheirARN(t *testing.T) {
+	t.Parallel()
 	app, tti := ssoTagKindOf(t, TypeSSOApplication), ssoTagKindOf(t, TypeSSOTrustedTokenIssuer)
 	for _, c := range []struct {
 		name               string
@@ -685,6 +691,7 @@ func TestScanSSOAdmin_ApplicationAndIssuerTagsJudgedByTheirARN(t *testing.T) {
 // In GovCloud and China each row's listed ARN, and its instance's, reach the
 // tag op unchanged.
 func TestScanSSOAdmin_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -716,6 +723,7 @@ func ssoListedPermissionSet(arn string) map[string]any {
 // found deleted is dropped with no tag read. One described without a
 // PermissionSet is stored as its listed element too.
 func TestScanSSOAdmin_PermissionSetDescribeFailures(t *testing.T) {
+	t.Parallel()
 	ps := ssoTagKindOf(t, TypeSSOPermissionSet)
 	for _, tc := range []struct {
 		name     string
@@ -776,6 +784,7 @@ func TestScanSSOAdmin_PermissionSetDescribeFailures(t *testing.T) {
 // rows listed under it; every other listing still runs. A repeated
 // NextToken ends a listing as an error after storing what it read.
 func TestScanSSOAdmin_ListingFailuresKeepEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, k := range ssoTagKinds() {
 		t.Run(k.listOp, func(t *testing.T) {
 			s := newSSOTagScan()
@@ -817,6 +826,7 @@ func TestScanSSOAdmin_ListingFailuresKeepEarlierPages(t *testing.T) {
 // and no SSO Admin listing runs under it; its Identity Store, which it
 // names, is still listed.
 func TestScanSSOAdmin_InstanceWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	s := newSSOTagScan()
 	s.noARN = true
 	st := newTestStore(t)
@@ -843,6 +853,7 @@ func TestScanSSOAdmin_InstanceWithoutARNWarns(t *testing.T) {
 
 // A region without an instance makes no call after ListInstances.
 func TestScanSSOAdmin_NoInstancesListsNothingElse(t *testing.T) {
+	t.Parallel()
 	s := newSSOTagScan()
 	s.noInstances = true
 	st := newTestStore(t)
@@ -860,6 +871,7 @@ func TestScanSSOAdmin_NoInstancesListsNothingElse(t *testing.T) {
 // rows it lost (a denied tag read of that type among them), no later listing
 // runs, and the earlier listings' rows stay stored.
 func TestScanSSOAdmin_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		typ     string
 		total   int      // the rows stored before the refused write
@@ -907,6 +919,7 @@ func TestScanSSOAdmin_FailedWriteStopsScan(t *testing.T) {
 // keeps the first page. A denial, on either page, is one warning under the
 // listing that keeps the pages read before it.
 func TestScanSSOAdmin_PermissionSetListingPerInstance(t *testing.T) {
+	t.Parallel()
 	ps := ssoTagKindOf(t, TypeSSOPermissionSet)
 	for _, c := range []struct {
 		name      string
@@ -968,6 +981,7 @@ func TestScanSSOAdmin_PermissionSetListingPerInstance(t *testing.T) {
 // the describes of a permission set in each, kept as their listed elements,
 // and the permission set listings of both, each instance storing none.
 func TestScanSSOAdmin_PermissionSetDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	ps := ssoTagKindOf(t, TypeSSOPermissionSet)
 	for _, c := range []struct {
 		name, op string
@@ -1028,6 +1042,7 @@ var ssoNXDOMAIN = &net.DNSError{Err: "no such host", Name: "sso.example", IsNotF
 // only for an instance ListInstances listed, whether or not an SSO row was
 // stored.
 func TestScanSSOAdmin_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	t.Run("region without SSO Admin", func(t *testing.T) {
 		s := newSSOTagScan()
 		s.opErr["ListInstances"] = ssoNXDOMAIN

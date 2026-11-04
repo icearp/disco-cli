@@ -227,6 +227,7 @@ func imiCases() []imiCase {
 }
 
 func TestScanIMIList_TwoPagesStored(t *testing.T) {
+	t.Parallel()
 	for _, tc := range imiCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -256,6 +257,7 @@ func TestScanIMIList_TwoPagesStored(t *testing.T) {
 }
 
 func TestScanIMIList_Empty(t *testing.T) {
+	t.Parallel()
 	for _, tc := range imiCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -269,6 +271,7 @@ func TestScanIMIList_Empty(t *testing.T) {
 }
 
 func TestScanIMIList_AccessDeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	for _, tc := range imiCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -287,6 +290,7 @@ func TestScanIMIList_AccessDeniedWarnsOnce(t *testing.T) {
 }
 
 func TestScanIMIList_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	for _, tc := range imiCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -301,6 +305,7 @@ func TestScanIMIList_OtherErrorPropagates(t *testing.T) {
 
 // A denial on a later page keeps the rows from pages already read.
 func TestScanIMIList_DeniedOnSecondPageKeepsFirst(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	stub := &stubIMI{
@@ -325,6 +330,7 @@ func TestScanIMIList_DeniedOnSecondPageKeepsFirst(t *testing.T) {
 // A destination without a CloudConnectorId is stored but contained by nothing,
 // and no hierarchy pair is attempted for it (a pair to an absent parent warns).
 func TestScanIMIConnectorDestinations_NoConnectorNoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	connector := imiNID("cloud-connector", "cc-1")
@@ -391,6 +397,7 @@ func imiLinkNID(thing, assoc string) string {
 // stored, and a link the filter let through for another association, are not
 // stored and are warned about once per reason under the op.
 func TestScanIMIManagedThingAccountAssociations_FanOut(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, imiThingLinksOp)
 	s := sdkaws.String
@@ -441,6 +448,7 @@ func TestScanIMIManagedThingAccountAssociations_FanOut(t *testing.T) {
 // With no stored things (e.g. ListManagedThings denied) no link can be keyed:
 // no rows, no error, and no calls.
 func TestScanIMIManagedThingAccountAssociations_NoThingsNoRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubIMI{t: t}
 	total, _, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, imiParents("account-association", "aa-1"), nil)
@@ -453,6 +461,7 @@ func TestScanIMIManagedThingAccountAssociations_NoThingsNoRows(t *testing.T) {
 }
 
 func TestScanIMIManagedThingAccountAssociations_NoAssociationsNoCalls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := &stubIMI{t: t}
 	total, _, err := scanIMIManagedThingAccountAssociations(context.Background(), stub, newTestAccount(testAccountID), testRegion, st, testScanID, nil, imiParents("managed-thing", "mt-1"))
@@ -466,6 +475,7 @@ func TestScanIMIManagedThingAccountAssociations_NoAssociationsNoCalls(t *testing
 
 // Denied associations warn once in total; the remaining ones are still stored.
 func TestScanIMIManagedThingAccountAssociations_DeniedWarnsOnceKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	things := imiParents("managed-thing", "mt-1")
@@ -487,6 +497,7 @@ func TestScanIMIManagedThingAccountAssociations_DeniedWarnsOnceKeepsSiblings(t *
 
 // A denial on an association's second page keeps its first page and siblings.
 func TestScanIMIManagedThingAccountAssociations_DeniedOnSecondPageKeepsFirst(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	things := imiParents("managed-thing", "mt-1", "mt-2")
@@ -513,6 +524,7 @@ func TestScanIMIManagedThingAccountAssociations_DeniedOnSecondPageKeepsFirst(t *
 // One association's failure is returned after its siblings' links, and the
 // links of its pages read before the failure, are stored and contained.
 func TestScanIMIManagedThingAccountAssociations_OtherErrorKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	things := imiParents("managed-thing", "mt-1", "mt-2")
 	seedIMIThings(t, st, things)
@@ -541,6 +553,7 @@ func TestScanIMIManagedThingAccountAssociations_OtherErrorKeepsSiblings(t *testi
 // counts of the links already stored, and sends no warning, not even the one
 // for a denied sibling association.
 func TestScanIMIManagedThingAccountAssociations_FailedClosureWriteReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	things := imiParents("managed-thing", "mt-1")
@@ -569,6 +582,7 @@ func TestScanIMIManagedThingAccountAssociations_FailedClosureWriteReturned(t *te
 // A repeated token ends an association's listing as an error, keeping its
 // first page.
 func TestScanIMIManagedThingAccountAssociations_RepeatedTokenKeepsPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := imiEmptyHandlers(newIMICalls())
 	h["ListManagedThings"] = func(any) (any, error) {
@@ -755,6 +769,7 @@ func imiScan(ctx context.Context, t *testing.T, st *store.Store, handlers map[st
 // error or warning. Each row keeps the base scan's Name and verbatim
 // element; Status and CreatedAt are the element's.
 func TestScanIoTManagedIntegrations_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newIMICalls()
@@ -823,6 +838,7 @@ func TestScanIoTManagedIntegrations_StoresTagsOfEveryType(t *testing.T) {
 // An aws-us-gov account scanned in us-gov-west-1 sends the gov ARNs its
 // listings return to the tag op unchanged and stores their tags.
 func TestScanIoTManagedIntegrations_GovCloudARNsReachTagOp(t *testing.T) {
+	t.Parallel()
 	const govRegion = "us-gov-west-1"
 	assoc := arnFor("aws-us-gov", "iotmanagedintegrations", govRegion, testAccountID, "account-association/aagov")
 	task := arnFor("aws-us-gov", "iotmanagedintegrations", govRegion, testAccountID, "ota-task/otgov")
@@ -866,6 +882,7 @@ func TestScanIoTManagedIntegrations_GovCloudARNsReachTagOp(t *testing.T) {
 // Every listing returning nothing stores nothing, reads no tags or thing
 // links, and reports nothing.
 func TestScanIoTManagedIntegrations_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newIMICalls()
@@ -881,6 +898,7 @@ func TestScanIoTManagedIntegrations_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanIoTManagedIntegrations_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newIMICalls()
 	if _, _, err := imiScan(context.Background(), t, st, imiHandlers(calls)); err != nil {
@@ -901,6 +919,7 @@ func TestScanIoTManagedIntegrations_RescanInsertsNone(t *testing.T) {
 // after retries is a transient error, any other code a hard one; a not-found
 // drops the row.
 func TestScanIoTManagedIntegrations_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	target := imiNID("credential-locker", "clt")
 	for _, c := range []struct {
 		name      string
@@ -960,6 +979,7 @@ func TestScanIoTManagedIntegrations_TagReadFailures(t *testing.T) {
 // A parent whose tag read finds it gone is not stored and not a parent: its
 // thing links are not listed, or not stored, and nothing is warned about.
 func TestScanIoTManagedIntegrations_VanishedParentIsNotAParent(t *testing.T) {
+	t.Parallel()
 	t.Run("account association", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countWarnings(st)
@@ -993,6 +1013,7 @@ func TestScanIoTManagedIntegrations_VanishedParentIsNotAParent(t *testing.T) {
 
 // Denied tag reads in several listings are one warning for the scan.
 func TestScanIoTManagedIntegrations_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, imiTagsOp)
 	calls := newIMICalls()
@@ -1018,6 +1039,7 @@ func TestScanIoTManagedIntegrations_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanIoTManagedIntegrations_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, imiTagsOp)
 	calls := newIMICalls()
@@ -1035,6 +1057,7 @@ func TestScanIoTManagedIntegrations_TagThrottleDemotedBesideHardError(t *testing
 // A denied listing warns once under its own op and costs no other phase its
 // rows; a denied parent listing leaves its children unread.
 func TestScanIoTManagedIntegrations_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	// 12 rows, less the denied listing's 2, and for a parent listing the 2
 	// links too.
 	lost := map[string]int{"ListAccountAssociations": 4, "ListManagedThings": 4}
@@ -1069,6 +1092,7 @@ func TestScanIoTManagedIntegrations_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // listing's op and costs no other phase its rows; the denied things leave
 // their links unread.
 func TestScanIoTManagedIntegrations_UnauthorizedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	unauthorized := apiErr(imiUnauthorized, "You are not authorized to perform this operation.")
 	// 12 rows, less the denied listing's 2, and for the things the 2 links.
 	for op, want := range map[string]int{"ListManagedThings": 12 - 4, "ListProvisioningProfiles": 12 - 2} {
@@ -1096,6 +1120,7 @@ func TestScanIoTManagedIntegrations_UnauthorizedListingWarnsUnderItsOp(t *testin
 // A failed write of the links stops the scan with no warning and records no
 // closure for them.
 func TestScanIoTManagedIntegrations_FailedLinkWriteSendsNoWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeIoTManagedIntegrationsManagedThingAccountAssociation)
@@ -1122,6 +1147,7 @@ func TestScanIoTManagedIntegrations_FailedLinkWriteSendsNoWarning(t *testing.T) 
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanIoTManagedIntegrations_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeIoTManagedIntegrationsCredentialLocker)
@@ -1146,6 +1172,7 @@ func TestScanIoTManagedIntegrations_FailedWriteStopsWithoutWarning(t *testing.T)
 // failure stops the phases after it; a throttled listing beside it is
 // demoted to a warning.
 func TestScanIoTManagedIntegrations_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newIMICalls()
@@ -1172,6 +1199,7 @@ func TestScanIoTManagedIntegrations_ListFailureKeepsPagesAndRunsEveryPhase(t *te
 // once per listing, under a key that is never empty; parents stored without
 // the id their links key on are warned about, as their links are not read.
 func TestScanIoTManagedIntegrations_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	s := sdkaws.String
 	for _, c := range []struct {
 		name, op, key string
@@ -1203,6 +1231,7 @@ func TestScanIoTManagedIntegrations_UnstorableItemsWarn(t *testing.T) {
 
 // A repeated token ends a tagged listing as an error, keeping its pages.
 func TestScanIoTManagedIntegrations_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := imiHandlers(newIMICalls())
 	h["ListOtaTasks"] = func(any) (any, error) {
@@ -1220,6 +1249,7 @@ func TestScanIoTManagedIntegrations_RepeatedTokenKeepsPages(t *testing.T) {
 // answer to the first page is an empty listing with no warning; to a later
 // page it is an error, the first page kept.
 func TestScanIoTManagedIntegrations_OtaEndpointGap(t *testing.T) {
+	t.Parallel()
 	gap := apiErr("UnknownError", "Please register the custom endpoint and onboard the managed thing")
 	t.Run("first page", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1246,6 +1276,7 @@ func TestScanIoTManagedIntegrations_OtaEndpointGap(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is reported once,
 // naming the phases not run.
 func TestScanIoTManagedIntegrations_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newIMICalls()
 	h := imiHandlers(calls)
@@ -1286,6 +1317,7 @@ func TestScanIoTManagedIntegrations_ContextEndStopsOnce(t *testing.T) {
 // stored) is unavailable, and no other listing is made. An NXDOMAIN of a tag
 // read after rows were listed is a failure of this scan: the counts are kept.
 func TestScanIoTManagedIntegrations_Unreachable(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "api.iotmanagedintegrations.us-east-1.api.aws", IsNotFound: true}
 	t.Run("endpoint absent", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1315,6 +1347,7 @@ func TestScanIoTManagedIntegrations_Unreachable(t *testing.T) {
 // service against the real SDK client: children are contained by parents
 // stored earlier in the same scan.
 func TestScanIoTManagedIntegrations_ChildrenContainedByParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	s := sdkaws.String
 	thingARN := imiNID("managed-thing", "mt1")

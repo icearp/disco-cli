@@ -8,6 +8,7 @@ import (
 )
 
 func TestCasesDomainARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:cases:us-east-1:123:domain/d-1/case-rule/cr-1", "arn:aws:cases:us-east-1:123:domain/d-1"},
 		{"arn:aws:cases:us-east-1:123:domain/d-1", ""},
@@ -21,6 +22,7 @@ func TestCasesDomainARNFromChild(t *testing.T) {
 }
 
 func TestResolveCasesChildrenToDomain(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := fmt.Sprintf("arn:aws:cases:%s:%s:domain/d-1", testRegion, acct.ID)

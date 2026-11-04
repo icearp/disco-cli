@@ -198,6 +198,7 @@ func sortedLXLocales(ls []lexLocale) []lexLocale {
 }
 
 func TestScanLexBotLocales_StoresEveryPageOfEveryBot(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	locales, total, calls, err := scanLXLocales(t, st, lxBots, nil, nil)
 	if err != nil {
@@ -230,6 +231,7 @@ func TestScanLexBotLocales_StoresEveryPageOfEveryBot(t *testing.T) {
 }
 
 func TestScanLexBotLocales_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := lxClient(map[string]func(any) (any, error){"ListBotLocales": func(any) (any, error) { return &lexmodelsv2.ListBotLocalesOutput{}, nil }})
 	locales, total, _, err := scanLexBotLocales(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, lxBots)
@@ -242,6 +244,7 @@ func TestScanLexBotLocales_Empty(t *testing.T) {
 // warn once for the op however many bots fail, and keep the other bots; any
 // other error fails the phase.
 func TestScanLexBotLocales_FailedBot(t *testing.T) {
+	t.Parallel()
 	t.Run("denied", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, "lexmodelsv2:ListBotLocales")
@@ -283,6 +286,7 @@ func TestScanLexBotLocales_FailedBot(t *testing.T) {
 // A locale deleted before its describe is skipped silently: it is no fan-out
 // parent and the other locales are kept.
 func TestScanLexBotLocales_DescribeGone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "lexmodelsv2:DescribeBotLocale")
 	locales, total, _, err := scanLXLocales(t, st, lxBots, nil, map[string]error{"B1/en_US": lxGone, "B2/en_US": lxGone})
@@ -298,6 +302,7 @@ func TestScanLexBotLocales_DescribeGone(t *testing.T) {
 // A denied describe warns once and stores the locale from its summary, so it
 // stays a fan-out parent; the described locales keep their describe body.
 func TestScanLexBotLocales_DescribeDenied(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "lexmodelsv2:DescribeBotLocale")
 	locales, total, _, err := scanLXLocales(t, st, lxBots, nil, map[string]error{"B1/en_US": lxDenied, "B2/en_US": lxDenied})
@@ -327,6 +332,7 @@ func TestScanLexBotLocales_DescribeDenied(t *testing.T) {
 // With DescribeBotLocale denied throughout, every locale's intents, slot
 // types and slots are still stored under it.
 func TestScanLex_DescribeLocaleDeniedKeepsChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	handlers := lxTopLevelHandlers()
@@ -347,6 +353,7 @@ func TestScanLex_DescribeLocaleDeniedKeepsChildren(t *testing.T) {
 // Any other describe error fails the phase, reported as a DescribeBotLocale
 // error for that locale.
 func TestScanLexBotLocales_DescribeOther(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, _, _, err := scanLXLocales(t, st, lxBots, nil, map[string]error{"B2/en_US": lxBadInput})
 	assertAPICode(t, err, "ValidationException")
@@ -409,6 +416,7 @@ func (p lxChildPhase) scan(t *testing.T, st *store.Store, handler func(in any) (
 // element without an id is dropped, the same child id under two parents
 // stays two rows, and each child is contained by its parent.
 func TestScanLexChildPhases_StoresEveryPageOfEveryParent(t *testing.T) {
+	t.Parallel()
 	for _, p := range lxChildPhases {
 		t.Run(p.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -437,6 +445,7 @@ func TestScanLexChildPhases_StoresEveryPageOfEveryParent(t *testing.T) {
 }
 
 func TestScanLexChildPhases_Empty(t *testing.T) {
+	t.Parallel()
 	empty := map[string]any{
 		"ListIntents":   &lexmodelsv2.ListIntentsOutput{},
 		"ListSlotTypes": &lexmodelsv2.ListSlotTypesOutput{},
@@ -457,6 +466,7 @@ func TestScanLexChildPhases_Empty(t *testing.T) {
 // not-found code), each warn for the op and keep the other parent's rows;
 // any other error fails the phase.
 func TestScanLexChildPhases_FailedParent(t *testing.T) {
+	t.Parallel()
 	for _, p := range lxChildPhases {
 		for name, fail := range map[string]error{"denied": lxDenied, "gone": lxGone} {
 			t.Run(p.op+"/"+name, func(t *testing.T) {
@@ -521,6 +531,7 @@ const (
 )
 
 func TestScanLex_StoresDraftModel(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(lxTopLevelHandlers(), lxDenied)
@@ -548,6 +559,7 @@ func TestScanLex_StoresDraftModel(t *testing.T) {
 // with the counts stored before it, the slot type and intent phases do not
 // stop each other, and a failed intent phase leaves no slot parents.
 func TestScanLex_DraftModelPhaseErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op        string
 		wantTotal int
@@ -818,6 +830,7 @@ func lxNoIDKeys(w []store.ScanWarning) map[string]string {
 // name, their bot, or noIdentifier when they have neither. Every listing
 // sends MaxResults 1000.
 func TestScanLex_StoresTagsOfTaggedTypes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newLXTagFixture("aws", testRegion)
@@ -904,6 +917,7 @@ func TestScanLex_StoresTagsOfTaggedTypes(t *testing.T) {
 // an alias with neither an id nor a name by noIdentifier and its bot. Each
 // case replaces the listing's second page, which only B1's aliases have.
 func TestScanLex_NoIDKeys(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, handler, want string
 		page              any
@@ -944,6 +958,7 @@ func TestScanLex_NoIDKeys(t *testing.T) {
 
 // A rescan stores the same rows and inserts none.
 func TestScanLex_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newLXTagFixture("aws", testRegion)
 	if _, _, err := f.scan(context.Background(), st); err != nil {
@@ -957,6 +972,7 @@ func TestScanLex_RescanInsertsNone(t *testing.T) {
 
 // With no bots and no test sets, no per-bot op and no tag read is called.
 func TestScanLex_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newLXTagFixture("aws", testRegion)
 	handlers := f.handlers()
@@ -1002,6 +1018,7 @@ func TestScanLex_EmptyListings(t *testing.T) {
 // element without an id warns about it, B1's aliases and versions only when
 // B1 is stored.
 func TestScanLex_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	const (
 		aliases  = "lexmodelsv2:ListBotAliases"
 		versions = "lexmodelsv2:ListBotVersions"
@@ -1066,6 +1083,7 @@ func TestScanLex_TagReadFailures(t *testing.T) {
 // A bot whose tag read finds it deleted is no parent: its aliases, versions
 // and policy are not read.
 func TestScanLex_BotGoneHasNoChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newLXTagFixture("aws", testRegion)
 	f.errs["ListTagsForResource/"+f.arn("bot/B1")] = lxGone
@@ -1083,6 +1101,7 @@ func TestScanLex_BotGoneHasNoChildren(t *testing.T) {
 // Denied tag reads in three phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanLex_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, lexTagsOp)
 	f := newLXTagFixture("aws", testRegion)
@@ -1102,6 +1121,7 @@ func TestScanLex_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanLex_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, lexTagsOp)
 	f := newLXTagFixture("aws", testRegion)
@@ -1122,6 +1142,7 @@ func TestScanLex_TagThrottleDemotedBesideHardError(t *testing.T) {
 // a denial warns once under DescribeBot, a throttle is transient, and any
 // other error is an error.
 func TestScanLex_DescribeBotFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		err     error
@@ -1180,6 +1201,7 @@ func TestScanLex_DescribeBotFailures(t *testing.T) {
 // denial's, plus one for B1's alias without an id when B1's second alias page
 // is read.
 func TestScanLex_PerBotFailureKeepsSiblingsAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, key  string
 		err      error
@@ -1233,6 +1255,7 @@ func TestScanLex_PerBotFailureKeepsSiblingsAndLaterPhases(t *testing.T) {
 // it, is returned, and stops no later phase. A denied ListBots is warned
 // about under its op instead, and the later phases run.
 func TestScanLex_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, key string
 		err       error
@@ -1291,6 +1314,7 @@ func TestScanLex_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // phase. Once bots are stored, a later phase's NXDOMAIN is a failure of this
 // scan instead, and the stored rows keep their counts.
 func TestScanLex_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "models-v2-lex.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1326,6 +1350,7 @@ func TestScanLex_NXDOMAIN(t *testing.T) {
 // flight saw it in its listing; the later phases are not run, and the rows
 // stored before it are kept.
 func TestScanLex_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newLXTagFixture("aws", testRegion)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1364,6 +1389,7 @@ func TestScanLex_ContextEndReportedOnce(t *testing.T) {
 // A repeated NextToken ends the bot listing with errRepeatedNextToken after
 // its first page is stored.
 func TestScanLex_RepeatedBotToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newLXTagFixture("aws", testRegion)
 	handlers := f.handlers()
@@ -1385,6 +1411,7 @@ func TestScanLex_RepeatedBotToken(t *testing.T) {
 // A failed write stops the scan: no warning about the rows it lost (a denied
 // tag read among them), no later phase runs, and the bots stay stored.
 func TestScanLex_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeLexBotAlias)
@@ -1411,6 +1438,7 @@ func TestScanLex_FailedWriteStopsScan(t *testing.T) {
 // A GovCloud or China ARN reaches the tag op unchanged and is the row's
 // NativeID.
 func TestScanLex_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range partitionFixtures {
 		t.Run(c.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1436,6 +1464,7 @@ func TestScanLex_TagReadsKeepPartitionARNs(t *testing.T) {
 // A bot whose DescribeResourcePolicy returns an empty Policy has no policy
 // row, and no warning.
 func TestScanLex_EmptyPolicyHasNoRow(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "lexmodelsv2:DescribeResourcePolicy")
 	f := newLXTagFixture("aws", testRegion)

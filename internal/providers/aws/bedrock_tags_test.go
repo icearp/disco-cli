@@ -328,6 +328,7 @@ func brRecordParents(handlers map[string]func(any) (any, error), fields map[stri
 // Each child listing is sent every parent its parent phase stored, both
 // pages of them, in the form the child op keys on.
 func TestScanBedrock_ChildPhasesGetEveryStoredParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	brTagFixtures(calls)
@@ -361,6 +362,7 @@ func TestScanBedrock_ChildPhasesGetEveryStoredParent(t *testing.T) {
 // With every listing empty the scan stores nothing and reports no error or
 // warning, and no tag read or child listing is sent.
 func TestScanBedrock_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newBACCalls()
@@ -394,6 +396,7 @@ func TestScanBedrock_Empty(t *testing.T) {
 // stored, each listing asks for its model's page cap, and the scan reports
 // no error or warning.
 func TestScanBedrock_StoresTagsOfEveryTaggedType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newBACCalls()
@@ -475,6 +478,7 @@ func TestScanBedrock_StoresTagsOfEveryTaggedType(t *testing.T) {
 // RoleArn the list element lacks; the tag read is sent the NativeID, which
 // is the body's KnowledgeBaseArn.
 func TestScanBedrock_KnowledgeBaseRowIsTheGetBody(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	brTagFixtures(calls)
@@ -490,6 +494,7 @@ func TestScanBedrock_KnowledgeBaseRowIsTheGetBody(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanBedrock_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	brTagFixtures(calls)
@@ -511,6 +516,7 @@ func TestScanBedrock_RescanInsertsNone(t *testing.T) {
 // checked, on a parent type: a parent the tag read no longer finds is
 // dropped, and its children are never listed.
 func TestScanBedrock_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		typ, tagOp, arn, childOp, childField string
 	}{
@@ -607,6 +613,7 @@ func apiCode(err error) string {
 // A throttled tag read beside a hard tag-read failure is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanBedrock_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, bedrockAgentListTagsOp)
 	calls := newBACCalls()
@@ -630,6 +637,7 @@ func TestScanBedrock_TagThrottleDemotedBesideHardError(t *testing.T) {
 // knowledge base the Get no longer finds is dropped, and its tags are not
 // read.
 func TestScanBedrock_KnowledgeBaseGetFailures(t *testing.T) {
+	t.Parallel()
 	arn := bedrockKBARN("aws", testRegion, testAccountID, "tagged")
 	for _, c := range []struct {
 		name      string
@@ -686,6 +694,7 @@ func TestScanBedrock_KnowledgeBaseGetFailures(t *testing.T) {
 // A throttled GetKnowledgeBase beside a hard error elsewhere is demoted to
 // one warning.
 func TestScanBedrock_KnowledgeBaseGetThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, bedrockGetKBOp)
 	calls := newBACCalls()
@@ -705,6 +714,7 @@ func TestScanBedrock_KnowledgeBaseGetThrottleDemotedBesideHardError(t *testing.T
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost: not the tag denial, not the Get denial.
 func TestScanBedrock_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	tagDenied := apiErr("AccessDeniedException", "User: x is not authorized to perform: bedrock:ListTagsForResource")
 	for _, tc := range []struct {
 		typ, deniedARN, getDenied string
@@ -746,6 +756,7 @@ func TestScanBedrock_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and no list
 // failure stops the phases after it, on any host.
 func TestScanBedrock_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	brTagFixtures(calls)
@@ -787,6 +798,7 @@ func TestScanBedrock_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // page's failure, with the rows read before it stored: a denial code warns
 // once, any other is returned.
 func TestScanBedrock_RegionGapOnlyOnFirstPage(t *testing.T) {
+	t.Parallel()
 	notFound404 := &smithyhttp.ResponseError{Response: &smithyhttp.Response{Response: &http.Response{StatusCode: 404}}, Err: apiErr("UnknownError", "invalid character '<'")}
 	for _, tc := range []struct {
 		name, op, typ, arn string
@@ -844,6 +856,7 @@ func TestScanBedrock_RegionGapOnlyOnFirstPage(t *testing.T) {
 // A real IAM denial of a listing warns once and stores nothing of it; the
 // other listings are stored.
 func TestScanBedrock_ListDenialWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "bedrock:ListAutomatedReasoningPolicies")
 	calls := newBACCalls()
@@ -868,6 +881,7 @@ func TestScanBedrock_ListDenialWarns(t *testing.T) {
 // An item without the ARN or id its row is stored under is not stored, and
 // one warning names it, or a fixed text when it has no name either.
 func TestScanBedrock_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, op, warnOp, key, typ string
 		stored                     int
@@ -993,6 +1007,7 @@ func TestScanBedrock_UnstorableItemsWarn(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanBedrock_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	brTagFixtures(calls)
@@ -1016,6 +1031,7 @@ func TestScanBedrock_RepeatedTokenKeepsPages(t *testing.T) {
 // naming the phases not run, although the phase in flight saw it in its
 // listing and its tag reads; a hard error beside the stop is kept.
 func TestScanBedrock_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	brTagFixtures(calls)
@@ -1065,6 +1081,7 @@ func TestScanBedrock_ContextEndStopsOnce(t *testing.T) {
 // own with nothing stored is the region unavailable; an NXDOMAIN after rows
 // were stored is an error that keeps their counts.
 func TestScanBedrock_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := func(host string) error {
 		return &net.DNSError{Err: "no such host", Name: host + "." + testRegion + ".amazonaws.com", IsNotFound: true}
 	}
@@ -1187,6 +1204,7 @@ func TestScanBedrock_NXDOMAIN(t *testing.T) {
 // isBedrockModelsGap, isBedrockDAGap, isBedrockRouterGap and isBedrockARGap accept only their
 // gap shapes; an unrelated code of the same family is not a gap.
 func TestBedrockGapPredicates(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		is   func(error) bool
@@ -1314,6 +1332,7 @@ func brChildNativeIDs(parent string) map[string]string {
 // GetDataSource body, and of the versions only a prompt version's tags are
 // read, sent the version's own ARN.
 func TestScanBedrock_ChildRowsCountInScanTotals(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	wantSent := brTagFixtures(calls)
@@ -1358,6 +1377,7 @@ func TestScanBedrock_ChildRowsCountInScanTotals(t *testing.T) {
 // parent or data source is skipped, any other error is returned, and a
 // failed GetDataSource keeps the list element as the row.
 func TestScanBedrock_ChildFailureKeepsTheOtherRows(t *testing.T) {
+	t.Parallel()
 	full := 2*len(brTaggedTypes()) + brUntaggedRows + brChildRows
 	denied := apiErr("AccessDeniedException", "User: x is not authorized to perform: bedrock:Op")
 	for _, tc := range []struct {
@@ -1449,6 +1469,7 @@ func brFailFor(next func(any) (any, error), field string, err error) func(any) (
 // prompt: the resolver recovers the prompt's ARN from that NativeID. The
 // DRAFT listed beside it is the prompt itself and is not stored.
 func TestScanBedrock_PromptVersionAttachesToItsPrompt(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ name, elementARN string }{
 		{"Arn names the version", brPromptVersionARN("tagged")},
 		{"Arn names the prompt", brARN("prompt", "tagged")},
@@ -1501,6 +1522,7 @@ func TestScanBedrock_PromptVersionAttachesToItsPrompt(t *testing.T) {
 // GetKnowledgeBase body, which names the partition the NativeID cannot, and
 // the NativeID when the Get failed and the row is the list element.
 func TestScanBedrock_KnowledgeBaseTagReadUsesTheBodyARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	brTagFixtures(calls)
@@ -1539,6 +1561,7 @@ func TestScanBedrock_KnowledgeBaseTagReadUsesTheBodyARN(t *testing.T) {
 // When ctx ends during the GetKnowledgeBase reads, every knowledge base
 // listed is stored as its list element, and the stop is reported once.
 func TestScanBedrock_KnowledgeBaseGetCutShortByContext(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	brTagFixtures(calls)
@@ -1576,6 +1599,7 @@ func TestScanBedrock_KnowledgeBaseGetCutShortByContext(t *testing.T) {
 // readRowDetails keeps every row whose read ctx's end cut short or kept
 // from starting, as the list element, and returns that stop as one error.
 func TestReadRowDetails_ContextEndIsOneError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1603,6 +1627,7 @@ func TestReadRowDetails_ContextEndIsOneError(t *testing.T) {
 // A ctx already ended starts no Get: every row is kept as its list element,
 // and the stop is one error.
 func TestReadRowDetails_ContextEndedBeforeAnyRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1627,6 +1652,7 @@ func TestReadRowDetails_ContextEndedBeforeAnyRead(t *testing.T) {
 // A failed page of the enforced guardrail configurations keeps the pages
 // before it.
 func TestScanBedrock_EnforcedGuardrailsKeepEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	brTagFixtures(calls)

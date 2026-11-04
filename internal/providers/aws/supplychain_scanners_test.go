@@ -269,6 +269,7 @@ var scnTestTypes = []string{TypeSupplyChainInstance, TypeSupplyChainDataIntegrat
 // live instance's custom ones. Every listing is sent MaxResults 20. No error,
 // no warning.
 func TestScanSupplyChain_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newSCNFixture("aws", testRegion)
@@ -373,6 +374,7 @@ func TestScanSupplyChain_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanSupplyChain_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := scnScan(context.Background(), st, newSCNFixture("aws", testRegion).handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -389,6 +391,7 @@ func TestScanSupplyChain_RescanInsertsNone(t *testing.T) {
 // No instance: nothing stored, no child listing or tag read, no error, no
 // warning.
 func TestScanSupplyChain_NoInstances(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newSCNFixture("aws", testRegion)
@@ -422,6 +425,7 @@ func TestScanSupplyChain_NoInstances(t *testing.T) {
 // untagged and warns once under the tag op with the scan's scope; a throttle
 // keeps it and is transient; any other error keeps it and is an error.
 func TestScanSupplyChain_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	f0 := newSCNFixture("aws", testRegion)
 	inst := f0.instARN(scnTestInstA)
 	flow := f0.flowARN(scnTestInstB, "flow-tagged")
@@ -493,6 +497,7 @@ func TestScanSupplyChain_TagReadFailures(t *testing.T) {
 // Denied tag reads in every phase send one warning for the whole scan; the
 // rows are kept.
 func TestScanSupplyChain_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newSCNFixture("aws", testRegion)
@@ -517,6 +522,7 @@ func TestScanSupplyChain_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanSupplyChain_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, scnTagsOp)
 	f := newSCNFixture("aws", testRegion)
@@ -535,6 +541,7 @@ func TestScanSupplyChain_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanSupplyChain_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	t.Run("namespaces", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := rhWarnRecorder(st)
@@ -578,6 +585,7 @@ func TestScanSupplyChain_FailedWriteStopsScan(t *testing.T) {
 // error does not stop the later phases. An instance not stored has no
 // children read.
 func TestScanSupplyChain_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	f0 := newSCNFixture("aws", testRegion)
 	for _, c := range []struct {
 		op, parent           string
@@ -631,6 +639,7 @@ func TestScanSupplyChain_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated nextToken ends the listing as an error, keeping its pages.
 func TestScanSupplyChain_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newSCNFixture("aws", testRegion)
 	h := f.handlers()
@@ -661,6 +670,7 @@ func TestScanSupplyChain_RepeatedTokenKeepsPages(t *testing.T) {
 // namespace deleted since it was listed is skipped silently. A denial warns
 // once under the op, and any other error is returned.
 func TestScanSupplyChain_PerParentListingFailures(t *testing.T) {
+	t.Parallel()
 	f0 := newSCNFixture("aws", testRegion)
 	for _, c := range []struct {
 		op, parent string
@@ -737,6 +747,7 @@ func TestScanSupplyChain_PerParentListingFailures(t *testing.T) {
 // parent, or the fallback text. A namespace without a Name is stored but its
 // datasets are not listed, with one warning naming it.
 func TestScanSupplyChain_ElementWithoutIdentifier(t *testing.T) {
+	t.Parallel()
 	f0 := newSCNFixture("aws", testRegion)
 	nameless := f0.nsARN(scnTestInstA, "x")
 	for _, c := range []struct {
@@ -840,6 +851,7 @@ func TestScanSupplyChain_ElementWithoutIdentifier(t *testing.T) {
 // A namespace listed without its InstanceId is stored, and its datasets are
 // listed under the instance it was listed under, with no warning.
 func TestScanSupplyChain_NamespaceWithoutInstanceIDKeepsDatasets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newSCNFixture("aws", testRegion)
@@ -875,6 +887,7 @@ func TestScanSupplyChain_NamespaceWithoutInstanceIDKeepsDatasets(t *testing.T) {
 // In GovCloud and China the built instance and flow ARNs carry the account's
 // partition, and every ARN reaches the tag op unchanged.
 func TestScanSupplyChain_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -907,6 +920,7 @@ func TestScanSupplyChain_TagReadsKeepPartitionARNs(t *testing.T) {
 // flight saw it in its listing and its tag reads, and the later phases are
 // not run.
 func TestScanSupplyChain_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newSCNFixture("aws", testRegion)
 	h := f.handlers()
@@ -942,6 +956,7 @@ func TestScanSupplyChain_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanSupplyChain_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "scn.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

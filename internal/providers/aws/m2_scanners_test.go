@@ -81,6 +81,7 @@ func m2DataSetsHandler(calls *parentCalls, pages map[string][][]m2types.DataSetS
 }
 
 func TestScanM2Datasets_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	created := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
 	first := m2DataSet("AWS.M2.CARDDEMO.ACCTDATA.VSAM.KSDS")
@@ -136,6 +137,7 @@ func TestScanM2Datasets_PagesAndFields(t *testing.T) {
 }
 
 func TestScanM2Datasets_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newM2TestClient(map[string]func(any) (any, error){
@@ -153,6 +155,7 @@ func TestScanM2Datasets_Empty(t *testing.T) {
 // Each per-application error is skipped or returned by its code. Two of three
 // applications fail, so a skip that warns must warn once for both.
 func TestScanM2Datasets_PerApplicationErrors(t *testing.T) {
+	t.Parallel()
 	notFound := apiErr("ResourceNotFoundException", "gone")
 	validation := apiErr("ValidationException", "not ready")
 	conflict := apiErr("ConflictException", "not deployed")
@@ -210,6 +213,7 @@ func m2ValidationOn(field string) error {
 // A ValidationException naming maxResults is disco's own input error, so it
 // fails the phase rather than being skipped as a not-ready application.
 func TestScanM2Datasets_PageSizeRejectedFails(t *testing.T) {
+	t.Parallel()
 	for _, field := range []string{"maxResults", "MaxResults"} {
 		t.Run(field, func(t *testing.T) {
 			st := newTestStore(t)
@@ -228,6 +232,7 @@ func TestScanM2Datasets_PageSizeRejectedFails(t *testing.T) {
 
 // A skipped application keeps the rows its earlier pages stored.
 func TestScanM2Datasets_SkipKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newM2TestClient(map[string]func(any) (any, error){
@@ -447,6 +452,7 @@ func m2WarnOps(w []store.ScanWarning) []string {
 // data set's. Deployments and data sets are stored untagged. Every listing
 // sends MaxResults 2000. No error, no warning.
 func TestScanM2_StoresTagsOfApplicationsAndEnvironments(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newM2Fixture()
@@ -537,6 +543,7 @@ func TestScanM2_StoresTagsOfApplicationsAndEnvironments(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanM2_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newM2Fixture()
 	if _, _, err := m2Scan(context.Background(), st, f, f.handlers()); err != nil {
@@ -551,6 +558,7 @@ func TestScanM2_RescanInsertsNone(t *testing.T) {
 // Empty listings: each account-wide listing called once, no per-application
 // listing, no tag read, nothing stored, no error, no warning.
 func TestScanM2_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newM2Fixture()
@@ -584,6 +592,7 @@ var (
 // untagged and warns once under the tag op with the scan's scope; a throttle
 // keeps it and is transient; any other error keeps it and is an error.
 func TestScanM2_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		typ       string
@@ -662,6 +671,7 @@ func TestScanM2_TagReadFailures(t *testing.T) {
 // Denied tag reads in both tagged phases send one warning for the whole
 // scan; the rows are kept.
 func TestScanM2_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newM2Fixture()
@@ -683,6 +693,7 @@ func TestScanM2_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanM2_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, m2TagsOp)
 	f := newM2Fixture()
@@ -701,6 +712,7 @@ func TestScanM2_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phase's rows
 // stay stored.
 func TestScanM2_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeM2Environment)
@@ -729,6 +741,7 @@ func TestScanM2_FailedWriteStopsScan(t *testing.T) {
 // denied listing is warned about under its op instead, and the later phases
 // run too.
 func TestScanM2_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, key string
 		err       error
@@ -779,6 +792,7 @@ func TestScanM2_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // A repeated NextToken ends the listing as an error, keeping its pages (the
 // one that repeated it included), and the later phases still run.
 func TestScanM2_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newM2Fixture()
 	handlers := f.handlers()
@@ -812,6 +826,7 @@ func TestScanM2_RepeatedTokenKeepsPages(t *testing.T) {
 // deployment without a DeploymentId is warned about under ListDeployments,
 // keyed by its application's ARN.
 func TestScanM2_ElementsWithoutIdentifier(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	f := newM2Fixture()
@@ -861,6 +876,7 @@ func TestScanM2_ElementsWithoutIdentifier(t *testing.T) {
 // A GovCloud or China ARN reaches the tag op unchanged and is the row's
 // NativeID; deployments and data sets are keyed under it.
 func TestScanM2_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -886,6 +902,7 @@ func TestScanM2_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanM2_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newM2Fixture()
 	handlers := f.handlers()
@@ -924,6 +941,7 @@ func TestScanM2_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later phase runs.
 func TestScanM2_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "m2.us-east-1.amazonaws.com", IsNotFound: true}
 	for _, c := range []struct {
 		name      string
@@ -974,6 +992,7 @@ func TestScanM2_NXDOMAIN(t *testing.T) {
 // its listing was read; a denial warns once under ListDeployments; any other
 // error is returned after the deployments are stored.
 func TestScanM2_DeploymentFailuresPerApplication(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		key       string
@@ -1020,6 +1039,7 @@ func TestScanM2_DeploymentFailuresPerApplication(t *testing.T) {
 // The data set phase runs over the applications stored, after every other
 // phase: each other op fails if the data set phase already ran.
 func TestScanM2_DatasetPhaseRunsLast(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newM2Fixture()
 	h := f.handlers()
@@ -1044,6 +1064,7 @@ func TestScanM2_DatasetPhaseRunsLast(t *testing.T) {
 // A transient listing error beside a hard error of another phase is demoted
 // to one warning under its own op, so the hard error decides the outcome.
 func TestScanM2_TransientDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ listErr, op string }{
 		{"ListEnvironments", m2ListEnvironmentsOp},
 		{"ListDeployments/app-tagged", m2ListDeploymentsOp},

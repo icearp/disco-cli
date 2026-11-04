@@ -57,6 +57,7 @@ func scanQBChatControlsForTest(t *testing.T, st *store.Store, apps []qbAppRef, g
 }
 
 func TestScanQBChatControlsConfigurations_StoresEveryTopicPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &parentCalls{}
 	total, err := scanQBChatControlsForTest(t, st, qbTestApps("a", "b"), func(in any) (any, error) {
@@ -124,6 +125,7 @@ func TestScanQBChatControlsConfigurations_StoresEveryTopicPage(t *testing.T) {
 }
 
 func TestScanQBChatControlsConfigurations_NoAppsStoresNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanQBChatControlsForTest(t, st, nil, func(any) (any, error) {
 		t.Error("GetChatControlsConfiguration called with no applications")
@@ -135,6 +137,7 @@ func TestScanQBChatControlsConfigurations_NoAppsStoresNothing(t *testing.T) {
 }
 
 func TestScanQBChatControlsConfigurations_SkipsOnlyFailedApps(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	apps := []qbAppRef{}
 	for id, status := range map[string]qbtypes.ApplicationStatus{
@@ -158,6 +161,7 @@ func TestScanQBChatControlsConfigurations_SkipsOnlyFailedApps(t *testing.T) {
 }
 
 func TestScanQBChatControlsConfigurations_DeniedWarnsOnceAndKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, "qbusiness:GetChatControlsConfiguration")
 	total, err := scanQBChatControlsForTest(t, st, qbTestApps("a", "b", "c"), func(in any) (any, error) {
@@ -175,6 +179,7 @@ func TestScanQBChatControlsConfigurations_DeniedWarnsOnceAndKeepsSiblings(t *tes
 }
 
 func TestScanQBChatControlsConfigurations_GoneAppSkippedSilently(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, "qbusiness:GetChatControlsConfiguration")
 	total, err := scanQBChatControlsForTest(t, st, qbTestApps("a", "b"), func(in any) (any, error) {
@@ -197,6 +202,7 @@ func TestScanQBChatControlsConfigurations_GoneAppSkippedSilently(t *testing.T) {
 // Applications still throttled after the SDK's retries have no row to keep,
 // so they are one transient error, not a warning; the others are stored.
 func TestScanQBChatControlsConfigurations_ThrottledAppsReturnedAndOthersKept(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	total, err := scanQBChatControlsForTest(t, st, qbTestApps("a", "b", "c"), func(in any) (any, error) {
@@ -221,6 +227,7 @@ func TestScanQBChatControlsConfigurations_ThrottledAppsReturnedAndOthersKept(t *
 // One application's hard error costs the others none of their rows, and a
 // throttled application beside it is demoted to one warning under the op.
 func TestScanQBChatControlsConfigurations_HardErrorKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, "qbusiness:GetChatControlsConfiguration")
 	total, err := scanQBChatControlsForTest(t, st, qbTestApps("a", "b", "c", "d"), func(in any) (any, error) {
@@ -247,6 +254,7 @@ func TestScanQBChatControlsConfigurations_HardErrorKeepsSiblings(t *testing.T) {
 }
 
 func TestScanQBChatControlsConfigurations_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, err := scanQBChatControlsForTest(t, st, qbTestApps("a"), func(any) (any, error) { return nil, qbBadInput })
 	if !isAPIErrorCode(err, "ValidationException") {
@@ -257,6 +265,7 @@ func TestScanQBChatControlsConfigurations_OtherErrorPropagates(t *testing.T) {
 // A repeated page token ends the read as errRepeatedNextToken: the topics
 // would be incomplete, so that application's row is not stored.
 func TestScanQBChatControlsConfigurations_RepeatedTokenIsAnError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &parentCalls{}
 	_, err := scanQBChatControlsForTest(t, st, qbTestApps("a"), func(in any) (any, error) {
@@ -307,6 +316,7 @@ func runScanQBusiness(t *testing.T, st *store.Store, handlers map[string]func(an
 }
 
 func TestScanQBusiness_StoresChatControlsPerApplication(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := runScanQBusiness(t, st, qbScanHandlers())
 	if err != nil || total != 4 {
@@ -318,6 +328,7 @@ func TestScanQBusiness_StoresChatControlsPerApplication(t *testing.T) {
 }
 
 func TestScanQBusiness_ChildPhaseErrorStillStoresChatControls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := qbScanHandlers()
 	handlers["ListSubscriptions"] = func(any) (any, error) { return nil, qbBadInput }
@@ -331,6 +342,7 @@ func TestScanQBusiness_ChildPhaseErrorStillStoresChatControls(t *testing.T) {
 }
 
 func TestScanQBusiness_ChatControlsErrorKeepsEarlierPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := qbScanHandlers()
 	handlers["GetChatControlsConfiguration"] = func(any) (any, error) { return nil, qbBadInput }
@@ -347,6 +359,7 @@ func TestScanQBusiness_ChatControlsErrorKeepsEarlierPhases(t *testing.T) {
 // and fails the other: the throttle is one warning, and the returned error
 // classifies as the hard error it carries.
 func TestScanQBusiness_TransientPhaseErrorDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	throttled := func(any) (any, error) { return nil, qbThrottle }
 	hard := func(any) (any, error) { return nil, qbBadInput }
 	for _, tc := range []struct {
@@ -377,6 +390,7 @@ func TestScanQBusiness_TransientPhaseErrorDoesNotMaskHardError(t *testing.T) {
 // releases the others only then, so the reads past the fan-out bound never
 // start.
 func TestScanQBChatControlsConfigurations_ContextEndIsAnError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

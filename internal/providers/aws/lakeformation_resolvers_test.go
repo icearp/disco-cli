@@ -24,6 +24,7 @@ func lfRoleARN() string {
 // land when bucket + role are scanned. Uses a prefixed S3 location to
 // exercise the bucket-suffix-strip path.
 func TestResolveLakeFormationResourceTargets_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -50,6 +51,7 @@ func TestResolveLakeFormationResourceTargets_HappyPath(t *testing.T) {
 // TestResolveLakeFormationResourceTargets_FKSafe verifies missing targets
 // skip without erroring (cross-account bucket/role).
 func TestResolveLakeFormationResourceTargets_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -72,6 +74,7 @@ func TestResolveLakeFormationResourceTargets_FKSafe(t *testing.T) {
 // TestResolveLakeFormationResourceTargets_MalformedAttrs ensures invalid
 // attrs JSON skips the row rather than aborting the resolver.
 func TestResolveLakeFormationResourceTargets_MalformedAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -95,6 +98,7 @@ func lfOptInRow(t *testing.T, st *store.Store, principal string, resource *lftyp
 }
 
 func TestResolveLakeFormationOptInTargets_EdgePerTargetKind(t *testing.T) {
+	t.Parallel()
 	const (
 		roleARN = "arn:aws:iam::123456789012:role/analyst"
 		userARN = "arn:aws:iam::123456789012:user/bob"
@@ -159,6 +163,7 @@ func TestResolveLakeFormationOptInTargets_EdgePerTargetKind(t *testing.T) {
 // A database, table or data location in another account's catalog must not
 // link to this account's same-named resource.
 func TestResolveLakeFormationOptInTargets_ForeignCatalogNoEdge(t *testing.T) {
+	t.Parallel()
 	foreign := sdkaws.String("999999999999")
 	cases := []struct {
 		name       string
@@ -195,6 +200,7 @@ func TestResolveLakeFormationOptInTargets_ForeignCatalogNoEdge(t *testing.T) {
 // An opt-in whose targets were not scanned, or whose attributes carry no
 // principal or resource, emits no edge and no error.
 func TestResolveLakeFormationOptInTargets_NoAttrsOrUnscannedNoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	empty := upsertTestResource(t, st, "aws", testAccountID, TypeLakeFormationOptIn,
 		"arn:aws:lakeformation:us-east-1:123456789012:lake-formation-opt-in/empty", testRegion, "{}")
@@ -215,6 +221,7 @@ func TestResolveLakeFormationOptInTargets_NoAttrsOrUnscannedNoEdge(t *testing.T)
 }
 
 func TestResolveLakeFormationOptInTargets_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeLakeFormationOptIn,
 		"arn:aws:lakeformation:us-east-1:123456789012:lake-formation-opt-in/bad", testRegion, `not json`)

@@ -12,6 +12,7 @@ import (
 )
 
 func TestResolveCloudTrailResourcePolicyToParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -39,6 +40,7 @@ func TestResolveCloudTrailResourcePolicyToParent(t *testing.T) {
 }
 
 func TestResolveCloudTrailChannelDestinations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -60,6 +62,7 @@ func TestResolveCloudTrailChannelDestinations(t *testing.T) {
 // store; one whose destination was not scanned, and a trail's (no
 // destination), route nowhere.
 func TestResolveCloudTrailInsightDestinations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	srcARN := fmt.Sprintf("arn:aws:cloudtrail:%s:%s:eventdatastore/src", testRegion, acct.ID)
@@ -99,6 +102,7 @@ func TestResolveCloudTrailInsightDestinations(t *testing.T) {
 }
 
 func TestResolveCloudTrailInsightDestinations_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeCloudTrailInsightSelector,

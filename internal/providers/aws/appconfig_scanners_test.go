@@ -72,6 +72,7 @@ func acNoTags(any) (any, error) { return &appconfig.ListTagsForResourceOutput{},
 // Both pages are stored, elements missing either half of the NativeID are
 // skipped, and the list carries no filter.
 func TestScanACExperimentDefinitions_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		mu     sync.Mutex
@@ -113,6 +114,7 @@ func TestScanACExperimentDefinitions_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanACExperimentDefinitions_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanACExpDefs(t, st, func(any) (any, error) { return &appconfig.ListExperimentDefinitionsOutput{}, nil })
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeAppConfigExperimentDefinition)) != 0 {
@@ -123,6 +125,7 @@ func TestScanACExperimentDefinitions_Empty(t *testing.T) {
 // On the first call, every shape an unrouted operation takes is a silent
 // feature gap; any other error is returned.
 func TestScanACExperimentDefinitions_FirstPageNotDeployed(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		err      error
@@ -154,6 +157,7 @@ func TestScanACExperimentDefinitions_FirstPageNotDeployed(t *testing.T) {
 // every other error, the not-deployed shapes included, is returned with page
 // one's row stored.
 func TestScanACExperimentDefinitions_PageTwoError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -228,6 +232,7 @@ func acTopLevelHandlers(expDefs func(in any) (any, error)) map[string]func(in an
 }
 
 func TestScanAppConfig_StoresExperimentDefinitions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var (
@@ -253,6 +258,7 @@ func TestScanAppConfig_StoresExperimentDefinitions(t *testing.T) {
 }
 
 func TestScanAppConfig_CallsGoToScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var (
@@ -278,6 +284,7 @@ func TestScanAppConfig_CallsGoToScannedRegion(t *testing.T) {
 // The experiment definition phase runs after every existing phase: its hard
 // error reaches the caller with every earlier row stored and counted.
 func TestScanAppConfig_ExperimentDefinitionErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	called := false

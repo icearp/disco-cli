@@ -108,6 +108,7 @@ func scanEFSTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in 
 }
 
 func TestScanEFS_ReplicationConfigurationRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var limits []int32
 	total, err := scanEFSTopLevel(t, st, efsHandlers(&limits))
@@ -155,6 +156,7 @@ func TestScanEFS_ReplicationConfigurationRows(t *testing.T) {
 }
 
 func TestScanEFSReplicationConfigurations_Errors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		empty    bool
@@ -217,6 +219,7 @@ func TestScanEFSReplicationConfigurations_Errors(t *testing.T) {
 // The replication phase runs after every older phase, so its hard error
 // leaves their rows stored, and an older phase's hard error still lets it run.
 func TestScanEFS_PhaseOrderAndIndependence(t *testing.T) {
+	t.Parallel()
 	t.Run("replication error after older phases", func(t *testing.T) {
 		st := newTestStore(t)
 		var limits []int32
@@ -253,6 +256,7 @@ func TestScanEFS_PhaseOrderAndIndependence(t *testing.T) {
 // A transient older-phase error is demoted to a warning so that the
 // replication phase's hard error still reaches the dispatcher as a hard error.
 func TestScanEFS_OlderTransientDoesNotMaskReplicationError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "elasticfilesystem")
 	var limits []int32
@@ -272,6 +276,7 @@ func TestScanEFS_OlderTransientDoesNotMaskReplicationError(t *testing.T) {
 // A replication network error is demoted to a warning so that a file system
 // phase's hard error and the rows stored before it still reach the dispatcher.
 func TestScanEFS_ReplicationTransientDoesNotMaskOlderError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, efsReplicationConfigurationsOp)
 	var limits []int32

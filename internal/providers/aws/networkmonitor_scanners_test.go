@@ -12,6 +12,7 @@ import (
 // TestScanNetworkMonitor_ReadsTags pins that monitor and probe rows carry the
 // Tags of their own listed element, and that an untagged element stores none.
 func TestScanNetworkMonitor_ReadsTags(t *testing.T) {
+	t.Parallel()
 	const (
 		monTagged   = "arn:aws:networkmonitor:us-east-1:123456789012:monitor/m1"
 		monUntagged = "arn:aws:networkmonitor:us-east-1:123456789012:monitor/m2"

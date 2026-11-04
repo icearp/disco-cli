@@ -11,6 +11,7 @@ import (
 )
 
 func TestResolveBackupAccessPointRefs(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, vaultType string
 	}{
@@ -44,6 +45,7 @@ func TestResolveBackupAccessPointRefs(t *testing.T) {
 // An access point whose recovery point and vault are unscanned (another
 // account's, or deleted) emits no edge.
 func TestResolveBackupAccessPointRefs_Unscanned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	apARN := fmt.Sprintf("arn:aws:backup:%s:%s:accesspoint/ap1", testRegion, testAccountID)
@@ -67,6 +69,7 @@ func TestResolveBackupAccessPointRefs_Unscanned(t *testing.T) {
 }
 
 func TestResolveBackupAccessPointRefs_NoRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeBackupVault, fmt.Sprintf("arn:aws:backup:%s:%s:backup-vault:v1", testRegion, testAccountID), testRegion, "{}")
@@ -87,6 +90,7 @@ func TestResolveBackupAccessPointRefs_NoRefs(t *testing.T) {
 // A row whose attributes do not parse is reported, and the rows after it are
 // still wired.
 func TestResolveBackupAccessPointRefs_MalformedRowReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vaultARN := fmt.Sprintf("arn:aws:backup:%s:%s:backup-vault:v1", testRegion, testAccountID)

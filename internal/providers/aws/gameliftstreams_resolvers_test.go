@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveGameLiftStreamsStreamGroupApplication(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -36,6 +37,7 @@ func TestResolveGameLiftStreamsStreamGroupApplication(t *testing.T) {
 }
 
 func TestResolveGameLiftStreamsStreamGroupApplication_NoDefaultApplication(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

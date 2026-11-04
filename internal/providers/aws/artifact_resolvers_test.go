@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveArtifactCustomerAgreementOrg(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -33,6 +34,7 @@ func TestResolveArtifactCustomerAgreementOrg(t *testing.T) {
 // A standalone-account agreement (no OrganizationArn) and an unscanned org both
 // emit no edge.
 func TestResolveArtifactCustomerAgreementOrg_NoOrg(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

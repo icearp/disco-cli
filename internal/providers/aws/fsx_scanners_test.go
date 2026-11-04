@@ -261,6 +261,7 @@ func assertJSONEqual(t *testing.T, what, got, want string) {
 // attributes) and of an untagged one with no lifecycle (no tags, no status),
 // read from two pages.
 func TestScanFSxAll_StoresRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, inserted, err := fsxScanAll(t, st, fsxHandlers(t))
 	if err != nil {
@@ -329,6 +330,7 @@ func TestScanFSxAll_StoresRows(t *testing.T) {
 // TestScanFSxAll_LaterPageFailureKeepsRows pins, for every listing, that a
 // failure on the second page is returned and the first page's row is kept.
 func TestScanFSxAll_LaterPageFailureKeepsRows(t *testing.T) {
+	t.Parallel()
 	hard := apiErr("BadRequest", "bad")
 	for _, c := range fsxCases {
 		t.Run(c.op, func(t *testing.T) {
@@ -360,6 +362,7 @@ func TestScanFSxAll_LaterPageFailureKeepsRows(t *testing.T) {
 // warning under the op's label with the account/region scope, not an error,
 // and that the other listings are stored.
 func TestScanFSxAll_DeniedWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range fsxCases {
 		t.Run(c.op, func(t *testing.T) {
 			h := fsxHandlers(t)
@@ -392,6 +395,7 @@ func TestScanFSxAll_DeniedWarns(t *testing.T) {
 // access point attachments) is not stored and is warned about once under the
 // op's label, while its siblings are stored.
 func TestScanFSxAll_EmptyARNWarned(t *testing.T) {
+	t.Parallel()
 	for _, c := range fsxCases {
 		t.Run(c.op, func(t *testing.T) {
 			h := fsxHandlers(t)
@@ -421,6 +425,7 @@ func TestScanFSxAll_EmptyARNWarned(t *testing.T) {
 // is returned as ErrStoreWrite with no empty-ARN warning (it would describe
 // rows the write lost) and that no later listing calls AWS.
 func TestScanFSxAll_StoreWriteStops(t *testing.T) {
+	t.Parallel()
 	order := []string{
 		"DescribeFileSystems", "DescribeDataRepositoryAssociations", "DescribeSnapshots",
 		"DescribeStorageVirtualMachines", "DescribeVolumes", "DescribeS3AccessPointAttachments", "DescribeBackups", "DescribeFileCaches",
@@ -465,6 +470,7 @@ func TestScanFSxAll_StoreWriteStops(t *testing.T) {
 // TestScanFSxAll_PhaseErrorRunsLaterPhases pins, for every listing, that a
 // failed first page is returned and every other listing is still stored.
 func TestScanFSxAll_PhaseErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	hard := apiErr("BadRequest", "bad")
 	for _, c := range fsxCases {
 		t.Run(c.op, func(t *testing.T) {
@@ -491,6 +497,7 @@ func TestScanFSxAll_PhaseErrorRunsLaterPhases(t *testing.T) {
 // a hard-failing one is demoted to one warning under its label and the scan
 // classified as an error, not as transient.
 func TestScanFSxAll_TransientBesideHardError(t *testing.T) {
+	t.Parallel()
 	h := fsxHandlers(t)
 	h["DescribeFileSystems"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "slow down") }
 	h["DescribeBackups"] = func(any) (any, error) { return nil, apiErr("BadRequest", "bad") }
@@ -509,6 +516,7 @@ func TestScanFSxAll_TransientBesideHardError(t *testing.T) {
 // is named after the element's id, that an element listed with an ARN but no
 // id is stored with no Name rather than an empty one.
 func TestScanFSxAll_EmptyIDStoredWithoutName(t *testing.T) {
+	t.Parallel()
 	for _, c := range fsxCases {
 		if !c.nameIsID {
 			continue
@@ -549,6 +557,7 @@ func fsxFileCacheCase(t *testing.T) fsxCase {
 // cache page is an empty listing, with no error and no warning, while on a
 // later page it is returned with the first page's row kept.
 func TestScanFSxAll_FileCacheNotEnabledSkipped(t *testing.T) {
+	t.Parallel()
 	notEnabled := apiErr("BadRequest", "The requested feature is not enabled for this AWS account")
 	c := fsxFileCacheCase(t)
 	t.Run("first page", func(t *testing.T) {

@@ -6,6 +6,7 @@ import "testing"
 // no cross-resource ARNs). Test pins the contract: zero edges emitted, no
 // error. Future expansion wiring SourceViews edges should update this test.
 func TestResolveBillingViews(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -15,6 +16,7 @@ func TestResolveBillingViews(t *testing.T) {
 }
 
 func TestBillingViewRegistrationCovered(t *testing.T) {
+	t.Parallel()
 	if !serviceRegistered("aws:billing") {
 		t.Fatalf("aws:billing service not registered")
 	}

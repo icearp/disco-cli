@@ -217,6 +217,7 @@ func wafWarnOps(w []store.ScanWarning) []string {
 // ListTagsForResource is sent exactly their ARNs. Every call is sent the
 // model's Limit cap of 100. No error, no warning.
 func TestScanWAF_StoresEveryListingWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newWAFCalls("aws")
@@ -280,6 +281,7 @@ func TestScanWAF_StoresEveryListingWithTags(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanWAF_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := wafScan(context.Background(), st, wafHandlers(newWAFCalls("aws"))); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -295,6 +297,7 @@ func TestScanWAF_RescanInsertsNone(t *testing.T) {
 
 // Empty listings: nothing stored, no tag read, no error, no warning.
 func TestScanWAF_NoResources(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newWAFCalls("aws")
@@ -330,6 +333,7 @@ func TestScanWAF_NoResources(t *testing.T) {
 // region); a throttle keeps it and is transient; any other error keeps it
 // and is an error.
 func TestScanWAF_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	arn := wafTestKindOf(t, "ListRateBasedRules").arn("aws", "1")
 	for _, c := range []struct {
 		name      string
@@ -390,6 +394,7 @@ func TestScanWAF_TagReadFailures(t *testing.T) {
 // ListTagsForResource pages are all read, each sent the Limit cap; a
 // repeated NextMarker fails the read, keeping the row untagged.
 func TestScanWAF_TagPages(t *testing.T) {
+	t.Parallel()
 	arn := wafTestKindOf(t, "ListRuleGroups").arn("aws", "2")
 	pageOf := func(next *string, k, v string) *waf.ListTagsForResourceOutput {
 		return &waf.ListTagsForResourceOutput{NextMarker: next, TagInfoForResource: &waftypes.TagInfoForResource{
@@ -450,6 +455,7 @@ func TestScanWAF_TagPages(t *testing.T) {
 
 // A tag response without TagInfoForResource reads as no tags.
 func TestScanWAF_TagResponseWithoutInfo(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newWAFCalls("aws")
 	handlers := wafHandlers(calls)
@@ -476,6 +482,7 @@ func TestScanWAF_TagResponseWithoutInfo(t *testing.T) {
 // Denied tag reads in two phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanWAF_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newWAFCalls("aws")
@@ -497,6 +504,7 @@ func TestScanWAF_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanWAF_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, wafTestTagsOp)
 	calls := newWAFCalls("aws")
@@ -518,6 +526,7 @@ func TestScanWAF_TagThrottleDemotedBesideHardError(t *testing.T) {
 // read is denied: when the refused write lost that rule there is no warning
 // about it; when the rule was stored before, the denial is warned about.
 func TestScanWAF_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op  string
 		listCalls int      // calls of op's listing
@@ -566,6 +575,7 @@ func TestScanWAF_FailedWriteStopsScan(t *testing.T) {
 // repeated NextMarker ends the listing as an error, keeping its pages. Both
 // hold for a listing whose tags are read and for one whose are not.
 func TestScanWAF_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op  string
 		failPage  string // "1", "2", or "repeat" for a repeated NextMarker
@@ -634,6 +644,7 @@ func TestScanWAF_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // A denied listing is warned about once under its op, with the scan's scope
 // (the home region), and the other phases run.
 func TestScanWAF_DeniedListingWarns(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListRuleGroups", "ListIPSets"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -664,6 +675,7 @@ func TestScanWAF_DeniedListingWarns(t *testing.T) {
 // name, or by noIdentifier when it has none. The listing's other row is
 // stored. Every listing has a reason for the warning.
 func TestScanWAF_ElementWithoutID(t *testing.T) {
+	t.Parallel()
 	type tc struct {
 		name string
 		k    wafTestKind
@@ -729,6 +741,7 @@ func TestScanWAF_ElementWithoutID(t *testing.T) {
 
 // An element whose name is empty, or missing, is stored with no Name.
 func TestScanWAF_ElementWithoutNameStoredUnnamed(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op string
 		elem     *string
@@ -780,6 +793,7 @@ func TestScanWAF_ElementWithoutNameStoredUnnamed(t *testing.T) {
 // client for the partition's region, whether or not the pinned SDK gives
 // WAF Classic a home there (homeRegion).
 func TestScanWAF_PartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -810,6 +824,7 @@ func TestScanWAF_PartitionARNs(t *testing.T) {
 // flight saw it both in a tag read and in its listing, and no later page or
 // phase is read. The page in flight is stored, its row untagged.
 func TestScanWAF_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newWAFCalls("aws")
 	handlers := wafHandlers(calls)
@@ -858,6 +873,7 @@ func TestScanWAF_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later listing is called.
 func TestScanWAF_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "waf.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

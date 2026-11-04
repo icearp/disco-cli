@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveKendraExtraChildToIndex(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	idxARN := fmt.Sprintf("arn:aws:kendra:%s:%s:index/i-1", testRegion, acct.ID)
@@ -29,6 +30,7 @@ func TestResolveKendraExtraChildToIndex(t *testing.T) {
 }
 
 func TestResolveKendraExtraChildToIndex_NoIndex(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	// Child rows exist but the parent index was never scanned — no edge, no FK error.

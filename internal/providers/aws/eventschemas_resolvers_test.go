@@ -9,6 +9,7 @@ import (
 )
 
 func TestResolveEventSchemasSchemaRegistry(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -30,6 +31,7 @@ func TestResolveEventSchemasSchemaRegistry(t *testing.T) {
 }
 
 func TestResolveEventSchemasSchemaRegistry_NoRegistry(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -52,6 +54,7 @@ func TestResolveEventSchemasSchemaRegistry_NoRegistry(t *testing.T) {
 // A schema NativeID that names no registry is reported, and the other
 // schemas are still linked.
 func TestResolveEventSchemasSchemaRegistry_BadNativeIDReportedOthersLinked(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -81,6 +84,7 @@ func TestResolveEventSchemasSchemaRegistry_BadNativeIDReportedOthersLinked(t *te
 
 // A malformed schema NativeID is reported even when no registry was stored.
 func TestResolveEventSchemasSchemaRegistry_BadNativeIDReportedWithoutRegistries(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeEventSchemasSchema,

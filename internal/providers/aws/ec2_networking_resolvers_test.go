@@ -20,6 +20,7 @@ func subnetAttrs(t *testing.T, subnetID, vpcID string) string {
 }
 
 func TestResolveSubnetVPCRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -43,6 +44,7 @@ func TestResolveSubnetVPCRelationships(t *testing.T) {
 }
 
 func TestResolveIGWRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -67,6 +69,7 @@ func TestResolveIGWRelationships(t *testing.T) {
 }
 
 func TestResolveRouteTableRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rtARN := ec2ARN(testRegion, acct.ID, "route-table", "rtb-001")
@@ -90,6 +93,7 @@ func TestResolveRouteTableRelationships(t *testing.T) {
 }
 
 func TestResolveRouteTableRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rtID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2RouteTable, ec2ARN(testRegion, acct.ID, "route-table", "rtb-bare"), testRegion, "{}")
@@ -103,6 +107,7 @@ func TestResolveRouteTableRelationships_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveRouteTableRelationships_MainTableImplicitSubnets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -152,6 +157,7 @@ func TestResolveRouteTableRelationships_MainTableImplicitSubnets(t *testing.T) {
 }
 
 func TestResolveRouteTableRoutes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rtARN := ec2ARN(testRegion, acct.ID, "route-table", "rtb-001")
@@ -188,6 +194,7 @@ func TestResolveRouteTableRoutes(t *testing.T) {
 }
 
 func TestResolveRouteTableRoutes_UnscannedTargetsSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rtARN := ec2ARN(testRegion, acct.ID, "route-table", "rtb-001")
@@ -203,6 +210,7 @@ func TestResolveRouteTableRoutes_UnscannedTargetsSkipped(t *testing.T) {
 }
 
 func TestResolveSecurityGroupVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	sgARN := ec2ARN(testRegion, acct.ID, "security-group", "sg-001")
@@ -223,6 +231,7 @@ func TestResolveSecurityGroupVPC(t *testing.T) {
 }
 
 func TestResolveSecurityGroupVPC_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	sgID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2SecurityGroup, ec2ARN(testRegion, acct.ID, "security-group", "sg-bare"), testRegion, "{}")
@@ -236,6 +245,7 @@ func TestResolveSecurityGroupVPC_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNatGatewayRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ngwARN := ec2ARN(testRegion, acct.ID, "natgateway", "nat-001")
@@ -259,6 +269,7 @@ func TestResolveNatGatewayRelationships(t *testing.T) {
 }
 
 func TestResolveNatGatewayRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ngwID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2NatGateway, ec2ARN(testRegion, acct.ID, "natgateway", "nat-bare"), testRegion, "{}")
@@ -272,6 +283,7 @@ func TestResolveNatGatewayRelationships_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveEIPRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	eipARN := ec2ARN(testRegion, acct.ID, "elastic-ip", "eipalloc-001")
@@ -295,6 +307,7 @@ func TestResolveEIPRelationships(t *testing.T) {
 }
 
 func TestResolveEIPRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	eipID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2EIP, ec2ARN(testRegion, acct.ID, "elastic-ip", "eipalloc-bare"), testRegion, "{}")
@@ -308,6 +321,7 @@ func TestResolveEIPRelationships_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNetworkInterfaceRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	eniARN := ec2ARN(testRegion, acct.ID, "network-interface", "eni-001")
@@ -333,6 +347,7 @@ func TestResolveNetworkInterfaceRelationships(t *testing.T) {
 }
 
 func TestResolveNetworkInterfaceRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	eniID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2NetworkInterface, ec2ARN(testRegion, acct.ID, "network-interface", "eni-bare"), testRegion, "{}")
@@ -346,6 +361,7 @@ func TestResolveNetworkInterfaceRelationships_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNetworkACLRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	naclARN := ec2ARN(testRegion, acct.ID, "network-acl", "acl-001")
@@ -371,6 +387,7 @@ func TestResolveNetworkACLRelationships(t *testing.T) {
 }
 
 func TestResolveNetworkACLRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	naclID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2NetworkACL, ec2ARN(testRegion, acct.ID, "network-acl", "acl-bare"), testRegion, "{}")
@@ -384,6 +401,7 @@ func TestResolveNetworkACLRelationships_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveVPCEndpointRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	epARN := ec2ARN(testRegion, acct.ID, "vpc-endpoint", "vpce-001")
@@ -404,6 +422,7 @@ func TestResolveVPCEndpointRelationships(t *testing.T) {
 }
 
 func TestResolveVPCEndpointRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	epID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCEndpoint, ec2ARN(testRegion, acct.ID, "vpc-endpoint", "vpce-bare"), testRegion, "{}")
@@ -417,6 +436,7 @@ func TestResolveVPCEndpointRelationships_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveVPCPeeringRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pcARN := ec2ARN(testRegion, acct.ID, "vpc-peering-connection", "pcx-001")
@@ -441,6 +461,7 @@ func TestResolveVPCPeeringRelationships(t *testing.T) {
 }
 
 func TestResolveVPCPeeringRelationships_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCPeeringConnection, ec2ARN(testRegion, acct.ID, "vpc-peering-connection", "pcx-bare"), testRegion, "{}")
@@ -454,6 +475,7 @@ func TestResolveVPCPeeringRelationships_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveCarrierGatewayRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -479,6 +501,7 @@ func TestResolveCarrierGatewayRelationships(t *testing.T) {
 }
 
 func TestResolveCarrierGatewayRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

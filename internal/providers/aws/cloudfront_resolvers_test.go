@@ -13,6 +13,7 @@ import (
 // cache policy, origin request policy, response headers policy, realtime log
 // config, key group, and CloudFront function via "uses" relationships.
 func TestResolveDistributionPolicies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -67,6 +68,7 @@ func TestResolveDistributionPolicies(t *testing.T) {
 
 // TestResolveDistributionPolicies_Empty verifies no error when there are no distributions.
 func TestResolveDistributionPolicies_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -78,6 +80,7 @@ func TestResolveDistributionPolicies_Empty(t *testing.T) {
 // TestResolveDistributionPolicies_NilBehavior verifies no nil-pointer panic when
 // DefaultCacheBehavior is absent from the distribution's attributes.
 func TestResolveDistributionPolicies_NilBehavior(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -99,6 +102,7 @@ func TestResolveDistributionPolicies_NilBehavior(t *testing.T) {
 // TestResolveDistributionPolicies_CacheBehaviors verifies that path-specific
 // CacheBehaviors are also resolved, deduplicating shared policy references.
 func TestResolveDistributionPolicies_CacheBehaviors(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -132,6 +136,7 @@ func TestResolveDistributionPolicies_CacheBehaviors(t *testing.T) {
 // TestResolveDistributionOrigins verifies that distribution origins emit "uses"
 // relationships to origin access controls and origin access identities.
 func TestResolveDistributionOrigins(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -168,6 +173,7 @@ func TestResolveDistributionOrigins(t *testing.T) {
 
 // TestResolveDistributionOrigins_Empty verifies no error when there are no distributions.
 func TestResolveDistributionOrigins_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -179,6 +185,7 @@ func TestResolveDistributionOrigins_Empty(t *testing.T) {
 // TestResolveDistributionOrigins_NoOrigins verifies no nil-pointer panic when
 // the distribution has no Origins in its attributes.
 func TestResolveDistributionOrigins_NoOrigins(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -202,6 +209,7 @@ func TestResolveDistributionOrigins_NoOrigins(t *testing.T) {
 // TestResolveDistributionTenants verifies that each distribution tenant is
 // linked to its parent distribution via a "uses" relationship.
 func TestResolveDistributionTenants(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -228,6 +236,7 @@ func TestResolveDistributionTenants(t *testing.T) {
 
 // TestResolveDistributionTenants_Empty verifies no error when there are no tenants.
 func TestResolveDistributionTenants_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -239,6 +248,7 @@ func TestResolveDistributionTenants_Empty(t *testing.T) {
 // TestResolveDistributionTenants_NoDistributionId verifies no nil-pointer panic
 // when the tenant has no DistributionId in its attributes.
 func TestResolveDistributionTenants_NoDistributionId(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -260,6 +270,7 @@ func TestResolveDistributionTenants_NoDistributionId(t *testing.T) {
 // TestResolveDistributionOriginsS3 verifies Distribution → S3 bucket edge from
 // an S3 origin DomainName.
 func TestResolveDistributionOriginsS3(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -284,6 +295,7 @@ func TestResolveDistributionOriginsS3(t *testing.T) {
 // TestResolveDistributionBehaviorsLambdaEdge verifies Distribution → Lambda@Edge
 // edges from LambdaFunctionAssociations in cache behaviors.
 func TestResolveDistributionBehaviorsLambdaEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -310,6 +322,7 @@ func TestResolveDistributionBehaviorsLambdaEdge(t *testing.T) {
 // the account's partition, and rejects it on a host with the partition's
 // suffix but a region of another partition (foreignRegion).
 func TestCloudfrontS3BucketFromDomain_EveryPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range matcherPartitions {
 		p, r := pf.partition, pf.region
 		suffix, _ := dnsSuffix(p)
@@ -334,6 +347,7 @@ func TestCloudfrontS3BucketFromDomain_EveryPartition(t *testing.T) {
 
 // TestResolveDistributionCertificates verifies Distribution → ACM cert edge.
 func TestResolveDistributionCertificates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -359,6 +373,7 @@ func TestResolveDistributionCertificates(t *testing.T) {
 // TestResolveCloudFrontKeyGroupPublicKeys verifies key-group → public-key edges
 // are emitted for each public key listed in KeyGroupConfig.Items.
 func TestResolveCloudFrontKeyGroupPublicKeys(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -381,6 +396,7 @@ func TestResolveCloudFrontKeyGroupPublicKeys(t *testing.T) {
 // TestResolveCloudFrontKeyGroupPublicKeys_Empty verifies no error / no edges
 // when no key groups exist.
 func TestResolveCloudFrontKeyGroupPublicKeys_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveCloudFrontKeyGroupPublicKeys(acct, st); err != nil {
@@ -393,6 +409,7 @@ func TestResolveCloudFrontKeyGroupPublicKeys_Empty(t *testing.T) {
 // TestResolveCloudFrontRealtimeLogConfigTargets verifies realtime-log-config →
 // kinesis stream (uses) and → IAM role (assumes) edges.
 func TestResolveCloudFrontRealtimeLogConfigTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -419,6 +436,7 @@ func TestResolveCloudFrontRealtimeLogConfigTargets(t *testing.T) {
 // TestResolveCloudFrontRealtimeLogConfigTargets_UnscannedTargetsSkipped checks
 // that targets not in the scan set silently skip (no FK error, no edge).
 func TestResolveCloudFrontRealtimeLogConfigTargets_UnscannedTargetsSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rtlcARN := fmt.Sprintf("arn:aws:cloudfront::%s:realtime-log-config/my-rtlc", acct.ID)
@@ -442,6 +460,7 @@ func TestResolveCloudFrontRealtimeLogConfigTargets_UnscannedTargetsSkipped(t *te
 // TestResolveCloudFrontStreamingDistributionOrigins verifies the S3 origin
 // bucket edge from a streaming distribution.
 func TestResolveCloudFrontStreamingDistributionOrigins(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	bucketARN := "arn:aws:s3:::media-bucket"
@@ -466,6 +485,7 @@ func TestResolveCloudFrontStreamingDistributionOrigins(t *testing.T) {
 // TestResolveCloudFrontMonitoringSubscriptionParent verifies the
 // monitoring-subscription → distribution attached-to edge.
 func TestResolveCloudFrontMonitoringSubscriptionParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	distARN := fmt.Sprintf("arn:aws:cloudfront::%s:distribution/E1ABC", acct.ID)
@@ -488,6 +508,7 @@ func TestResolveCloudFrontMonitoringSubscriptionParent(t *testing.T) {
 // anycast-ip-list uses edge. The connection group carries the bare list ID; the
 // anycast list row carries the full ARN as NativeID.
 func TestResolveCloudFrontConnectionGroupAnycast(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	anycastID := "anycast-list-1"
@@ -509,6 +530,7 @@ func TestResolveCloudFrontConnectionGroupAnycast(t *testing.T) {
 }
 
 func TestResolveCloudFrontVpcOriginEndpoint(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	lbARN := fmt.Sprintf("arn:aws:elasticloadbalancing:%s:%s:loadbalancer/net/my-nlb/abc", testRegion, acct.ID)

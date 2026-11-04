@@ -25,6 +25,7 @@ import (
 )
 
 func TestDemoteTransient_Outcomes(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -127,6 +128,7 @@ func assertOneSkipWarning(t *testing.T, warns []store.ScanWarning, op string, co
 // no account, is a gap; the same answer about an own or unparseable ARN, or
 // any other error, is not.
 func TestOtherAccountGap_Outcomes(t *testing.T) {
+	t.Parallel()
 	const other = "210987654321"
 	notFound := []string{"ResourceNotFoundException"}
 	denied := apiErr("AccessDeniedException", "denied")
@@ -166,6 +168,7 @@ func TestOtherAccountGap_Outcomes(t *testing.T) {
 // ARN, with the reader's notFound codes, into no tags and no error; any other
 // outcome of the read, tags included, passes through unchanged.
 func TestUntaggedIfOtherAccount_Outcomes(t *testing.T) {
+	t.Parallel()
 	const other = "210987654321"
 	denied := apiErr("AccessDeniedException", "denied")
 	gone := apiErr("ResourceNotFoundException", "gone")
@@ -210,6 +213,7 @@ func TestUntaggedIfOtherAccount_Outcomes(t *testing.T) {
 // error; with the owner this account, or none named, the same failures, and
 // any other error, pass through unchanged.
 func TestUntaggedIfOwnerElsewhere_Outcomes(t *testing.T) {
+	t.Parallel()
 	const other = "210987654321"
 	denied := apiErr("AccessDeniedException", "denied")
 	gone := apiErr("ResourceNotFoundException", "gone")
@@ -257,6 +261,7 @@ func TestUntaggedIfOwnerElsewhere_Outcomes(t *testing.T) {
 }
 
 func TestChildFanOutSkipTransient_Outcomes(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		label     func(childParent) string
@@ -297,6 +302,7 @@ func TestChildFanOutSkipTransient_Outcomes(t *testing.T) {
 }
 
 func TestChildFanOutSkipNotReady_Outcomes(t *testing.T) {
+	t.Parallel()
 	const what, why = "widget(s)", "the widget may be warming up"
 	for _, tc := range []struct {
 		name      string
@@ -355,6 +361,7 @@ func TestChildFanOutSkipNotReady_Outcomes(t *testing.T) {
 }
 
 func TestChildFanOutStoredSkipTransient_KeepsRowsStoredBeforeTheError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedSkipFanOutParents(t, st)
 	warns := recordWarnings(st)
@@ -384,6 +391,7 @@ func TestChildFanOutStoredSkipTransient_KeepsRowsStoredBeforeTheError(t *testing
 // stored before the error, with one warning naming that code; a code not
 // listed fails the fan-out.
 func TestChildFanOutStoredSkipNotReady_Outcomes(t *testing.T) {
+	t.Parallel()
 	codes := []string{"ValidationException", "ConflictException"}
 	for _, tc := range []struct {
 		code    string
@@ -431,6 +439,7 @@ func TestChildFanOutStoredSkipNotReady_Outcomes(t *testing.T) {
 }
 
 func TestNotReadyTally_WarnsOnceForValidationExceptionOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	acct := newTestAccount(testAccountID)
@@ -480,6 +489,7 @@ func (w *siblingWatch) await(ctx context.Context) {
 // and does not cancel its siblings; the fan-out stores every row and returns
 // the repeat.
 func TestChildFanOut_IncompleteListingKeepsRowsAndSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedSkipFanOutParents(t, st)
 	w := &siblingWatch{failed: make(chan struct{})}
@@ -507,6 +517,7 @@ func TestChildFanOut_IncompleteListingKeepsRowsAndSiblings(t *testing.T) {
 // A parent whose listing ended on a repeated token does not cancel its
 // siblings, and the repeat is returned with every parent's counts.
 func TestChildFanOutStored_IncompleteListingKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	w := &siblingWatch{failed: make(chan struct{})}
 	total, _, err := childFanOutStored(context.Background(), st, newTestAccount(testAccountID), testRegion, "evs:ListX",
@@ -533,6 +544,7 @@ func TestChildFanOutStored_IncompleteListingKeepsSiblings(t *testing.T) {
 // A transient error joined with a listing that ended incomplete stays an
 // error: demoting the join to a warning would report the scan complete.
 func TestDemoteTransient_KeepsIncompleteListingJoin(t *testing.T) {
+	t.Parallel()
 	for name, incomplete := range map[string]error{"repeated token": errRepeatedNextToken, "truncated without token": errTruncatedWithoutToken} {
 		t.Run(name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -552,6 +564,7 @@ func TestDemoteTransient_KeepsIncompleteListingJoin(t *testing.T) {
 // runScanners: a scanner whose listing ended incomplete does not cancel the
 // others, and its error is returned with every scanner's counts.
 func TestRunScanners_IncompleteListingKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	w := &siblingWatch{failed: make(chan struct{})}
 	total, _, err := runScanners(context.Background(),
 		func(context.Context) (int, int, error) {
@@ -577,6 +590,7 @@ func TestRunScanners_IncompleteListingKeepsSiblings(t *testing.T) {
 // an incomplete listing: the parent's rows are dropped by the hard-error rule
 // rather than written to a store that has already failed.
 func TestChildFanOut_IncompleteListingWithStoreWriteFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedSkipFanOutParents(t, st)
 	p := skipFanOutParents[0]
@@ -598,6 +612,7 @@ func TestChildFanOut_IncompleteListingWithStoreWriteFails(t *testing.T) {
 // kept, so the join is not read as the sentinel, which would discard the
 // stored rows' counts and hide the throttle, and no warning is recorded.
 func TestPhaseErrsJoin_SilentSentinelBesideThrottle(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		sentinel error
@@ -629,6 +644,7 @@ func TestPhaseErrsJoin_SilentSentinelBesideThrottle(t *testing.T) {
 // A transient error joined with a hard one stays an error, whichever side
 // comes first: demoting the join would drop the hard error with it.
 func TestDemoteTransient_KeepsHardErrorJoin(t *testing.T) {
+	t.Parallel()
 	hard := apiErr("ValidationException", "bad")
 	for name, joined := range map[string]error{
 		"transient first": errors.Join(apiErr("ThrottlingException", "slow down"), hard),
@@ -651,6 +667,7 @@ func TestDemoteTransient_KeepsHardErrorJoin(t *testing.T) {
 // A closure write that fails after the children were stored returns their
 // counts with the error, so the dispatcher reports the rows that exist.
 func TestUpsertContained_ClosureFailureKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseClosureWrites(t, st)
 	parent := skipFanOutParents[0]
@@ -670,6 +687,7 @@ func TestUpsertContained_ClosureFailureKeepsCounts(t *testing.T) {
 // A failed store read is a hard error even when the driver's cause looks like
 // a network glitch, as a dropped Postgres connection does.
 func TestStoreReadError_NeverTransient(t *testing.T) {
+	t.Parallel()
 	for _, cause := range []error{io.ErrUnexpectedEOF, &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset")}} {
 		err := storeReadError("list rows", cause)
 		if !errors.Is(err, errStoreRead) {
@@ -689,6 +707,7 @@ func TestStoreReadError_NeverTransient(t *testing.T) {
 // demoteBeside demotes err only beside a hard error in rest: alone, or beside
 // transient errors only, it is returned, so the scan is marked partial.
 func TestDemoteBeside_DemotesOnlyBesideHardError(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "slow down")
 	hard := apiErr("ValidationException", "bad")
 	for _, tc := range []struct {
@@ -725,6 +744,7 @@ func TestDemoteBeside_DemotesOnlyBesideHardError(t *testing.T) {
 // is listed with its reason, keyed file:function; a new caller fails, and so
 // does a listed one that no longer calls it.
 func TestTransientDemotersAreKnown(t *testing.T) {
+	t.Parallel()
 	known := map[string]map[string]bool{
 		"demoteTransient": {
 			// Enrichment only: the tapes are stored from ListTapes either way.
@@ -805,6 +825,7 @@ func TestTransientDemotersAreKnown(t *testing.T) {
 // rows are written; a failed write is returned at once with neither, since
 // both would describe rows the write lost.
 func TestStoreReadRows_FailedWriteStopsBeforeWarnings(t *testing.T) {
+	t.Parallel()
 	denied := apiErr("AccessDeniedException", "User: x is not authorized to perform: svc:ListX")
 	rows := func() []*store.Resource {
 		return []*store.Resource{{Provider: "aws", AccountID: testAccountID, Type: TypeNetworkFirewallProxy, NativeID: "x", DiscoveredBy: testScanID}}
@@ -836,6 +857,7 @@ func TestStoreReadRows_FailedWriteStopsBeforeWarnings(t *testing.T) {
 // readEachKey returns each key's result in its key's slot, whichever read
 // finished first: key 0's read finishes only after key 1's.
 func TestReadEachKey_ResultsInKeyOrder(t *testing.T) {
+	t.Parallel()
 	keyOneDone := make(chan struct{})
 	got, err := readEachKey(context.Background(), []int{0, 1, 2}, func(_ context.Context, k int) string {
 		switch k {
@@ -854,6 +876,7 @@ func TestReadEachKey_ResultsInKeyOrder(t *testing.T) {
 // Once ctx is done no key is read, and the error says the keys were not
 // read.
 func TestReadEachKey_StopsWhenContextDone(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	// A free slot and a done ctx are both ready, and select picks between them
@@ -877,6 +900,7 @@ func TestReadEachKey_StopsWhenContextDone(t *testing.T) {
 // finish. The reads cancel ctx and then wait to be released, so a return
 // before the release is a return with reads still running.
 func TestReadEachKey_WaitsForRunningReadsWhenContextEnds(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	release := make(chan struct{})
@@ -913,6 +937,7 @@ func TestReadEachKey_WaitsForRunningReadsWhenContextEnds(t *testing.T) {
 // until released; once fanoutMed are running the test gives a cap that is too
 // high time to start more, and a cap that is too low never gets that far.
 func TestReadEachKey_RunsFanoutMedReadsAtOnce(t *testing.T) {
+	t.Parallel()
 	release := make(chan struct{})
 	var running atomic.Int32
 	done := make(chan error)
@@ -989,6 +1014,7 @@ func storeTaggedThings(ctx context.Context, st *store.Store, ids []string, reads
 // Each tag read outcome decides what becomes of its rows, and leaves the
 // sibling row, whose read succeeds, stored with its tags.
 func TestStoreTokenListTags_ReadOutcomes(t *testing.T) {
+	t.Parallel()
 	sibling := rowTagRead{tags: mapTagsJSON(map[string]string{"team": "s"})}
 	cases := []struct {
 		name       string
@@ -1068,6 +1094,7 @@ func TestStoreTokenListTags_ReadOutcomes(t *testing.T) {
 // A transient tag read error stays an error alone, and is demoted to one
 // warning under the tag op beside another phase's hard error.
 func TestStoreTokenListTags_TransientDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, tagTestOp)
 	p, _ := storeTaggedThings(context.Background(), st, []string{"x"}, map[string]rowTagRead{"x": {err: tagTestThrottle}})
@@ -1088,6 +1115,7 @@ func TestStoreTokenListTags_TransientDemotedBesideHardError(t *testing.T) {
 // would describe rows the write lost; the tag reads' errors, the throttle
 // included, are returned beside it.
 func TestStoreTokenListTags_FailedWriteSendsNoWarning(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	warns := countWarnings(st)
 	closeStore()
@@ -1108,6 +1136,7 @@ func TestStoreTokenListTags_FailedWriteSendsNoWarning(t *testing.T) {
 // Once ctx has ended no tag is read: every row is stored without tags and the
 // stop is returned.
 func TestStoreTokenListTags_ContextEndedKeepsRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -1189,6 +1218,7 @@ func runTokenPagesTest(ctx context.Context, st *store.Store, pt *tokenPagesTest,
 // page keeps the pages before it and its error is returned; once ctx ends
 // the pages already stored stay stored and the stop is returned.
 func TestStoreTokenPagesTags_PageByPage(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		fail      error
@@ -1243,6 +1273,7 @@ func TestStoreTokenPagesTags_PageByPage(t *testing.T) {
 // rows its reads did not reach kept untagged, and no later page is read,
 // even from a page func that ignores ctx.
 func TestStoreTokenPagesTags_ContextEndsDuringTagReads(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1276,6 +1307,7 @@ func TestStoreTokenPagesTags_ContextEndsDuringTagReads(t *testing.T) {
 // sent about rows the write lost, and the tag reads' errors are returned
 // beside the write's.
 func TestStoreTokenPagesTags_FailedWriteStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeNetworkFirewallProxy)
@@ -1300,6 +1332,7 @@ func TestStoreTokenPagesTags_FailedWriteStops(t *testing.T) {
 // listing op. A denied later page keeps the pages before it and warns under
 // the listing op too.
 func TestStoreTokenPagesTags_OneWarningPerKind(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	listWarns := countOpWarnings(st, tagTestListOp)
 	tagWarns := countOpWarnings(st, tagTestOp)
@@ -1351,6 +1384,7 @@ func pagesDetailSteps(errs map[string]error, stored *[][]string) tokenPageSteps 
 // once for the listing under the detail op, a transient and a hard error
 // each returned under it. stored gets each page's rows as written.
 func TestStoreTokenPagesTagsWith_Details(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	all := countWarnings(st)
 	detailWarns := countOpWarnings(st, pagesDetailOp)
@@ -1411,6 +1445,7 @@ func TestStoreTokenPagesTagsWith_Details(t *testing.T) {
 // not found, has its tags read with the tag reader; a row the detail read no
 // longer finds is dropped unread.
 func TestStoreTokenPagesTagsWith_DetailTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		tagRead []string
@@ -1472,6 +1507,7 @@ func TestStoreTokenPagesTagsWith_DetailTags(t *testing.T) {
 // After a failed write the detail reads' errors are joined into the write's
 // error, nothing is warned about, and stored is not called.
 func TestStoreTokenPagesTagsWith_DetailsFailedWrite(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeNetworkFirewallProxy)
@@ -1495,6 +1531,7 @@ func TestStoreTokenPagesTagsWith_DetailsFailedWrite(t *testing.T) {
 // warning from the listings read through it: their denied rows are tallied,
 // every listing's, and warnDetailDenials sends one warning for them all.
 func TestStoreTokenPagesTagsWith_SharedDetailDenials(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	all := countWarnings(st)
 	detailWarns := countOpWarnings(st, pagesDetailOp)
@@ -1527,6 +1564,7 @@ func TestStoreTokenPagesTagsWith_SharedDetailDenials(t *testing.T) {
 // parent; a stored row without the child key is warned about and returned as
 // no parent.
 func TestStoreParentListTags_DroppedRowIsNoParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	noID := countOpWarnings(st, tagTestListOp)
 	var p phaseTotals
@@ -1555,6 +1593,7 @@ func TestStoreParentListTags_DroppedRowIsNoParent(t *testing.T) {
 // A hard error and a throttle from the same tag op: the hard error alone is
 // returned, and the throttle is one warning under the tag op.
 func TestStoreTokenListTags_HardTagErrorDemotesSameOpThrottle(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	p, _ := storeTaggedThings(context.Background(), st, []string{"invalid", "throttled"},
@@ -1578,6 +1617,7 @@ func TestStoreTokenListTags_HardTagErrorDemotesSameOpThrottle(t *testing.T) {
 // When ctx ends during the fan-out, the reads it cut short and the rows never
 // read add one stop member between them, and every row is kept.
 func TestStoreTokenListTags_ContextEndedMidFanOut(t *testing.T) {
+	t.Parallel()
 	for _, n := range []int{fanoutMed, 3 * fanoutMed} {
 		t.Run(strconv.Itoa(n)+" rows", func(t *testing.T) {
 			st := newTestStore(t)
@@ -1619,6 +1659,7 @@ func TestStoreTokenListTags_ContextEndedMidFanOut(t *testing.T) {
 // A tag read error through storeParentListTags keeps the row and its parent
 // and is returned.
 func TestStoreParentListTags_TagErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var p phaseTotals
 	parents, _ := storeParentListTags(context.Background(), st, newTestAccount(testAccountID), testRegion, tagTestListOp, "things", "ThingId",
@@ -1635,6 +1676,7 @@ func TestStoreParentListTags_TagErrorReturned(t *testing.T) {
 // storeRowsTags stores a hand-built batch with its tags, runs the caller's
 // warn only after a successful write, and returns the tag errors.
 func TestStoreRowsTags(t *testing.T) {
+	t.Parallel()
 	rows := func() []*store.Resource {
 		a, _, _ := tagTestRow("a")
 		b, _, _ := tagTestRow("b")
@@ -1675,6 +1717,7 @@ func TestStoreRowsTags(t *testing.T) {
 // hard error of this scan, not a region gap that would discard the counts of
 // the rows stored.
 func TestStoreTokenListTags_NXDOMAINIsHard(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	dns := &net.DNSError{Err: "no such host", Name: "svc.us-east-1.amazonaws.com", IsNotFound: true}
 	p, _ := storeTaggedThings(context.Background(), st, []string{"a", "b"}, map[string]rowTagRead{"a": {err: dns}})
@@ -1690,6 +1733,7 @@ func TestStoreTokenListTags_NXDOMAINIsHard(t *testing.T) {
 // storeRowsTags returns the listing's error with the rows, and sends the tag
 // denial warning only after a successful write, nil warn included.
 func TestStoreRowsTags_ListErrAndDenial(t *testing.T) {
+	t.Parallel()
 	listErr := apiErr("InvalidNextTokenException", "bad token")
 	rows := func() []*store.Resource {
 		a, _, _ := tagTestRow("a")
@@ -1725,6 +1769,7 @@ func TestStoreRowsTags_ListErrAndDenial(t *testing.T) {
 // demoted beside a hard error; after a failed write it returns no parents and
 // warns about none without the child key.
 func TestStoreParentListTags_ThrottleUnderTagOpAndFailedWrite(t *testing.T) {
+	t.Parallel()
 	list := func(context.Context, *string) ([]string, *string, error) { return []string{"x", "nokey"}, nil, nil }
 	key := func(id string) string {
 		if id == "nokey" {
@@ -1762,6 +1807,7 @@ func TestStoreParentListTags_ThrottleUnderTagOpAndFailedWrite(t *testing.T) {
 // dispatcher keeps their counts; with nothing stored the region stays
 // unavailable, and a failed write is left for the dispatcher to see.
 func TestPhaseTotalsResultLateNXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "svc.us-east-1.amazonaws.com", IsNotFound: true}
 	acct := newTestAccount(testAccountID)
 	for _, tc := range []struct {
@@ -1805,6 +1851,7 @@ func isDeniedTestErr(err error) bool {
 // reports, keeping that denial; on a later page the kept error says the
 // later pages were not read. Any other error and any page pass through.
 func TestDeniedPages_Outcomes(t *testing.T) {
+	t.Parallel()
 	page := func(err error) func(context.Context, *string) ([]string, *string, error) {
 		return func(context.Context, *string) ([]string, *string, error) {
 			if err != nil {
@@ -1853,6 +1900,7 @@ func TestDeniedPages_Outcomes(t *testing.T) {
 // under one warning, and stores the other parent's child; without the
 // predicate (storeTokenEachParent) the same code is an error.
 func TestStoreTokenEachParentDeniedBy_CustomCodeIsDenial(t *testing.T) {
+	t.Parallel()
 	page := func(_ context.Context, parent string, _ *string) ([]string, *string, error) {
 		switch parent {
 		case "p1":
@@ -1881,6 +1929,7 @@ func TestStoreTokenEachParentDeniedBy_CustomCodeIsDenial(t *testing.T) {
 // AccessDeniedException together under one warning, and stores the other
 // parent's child with its tags read.
 func TestStoreEachParentTagsDeniedBy_CustomCodeIsDenial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, tagTestListOp)
 	var p phaseTotals
@@ -1908,6 +1957,7 @@ func TestStoreEachParentTagsDeniedBy_CustomCodeIsDenial(t *testing.T) {
 // page 1 and returns the gap as an error on a later page, and returns any
 // other error as is.
 func TestFirstPageGapPages(t *testing.T) {
+	t.Parallel()
 	gap := apiErr("GapException", "not here")
 	isGap := func(err error) bool { return isAPIErrorCode(err, "GapException") }
 	pages := func(failOn int, err error) func(context.Context, *string) ([]string, *string, error) {
@@ -1952,6 +2002,7 @@ func TestFirstPageGapPages(t *testing.T) {
 // as its list element, and warns once after the write; readRowDetails returns
 // the same code as an error.
 func TestReadRowDetailsDeniedBy_CustomCodeIsDenial(t *testing.T) {
+	t.Parallel()
 	const op = "svc:GetThing"
 	get := func(_ context.Context, r *store.Resource) (any, error) {
 		if r.NativeID == "x" {
@@ -1985,6 +2036,7 @@ func TestReadRowDetailsDeniedBy_CustomCodeIsDenial(t *testing.T) {
 // A family's error does not lose the other families' counts; an opErrs
 // member is filed under its own op and any other error under the service.
 func TestRunFamilies_FailureKeepsOtherFamilies(t *testing.T) {
+	t.Parallel()
 	hard, tagErr := errors.New("list failed"), errors.New("tag read failed")
 	p := runFamilies(context.Background(), "svc",
 		func(context.Context) (int, int, error) { return 2, 1, nil },
@@ -2010,6 +2062,7 @@ func TestRunFamilies_FailureKeepsOtherFamilies(t *testing.T) {
 // A phaseFamily family keeps each phase's error under that phase's op, and a
 // countedFamily family files its error under its op, never the service.
 func TestPhaseAndCountedFamily_KeepOps(t *testing.T) {
+	t.Parallel()
 	listErr, tagErr, countedErr := errors.New("list failed"), errors.New("tag read failed"), errors.New("counted failed")
 	p := runFamilies(context.Background(), "svc",
 		phaseFamily(func(q *phaseTotals) {
@@ -2034,6 +2087,7 @@ func TestPhaseAndCountedFamily_KeepOps(t *testing.T) {
 // The families run at once: each waits for the other to start, which only
 // ends before the timeout when they overlap.
 func TestRunFamilies_RunsFamiliesConcurrently(t *testing.T) {
+	t.Parallel()
 	a, b := make(chan struct{}), make(chan struct{})
 	meet := func(mine, theirs chan struct{}) func(context.Context) (int, int, error) {
 		return func(context.Context) (int, int, error) {
@@ -2056,6 +2110,7 @@ func TestRunFamilies_RunsFamiliesConcurrently(t *testing.T) {
 // page's error or use's, and ends a repeated NextToken with
 // errRepeatedNextToken after use saw that page.
 func TestEachTokenPage(t *testing.T) {
+	t.Parallel()
 	useErr := errors.New("use failed")
 	for _, c := range []struct {
 		name    string
@@ -2103,6 +2158,7 @@ func TestEachTokenPage(t *testing.T) {
 // warning and one transient error for both batches, and no warning before
 // warn is called.
 func TestRowTagTally_AcrossReads(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, tagTestOp)
 	tags := tagTestReader(map[string]rowTagRead{
@@ -2144,6 +2200,7 @@ func TestRowTagTally_AcrossReads(t *testing.T) {
 // stores the rows it is given and warns about nothing; warn then sends the
 // denied and vanished parents' warnings.
 func TestParentOutcomes_ParentErrWriteWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, tagTestListOp)
 	o := parentOutcomes{op: tagTestListOp, notFound: []string{"ResourceNotFoundException"}}
@@ -2265,6 +2322,7 @@ func runPagesTest(ctx context.Context, st *store.Store, pt *pagesTest, parents [
 // that fails keeps the pages before it and every other parent's rows; once
 // ctx ends the pages already stored stay stored.
 func TestStoreEachParentPagesTags_PageByPage(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		fail    error
@@ -2317,6 +2375,7 @@ func TestStoreEachParentPagesTags_PageByPage(t *testing.T) {
 // The parents' first pages are read concurrently: both are in flight before
 // either returns.
 func TestStoreEachParentPagesTags_ParentsReadConcurrently(t *testing.T) {
+	t.Parallel()
 	var (
 		arrived    atomic.Int32
 		both       = make(chan struct{})
@@ -2353,6 +2412,7 @@ func TestStoreEachParentPagesTags_ParentsReadConcurrently(t *testing.T) {
 // reads each would all start, so the extra start is seen however slow the
 // runner; the hold ends after a grace period only when the bound holds.
 func TestStoreEachParentPagesTags_TagReadsShareOneBound(t *testing.T) {
+	t.Parallel()
 	var (
 		inFlight         atomic.Int32
 		full, over, done = make(chan struct{}), make(chan struct{}), make(chan struct{})
@@ -2404,6 +2464,7 @@ func TestStoreEachParentPagesTags_TagReadsShareOneBound(t *testing.T) {
 // tag-read nor written, and that parent's listing call in flight is
 // cancelled rather than left to run.
 func TestStoreEachParentPagesTags_FetchedPageDroppedAfterFailedWrite(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, err := st.DB().Exec(`CREATE TRIGGER refuse_p0 BEFORE INSERT ON resources
 		WHEN NEW.native_id = 'p0-1'
@@ -2457,6 +2518,7 @@ func TestStoreEachParentPagesTags_FetchedPageDroppedAfterFailedWrite(t *testing.
 // them cancelled and is not written; its reads add no error, neither the
 // stop nor a transient "tags not read" for a row never written.
 func TestStoreEachParentPagesTags_TagReadsCutShortByFailedWrite(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		readErr func(ctx context.Context) error // what p1-1's read returns once cancelled
@@ -2514,6 +2576,7 @@ func TestStoreEachParentPagesTags_TagReadsCutShortByFailedWrite(t *testing.T) {
 // is denied a tag read and goes on to its second page before p0's denied
 // tag read returns, and the warning still names p0's row.
 func TestStoreEachParentPagesTags_FirstIsInParentOrder(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var got []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { got = append(got, w) }
@@ -2549,6 +2612,7 @@ func TestStoreEachParentPagesTags_FirstIsInParentOrder(t *testing.T) {
 // sibling's rows, with no warning; one it does not report is returned. A
 // not-found parent never reaches skip.
 func TestStoreEachParentPagesTagsSkip_DropsWhatSkipReports(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		skipped bool
@@ -2607,6 +2671,7 @@ func TestStoreEachParentPagesTagsSkip_DropsWhatSkipReports(t *testing.T) {
 // stored is handed exactly the rows written: not a row its tag read found
 // gone, and nothing once a write failed.
 func TestStoreEachParentPagesTagsWith_StoredGetsWrittenRows(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name        string
 		refuseWrite bool
@@ -2647,6 +2712,7 @@ func TestStoreEachParentPagesTagsWith_StoredGetsWrittenRows(t *testing.T) {
 // storeEachParentPages writes each parent's page before it lists the next,
 // and reads no tags.
 func TestStoreEachParentPages_PageByPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	var (
@@ -2709,6 +2775,7 @@ func nestedPagesTestPage() func(context.Context, string, *string) ([]string, *st
 // write it returns no parents and sends no warning, though a page written
 // before it held a row without a key.
 func TestStoreNestedParentPagesTags_Parents(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		refuse    bool
@@ -2761,6 +2828,7 @@ func TestStoreNestedParentPagesTags_Parents(t *testing.T) {
 // skippedLeast names the smallest key first, whatever the order of the
 // calls.
 func TestSkipTally_SkippedLeast(t *testing.T) {
+	t.Parallel()
 	var s skipTally
 	s.skippedLeast("b", tagTestDenied)
 	s.skippedLeast("a", tagTestInvalid)
@@ -2773,6 +2841,7 @@ func TestSkipTally_SkippedLeast(t *testing.T) {
 // A failed write stops the phase: it reports the store error and no
 // warning, and no further page or parent is read.
 func TestStoreEachParentPagesTags_FailedWriteStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeNetworkFirewallProxy)
@@ -2793,6 +2862,7 @@ func TestStoreEachParentPagesTags_FailedWriteStops(t *testing.T) {
 // Each warning is sent once for the phase: the listings denied for two
 // parents, and the tag reads denied on two parents and two pages.
 func TestStoreEachParentPagesTags_OneWarningPerOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	listWarns := countOpWarnings(st, tagTestListOp)
 	tagWarns := countOpWarnings(st, tagTestOp)
@@ -2810,6 +2880,7 @@ func TestStoreEachParentPagesTags_OneWarningPerOp(t *testing.T) {
 }
 
 func TestLastPage(t *testing.T) {
+	t.Parallel()
 	ptr := func(s string) *string { return &s }
 	for _, tc := range []struct {
 		name      string
@@ -2865,6 +2936,7 @@ func storeParentPagesTest(st *store.Store, failPage2 error) ([]childParent, bool
 // empty key is no parent and is warned about once under the listing op,
 // naming it.
 func TestStoreParentPagesTags_ReturnsKeyedStoredParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	parents, stop, p := storeParentPagesTest(st, nil)
@@ -2888,6 +2960,7 @@ func TestStoreParentPagesTags_ReturnsKeyedStoredParents(t *testing.T) {
 // A failed write of the second page returns no parents and storeWriteFailed,
 // and warns nothing, not even about the keyless row the first page stored.
 func TestStoreParentPagesTags_FailedWriteWarnsNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	if _, err := st.DB().Exec(`CREATE TRIGGER refuse_b BEFORE INSERT ON resources
@@ -2907,6 +2980,7 @@ func TestStoreParentPagesTags_FailedWriteWarnsNothing(t *testing.T) {
 // A failed later page keeps the first page's rows and parents, and its error
 // is returned under the listing op.
 func TestStoreParentPagesTags_LaterPageFailureKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	parents, stop, p := storeParentPagesTest(st, tagTestInvalid)
 	if stop {
@@ -2926,6 +3000,7 @@ func TestStoreParentPagesTags_LaterPageFailureKeepsEarlierPages(t *testing.T) {
 // arnRow keeps a row that has an ARN, and refuses one without, keyed by its
 // name or, with no name either, by noIdentifier.
 func TestArnRow(t *testing.T) {
+	t.Parallel()
 	arn, name := "arn:aws:svc:us-east-1:123456789012:thing/a", "a"
 	r := &store.Resource{NativeID: arn}
 	for _, c := range []struct {
@@ -2949,6 +3024,7 @@ func TestArnRow(t *testing.T) {
 // and nothing else; a failed closure write is reported under op as a store
 // write failure, which stops the scanner.
 func TestRecordUnderParents(t *testing.T) {
+	t.Parallel()
 	stored := func(t *testing.T, st *store.Store) ([]*store.Resource, map[*store.Resource]string) {
 		t.Helper()
 		// A declared contains pair, so newTestStore's cleanup accepts it.
@@ -3004,6 +3080,7 @@ func TestRecordUnderParents(t *testing.T) {
 // closure write is reported under op as a store write failure, which stops
 // the scanner.
 func TestRecordHierarchyPairs(t *testing.T) {
+	t.Parallel()
 	stored := func(t *testing.T, st *store.Store) [][2]string {
 		t.Helper()
 		var rows []*store.Resource
@@ -3052,6 +3129,7 @@ func TestRecordHierarchyPairs(t *testing.T) {
 // rows read and warns once under op. A failed row write stops it with
 // nothing recorded.
 func TestStoreEachParentTagsUnder(t *testing.T) {
+	t.Parallel()
 	gone := apiErr("ResourceNotFoundException", "gone")
 	parents := []childParent{{id: "a-id", arn: "parent-a"}, {id: "b-id", arn: "parent-b"}, {id: "c-id", arn: "parent-c"}}
 	page := func(_ context.Context, parent string, token *string) ([]string, *string, error) {
@@ -3181,6 +3259,7 @@ func bulkTestKeys(n int) []string {
 // given back; each key's tags are handed out once, after which the key
 // reads as not fetched.
 func TestBulkRowTags_ReadsKeysInCallsOfSize(t *testing.T) {
+	t.Parallel()
 	c := newBulkTestCalls()
 	keys := bulkTestKeys(45)
 	c.b.fetchBulkTags(context.Background(), keys)
@@ -3216,6 +3295,7 @@ func TestBulkRowTags_ReadsKeysInCallsOfSize(t *testing.T) {
 
 // fetchItemTags sends only the items with a key.
 func TestFetchItemTags_SkipsEmptyKeys(t *testing.T) {
+	t.Parallel()
 	c := newBulkTestCalls()
 	fetchItemTags(context.Background(), c.b, []*string{ptrStr("a"), nil, ptrStr(""), ptrStr("b")}, func(k *string) *string { return k })
 	if want := [][]string{{"a", "b"}}; !slices.EqualFunc(c.calls, want, slices.Equal) {
@@ -3228,6 +3308,7 @@ func TestFetchItemTags_SkipsEmptyKeys(t *testing.T) {
 // of its call; a key the answer leaves out reads as errTagsNotDescribed; a
 // key never fetched as errTagsNotFetched.
 func TestBulkRowTags_PerKeyResults(t *testing.T) {
+	t.Parallel()
 	gone, bad := apiErr("NotFound", "gone"), apiErr("ValidationError", "bad")
 	c := newBulkTestCalls()
 	c.errs["gone"] = gone
@@ -3258,6 +3339,7 @@ func TestBulkRowTags_PerKeyResults(t *testing.T) {
 // for bulkTagReader, which then gives the same result once; a key no fetch
 // read peeks as not fetched.
 func TestBulkRowTags_PeekKeepsResult(t *testing.T) {
+	t.Parallel()
 	gone := apiErr("NotFound", "gone")
 	c := newBulkTestCalls()
 	c.errs["gone"] = gone
@@ -3294,6 +3376,7 @@ func TestBulkRowTags_PeekKeepsResult(t *testing.T) {
 // a transient one is made again for each key alone, so only the key refused
 // reads as failed; a transient failure is every key's of its call, unsplit.
 func TestBulkRowTags_SplittingFailures(t *testing.T) {
+	t.Parallel()
 	refused, denied := apiErr("InactiveThing", "refused"), apiErr("AccessDeniedException", "denied")
 	throttled := apiErr("ThrottlingException", "Rate exceeded")
 	c := newBulkTestCalls()
@@ -3323,6 +3406,7 @@ func TestBulkRowTags_SplittingFailures(t *testing.T) {
 // Keys whose call ctx's end kept from starting read as that stop, so
 // readRowTags keeps their rows untagged and reports the stop.
 func TestBulkRowTags_ContextEnded(t *testing.T) {
+	t.Parallel()
 	c := newBulkTestCalls()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -3342,6 +3426,7 @@ func TestBulkRowTags_ContextEnded(t *testing.T) {
 // then free, no more than fanoutMed calls are ever in flight, and every key
 // is read.
 func TestBulkRowTags_FetchesShareFanoutMedSlots(t *testing.T) {
+	t.Parallel()
 	var (
 		mu             sync.Mutex
 		inFlight, peak int

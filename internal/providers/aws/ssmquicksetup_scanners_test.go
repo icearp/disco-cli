@@ -163,6 +163,7 @@ func scanQSCtx(ctx context.Context, t *testing.T, st *store.Store, handlers map[
 }
 
 func TestScanSSMQuickSetup_StoresConfigurations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	rec := &qsRecorder{}
 	total, err := scanQSTopLevel(t, st, qsHandlers(rec))
@@ -205,6 +206,7 @@ func TestScanSSMQuickSetup_StoresConfigurations(t *testing.T) {
 // A configuration naming a manager ListConfigurationManagers did not return is
 // stored unlinked, with no pair recorded for the store to warn about.
 func TestScanSSMQuickSetup_ConfigurationOfUnlistedManagerUnlinked(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings []store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warnings = append(warnings, w) }
@@ -226,6 +228,7 @@ func TestScanSSMQuickSetup_ConfigurationOfUnlistedManagerUnlinked(t *testing.T) 
 // Configurations deployed to another account or region are not stored, and
 // however many there are, one warning reports them; local ones are stored.
 func TestScanSSMQuickSetup_ForeignDeploymentsWarnOnce(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		foreign   []qstypes.ConfigurationSummary
@@ -270,6 +273,7 @@ func TestScanSSMQuickSetup_ForeignDeploymentsWarnOnce(t *testing.T) {
 // stored, and one warning names it by the identifying fields it has; the
 // other configurations are stored.
 func TestScanSSMQuickSetup_ConfigurationWithoutIdentifierWarned(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		bad      []qstypes.ConfigurationSummary
@@ -318,6 +322,7 @@ func TestScanSSMQuickSetup_ConfigurationWithoutIdentifierWarned(t *testing.T) {
 }
 
 func TestScanSSMQuickSetup_EmptyConfigurations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := qsHandlers(&qsRecorder{})
 	h["ListConfigurations"] = func(any) (any, error) { return &ssmquicksetup.ListConfigurationsOutput{}, nil }
@@ -336,6 +341,7 @@ func TestScanSSMQuickSetup_EmptyConfigurations(t *testing.T) {
 // A denial warns once, keeps the rows of the pages before it, and costs the
 // manager phase nothing.
 func TestScanSSMQuickSetup_ConfigurationsDenied(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		deniedAt int
@@ -388,6 +394,7 @@ func TestScanSSMQuickSetup_ConfigurationsDenied(t *testing.T) {
 // stored: the configuration phase runs after the manager phase, and runs even
 // when it fails (its rows are then stored unlinked).
 func TestScanSSMQuickSetup_PhaseErrorPropagates(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op           string
 		wantTotal    int
@@ -422,6 +429,7 @@ func TestScanSSMQuickSetup_PhaseErrorPropagates(t *testing.T) {
 // A hard error on a later page is returned, and the rows of the page before
 // it are stored and linked.
 func TestScanSSMQuickSetup_ConfigurationErrorOnSecondPageKeepsFirst(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := qsHandlers(&qsRecorder{})
 	first := h["ListConfigurations"]
@@ -448,6 +456,7 @@ func TestScanSSMQuickSetup_ConfigurationErrorOnSecondPageKeepsFirst(t *testing.T
 // A page that repeats the token it was asked with ends the listing with
 // errRepeatedNextToken, after the configurations read before it are stored.
 func TestScanSSMQuickSetup_ConfigurationsRepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := qsHandlers(&qsRecorder{})
 	calls := 0
@@ -487,6 +496,7 @@ func TestScanSSMQuickSetup_ConfigurationsRepeatedTokenStops(t *testing.T) {
 // A phase's transient error is demoted to a warning under its op instead of
 // buried in the other phase's hard error.
 func TestScanSSMQuickSetup_TransientPhaseDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	cases := []struct {
 		name, transientOp, hardOp, warnOp string
@@ -587,6 +597,7 @@ func assertQSWarning(t *testing.T, warns []store.ScanWarning, key string) {
 // Every listed manager is stored from its GetConfigurationManager body, with
 // the body's tags; an untagged manager stores none.
 func TestScanSSMQuickSetup_ManagersStoredFromBodyWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	total, err := scanQSTopLevel(t, st, qsHandlers(&qsRecorder{}))
@@ -608,6 +619,7 @@ func TestScanSSMQuickSetup_ManagersStoredFromBodyWithTags(t *testing.T) {
 // transient failure is returned as transient, a transient failure beside a
 // hard one is demoted to a warning, and any other error is returned.
 func TestScanSSMQuickSetup_ManagerReadFailures(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	conflict := apiErr("ConflictException", "busy")
 	cases := []struct {
@@ -686,6 +698,7 @@ func TestScanSSMQuickSetup_ManagerReadFailures(t *testing.T) {
 // returned. A listed manager without an ARN is not stored and is warned about
 // by name.
 func TestScanSSMQuickSetup_ManagerListFailures(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		page1   []qstypes.ConfigurationManagerSummary
@@ -761,6 +774,7 @@ func TestScanSSMQuickSetup_ManagerListFailures(t *testing.T) {
 // Once ctx ends no manager is read: the listed managers keep their list
 // summaries and the stop is returned.
 func TestScanSSMQuickSetup_ManagerContextStop(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -798,6 +812,7 @@ func TestScanSSMQuickSetup_ManagerContextStop(t *testing.T) {
 // (not the denial it read, nor the throttle it would demote beside the write
 // failure) and stops the configuration phase.
 func TestScanSSMQuickSetup_ManagerStoreWriteStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	refuseStoreWrites(t, st, TypeSSMQuickSetupConfigurationManager)
@@ -827,6 +842,7 @@ func TestScanSSMQuickSetup_ManagerStoreWriteStops(t *testing.T) {
 // configuration phase, is demoted to one warning under GetConfigurationManager
 // naming the manager, while the hard error is returned.
 func TestScanSSMQuickSetup_ManagerReadThrottleBesideConfigurationError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	h := qsHandlers(&qsRecorder{})
@@ -850,6 +866,7 @@ func TestScanSSMQuickSetup_ManagerReadThrottleBesideConfigurationError(t *testin
 // the foreign-deployment nor the not-stored warning: both would describe a
 // listing whose local rows were lost.
 func TestScanSSMQuickSetup_ConfigurationStoreWriteRefusedNoForeignWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeSSMQuickSetupConfiguration)
 	h := qsHandlers(&qsRecorder{})
@@ -877,6 +894,7 @@ func TestScanSSMQuickSetup_ConfigurationStoreWriteRefusedNoForeignWarning(t *tes
 // A failed manager write is returned joined with the hard read errors of the
 // managers it would have stored, so those are not lost.
 func TestScanSSMQuickSetup_ManagerStoreWriteKeepsReadErrors(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeSSMQuickSetupConfigurationManager)
 	h := qsHandlers(&qsRecorder{})
@@ -895,6 +913,7 @@ func TestScanSSMQuickSetup_ManagerStoreWriteKeepsReadErrors(t *testing.T) {
 // error alone is returned: the listing's and the reads' errors are kept
 // apart, or the throttle would be buried in the read error.
 func TestScanSSMQuickSetup_ManagerListThrottleBesideReadError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	h := qsHandlers(&qsRecorder{})

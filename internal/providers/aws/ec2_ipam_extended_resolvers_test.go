@@ -20,6 +20,7 @@ func ipxByoasnAttrs(t *testing.T, ipamID string) string {
 }
 
 func TestResolveIpamByoasnRelationships_LinksToScannedIpam(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ipamID := upsertTestResource(t, st, "aws", testAccountID, TypeEC2IPAM, ipxIpamARN, testRegion, "{}")
 	linked := upsertTestResource(t, st, "aws", testAccountID, TypeEC2IpamByoasn, ipxByoasnID(ipxAsn1), testRegion, ipxByoasnAttrs(t, ipxIpamID))
@@ -50,6 +51,7 @@ func TestResolveIpamByoasnRelationships_LinksToScannedIpam(t *testing.T) {
 // A row whose attributes do not decode is reported, and the other rows still
 // get their edge.
 func TestResolveIpamByoasnRelationships_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ipamID := upsertTestResource(t, st, "aws", testAccountID, TypeEC2IPAM, ipxIpamARN, testRegion, "{}")
 	upsertTestResource(t, st, "aws", testAccountID, TypeEC2IpamByoasn,
@@ -77,6 +79,7 @@ func TestResolveIpamByoasnRelationships_DecodeErrorKeepsOtherEdges(t *testing.T)
 }
 
 func TestResolveIpamByoasnRelationships_NoRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if err := resolveIpamByoasnRelationships(newTestAccount(testAccountID), st); err != nil {
 		t.Fatalf("resolveIpamByoasnRelationships: %v", err)
@@ -96,6 +99,7 @@ func ipxIrAssocAttrs(t *testing.T, ipamID string) string {
 }
 
 func TestResolveIpamInternetRegistryAssociationRelationships_LinksToScannedIpam(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ipamID := upsertTestResource(t, st, "aws", testAccountID, TypeEC2IPAM, ipxIpamARN, testRegion, "{}")
 	linked := upsertTestResource(t, st, "aws", testAccountID, TypeEC2IpamInternetRegistryAssociation,
@@ -127,6 +131,7 @@ func TestResolveIpamInternetRegistryAssociationRelationships_LinksToScannedIpam(
 }
 
 func TestResolveIpamInternetRegistryAssociationRelationships_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ipamID := upsertTestResource(t, st, "aws", testAccountID, TypeEC2IPAM, ipxIpamARN, testRegion, "{}")
 	upsertTestResource(t, st, "aws", testAccountID, TypeEC2IpamInternetRegistryAssociation,

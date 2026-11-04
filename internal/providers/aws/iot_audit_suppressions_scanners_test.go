@@ -80,6 +80,7 @@ func scanIoTSuppressionsWith(t *testing.T, st *store.Store, handler func(in any)
 // Both pages are stored unfiltered at the documented page cap, and elements
 // with no identity are skipped behind one warning.
 func TestScanIoTAuditSuppressions_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iotSuppressionOp)
 	var (
@@ -124,6 +125,7 @@ func TestScanIoTAuditSuppressions_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanIoTAuditSuppressions_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, iotSuppressionOp)
 	total, err := scanIoTSuppressionsWith(t, st, func(any) (any, error) { return &iot.ListAuditSuppressionsOutput{}, nil })
@@ -133,6 +135,7 @@ func TestScanIoTAuditSuppressions_Empty(t *testing.T) {
 }
 
 func TestScanIoTAuditSuppressions_Errors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name       string
 		firstErr   error // first page error; nil serves iotSuppressionPages
@@ -186,6 +189,7 @@ func TestScanIoTAuditSuppressions_Errors(t *testing.T) {
 }
 
 func TestIoTResourceIdentifierKey(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		ri   *iottypes.ResourceIdentifier
@@ -231,6 +235,7 @@ func TestIoTResourceIdentifierKey(t *testing.T) {
 // A check name containing "/" is escaped, so it cannot shift the boundary
 // between the check and the identifier.
 func TestIoTAuditSuppressionNativeID_EscapesCheckName(t *testing.T) {
+	t.Parallel()
 	got := iotAuditSuppressionNativeID("aws", testRegion, testAccountID, iottypes.AuditSuppression{
 		CheckName:          ptrStr("A/B"),
 		ResourceIdentifier: &iottypes.ResourceIdentifier{ClientId: ptrStr("c")},
@@ -243,6 +248,7 @@ func TestIoTAuditSuppressionNativeID_EscapesCheckName(t *testing.T) {
 // The suppression phase runs after every IoT family has finished, and its
 // error neither hides the families' rows nor is lost behind theirs.
 func TestScanIoT_AuditSuppressionsRunLast(t *testing.T) {
+	t.Parallel()
 	familyOps := []string{
 		"DescribeAccountAuditConfiguration", "ListScheduledAudits", "ListMitigationActions", "ListSecurityProfiles",
 		"ListCustomMetrics", "ListDimensions", "ListThings", "ListThingTypes", "ListThingGroups", "ListBillingGroups",
@@ -307,6 +313,7 @@ func TestScanIoT_AuditSuppressionsRunLast(t *testing.T) {
 // Every exported member of the SDK's identifier structs is encoded, so an SDK
 // bump that adds one fails here instead of letting suppressions share a key.
 func TestIoTResourceIdentifierKey_EncodesEveryMember(t *testing.T) {
+	t.Parallel()
 	var want []string
 	ri := &iottypes.ResourceIdentifier{}
 	fillStringMembers(t, reflect.ValueOf(ri).Elem(), "", &want)

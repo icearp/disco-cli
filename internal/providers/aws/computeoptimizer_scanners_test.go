@@ -55,6 +55,7 @@ func coPrefsOut(prefs ...cotypes.RecommendationPreferencesDetail) (any, error) {
 }
 
 func TestScanComputeOptimizerPreferences_StoresEveryPageAndType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		mu       sync.Mutex
@@ -150,6 +151,7 @@ func TestScanComputeOptimizerPreferences_StoresEveryPageAndType(t *testing.T) {
 }
 
 func TestScanComputeOptimizerPreferences_Errors(t *testing.T) {
+	t.Parallel()
 	ec2, asg, ebs, ecs := cotypes.ResourceTypeEc2Instance, cotypes.ResourceTypeAutoScalingGroup, cotypes.ResourceTypeEbsVolume, cotypes.ResourceTypeEcsService
 	for _, tc := range []struct {
 		name string
@@ -245,6 +247,7 @@ func TestScanComputeOptimizerPreferences_Errors(t *testing.T) {
 // TestScanComputeOptimizer_TopLevelStoresPreferences pins the wiring from the
 // registered service function to the preference rows.
 func TestScanComputeOptimizer_TopLevelStoresPreferences(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(map[string]func(any) (any, error){

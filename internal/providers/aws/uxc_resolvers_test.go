@@ -10,6 +10,7 @@ import (
 // TestResolveUXCAccountCustomizationToOrgAccount verifies the uxc singleton
 // links to the aws:organizations:account row matching its account ID.
 func TestResolveUXCAccountCustomizationToOrgAccount(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -34,6 +35,7 @@ func TestResolveUXCAccountCustomizationToOrgAccount(t *testing.T) {
 // is a no-op when no aws:organizations:account row exists for the scanning
 // account (standalone account, or org tree not scanned).
 func TestResolveUXCAccountCustomizationToOrgAccount_NoOrg(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

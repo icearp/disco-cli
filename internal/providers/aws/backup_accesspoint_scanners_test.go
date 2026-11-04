@@ -19,6 +19,7 @@ func bkClient(handlers map[string]func(in any) (any, error)) *backup.Client {
 // An access point is stored with its Name, Status, CreationTime and listed
 // element.
 func TestScanBackup_AccessPointFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := bkScan(context.Background(), st, bkHandlers(newBKCalls())); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -77,6 +78,7 @@ func scanBkRestore(t *testing.T, st *store.Store, calls *parentCalls, fail map[s
 }
 
 func TestScanBackupRestoreAccessVaults_PairsUnderEveryAirGappedVault(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeBackupLogicallyAirGappedVault, bkVaultARN("lag1"), testRegion, "{}")
 	upsertTestResource(t, st, "aws", testAccountID, TypeBackupLogicallyAirGappedVault, bkVaultARN("lag2"), testRegion, "{}")
@@ -118,6 +120,7 @@ func TestScanBackupRestoreAccessVaults_PairsUnderEveryAirGappedVault(t *testing.
 }
 
 func TestScanBackupRestoreAccessVaults_NoAirGappedVaultsNoCall(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := scanBkRestore(t, st, &calls, nil, nil)
@@ -130,6 +133,7 @@ func TestScanBackupRestoreAccessVaults_NoAirGappedVaultsNoCall(t *testing.T) {
 // silently, a denial warns once however many vaults hit it, and any other
 // error fails the phase after the other vaults' rows are stored.
 func TestScanBackupRestoreAccessVaults_FailedVault(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		err      error
@@ -165,6 +169,7 @@ func TestScanBackupRestoreAccessVaults_FailedVault(t *testing.T) {
 // and a restore access grant its air-gapped vault lists; the two rows must keep
 // separate identities, not merge into one version chain.
 func TestScanBackup_RestoreAccessVaultKeepsIdentityApartFromVaultRow(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ra := bkRestoreVaultARN(testAccountID, "ra-vault-bare")
 	h := bkHandlers(newBKCalls())

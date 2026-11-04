@@ -15,6 +15,7 @@ import (
 // used by scanAPIGatewayDomainNames to route private custom-domain rows to
 // the V2 (TypeAPIGatewayPrivateDomainName) disco type.
 func TestAPIGatewayDomainIsPrivate(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		ec   *apigatewaytypes.EndpointConfiguration
@@ -43,6 +44,7 @@ func TestAPIGatewayDomainIsPrivate(t *testing.T) {
 // attribute-based access control, and that GetTags does not return inherited
 // tags (apigateway-tagging-supported-resources.html), so no tag op is called.
 func TestScanAPIGateway_Tags(t *testing.T) {
+	t.Parallel()
 	tagged := map[string]string{"team": "core"}
 	private := &apigatewaytypes.EndpointConfiguration{Types: []apigatewaytypes.EndpointType{apigatewaytypes.EndpointTypePrivate}}
 	items := func(id string) []string { return []string{id + "-tagged", id + "-plain"} }

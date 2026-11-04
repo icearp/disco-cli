@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveManagedBlockchainProposalNetwork(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -26,6 +27,7 @@ func TestResolveManagedBlockchainProposalNetwork(t *testing.T) {
 // TestResolveManagedBlockchainProposalNetwork_Unscanned verifies a proposal
 // whose parent network was not scanned (no ARN row) emits no edge.
 func TestResolveManagedBlockchainProposalNetwork_Unscanned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

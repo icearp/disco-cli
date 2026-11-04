@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolvePipesPipeRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

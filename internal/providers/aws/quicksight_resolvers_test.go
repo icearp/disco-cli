@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveQuickSightVPCConnectionRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
@@ -34,6 +35,7 @@ func TestResolveQuickSightVPCConnectionRefs(t *testing.T) {
 }
 
 func TestResolveQuickSightRefreshScheduleParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dsARN := fmt.Sprintf("arn:aws:quicksight:%s:%s:dataset/ds1", testRegion, acct.ID)
@@ -48,6 +50,7 @@ func TestResolveQuickSightRefreshScheduleParent(t *testing.T) {
 }
 
 func TestResolveQSDataSourceRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -69,6 +72,7 @@ func TestResolveQSDataSourceRefs(t *testing.T) {
 }
 
 func TestResolveQuickSightNamespaceMembers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	nsARN := fmt.Sprintf("arn:aws:quicksight:%s:%s:namespace/default", testRegion, acct.ID)
@@ -110,6 +114,7 @@ func assertQSAttachedTo(t *testing.T, st *store.Store, src string, targets ...st
 }
 
 func TestResolveQuickSightFolderMemberTargets(t *testing.T) {
+	t.Parallel()
 	folder := qsTestARN("folder", "f1")
 	for _, tc := range []struct{ kind, typ string }{
 		{"analysis", TypeQuickSightAnalysis},
@@ -140,6 +145,7 @@ func TestResolveQuickSightFolderMemberTargets(t *testing.T) {
 }
 
 func TestResolveQuickSightGroupMembershipUser(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	group := qsTestARN("group", "default/admins")
 	userARN := qsTestARN("user", "default/alice")
@@ -161,6 +167,7 @@ func TestResolveQuickSightGroupMembershipUser(t *testing.T) {
 
 // A row that fails to decode is returned, and costs the other rows no edge.
 func TestQSARNFieldEdge_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	group := qsTestARN("group", "default/admins")
 	userARN := qsTestARN("user", "default/alice")
@@ -178,6 +185,7 @@ func TestQSARNFieldEdge_DecodeErrorKeepsOtherEdges(t *testing.T) {
 }
 
 func TestQuickSightMemberResolvers_NoRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	for name, resolve := range map[string]func(*account, *store.Store) error{
 		"folder member":    resolveQuickSightFolderMemberTargets,
@@ -191,6 +199,7 @@ func TestQuickSightMemberResolvers_NoRows(t *testing.T) {
 
 // TestResolveQuickSightNamespaceMembers_NoRows guards the empty/no-attrs case.
 func TestResolveQuickSightNamespaceMembers_NoRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveQuickSightNamespaceMembers(acct, st); err != nil {

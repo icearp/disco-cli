@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveRTBLinkRoutingRuleToLink(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	linkARN := rtbLinkARN("aws", testRegion, acct.ID, "gw-1", "link-1")
@@ -22,6 +23,7 @@ func TestResolveRTBLinkRoutingRuleToLink(t *testing.T) {
 }
 
 func TestResolveRTBLinkRoutingRuleToLink_UnscannedLinkSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	linkARN := rtbLinkARN("aws", testRegion, acct.ID, "gw-1", "missing")

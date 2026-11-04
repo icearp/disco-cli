@@ -66,6 +66,7 @@ func (s *stubSageMakerRegistry) DescribeMlflowTrackingServer(_ context.Context, 
 }
 
 func TestScanSageMakerRegistry(t *testing.T) {
+	t.Parallel()
 	for _, mode := range smTagModes {
 		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerRegistry(t, mode) })
 	}
@@ -133,6 +134,7 @@ func testScanSageMakerRegistry(t *testing.T, mode smTagMode) {
 }
 
 func TestScanSageMakerRegistryEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerRegistry{}

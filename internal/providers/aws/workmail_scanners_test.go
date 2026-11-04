@@ -248,6 +248,7 @@ func wmScan(client workMailAPI, st *store.Store, orgs []childParent) *workMailSc
 // Every organization is queried, every page stored under its organization,
 // and an element without an identifier dropped.
 func TestWorkMailChildPhases_StoresEveryOrgsChildren(t *testing.T) {
+	t.Parallel()
 	for _, p := range wmPhases {
 		t.Run(p.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -324,6 +325,7 @@ func wmErrScenario(t *testing.T, p wmPhase, mb func() (any, error)) (rows map[st
 }
 
 func TestWorkMailChildPhases_PerOrgErrors(t *testing.T) {
+	t.Parallel()
 	for _, p := range wmPhases {
 		t.Run(p.op+"/OrgGoneSkippedSilently", func(t *testing.T) {
 			rows, warnings, err := wmErrScenario(t, p, func() (any, error) { return nil, wmOrgGone })
@@ -351,6 +353,7 @@ func TestWorkMailChildPhases_PerOrgErrors(t *testing.T) {
 }
 
 func TestWorkMailChildPhases_AccessDeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	for _, p := range wmPhases {
 		t.Run(p.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -364,6 +367,7 @@ func TestWorkMailChildPhases_AccessDeniedWarnsOnce(t *testing.T) {
 }
 
 func TestWorkMailChildPhases_Empty(t *testing.T) {
+	t.Parallel()
 	for _, p := range wmPhases {
 		t.Run(p.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -379,6 +383,7 @@ func TestWorkMailChildPhases_Empty(t *testing.T) {
 // WorkMail keeps listing deleted entities; they are stored with Status
 // DELETED, as disabled ones are with Status DISABLED.
 func TestWorkMailEntities_StoreDeletedAndDisabled(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, typ, kind string
 		run           func(*workMailScan, context.Context) (int, int, error)
@@ -410,6 +415,7 @@ func TestWorkMailEntities_StoreDeletedAndDisabled(t *testing.T) {
 }
 
 func TestScanWorkMailOrganizations_PagesAndAccessDenied(t *testing.T) {
+	t.Parallel()
 	t.Run("TwoPages", func(t *testing.T) {
 		st := newTestStore(t)
 		client := wmClient(map[string]func(any) (any, error){"ListOrganizations": func(in any) (any, error) {
@@ -457,6 +463,7 @@ func TestScanWorkMailOrganizations_PagesAndAccessDenied(t *testing.T) {
 // is not queried again, and one phase's error neither stops the later phases
 // nor loses their rows.
 func TestScanWorkMailIn_RunsEveryPhaseOverListedOrgs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		mu     sync.Mutex
@@ -561,6 +568,7 @@ var wmThrottled = &smithy.GenericAPIError{Code: "ThrottlingException", Message: 
 // warning under its phase: the other phases' rows are counted and the hard
 // error stays a hard error.
 func TestScanWorkMailIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	throttled := countOpWarnings(st, "workmail users")
 	handlers := wmTopLevelHandlers(map[string]func(any) (any, error){
@@ -587,6 +595,7 @@ func TestScanWorkMailIn_TransientPhaseDoesNotMaskOthers(t *testing.T) {
 
 // A failed store write stays a hard error when another phase is transient.
 func TestScanWorkMailIn_StoreWriteBesideTransientStaysHardError(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
 	if err != nil {
@@ -660,6 +669,7 @@ func wmPerms(next *string, grantees ...string) *workmail.ListMailboxPermissionsO
 // Every mailbox is asked, u1's two pages are both stored, and a grant without
 // a grantee id is dropped.
 func TestWorkMailMailboxPermissions_StoresEveryMailboxsGrants(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := wmClient(map[string]func(any) (any, error){"ListMailboxPermissions": func(in any) (any, error) {
@@ -720,6 +730,7 @@ func TestWorkMailMailboxPermissions_StoresEveryMailboxsGrants(t *testing.T) {
 }
 
 func TestWorkMailMailboxPermissions_EmptyAndDenied(t *testing.T) {
+	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {
 		st := newTestStore(t)
 		client := wmClient(map[string]func(any) (any, error){"ListMailboxPermissions": func(any) (any, error) { return wmPerms(nil), nil }})
@@ -740,6 +751,7 @@ func TestWorkMailMailboxPermissions_EmptyAndDenied(t *testing.T) {
 
 // An organization an earlier phase saw rejected is not asked about.
 func TestWorkMailMailboxPermissions_SkipsRejectedOrgs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := wmClient(map[string]func(any) (any, error){"ListMailboxPermissions": func(in any) (any, error) {
@@ -772,6 +784,7 @@ func wmMailboxErrScenario(t *testing.T, fail error) (rows map[string]store.Resou
 }
 
 func TestWorkMailMailboxPermissions_PerMailboxErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name         string
 		fail         error
@@ -810,6 +823,7 @@ func TestWorkMailMailboxPermissions_PerMailboxErrors(t *testing.T) {
 // error, after which childFanOut stores nothing, hands on none and is
 // returned.
 func TestWorkMailEntities_RecordStoredMailboxes(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, kind string
 		run      func(*workMailScan, context.Context) (int, int, error)
@@ -864,6 +878,7 @@ func TestWorkMailEntities_RecordStoredMailboxes(t *testing.T) {
 // and resources they stored, and its hard error neither costs the earlier
 // phases their rows nor turns the service's error into a transient one.
 func TestScanWorkMailIn_MailboxPermissionsRunLast(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	handlers := wmTopLevelHandlers(map[string]func(any) (any, error){
@@ -905,6 +920,7 @@ func TestScanWorkMailIn_MailboxPermissionsRunLast(t *testing.T) {
 // mailbox, with one warning; any other code still fails the phase, and the
 // entity rows are kept either way.
 func TestScanWorkMailIn_EntityStateMailboxes(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name         string
 		fail         error
@@ -982,6 +998,7 @@ func TestScanWorkMailIn_EntityStateMailboxes(t *testing.T) {
 // A throttled phase alone is returned as transient, so the scan is marked
 // partial rather than complete, with the other phases' rows counted.
 func TestScanWorkMailIn_LoneTransientPhaseMarksPartial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warned := countOpWarnings(st, "workmail users")
 	handlers := wmTopLevelHandlers(map[string]func(any) (any, error){
@@ -1003,6 +1020,7 @@ func TestScanWorkMailIn_LoneTransientPhaseMarksPartial(t *testing.T) {
 // failure of this scan: the stored rows keep their counts and the scan is not
 // reported region-unavailable.
 func TestScanWorkMailIn_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := wmTopLevelHandlers(map[string]func(any) (any, error){
 		"ListUsers": func(any) (any, error) {

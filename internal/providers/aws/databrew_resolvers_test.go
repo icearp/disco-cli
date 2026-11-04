@@ -19,6 +19,7 @@ func dbRels(t *testing.T, st *store.Store, id string) []store.Relationship {
 }
 
 func TestResolveDataBrewRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dsARN := dbrARN("aws", testRegion, acct.ID, "dataset", "ds1")
@@ -53,6 +54,7 @@ func TestResolveDataBrewRefs(t *testing.T) {
 }
 
 func TestResolveDataBrewDatasetRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -69,6 +71,7 @@ func TestResolveDataBrewDatasetRefs(t *testing.T) {
 }
 
 func TestResolveDataBrewRulesetTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -117,6 +120,7 @@ func seedDataBrewTargets(t *testing.T, st *store.Store) {
 // TestResolveDataBrew_NoAttrsNoEdge pins that a source row with empty
 // attributes emits no edge and no error.
 func TestResolveDataBrew_NoAttrsNoEdge(t *testing.T) {
+	t.Parallel()
 	for _, c := range dbResolverCases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -137,6 +141,7 @@ func TestResolveDataBrew_NoAttrsNoEdge(t *testing.T) {
 // attributes do not decode makes the resolver return an error, while a
 // decodable row of every other DataBrew source type still gets its edge.
 func TestResolveDataBrew_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	for _, c := range dbResolverCases {
 		t.Run(c.name, func(t *testing.T) {
 			st := newTestStore(t)

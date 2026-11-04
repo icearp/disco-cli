@@ -111,6 +111,8 @@ func loadOne(t *testing.T, f *fakeBases, regionOverride []string, roleOverride s
 // partitions disco supports. Every case puts a different partition on a lower
 // rung where one exists, so a rung that is skipped or misordered changes the
 // answer.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_PartitionDerivation(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -149,6 +151,8 @@ func TestLoadAccounts_PartitionDerivation(t *testing.T) {
 // TestLoadAccounts_RegionOverrideIsEvidence pins that --regions, which
 // replaces every configured region list, is also what the partition is read
 // from.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_RegionOverrideIsEvidence(t *testing.T) {
 	setAWSConfig(t, accountsSection(map[string]any{"id": "1", "regions": []string{"us-east-1"}}))
 	got := loadOne(t, &fakeBases{}, []string{"cn-north-1"}, "")
@@ -163,6 +167,8 @@ func TestLoadAccounts_RegionOverrideIsEvidence(t *testing.T) {
 // TestLoadAccounts_ImplicitDefaultRegionIsPartitionHome pins that an account
 // with no configured region scans its partition's home region, us-east-1 for
 // aws, and that the default is not partition evidence.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_ImplicitDefaultRegionIsPartitionHome(t *testing.T) {
 	for partition, home := range map[string]string{"aws": "us-east-1", "aws-cn": "cn-northwest-1", "aws-us-gov": "us-gov-west-1"} {
 		t.Run(partition, func(t *testing.T) {
@@ -181,6 +187,8 @@ func TestLoadAccounts_ImplicitDefaultRegionIsPartitionHome(t *testing.T) {
 // TestLoadAccounts_STSCallsStayInPartition pins that, with no region in the
 // profile or environment, STS is called in the account partition's home: a
 // GovCloud credential sent to the commercial us-east-1 would be refused.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_STSCallsStayInPartition(t *testing.T) {
 	cases := []struct {
 		name         string
@@ -213,6 +221,8 @@ func TestLoadAccounts_STSCallsStayInPartition(t *testing.T) {
 
 // TestLoadAccounts_AutoDetectReadsCallerARN covers the STS rung: with no
 // accounts configured, the caller ARN names the partition.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_AutoDetectReadsCallerARN(t *testing.T) {
 	setAWSConfig(t, map[string]any{})
 	got := loadOne(t, &fakeBases{callerARN: callerGov}, nil, "")
@@ -223,6 +233,8 @@ func TestLoadAccounts_AutoDetectReadsCallerARN(t *testing.T) {
 
 // A failed auto-detect sts:GetCallerIdentity is a *callerIdentityError naming
 // the region the call went to, so the partition hint can be shown.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_AutoDetectCallerIdentityFailure(t *testing.T) {
 	setAWSConfig(t, map[string]any{})
 	_, err := loadAccounts(context.Background(), (&fakeBases{regions: map[string]string{"": ""}}).load, "", nil, "", "", "")
@@ -238,6 +250,8 @@ func TestLoadAccounts_AutoDetectCallerIdentityFailure(t *testing.T) {
 // Auto-detect checks the profile region against the other evidence before its
 // STS call: a GovCloud profile region with a commercial --regions conflicts
 // there, and no sts:GetCallerIdentity is sent.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_AutoDetectConflictFailsBeforeSTS(t *testing.T) {
 	setAWSConfig(t, map[string]any{})
 	f := &fakeBases{regions: map[string]string{"": "us-gov-east-1"}}
@@ -253,6 +267,8 @@ func TestLoadAccounts_AutoDetectConflictFailsBeforeSTS(t *testing.T) {
 
 // TestLoadAccounts_RoleOverride covers --role-arn: its ARN is the role rung,
 // and config-file accounts and their partitions are ignored.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_RoleOverride(t *testing.T) {
 	setAWSConfig(t, accountsSection(map[string]any{"id": "9", "partition": "aws"}))
 	got := loadOne(t, &fakeBases{callerARN: callerGov}, nil, roleGov)
@@ -263,6 +279,8 @@ func TestLoadAccounts_RoleOverride(t *testing.T) {
 
 // TestLoadAccounts_CallerARNIsRead pins that both STS paths feed the caller
 // ARN into the derivation: one naming no known partition fails the load.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_CallerARNIsRead(t *testing.T) {
 	const callerMars = "arn:aws-mars:sts::222222222222:assumed-role/Scan/s"
 	for _, roleOverride := range []string{"", roleAWS} {
@@ -279,6 +297,8 @@ func TestLoadAccounts_CallerARNIsRead(t *testing.T) {
 
 // TestLoadAccounts_RoleOverrideRegionConflict pins that the override path
 // checks its regions like the config path does.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_RoleOverrideRegionConflict(t *testing.T) {
 	setAWSConfig(t, map[string]any{"default_regions": []string{"cn-north-1", "us-east-1"}})
 	_, err := loadAccounts(context.Background(), (&fakeBases{callerARN: callerGov}).load, "", nil, roleGov, "", "")
@@ -295,6 +315,8 @@ func TestLoadAccounts_RoleOverrideRegionConflict(t *testing.T) {
 // must agree, and that the conflict reports the higher-precedence input
 // first. That order is the only place precedence is still observable, since
 // agreeing inputs give the same answer in any order.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_PartitionConflict(t *testing.T) {
 	type want struct {
 		partition string
@@ -371,6 +393,8 @@ func TestLoadAccounts_PartitionConflict(t *testing.T) {
 
 // TestLoadAccounts_InvalidRoleARN pins that a role that is not an ARN is
 // reported as such, not as an unknown partition.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_InvalidRoleARN(t *testing.T) {
 	for _, account := range []map[string]any{
 		{"id": "1", "role_arn": "Scan"},
@@ -385,6 +409,7 @@ func TestLoadAccounts_InvalidRoleARN(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_UnknownPartition(t *testing.T) {
 	cases := []struct {
 		name       string
@@ -413,6 +438,8 @@ func TestLoadAccounts_UnknownPartition(t *testing.T) {
 // TestLoadAccounts_SharedCredentialsAcrossPartitions pins that two accounts in
 // different partitions cannot resolve to the same base config, and that a
 // profile-less account shares the --profile base.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_SharedCredentialsAcrossPartitions(t *testing.T) {
 	cases := []struct {
 		name        string
@@ -443,6 +470,8 @@ func TestLoadAccounts_SharedCredentialsAcrossPartitions(t *testing.T) {
 // TestLoadAccounts_PerAccountProfile pins that accounts in different
 // partitions load when each names its own profile, that each account's config
 // comes from its own profile, and that each profile is loaded once.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_PerAccountProfile(t *testing.T) {
 	setAWSConfig(t, accountsSection(
 		map[string]any{"id": "1", "profile": "commercial"},
@@ -551,6 +580,7 @@ func TestLoadAccounts_EmulatorPartition(t *testing.T) {
 }
 
 func TestAccountPartition_DefaultsToAWS(t *testing.T) {
+	t.Parallel()
 	if got := (&account{}).partition(); got != "aws" {
 		t.Errorf("account{}.partition() = %q; want aws", got)
 	}
@@ -565,6 +595,8 @@ func TestAccountPartition_DefaultsToAWS(t *testing.T) {
 // test retrieves them; the stub short-circuits before signing, so a chain
 // calls only its last hop. That hop carries no SourceIdentity (only a chain's
 // entry hop does), which tells a chain from a single assume of its last role.
+//
+//nolint:paralleltest // setAWSConfig calls t.Setenv and sets the global viper config
 func TestLoadAccounts_ProfileCredentials(t *testing.T) {
 	setAWSConfig(t, accountsSection(
 		map[string]any{"id": "1", "profile": "single", "role_arn": roleAWS},

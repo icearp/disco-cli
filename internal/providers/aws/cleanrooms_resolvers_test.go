@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveCleanRoomsMembershipCollaboration(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cARN := fmt.Sprintf("arn:aws:cleanrooms:%s:%s:collaboration/c1", testRegion, acct.ID)
@@ -25,6 +26,7 @@ func TestResolveCleanRoomsMembershipCollaboration(t *testing.T) {
 }
 
 func TestResolveCleanRoomsChildToMembership(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cARN := fmt.Sprintf("arn:aws:cleanrooms:%s:%s:collaboration/c1", testRegion, acct.ID)
@@ -43,6 +45,7 @@ func TestResolveCleanRoomsChildToMembership(t *testing.T) {
 }
 
 func TestResolveCleanRoomsConfiguredTableAssocToTable(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tARN := fmt.Sprintf("arn:aws:cleanrooms:%s:%s:configuredtable/t1", testRegion, acct.ID)
@@ -58,6 +61,7 @@ func TestResolveCleanRoomsConfiguredTableAssocToTable(t *testing.T) {
 }
 
 func TestResolveCleanRoomsConfiguredAudienceModelAssoc(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -89,6 +93,7 @@ func TestResolveCleanRoomsConfiguredAudienceModelAssoc(t *testing.T) {
 // An association whose ConfiguredAudienceModelArn points at an unscanned model
 // and whose MembershipArn is empty emits no edge.
 func TestResolveCleanRoomsConfiguredAudienceModelAssoc_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

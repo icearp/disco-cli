@@ -18,6 +18,7 @@ import (
 )
 
 func TestExpandAllRegions(t *testing.T) {
+	t.Parallel()
 	full := awsregions.RegionsByPartition["aws"]
 	cases := []struct {
 		name string
@@ -43,17 +44,18 @@ func TestExpandAllRegions(t *testing.T) {
 }
 
 // TestExpandAllRegionsCloneSemantics guards that the "all" expansion hands back
-// a fresh slice — mutating it must not corrupt the package-level region list
-// (mirrors TestRegionNamesCloneSemantics).
+// a fresh slice, not the package-level region list. It compares addresses
+// instead of writing into the result: under a regression that write would land
+// in awsregions.RegionsByPartition while parallel tests read it.
 func TestExpandAllRegionsCloneSemantics(t *testing.T) {
-	before := slices.Clone(awsregions.RegionsByPartition["aws"])
+	t.Parallel()
+	shared := awsregions.RegionsByPartition["aws"]
 	got := expandAllRegions("aws", []string{"all"})
-	if len(got) == 0 {
-		t.Fatal("expandAllRegions([all]) returned empty")
+	if len(got) == 0 || len(shared) == 0 {
+		t.Fatalf("expandAllRegions([all]) = %v, RegionsByPartition[aws] = %v; want both non-empty", got, shared)
 	}
-	got[0] = "mutated-region"
-	if !slices.Equal(awsregions.RegionsByPartition["aws"], before) {
-		t.Fatalf("mutating expandAllRegions result altered awsregions.RegionsByPartition[aws]: %v", awsregions.RegionsByPartition["aws"])
+	if &got[0] == &shared[0] {
+		t.Fatal("expandAllRegions returned awsregions.RegionsByPartition[aws] itself, not a copy")
 	}
 }
 
@@ -61,6 +63,7 @@ func TestExpandAllRegionsCloneSemantics(t *testing.T) {
 // a commercial region, and a partition the SDK does not know expands to none
 // rather than to the commercial list.
 func TestExpandAllRegions_AccountPartitionOnly(t *testing.T) {
+	t.Parallel()
 	if len(awsregions.RegionsByPartition["aws-us-gov"]) == 0 {
 		t.Fatal("RegionsByPartition[aws-us-gov] is empty; the cases below prove nothing")
 	}
@@ -88,6 +91,7 @@ func TestExpandAllRegions_AccountPartitionOnly(t *testing.T) {
 // RegionNames lists every partition, so the scan's scope column fits the
 // widest region of any partition.
 func TestRegionNames_EveryPartition(t *testing.T) {
+	t.Parallel()
 	got := (&Scanner{}).RegionNames()
 	if !slices.Equal(got, awsregions.Regions) {
 		t.Errorf("RegionNames() = %v; want awsregions.Regions %v", got, awsregions.Regions)
@@ -158,6 +162,7 @@ var commercialOncePins = map[string]string{
 }
 
 func TestHomeRegion_CommercialMatchesPins(t *testing.T) {
+	t.Parallel()
 	acct := testAccountIn("aws")
 	for pkg, want := range commercialPins {
 		got, err := acct.homeRegion(pkg)
@@ -182,6 +187,7 @@ func TestHomeRegion_CommercialMatchesPins(t *testing.T) {
 // An override exists only because the generated table disagrees with the
 // commercial pin; once the SDK agrees, the entry is dead and must go.
 func TestHomeRegion_OverridesStillDisagreeWithSDK(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		overrides map[string]string
@@ -205,6 +211,7 @@ func TestHomeRegion_OverridesStillDisagreeWithSDK(t *testing.T) {
 // gate may key on another service's home, as wafv2 does on CloudFront's), and
 // the pin table for its kind must cover it so its aws region is pinned.
 func TestHomeRegion_CallsNameAnImportedSDKPackage(t *testing.T) {
+	t.Parallel()
 	files, err := filepath.Glob("*.go")
 	if err != nil {
 		t.Fatal(err)
@@ -279,6 +286,7 @@ func TestHomeRegion_CallsNameAnImportedSDKPackage(t *testing.T) {
 }
 
 func TestHomeRegion_OtherPartitions(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		partition, pkg, want string
 	}{
@@ -300,6 +308,7 @@ func TestHomeRegion_OtherPartitions(t *testing.T) {
 // guess: not the commercial override, not the partition's implicit region, not
 // the once-region a dedupe gate would use.
 func TestHomeRegion_NoHomeIsUnavailable(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		partition, pkg string
 		listed         bool // the package has a once-region there
@@ -335,6 +344,7 @@ func TestHomeRegion_NoHomeIsUnavailable(t *testing.T) {
 // commercial region; a home gate stays shut where the SDK confirms no home,
 // even in that once-region.
 func TestIsOnceRegion_PerPartition(t *testing.T) {
+	t.Parallel()
 	gov := testAccountIn("aws-us-gov")
 	if !gov.isOnceRegion("directconnect", "us-gov-west-1") {
 		t.Error("isOnceRegion(directconnect, us-gov-west-1) for aws-us-gov = false; want true")
@@ -354,6 +364,7 @@ func TestIsOnceRegion_PerPartition(t *testing.T) {
 }
 
 func TestPartitionHomeOf(t *testing.T) {
+	t.Parallel()
 	for partition, want := range map[string]string{"aws": "us-east-1", "aws-us-gov": "us-gov-west-1", "aws-cn": "cn-northwest-1"} {
 		if got, err := partitionHomeOf(partition); err != nil || got != want {
 			t.Errorf("partitionHomeOf(%q) = %q, %v; want %q, nil", partition, got, err, want)
@@ -427,6 +438,7 @@ func runGlobalDenied(t *testing.T, svc serviceEntry, partition, cfgRegion string
 // s3 is the exception: after ListBuckets it builds a client per bucket region
 // (read from GetBucketLocation, not a pinned region), which TestScanS3_* cover.
 func TestGlobalScanners_CommercialCallRegionsUnchanged(t *testing.T) {
+	t.Parallel()
 	const cfgRegion = "eu-west-1"
 	seen := 0
 	for _, svc := range registeredServices {
@@ -467,6 +479,7 @@ func TestGlobalScanners_CommercialCallRegionsUnchanged(t *testing.T) {
 // For an account in another partition every global scanner calls only that
 // partition's regions, and one that returns unavailable has made no call.
 func TestGlobalScanners_StayInAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, partition := range []string{"aws-us-gov", "aws-cn"} {
 		home, err := partitionHomeOf(partition)
 		if err != nil {
@@ -495,6 +508,7 @@ func TestGlobalScanners_StayInAccountPartition(t *testing.T) {
 // Route53 in GovCloud goes to the gov home; Budgets, which the SDK lists in no
 // gov region, makes no call and is dispatched as unavailable.
 func TestGlobalScanners_GovCloudHomes(t *testing.T) {
+	t.Parallel()
 	byName := map[string]serviceEntry{}
 	for _, svc := range registeredServices {
 		byName[svc.name] = svc
@@ -513,6 +527,7 @@ func TestGlobalScanners_GovCloudHomes(t *testing.T) {
 // no call there and is dispatched as unavailable, even where a once-region
 // exists.
 func TestGlobalScanners_NoHomeMakesNoCall(t *testing.T) {
+	t.Parallel()
 	byName := map[string]serviceEntry{}
 	for _, svc := range registeredServices {
 		byName[svc.name] = svc
@@ -550,6 +565,7 @@ func TestGlobalScanners_NoHomeMakesNoCall(t *testing.T) {
 // SDK lists in the partition but gives no home; a package with no listing
 // there is skipped silently, as an absent service.
 func TestReportServiceOutcome_ListedWithoutHomeWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -572,6 +588,7 @@ func TestReportServiceOutcome_ListedWithoutHomeWarns(t *testing.T) {
 // sdkTableAllows fails open for a service with no SDK table and otherwise
 // follows the table.
 func TestSDKTableAllows(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		service, region string
 		want            bool
@@ -592,6 +609,7 @@ func TestSDKTableAllows(t *testing.T) {
 // client's region. s3 builds per-bucket clients (see that test). A new
 // multi-client global scanner fails here until that test covers its clients.
 func TestGlobalScanners_OneClientPerFile(t *testing.T) {
+	t.Parallel()
 	files, err := filepath.Glob("*_scanners.go")
 	if err != nil {
 		t.Fatal(err)
@@ -616,6 +634,7 @@ func TestGlobalScanners_OneClientPerFile(t *testing.T) {
 // however many regions ask; an unlisted package stays silent, and an open
 // gate never warns.
 func TestHomeGate_ListedWithoutHomeWarnsOnce(t *testing.T) {
+	t.Parallel()
 	const op = "svc:GetThing"
 	cases := []struct {
 		name, partition, pkg string

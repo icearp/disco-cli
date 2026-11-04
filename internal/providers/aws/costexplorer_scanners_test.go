@@ -233,6 +233,7 @@ func ceWarnOps(w []store.ScanWarning) []string {
 // ListCostCategoryDefinitions is sent MaxResults, 100 on each page. No error,
 // no warning.
 func TestScanCostExplorer_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCECalls()
@@ -313,6 +314,7 @@ func ceStoredWithTags(st *store.Store, typ, arn string) bool {
 // Every listing writes its first page, with its tags, before it reads the
 // second.
 func TestScanCostExplorer_PagesWrittenAsRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := ceHandlers(newCECalls())
 	var (
@@ -349,6 +351,7 @@ func TestScanCostExplorer_PagesWrittenAsRead(t *testing.T) {
 // account refused only cost categories has Cost Explorer enabled, so its
 // empty scan is not reported disabled.
 func TestScanCostExplorer_NotEnabled(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		refused   []string // listings whose first page is refused
@@ -428,6 +431,7 @@ func TestScanCostExplorer_NotEnabled(t *testing.T) {
 // answered: it is warned about as a denial under its listing, the first
 // page is kept, and the scan is not reported disabled.
 func TestScanCostExplorer_NotEnabledLaterPageIsDenial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCECalls()
@@ -452,6 +456,7 @@ func TestScanCostExplorer_NotEnabledLaterPageIsDenial(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanCostExplorer_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := ceScan(context.Background(), st, ceHandlers(newCECalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -469,6 +474,7 @@ func TestScanCostExplorer_RescanInsertsNone(t *testing.T) {
 // the counts of the rows the other listings stored again, though none of
 // them is new: the scan is not reported disabled.
 func TestScanCostExplorer_NotEnabledRescanKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := ceScan(context.Background(), st, ceHandlers(newCECalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -490,6 +496,7 @@ func TestScanCostExplorer_NotEnabledRescanKeepsCounts(t *testing.T) {
 // Empty listings: each listed once, nothing stored, no tag read, no error,
 // no warning.
 func TestScanCostExplorer_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCECalls()
@@ -529,6 +536,7 @@ func TestScanCostExplorer_Empty(t *testing.T) {
 // Explorer's throttle, LimitExceededException, keeps it and is transient;
 // any other error keeps it and is an error.
 func TestScanCostExplorer_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		op        string
@@ -595,6 +603,7 @@ func TestScanCostExplorer_TagReadFailures(t *testing.T) {
 // Denied tag reads in every phase send one warning for the whole scan; the
 // rows are kept.
 func TestScanCostExplorer_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCECalls()
@@ -617,6 +626,7 @@ func TestScanCostExplorer_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanCostExplorer_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ceTestTagsOp)
 	calls := newCECalls()
@@ -635,6 +645,7 @@ func TestScanCostExplorer_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanCostExplorer_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeCEAnomalySubscription)
@@ -665,6 +676,7 @@ func TestScanCostExplorer_FailedWriteStopsScan(t *testing.T) {
 // error is an error. A denied listing is warned about under its op instead,
 // and the later phases run too.
 func TestScanCostExplorer_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		op        string
@@ -729,6 +741,7 @@ func TestScanCostExplorer_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated page token ends each listing as an error, keeping its pages.
 func TestScanCostExplorer_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, k := range ceKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -761,6 +774,7 @@ func TestScanCostExplorer_RepeatedTokenKeepsPages(t *testing.T) {
 // and warned about once under its listing, by its listed name; the rest of the listing is
 // stored. An element without a name is stored with its tags read.
 func TestScanCostExplorer_ElementWithoutARN(t *testing.T) {
+	t.Parallel()
 	for _, k := range ceKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -810,6 +824,7 @@ func TestScanCostExplorer_ElementWithoutARN(t *testing.T) {
 // A China ARN (the op's ResourceArn pattern admits every aws partition)
 // reaches the tag op unchanged and is the row's NativeID.
 func TestScanCostExplorer_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCECalls()
 	handlers := ceHandlers(calls)
@@ -842,6 +857,7 @@ func TestScanCostExplorer_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanCostExplorer_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCECalls()
 	handlers := ceHandlers(calls)
@@ -879,6 +895,7 @@ func TestScanCostExplorer_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later phase runs.
 func TestScanCostExplorer_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "ce.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

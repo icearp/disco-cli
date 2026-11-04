@@ -59,6 +59,7 @@ func (s *stubConnectUsers) DescribePredefinedAttribute(_ context.Context, in *co
 }
 
 func TestScanConnectUsers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -112,6 +113,7 @@ func TestScanConnectUsers(t *testing.T) {
 }
 
 func TestScanConnectUsersEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubConnectUsers{}

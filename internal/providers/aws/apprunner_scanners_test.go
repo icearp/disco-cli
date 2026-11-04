@@ -84,6 +84,7 @@ func newAppRunnerTestClient(handlers map[string]func(in any) (any, error)) *appr
 }
 
 func TestScanAppRunnerCustomDomains_PagesAndFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	svc1, svc2, svc3 := appRunnerServiceARN("svc1"), appRunnerServiceARN("svc2"), appRunnerServiceARN("svc3")
 	first := appRunnerDomain("example.com")
@@ -144,6 +145,7 @@ func TestScanAppRunnerCustomDomains_PagesAndFields(t *testing.T) {
 }
 
 func TestScanAppRunnerCustomDomains_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	client := newAppRunnerTestClient(map[string]func(any) (any, error){
@@ -161,6 +163,7 @@ func TestScanAppRunnerCustomDomains_Empty(t *testing.T) {
 // Each per-service error is skipped or returned by its code. Two of three
 // services fail, so a skip that warns must warn once for both.
 func TestScanAppRunnerCustomDomains_PerServiceErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -205,6 +208,7 @@ func TestScanAppRunnerCustomDomains_PerServiceErrors(t *testing.T) {
 
 // A skipped service keeps the rows its earlier pages stored.
 func TestScanAppRunnerCustomDomains_SkipKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	svc1 := appRunnerServiceARN("svc1")
 	var calls parentCalls
@@ -225,6 +229,7 @@ func TestScanAppRunnerCustomDomains_SkipKeepsEarlierPages(t *testing.T) {
 // The listing stops when the service repeats the token it was sent, rather
 // than looping on it.
 func TestScanAppRunnerCustomDomains_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var n atomic.Int64
 	client := newAppRunnerTestClient(map[string]func(any) (any, error){
@@ -488,6 +493,7 @@ func appRunnerTagReadARNs() []string {
 // to the tag op; each listing sends its model's page cap. No error, no
 // warning.
 func TestScanAppRunner_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newAppRunnerCalls()
@@ -557,6 +563,7 @@ func TestScanAppRunner_StoresTagsOfEveryType(t *testing.T) {
 
 // Every listing empty: nothing stored, no tag read, no error, no warning.
 func TestScanAppRunner_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newAppRunnerCalls()
@@ -581,6 +588,7 @@ func TestScanAppRunner_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanAppRunner_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := appRunnerScan(context.Background(), st, appRunnerHandlers(newAppRunnerCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -598,6 +606,7 @@ func TestScanAppRunner_RescanInsertsNone(t *testing.T) {
 // denial keeps the row untagged and warns once under the tag op; a throttle
 // keeps it and is transient; any other modeled code keeps it and is an error.
 func TestScanAppRunner_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagCase struct {
 		name      string
 		arn, typ  string
@@ -660,6 +669,7 @@ func TestScanAppRunner_TagReadFailures(t *testing.T) {
 // A service whose tag read finds it gone is not stored, so its custom
 // domains are not listed.
 func TestScanAppRunner_ServiceGoneAtTagReadHasNoDomainCall(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAppRunnerCalls()
 	gone := appRunnerKindOf(t, "ListServices").arn("tagged")
@@ -681,6 +691,7 @@ func TestScanAppRunner_ServiceGoneAtTagReadHasNoDomainCall(t *testing.T) {
 // Denied tag reads in two listings send one warning for the whole scan,
 // under the tag op, naming the first denied row; the rows are kept untagged.
 func TestScanAppRunner_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, appRunnerTagsOp)
 	calls := newAppRunnerCalls()
@@ -715,6 +726,7 @@ func TestScanAppRunner_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanAppRunner_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, appRunnerTagsOp)
 	calls := newAppRunnerCalls()
@@ -732,6 +744,7 @@ func TestScanAppRunner_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the scan: no later phase runs and no warning is sent
 // about rows the write lost; the phases before it keep their rows.
 func TestScanAppRunner_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeAppRunnerAutoScalingConfiguration)
@@ -763,6 +776,7 @@ func TestScanAppRunner_FailedWriteStopsScan(t *testing.T) {
 // A listing's failed page keeps the page read before it, and its error does
 // not stop the later listings or the custom-domain phase.
 func TestScanAppRunner_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListServices", "ListVpcConnectors"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -792,6 +806,7 @@ func TestScanAppRunner_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated token ends a listing as an error, keeping its pages.
 func TestScanAppRunner_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := appRunnerHandlers(newAppRunnerCalls())
 	k := appRunnerKindOf(t, "ListObservabilityConfigurations")
@@ -816,6 +831,7 @@ func TestScanAppRunner_RepeatedTokenKeepsPages(t *testing.T) {
 // warned about once under its listing, named by its name or by the fallback
 // text when it has none.
 func TestScanAppRunner_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, key string }{
 		{"ListServices", "nameless-arn"},
 		{"ListVpcConnectors", "nameless-arn"},
@@ -856,6 +872,7 @@ func TestScanAppRunner_ElementWithoutARNWarns(t *testing.T) {
 // Rows of the aws-us-gov and aws-cn partitions reach the tag op under their
 // listed ARNs unchanged.
 func TestScanAppRunner_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -887,6 +904,7 @@ func TestScanAppRunner_TagReadsKeepPartitionARNs(t *testing.T) {
 // managed, untagged, and never sent to the tag op. The DefaultConfiguration
 // auto scaling configuration is customer-managed: unmanaged, tags read.
 func TestScanAppRunner_DefaultConfigurations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAppRunnerCalls()
 	handlers := appRunnerHandlers(calls)
@@ -925,6 +943,7 @@ func TestScanAppRunner_DefaultConfigurations(t *testing.T) {
 // is stored untagged without a tag read, even when the read would report it
 // gone; an ACTIVE one is read.
 func TestScanAppRunner_InactiveRevisionNotRead(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op   string
 		page func(inactive, active string) any
@@ -972,6 +991,7 @@ func TestScanAppRunner_InactiveRevisionNotRead(t *testing.T) {
 // tagged service carries a credential in every command and the bare service
 // none, so each command path proves both its redaction and what it keeps.
 func TestScanAppRunner_ServiceSecretsRedacted(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAppRunnerCalls()
 	handlers := appRunnerHandlers(calls)
@@ -1040,6 +1060,7 @@ func TestScanAppRunner_ServiceSecretsRedacted(t *testing.T) {
 // unavailable and runs no later phase; one after rows were stored is a
 // failure of this scan that keeps their counts.
 func TestScanAppRunner_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "apprunner.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1077,6 +1098,7 @@ func TestScanAppRunner_NXDOMAIN(t *testing.T) {
 // warns once under DescribeService, a throttle is transient, a response
 // without its Service and any other error are errors.
 func TestScanAppRunner_DescribeServiceFailures(t *testing.T) {
+	t.Parallel()
 	k := appRunnerKindOf(t, "ListServices")
 	failing := k.arn("tagged")
 	for _, c := range []struct {
@@ -1159,6 +1181,7 @@ func TestScanAppRunner_DescribeServiceFailures(t *testing.T) {
 // failure, every other service is still described and stored: one failure
 // cancels no sibling.
 func TestScanAppRunner_OneDescribeFailureCancelsNoSibling(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAppRunnerCalls()
 	handlers := appRunnerHandlers(calls)
@@ -1202,6 +1225,7 @@ func TestScanAppRunner_OneDescribeFailureCancelsNoSibling(t *testing.T) {
 // the custom-domain phase's hard error still reaches the dispatcher as a
 // hard error, and the service rows stay.
 func TestScanAppRunner_TransientDoesNotMaskCustomDomainError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "apprunner:ListVpcConnectors")
 	handlers := appRunnerHandlers(newAppRunnerCalls())
@@ -1222,6 +1246,7 @@ func TestScanAppRunner_TransientDoesNotMaskCustomDomainError(t *testing.T) {
 // The custom-domain phase runs after every other phase, over the services
 // stored this scan, and links each domain under its service.
 func TestScanAppRunner_CustomDomainsAfterEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAppRunnerCalls()
 	handlers := appRunnerHandlers(calls)

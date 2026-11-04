@@ -12,6 +12,7 @@ import (
 )
 
 func TestResolveEC2TGWRouteParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rtARN := ec2ARN(testRegion, acct.ID, "transit-gateway-route-table", "tgw-rtb-1")
@@ -26,6 +27,7 @@ func TestResolveEC2TGWRouteParent(t *testing.T) {
 }
 
 func TestResolveEC2TGWRTBAssociation(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rtARN := ec2ARN(testRegion, acct.ID, "transit-gateway-route-table", "tgw-rtb-1")
@@ -43,6 +45,7 @@ func TestResolveEC2TGWRTBAssociation(t *testing.T) {
 }
 
 func TestResolveEC2TGWMulticastDomainAssoc(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := ec2ARN(testRegion, acct.ID, "transit-gateway-multicast-domain", "tgw-mcast-d1")
@@ -60,6 +63,7 @@ func TestResolveEC2TGWMulticastDomainAssoc(t *testing.T) {
 }
 
 func TestResolveEC2TGWMulticastGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := ec2ARN(testRegion, acct.ID, "transit-gateway-multicast-domain", "tgw-mcast-d1")
@@ -77,6 +81,7 @@ func TestResolveEC2TGWMulticastGroup(t *testing.T) {
 }
 
 func TestResolveEC2LocalGatewayRouteParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rtARN := ec2ARN(testRegion, acct.ID, "local-gateway-route-table", "lgw-rtb-1")
@@ -91,6 +96,7 @@ func TestResolveEC2LocalGatewayRouteParent(t *testing.T) {
 }
 
 func TestResolveEC2LocalGatewayVIToVIG(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gARN := ec2ARN(testRegion, acct.ID, "local-gateway-virtual-interface-group", "lgw-vig-1")
@@ -105,6 +111,7 @@ func TestResolveEC2LocalGatewayVIToVIG(t *testing.T) {
 }
 
 func TestResolveEC2IPAMAllocationToPool(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pARN := ec2ARN(testRegion, acct.ID, "ipam-pool", "ipam-pool-1")
@@ -119,6 +126,7 @@ func TestResolveEC2IPAMAllocationToPool(t *testing.T) {
 }
 
 func TestResolveEC2IPAMPoolCIDRToPool(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pARN := ec2ARN(testRegion, acct.ID, "ipam-pool", "ipam-pool-1")
@@ -133,6 +141,7 @@ func TestResolveEC2IPAMPoolCIDRToPool(t *testing.T) {
 }
 
 func TestResolveEC2IPAMPLRTargetToResolver(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	plrARN := ec2ARN(testRegion, acct.ID, "ipam-prefix-list-resolver", "iplr-1")
@@ -150,6 +159,7 @@ func TestResolveEC2IPAMPLRTargetToResolver(t *testing.T) {
 // before and after it are still wired. Names a, b, c fix the listing order
 // (ListResources orders by type, then name).
 func TestResolveEC2IPAMPLRTargetToResolver_BadAttrsReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	plrID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2IPAMPrefixListResolver,
@@ -174,6 +184,7 @@ func TestResolveEC2IPAMPLRTargetToResolver_BadAttrsReportedOthersWired(t *testin
 }
 
 func TestResolveEC2RouteServerEndpointToServer(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rsARN := ec2ARN(testRegion, acct.ID, "route-server", "rs-1")
@@ -188,6 +199,7 @@ func TestResolveEC2RouteServerEndpointToServer(t *testing.T) {
 }
 
 func TestResolveEC2RouteServerPeerToEndpoint(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	eARN := ec2ARN(testRegion, acct.ID, "route-server-endpoint", "rse-1")

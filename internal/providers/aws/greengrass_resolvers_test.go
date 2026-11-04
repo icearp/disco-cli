@@ -21,6 +21,7 @@ func ggv2DeploymentAttrs(t *testing.T, d types.Deployment) string {
 }
 
 func TestResolveGGV2DeploymentTarget_Thing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -45,6 +46,7 @@ func TestResolveGGV2DeploymentTarget_Thing(t *testing.T) {
 }
 
 func TestResolveGGV2DeploymentTarget_ThingGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -69,6 +71,7 @@ func TestResolveGGV2DeploymentTarget_ThingGroup(t *testing.T) {
 }
 
 func TestResolveGGV2DeploymentTarget_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -89,6 +92,7 @@ func TestResolveGGV2DeploymentTarget_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveGGV2DeploymentTarget_UnscannedTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

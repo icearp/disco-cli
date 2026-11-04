@@ -8,6 +8,7 @@ import (
 )
 
 func TestIDStoreMembershipParse(t *testing.T) {
+	t.Parallel()
 	owner, store := idStoreMembershipParse("arn:aws:identitystore::123:membership/d-abc/m-xyz")
 	if owner != "123" || store != "d-abc" {
 		t.Errorf("parse=%q,%q want 123,d-abc", owner, store)
@@ -15,6 +16,7 @@ func TestIDStoreMembershipParse(t *testing.T) {
 }
 
 func TestResolveIdentityStoreGroupMembershipRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

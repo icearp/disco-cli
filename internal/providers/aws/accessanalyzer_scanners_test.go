@@ -13,6 +13,7 @@ import (
 // the Tags of its ListAnalyzers element, and that an untagged analyzer stores
 // none.
 func TestScanAccessAnalyzerAnalyzers_ReadsTags(t *testing.T) {
+	t.Parallel()
 	const (
 		tagged   = "arn:aws:access-analyzer:us-east-1:123456789012:analyzer/a1"
 		untagged = "arn:aws:access-analyzer:us-east-1:123456789012:analyzer/a2"

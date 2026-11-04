@@ -12,6 +12,7 @@ import (
 // TestResolveElastiCacheRelationships verifies a Redis cache cluster with
 // ReplicationGroupId links to its replication group via attached-to.
 func TestResolveElastiCacheRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -47,6 +48,7 @@ func TestResolveElastiCacheRelationships(t *testing.T) {
 // TestResolveElastiCacheRelationships_Memcached verifies a Memcached cluster
 // (no ReplicationGroupId) produces no relationships.
 func TestResolveElastiCacheRelationships_Memcached(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -69,6 +71,7 @@ func TestResolveElastiCacheRelationships_Memcached(t *testing.T) {
 // --- CacheCluster → SubnetGroup ---
 
 func TestResolveElastiCacheClusterToSubnetGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -103,6 +106,7 @@ func TestResolveElastiCacheClusterToSubnetGroup(t *testing.T) {
 // TestResolveElastiCacheClusterToSubnetGroup_Empty verifies no panic on a cluster
 // with no CacheSubnetGroupName.
 func TestResolveElastiCacheClusterToSubnetGroup_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -124,6 +128,7 @@ func TestResolveElastiCacheClusterToSubnetGroup_Empty(t *testing.T) {
 // --- CacheCluster → ParameterGroup ---
 
 func TestResolveElastiCacheClusterToParameterGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -158,6 +163,7 @@ func TestResolveElastiCacheClusterToParameterGroup(t *testing.T) {
 // TestResolveElastiCacheClusterToParameterGroup_Missing verifies no panic when
 // CacheParameterGroup is absent.
 func TestResolveElastiCacheClusterToParameterGroup_Missing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -179,6 +185,7 @@ func TestResolveElastiCacheClusterToParameterGroup_Missing(t *testing.T) {
 // --- ReplicationGroup → SubnetGroup ---
 
 func TestResolveElastiCacheReplicationGroupToSubnetGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -213,6 +220,7 @@ func TestResolveElastiCacheReplicationGroupToSubnetGroup(t *testing.T) {
 // --- ReplicationGroup → UserGroups ---
 
 func TestResolveElastiCacheReplicationGroupToUserGroups(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -247,6 +255,7 @@ func TestResolveElastiCacheReplicationGroupToUserGroups(t *testing.T) {
 // --- GlobalReplicationGroup → ReplicationGroup ---
 
 func TestResolveElastiCacheGlobalRGToReplicationGroups(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -282,6 +291,7 @@ func TestResolveElastiCacheGlobalRGToReplicationGroups(t *testing.T) {
 // --- UserGroup → User ---
 
 func TestResolveElastiCacheUserGroupToUsers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -316,6 +326,7 @@ func TestResolveElastiCacheUserGroupToUsers(t *testing.T) {
 // --- ServerlessCache → UserGroup ---
 
 func TestResolveElastiCacheServerlessCacheToUserGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -350,6 +361,7 @@ func TestResolveElastiCacheServerlessCacheToUserGroup(t *testing.T) {
 // TestResolveElastiCacheServerlessCacheToUserGroup_Empty verifies no panic when
 // UserGroupId is absent.
 func TestResolveElastiCacheServerlessCacheToUserGroup_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -371,6 +383,7 @@ func TestResolveElastiCacheServerlessCacheToUserGroup_Empty(t *testing.T) {
 // TestIsDefaultElastiCachePG covers the AWS pre-created parameter-group
 // name shape (default + version-tagged) and the customer-name fallthrough.
 func TestIsDefaultElastiCachePG(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		want bool
@@ -393,6 +406,7 @@ func TestIsDefaultElastiCachePG(t *testing.T) {
 }
 
 func TestResolveElastiCacheSubnetGroupVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")

@@ -382,6 +382,7 @@ func ssmWarningOps(w []store.ScanWarning) []string {
 // permission are stored. Every listing page is sent its op's MaxResults cap;
 // documents and patch baselines are listed Owner=Self. No error, no warning.
 func TestScanSSM_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newSSMCalls()
@@ -477,6 +478,7 @@ func TestScanSSM_StoresTagsOfEveryType(t *testing.T) {
 // Empty listings store nothing and warn about nothing: no tag read,
 // Describe or per-parent listing is sent, and each listing is asked once.
 func TestScanSSM_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newSSMCalls()
@@ -545,6 +547,7 @@ func ssmEmptied(t *testing.T, out any) any {
 // page at a time: the first page's row is stored, its tags read, before the
 // second page is asked for.
 func TestScanSSM_ParametersWrittenPerPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSSMCalls()
 	handlers := ssmHandlers(calls)
@@ -572,6 +575,7 @@ func TestScanSSM_ParametersWrittenPerPage(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanSSM_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := ssmScan(context.Background(), st, ssmHandlers(newSSMCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -587,6 +591,7 @@ func TestScanSSM_RescanInsertsNone(t *testing.T) {
 // warns once under the tag op; a throttle keeps it and is transient; any
 // other error keeps it and is an error.
 func TestScanSSM_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeParameters", "DescribeMaintenanceWindows", "ListOpsMetadata"} {
 		for _, c := range []struct {
 			name    string
@@ -656,6 +661,7 @@ func TestScanSSM_TagReadFailures(t *testing.T) {
 // instead mean the id form sent is wrong, so the row is kept untagged and the
 // code is returned.
 func TestScanSSM_InvalidResourceIdDropsOnlyDocumentedIDForms(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op      string
 		dropped bool
@@ -698,6 +704,7 @@ func TestScanSSM_InvalidResourceIdDropsOnlyDocumentedIDForms(t *testing.T) {
 // An EC2 instance's row is stored untagged and its id is never sent to the
 // tag op; the on-premises node beside it is read as a ManagedInstance.
 func TestScanSSM_EC2ManagedNodeNotTagRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSSMCalls()
 	handlers := ssmHandlers(calls)
@@ -732,6 +739,7 @@ func TestScanSSM_EC2ManagedNodeNotTagRead(t *testing.T) {
 // A DescribeDocument that answers without a document keeps the list element
 // as the row's attributes.
 func TestScanSSM_DescribeDocumentWithoutBody(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSSMCalls()
 	handlers := ssmHandlers(calls)
@@ -749,6 +757,7 @@ func TestScanSSM_DescribeDocumentWithoutBody(t *testing.T) {
 // Denied tag reads in several phases send one warning for the whole scan;
 // the rows are kept.
 func TestScanSSM_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newSSMCalls()
@@ -772,6 +781,7 @@ func TestScanSSM_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanSSM_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ssmTagsOp)
 	calls := newSSMCalls()
@@ -790,6 +800,7 @@ func TestScanSSM_TagThrottleDemotedBesideHardError(t *testing.T) {
 // its tags with: the row is kept untagged, nothing is sent, and the read
 // fails with errSSMNoTagID.
 func TestScanSSM_OpsMetadataARNWithoutID(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSSMCalls()
 	handlers := ssmHandlers(calls)
@@ -822,6 +833,7 @@ func TestScanSSM_OpsMetadataARNWithoutID(t *testing.T) {
 // denial warns once under the Describe; a throttle is transient; any other
 // error is an error.
 func TestScanSSM_DescribeDocumentFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		err     error
@@ -886,6 +898,7 @@ func TestScanSSM_DescribeDocumentFailures(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanSSM_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeSSMPatchBaseline)
@@ -914,6 +927,7 @@ func TestScanSSM_FailedWriteStopsScan(t *testing.T) {
 // error does not stop the later phases: a window on the lost page has no
 // target or task listed.
 func TestScanSSM_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op   string
 		lost int
@@ -952,6 +966,7 @@ func TestScanSSM_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // denied DescribeParameters, and a denied ListDocuments or
 // DescribeActivations is warned about.
 func TestScanSSM_DeniedListingWarnsAndContinues(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeParameters", "ListDocuments", "DescribePatchBaselines", "DescribeActivations"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -980,6 +995,7 @@ func TestScanSSM_DeniedListingWarnsAndContinues(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanSSM_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListAssociations", "DescribeActivations"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1010,6 +1026,7 @@ func TestScanSSM_RepeatedTokenKeepsPages(t *testing.T) {
 // warning naming the element by what else it carries (noIdentifier when
 // nothing).
 func TestScanSSM_ElementWithoutID(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op   string
 		out  any
@@ -1064,6 +1081,7 @@ func TestScanSSM_ElementWithoutID(t *testing.T) {
 // once under the op, any other error is returned. A child without an id is
 // not stored and is warned about, naming its window.
 func TestScanSSM_WindowChildFailures(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeMaintenanceWindowTargets", "DescribeMaintenanceWindowTasks"} {
 		for _, c := range []struct {
 			name   string
@@ -1141,6 +1159,7 @@ func TestScanSSM_WindowChildFailures(t *testing.T) {
 // and the ids sent to the tag op, the OpsMetadata id cut from its partition
 // ARN among them, are those of the commercial scan.
 func TestScanSSM_TagReadsInOtherPartitions(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1173,6 +1192,7 @@ func TestScanSSM_TagReadsInOtherPartitions(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanSSM_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSSMCalls()
 	handlers := ssmHandlers(calls)
@@ -1209,6 +1229,7 @@ func TestScanSSM_ContextEndReportedOnce(t *testing.T) {
 // region unavailable and nothing more is called. Once rows were stored, an
 // NXDOMAIN from a tag read is a failure of this scan, counts kept.
 func TestScanSSM_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "ssm.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("region unavailable", func(t *testing.T) {
 		st := newTestStore(t)

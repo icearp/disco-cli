@@ -12,6 +12,7 @@ import (
 )
 
 func TestResolveChimeAppInstanceChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -40,6 +41,7 @@ func TestResolveChimeAppInstanceChildren(t *testing.T) {
 }
 
 func TestResolveChimeAppInstanceChildren_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -58,6 +60,7 @@ func TestResolveChimeAppInstanceChildren_NoEdge(t *testing.T) {
 }
 
 func TestResolveChimeVoiceProfileDomain(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -88,6 +91,7 @@ func TestResolveChimeVoiceProfileDomain(t *testing.T) {
 }
 
 func TestResolveChimeVoiceProfileDomain_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -108,6 +112,7 @@ func TestResolveChimeVoiceProfileDomain_NoEdge(t *testing.T) {
 }
 
 func TestResolveChimeSipMediaApplicationLambda(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -129,6 +134,7 @@ func TestResolveChimeSipMediaApplicationLambda(t *testing.T) {
 }
 
 func TestResolveChimeSipMediaApplicationLambda_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -168,6 +174,7 @@ func chimeTarget(region, id string) cvtypes.SipRuleTargetApplication {
 // A rule routes to each scanned target application, matched on region and id;
 // a target in another region or naming an unscanned application gets no edge.
 func TestResolveChimeSipRuleTargets_ScannedTargetsOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	east := seedChimeSMA(t, st, testRegion, "sma-1")
@@ -192,6 +199,7 @@ func TestResolveChimeSipRuleTargets_ScannedTargetsOnly(t *testing.T) {
 }
 
 func TestResolveChimeSipRuleTargets_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	seedChimeSMA(t, st, testRegion, "sma-1")
@@ -207,6 +215,7 @@ func TestResolveChimeSipRuleTargets_NoAttrs(t *testing.T) {
 }
 
 func TestResolveChimeSipRuleTargets_BadAttrsReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	smaID := seedChimeSMA(t, st, testRegion, "sma-1")
@@ -245,6 +254,7 @@ func seedChimeVCGroup(t *testing.T, st *store.Store, id string, vcIDs ...string)
 // A group routes to every scanned connector it lists, in any region; an
 // unscanned connector gets no edge.
 func TestResolveChimeVoiceConnectorGroupItems_ScannedConnectorsOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	east := seedChimeVC(t, st, testRegion, "vc-east")
@@ -266,6 +276,7 @@ func TestResolveChimeVoiceConnectorGroupItems_ScannedConnectorsOnly(t *testing.T
 }
 
 func TestResolveChimeVoiceConnectorGroupItems_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	seedChimeVC(t, st, testRegion, "vc-1")
@@ -282,6 +293,7 @@ func TestResolveChimeVoiceConnectorGroupItems_NoAttrs(t *testing.T) {
 }
 
 func TestResolveChimeVoiceConnectorGroupItems_BadAttrsReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vcID := seedChimeVC(t, st, testRegion, "vc-1")
@@ -303,6 +315,7 @@ func TestResolveChimeVoiceConnectorGroupItems_BadAttrsReportedOthersWired(t *tes
 // A target row whose attributes do not decode is reported, and the other
 // targets still get their edges.
 func TestResolveChimeVoiceConnectorGroupItems_BadTargetAttrsReported(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vcID := seedChimeVC(t, st, testRegion, "vc-1")

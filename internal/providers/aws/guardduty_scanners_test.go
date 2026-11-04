@@ -333,6 +333,7 @@ func gdRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, bo
 // detector's filters, IP sets, members and organization configuration are
 // recorded under it.
 func TestScanGuardDuty_StoresEveryRowWithItsTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newGDFixtureCalls()
@@ -415,6 +416,7 @@ func TestScanGuardDuty_StoresEveryRowWithItsTags(t *testing.T) {
 // An aws-us-gov account scanned in us-gov-west-1 builds its ARNs in that
 // partition and sends them to the tag op unchanged.
 func TestScanGuardDuty_GovCloudARNsReachTagOp(t *testing.T) {
+	t.Parallel()
 	const govRegion = "us-gov-west-1"
 	d := "arn:aws-us-gov:guardduty:" + govRegion + ":" + testAccountID + ":detector/d-g"
 	st := newTestStore(t)
@@ -453,6 +455,7 @@ func TestScanGuardDuty_GovCloudARNsReachTagOp(t *testing.T) {
 // A region without detectors or plans stores nothing, reads no tags, makes
 // no custom detection rule call and reports nothing.
 func TestScanGuardDuty_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newGDCalls()
@@ -472,6 +475,7 @@ func TestScanGuardDuty_EmptyListings(t *testing.T) {
 // A detector whose per-detector listings return empty pages stores only
 // itself and reads no tags.
 func TestScanGuardDuty_EmptyDetectorListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newGDCalls()
@@ -498,6 +502,7 @@ func TestScanGuardDuty_EmptyDetectorListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanGuardDuty_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGDFixtureCalls()
 	if _, _, err := gdScan(context.Background(), st, gdHandlers(calls)); err != nil {
@@ -516,6 +521,7 @@ func TestScanGuardDuty_RescanInsertsNone(t *testing.T) {
 // ResourceNotFoundException drops the row; ListTagsForResource and the set
 // gets model no not-found, so that code is a hard error and the row is kept.
 func TestScanGuardDuty_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		op, key, typ, arn string
 		notFoundDrops     bool
@@ -589,6 +595,7 @@ func TestScanGuardDuty_TagReadFailures(t *testing.T) {
 
 // Denied tag reads of several detectors' rows are one warning for the phase.
 func TestScanGuardDuty_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, gdTagsOp)
 	calls := newGDFixtureCalls()
@@ -613,6 +620,7 @@ func TestScanGuardDuty_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of another tag read is demoted
 // to one warning, so the hard error decides the outcome.
 func TestScanGuardDuty_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, gdTagsOp)
 	calls := newGDFixtureCalls()
@@ -631,6 +639,7 @@ func TestScanGuardDuty_TagThrottleDemotedBesideHardError(t *testing.T) {
 // demoted to one warning under the op, so the hard error decides the
 // outcome.
 func TestScanGuardDuty_GetThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, throttled, failed string }{
 		{"GetDetector", "d-t", "d-b"},
 		{"GetFilter", "d-t/f-t", "d-b/f-b"},
@@ -655,6 +664,7 @@ func TestScanGuardDuty_GetThrottleDemotedBesideHardError(t *testing.T) {
 // A ctx that ended before any detector's listing started is the phase's
 // error, although no id was listed and so no get ran.
 func TestStoreGDDetectorSets_EndedCtxIsThePhaseError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -691,6 +701,7 @@ func TestStoreGDDetectorSets_EndedCtxIsThePhaseError(t *testing.T) {
 // recorded under it. A kept filter or IP set is recorded under its detector
 // beside the detector's other children.
 func TestScanGuardDuty_GetFailuresKeepTheListedRow(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct {
 		op, key, typ, arn, name string
 		element                 map[string]string
@@ -782,6 +793,7 @@ var gdListOps = []string{
 // rows; a denied ListDetectors leaves the per-detector and custom detection
 // rule listings nothing to read.
 func TestScanGuardDuty_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	// 23 rows, less the denied listing's: 2 for most, 1 for the rule
 	// organization configurations, all but the 2 plans for the detectors.
 	lost := map[string]int{"ListDetectors": 21, "ListCustomDetectionRuleOrgConfigurations": 1}
@@ -815,6 +827,7 @@ func TestScanGuardDuty_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // failed listing keeps the other detector's rows, and no failure stops the
 // phases after it.
 func TestScanGuardDuty_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	t.Run("ListDetectors page 2", func(t *testing.T) {
 		st := newTestStore(t)
 		h := gdHandlers(newGDFixtureCalls())
@@ -871,6 +884,7 @@ func TestScanGuardDuty_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanGuardDuty_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, typ, arn string }{
 		{"ListDetectors", TypeGuardDutyDetector, gdDetARN("d-b")},
 		{"ListMalwareProtectionPlans", TypeGuardDutyMalwareProtectionPlan, "arn:aws:guardduty:" + testRegion + ":" + testAccountID + ":malware-protection-plan/mpp-b"},
@@ -906,6 +920,7 @@ func TestScanGuardDuty_RepeatedTokenKeepsPages(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost, a denied tag read or get among them.
 func TestScanGuardDuty_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ typ, deny, next string }{
 		{TypeGuardDutyDetector, "GetDetector d-b", "ListFilters"},
 		{TypeGuardDutyFilter, "GetFilter d-b/f-b", "ListMembers"},
@@ -937,6 +952,7 @@ func TestScanGuardDuty_FailedWriteStopsWithoutWarning(t *testing.T) {
 // Each listing answers two such items; a per-detector listing answers them
 // for each of the two detectors.
 func TestScanGuardDuty_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, key string
 		count   int
@@ -977,6 +993,7 @@ func TestScanGuardDuty_UnstorableItemsWarn(t *testing.T) {
 // intel set and publishing destination listings have no such gate, so the
 // same answer there is an error.
 func TestScanGuardDuty_MemberRestrictedEntitySets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	h := gdHandlers(newGDFixtureCalls())
@@ -1002,6 +1019,7 @@ func TestScanGuardDuty_MemberRestrictedEntitySets(t *testing.T) {
 // refused as member restricted keeps the row, untagged, without a warning or
 // an error.
 func TestScanGuardDuty_MemberRestrictedSetGetsKeepTheRow(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newGDFixtureCalls()
@@ -1030,6 +1048,7 @@ func TestScanGuardDuty_MemberRestrictedSetGetsKeepTheRow(t *testing.T) {
 // and warns once under the op, without an error. GetFilter has no such
 // refusal, so the same answer there is a hard error, the filter still kept.
 func TestScanGuardDuty_MemberRestrictedGetIPSetKeepsTheRow(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, key, typ, arn string
 		element           map[string]string
@@ -1069,6 +1088,7 @@ func TestScanGuardDuty_MemberRestrictedGetIPSetKeepsTheRow(t *testing.T) {
 // although the gets in flight saw it too. The filters whose gets it cut
 // short are stored as their listed element.
 func TestScanGuardDuty_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGDFixtureCalls()
 	h := gdHandlers(calls)
@@ -1108,6 +1128,7 @@ func TestScanGuardDuty_ContextEndStopsOnce(t *testing.T) {
 // listing resolved is a failure of this scan, not a region gap; the
 // detector is kept as its listed element, and its children under it.
 func TestScanGuardDuty_Unreachable(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "guardduty.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("no endpoint", func(t *testing.T) {
 		st := newTestStore(t)

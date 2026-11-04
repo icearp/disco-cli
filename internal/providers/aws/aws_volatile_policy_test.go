@@ -56,6 +56,7 @@ var volatilePolicy = map[string]struct {
 // than assumed -- and, for the region-collision reason, forces the ARN to
 // actually be region-less.
 func TestVolatileRulesAreJustified(t *testing.T) {
+	t.Parallel()
 	declared := map[string][]string{}
 	for _, d := range registeredDescriptors {
 		if len(d.Volatile) > 0 {
@@ -132,6 +133,7 @@ func equalStringSets(a, b []string) bool {
 // Without them a single scan appends one junk version per region and the
 // surviving row is decided by commit order.
 func TestGlobalCatalogTypes_DoNotSplitPerRegion(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		resType   string
 		nativeID  string

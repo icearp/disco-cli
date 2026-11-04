@@ -38,6 +38,7 @@ func sqTemplateEntry(region, service, quota, name string, desired float64) sqtyp
 }
 
 func TestScanSQTemplateEntries_PaginatesAndStoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	fake := &fakeSQTemplate{pages: []*servicequotas.ListServiceQuotaIncreaseRequestsInTemplateOutput{
 		{
@@ -98,6 +99,7 @@ func TestScanSQTemplateEntries_PaginatesAndStoresEveryPage(t *testing.T) {
 }
 
 func TestScanSQTemplateEntries_EmptyTemplate(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	fake := &fakeSQTemplate{pages: []*servicequotas.ListServiceQuotaIncreaseRequestsInTemplateOutput{{}}}
 	total, _, err := scanSQTemplateEntries(context.Background(), fake, newTestAccount(testAccountID), st, testScanID)
@@ -110,6 +112,7 @@ func TestScanSQTemplateEntries_EmptyTemplate(t *testing.T) {
 }
 
 func TestScanSQTemplateEntries_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		err      error
@@ -155,6 +158,7 @@ func TestScanSQTemplateEntries_Errors(t *testing.T) {
 // The registered entry runs once per account (global) and must call the
 // pinned us-east-1 endpoint whatever region the dispatcher passes.
 func TestScanServiceQuotasTemplate_GlobalPinnedRegion(t *testing.T) {
+	t.Parallel()
 	var entry *serviceEntry
 	for i := range registeredServices {
 		if registeredServices[i].name == "aws:servicequotas-template" {

@@ -85,6 +85,7 @@ func scanHLProfiles(st *store.Store, handler func(in any) (any, error)) ([]child
 }
 
 func TestScanHealthLakeProfiles_StoresEveryPageOfEveryFormat(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var formats parentCalls
 	parents, total, err := scanHLProfiles(st, hlProfileHandler(&formats, nil))
@@ -112,6 +113,7 @@ func TestScanHealthLakeProfiles_StoresEveryPageOfEveryFormat(t *testing.T) {
 }
 
 func TestScanHealthLakeProfiles_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	parents, total, err := scanHLProfiles(st, func(any) (any, error) { return &healthlake.ListDataTransformationProfilesOutput{}, nil })
 	if err != nil || total != 0 || len(parents) != 0 || len(rowsByNativeID(t, st, TypeHealthLakeDataTransformationProfile)) != 0 {
@@ -122,6 +124,7 @@ func TestScanHealthLakeProfiles_Empty(t *testing.T) {
 // A denial warns and ends the phase without error; any other error fails it.
 // Either way the profiles listed before the failure are stored and counted.
 func TestScanHealthLakeProfiles_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		fail      map[string]error
@@ -159,6 +162,7 @@ func TestScanHealthLakeProfiles_Errors(t *testing.T) {
 
 // A failed write of the rows listed before a list error reports both errors.
 func TestScanHealthLakeProfiles_WriteAndListErrorsBothReported(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closed.db"))
 	if err != nil {
@@ -222,6 +226,7 @@ func scanHLVersions(t *testing.T, st *store.Store, handler func(in any) (any, er
 }
 
 func TestScanHealthLakeProfileVersions_StoresEveryPageOfEveryProfile(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := scanHLVersions(t, st, hlVersionHandler(&calls, nil), "pr1", "pr2")
@@ -252,6 +257,7 @@ func TestScanHealthLakeProfileVersions_StoresEveryPageOfEveryProfile(t *testing.
 }
 
 func TestScanHealthLakeProfileVersions_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanHLVersions(t, st, func(any) (any, error) { return &healthlake.ListDataTransformationProfileVersionsOutput{}, nil }, "pr1")
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeHealthLakeDataTransformationProfileVersion)) != 0 {
@@ -262,6 +268,7 @@ func TestScanHealthLakeProfileVersions_Empty(t *testing.T) {
 // A profile deleted after it was listed is skipped silently; a denial warns
 // once for the op and keeps the other profiles; any other error fails.
 func TestScanHealthLakeProfileVersions_FailedProfile(t *testing.T) {
+	t.Parallel()
 	t.Run("gone", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countOpWarnings(st, "health-lake:ListDataTransformationProfileVersions")
@@ -315,6 +322,7 @@ func hlTopLevelHandlers(versionCalls *parentCalls) map[string]func(in any) (any,
 // Versions are listed for every profile the profile phase stored, and land
 // under it.
 func TestScanHealthLake_StoresVersionsOfListedProfiles(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var versionCalls parentCalls
@@ -336,6 +344,7 @@ func TestScanHealthLake_StoresVersionsOfListedProfiles(t *testing.T) {
 }
 
 func TestScanHealthLake_CallsGoToScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var versionCalls, regions parentCalls
@@ -357,6 +366,7 @@ func TestScanHealthLake_CallsGoToScannedRegion(t *testing.T) {
 // Each new phase runs after the datastore phase, versions after profiles, and
 // a phase's hard error reaches the caller with the counts stored before it.
 func TestScanHealthLake_NewPhaseErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op           string
 		wantTotal    int
@@ -402,6 +412,7 @@ func TestScanHealthLake_NewPhaseErrorAfterExistingPhases(t *testing.T) {
 
 // A denied datastore list warns and the profile phases still run.
 func TestScanHealthLake_DeniedDatastoresKeepProfiles(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	warns := countOpWarnings(st, "health-lake:ListFHIRDatastores")

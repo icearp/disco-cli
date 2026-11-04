@@ -41,6 +41,7 @@ func ctFailTrailStatus(h map[string]func(in any) (any, error), fail map[string]e
 // comes after DescribeTrails reached the host, is such an error, not a
 // transient one. (ListTags failures: TestScanCloudTrail_TagReadFailures.)
 func TestScanCloudTrail_PerTrailReadErrors(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("ThrottlingException", "Rate exceeded")
 	nx := &net.DNSError{Err: "no such host", Name: "cloudtrail.us-east-1.amazonaws.com", IsNotFound: true}
 	cases := []struct {
@@ -119,6 +120,7 @@ func TestScanCloudTrail_PerTrailReadErrors(t *testing.T) {
 // error, after the stores are stored and the later phases have run. A store
 // the read no longer finds is not stored and is no parent.
 func TestScanCloudTrail_GetEventDataStoreErrors(t *testing.T) {
+	t.Parallel()
 	all := []string{ctTestEDS1ARN, ctTestEDS2ARN, ctTestEDS3ARN}
 	nx := &net.DNSError{Err: "no such host", Name: "cloudtrail.us-east-1.amazonaws.com", IsNotFound: true}
 	for _, tc := range []struct {
@@ -198,6 +200,7 @@ func TestScanCloudTrail_GetEventDataStoreErrors(t *testing.T) {
 // so the scan is partial; beside a hard error in another phase they are
 // demoted to warnings, so the hard error is not read as transient.
 func TestScanCloudTrail_PhaseErrorJoin(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("ThrottlingException", "Rate exceeded")
 	t.Run("lone transient", func(t *testing.T) {
 		st := newTestStore(t)
@@ -243,6 +246,7 @@ func TestScanCloudTrail_PhaseErrorJoin(t *testing.T) {
 // A trail listed without an ARN is not read or stored and is warned about
 // once; its siblings are stored.
 func TestScanCloudTrail_ARNlessTrailWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "cloudtrail:DescribeTrails")
 	var insightCalls, evCfgCalls parentCalls
@@ -279,6 +283,7 @@ func TestScanCloudTrail_ARNlessTrailWarns(t *testing.T) {
 // A GetEventDataStore body without EventDataStoreArn is stored under the ARN
 // the store was listed and read by, never under an empty NativeID.
 func TestScanCloudTrail_EventDataStoreBodyWithoutARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var insightCalls, evCfgCalls parentCalls
 	h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
@@ -302,6 +307,7 @@ func TestScanCloudTrail_EventDataStoreBodyWithoutARN(t *testing.T) {
 // An event data store listed without an ARN is not stored and is warned about
 // once; its siblings are stored.
 func TestScanCloudTrail_ARNlessEventDataStoreWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "cloudtrail:ListEventDataStores")
 	var insightCalls, evCfgCalls parentCalls
@@ -325,6 +331,7 @@ func TestScanCloudTrail_ARNlessEventDataStoreWarns(t *testing.T) {
 // A trail kept without its Status is warned about only once it is stored: a
 // failed write returns the store error and no "stored without" warning.
 func TestScanCloudTrail_KeptTrailWarnsOnlyOnceStored(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	warns := countOpWarnings(st, "cloudtrail:GetTrailStatus")
 	var insightCalls, evCfgCalls parentCalls
@@ -463,6 +470,7 @@ var ctLakePolicyTargets = []string{
 // dashboard are not sent, yet still have their resource policies read.
 // Untagged resources store nil tags. A rescan inserts nothing new.
 func TestScanCloudTrail_StoresTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var insightCalls, evCfgCalls parentCalls
 	h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
@@ -579,6 +587,7 @@ func TestScanCloudTrail_StoresTags(t *testing.T) {
 // ListTags is sent at most 20 ARNs a call: 21 event data stores take two
 // calls, each store's ARN sent once.
 func TestScanCloudTrail_TagReadsTwentyARNsACall(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var insightCalls, evCfgCalls parentCalls
 	h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
@@ -623,6 +632,7 @@ func TestScanCloudTrail_TagReadsTwentyARNsACall(t *testing.T) {
 // A failing call of several ARNs is made again per ARN, so the others keep
 // their tags.
 func TestScanCloudTrail_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("ThrottlingException", "Rate exceeded")
 	allTrails, allStores := ctAllTrails, []string{ctTestEDS1ARN, ctTestEDS2ARN, ctTestEDS3ARN}
 	every := slices.Concat(allTrails, allStores)
@@ -760,6 +770,7 @@ const ctTestEDSOrgARN = "arn:aws:cloudtrail:us-east-1:999999999999:eventdatastor
 // kept untagged, without a warning: it is still read with GetEventDataStore
 // and stored with that body, beside the account's own store.
 func TestScanCloudTrail_OtherAccountEventDataStoreTagReadNotFound(t *testing.T) {
+	t.Parallel()
 	for _, code := range []string{"ResourceNotFoundException", "EventDataStoreNotFoundException"} {
 		t.Run(code, func(t *testing.T) {
 			st := newTestStore(t)
@@ -814,6 +825,7 @@ func TestScanCloudTrail_OtherAccountEventDataStoreTagReadNotFound(t *testing.T) 
 // warning under ListTags beside a hard error, so the hard error is not read
 // as transient.
 func TestScanCloudTrail_TransientTagReadBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, ctListTagsOp)
 	var insightCalls, evCfgCalls parentCalls
@@ -833,6 +845,7 @@ func TestScanCloudTrail_TransientTagReadBesideHardError(t *testing.T) {
 // A failed trail write sends no tag denial warning, since no trail was
 // stored, and stops the later phases.
 func TestScanCloudTrail_TagDenialNotWarnedAfterFailedWrite(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeCloudTrailTrail)
 	warns := countOpWarnings(st, ctListTagsOp)
@@ -857,6 +870,7 @@ func TestScanCloudTrail_TagDenialNotWarnedAfterFailedWrite(t *testing.T) {
 // In GovCloud and China, each listed ARN reaches ListTags unchanged and its
 // row is tagged.
 func TestScanCloudTrail_TagReadsInOtherPartitions(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			arn := func(resource string) string { return partitionARN(pf.partition, "cloudtrail", pf.region, resource) }
@@ -910,6 +924,7 @@ func TestScanCloudTrail_TagReadsInOtherPartitions(t *testing.T) {
 // A ListEventDataStores page that fails or repeats its token after the first
 // keeps the first page's store, read and tagged, and returns the error.
 func TestScanCloudTrail_EventDataStoreLaterPageFailureKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		later   func() (any, error)
@@ -952,6 +967,7 @@ func TestScanCloudTrail_EventDataStoreLaterPageFailureKeepsEarlierPages(t *testi
 // stored as its list element, untagged, the later phases do not run, and the
 // stop is returned once.
 func TestScanCloudTrail_ContextEndKeepsListedStores(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1004,6 +1020,7 @@ func TestScanCloudTrail_ContextEndKeepsListedStores(t *testing.T) {
 // A denied tag read of any one tagged type keeps its rows untagged and gives
 // the one ListTags warning of the scan, sent once its rows are stored.
 func TestScanCloudTrail_TagDenialWarnsOncePerScan(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name string
 		arns []string
@@ -1059,6 +1076,7 @@ func TestScanCloudTrail_TagDenialWarnsOncePerScan(t *testing.T) {
 // listCloudTrailTags reads every page of one call's answer, and a repeated
 // token fails the read.
 func TestListCloudTrailTags_Pages(t *testing.T) {
+	t.Parallel()
 	arns := []string{ctTestTrailMainARN, ctTestEDS1ARN}
 	page := func(arn string, next *string) *cloudtrail.ListTagsOutput {
 		return &cloudtrail.ListTagsOutput{NextToken: next, ResourceTagList: []cloudtrailtypes.ResourceTag{{
@@ -1105,6 +1123,7 @@ func TestListCloudTrailTags_Pages(t *testing.T) {
 // listed: it is not stored and has no resource policy read, while the other
 // items of its type keep their rows and policy reads.
 func TestScanCloudTrail_LakeItemTagReadNotFound(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, typ, gone string
 		want            []string
@@ -1141,6 +1160,7 @@ func TestScanCloudTrail_LakeItemTagReadNotFound(t *testing.T) {
 // store and warns once, under the listing, once it is stored; the scan
 // succeeds.
 func TestScanCloudTrail_EventDataStoreLaterPageDenialWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var (
 		mu    sync.Mutex
@@ -1177,6 +1197,7 @@ func TestScanCloudTrail_EventDataStoreLaterPageDenialWarns(t *testing.T) {
 // later page's listing denial, a denied GetEventDataStore, a denied tag
 // read), since no store was stored, and stops the later phases.
 func TestScanCloudTrail_EventDataStoreWriteFailureStopsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeCloudTrailEventDataStore)
 	var mu sync.Mutex
@@ -1226,6 +1247,7 @@ func TestScanCloudTrail_EventDataStoreWriteFailureStopsLaterPhases(t *testing.T)
 // and its read fails the scan (errTagsNotDescribed): the op's docs do not say
 // that an untagged resource is left out, so it is not read as untagged.
 func TestScanCloudTrail_TagResponseMissingARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var insightCalls, evCfgCalls parentCalls
 	h := cloudTrailHandlers(&insightCalls, &evCfgCalls)
@@ -1263,6 +1285,7 @@ func TestScanCloudTrail_TagResponseMissingARN(t *testing.T) {
 // read finds gone gives no ListTags warning. Either way the resource is not
 // stored, and the other resources of its type are.
 func TestScanCloudTrail_ReadFailureOfResourceNotStored(t *testing.T) {
+	t.Parallel()
 	transient := &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset")}
 	for _, typ := range []struct {
 		name, detailOp, typ, arn, detailGone, tagGone string

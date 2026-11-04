@@ -248,6 +248,7 @@ func s3cRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, b
 // attributes: the list element, or for a Storage Lens configuration its Get
 // body.
 func TestScanS3Control_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newS3CCalls()
@@ -326,6 +327,7 @@ func TestScanS3Control_StoresTagsOfEveryType(t *testing.T) {
 // configuration Id its listings return to the tag ops unchanged and stores
 // their tags.
 func TestScanS3Control_GovCloudARNsReachTagOps(t *testing.T) {
+	t.Parallel()
 	const govRegion = "us-gov-west-1"
 	ap := arnFor("aws-us-gov", "s3", govRegion, testAccountID, "accesspoint/ap-gov")
 	lens := arnFor("aws-us-gov", "s3", govRegion, testAccountID, "storage-lens/sl-gov")
@@ -385,6 +387,7 @@ func s3cEmptyHandlers(c *s3cCalls) map[string]func(any) (any, error) {
 // Every listing returning nothing stores nothing, reads no tags and reports
 // nothing.
 func TestScanS3Control_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newS3CCalls()
@@ -400,6 +403,7 @@ func TestScanS3Control_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanS3Control_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newS3CCalls()
 	if _, _, err := s3cScan(t, st, testRegion, s3cHandlers(calls)); err != nil {
@@ -416,6 +420,7 @@ func TestScanS3Control_RescanInsertsNone(t *testing.T) {
 // hard one. Neither tag op models an error code, so no code drops the row.
 // The same holds for both tag ops.
 func TestScanS3Control_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct{ typ, arn, key, op string }{
 		{TypeS3AccessPoint, s3cARN("accesspoint/ap-t"), s3cARN("accesspoint/ap-t"), s3controlTagsOp},
 		{TypeS3StorageLens, s3cARN("storage-lens/sl-t"), "sl-t", s3LensTagsOp},
@@ -469,6 +474,7 @@ func TestScanS3Control_TagReadFailures(t *testing.T) {
 // Denied ListTagsForResource reads in several listings are one warning for
 // the scan.
 func TestScanS3Control_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, s3controlTagsOp)
 	calls := newS3CCalls()
@@ -486,6 +492,7 @@ func TestScanS3Control_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanS3Control_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, s3controlTagsOp)
 	calls := newS3CCalls()
@@ -503,6 +510,7 @@ func TestScanS3Control_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A denied listing warns once under its own op and costs no other listing
 // its rows.
 func TestScanS3Control_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, op := range s3cListOps {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -529,6 +537,7 @@ func TestScanS3Control_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanS3Control_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeS3AccessGrantsLocation)
@@ -553,6 +562,7 @@ func TestScanS3Control_FailedWriteStopsWithoutWarning(t *testing.T) {
 // ends a listing with errRepeatedNextToken keeping its pages, and no
 // listing's failure stops the listings after it.
 func TestScanS3Control_ListFailureKeepsPagesAndRunsEveryListing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newS3CCalls()
 	h := s3cHandlers(calls)
@@ -586,6 +596,7 @@ func TestScanS3Control_ListFailureKeepsPagesAndRunsEveryListing(t *testing.T) {
 // Regions has none of their resources: no row, no warning, no error. A
 // Storage Lens listing answered with a bare 403 is warned about as a denial.
 func TestScanS3Control_RegionGaps(t *testing.T) {
+	t.Parallel()
 	homeGap := &smithy.GenericAPIError{Code: "AccessDenied", Message: "Region is not supported as home region for S3 Storage Lens"}
 	noInstance := &smithy.GenericAPIError{Code: "AccessGrantsInstanceNotExistsError", Message: "no instance"}
 	st := newTestStore(t)
@@ -618,6 +629,7 @@ func TestScanS3Control_RegionGaps(t *testing.T) {
 // the home-Region gap keeps the first page's configuration and warns once
 // under the listing that it stopped: the op served this Region a moment ago.
 func TestScanS3Control_StorageLensHomeRegionGapAfterFirstPage(t *testing.T) {
+	t.Parallel()
 	homeGap := &smithy.GenericAPIError{Code: "AccessDenied", Message: "Region is not supported as home region for S3 Storage Lens"}
 	st := newTestStore(t)
 	warns := countWarnings(st)
@@ -642,6 +654,7 @@ func TestScanS3Control_StorageLensHomeRegionGapAfterFirstPage(t *testing.T) {
 // row, with its tags: a denial warns once under the Get, any other failure
 // is returned.
 func TestScanS3Control_StorageLensGetFailureKeepsListEntry(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -688,6 +701,7 @@ func TestScanS3Control_StorageLensGetFailureKeepsListEntry(t *testing.T) {
 // A Get that answers without a configuration body keeps the list entry as
 // the row rather than storing null attributes.
 func TestScanS3Control_StorageLensGetWithoutBodyKeepsListEntry(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newS3CCalls()
 	h := s3cHandlers(calls)
@@ -706,6 +720,7 @@ func TestScanS3Control_StorageLensGetWithoutBodyKeepsListEntry(t *testing.T) {
 // A listed item without an ARN is warned about once under its listing rather
 // than stored under an empty NativeID, and has no tags read.
 func TestScanS3Control_ItemWithoutARNWarnedNotStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	apWarns := countOpWarnings(st, "s3control:ListAccessPoints")
@@ -731,6 +746,7 @@ func TestScanS3Control_ItemWithoutARNWarnedNotStored(t *testing.T) {
 // demoted to a warning under its own op, not its listing's, and the access
 // point listed before it is stored.
 func TestScanS3Control_PolicyThrottleWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, listType string }{
 		{"GetMultiRegionAccessPointPolicy", TypeS3MultiRegionAccessPoint},
 		{"GetAccessPointPolicyForObjectLambda", TypeS3ObjectLambdaAccessPoint},
@@ -773,6 +789,7 @@ func TestScanS3Control_PolicyThrottleWarnsUnderItsOp(t *testing.T) {
 // policy read for the other access point, stored as "<access point ARN>/policy"
 // with the access point's name, the scan region and the Get body.
 func TestScanS3Control_ObjectLambdaPolicyFailureKeepsOtherPolicies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	olapARN := func(name string) string {
 		return arnFor("aws", "s3-object-lambda", testRegion, testAccountID, "accesspoint/"+name)
@@ -819,6 +836,7 @@ func TestScanS3Control_ObjectLambdaPolicyFailureKeepsOtherPolicies(t *testing.T)
 
 // Multi-Region Access Points are listed in us-west-2 only.
 func TestScanS3Control_MultiRegionAccessPointsOnlyInUSWest2(t *testing.T) {
+	t.Parallel()
 	for region, want := range map[string]int{"us-west-2": 1, testRegion: 0} {
 		calls := newS3CCalls()
 		if _, _, err := s3cScan(t, newTestStore(t), region, s3cEmptyHandlers(calls)); err != nil {

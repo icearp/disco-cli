@@ -301,6 +301,7 @@ func eksxAssertRows(t *testing.T, st *store.Store, c *eksxCalls) {
 // every listing and both clusters are read, every listing asks for the
 // model's page cap of 100, and the scan reports no error or warning.
 func TestScanEKS_StoresTagsOfEveryPerClusterType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newEKSXCalls()
@@ -335,6 +336,7 @@ func TestScanEKS_StoresTagsOfEveryPerClusterType(t *testing.T) {
 
 // The NativeIDs of the types listed by name alone keep their base shape.
 func TestScanEKS_NamedChildNativeIDs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := eksxScan(context.Background(), st, newEKSXCalls().handlers()); err != nil {
 		t.Fatalf("scan: %v", err)
@@ -356,6 +358,7 @@ func TestScanEKS_NamedChildNativeIDs(t *testing.T) {
 // ListTagsForResource unchanged, and the cluster and key of its gov NativeIDs
 // to the Describes.
 func TestScanEKS_GovCloudRowsReachTagReads(t *testing.T) {
+	t.Parallel()
 	const govRegion = "us-gov-west-1"
 	st := newTestStore(t)
 	calls := newEKSXCallsIn("aws-us-gov", govRegion)
@@ -375,6 +378,7 @@ func TestScanEKS_GovCloudRowsReachTagReads(t *testing.T) {
 // Per-cluster listings returning nothing store nothing, read no tags and
 // report nothing.
 func TestScanEKS_EmptyPerClusterListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newEKSXCalls()
@@ -406,6 +410,7 @@ func TestScanEKS_EmptyPerClusterListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanEKS_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := eksxScan(context.Background(), st, newEKSXCalls().handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -422,6 +427,7 @@ func TestScanEKS_RescanInsertsNone(t *testing.T) {
 // not-found drops the row. ResourceNotFoundException, which
 // ListTagsForResource does not model, is a hard error there.
 func TestScanEKS_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	calls := newEKSXCalls()
 	for _, target := range []struct {
 		typ, nativeID, tagOp string
@@ -502,6 +508,7 @@ func TestScanEKS_TagReadFailures(t *testing.T) {
 // Denied tag reads of both clusters' rows are one warning under the tag op
 // for the scan.
 func TestScanEKS_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	calls := newEKSXCalls()
 	for _, c := range []struct{ typ, tagOp, c1, c2 string }{
 		{TypeEKSCapability, "eks:ListTagsForResource", sv(calls.capability("c1", "t").Arn), sv(calls.capability("c2", "t").Arn)},
@@ -532,6 +539,7 @@ func TestScanEKS_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanEKS_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "eks:DescribeNodegroup")
 	calls := newEKSXCalls()
@@ -549,6 +557,7 @@ func TestScanEKS_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A Describe answering without the resource keeps the row untagged and fails
 // the scan with errEKSNoBody, rather than reading the row as untagged.
 func TestScanEKS_DescribeWithoutBodyIsAnError(t *testing.T) {
+	t.Parallel()
 	calls := newEKSXCalls()
 	for _, c := range []struct{ op, typ, nativeID string }{
 		{"DescribeAccessEntry", TypeEKSAccessEntry, calls.childID("access-entry", "c1", calls.principal("c1", "t"))},
@@ -594,6 +603,7 @@ func TestScanEKS_DescribeWithoutBodyIsAnError(t *testing.T) {
 // A denied per-cluster listing warns once under its op and costs no other
 // phase its rows.
 func TestScanEKS_DeniedPerClusterListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, op := range eksxListOps {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -622,6 +632,7 @@ func TestScanEKS_DeniedPerClusterListingWarnsUnderItsOp(t *testing.T) {
 // silently and store the other's rows; ListCapabilities, which does not,
 // returns it.
 func TestScanEKS_ClusterGoneFromPerClusterListing(t *testing.T) {
+	t.Parallel()
 	for _, op := range eksxListOps {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -652,6 +663,7 @@ func TestScanEKS_ClusterGoneFromPerClusterListing(t *testing.T) {
 // A per-cluster listing's failed page keeps the page read before it and the
 // other cluster's rows, and its error does not stop the later phases.
 func TestScanEKS_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newEKSXCalls()
 	h := calls.handlers()
@@ -678,6 +690,7 @@ func TestScanEKS_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanEKS_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newEKSXCalls()
 	h := calls.handlers()
@@ -701,6 +714,7 @@ func TestScanEKS_RepeatedTokenKeepsPages(t *testing.T) {
 // sent its cluster and the empty AssociationId it was listed with (the SDK
 // refuses to send such a call, so outside this stub the read fails).
 func TestScanEKS_UnnamedListedRowsNamedByARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newEKSXCalls()
 	h := calls.handlers()
@@ -737,6 +751,7 @@ func TestScanEKS_UnnamedListedRowsNamedByARN(t *testing.T) {
 // read and are warned about once per listing, under a key that is never
 // empty.
 func TestScanEKS_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	// out builds a fresh output per call: the SDK writes ResultMetadata into
 	// each output it returns, and the clusters are listed concurrently.
 	for _, c := range []struct {
@@ -781,6 +796,7 @@ func TestScanEKS_UnstorableItemsWarn(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanEKS_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeEKSAddon)
@@ -805,6 +821,7 @@ func TestScanEKS_FailedWriteStopsWithoutWarning(t *testing.T) {
 // an entry DescribeAccessEntry no longer finds is dropped and gets no
 // listing.
 func TestScanEKS_AccessPoliciesReadStoredEntriesOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newEKSXCalls()
 	calls.errs[calls.childID("access-entry", "c1", calls.principal("c1", "t"))] = eksGone
@@ -828,6 +845,7 @@ func TestScanEKS_AccessPoliciesReadStoredEntriesOnly(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is reported once,
 // naming the phases not run.
 func TestScanEKS_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newEKSXCalls()
 	h := calls.handlers()
@@ -868,6 +886,7 @@ func TestScanEKS_ContextEndStopsOnce(t *testing.T) {
 // unavailable and makes no other call. An NXDOMAIN of a tag read after rows
 // were stored is a failure of this scan: the counts are kept.
 func TestScanEKS_Unreachable(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "eks.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("endpoint absent", func(t *testing.T) {
 		st := newTestStore(t)
@@ -894,6 +913,7 @@ func TestScanEKS_Unreachable(t *testing.T) {
 }
 
 func TestEKSChildKey(t *testing.T) {
+	t.Parallel()
 	principal := "arn:aws-cn:iam::123456789012:role/a/b:c"
 	for _, c := range []struct {
 		nativeID, kind, cluster, key string

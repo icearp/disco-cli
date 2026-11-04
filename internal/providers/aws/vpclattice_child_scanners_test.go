@@ -165,6 +165,7 @@ func scanVpcLatticeTopLevel(t *testing.T, st *store.Store, handlers map[string]f
 }
 
 func TestScanVpcLattice_StoresChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls vlChildCalls
 	total, inserted, err := scanVpcLatticeTopLevel(t, st, vlHandlers(&calls))
@@ -224,6 +225,7 @@ func TestScanVpcLattice_StoresChildren(t *testing.T) {
 }
 
 func TestScanVpcLattice_NoChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls vlChildCalls
 	h := vlHandlers(&calls)
@@ -252,6 +254,7 @@ func TestScanVpcLattice_NoChildren(t *testing.T) {
 // does not model and any other error, fails the phase (storing none of its
 // rows) and is returned. The older phases' rows stay, the last one's included.
 func TestScanVpcLattice_FailedChildParent(t *testing.T) {
+	t.Parallel()
 	type failCase struct {
 		name      string
 		fail      map[string]error // keyed by parent ARN
@@ -337,6 +340,7 @@ func TestScanVpcLattice_FailedChildParent(t *testing.T) {
 // A hard error in the first child phase still lets the second one run, and
 // is returned.
 func TestScanVpcLattice_ChildPhaseErrorStillRunsOtherChildPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls vlChildCalls
 	h := vlHandlers(&calls)
@@ -355,6 +359,7 @@ func TestScanVpcLattice_ChildPhaseErrorStillRunsOtherChildPhase(t *testing.T) {
 // A hard error in the last older phase still lets the child phases run over
 // the service networks and target groups already stored, and is returned.
 func TestScanVpcLattice_OlderPhaseErrorStillRunsChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls vlChildCalls
 	h := vlHandlers(&calls)
@@ -378,6 +383,7 @@ func TestScanVpcLattice_OlderPhaseErrorStillRunsChildren(t *testing.T) {
 // A transient error in an older phase is demoted to a warning so that a
 // child phase's hard error still reaches the dispatcher as a hard error.
 func TestScanVpcLattice_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "vpclattice:ListServiceNetworkVpcAssociations")
 	var calls vlChildCalls
@@ -397,6 +403,7 @@ func TestScanVpcLattice_OlderPhaseTransientDoesNotMaskHardError(t *testing.T) {
 // A parent listing that fails on its second page keeps the rows of its first,
 // and only those are listed for children; the failure is returned.
 func TestScanVpcLattice_ChildrenOfFirstPageParents(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		listOp string
 		page2  func(next map[string]func(in any) (any, error)) func(in any) (any, error)
@@ -454,6 +461,7 @@ func TestScanVpcLattice_ChildrenOfFirstPageParents(t *testing.T) {
 // ListTargets call is made, no target row is stored, and the store failure is
 // returned.
 func TestScanVpcLattice_NoTargetsWhenTargetGroupUpsertFails(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	path := filepath.Join(t.TempDir(), "closing.db")
 	st, err := store.Open(path)
@@ -490,6 +498,7 @@ func TestScanVpcLattice_NoTargetsWhenTargetGroupUpsertFails(t *testing.T) {
 }
 
 func TestVlTargetNativeID_PortBeforeID(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		id   string
 		port *int32

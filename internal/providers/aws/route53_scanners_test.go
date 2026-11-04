@@ -53,6 +53,7 @@ func r53CollectionParents(t *testing.T, st *store.Store, ids ...string) []childP
 }
 
 func TestRoute53CIDRNativeIDs(t *testing.T) {
+	t.Parallel()
 	if got := route53CIDRLocationNativeID(r53CollA, "east"); got != r53LocAEast {
 		t.Errorf("location id = %q, want %q", got, r53LocAEast)
 	}
@@ -67,6 +68,7 @@ func TestRoute53CIDRNativeIDs(t *testing.T) {
 // Page two holds a collection without an Id: it is stored but cannot be a
 // fan-out parent. A collection without an ARN is not stored.
 func TestScanRoute53CIDRCollections_ReturnsStoredCollectionsAsParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := r53Client(map[string]func(any) (any, error){
 		"ListCidrCollections": func(in any) (any, error) {
@@ -131,6 +133,7 @@ func scanR53Locations(t *testing.T, st *store.Store, handler func(in any) (any, 
 
 // The same location name in two collections stays two rows.
 func TestScanRoute53CIDRLocations_StoresEveryPageOfEveryCollection(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	stored, total, err := scanR53Locations(t, st, r53LocationHandler(&calls, nil), "c-a", "c-b")
@@ -160,6 +163,7 @@ func TestScanRoute53CIDRLocations_StoresEveryPageOfEveryCollection(t *testing.T)
 }
 
 func TestScanRoute53CIDRLocations_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stored, total, err := scanR53Locations(t, st, func(any) (any, error) { return &route53.ListCidrLocationsOutput{}, nil }, "c-a")
 	if err != nil || total != 0 || len(stored) != 0 || len(rowsByNativeID(t, st, TypeRoute53CIDRLocation)) != 0 {
@@ -171,6 +175,7 @@ func TestScanRoute53CIDRLocations_Empty(t *testing.T) {
 // warns once for the op and keeps the other collections; any other error
 // fails the phase.
 func TestScanRoute53CIDRLocations_FailedCollection(t *testing.T) {
+	t.Parallel()
 	const op = "route53:ListCidrLocations"
 	t.Run("gone", func(t *testing.T) {
 		st := newTestStore(t)
@@ -263,6 +268,7 @@ func scanR53Blocks(t *testing.T, st *store.Store, handler func(in any) (any, err
 // The same CIDR in two locations of one collection, and in the same-named
 // location of two collections, stays three rows.
 func TestScanRoute53CIDRBlocks_StoresEveryPageOfEveryCollection(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := scanR53Blocks(t, st, r53BlockHandler(t, &calls, nil), []string{r53LocAEast, r53LocAWest, r53LocBEast}, "c-a", "c-b")
@@ -291,6 +297,7 @@ func TestScanRoute53CIDRBlocks_StoresEveryPageOfEveryCollection(t *testing.T) {
 // linked under its collection instead of the location; a block whose location
 // was stored stays under the location.
 func TestScanRoute53CIDRBlocks_UnstoredLocationLinksBlockToCollection(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	total, err := scanR53Blocks(t, st, r53BlockHandler(t, &calls, nil), []string{r53LocAEast}, "c-a")
@@ -313,6 +320,7 @@ func TestScanRoute53CIDRBlocks_UnstoredLocationLinksBlockToCollection(t *testing
 }
 
 func TestScanRoute53CIDRBlocks_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanR53Blocks(t, st, func(any) (any, error) { return &route53.ListCidrBlocksOutput{}, nil }, nil, "c-a")
 	if err != nil || total != 0 || len(rowsByNativeID(t, st, TypeRoute53CIDRBlock)) != 0 {
@@ -324,6 +332,7 @@ func TestScanRoute53CIDRBlocks_Empty(t *testing.T) {
 // warns once for the op and keeps the other collections; any other error
 // fails the phase, keeping the pages stored before it.
 func TestScanRoute53CIDRBlocks_FailedCollection(t *testing.T) {
+	t.Parallel()
 	const op = "route53:ListCidrBlocks"
 	all := []string{r53LocAEast, r53LocAWest, r53LocBEast}
 	t.Run("gone", func(t *testing.T) {
@@ -386,6 +395,7 @@ func r53TopLevelHandlers() map[string]func(in any) (any, error) {
 }
 
 func TestScanRoute53_StoresCIDRLocationsAndBlocks(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(r53TopLevelHandlers(), r53Denied)
@@ -407,6 +417,7 @@ func TestScanRoute53_StoresCIDRLocationsAndBlocks(t *testing.T) {
 // locations, and a phase's hard error reaches the caller with the counts
 // stored before it.
 func TestScanRoute53_NewPhaseErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op            string
 		wantTotal     int

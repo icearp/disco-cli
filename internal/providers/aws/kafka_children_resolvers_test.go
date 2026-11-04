@@ -14,6 +14,7 @@ import (
 // A row whose attributes do not decode fails its resolver rather than being
 // skipped.
 func TestResolveMSKChildRefs_DecodeError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		typ, nativeID string
 		resolve       func(*account, *store.Store) error
@@ -55,6 +56,7 @@ func mskRelsFrom(t *testing.T, st *store.Store, id, kind string) []store.Relatio
 }
 
 func TestResolveMSKNodeRefs_BrokerAndZookeeper(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	subnet := upsertTestResource(t, st, "aws", testAccountID, TypeEC2Subnet, ec2ARN(testRegion, testAccountID, "subnet", "subnet-0a"), testRegion, "{}")
@@ -92,6 +94,7 @@ func TestResolveMSKNodeRefs_BrokerAndZookeeper(t *testing.T) {
 }
 
 func TestResolveMSKNodeRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeEC2Subnet, ec2ARN(testRegion, testAccountID, "subnet", "subnet-0a"), testRegion, "{}")
 	node := upsertTestResource(t, st, "aws", testAccountID, TypeMSKNode, kafkaTestNodeA1, testRegion, "{}")
@@ -102,6 +105,7 @@ func TestResolveMSKNodeRefs_NoAttrs(t *testing.T) {
 }
 
 func TestResolveMSKChannelRefs_S3AndIceberg(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	const keyARN = "arn:aws:kms:us-east-1:123456789012:key/11111111-2222-3333-4444-555555555555"
@@ -151,6 +155,7 @@ func TestResolveMSKChannelRefs_S3AndIceberg(t *testing.T) {
 }
 
 func TestResolveMSKChannelRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResource(t, st, "aws", testAccountID, TypeMSKTopic, kafkaTestTopicX1, testRegion, "{}")
 	ch := upsertTestResource(t, st, "aws", testAccountID, TypeMSKChannel, kafkaTestChannel1, testRegion, "{}")
@@ -163,6 +168,7 @@ func TestResolveMSKChannelRefs_NoAttrs(t *testing.T) {
 // Only a connection whose client is the scanned account resolves: the client's
 // vpc-connection row lives under the client account.
 func TestResolveMSKClientVpcConnectionRefs_SameAccountClient(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	const sameAccountConn = "arn:aws:kafka:us-east-1:123456789012:vpc-connection/123456789012/std/ffff-3"
@@ -186,6 +192,7 @@ func TestResolveMSKClientVpcConnectionRefs_SameAccountClient(t *testing.T) {
 }
 
 func TestResolveMSKClientVpcConnectionRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	conn := upsertTestResource(t, st, "aws", testAccountID, TypeMSKClientVpcConnection, kafkaTestClientA1, testRegion, "{}")
 	if err := resolveMSKClientVpcConnectionRefs(newTestAccount(testAccountID), st); err != nil {

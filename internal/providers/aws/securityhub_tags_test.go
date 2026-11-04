@@ -247,6 +247,7 @@ func assertSHRow(t *testing.T, r store.Resource, name *string, field, want strin
 // to the tag op; the organization configuration is stored untagged and never
 // sent. Every listing call asks for 100 results. No error, no warning.
 func TestScanSecurityHub_StoresTagsOfEveryTaggedType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newSHTagCalls()
@@ -313,6 +314,7 @@ func TestScanSecurityHub_StoresTagsOfEveryTaggedType(t *testing.T) {
 
 // The hub and the V2 hub without tags store nil TagsJSON.
 func TestScanSecurityHub_UntaggedHubs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSHTagCalls()
 	delete(calls.tags, shHubARN(testRegion))
@@ -332,6 +334,7 @@ func TestScanSecurityHub_UntaggedHubs(t *testing.T) {
 // by its ARN, a V2 rule by its RuleId, a policy by its Id, a connector by its
 // ConnectorId.
 func TestScanSecurityHub_NameFallbacks(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := shTagHandlers(newSHTagCalls())
 	rule := shTestARN("aws", testRegion, "automation-rule/r-1")
@@ -368,6 +371,7 @@ func TestScanSecurityHub_NameFallbacks(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanSecurityHub_TaggedRescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := shTagScan(context.Background(), st, shTagHandlers(newSHTagCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -386,6 +390,7 @@ func TestScanSecurityHub_TaggedRescanInsertsNone(t *testing.T) {
 // and warns once under the tag op; a throttle keeps it and is transient; any
 // other error keeps it and is an error.
 func TestScanSecurityHub_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, row := range shTaggedRows() {
 		for _, c := range []struct {
 			name      string
@@ -446,6 +451,7 @@ func TestScanSecurityHub_TagReadFailures(t *testing.T) {
 // Denied tag reads in two listings send one warning for the whole scan,
 // under the tag op, naming the first denied row; the rows are kept untagged.
 func TestScanSecurityHub_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, shTagsOp)
 	calls := newSHTagCalls()
@@ -480,6 +486,7 @@ func TestScanSecurityHub_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanSecurityHub_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, shTagsOp)
 	calls := newSHTagCalls()
@@ -498,6 +505,7 @@ func TestScanSecurityHub_TagThrottleDemotedBesideHardError(t *testing.T) {
 // is not read, no later phase runs and no warning is sent about rows the
 // write lost; the phases before it keep their rows.
 func TestScanSecurityHub_FailedTaggedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	kinds := shTagKinds()
 	for i, k := range kinds {
 		t.Run(k.op, func(t *testing.T) {
@@ -538,6 +546,7 @@ func TestScanSecurityHub_FailedTaggedWriteStopsScan(t *testing.T) {
 // A listing's failed page keeps the page read before it, and its error does
 // not stop the later listings.
 func TestScanSecurityHub_TaggedListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := shTagHandlers(newSHTagCalls())
 	k := shTagKindOf(t, "ListAutomationRules")
@@ -559,6 +568,7 @@ func TestScanSecurityHub_TaggedListFailureKeepsPagesAndLaterPhases(t *testing.T)
 
 // A repeated token ends a hand-rolled listing as an error, keeping its pages.
 func TestScanSecurityHub_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListAutomationRules", "ListAutomationRulesV2", "ListConnectorsV2"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -587,6 +597,7 @@ func TestScanSecurityHub_RepeatedTokenKeepsPages(t *testing.T) {
 // warned about once under its listing, named by its name, its id, or the
 // fallback text when it has none.
 func TestScanSecurityHub_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		answer        func(in any) (any, error)
@@ -643,6 +654,7 @@ func TestScanSecurityHub_ElementWithoutARNWarns(t *testing.T) {
 // silently, and every other listing is stored; the V2 hub not found likewise.
 // The same answer on a later page is an error that keeps the page before it.
 func TestScanSecurityHub_TaggedListingNotEnabled(t *testing.T) {
+	t.Parallel()
 	for _, k := range shTagKinds() {
 		t.Run(k.op+"/first page", func(t *testing.T) {
 			st := newTestStore(t)
@@ -718,6 +730,7 @@ func TestScanSecurityHub_TaggedListingNotEnabled(t *testing.T) {
 // the page read before it. Every other listing still stores its rows. The V2
 // hub denied warns the same way.
 func TestScanSecurityHub_DeniedTaggedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, k := range shTagKinds() {
 		for _, call := range []int{1, 2} {
 			t.Run(fmt.Sprintf("%s/page%d", k.op, call), func(t *testing.T) {
@@ -772,6 +785,7 @@ func TestScanSecurityHub_DeniedTaggedListingWarnsUnderItsOp(t *testing.T) {
 // V2 hub and is the scan's error (a throttle transient), with no warning;
 // every listing after it still stores its rows.
 func TestScanSecurityHub_HubV2HardError(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name    string
 		err     error
@@ -809,6 +823,7 @@ func TestScanSecurityHub_HubV2HardError(t *testing.T) {
 // The hub is stored and tag-read under the HubArn DescribeHub returns, even
 // when that differs from the ARN the scan would build for the region.
 func TestScanSecurityHub_HubUsesReturnedHubArn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSHTagCalls()
 	handlers := shTagHandlers(calls)
@@ -836,6 +851,7 @@ func TestScanSecurityHub_HubUsesReturnedHubArn(t *testing.T) {
 // A denied DescribeHub warns once and runs no other phase; the hub not
 // enabled is the service disabled, silently, and runs no other phase.
 func TestScanSecurityHub_HubGate(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -881,6 +897,7 @@ func TestScanSecurityHub_HubGate(t *testing.T) {
 // listed ARNs unchanged, and a hub DescribeHub returns without HubArn is
 // stored and read under the hub ARN of the account's partition.
 func TestScanSecurityHub_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -912,6 +929,7 @@ func TestScanSecurityHub_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it in its listing.
 func TestScanSecurityHub_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSHTagCalls()
 	handlers := shTagHandlers(calls)
@@ -948,6 +966,7 @@ func TestScanSecurityHub_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanSecurityHub_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "securityhub.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

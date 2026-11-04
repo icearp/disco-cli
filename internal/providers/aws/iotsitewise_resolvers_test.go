@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveIoTSWAssetToModel(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	mARN := iotSWARN("aws", testRegion, acct.ID, "asset-model", "m-1")
@@ -22,6 +23,7 @@ func TestResolveIoTSWAssetToModel(t *testing.T) {
 }
 
 func TestResolveIoTSWAccessPolicyTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pARN := iotSWARN("aws", testRegion, acct.ID, "portal", "p-1")
@@ -44,6 +46,7 @@ func TestResolveIoTSWAccessPolicyTarget(t *testing.T) {
 }
 
 func TestResolveIoTSWPortalRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/iotsw-portal", acct.ID)
@@ -59,6 +62,7 @@ func TestResolveIoTSWPortalRole(t *testing.T) {
 }
 
 func TestResolveIoTSWGatewayThing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	thingName := "core-device-1"
@@ -84,6 +88,7 @@ func TestResolveIoTSWGatewayThing(t *testing.T) {
 }
 
 func TestResolveIoTSWComputationModelBindings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -105,6 +110,7 @@ func TestResolveIoTSWComputationModelBindings(t *testing.T) {
 }
 
 func TestResolveIoTSWAssetModelHierarchies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -123,6 +129,7 @@ func TestResolveIoTSWAssetModelHierarchies(t *testing.T) {
 }
 
 func TestResolveIoTSWDatasetRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

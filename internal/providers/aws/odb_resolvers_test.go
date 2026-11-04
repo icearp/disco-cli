@@ -9,6 +9,7 @@ import (
 )
 
 func TestResolveODBAutonomousDatabaseNetwork(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	netARN := fmt.Sprintf("arn:aws:odb:%s:%s:odb-network/odbnet-1", testRegion, acct.ID)
@@ -27,6 +28,7 @@ func TestResolveODBAutonomousDatabaseNetwork(t *testing.T) {
 }
 
 func TestResolveODBAutonomousDatabaseNetwork_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	adbARN := fmt.Sprintf("arn:aws:odb:%s:%s:autonomous-database/adb-1", testRegion, acct.ID)
@@ -40,6 +42,7 @@ func TestResolveODBAutonomousDatabaseNetwork_NoAttrs(t *testing.T) {
 }
 
 func TestResolveODBAutonomousDatabaseBackupParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	adbID := "adb-xyz"
@@ -63,6 +66,7 @@ func TestResolveODBAutonomousDatabaseBackupParent(t *testing.T) {
 }
 
 func TestResolveODBAutonomousDatabaseBackupParent_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	bkARN := fmt.Sprintf("arn:aws:odb:%s:%s:autonomous-database-backup/bk-1", testRegion, acct.ID)
@@ -76,6 +80,7 @@ func TestResolveODBAutonomousDatabaseBackupParent_NoAttrs(t *testing.T) {
 }
 
 func TestResolveODBDbNodeCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	clusterARN := fmt.Sprintf("arn:aws:odb:%s:%s:cloud-vm-cluster/vmc-1", testRegion, acct.ID)
@@ -102,6 +107,7 @@ func odbExadbClusterRefAttrs(id, netARN, vaultARN string) string {
 var odbTestNetARN = fmt.Sprintf("arn:aws:odb:%s:%s:odb-network/odbnet-1", testRegion, testAccountID)
 
 func TestResolveODBExadbVMClusterRefs_WiresNetworkAndVault(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	netID := upsertTestResource(t, st, "aws", acct.ID, TypeODBOdbNetwork, odbTestNetARN, testRegion, "{}")
@@ -120,6 +126,7 @@ func TestResolveODBExadbVMClusterRefs_WiresNetworkAndVault(t *testing.T) {
 }
 
 func TestResolveODBExadbVMClusterRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeODBOdbNetwork, odbTestNetARN, testRegion, "{}")
@@ -133,6 +140,7 @@ func TestResolveODBExadbVMClusterRefs_NoAttrs(t *testing.T) {
 }
 
 func TestResolveODBExadbVMClusterRefs_UnscannedTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cID := upsertTestResource(t, st, "aws", acct.ID, TypeODBExadbVMCluster, odbExadbClusterARN("c1"), testRegion,
@@ -146,6 +154,7 @@ func TestResolveODBExadbVMClusterRefs_UnscannedTargets(t *testing.T) {
 }
 
 func TestResolveODBExadbVMClusterRefs_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	netID := upsertTestResource(t, st, "aws", acct.ID, TypeODBOdbNetwork, odbTestNetARN, testRegion, "{}")
@@ -162,6 +171,7 @@ func TestResolveODBExadbVMClusterRefs_DecodeErrorReturned(t *testing.T) {
 }
 
 func TestResolveODBDbNodeCluster_NoMatch(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	// Cluster not scanned — FK-safe lookup must emit no edge.

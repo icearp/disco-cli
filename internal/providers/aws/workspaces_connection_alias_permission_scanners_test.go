@@ -93,6 +93,7 @@ func wsGrants(p wsConnectionAliasPermission) []wsGrant {
 }
 
 func TestScanWorkSpaces_StoresConnectionAliasPermissions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var addInCalls, permCalls parentCalls
 	acct := newTestAccount(testAccountID)
@@ -137,6 +138,7 @@ func TestScanWorkSpaces_StoresConnectionAliasPermissions(t *testing.T) {
 // An alias shared with no one stores the same body on every scan, so its
 // grants key marshals as [] rather than null.
 func TestScanWorkSpaces_UnsharedAliasStoresEmptyList(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var addInCalls, permCalls parentCalls
 	acct := newTestAccount(testAccountID)
@@ -154,6 +156,7 @@ func TestScanWorkSpaces_UnsharedAliasStoresEmptyList(t *testing.T) {
 }
 
 func TestScanWorkSpaces_NoOwnedAliases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		aliases   []wstypes.ConnectionAlias
@@ -193,6 +196,7 @@ func TestScanWorkSpaces_NoOwnedAliases(t *testing.T) {
 // InvalidParameterValuesException or a transient error after retries warns once however many aliases hit it; any other error fails the
 // scan after every other phase has stored its rows.
 func TestScanWorkSpaces_FailedAliasPermission(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		failIDs   []string
@@ -253,6 +257,7 @@ func TestScanWorkSpaces_FailedAliasPermission(t *testing.T) {
 // A hard error in an older phase after the alias phase still lets the
 // permission phase run over the aliases stored before it, and is returned.
 func TestScanWorkSpaces_OlderPhaseErrorStillRunsAliasPermissions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var addInCalls, permCalls parentCalls
 	h := wsAliasHandlers(&addInCalls, &permCalls)
@@ -267,6 +272,7 @@ func TestScanWorkSpaces_OlderPhaseErrorStillRunsAliasPermissions(t *testing.T) {
 // A failed alias listing page keeps the aliases of the page before it, and
 // the permission phase reads those.
 func TestScanWorkSpaces_FailedAliasListKeepsFirstPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var addInCalls, permCalls parentCalls
 	h := wsAliasHandlers(&addInCalls, &permCalls)
@@ -289,6 +295,7 @@ func TestScanWorkSpaces_FailedAliasListKeepsFirstPage(t *testing.T) {
 // A transient error in an older phase is demoted to a warning so that the
 // permission phase's hard error still reaches the dispatcher as a hard error.
 func TestScanWorkSpaces_OlderPhaseTransientDoesNotMaskAliasPermissionError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "workspaces:DescribeApplications")
 	var addInCalls, permCalls parentCalls
@@ -308,6 +315,7 @@ func TestScanWorkSpaces_OlderPhaseTransientDoesNotMaskAliasPermissionError(t *te
 // The grants sort is total: every input order of grants that differ in any
 // field gives the same stored order.
 func TestDescribeWSConnectionAliasPermission_SortIsTotal(t *testing.T) {
+	t.Parallel()
 	grants := []wstypes.ConnectionAliasPermission{
 		{SharedAccountId: ptrStr("444455556666"), AllowAssociation: ptrBool(false)},
 		{SharedAccountId: ptrStr("111122223333"), AllowAssociation: ptrBool(true)},
@@ -340,6 +348,7 @@ func TestDescribeWSConnectionAliasPermission_SortIsTotal(t *testing.T) {
 }
 
 func TestDescribeWSConnectionAliasPermission_FailsOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	var calls atomic.Int32
 	cfg := opStubConfig(map[string]func(in any) (any, error){
 		"DescribeConnectionAliasPermissions": func(any) (any, error) {
@@ -365,6 +374,7 @@ func TestDescribeWSConnectionAliasPermission_FailsOnRepeatedToken(t *testing.T) 
 // grants null (not read), and the scan returns the error; the sibling alias
 // keeps its row and its read grants.
 func TestScanWorkSpaces_RepeatedAliasPermissionTokenKeepsRowWithoutGrants(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var addInCalls, permCalls parentCalls
 	handlers := wsAliasHandlers(&addInCalls, &permCalls)

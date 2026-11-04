@@ -11,6 +11,7 @@ import (
 // target type; an unscanned ARN, and a subscription with no attributes, get no
 // edge.
 func TestResolvePricingPlanSubscriptionResources_Edges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	distID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontDistribution, ppmDistARN, "global", "{}")
@@ -41,6 +42,7 @@ func TestResolvePricingPlanSubscriptionResources_Edges(t *testing.T) {
 // A row whose attributes do not decode is reported, and costs the other rows
 // none of their edges.
 func TestResolvePricingPlanSubscriptionResources_DecodeError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	distID := upsertTestResource(t, st, "aws", acct.ID, TypeCloudFrontDistribution, ppmDistARN, "global", "{}")

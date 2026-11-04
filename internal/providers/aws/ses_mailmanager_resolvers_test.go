@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveMMIngressPointRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rsARN := mmARN("aws", testRegion, acct.ID, "rule-set", "rs-1")
@@ -26,6 +27,7 @@ func TestResolveMMIngressPointRefs(t *testing.T) {
 }
 
 func TestResolveMMArchiveKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/k-1", testRegion, acct.ID)
@@ -41,6 +43,7 @@ func TestResolveMMArchiveKMS(t *testing.T) {
 }
 
 func TestResolveMMAddonInstanceToSubscription(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	subARN := fmt.Sprintf("arn:aws:ses:%s:%s:mailmanager-addon-subscription/sub-1", testRegion, acct.ID)

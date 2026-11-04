@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveElastiCacheSnapshotRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -28,6 +29,7 @@ func TestResolveElastiCacheSnapshotRelationships(t *testing.T) {
 }
 
 func TestResolveElastiCacheSnapshotRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -42,6 +44,7 @@ func TestResolveElastiCacheSnapshotRelationships_NoAttrs(t *testing.T) {
 }
 
 func TestResolveElastiCacheServerlessSnapshotRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -60,6 +63,7 @@ func TestResolveElastiCacheServerlessSnapshotRelationships(t *testing.T) {
 }
 
 func TestResolveElastiCacheServerlessSnapshotRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

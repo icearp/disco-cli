@@ -14,6 +14,7 @@ import (
 // The Shield singletons record the region the scanner was called with (Shield's
 // home in the account's partition), not a fixed commercial region.
 func TestShieldSingletons_RecordCallerRegion(t *testing.T) {
+	t.Parallel()
 	cfg := opStubConfig(map[string]func(any) (any, error){
 		"DescribeDRTAccess": func(any) (any, error) {
 			return &shield.DescribeDRTAccessOutput{RoleArn: sdkaws.String("arn:aws-us-gov:iam::111111111111:role/drt")}, nil

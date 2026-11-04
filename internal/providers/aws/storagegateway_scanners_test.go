@@ -163,6 +163,7 @@ func sgwAttrKeys(t *testing.T, r store.Resource) map[string]json.RawMessage {
 }
 
 func TestScanSGWFileShares_DescribedDetailReplacesSummaryInOneRowPerShare(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var nfsCalls, smbCalls sgwBatches
 	// gw1 has 11 NFS shares (two batches: the cap is 10) and an SMB share;
@@ -211,6 +212,7 @@ func TestScanSGWFileShares_DescribedDetailReplacesSummaryInOneRowPerShare(t *tes
 }
 
 func TestScanSGWFileShares_NoSharesDescribesNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	called := false
 	describe := func(any) (any, error) { called = true; return nil, sgwBadInput }
@@ -225,6 +227,7 @@ func TestScanSGWFileShares_NoSharesDescribesNothing(t *testing.T) {
 }
 
 func TestScanSGWFileShares_UndescribedSharesKeepSummary(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		err      error
@@ -329,6 +332,7 @@ func scanSGWTapesForTest(t *testing.T, st *store.Store, handlers map[string]func
 }
 
 func TestScanSGWTapes_ShelvedTapeTakesArchiveDetail(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanSGWTapesForTest(t, st, map[string]func(any) (any, error){
 		"ListTapes": sgwListTapes([]sgwtypes.TapeInfo{sgwTape("LIB1", "gw1"), sgwTape("VTS1", "")}, []sgwtypes.TapeInfo{sgwTape("VTS2", "")}),
@@ -359,6 +363,7 @@ func TestScanSGWTapes_ShelvedTapeTakesArchiveDetail(t *testing.T) {
 }
 
 func TestScanSGWTapes_NoShelvedTapeSkipsArchives(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	called := false
 	total, err := scanSGWTapesForTest(t, st, map[string]func(any) (any, error){
@@ -371,6 +376,7 @@ func TestScanSGWTapes_NoShelvedTapeSkipsArchives(t *testing.T) {
 }
 
 func TestScanSGWTapes_ArchiveFailureKeepsSummaries(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		err      error
@@ -428,6 +434,7 @@ func scanSGWPoliciesForTest(t *testing.T, st *store.Store, gateways []sgwtypes.G
 }
 
 func TestScanSGWAutomaticTapeCreationPolicies_StoresEachUnderItsGateway(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	// "late" is stored from an earlier scan but not listed by this one.
 	seedParentRows(t, st, TypeStorageGatewayGateway, sgwTestGatewayARN("tape"), sgwTestGatewayARN("file"), sgwTestGatewayARN("late"))
@@ -474,6 +481,7 @@ func TestScanSGWAutomaticTapeCreationPolicies_StoresEachUnderItsGateway(t *testi
 }
 
 func TestScanSGWAutomaticTapeCreationPolicies_NoTapeGatewayNoCall(t *testing.T) {
+	t.Parallel()
 	for _, gateways := range [][]sgwtypes.GatewayInfo{nil, {sgwGateway("file", "FILE_S3"), sgwGateway("vol", "CACHED")}} {
 		st := newTestStore(t)
 		called := false
@@ -485,6 +493,7 @@ func TestScanSGWAutomaticTapeCreationPolicies_NoTapeGatewayNoCall(t *testing.T) 
 }
 
 func TestScanSGWAutomaticTapeCreationPolicies_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		err      error
@@ -548,6 +557,7 @@ func scanSGWForTest(t *testing.T, st *store.Store, handlers map[string]func(any)
 }
 
 func TestScanStorageGateway_StoresNewRowsAlongsideExisting(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanSGWForTest(t, st, sgwScanHandlers())
 	if err != nil || total != 7 {
@@ -565,6 +575,7 @@ func TestScanStorageGateway_StoresNewRowsAlongsideExisting(t *testing.T) {
 // A phase's hard error neither stops the phases after it nor loses their rows,
 // and a transient one is a warning, not the service's error.
 func TestScanStorageGateway_PhaseErrorsDoNotStopOtherPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListVolumes", "ListTapes", "ListAutomaticTapeCreationPolicies"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -839,6 +850,7 @@ func sgwTagReadARNs() []string {
 // from its describe, a cache report's from its element; the VTL device and
 // the tape creation policy are stored untagged. No error, no warning.
 func TestScanStorageGateway_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newSGWCalls()
@@ -933,6 +945,7 @@ func TestScanStorageGateway_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanStorageGateway_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := sgwScan(context.Background(), st, sgwHandlers(newSGWCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -949,6 +962,7 @@ func TestScanStorageGateway_RescanInsertsNone(t *testing.T) {
 // With nothing listed the scan stores nothing, reads no tags and warns
 // nothing.
 func TestScanStorageGateway_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newSGWCalls()
@@ -982,6 +996,7 @@ func TestScanStorageGateway_EmptyListings(t *testing.T) {
 // is read because its describe shows sgwDescribeTagsShown tags, and a failed
 // read stores it without the describe's.
 func TestScanStorageGateway_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	gatewayGone := &sgwtypes.InvalidGatewayRequestException{
 		Message: ptrStr("The specified gateway was not found."),
 		Error_:  &sgwtypes.StorageGatewayError{ErrorCode: sgwtypes.ErrorCodeGatewayNotFound},
@@ -1047,6 +1062,7 @@ func TestScanStorageGateway_TagReadFailures(t *testing.T) {
 // Denied tag reads in two listings send one warning for the whole scan; the
 // rows are kept untagged.
 func TestScanStorageGateway_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, sgwTagsOp)
 	calls := newSGWCalls()
@@ -1077,6 +1093,7 @@ func TestScanStorageGateway_TagDenialsWarnOncePerScan(t *testing.T) {
 // the scan, counting all three and naming the smallest ARN of the first
 // listing, whichever of its reads finished first.
 func TestScanStorageGateway_GatewayRefusalsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, sgwTagsOp)
 	calls := newSGWCalls()
@@ -1097,6 +1114,7 @@ func TestScanStorageGateway_GatewayRefusalsWarnOnce(t *testing.T) {
 // not about the refusal or denial of its own phase: their rows may be ones
 // the write lost. Both tape pools are on the one page whose write fails.
 func TestScanStorageGateway_FailedWriteWarnsOnlyWrittenPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeStorageGatewayTapePool)
@@ -1134,6 +1152,7 @@ func TestScanStorageGateway_FailedWriteWarnsOnlyWrittenPhases(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanStorageGateway_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, sgwTagsOp)
 	calls := newSGWCalls()
@@ -1151,6 +1170,7 @@ func TestScanStorageGateway_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the scan: no later phase runs; the phases before it
 // keep their rows.
 func TestScanStorageGateway_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeStorageGatewayTape)
 	calls := newSGWCalls()
@@ -1177,6 +1197,7 @@ func TestScanStorageGateway_FailedWriteStopsScan(t *testing.T) {
 // not stop the later listings. A failed gateway listing hands the gateway
 // phases only the gateways it stored.
 func TestScanStorageGateway_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, k := range sgwKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1228,6 +1249,7 @@ func TestScanStorageGateway_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated marker ends a listing as an error, keeping its pages.
 func TestScanStorageGateway_RepeatedMarkerKeepsPages(t *testing.T) {
+	t.Parallel()
 	for op, field := range map[string]string{
 		"ListTapes": "Marker", "ListFileSystemAssociations": "NextMarker", "ListFileShares": "NextMarker", "ListCacheReports": "Marker",
 	} {
@@ -1258,6 +1280,7 @@ func TestScanStorageGateway_RepeatedMarkerKeepsPages(t *testing.T) {
 // Every page of a resource's tags is read; a repeated marker keeps the row
 // untagged and is an error.
 func TestScanStorageGateway_TagPages(t *testing.T) {
+	t.Parallel()
 	arn := sgwKindOf(t, "ListVolumes").arn("bare")
 	pageOf := func(next *string, k, v string) *storagegateway.ListTagsForResourceOutput {
 		return &storagegateway.ListTagsForResourceOutput{Marker: next, Tags: []sgwtypes.Tag{{Key: ptrStr(k), Value: ptrStr(v)}}}
@@ -1313,6 +1336,7 @@ func TestScanStorageGateway_TagPages(t *testing.T) {
 // warned about once under its listing, named by its id or name, or by the
 // fallback text when it has none.
 func TestScanStorageGateway_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		answer        func(in any) (any, error)
@@ -1370,6 +1394,7 @@ func TestScanStorageGateway_ElementWithoutARNWarns(t *testing.T) {
 // Rows of the aws-us-gov and aws-cn partitions reach the tag op under their
 // listed ARNs unchanged.
 func TestScanStorageGateway_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, partition := range []string{"aws-us-gov", "aws-cn"} {
 		t.Run(partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1397,6 +1422,7 @@ func TestScanStorageGateway_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it in its listing.
 func TestScanStorageGateway_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSGWCalls()
 	handlers := sgwHandlers(calls)
@@ -1432,6 +1458,7 @@ func TestScanStorageGateway_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanStorageGateway_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "storagegateway.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1502,6 +1529,7 @@ func sgwDescribeWithTags(typ sgwtypes.FileShareType, n int) func(any) (any, erro
 // showing that many, or whose describe failed, has them read with
 // ListTagsForResource.
 func TestScanSGWFileShares_TagSource(t *testing.T) {
+	t.Parallel()
 	read := map[string]string{"source": "ListTagsForResource"}
 	described := func(n int) map[string]string {
 		m := map[string]string{}
@@ -1553,6 +1581,7 @@ func TestScanSGWFileShares_TagSource(t *testing.T) {
 // After a failed write the describes warn nothing: the warning would name
 // shares the write lost. Their hard errors are still returned.
 func TestScanSGWFileShares_FailedWriteWarnsNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeStorageGatewayShare)
@@ -1574,6 +1603,7 @@ func TestScanSGWFileShares_FailedWriteWarnsNothing(t *testing.T) {
 // A listing whose later page fails keeps the shares of the page before it,
 // described and stored.
 func TestScanSGWFileShares_LaterPageFailureKeepsShares(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var nfs sgwBatches
 	total, err := scanSGWSharesForTest(t, st, map[string]func(any) (any, error){
@@ -1595,6 +1625,7 @@ func TestScanSGWFileShares_LaterPageFailureKeepsShares(t *testing.T) {
 // failed write the archive read's error, a denial or a throttle, warns
 // nothing and is returned with the write's.
 func TestScanSGWTapes_ShelvedTapeTagsAndFailedWrite(t *testing.T) {
+	t.Parallel()
 	t.Run("tags", func(t *testing.T) {
 		st := newTestStore(t)
 		calls := newSGWCalls()
@@ -1635,6 +1666,7 @@ func TestScanSGWTapes_ShelvedTapeTagsAndFailedWrite(t *testing.T) {
 // The archives are read once, on the first page with a shelved tape, and a
 // repeated archive marker is an error that keeps the tapes.
 func TestScanSGWTapes_ArchivesReadOnce(t *testing.T) {
+	t.Parallel()
 	t.Run("once", func(t *testing.T) {
 		st := newTestStore(t)
 		calls := 0

@@ -65,6 +65,7 @@ func (s *stubConnectWorkspace) DescribePrompt(_ context.Context, in *connect.Des
 }
 
 func TestScanConnectWorkspace(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	now := time.Unix(1700000000, 0).UTC()
@@ -134,6 +135,7 @@ func TestScanConnectWorkspace(t *testing.T) {
 }
 
 func TestScanConnectWorkspaceEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubConnectWorkspace{}

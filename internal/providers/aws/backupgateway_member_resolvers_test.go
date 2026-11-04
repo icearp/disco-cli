@@ -19,6 +19,7 @@ func bgwAttrs(t *testing.T, v any) string {
 }
 
 func TestResolveBackupGatewayMemberHypervisor(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -45,6 +46,7 @@ func TestResolveBackupGatewayMemberHypervisor(t *testing.T) {
 
 // A member referencing an unscanned hypervisor (or carrying none) emits no edge.
 func TestResolveBackupGatewayMemberHypervisor_Unknown(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

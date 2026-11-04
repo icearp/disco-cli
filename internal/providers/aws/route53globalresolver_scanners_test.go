@@ -373,6 +373,7 @@ func r53grAttr(t *testing.T, r store.Resource, key string) any {
 // one is warned about. An element without its id is not stored and warned
 // about once under its listing. No error.
 func TestScanRoute53GlobalResolver_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newR53GRCalls("aws")
@@ -494,6 +495,7 @@ func TestScanRoute53GlobalResolver_StoresEveryTypeWithTags(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanRoute53GlobalResolver_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := r53grScan(st, r53grHandlers(newR53GRCalls("aws"))); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -512,6 +514,7 @@ func TestScanRoute53GlobalResolver_RescanInsertsNone(t *testing.T) {
 // and warns once under the tag op; a throttle keeps it and is transient; any
 // other error keeps it and is an error.
 func TestScanRoute53GlobalResolver_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	kinds := []struct {
 		typ, resource string
 		// childOp is a listing whose parent the row is, sent parent;
@@ -587,6 +590,7 @@ func TestScanRoute53GlobalResolver_TagReadFailures(t *testing.T) {
 // scan, under the tag op, naming the first denied row; the rows are kept
 // untagged.
 func TestScanRoute53GlobalResolver_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := bacWarnings(st, r53grTestTagsOp)
 	calls := newR53GRCalls("aws")
@@ -621,6 +625,7 @@ func TestScanRoute53GlobalResolver_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanRoute53GlobalResolver_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, r53grTestTagsOp)
 	calls := newR53GRCalls("aws")
@@ -640,6 +645,7 @@ func TestScanRoute53GlobalResolver_TagThrottleDemotedBesideHardError(t *testing.
 // the listing of its two-page parent after one call; another parent's
 // listing may be called before the failure stops the phase.
 func TestScanRoute53GlobalResolver_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	v2 := r53grID("dns-view/v2")
 	cases := []struct {
 		typ, op string
@@ -711,6 +717,7 @@ func TestScanRoute53GlobalResolver_FailedWriteStopsScan(t *testing.T) {
 // An element without an ARN is warned about under the name it has, else its
 // Id, else as an element with no identifier.
 func TestScanRoute53GlobalResolver_NoARNNamedByID(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op  string
 		out any
@@ -747,6 +754,7 @@ var r53grTestOps = []string{
 // A listing's failed later page keeps the pages read before it, and its
 // sibling parents' rows; its error does not stop the later phases.
 func TestScanRoute53GlobalResolver_LaterPageFailureKeepsPages(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op        string
 		wantTotal int // the rows of the failed page, and of their children, are lost
@@ -782,6 +790,7 @@ func TestScanRoute53GlobalResolver_LaterPageFailureKeepsPages(t *testing.T) {
 
 // A listing whose NextToken repeats ends as an error, keeping both pages.
 func TestScanRoute53GlobalResolver_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range r53grTestOps {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -803,6 +812,7 @@ func TestScanRoute53GlobalResolver_RepeatedTokenKeepsPages(t *testing.T) {
 // once under the op; any other error, a transient one included, is returned
 // after the siblings' rows are stored, since the parent's children are lost.
 func TestScanRoute53GlobalResolver_ChildListingFailures(t *testing.T) {
+	t.Parallel()
 	parents := []struct {
 		op, parent string
 		// wantTotal: the parent's rows, and their children, are lost.
@@ -858,6 +868,7 @@ func TestScanRoute53GlobalResolver_ChildListingFailures(t *testing.T) {
 // A listing denied after its first page keeps that page and its sibling
 // parents' rows, and warns once.
 func TestScanRoute53GlobalResolver_LaterPageDeniedKeepsPages(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op        string
 		wantTotal int // the rows of the denied page, and of their children, are lost
@@ -897,6 +908,7 @@ func TestScanRoute53GlobalResolver_LaterPageDeniedKeepsPages(t *testing.T) {
 // A listing that fails outright does not stop the later phases; its child
 // phases have no parents and make no call.
 func TestScanRoute53GlobalResolver_FailedListingRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newR53GRCalls("aws")
 	h := r53grHandlers(calls)
@@ -924,6 +936,7 @@ func TestScanRoute53GlobalResolver_FailedListingRunsLaterPhases(t *testing.T) {
 // instead, so the demotion must add exactly one warning, under the op that
 // failed, and none under any other.
 func TestScanRoute53GlobalResolver_TransientPhaseDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	scan := func(t *testing.T, op, hardOp string, opErr error) map[string]int {
 		t.Helper()
 		st := newTestStore(t)
@@ -964,6 +977,7 @@ func TestScanRoute53GlobalResolver_TransientPhaseDemotedBesideHardError(t *testi
 // An account with nothing in any account-wide listing stores nothing, reads
 // no tags, makes no child listing and warns about nothing.
 func TestScanRoute53GlobalResolver_EmptyAccount(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newR53GRCalls("aws")
@@ -995,6 +1009,7 @@ func TestScanRoute53GlobalResolver_EmptyAccount(t *testing.T) {
 // were stored, an NXDOMAIN from a later listing or a tag read is a failure
 // of this scan, and the stored rows keep their counts.
 func TestScanRoute53GlobalResolver_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "route53globalresolver.us-east-2.api.aws", IsNotFound: true}
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1033,6 +1048,7 @@ func TestScanRoute53GlobalResolver_NXDOMAIN(t *testing.T) {
 // unchanged, and the built firewall rule id carries the account's partition
 // and the region it was read in.
 func TestScanRoute53GlobalResolver_GovPartition(t *testing.T) {
+	t.Parallel()
 	const partition, region = "aws-us-gov", "us-gov-west-1"
 	st := newTestStore(t)
 	calls := newR53GRCalls(partition)

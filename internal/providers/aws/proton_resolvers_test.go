@@ -22,6 +22,7 @@ func protonServiceARN(name string) string {
 }
 
 func TestResolveProtonServiceInstanceTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -45,6 +46,7 @@ func TestResolveProtonServiceInstanceTargets(t *testing.T) {
 }
 
 func TestResolveProtonServiceInstanceTargets_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	instARN := protonServiceARN("web") + "/service-instance/inst-1"
@@ -59,6 +61,7 @@ func TestResolveProtonServiceInstanceTargets_NoAttrs(t *testing.T) {
 }
 
 func TestResolveProtonEnvTemplateVersionTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -79,6 +82,7 @@ func TestResolveProtonEnvTemplateVersionTargets(t *testing.T) {
 }
 
 func TestResolveProtonEnvTemplateVersionTargets_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	verARN := protonEnvTemplateARN("env-tmpl") + "/version/1.0"
@@ -93,6 +97,7 @@ func TestResolveProtonEnvTemplateVersionTargets_NoAttrs(t *testing.T) {
 }
 
 func TestResolveProtonServiceTemplateVersionTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -113,6 +118,7 @@ func TestResolveProtonServiceTemplateVersionTargets(t *testing.T) {
 }
 
 func TestResolveProtonServiceTemplateVersionTargets_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	verARN := protonServiceTemplateARN("svc-tmpl") + "/version/2.1"
@@ -127,6 +133,7 @@ func TestResolveProtonServiceTemplateVersionTargets_NoAttrs(t *testing.T) {
 }
 
 func TestResolveProtonComponentTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -150,6 +157,7 @@ func TestResolveProtonComponentTargets(t *testing.T) {
 }
 
 func TestResolveProtonComponentTargets_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	compARN := fmt.Sprintf("arn:aws:proton:%s:%s:component/my-comp", testRegion, testAccountID)
@@ -164,6 +172,7 @@ func TestResolveProtonComponentTargets_NoAttrs(t *testing.T) {
 }
 
 func TestResolveProtonEnvironmentTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -184,6 +193,7 @@ func TestResolveProtonEnvironmentTargets(t *testing.T) {
 }
 
 func TestResolveProtonEnvironmentTargets_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	envARN := fmt.Sprintf("arn:aws:proton:%s:%s:environment/my-env", testRegion, testAccountID)

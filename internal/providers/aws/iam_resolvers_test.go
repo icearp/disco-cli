@@ -15,6 +15,7 @@ import (
 // --- resolveInstanceProfileRoles ---
 
 func TestResolveInstanceProfileRoles(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -40,6 +41,7 @@ func TestResolveInstanceProfileRoles(t *testing.T) {
 }
 
 func TestResolveInstanceProfileRoles_NoRoles(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -54,6 +56,7 @@ func TestResolveInstanceProfileRoles_NoRoles(t *testing.T) {
 // --- resolveInlinePolicyParents ---
 
 func TestResolveInlinePolicyParents_RolePolicy(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -75,6 +78,7 @@ func TestResolveInlinePolicyParents_RolePolicy(t *testing.T) {
 }
 
 func TestResolveInlinePolicyParents_UserPolicy(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -96,6 +100,7 @@ func TestResolveInlinePolicyParents_UserPolicy(t *testing.T) {
 }
 
 func TestResolveInlinePolicyParents_GroupPolicy(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -117,6 +122,7 @@ func TestResolveInlinePolicyParents_GroupPolicy(t *testing.T) {
 }
 
 func TestResolveInlinePolicyParents_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveInlinePolicyParents(acct, st); err != nil {
@@ -127,6 +133,7 @@ func TestResolveInlinePolicyParents_Empty(t *testing.T) {
 // --- resolveAccessKeyUsers ---
 
 func TestResolveAccessKeyUsers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -152,6 +159,7 @@ func TestResolveAccessKeyUsers(t *testing.T) {
 }
 
 func TestResolveAccessKeyUsers_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveAccessKeyUsers(acct, st); err != nil {
@@ -160,6 +168,7 @@ func TestResolveAccessKeyUsers_Empty(t *testing.T) {
 }
 
 func TestResolveAccessKeyUsers_MalformedNativeID(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -174,6 +183,7 @@ func TestResolveAccessKeyUsers_MalformedNativeID(t *testing.T) {
 // --- resolveMFADeviceToUser ---
 
 func TestResolveMFADeviceToUser(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -199,6 +209,7 @@ func TestResolveMFADeviceToUser(t *testing.T) {
 }
 
 func TestResolveMFADeviceToUser_Unassigned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -214,6 +225,7 @@ func TestResolveMFADeviceToUser_Unassigned(t *testing.T) {
 // --- resolveManagedPolicyAttachments (empty store — no API calls made) ---
 
 func TestResolveManagedPolicyAttachments_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveManagedPolicyAttachments(acct, st); err != nil {
@@ -226,6 +238,7 @@ func TestResolveManagedPolicyAttachments_Empty(t *testing.T) {
 // not just customer-managed ones. Reads each principal's GAAD AttachedManagedPolicies
 // from stored attrs — no API calls.
 func TestResolveManagedPolicyAttachments_IncludesAWSManaged(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -287,6 +300,7 @@ func TestResolveManagedPolicyAttachments_IncludesAWSManaged(t *testing.T) {
 // --- resolveUserGroupMemberships (empty store — no API calls made) ---
 
 func TestResolveUserGroupMemberships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveUserGroupMemberships(acct, st); err != nil {
@@ -299,6 +313,7 @@ func TestResolveUserGroupMemberships_Empty(t *testing.T) {
 // user contains edge appears per scanned group, and an unscanned group name
 // skips FK-safe.
 func TestResolveUserGroupMemberships_FromGroupList(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -349,6 +364,7 @@ func TestResolveUserGroupMemberships_FromGroupList(t *testing.T) {
 // --- resolveIAMRoleFederatedTrust ---
 
 func TestResolveIAMRoleFederatedTrust(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -383,6 +399,7 @@ func TestResolveIAMRoleFederatedTrust(t *testing.T) {
 }
 
 func TestResolveIAMRoleFederatedTrust_NoTrust(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -395,6 +412,7 @@ func TestResolveIAMRoleFederatedTrust_NoTrust(t *testing.T) {
 }
 
 func TestResolveIAMRoleFederatedTrust_NonFederatedPrincipal(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -433,6 +451,7 @@ func managedPolicyAttrs(t *testing.T, doc string) string {
 }
 
 func TestResolveIAMPolicyResources_InlineRolePolicyToS3AndKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -460,6 +479,7 @@ func TestResolveIAMPolicyResources_InlineRolePolicyToS3AndKMS(t *testing.T) {
 }
 
 func TestResolveIAMPolicyResources_ManagedPolicyToDynamoAndSecrets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -491,6 +511,7 @@ func TestResolveIAMPolicyResources_ManagedPolicyToDynamoAndSecrets(t *testing.T)
 
 // statementList must accept a single object as well as an array.
 func TestResolveIAMPolicyResources_StatementSingleObject(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -513,6 +534,7 @@ func TestResolveIAMPolicyResources_StatementSingleObject(t *testing.T) {
 
 // resourceList must accept a single string as well as an array.
 func TestResolveIAMPolicyResources_ResourceSingleString(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -535,6 +557,7 @@ func TestResolveIAMPolicyResources_ResourceSingleString(t *testing.T) {
 
 // Deny statements must not produce edges — only Allow grants positive access.
 func TestResolveIAMPolicyResources_DenySkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -559,6 +582,7 @@ func TestResolveIAMPolicyResources_DenySkipped(t *testing.T) {
 
 // Cross-account / wildcard / unscanned references must skip silently.
 func TestResolveIAMPolicyResources_FKSafeSkip(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -584,6 +608,7 @@ func TestResolveIAMPolicyResources_FKSafeSkip(t *testing.T) {
 
 // Empty / malformed docs must not panic or error.
 func TestResolveIAMPolicyResources_EmptyAndMalformed(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -602,6 +627,7 @@ func TestResolveIAMPolicyResources_EmptyAndMalformed(t *testing.T) {
 }
 
 func TestResolveIAMPolicyResources_LambdaWithVersion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -625,6 +651,7 @@ func TestResolveIAMPolicyResources_LambdaWithVersion(t *testing.T) {
 }
 
 func TestResolveIAMPolicyResources_LogGroupStripsStarSuffix(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -648,6 +675,7 @@ func TestResolveIAMPolicyResources_LogGroupStripsStarSuffix(t *testing.T) {
 }
 
 func TestResolveIAMPolicyResources_SNSTopic(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -675,6 +703,7 @@ func TestResolveIAMPolicyResources_SNSTopic(t *testing.T) {
 }
 
 func TestResolveIAMPolicyResources_SQSQueue(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -697,6 +726,7 @@ func TestResolveIAMPolicyResources_SQSQueue(t *testing.T) {
 }
 
 func TestResolveIAMPolicyResources_SSMParameter(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -723,6 +753,7 @@ func TestResolveIAMPolicyResources_SSMParameter(t *testing.T) {
 }
 
 func TestResolveIAMPolicyResources_KinesisStreamRejectsConsumer(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -749,6 +780,7 @@ func TestResolveIAMPolicyResources_KinesisStreamRejectsConsumer(t *testing.T) {
 }
 
 func TestResolveIAMPolicyResources_ECRRepository(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -771,6 +803,7 @@ func TestResolveIAMPolicyResources_ECRRepository(t *testing.T) {
 }
 
 func TestResolveIAMPolicyResources_IAMRolePassRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -796,6 +829,7 @@ func TestResolveIAMPolicyResources_IAMRolePassRole(t *testing.T) {
 }
 
 func TestResolveIAMPolicyResources_RDSInstanceAndCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -825,6 +859,7 @@ func TestResolveIAMPolicyResources_RDSInstanceAndCluster(t *testing.T) {
 }
 
 func TestResolveIAMPolicyResources_SFNStateMachineRejectsIntegration(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -851,6 +886,7 @@ func TestResolveIAMPolicyResources_SFNStateMachineRejectsIntegration(t *testing.
 }
 
 func TestResolveIAMPolicyResources_EventBridgeBusAndRule(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -876,6 +912,7 @@ func TestResolveIAMPolicyResources_EventBridgeBusAndRule(t *testing.T) {
 }
 
 func TestResolveIAMPolicyResources_EFSFileSystem(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -909,6 +946,7 @@ func TestResolveIAMPolicyResources_EFSFileSystem(t *testing.T) {
 // edge per distinct foreign principal, plus a single empty-attribute
 // aws:iam:account placeholder per distinct other account.
 func TestResolveIAMRoleCrossAccountTrust(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -969,6 +1007,7 @@ func TestResolveIAMRoleCrossAccountTrust(t *testing.T) {
 // account's self-node is already fully populated (scanned), the resolver
 // leaves its attributes intact and still points the edge at it.
 func TestResolveIAMRoleCrossAccountTrust_DoesNotClobberScannedAccount(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -1005,6 +1044,7 @@ func TestResolveIAMRoleCrossAccountTrust_DoesNotClobberScannedAccount(t *testing
 // trust policy only names its own account (or service principals, or wildcard)
 // produces no cross-account-trust edges and no account placeholders.
 func TestResolveIAMRoleCrossAccountTrust_SameAccountOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -1044,6 +1084,7 @@ func iamTrustRoleAttrs() string {
 // and after them are still wired. Names fix the listing order (ListResources
 // orders by type, then name).
 func TestResolveIAMRoleCrossAccountTrust_UndecodableReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := func(n string) string { return "arn:aws:iam::" + testAccountID + ":role/" + n }
@@ -1083,6 +1124,7 @@ func TestResolveIAMRoleCrossAccountTrust_UndecodableReportedOthersWired(t *testi
 // With no role producing an edge, a decode error is still returned rather
 // than lost in the no-edges early return.
 func TestResolveIAMRoleCrossAccountTrust_OnlyUndecodableRoleReported(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, "arn:aws:iam::"+testAccountID+":role/bad", "", `{"AssumeRolePolicyDocument":7}`)
@@ -1096,6 +1138,7 @@ func TestResolveIAMRoleCrossAccountTrust_OnlyUndecodableRoleReported(t *testing.
 // TestResolveIAMRoleCrossAccountTrust_NoRoles verifies the resolver no-ops
 // when no IAM roles are present in the account.
 func TestResolveIAMRoleCrossAccountTrust_NoRoles(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveIAMRoleCrossAccountTrust(acct, st); err != nil {
@@ -1107,6 +1150,7 @@ func TestResolveIAMRoleCrossAccountTrust_NoRoles(t *testing.T) {
 // emit `bounded-by` edge to in-scope policy. Boundary pointing at unscanned
 // policy skips silently. No-boundary skips cleanly.
 func TestResolveIAMPermissionBoundaries(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -1145,6 +1189,7 @@ func TestResolveIAMPermissionBoundaries(t *testing.T) {
 // An AWS-managed boundary policy is stored ManagedByProvider and still gets
 // its edge.
 func TestResolveIAMPermissionBoundaries_AWSManagedPolicy(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	managedARN := "arn:aws:iam::aws:policy/PowerUserAccess"
@@ -1173,6 +1218,7 @@ func TestResolveIAMPermissionBoundaries_AWSManagedPolicy(t *testing.T) {
 // listed before and after it are still wired. Names a, b, c fix the listing
 // order (ListResources orders by type, then name).
 func TestResolveIAMPermissionBoundaries_BadAttrsReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	policyARN := "arn:aws:iam::" + testAccountID + ":policy/MyBoundary"
@@ -1201,6 +1247,7 @@ func TestResolveIAMPermissionBoundaries_BadAttrsReportedOthersWired(t *testing.T
 // --- resolveIAMDelegationRequestBoundaries ---
 
 func TestResolveIAMDelegationRequestBoundaries(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, iamTestBoundaryARN, "global", "{}")
@@ -1229,6 +1276,7 @@ func TestResolveIAMDelegationRequestBoundaries(t *testing.T) {
 // An AWS-managed boundary policy is stored ManagedByProvider and still gets
 // its edge.
 func TestResolveIAMDelegationRequestBoundaries_AWSManagedPolicy(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	managedARN := "arn:aws:iam::aws:policy/PowerUserAccess"
@@ -1254,6 +1302,7 @@ func TestResolveIAMDelegationRequestBoundaries_AWSManagedPolicy(t *testing.T) {
 // A row whose attributes do not decode fails the resolver without costing a
 // later sibling its edge (ListResources orders by name, so dr-0 comes first).
 func TestResolveIAMDelegationRequestBoundaries_DecodeErrorKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	policyID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMPolicy, iamTestBoundaryARN, "global", "{}")
@@ -1320,6 +1369,7 @@ func iamTestAssertRequestorEdge(t *testing.T, st *store.Store, reqID string) {
 }
 
 func TestResolveIAMDelegationRequestRequestors_ScannedAccountKeptIntact(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	populated := `{"SummaryMap":{"Users":5}}`
@@ -1344,6 +1394,7 @@ func TestResolveIAMDelegationRequestRequestors_ScannedAccountKeptIntact(t *testi
 // Two requests from one partner get one placeholder, and a second resolver run
 // neither adds a row nor changes the first.
 func TestResolveIAMDelegationRequestRequestors_ExternalAccountPlaceholder(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	req1 := iamTestSeedDelegationRequest(t, st, "dr-1", ptrStr(iamTestPartnerAccount))
@@ -1370,6 +1421,7 @@ func TestResolveIAMDelegationRequestRequestors_ExternalAccountPlaceholder(t *tes
 }
 
 func TestResolveIAMDelegationRequestRequestors_NoRequestor(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	reqID := iamTestSeedDelegationRequest(t, st, "dr-1", nil)
@@ -1393,6 +1445,7 @@ func TestResolveIAMDelegationRequestRequestors_NoRequestor(t *testing.T) {
 // read failed, or aws:iam was not scanned) gets a reference-only placeholder,
 // so its edge names a row that exists; a stored self row is kept intact.
 func TestResolveIAMDelegationRequestRequestors_SelfAccount(t *testing.T) {
+	t.Parallel()
 	selfNative := "arn:aws:iam::" + testAccountID + ":root"
 	selfID := store.ResourceID("aws", testAccountID, selfNative)
 	for _, scanned := range []bool{false, true} {
@@ -1434,6 +1487,7 @@ func TestResolveIAMDelegationRequestRequestors_SelfAccount(t *testing.T) {
 // A row whose attributes do not decode fails the resolver without costing a
 // later sibling its edge or placeholder (ListResources orders by name).
 func TestResolveIAMDelegationRequestRequestors_DecodeErrorKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResourceNamed(t, st, TypeIAMDelegationRequest, iamTestDelegationNativeID("dr-0"), "global", `{"RequestorId":7}`, "dr-0")

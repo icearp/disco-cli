@@ -12,6 +12,7 @@ import (
 // TestResolveACMCertificateRelationships_PrivateCA verifies a PRIVATE cert
 // emits a uses edge to its referenced Private CA.
 func TestResolveACMCertificateRelationships_PrivateCA(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -35,6 +36,7 @@ func TestResolveACMCertificateRelationships_PrivateCA(t *testing.T) {
 // TestResolveACMCertificateRelationships_PublicNoEdge verifies public certs
 // (no CertificateAuthorityArn) emit no edges.
 func TestResolveACMCertificateRelationships_PublicNoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -63,6 +65,7 @@ func acmEABAttrs(t *testing.T, role string) string {
 // A binding whose role was scanned uses it; one whose role was not, or that
 // names no role, emits nothing.
 func TestResolveACMAcmeExternalAccountBindingRoles_ScannedRoleOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, acmTestRole, "", "{}")
@@ -90,6 +93,7 @@ func TestResolveACMAcmeExternalAccountBindingRoles_ScannedRoleOnly(t *testing.T)
 // and after it are still wired. Names a, b, c fix the listing order
 // (ListResources orders by type, then name).
 func TestResolveACMAcmeExternalAccountBindingRoles_BadAttrsReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, acmTestRole, "", "{}")
@@ -122,6 +126,7 @@ func acmAccountAttrs(t *testing.T, binding string) string {
 // An account whose binding was scanned uses it; one whose binding was not,
 // or that names none, emits nothing.
 func TestResolveACMAcmeAccountBindings_ScannedBindingOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	eabID := upsertTestResource(t, st, "aws", acct.ID, TypeACMAcmeExternalAccountBinding, acmTestEAB1, testRegion, "{}")
@@ -148,6 +153,7 @@ func TestResolveACMAcmeAccountBindings_ScannedBindingOnly(t *testing.T) {
 // and after it are still wired. Names a, b, c fix the listing order
 // (ListResources orders by type, then name).
 func TestResolveACMAcmeAccountBindings_BadAttrsReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	eabID := upsertTestResource(t, st, "aws", acct.ID, TypeACMAcmeExternalAccountBinding, acmTestEAB1, testRegion, "{}")
@@ -169,6 +175,7 @@ func TestResolveACMAcmeAccountBindings_BadAttrsReportedOthersWired(t *testing.T)
 }
 
 func TestResolveACMAcmeAccountBindings_NoAccounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if err := resolveACMAcmeAccountBindings(newTestAccount(testAccountID), st); err != nil {
 		t.Errorf("err = %v, want nil", err)
@@ -176,6 +183,7 @@ func TestResolveACMAcmeAccountBindings_NoAccounts(t *testing.T) {
 }
 
 func TestResolveACMAcmeExternalAccountBindingRoles_NoBindings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if err := resolveACMAcmeExternalAccountBindingRoles(newTestAccount(testAccountID), st); err != nil {
 		t.Errorf("err = %v, want nil", err)

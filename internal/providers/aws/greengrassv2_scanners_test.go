@@ -274,6 +274,7 @@ func ggv2Attrs(t *testing.T, r store.Resource) map[string]any {
 // Greengrass V2 makes no call in a region its SDK table omits, where AWS would
 // answer with retried 429s, and does call in one the table lists.
 func TestScanGreengrassV2_GatesOnSDKTable(t *testing.T) {
+	t.Parallel()
 	for region, wantCalls := range map[string]bool{"eu-west-3": false, "us-gov-west-1": true} {
 		t.Run(region, func(t *testing.T) {
 			var regions parentCalls
@@ -301,6 +302,7 @@ func TestScanGreengrassV2_GatesOnSDKTable(t *testing.T) {
 // every row; every listing is sent MaxResults 100, ListComponents Scope
 // PRIVATE; versions are listed for both components. No error, no warning.
 func TestScanGreengrassV2_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newGGV2Calls()
@@ -410,6 +412,7 @@ func TestScanGreengrassV2_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanGreengrassV2_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := ggv2Scan(context.Background(), st, ggv2Handlers(newGGV2Calls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -426,6 +429,7 @@ func TestScanGreengrassV2_RescanInsertsNone(t *testing.T) {
 // Empty listings: nothing stored, no version listing or tag read, no error,
 // no warning.
 func TestScanGreengrassV2_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newGGV2Calls()
@@ -468,6 +472,7 @@ func TestScanGreengrassV2_Empty(t *testing.T) {
 // warns once under the tag op with the scan's scope; a throttle keeps it and
 // is transient; any other error keeps it and is an error.
 func TestScanGreengrassV2_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	version := ggv2TestVersionARN("comp-tagged", "1.0.0")
 	component := ggv2KindOf(t, "ListComponents").ggv2RowARN("bare")
 	device := ggv2KindOf(t, "ListCoreDevices").ggv2RowARN("tagged")
@@ -538,6 +543,7 @@ func TestScanGreengrassV2_TagReadFailures(t *testing.T) {
 // Denied tag reads in three phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanGreengrassV2_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newGGV2Calls()
@@ -560,6 +566,7 @@ func TestScanGreengrassV2_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanGreengrassV2_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "greengrass-v2:ListTagsForResource")
 	calls := newGGV2Calls()
@@ -578,6 +585,7 @@ func TestScanGreengrassV2_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanGreengrassV2_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeGreengrassV2CoreDevice)
@@ -609,6 +617,7 @@ func TestScanGreengrassV2_FailedWriteStopsScan(t *testing.T) {
 // does not stop the later phases. A component not stored has no versions
 // read.
 func TestScanGreengrassV2_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op                     string
 		wantTotal, wantDeploys int
@@ -652,6 +661,7 @@ func TestScanGreengrassV2_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanGreengrassV2_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGGV2Calls()
 	handlers := ggv2Handlers(calls)
@@ -679,6 +689,7 @@ func TestScanGreengrassV2_RepeatedTokenKeepsPages(t *testing.T) {
 // listed is skipped silently, or warned about when part of its listing was
 // read; a denial warns once under the op; any other error is returned.
 func TestScanGreengrassV2_PerComponentVersionFailures(t *testing.T) {
+	t.Parallel()
 	const versionsOp = "greengrass-v2:ListComponentVersions"
 	for _, c := range []struct {
 		name       string
@@ -749,6 +760,7 @@ func TestScanGreengrassV2_PerComponentVersionFailures(t *testing.T) {
 // carries, or by noIdentifier when it carries nothing; a component without
 // an Arn has no versions listed.
 func TestScanGreengrassV2_ElementsWithoutIDs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		extra         func(out any)
@@ -815,6 +827,7 @@ func TestScanGreengrassV2_ElementsWithoutIDs(t *testing.T) {
 // deployment's ARN built in the account's partition, reach the tag op
 // unchanged and are the rows' NativeIDs.
 func TestScanGreengrassV2_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -871,6 +884,7 @@ func TestScanGreengrassV2_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanGreengrassV2_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGGV2Calls()
 	handlers := ggv2Handlers(calls)
@@ -909,6 +923,7 @@ func TestScanGreengrassV2_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later phase runs.
 func TestScanGreengrassV2_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "greengrass.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

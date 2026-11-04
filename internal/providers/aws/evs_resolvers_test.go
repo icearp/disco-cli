@@ -21,6 +21,7 @@ func assertNoEdgesFrom(t *testing.T, st *store.Store, id string) {
 }
 
 func TestResolveEVSHostRefs_InstanceAndDedicatedHost(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	instARN := ec2ARN(testRegion, testAccountID, "instance", "i-0abc")
@@ -49,6 +50,7 @@ func TestResolveEVSHostRefs_InstanceAndDedicatedHost(t *testing.T) {
 }
 
 func TestResolveEVSVlanSubnets_Subnet(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	subnetID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2Subnet, ec2ARN(testRegion, testAccountID, "subnet", "subnet-0abc"), testRegion, "{}")
@@ -69,6 +71,7 @@ func TestResolveEVSVlanSubnets_Subnet(t *testing.T) {
 }
 
 func TestResolveEVSConnectorSecrets_FullARNOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	secretARN := "arn:aws:secretsmanager:us-east-1:123456789012:secret:evs/vcenter-AbCdEf"
@@ -93,6 +96,7 @@ func TestResolveEVSConnectorSecrets_FullARNOnly(t *testing.T) {
 // Rows without the reference fields, and no rows at all, emit no edges and
 // no error; undecodable attributes are an error.
 func TestResolveEVS_NoAttrs(t *testing.T) {
+	t.Parallel()
 	resolvers := []struct {
 		name    string
 		typ     string

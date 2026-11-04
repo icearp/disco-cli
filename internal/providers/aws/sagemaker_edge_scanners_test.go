@@ -63,6 +63,7 @@ func (s *stubSageMakerEdge) ListAliases(_ context.Context, in *sagemaker.ListAli
 }
 
 func TestScanSageMakerEdge(t *testing.T) {
+	t.Parallel()
 	for _, mode := range smTagModes {
 		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerEdge(t, mode) })
 	}
@@ -127,6 +128,7 @@ func testScanSageMakerEdge(t *testing.T, mode smTagMode) {
 }
 
 func TestScanSageMakerEdgeEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerEdge{}
@@ -163,6 +165,7 @@ func smImageARN(name string) string {
 }
 
 func TestScanSageMakerImageAliases_PaginatesEachScannedImage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("nameless"), testRegion, "{}", "")
@@ -194,6 +197,7 @@ func TestScanSageMakerImageAliases_PaginatesEachScannedImage(t *testing.T) {
 }
 
 func TestScanSageMakerImageAliases_NoAliases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("img1"), testRegion, "{}", "img1")
 	total, _, err := scanSageMakerImageAliases(context.Background(), &stubSMAliases{}, newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -203,6 +207,7 @@ func TestScanSageMakerImageAliases_NoAliases(t *testing.T) {
 }
 
 func TestScanSageMakerImageAliases_AccessDeniedWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countSMWarnings(st)
 	upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("img1"), testRegion, "{}", "img1")
@@ -250,6 +255,7 @@ func smImageVersionClient(t *testing.T, errs map[string]error, describeErr error
 // versions: a vanished image is skipped silently, a denied or nameless one is
 // warned about, and any other failure is returned.
 func TestScanSageMakerImageVersions_FailedImageKeepsOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	for _, name := range []string{"ok", "denied", "gone", "bad", ""} {
@@ -274,6 +280,7 @@ func TestScanSageMakerImageVersions_FailedImageKeepsOthers(t *testing.T) {
 // An image whose versions listing is still throttled after the SDK's retries
 // is returned, and the other images' versions are kept.
 func TestScanSageMakerImageVersions_ThrottledImageReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	for _, name := range []string{"ok", "slow"} {
 		upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN(name), testRegion, "{}", name)
@@ -289,6 +296,7 @@ func TestScanSageMakerImageVersions_ThrottledImageReturned(t *testing.T) {
 // A version whose describe is denied is stored from its listing, named
 // image:version.
 func TestScanSageMakerImageVersions_DeniedDescribeKeptFromListing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("ok"), testRegion, "{}", "ok")
 	client := smImageVersionClient(t, nil, apiErr("AccessDeniedException", "denied"))
@@ -308,6 +316,7 @@ func TestScanSageMakerImageVersions_DeniedDescribeKeptFromListing(t *testing.T) 
 // A version's describe failing with a hard error is returned, and the version
 // is still stored from its listing.
 func TestScanSageMakerImageVersions_HardDescribeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	upsertTestResourceNamed(t, st, TypeSageMakerImage, smImageARN("ok"), testRegion, "{}", "ok")
 	client := smImageVersionClient(t, nil, apiErr("ValidationException", "bad"))

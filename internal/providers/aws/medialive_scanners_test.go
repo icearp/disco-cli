@@ -209,6 +209,7 @@ func mlTestProgram(mid, name string) string {
 // untagged element stores none; the types whose element has no Tags store
 // none. It also pins each type's NativeID and Name.
 func TestScanMLAll_StoresTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := mlScanAll(t, st, mlAllHandlers(t))
 	if err != nil {
@@ -279,6 +280,7 @@ func TestScanMLAll_StoresTags(t *testing.T) {
 // template or group whose Id starts "aws-" is AWS-managed and the others are
 // not, and a reservation's Status is its State, unset when the State is.
 func TestScanMLAll_RowFlags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, err := mlScanAll(t, st, mlAllHandlers(t)); err != nil {
 		t.Fatalf("scanMLAll: %v", err)
@@ -343,6 +345,7 @@ func mlChannelsHandler(t *testing.T, pages []mlPage) map[string]func(in any) (an
 // listing: rows read before a failure are kept, a denial warns instead of
 // failing, and an element without an ARN is warned about.
 func TestScanMLChannels_ListOutcomes(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("BadRequestException", "bad")
 	denied := apiErr("ForbiddenException", "not authorized to perform: medialive:ListChannels")
 	for _, c := range []struct {
@@ -403,6 +406,7 @@ func TestScanMLChannels_ListOutcomes(t *testing.T) {
 // ErrStoreWrite and reports no warning, since none could say the rows read
 // were stored.
 func TestScanMLChannels_WriteFailsWarnsNothing(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	warns := countOpWarnings(st, mediaLiveListChannelsOp)
 	h := mlChannelsHandler(t, []mlPage{{keys: []string{"", "arn:a1"}}})
@@ -435,6 +439,7 @@ func mlHTTP404() error {
 // the other phases are stored; a rejection after a page was read is returned
 // with that page's rows kept.
 func TestScanMLAll_AnywhereRegionGap(t *testing.T) {
+	t.Parallel()
 	gap := mlHTTP404()
 	unavailable := apiErr("NotFoundException", "Unable to determine service/operation name to be authorized")
 	t.Run("first page", func(t *testing.T) {
@@ -521,6 +526,7 @@ func mlProgramsHandler(t *testing.T, pages map[string][]mlPage) map[string]func(
 // m-2's rows are stored anyway. NotFoundException, which ListMultiplexPrograms
 // models for a multiplex deleted since it was listed, skips it.
 func TestScanMLMultiplexPrograms_ParentOutcomes(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("BadRequestException", "bad")
 	notFound := apiErr("NotFoundException", "gone")
 	denied := apiErr("ForbiddenException", "not authorized to perform: medialive:ListMultiplexPrograms")
@@ -586,6 +592,7 @@ func TestScanMLMultiplexPrograms_ParentOutcomes(t *testing.T) {
 // not-found error, returns a NotFoundException instead of skipping the
 // cluster, and still stores the other cluster's nodes.
 func TestScanMLNodes_NotFoundIsAnError(t *testing.T) {
+	t.Parallel()
 	notFound := apiErr("NotFoundException", "gone")
 	h := map[string]func(in any) (any, error){
 		"ListNodes": func(in any) (any, error) {
@@ -611,6 +618,7 @@ func TestScanMLNodes_NotFoundIsAnError(t *testing.T) {
 // no child listing is called with an empty id; one listed with no ARN is
 // warned about and not stored.
 func TestScanMLAll_ParentWithoutIDStoredAndWarned(t *testing.T) {
+	t.Parallel()
 	h := mlAllHandlers(t)
 	h["ListClusters"] = func(any) (any, error) {
 		return &medialive.ListClustersOutput{Clusters: []medialivetypes.DescribeClusterSummary{
@@ -651,6 +659,7 @@ func TestScanMLAll_ParentWithoutIDStoredAndWarned(t *testing.T) {
 // an id is not warned about when the write failed, since the warning would
 // claim it was stored.
 func TestScanMLAll_NoChildIDWarnsOnlyAfterWrite(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, label string }{
 		{"ListClusters", mediaLiveListClustersOp},
 		{"ListMultiplexes", mediaLiveListMultiplexesOp},
@@ -684,6 +693,7 @@ func TestScanMLAll_NoChildIDWarnsOnlyAfterWrite(t *testing.T) {
 // stop the phases after it: its error is returned and every other phase's
 // rows are stored.
 func TestScanMLAll_PhaseErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("BadRequestException", "bad")
 	for _, c := range []struct {
 		failOp   string
@@ -714,6 +724,7 @@ func TestScanMLAll_PhaseErrorRunsLaterPhases(t *testing.T) {
 // TestScanMLAll_StoreWriteStops pins that a failed write stops the scan,
 // whichever phase it hits: no phase after it calls AWS.
 func TestScanMLAll_StoreWriteStops(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		closeIn  string
 		notAfter []string
@@ -753,6 +764,7 @@ func TestScanMLAll_StoreWriteStops(t *testing.T) {
 // hard-failing one is demoted to one warning and the scan classified as an
 // error, not as transient.
 func TestScanMLAll_TransientBesideHardError(t *testing.T) {
+	t.Parallel()
 	h := mlAllHandlers(t)
 	h["ListClusters"] = func(any) (any, error) { return nil, apiErr("TooManyRequestsException", "slow down") }
 	h["ListSignalMaps"] = func(any) (any, error) { return nil, apiErr("BadRequestException", "bad") }

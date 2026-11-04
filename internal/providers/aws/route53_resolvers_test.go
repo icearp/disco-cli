@@ -10,6 +10,7 @@ import (
 // TestResolveRoute53Relationships verifies that a record set is linked to its
 // hosted zone with an attached-to edge.
 func TestResolveRoute53Relationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -38,6 +39,7 @@ func TestResolveRoute53Relationships(t *testing.T) {
 // TestResolveRoute53Relationships_NoRecords verifies that a zone with no record
 // sets produces no relationships and no error.
 func TestResolveRoute53Relationships_NoRecords(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -52,6 +54,7 @@ func TestResolveRoute53Relationships_NoRecords(t *testing.T) {
 // TestResolveRoute53DNSSECRelationships verifies that a DNSSEC resource is
 // linked to its hosted zone with an attached-to edge.
 func TestResolveRoute53DNSSECRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -78,6 +81,7 @@ func TestResolveRoute53DNSSECRelationships(t *testing.T) {
 // TestResolveRoute53DNSSECRelationships_NoDNSSEC verifies no error when there
 // are no DNSSEC resources.
 func TestResolveRoute53DNSSECRelationships_NoDNSSEC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -88,6 +92,7 @@ func TestResolveRoute53DNSSECRelationships_NoDNSSEC(t *testing.T) {
 
 // TestDNSSECZoneARN verifies the ARN extraction helper for DNSSEC NativeIDs.
 func TestDNSSECZoneARN(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		nativeID string
 		want     string
@@ -111,6 +116,7 @@ func TestDNSSECZoneARN(t *testing.T) {
 // TestResolveRoute53KSKRelationships verifies that a KSK is linked to its
 // DNSSEC resource with an attached-to edge.
 func TestResolveRoute53KSKRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -138,6 +144,7 @@ func TestResolveRoute53KSKRelationships(t *testing.T) {
 // TestResolveRoute53KSKRelationships_NoKSKs verifies no error when there are
 // no key-signing key resources.
 func TestResolveRoute53KSKRelationships_NoKSKs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -148,6 +155,7 @@ func TestResolveRoute53KSKRelationships_NoKSKs(t *testing.T) {
 
 // TestKSKDNSSECNativeID verifies the DNSSEC NativeID derivation helper.
 func TestKSKDNSSECNativeID(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		nativeID string
 		want     string
@@ -171,6 +179,7 @@ func TestKSKDNSSECNativeID(t *testing.T) {
 // TestResolveRoute53HealthCheckRelationships verifies that a record set with a
 // HealthCheckId is linked to the corresponding health check via a "uses" edge.
 func TestResolveRoute53HealthCheckRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -201,6 +210,7 @@ func TestResolveRoute53HealthCheckRelationships(t *testing.T) {
 // TestResolveRoute53HealthCheckRelationships_NoHealthCheckId verifies that a
 // record set without a HealthCheckId produces no relationships and no error.
 func TestResolveRoute53HealthCheckRelationships_NoHealthCheckId(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -224,6 +234,7 @@ func TestResolveRoute53HealthCheckRelationships_NoHealthCheckId(t *testing.T) {
 // TestResolveRoute53HealthCheckRelationships_NoRecords verifies no error when
 // there are no record sets at all.
 func TestResolveRoute53HealthCheckRelationships_NoRecords(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -234,6 +245,7 @@ func TestResolveRoute53HealthCheckRelationships_NoRecords(t *testing.T) {
 
 // TestRecordSetZoneARN verifies the ARN extraction helper.
 func TestRecordSetZoneARN(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		nativeID string
 		want     string
@@ -262,6 +274,7 @@ func TestRecordSetZoneARN(t *testing.T) {
 // AliasTarget.DNSName carries `dualstack.` prefix + trailing dot — both
 // normalized away before lookup.
 func TestResolveRoute53AliasToELBv2(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -287,6 +300,7 @@ func TestResolveRoute53AliasToELBv2(t *testing.T) {
 
 // TestResolveRoute53AliasToCloudFront verifies alias → CloudFront distribution edge.
 func TestResolveRoute53AliasToCloudFront(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -313,6 +327,7 @@ func TestResolveRoute53AliasToCloudFront(t *testing.T) {
 // TestResolveRoute53AliasToAPIGWv1 verifies alias → APIGW v1 custom domain
 // via DistributionDomainName.
 func TestResolveRoute53AliasToAPIGWv1(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -339,6 +354,7 @@ func TestResolveRoute53AliasToAPIGWv1(t *testing.T) {
 // TestResolveRoute53AliasToAPIGWv2 verifies alias → APIGW v2 custom domain
 // via DomainNameConfigurations[].ApiGatewayDomainName.
 func TestResolveRoute53AliasToAPIGWv2(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -365,6 +381,7 @@ func TestResolveRoute53AliasToAPIGWv2(t *testing.T) {
 // TestResolveRoute53Alias_UnmatchedDNS verifies that an alias record whose
 // DNS doesn't match any scanned backend emits no edges.
 func TestResolveRoute53Alias_UnmatchedDNS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -390,6 +407,7 @@ func TestResolveRoute53Alias_UnmatchedDNS(t *testing.T) {
 // `s3-website-` prefix in the alias DNS and looks the bucket up by record
 // FQDN (S3 enforces bucket name == FQDN for website hosting).
 func TestResolveRoute53AliasToS3Website(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -416,6 +434,7 @@ func TestResolveRoute53AliasToS3Website(t *testing.T) {
 // `s3-website.<region>` (dot, not dash) endpoint shape used in regions
 // added after ~2018.
 func TestResolveRoute53AliasToS3Website_ModernEndpoint(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -441,6 +460,7 @@ func TestResolveRoute53AliasToS3Website_ModernEndpoint(t *testing.T) {
 // TestResolveRoute53AliasToS3Website_BucketNotScanned verifies that a record
 // pointing at an unscanned bucket emits no edge (FK-safe).
 func TestResolveRoute53AliasToS3Website_BucketNotScanned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -464,6 +484,7 @@ func TestResolveRoute53AliasToS3Website_BucketNotScanned(t *testing.T) {
 // TestResolveRoute53Alias_NoAliasTarget verifies that a non-alias record
 // (no AliasTarget field) produces no edges and no panic on missing fields.
 func TestResolveRoute53Alias_NoAliasTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -490,6 +511,7 @@ func TestResolveRoute53Alias_NoAliasTarget(t *testing.T) {
 }
 
 func TestResolveRoute53QueryLoggingConfig(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	zoneARN := "arn:aws:route53:::hostedzone/Z123"
@@ -508,6 +530,7 @@ func TestResolveRoute53QueryLoggingConfig(t *testing.T) {
 }
 
 func TestResolveRoute53QueryLoggingConfig_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	qlcARN := "arn:aws:route53:::queryloggingconfig/qlc-1"
@@ -522,6 +545,7 @@ func TestResolveRoute53QueryLoggingConfig_NoAttrs(t *testing.T) {
 }
 
 func TestResolveRoute53TrafficPolicyInstance(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	zoneARN := "arn:aws:route53:::hostedzone/Z123"
@@ -540,6 +564,7 @@ func TestResolveRoute53TrafficPolicyInstance(t *testing.T) {
 }
 
 func TestResolveRoute53TrafficPolicyInstance_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tiARN := "arn:aws:route53:::trafficpolicyinstance/ti-1"

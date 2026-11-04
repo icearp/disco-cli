@@ -122,6 +122,7 @@ func runHealthAgent(t *testing.T, st *store.Store, handlers map[string]func(in a
 }
 
 func TestScanHealthAgent_StoresDomainsAndSubscriptions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets, lists parentCalls
 	h := haHandlers(&gets, &lists)
@@ -207,6 +208,7 @@ func TestScanHealthAgent_StoresDomainsAndSubscriptions(t *testing.T) {
 }
 
 func TestScanHealthAgent_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	total, err := runHealthAgent(t, st, map[string]func(in any) (any, error){
@@ -220,6 +222,7 @@ func TestScanHealthAgent_Empty(t *testing.T) {
 // A ListDomains denial warns once and keeps the domains (and their
 // subscriptions) from the pages before it.
 func TestScanHealthAgent_ListDomainsDeniedKeepsListedDomains(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name       string
 		secondPage bool
@@ -254,6 +257,7 @@ func TestScanHealthAgent_ListDomainsDeniedKeepsListedDomains(t *testing.T) {
 // A ListDomains error other than a denial fails the scan before any
 // subscription listing.
 func TestScanHealthAgent_ListDomainsErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets, lists parentCalls
 	h := haHandlers(&gets, &lists)
@@ -280,6 +284,7 @@ func haGetFails(gets, lists *parentCalls, err error) map[string]func(in any) (an
 }
 
 func TestScanHealthAgent_GetDomainErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -330,6 +335,7 @@ func TestScanHealthAgent_GetDomainErrors(t *testing.T) {
 // the phase for an ACTIVE one (A). The sibling's subscription and both domains
 // are kept; a failed phase keeps the stored domains and their count.
 func TestScanHealthAgent_ListSubscriptionsErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		fail      string // the domain whose listing fails
@@ -393,6 +399,7 @@ func TestScanHealthAgent_ListSubscriptionsErrors(t *testing.T) {
 // A service that answers with the token it was sent ends the subscription
 // listing after that page instead of looping.
 func TestScanHealthAgent_ListSubscriptionsRepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets, lists parentCalls
 	h := haHandlers(&gets, &lists)

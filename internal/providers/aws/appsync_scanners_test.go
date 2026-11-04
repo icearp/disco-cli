@@ -345,6 +345,7 @@ func assertASRow(t *testing.T, got map[string]store.Resource, want asyWantRow) {
 // name, and skips the cache and domain association the service does not
 // find without a warning.
 func TestScanAppSyncAll_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := asyOpWarnings(st)
 	total, err := scanAppSyncTest(t, st, nil)
@@ -374,6 +375,7 @@ func TestScanAppSyncAll_StoresEveryTypeWithTags(t *testing.T) {
 // A failed call stores what was read before it, does not stop the other
 // parents or the later phases, and comes back as the phase's error.
 func TestScanAppSyncAll_FailureKeepsRowsAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	failG1 := func(op string, err error, apiID func(any) string) map[string]func(any) (any, error) {
 		base := asyHandlers(nil)[op]
 		return map[string]func(any) (any, error){op: func(in any) (any, error) {
@@ -477,6 +479,7 @@ func TestScanAppSyncAll_FailureKeepsRowsAndLaterPhases(t *testing.T) {
 // its model gives: UnauthorizedException, or AccessDeniedException for
 // ListDomainNames and GetApiAssociation.
 func TestScanAppSyncAll_DenialWarnsOncePerOp(t *testing.T) {
+	t.Parallel()
 	g1Kids := []string{asyARN("apis/g1/apikeys/da2-key1"), asyARN("apis/g1/apicache/_"), asyARN("apis/g1/datasources/ds1")}
 	resolvers := []string{asyARN("apis/g1/types/Query/resolvers/getX"), asyARN("apis/g1/types/Mutation/resolvers/setX")}
 	for _, tc := range []struct {
@@ -523,6 +526,7 @@ func TestScanAppSyncAll_DenialWarnsOncePerOp(t *testing.T) {
 // Every per-parent op skips a parent it does not find without a warning or
 // an error, keeping its siblings' rows.
 func TestScanAppSyncAll_NotFoundParentSkippedSilently(t *testing.T) {
+	t.Parallel()
 	notFoundOn := func(sdkOp string, key func(any) string, parent string) map[string]func(any) (any, error) {
 		base := asyHandlers(nil)[sdkOp]
 		return map[string]func(any) (any, error){sdkOp: func(in any) (any, error) {
@@ -580,6 +584,7 @@ func TestScanAppSyncAll_NotFoundParentSkippedSilently(t *testing.T) {
 // warning, so the hard error reaches the dispatcher as one; a throttle alone
 // is returned, so the scan reads as partial, with every other row stored.
 func TestScanAppSyncAll_TransientPhase(t *testing.T) {
+	t.Parallel()
 	throttle := map[string]func(any) (any, error){"ListApis": func(any) (any, error) { return nil, asyThrottled }}
 	t.Run("beside a hard error", func(t *testing.T) {
 		st := newTestStore(t)
@@ -625,6 +630,7 @@ func asyFailOnPage2(sdkOp string, token func(any) *string, err error) map[string
 // the denial and lists their children; the denial is one warning, not an
 // error.
 func TestScanAppSyncAll_ParentPageDeniedKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, op string
 		over     map[string]func(any) (any, error)
@@ -682,6 +688,7 @@ func TestScanAppSyncAll_ParentPageDeniedKeepsEarlierPages(t *testing.T) {
 // vanished still have their resolvers listed; each cause is warned about
 // once, and neither is an error.
 func TestScanAppSyncAll_TypesReadBeforeFailureKept(t *testing.T) {
+	t.Parallel()
 	token := func(in any) *string { return in.(*appsync.ListTypesInput).NextToken }
 	for _, tc := range []struct {
 		name string
@@ -715,6 +722,7 @@ func TestScanAppSyncAll_TypesReadBeforeFailureKept(t *testing.T) {
 // the refusal, warns once naming the first API in parent order whichever
 // call failed first, and is no error.
 func TestScanAppSyncAll_SourceAssocRefusal(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var msgs []string
 	st.OnWarn = func(w store.ScanWarning) {
@@ -742,6 +750,7 @@ func TestScanAppSyncAll_SourceAssocRefusal(t *testing.T) {
 
 // Once ctx ends, the ListTypes reads not started are reported as an error.
 func TestScanASCResolvers_ContextStopReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -756,6 +765,7 @@ func TestScanASCResolvers_ContextStopReturned(t *testing.T) {
 // A failed store write stops the scan: no later phase runs, and the parents
 // whose write failed are not handed to a child phase.
 func TestScanAppSyncAll_StoreWriteStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeAppSyncGraphQLApi)
 	_, err := scanAppSyncTest(t, st, nil)
@@ -775,6 +785,7 @@ func TestScanAppSyncAll_StoreWriteStops(t *testing.T) {
 // A failed write of a phase's rows is returned with no warning: none may
 // claim rows the write lost.
 func TestScanAppSync_StoreWriteFailureWarnsNothing(t *testing.T) {
+	t.Parallel()
 	apis := []childParent{{id: "g1", arn: asyARN("apis/g1")}, {id: "g2", arn: asyARN("apis/g2")}}
 	for _, tc := range []struct {
 		name, typ string
@@ -834,6 +845,7 @@ func TestScanAppSync_StoreWriteFailureWarnsNothing(t *testing.T) {
 // A key's NativeID is built from its API's ARN, so it keeps that ARN's
 // partition.
 func TestScanASCApiKeys_KeepsParentPartition(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	apiARN := "arn:aws-cn:appsync:cn-north-1:" + testAccountID + ":apis/g1"
 	client := appsync.NewFromConfig(opStubConfig(asyHandlers(nil), asyDenied))

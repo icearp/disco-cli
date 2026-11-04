@@ -18,6 +18,7 @@ func osEdgesFrom(t *testing.T, st *store.Store, id string) []store.Relationship 
 }
 
 func TestResolveOpenSearchConnections_LinksEachSideToItsDomain(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	domID := upsertTestResource(t, st, "aws", acct.ID, TypeOpenSearchDomain, osDomainARN, testRegion, "{}")
@@ -36,6 +37,7 @@ func TestResolveOpenSearchConnections_LinksEachSideToItsDomain(t *testing.T) {
 }
 
 func TestResolveOpenSearchVpcEndpoints_LinksDomainAndNetwork(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	domID := upsertTestResource(t, st, "aws", acct.ID, TypeOpenSearchDomain, osDomainARN, testRegion, "{}")
@@ -61,6 +63,7 @@ func TestResolveOpenSearchVpcEndpoints_LinksDomainAndNetwork(t *testing.T) {
 
 // An endpoint to another account's domain, with no VPC options, emits nothing.
 func TestResolveOpenSearchVpcEndpoints_CrossAccountDomainNoOptions(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeOpenSearchDomain, osDomainARN, testRegion, "{}")
@@ -76,6 +79,7 @@ func TestResolveOpenSearchVpcEndpoints_CrossAccountDomainNoOptions(t *testing.T)
 }
 
 func TestResolveOpenSearchVpcEndpoints_BadAttrsFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeOpenSearchVpcEndpoint, osVpcEndpointID("aos-ep3"), testRegion, `{"DomainArn":7}`)
@@ -85,6 +89,7 @@ func TestResolveOpenSearchVpcEndpoints_BadAttrsFails(t *testing.T) {
 }
 
 func TestResolveOpenSearchDataSourceAttachments_LinksDomainOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	domID := upsertTestResource(t, st, "aws", acct.ID, TypeOpenSearchDomain, osDomainARN, testRegion, "{}")

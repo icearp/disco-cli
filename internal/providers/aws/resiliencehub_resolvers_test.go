@@ -12,6 +12,7 @@ import (
 )
 
 func TestResolveRHAppAssessmentToApp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appARN := fmt.Sprintf("arn:aws:resiliencehub:%s:%s:app/app-1", testRegion, acct.ID)
@@ -27,6 +28,7 @@ func TestResolveRHAppAssessmentToApp(t *testing.T) {
 }
 
 func TestResolveRHAppAssessmentToApp_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	asARN := fmt.Sprintf("arn:aws:resiliencehub:%s:%s:app-assessment/as-1", testRegion, acct.ID)
@@ -52,6 +54,7 @@ func rhInputSourceAttrs(t *testing.T, src any) string {
 // Each import type links to the scanned target its source names; Terraform
 // sources and unscanned targets get no edge.
 func TestResolveRHInputSourceTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appARN := rhARN(acct.ID, "app", "a1")
@@ -135,6 +138,7 @@ func TestResolveRHInputSourceTargets(t *testing.T) {
 }
 
 func TestResolveRHInputSourceTargets_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ids := []string{
@@ -154,6 +158,7 @@ func TestResolveRHInputSourceTargets_NoAttrs(t *testing.T) {
 // A row of either type that does not decode is returned as an error and
 // costs the other rows none of their edges.
 func TestResolveRHInputSourceTargets_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ name, typ, attrs string }{
 		{name: "app input source", typ: TypeResilienceHubAppInputSource, attrs: `{"ImportType":7}`},
 		{name: "service input source", typ: TypeResilienceHubInputSource, attrs: `{"Type":7}`},

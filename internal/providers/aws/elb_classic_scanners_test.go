@@ -81,6 +81,7 @@ func elbClassicScan(st *store.Store, acct *account, region string, handlers map[
 // element as attributes and the tags DescribeTags returns for its name. Every
 // listing is sent PageSize 400. In GovCloud too.
 func TestScanELBClassic_StoresTagsByName(t *testing.T) {
+	t.Parallel()
 	for _, pf := range append([]struct{ partition, region string }{{"aws", testRegion}}, partitionFixtures...) {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -137,6 +138,7 @@ func TestScanELBClassic_StoresTagsByName(t *testing.T) {
 // a throttle keeps it and is transient; any other error keeps it and is an
 // error.
 func TestScanELBClassic_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -198,6 +200,7 @@ func TestScanELBClassic_TagReadFailures(t *testing.T) {
 // A failed later page keeps the page stored before it; a load balancer
 // without a name is not stored and is warned about.
 func TestScanELBClassic_LaterPageFailureAndNamelessElement(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	handlers := newELBClassicCalls().handlers()

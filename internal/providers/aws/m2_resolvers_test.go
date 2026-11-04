@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveM2DeploymentRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	appARN := fmt.Sprintf("arn:aws:m2:%s:%s:app/app-1", testRegion, acct.ID)

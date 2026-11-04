@@ -73,6 +73,7 @@ func runACOAutomation(t *testing.T, st *store.Store, handlers map[string]func(in
 }
 
 func TestScanACOAutomationRules_StoresEveryPageFromUSEast1(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets, regions parentCalls
 	h := acoHandlers(&gets)
@@ -132,6 +133,7 @@ func TestScanACOAutomationRules_StoresEveryPageFromUSEast1(t *testing.T) {
 }
 
 func TestScanACOAutomationRules_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "aco-automation:ListAutomationRules")
 	total, err := runACOAutomation(t, st, map[string]func(in any) (any, error){
@@ -143,6 +145,7 @@ func TestScanACOAutomationRules_Empty(t *testing.T) {
 }
 
 func TestScanACOAutomationRules_NotOptedInIsDisabled(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, err := runACOAutomation(t, st, map[string]func(in any) (any, error){
 		"ListAutomationRules": func(any) (any, error) {
@@ -156,6 +159,7 @@ func TestScanACOAutomationRules_NotOptedInIsDisabled(t *testing.T) {
 
 // A list denial warns once and keeps the rules from the pages before it.
 func TestScanACOAutomationRules_ListDeniedKeepsListedRules(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name     string
 		failPage bool // fail page two instead of page one
@@ -189,6 +193,7 @@ func TestScanACOAutomationRules_ListDeniedKeepsListedRules(t *testing.T) {
 }
 
 func TestScanACOAutomationRules_ListErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, err := runACOAutomation(t, st, map[string]func(in any) (any, error){
 		"ListAutomationRules": func(any) (any, error) {
@@ -217,6 +222,7 @@ func getFails(gets *parentCalls, err error) map[string]func(in any) (any, error)
 // A rule deleted between the list and its Get is dropped silently; its
 // sibling is stored.
 func TestScanACOAutomationRules_GetNotFoundSkipsRule(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "aco-automation:GetAutomationRule")
 	var gets parentCalls
@@ -232,6 +238,7 @@ func TestScanACOAutomationRules_GetNotFoundSkipsRule(t *testing.T) {
 
 // A denied Get warns once for the op, however many rules it hits.
 func TestScanACOAutomationRules_GetDeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "aco-automation:GetAutomationRule")
 	var gets parentCalls
@@ -249,6 +256,7 @@ func TestScanACOAutomationRules_GetDeniedWarnsOnce(t *testing.T) {
 }
 
 func TestScanACOAutomationRules_GetErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets parentCalls
 	_, err := runACOAutomation(t, st, getFails(&gets, apiErr("InvalidParameterValueException", "bad arn")))
@@ -261,6 +269,7 @@ func TestScanACOAutomationRules_GetErrorPropagates(t *testing.T) {
 // A service that answers with the token it was sent ends the listing after
 // that page instead of looping.
 func TestScanACOAutomationRules_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var gets parentCalls
 	h := acoHandlers(&gets)

@@ -9,6 +9,7 @@ import (
 )
 
 func TestResolveEFSFileSystemRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -31,6 +32,7 @@ func TestResolveEFSFileSystemRelationships(t *testing.T) {
 }
 
 func TestResolveEFSFileSystemRelationships_NoKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -51,6 +53,7 @@ func TestResolveEFSFileSystemRelationships_NoKMS(t *testing.T) {
 }
 
 func TestResolveEFSMountTargetRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -81,6 +84,7 @@ func TestResolveEFSMountTargetRelationships(t *testing.T) {
 }
 
 func TestResolveEFSAccessPointRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -104,6 +108,7 @@ func TestResolveEFSAccessPointRelationships(t *testing.T) {
 }
 
 func TestResolveEFSReplicationDestinations(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name       string
 		owner      *string
@@ -146,6 +151,7 @@ func TestResolveEFSReplicationDestinations(t *testing.T) {
 }
 
 func TestResolveEFSReplicationDestinations_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	repID := upsertTestResource(t, st, "aws", acct.ID, TypeEFSReplicationConfiguration, efsTestRepA, testRegion, "{}")
@@ -163,6 +169,7 @@ func TestResolveEFSReplicationDestinations_NoAttrs(t *testing.T) {
 }
 
 func TestResolveEFSReplicationDestinations_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	// ListResources orders by name, so the bad row "a" is read before the

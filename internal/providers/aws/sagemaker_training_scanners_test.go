@@ -56,6 +56,7 @@ func (s *stubSageMakerTraining) DescribeProcessingJob(_ context.Context, in *sag
 }
 
 func TestScanSageMakerTraining(t *testing.T) {
+	t.Parallel()
 	for _, mode := range smTagModes {
 		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerTraining(t, mode) })
 	}
@@ -116,6 +117,7 @@ func testScanSageMakerTraining(t *testing.T, mode smTagMode) {
 }
 
 func TestScanSageMakerTrainingEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerTraining{}

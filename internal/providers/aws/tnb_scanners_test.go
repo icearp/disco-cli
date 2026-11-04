@@ -213,6 +213,7 @@ func tnbWarnOps(w []store.ScanWarning) []string {
 // exactly the ARNs of every row; every listing is sent MaxResults 100. No
 // error, no warning.
 func TestScanTnb_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newTNBCalls()
@@ -285,6 +286,7 @@ func tnbStoredWithTags(st *store.Store, typ, arn string) bool {
 // Every listing writes its first page, with its tags, before it reads the
 // second.
 func TestScanTnb_PagesWrittenAsRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := tnbHandlers(newTNBCalls())
 	var (
@@ -315,6 +317,7 @@ func TestScanTnb_PagesWrittenAsRead(t *testing.T) {
 
 // An element listed with an empty state is stored with Status "", not nil.
 func TestScanTnb_EmptyStateKeptAsStatus(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newTNBCalls()
 	handlers := tnbHandlers(calls)
@@ -346,6 +349,7 @@ func TestScanTnb_EmptyStateKeptAsStatus(t *testing.T) {
 // warning, nothing stored, and an error dispatch classifies as blocked
 // rather than as a failure of the scan.
 func TestScanTnb_ServiceBlocked(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	acct := newTestAccount(testAccountID)
@@ -363,6 +367,7 @@ func TestScanTnb_ServiceBlocked(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanTnb_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := tnbScan(context.Background(), st, tnbHandlers(newTNBCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -379,6 +384,7 @@ func TestScanTnb_RescanInsertsNone(t *testing.T) {
 // Empty listings: each listed once, nothing stored, no tag read, no error,
 // no warning.
 func TestScanTnb_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newTNBCalls()
@@ -419,6 +425,7 @@ func TestScanTnb_Empty(t *testing.T) {
 // untagged and warns once under the tag op with the scan's scope; a throttle
 // keeps it and is transient; any other error keeps it and is an error.
 func TestScanTnb_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		op        string
@@ -486,6 +493,7 @@ func TestScanTnb_TagReadFailures(t *testing.T) {
 // Denied tag reads in three phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanTnb_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newTNBCalls()
@@ -508,6 +516,7 @@ func TestScanTnb_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanTnb_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, tnbTagsOp)
 	calls := newTNBCalls()
@@ -526,6 +535,7 @@ func TestScanTnb_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanTnb_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeTnbNetworkPackage)
@@ -558,6 +568,7 @@ func TestScanTnb_FailedWriteStopsScan(t *testing.T) {
 // error does not stop the later phases. A denied listing is warned about
 // under its op instead, and the later phases run too.
 func TestScanTnb_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		op        string
@@ -617,6 +628,7 @@ func TestScanTnb_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanTnb_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newTNBCalls()
 	handlers := tnbHandlers(calls)
@@ -643,6 +655,7 @@ func TestScanTnb_RepeatedTokenKeepsPages(t *testing.T) {
 // and warned about once under its listing; the rest of the listing is
 // stored.
 func TestScanTnb_ElementWithoutARN(t *testing.T) {
+	t.Parallel()
 	for _, k := range tnbKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -682,6 +695,7 @@ func TestScanTnb_ElementWithoutARN(t *testing.T) {
 // A GovCloud or China ARN reaches the tag op unchanged and is the row's
 // NativeID.
 func TestScanTnb_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -724,6 +738,7 @@ func TestScanTnb_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanTnb_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newTNBCalls()
 	handlers := tnbHandlers(calls)
@@ -762,6 +777,7 @@ func TestScanTnb_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later phase runs.
 func TestScanTnb_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "tnb.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

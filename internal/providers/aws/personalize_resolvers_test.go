@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolvePersonalizeChildrenToDatasetGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -32,6 +33,7 @@ func TestResolvePersonalizeChildrenToDatasetGroup(t *testing.T) {
 }
 
 func TestResolvePersonalizeChildrenToDatasetGroup_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

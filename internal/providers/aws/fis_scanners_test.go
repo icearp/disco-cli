@@ -11,6 +11,7 @@ import (
 )
 
 func TestScanFISExperimentTemplates_ReadsListedTags(t *testing.T) {
+	t.Parallel()
 	const (
 		tagged   = "arn:aws:fis:us-east-1:123456789012:experiment-template/EXT1"
 		untagged = "arn:aws:fis:us-east-1:123456789012:experiment-template/EXT2"

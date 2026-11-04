@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveGlueTableToDatabase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dbARN := fmt.Sprintf("arn:aws:glue:%s:%s:database/sales", testRegion, acct.ID)
@@ -22,6 +23,7 @@ func TestResolveGlueTableToDatabase(t *testing.T) {
 }
 
 func TestResolveGluePartitionToTable(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tARN := fmt.Sprintf("arn:aws:glue:%s:%s:table/sales/orders", testRegion, acct.ID)
@@ -36,6 +38,7 @@ func TestResolveGluePartitionToTable(t *testing.T) {
 }
 
 func TestResolveGlueTableOptimizerToTable(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tARN := fmt.Sprintf("arn:aws:glue:%s:%s:table/sales/orders", testRegion, acct.ID)
@@ -50,6 +53,7 @@ func TestResolveGlueTableOptimizerToTable(t *testing.T) {
 }
 
 func TestResolveGlueSchemaVersionToSchema(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	sARN := fmt.Sprintf("arn:aws:glue:%s:%s:schema/default-registry/my-schema", testRegion, acct.ID)
@@ -64,6 +68,7 @@ func TestResolveGlueSchemaVersionToSchema(t *testing.T) {
 }
 
 func TestResolveGlueDataQualityRulesetTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dbARN := fmt.Sprintf("arn:aws:glue:%s:%s:database/sales", testRegion, acct.ID)

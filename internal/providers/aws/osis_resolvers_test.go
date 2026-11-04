@@ -9,6 +9,7 @@ import (
 )
 
 func TestResolveOSISPipelineEndpointPipeline(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pipeARN := fmt.Sprintf("arn:aws:osis:%s:%s:pipeline/my-pipe", testRegion, acct.ID)
@@ -24,6 +25,7 @@ func TestResolveOSISPipelineEndpointPipeline(t *testing.T) {
 }
 
 func TestResolveOSISPipelineEndpointPipeline_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	epNativeID := fmt.Sprintf("arn:aws:osis:%s:%s:pipeline-endpoint/ep-1", testRegion, acct.ID)

@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveSageMakerEndpointConfig(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cfgARN := sagemakerEndpointConfigARN("aws", testRegion, acct.ID, "cfg-1")
@@ -30,6 +31,7 @@ func TestResolveSageMakerEndpointConfig(t *testing.T) {
 }
 
 func TestResolveSageMakerEndpointConfig_UnscannedConfigSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	epARN := fmt.Sprintf("arn:aws:sagemaker:%s:%s:endpoint/ep-1", testRegion, acct.ID)
@@ -45,6 +47,7 @@ func TestResolveSageMakerEndpointConfig_UnscannedConfigSkipped(t *testing.T) {
 }
 
 func TestResolveSageMakerEndpointConfigModels(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	m1 := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerModel,
@@ -70,6 +73,7 @@ func TestResolveSageMakerEndpointConfigModels(t *testing.T) {
 }
 
 func TestResolveSageMakerModelRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/sm-role", acct.ID)
@@ -107,6 +111,7 @@ func TestResolveSageMakerModelRefs(t *testing.T) {
 }
 
 func TestResolveSageMakerModelRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	modelID := upsertTestResource(t, st, "aws", acct.ID, TypeSageMakerModel,

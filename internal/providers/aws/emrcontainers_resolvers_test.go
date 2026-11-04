@@ -21,6 +21,7 @@ func emrcRelsFrom(t *testing.T, st *store.Store, id string) []store.Relationship
 }
 
 func TestResolveEMRCEndpointRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vcARN := fmt.Sprintf("arn:aws:emr-containers:%s:%s:/virtualclusters/vc-1", testRegion, acct.ID)
@@ -44,6 +45,7 @@ func TestResolveEMRCEndpointRefs(t *testing.T) {
 // A row whose attributes do not decode, or whose NativeID has no endpoint
 // segment, is returned as an error after the other rows are wired.
 func TestResolveEMRCEndpointRefs_BadRowsReturnedAfterOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vcARN := fmt.Sprintf("arn:aws:emr-containers:%s:%s:/virtualclusters/vc-1", testRegion, acct.ID)
@@ -63,6 +65,7 @@ func TestResolveEMRCEndpointRefs_BadRowsReturnedAfterOthers(t *testing.T) {
 }
 
 func TestResolveEMRCJobTemplateRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/emr-tmpl", acct.ID)
@@ -81,6 +84,7 @@ func TestResolveEMRCJobTemplateRefs(t *testing.T) {
 }
 
 func TestResolveEMRCJobTemplateRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	jtARN := fmt.Sprintf("arn:aws:emr-containers:%s:%s:/jobtemplates/jt-1", testRegion, acct.ID)
@@ -96,6 +100,7 @@ func TestResolveEMRCJobTemplateRefs_NoAttrs(t *testing.T) {
 // A row whose attributes do not decode is returned as an error after the
 // other rows are wired.
 func TestResolveEMRCJobTemplateRefs_DecodeErrorReturnedAfterOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/emr-tmpl", acct.ID)
@@ -116,6 +121,7 @@ func TestResolveEMRCJobTemplateRefs_DecodeErrorReturnedAfterOthers(t *testing.T)
 // SecurityConfigurationId in its own region, never to the one with the same
 // id in another region; an id naming no stored configuration gets no edge.
 func TestResolveEMRCVirtualClusterToSecConfig(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	const otherRegion = "eu-west-1"
@@ -146,6 +152,7 @@ func TestResolveEMRCVirtualClusterToSecConfig(t *testing.T) {
 }
 
 func TestResolveEMRCVirtualClusterToSecConfig_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeEMRContainersSecurityConfig, fmt.Sprintf("arn:aws:emr-containers:%s:%s:/securityconfigurations/sc-1", testRegion, acct.ID), testRegion, "{}")
@@ -161,6 +168,7 @@ func TestResolveEMRCVirtualClusterToSecConfig_NoAttrs(t *testing.T) {
 // A row whose attributes do not decode, or whose NativeID is not a virtual
 // cluster ARN, is returned as an error after the other rows are wired.
 func TestResolveEMRCVirtualClusterToSecConfig_BadRowsReturnedAfterOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	scARN := fmt.Sprintf("arn:aws:emr-containers:%s:%s:/securityconfigurations/sc-1", testRegion, acct.ID)
@@ -181,6 +189,7 @@ func TestResolveEMRCVirtualClusterToSecConfig_BadRowsReturnedAfterOthers(t *test
 }
 
 func TestEMRCSecurityConfigARN(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		vcARN, want string
 		ok          bool

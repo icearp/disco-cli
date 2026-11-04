@@ -24,6 +24,7 @@ func (s *stubConnectExtra) ListAuthenticationProfiles(_ context.Context, _ *conn
 }
 
 func TestScanConnectExtra(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vocARN := "arn:aws:connect:us-east-1:111111111111:instance/i-1/vocabulary/v-1"
@@ -54,6 +55,7 @@ func TestScanConnectExtra(t *testing.T) {
 }
 
 func TestScanConnectExtra_NoInstances(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	total, inserted, err := scanConnectExtra(context.Background(), &stubConnectExtra{}, nil, acct, testRegion, st, testScanID)

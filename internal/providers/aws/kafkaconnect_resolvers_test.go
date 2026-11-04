@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveKafkaConnectConnectorRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pluginARN := fmt.Sprintf("arn:aws:kafkaconnect:%s:%s:custom-plugin/p1/uuid", testRegion, acct.ID)

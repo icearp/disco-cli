@@ -29,6 +29,7 @@ import (
 )
 
 func TestWithBothMessageKeys(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, body, want string
 	}{
@@ -55,6 +56,7 @@ func TestWithBothMessageKeys(t *testing.T) {
 // TestWithBothMessageKeys_KeepsOtherBytes pins that the splice leaves every
 // other byte alone; a re-marshal would reorder keys and reformat numbers.
 func TestWithBothMessageKeys_KeepsOtherBytes(t *testing.T) {
+	t.Parallel()
 	body := `{"z":1.50,"Message":"m","a":[1,2]}`
 	got := withBothMessageKeys([]byte(body))
 	if want := `{"message":"m","z":1.50,"Message":"m","a":[1,2]}`; string(got) != want {
@@ -69,6 +71,7 @@ func TestWithBothMessageKeys_KeepsOtherBytes(t *testing.T) {
 // touches, and that a body it declines to repair reaches the deserializer as it
 // arrived.
 func TestErrorMessageKeyRepair_HandleDeserialize(t *testing.T) {
+	t.Parallel()
 	handle := func(t *testing.T, next stubDeserializeHandler) middleware.DeserializeOutput {
 		t.Helper()
 		out, _, err := errorMessageKeyRepair{}.HandleDeserialize(context.Background(), middleware.DeserializeInput{}, next)
@@ -312,6 +315,8 @@ func verdictsOf(err error) predicateVerdicts {
 // reads only the key its model names, so without the repair the "Message" rows
 // of the serde JSON families lose their message: the gap and SCP checks miss,
 // and a real denial reads as closed to new customers.
+//
+//nolint:paralleltest // accountConfigForTest calls t.Setenv
 func TestErrorMessageKeyRepair_PredicatesPerProtocol(t *testing.T) {
 	const denial = "User: arn:aws:iam::123456789012:user/scanner is not authorized to perform: svc:ListThings"
 	cases := []struct {
@@ -371,6 +376,8 @@ func TestErrorMessageKeyRepair_PredicatesPerProtocol(t *testing.T) {
 // TestErrorMessageKeyRepair_LowercaseKeyForCapitalisedMember covers the other
 // direction: lambdacore models ResourceNotFoundException's member as "Message",
 // so a body spelling it "message" loses the text without the repair.
+//
+//nolint:paralleltest // accountConfigForTest calls t.Setenv
 func TestErrorMessageKeyRepair_LowercaseKeyForCapitalisedMember(t *testing.T) {
 	const msg = "Unable to determine service/operation name to be authorized"
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

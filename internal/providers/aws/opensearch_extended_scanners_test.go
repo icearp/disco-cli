@@ -64,6 +64,7 @@ func scanOSAttachments(t *testing.T, st *store.Store, handler func(in any) (any,
 }
 
 func TestScanOpenSearchDataSourceAttachments_StoresEveryAppsAttachments(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var apps parentCalls
 	total, err := scanOSAttachments(t, st, osAttachmentHandler(&apps, nil))
@@ -99,6 +100,7 @@ func TestScanOpenSearchDataSourceAttachments_StoresEveryAppsAttachments(t *testi
 // first call only) is skipped silently;
 // a denial warns once and keeps the other apps' rows; anything else fails.
 func TestScanOpenSearchDataSourceAttachments_Errors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		fail      map[string]error
@@ -132,6 +134,7 @@ func TestScanOpenSearchDataSourceAttachments_Errors(t *testing.T) {
 }
 
 func TestScanOpenSearchDataSourceAttachments_NoApps(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := osClient(map[string]func(any) (any, error){})
 	total, _, err := scanOpenSearchDataSourceAttachments(context.Background(), client, newTestAccount(testAccountID), testRegion, st, testScanID, nil)
@@ -141,6 +144,7 @@ func TestScanOpenSearchDataSourceAttachments_NoApps(t *testing.T) {
 }
 
 func TestScanOpenSearchApplications_ReturnsAttachmentParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := osClient(map[string]func(any) (any, error){
 		"ListApplications": func(any) (any, error) {
@@ -164,6 +168,7 @@ func TestScanOpenSearchApplications_ReturnsAttachmentParents(t *testing.T) {
 // reading as complete; the attachments it read and a sibling application's
 // attachments are still stored.
 func TestScanOpenSearchDataSourceAttachments_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls atomic.Int32
 	_, err := scanOSAttachments(t, st, func(in any) (any, error) {

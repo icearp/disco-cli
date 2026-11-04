@@ -12,6 +12,7 @@ import (
 // A channel uses each scanned source stream its summary names; an unscanned
 // source stream gets no edge.
 func TestResolveKinesisChannelSourceStreams(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	const ordersARN = "arn:aws:kinesis:us-east-1:123456789012:stream/orders"
@@ -42,6 +43,7 @@ func TestResolveKinesisChannelSourceStreams(t *testing.T) {
 }
 
 func TestResolveKinesisChannelSourceStreams_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeKinesisStream, "arn:aws:kinesis:us-east-1:123456789012:stream/orders", testRegion, "{}")
@@ -61,6 +63,7 @@ func TestResolveKinesisChannelSourceStreams_NoAttrs(t *testing.T) {
 
 // Attributes that do not decode are an error, not a silent skip.
 func TestResolveKinesisChannelSourceStreams_UndecodableAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeKinesisStream, "arn:aws:kinesis:us-east-1:123456789012:stream/orders", testRegion, "{}")
@@ -74,6 +77,7 @@ func TestResolveKinesisChannelSourceStreams_UndecodableAttrs(t *testing.T) {
 
 // TestResolveKinesisStreamRelationships_KMS verifies KMS edge for customer-managed keys.
 func TestResolveKinesisStreamRelationships_KMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -96,6 +100,7 @@ func TestResolveKinesisStreamRelationships_KMS(t *testing.T) {
 
 // TestResolveKinesisStreamRelationships_AWSManagedKey verifies alias/aws/kinesis is skipped.
 func TestResolveKinesisStreamRelationships_AWSManagedKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -113,6 +118,7 @@ func TestResolveKinesisStreamRelationships_AWSManagedKey(t *testing.T) {
 }
 
 func TestResolveKinesisStreamConsumerToStream(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

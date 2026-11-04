@@ -12,6 +12,7 @@ import (
 // scanned account, keyed by the owner's ARN; an own volume and one with no
 // OwnerId keep the scanned account's ARN.
 func TestScanVolumes_KeysByOwner(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	page := &ec2.DescribeVolumesOutput{Volumes: []ec2types.Volume{

@@ -318,6 +318,7 @@ func apintWarnings(w []store.ScanWarning) []string {
 // listing the model's MaxResults cap of 50. Each association is recorded
 // under its parent. No error, no warning.
 func TestScanAppIntegrations_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newApintCalls()
@@ -445,6 +446,7 @@ func TestScanAppIntegrations_StoresEveryTypeWithTags(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanAppIntegrations_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := apintScan(context.Background(), st, apintHandlers(newApintCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -460,6 +462,7 @@ func TestScanAppIntegrations_RescanInsertsNone(t *testing.T) {
 
 // Empty listings store nothing, list no associations and read no tags.
 func TestScanAppIntegrations_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newApintCalls()
@@ -488,6 +491,7 @@ func TestScanAppIntegrations_EmptyListings(t *testing.T) {
 // the tag op, a throttle is returned as transient and any other error as an
 // error.
 func TestScanAppIntegrations_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		arn, typ  string
@@ -553,6 +557,7 @@ func TestScanAppIntegrations_TagReadFailures(t *testing.T) {
 // Denied tag reads in several phases send one warning for the whole scan;
 // the rows are kept.
 func TestScanAppIntegrations_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newApintCalls()
@@ -575,6 +580,7 @@ func TestScanAppIntegrations_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanAppIntegrations_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, appIntegrationsTagsOp)
 	calls := newApintCalls()
@@ -592,6 +598,7 @@ func TestScanAppIntegrations_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A transient parent listing beside a later phase's hard error is demoted to
 // one warning under its own op, so the hard error decides the outcome.
 func TestScanAppIntegrations_ParentTransientDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, appIntegrationsListEventIntegrationsOp)
 	calls := newApintCalls()
@@ -615,6 +622,7 @@ func TestScanAppIntegrations_ParentTransientDemotedBesideHardError(t *testing.T)
 // stay stored. A failed closure write follows the write of the rows it
 // links, so the denial of a row it stored is still warned about.
 func TestScanAppIntegrations_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		refuse    func(t *testing.T, st *store.Store)
@@ -679,6 +687,7 @@ func TestScanAppIntegrations_FailedWriteStopsScan(t *testing.T) {
 // hit it, a throttle is returned as transient and any other error as an
 // error.
 func TestScanAppIntegrations_AssociationParentFailures(t *testing.T) {
+	t.Parallel()
 	onlyB := []string{apintAppAssocB1}
 	for _, c := range []struct {
 		name    string
@@ -739,6 +748,7 @@ func TestScanAppIntegrations_AssociationParentFailures(t *testing.T) {
 // error does not stop the later phases. A parent not stored has no
 // associations listed.
 func TestScanAppIntegrations_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op         string
 		kept, lost string
@@ -785,6 +795,7 @@ func TestScanAppIntegrations_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // A repeated NextToken ends every listing as an error, keeping the page
 // read, rather than looping on it.
 func TestScanAppIntegrations_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, kept, typ string
 		// repeat is the output of every call after the first, built afresh
@@ -843,6 +854,7 @@ func TestScanAppIntegrations_RepeatedTokenKeepsPages(t *testing.T) {
 // has no data-integration/<id> segment and an event integration without a
 // name are stored, but their associations are not listed.
 func TestScanAppIntegrations_ElementsWithoutIdentifier(t *testing.T) {
+	t.Parallel()
 	const noIDSegment = appintTestPrefix + "data-integration-legacy"
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
@@ -920,6 +932,7 @@ func TestScanAppIntegrations_ElementsWithoutIdentifier(t *testing.T) {
 // A GovCloud or China ARN reaches the tag op unchanged, in a scan of that
 // partition's account and region.
 func TestScanAppIntegrations_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			arn := partitionARN(pf.partition, "app-integrations", pf.region, "application/aaaaaaaa-0000-0000-0000-00000000000f")
@@ -949,6 +962,7 @@ func TestScanAppIntegrations_TagReadsKeepPartitionARNs(t *testing.T) {
 // flight saw it in its listing and its tag reads, and the later phases are
 // not run.
 func TestScanAppIntegrations_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newApintCalls()
 	handlers := apintHandlers(calls)
@@ -986,6 +1000,7 @@ func TestScanAppIntegrations_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanAppIntegrations_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "app-integrations.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a later listing", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1021,6 +1036,7 @@ func TestScanAppIntegrations_NXDOMAIN(t *testing.T) {
 }
 
 func TestDataIntegrationIDFromARN(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ arn, want string }{
 		{apintDI1, apintDI1ID},
 		{appintTestPrefix + "data-integration/", ""},

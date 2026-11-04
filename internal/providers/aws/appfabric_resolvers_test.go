@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveAppFabricChildToBundle(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -34,6 +35,7 @@ func TestResolveAppFabricChildToBundle(t *testing.T) {
 }
 
 func TestResolveAppFabricChildToBundle_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -55,6 +57,7 @@ func TestResolveAppFabricChildToBundle_NoEdge(t *testing.T) {
 }
 
 func TestResolveAppFabricDestination(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -93,6 +96,7 @@ func TestResolveAppFabricDestination(t *testing.T) {
 
 // TestFlattenIngestionDest_Firehose covers the Firehose arm of the union.
 func TestFlattenIngestionDest_Firehose(t *testing.T) {
+	t.Parallel()
 	out := flattenIngestionDest(&aftypes.IngestionDestination{
 		Arn: ptrStr("arn:aws:appfabric:us-east-1:111122223333:appbundle/a/ingestion/b/ingestiondestination/c"),
 		DestinationConfiguration: &aftypes.DestinationConfigurationMemberAuditLog{
@@ -113,6 +117,7 @@ func TestFlattenIngestionDest_Firehose(t *testing.T) {
 
 // A destination whose ingestion/bucket targets are unscanned emits no edges.
 func TestResolveAppFabricDestination_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

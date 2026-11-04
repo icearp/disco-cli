@@ -141,6 +141,7 @@ func sortedStrings(xs ...string) []string {
 }
 
 func TestScanEKS_StoresAssociatedAccessPoliciesUnderTheirEntry(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls, caCalls parentCalls
 	if err := scanEKSTopLevel(t, st, eksTopLevelHandlers(&policyCalls, &caCalls)); err != nil {
@@ -181,6 +182,7 @@ func TestScanEKS_StoresAssociatedAccessPoliciesUnderTheirEntry(t *testing.T) {
 // association's id. Building that id as {accessEntryNativeID}/access-policy/
 // {policyArn} would merge the association into this entry's identity.
 func TestScanEKS_AssociationNeverSharesAnAccessEntryIdentity(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls, caCalls parentCalls
 	h := eksTopLevelHandlers(&policyCalls, &caCalls)
@@ -203,6 +205,7 @@ func TestScanEKS_AssociationNeverSharesAnAccessEntryIdentity(t *testing.T) {
 }
 
 func TestScanEKS_StoresCertificateAuthoritiesUnderTheirCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls, caCalls parentCalls
 	if err := scanEKSTopLevel(t, st, eksTopLevelHandlers(&policyCalls, &caCalls)); err != nil {
@@ -239,6 +242,7 @@ func TestScanEKS_StoresCertificateAuthoritiesUnderTheirCluster(t *testing.T) {
 }
 
 func TestScanEKS_NoParentsNoChildCalls(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var policyCalls, caCalls parentCalls
 	h := eksTopLevelHandlers(&policyCalls, &caCalls)
@@ -279,6 +283,7 @@ func eksFailKeys(next func(in any) (any, error), err error, bad1, bad2 string) f
 // denial warns once however many keys hit it, and any other error fails the
 // scan.
 func TestScanEKS_FailedChildKey(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, bad1, bad2, childType string
 		want                      []string
@@ -334,6 +339,7 @@ func TestScanEKS_FailedChildKey(t *testing.T) {
 // Each new op runs after every pre-existing phase, and its hard error reaches
 // the caller.
 func TestScanEKS_NewPhaseErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListAssociatedAccessPolicies", "ListCertificateAuthorities", "DescribeCertificateAuthority"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -359,6 +365,7 @@ func TestScanEKS_NewPhaseErrorAfterExistingPhases(t *testing.T) {
 // The certificate-authority API is the newest, so its hard error leaves every
 // associated access policy stored.
 func TestScanEKS_CertificateAuthorityErrorKeepsAccessPolicies(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListCertificateAuthorities", "DescribeCertificateAuthority"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -377,6 +384,7 @@ func TestScanEKS_CertificateAuthorityErrorKeepsAccessPolicies(t *testing.T) {
 // entries, 1 EKS Anywhere subscription, 3 associated access policies and 2
 // certificate authorities. On a fresh store every row is new.
 func TestScanEKS_TotalsCountEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var policyCalls, caCalls parentCalls
@@ -393,6 +401,7 @@ func TestScanEKS_TotalsCountEveryPhase(t *testing.T) {
 // A cluster whose describe is denied has no row, so its certificate
 // authorities are not listed and no contains pair points at a missing parent.
 func TestScanEKS_DeniedClusterGetsNoCertificateAuthorities(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	hierarchyWarns := countOpWarnings(st, "hierarchy")
 	var policyCalls, caCalls parentCalls
@@ -420,6 +429,7 @@ func TestScanEKS_DeniedClusterGetsNoCertificateAuthorities(t *testing.T) {
 
 // The client is pinned to the scanned region, not the config's default.
 func TestScanEKS_CallsGoToScannedRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	var policyCalls, caCalls, regions parentCalls

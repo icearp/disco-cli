@@ -29,6 +29,7 @@ import (
 // matched, so that single region turned an account-level fact into a hard scan
 // error and marked every scan partial.
 func TestIsSecurityLakeNotEnabled(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		err  error
@@ -295,6 +296,7 @@ func failSecondSourcesPage(h map[string]func(any) (any, error), err error) {
 }
 
 func TestScanSecurityLake_StoresEveryDataLakeSource(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &slCalls{}
 	var warnings []store.ScanWarning
@@ -348,6 +350,7 @@ func TestScanSecurityLake_StoresEveryDataLakeSource(t *testing.T) {
 // without the data lake GetDataLakeSources named, one warning says so; when
 // ListDataLakes could not be read, only its own denial is warned.
 func TestScanSecurityLake_DataLakeSourceUnlinkedWithoutStoredLake(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		dataLakes func(any) (any, error)
@@ -392,6 +395,7 @@ func TestScanSecurityLake_DataLakeSourceUnlinkedWithoutStoredLake(t *testing.T) 
 }
 
 func TestSLDataLakeSourceNativeID_Unique(t *testing.T) {
+	t.Parallel()
 	const otherLake = "arn:aws:securitylake:eu-west-1:123456789012:data-lake/default"
 	if got, want := slDataLakeSourceNativeID(slTestLakeARN, testAccountID, "VPC_FLOW"), slTestVPCFlowID; got != want {
 		t.Errorf("slDataLakeSourceNativeID = %q, want %q", got, want)
@@ -414,6 +418,7 @@ func TestSLDataLakeSourceNativeID_Unique(t *testing.T) {
 // Entries disco cannot identify are reported in one warning and not stored;
 // the identifiable siblings are stored.
 func TestScanSecurityLake_UnidentifiableDataLakeSourcesWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := slHandlers(&slCalls{})
 	h["GetDataLakeSources"] = func(in any) (any, error) {
@@ -450,6 +455,7 @@ func TestScanSecurityLake_UnidentifiableDataLakeSourcesWarn(t *testing.T) {
 }
 
 func TestScanSecurityLake_DataLakeSourcesEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := slHandlers(&slCalls{})
 	h["GetDataLakeSources"] = func(any) (any, error) { return &securitylake.GetDataLakeSourcesOutput{}, nil }
@@ -468,6 +474,7 @@ func TestScanSecurityLake_DataLakeSourcesEmpty(t *testing.T) {
 // When the data lake listing shows Security Lake is not enabled, the scan
 // reports the service disabled and makes no source call.
 func TestScanSecurityLake_NotEnabledMakesNoSourcesCall(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &slCalls{}
 	h := slHandlers(calls)
@@ -483,6 +490,7 @@ func TestScanSecurityLake_NotEnabledMakesNoSourcesCall(t *testing.T) {
 }
 
 func TestScanSecurityLake_DataLakeSourcesErrors(t *testing.T) {
+	t.Parallel()
 	const firstPageRows = 2
 	cases := []struct {
 		name            string
@@ -549,6 +557,7 @@ func TestScanSecurityLake_DataLakeSourcesErrors(t *testing.T) {
 
 // A service repeating its page token ends the listing instead of looping.
 func TestScanSecurityLake_DataLakeSourcesStopOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &slCalls{}
 	h := slHandlers(calls)
@@ -570,6 +579,7 @@ func TestScanSecurityLake_DataLakeSourcesStopOnRepeatedToken(t *testing.T) {
 // The data lake source phase runs after the older phases whatever they
 // returned: its hard error leaves their rows stored, and theirs leaves its.
 func TestScanSecurityLake_DataLakeSourcesPhaseIndependent(t *testing.T) {
+	t.Parallel()
 	t.Run("sources error keeps older phases", func(t *testing.T) {
 		st := newTestStore(t)
 		h := slHandlers(&slCalls{})
@@ -605,6 +615,7 @@ func TestScanSecurityLake_DataLakeSourcesPhaseIndependent(t *testing.T) {
 // A phase's transient error is demoted to a warning under its op instead of
 // buried in the other side's hard error.
 func TestScanSecurityLake_TransientPhaseDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	cases := []struct {
 		name, transientOp, hardOp, warnOp string
@@ -641,6 +652,7 @@ func TestScanSecurityLake_TransientPhaseDoesNotMaskHardError(t *testing.T) {
 // stored as after an access denial. Alone, the throttle is returned as
 // transient, so the scan is partial.
 func TestScanSecurityLake_ThrottledDataLakesStillListsSubscribers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := slHandlers(&slCalls{})
 	h["ListDataLakes"] = func(any) (any, error) { return nil, apiErr("ThrottlingException", "Rate exceeded") }
@@ -660,6 +672,7 @@ func TestScanSecurityLake_ThrottledDataLakesStillListsSubscribers(t *testing.T) 
 // A custom source row carries the provider role, location and Glue ARNs that
 // only ListLogSources returns, under LogSources[].CustomLogSource.
 func TestScanSecurityLake_CustomSourceEnrichment(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := scanSecurityLakeTopLevel(st, slHandlers(&slCalls{})); err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
@@ -702,6 +715,7 @@ func TestScanSecurityLake_CustomSourceEnrichment(t *testing.T) {
 
 // Every version ListLogSources lists for one source is embedded in its row.
 func TestScanSecurityLake_EmbedsEveryLogSourceVersion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := scanSecurityLakeTopLevel(st, slHandlers(&slCalls{})); err != nil {
 		t.Fatalf("scanSecurityLake: %v", err)
@@ -726,6 +740,7 @@ func TestScanSecurityLake_EmbedsEveryLogSourceVersion(t *testing.T) {
 // A ListLogSources entry no data lake source row carries is reported in one
 // warning; the matched entries are still embedded.
 func TestScanSecurityLake_UnmatchedLogSourceWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := slHandlers(&slCalls{})
 	listed := h["ListLogSources"]
@@ -762,6 +777,7 @@ func TestScanSecurityLake_UnmatchedLogSourceWarns(t *testing.T) {
 // A failed ListLogSources keeps every data lake source row, with LogSources
 // null rather than a partial list; only an unmodeled error is returned.
 func TestScanSecurityLake_LogSourcesErrorKeepsRows(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name         string
 		firstPage    bool
@@ -816,6 +832,7 @@ func TestScanSecurityLake_LogSourcesErrorKeepsRows(t *testing.T) {
 // A source ListLogSources lists no entry for carries an empty LogSources list,
 // which tells it apart from a failed listing (null).
 func TestScanSecurityLake_NoLogSourceEntriesIsEmptyList(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := slHandlers(&slCalls{})
 	h["ListLogSources"] = func(any) (any, error) { return &securitylake.ListLogSourcesOutput{}, nil }
@@ -836,6 +853,7 @@ func TestScanSecurityLake_NoLogSourceEntriesIsEmptyList(t *testing.T) {
 // A service repeating its ListLogSources page token ends the listing instead
 // of looping.
 func TestScanSecurityLake_LogSourcesStopOnRepeatedToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &slCalls{}
 	h := slHandlers(calls)
@@ -857,6 +875,7 @@ func TestScanSecurityLake_LogSourcesStopOnRepeatedToken(t *testing.T) {
 // A hard GetDataLakeSources error stays a hard error when ListLogSources fails
 // transiently in the same scan; the transient is warned under its own op.
 func TestScanSecurityLake_TransientLogSourcesDoesNotMaskSourcesError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := slHandlers(&slCalls{})
 	h["GetDataLakeSources"] = func(any) (any, error) { return nil, apiErr("BadRequestException", "bad") }
@@ -904,6 +923,7 @@ func slScanLogSourceWarnings(t *testing.T, h map[string]func(any) (any, error)) 
 // An entry of a union member this SDK does not know is reported, not dropped
 // unseen.
 func TestScanSecurityLake_UnknownLogSourceMemberWarns(t *testing.T) {
+	t.Parallel()
 	h := slHandlers(&slCalls{})
 	slAppendLogSource(h, sltypes.LogSource{
 		Account: ptrStr(testAccountID), Region: ptrStr(testRegion),
@@ -921,6 +941,7 @@ func TestScanSecurityLake_UnknownLogSourceMemberWarns(t *testing.T) {
 // An element for another Region is skipped with a warning, not merged into
 // this region's rows.
 func TestScanSecurityLake_OtherRegionLogSourceSkipped(t *testing.T) {
+	t.Parallel()
 	h := slHandlers(&slCalls{})
 	slAppendLogSource(h, sltypes.LogSource{
 		Account: ptrStr(testAccountID), Region: ptrStr("eu-west-1"),
@@ -940,6 +961,7 @@ func TestScanSecurityLake_OtherRegionLogSourceSkipped(t *testing.T) {
 // An element without an account is filed under the scanning account, and one
 // without a Region under the scanned region.
 func TestScanSecurityLake_LogSourceWithoutAccountIsScanningAccounts(t *testing.T) {
+	t.Parallel()
 	h := slHandlers(&slCalls{})
 	entry := sltypes.AwsLogSourceResource{SourceName: sltypes.AwsLogSourceNameVpcFlow, SourceVersion: ptrStr("latest")}
 	slAppendLogSource(h, sltypes.LogSource{
@@ -958,6 +980,7 @@ func TestScanSecurityLake_LogSourceWithoutAccountIsScanningAccounts(t *testing.T
 // Each row carries its entries in a fixed order whatever order ListLogSources
 // gives them in, so a reordered answer does not version the row.
 func TestScanSecurityLake_LogSourcesOrderIsFixed(t *testing.T) {
+	t.Parallel()
 	h := slHandlers(&slCalls{})
 	listed := h["ListLogSources"]
 	h["ListLogSources"] = func(in any) (any, error) {
@@ -983,6 +1006,7 @@ func TestScanSecurityLake_LogSourcesOrderIsFixed(t *testing.T) {
 // member and counts the entries it left unmatched, instead of dropping both
 // with no warning.
 func TestScanSecurityLake_CutShortListingReportsLogSources(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := slHandlers(&slCalls{})
 	failSecondSourcesPage(h, apiErr("ResourceNotFoundException", "data lake not found"))
@@ -1005,6 +1029,7 @@ func TestScanSecurityLake_CutShortListingReportsLogSources(t *testing.T) {
 // other phase stored a row or failed; otherwise it is a warning, and another
 // phase's error is returned as it is.
 func TestScanSecurityLake_SubscribersNotEnabled(t *testing.T) {
+	t.Parallel()
 	notEnabled := apiErr("AccessDeniedException", "You must be a delegated Security Lake administrator account")
 	empty := map[string]func(any) (any, error){
 		"ListDataLakes":      func(any) (any, error) { return &securitylake.ListDataLakesOutput{}, nil },
@@ -1059,6 +1084,7 @@ func withSL(handlers map[string]func(any) (any, error), op string, err error) ma
 // An NXDOMAIN from ListDataLakes is no transient the subscribers are listed
 // past: the endpoint is absent, so ListSubscribers is not called.
 func TestScanSecurityLake_DataLakesNXDOMAINSkipsSubscribers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := slHandlers(&slCalls{})
 	h["ListDataLakes"] = func(any) (any, error) {

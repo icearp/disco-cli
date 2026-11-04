@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveSecondaryInterfaceRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -28,6 +29,7 @@ func TestResolveSecondaryInterfaceRelationships(t *testing.T) {
 }
 
 func TestResolveSecondaryInterfaceRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -42,6 +44,7 @@ func TestResolveSecondaryInterfaceRelationships_NoAttrs(t *testing.T) {
 }
 
 func TestResolveSecondarySubnetRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -59,6 +62,7 @@ func TestResolveSecondarySubnetRelationships(t *testing.T) {
 }
 
 func TestResolveSecondarySubnetRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

@@ -55,6 +55,7 @@ func assertListedPoolRow(t *testing.T, row store.Resource, listed cognitoidptype
 }
 
 func TestScanCognitoUserPools_StoresDescribedPoolsWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newCogFake()
 	f.pools = []cognitoidptypes.UserPoolDescriptionType{{Id: sdkaws.String("us-east-1_tagged"), Name: sdkaws.String("listed-name")}}
@@ -92,6 +93,7 @@ func TestScanCognitoUserPools_StoresDescribedPoolsWithTags(t *testing.T) {
 }
 
 func TestScanCognitoUserPools_DescribeFailures(t *testing.T) {
+	t.Parallel()
 	const pool = "us-east-1_failing"
 	listed := cognitoidptypes.UserPoolDescriptionType{Id: sdkaws.String(pool), Name: sdkaws.String("listed-name")}
 	for _, tc := range []struct {
@@ -156,6 +158,7 @@ func TestScanCognitoUserPools_DescribeFailures(t *testing.T) {
 // TestScanCognitoUserPools_DeniedCodesShareOneWarning pins that both denial
 // codes DescribeUserPool models are tallied together.
 func TestScanCognitoUserPools_DeniedCodesShareOneWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "cognito-idp:DescribeUserPool")
 	f := newCogFake()
@@ -171,6 +174,7 @@ func TestScanCognitoUserPools_DeniedCodesShareOneWarning(t *testing.T) {
 }
 
 func TestScanCognitoUserPools_ListFailures(t *testing.T) {
+	t.Parallel()
 	page0 := cognitoidptypes.UserPoolDescriptionType{Id: sdkaws.String("us-east-1_first")}
 	for _, tc := range []struct {
 		name      string
@@ -207,6 +211,7 @@ func TestScanCognitoUserPools_ListFailures(t *testing.T) {
 }
 
 func TestScanCognitoUserPools_EmptyIDWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	f := newCogFake()
@@ -220,6 +225,7 @@ func TestScanCognitoUserPools_EmptyIDWarns(t *testing.T) {
 // TestScanCognitoUserPools_StoreWriteFailureStops pins that a failed write
 // returns the store error, no parents and no warning claiming rows.
 func TestScanCognitoUserPools_StoreWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	refuseStoreWrites(t, st, TypeCognitoUserPool)
@@ -243,6 +249,7 @@ func TestScanCognitoUserPools_StoreWriteFailureStops(t *testing.T) {
 // TestScanCognitoUserPools_ContextStop pins that once ctx ends no further pool
 // is read and the stop is returned.
 func TestScanCognitoUserPools_ContextStop(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -339,6 +346,7 @@ func idPoolStoredAttrs(t *testing.T, row store.Resource) (pool json.RawMessage, 
 }
 
 func TestScanCognitoIdentityPools_StoresDescribedPoolsWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newIDPoolFake([]cognitoidentitytypes.IdentityPoolShortDescription{idPoolShort("us-east-1:tagged")},
 		[]cognitoidentitytypes.IdentityPoolShortDescription{idPoolShort("us-east-1:untagged")})
@@ -379,6 +387,7 @@ func TestScanCognitoIdentityPools_StoresDescribedPoolsWithTags(t *testing.T) {
 }
 
 func TestScanCognitoIdentityPools_ReadFailures(t *testing.T) {
+	t.Parallel()
 	const pool = "us-east-1:failing"
 	for _, tc := range []struct {
 		name, op, code string
@@ -450,6 +459,7 @@ func TestScanCognitoIdentityPools_ReadFailures(t *testing.T) {
 }
 
 func TestScanCognitoIdentityPools_ListFailures(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		failToken string
@@ -484,6 +494,7 @@ func TestScanCognitoIdentityPools_ListFailures(t *testing.T) {
 }
 
 func TestScanCognitoIdentityPools_EmptyIDWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	f := newIDPoolFake([]cognitoidentitytypes.IdentityPoolShortDescription{
@@ -497,6 +508,7 @@ func TestScanCognitoIdentityPools_EmptyIDWarns(t *testing.T) {
 }
 
 func TestScanCognitoIdentityPools_StoreWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	refuseStoreWrites(t, st, TypeCognitoIdentityPool)
@@ -516,6 +528,7 @@ func TestScanCognitoIdentityPools_StoreWriteFailureStops(t *testing.T) {
 }
 
 func TestScanCognitoIdentityPools_ContextStop(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -530,6 +543,7 @@ func TestScanCognitoIdentityPools_ContextStop(t *testing.T) {
 // TestScanCognitoAll_IdentityPoolsRunAfterPoolPhaseFailure pins that a hard
 // user-pool phase error neither skips the identity-pool phase nor is lost.
 func TestScanCognitoAll_IdentityPoolsRunAfterPoolPhaseFailure(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newCogFake()
 	f.errs["ListUserPools "] = bcmPCAPIErr("InvalidParameterException", "bad")
@@ -547,6 +561,7 @@ func TestScanCognitoAll_IdentityPoolsRunAfterPoolPhaseFailure(t *testing.T) {
 // TestScanCognitoAll_StoreWriteFailureStopsLaterPhases pins that a failed
 // write in either early phase stops the scan with the store error.
 func TestScanCognitoAll_StoreWriteFailureStopsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, refused := range []string{TypeCognitoUserPool, TypeCognitoIdentityPool} {
 		t.Run(refused, func(t *testing.T) {
 			st := newTestStore(t)
@@ -571,6 +586,7 @@ func TestScanCognitoAll_StoreWriteFailureStopsLaterPhases(t *testing.T) {
 // TestScanCognitoUserPools_ClientListingErrorKeepsPool pins that a pool whose
 // ListUserPoolClients fails is still stored and the error is returned.
 func TestScanCognitoUserPools_ClientListingErrorKeepsPool(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := newCogFake()
 	f.pools = []cognitoidptypes.UserPoolDescriptionType{{Id: sdkaws.String("us-east-1_failing")}, {Id: sdkaws.String("us-east-1_ok")}}
@@ -593,6 +609,7 @@ func TestScanCognitoUserPools_ClientListingErrorKeepsPool(t *testing.T) {
 // transient DescribeUserPool tally is warned under its op, not buried in a
 // hard error of the same phase.
 func TestScanCognitoUserPools_TransientDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	f := newCogFake()
@@ -611,6 +628,7 @@ func TestScanCognitoUserPools_TransientDemotedBesideHardError(t *testing.T) {
 }
 
 func TestScanCognitoIdentityPools_TransientDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	f := newIDPoolFake([]cognitoidentitytypes.IdentityPoolShortDescription{idPoolShort("us-east-1:slow"), idPoolShort("us-east-1:bad")})
@@ -630,6 +648,7 @@ func TestScanCognitoIdentityPools_TransientDemotedBesideHardError(t *testing.T) 
 // TestScanCognitoUserPools_NoBodyKeptAndWarned pins that a DescribeUserPool
 // answer without a UserPool keeps the listed element as the row and warns once.
 func TestScanCognitoUserPools_NoBodyKeptAndWarned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	listed := cognitoidptypes.UserPoolDescriptionType{Id: sdkaws.String("us-east-1_empty"), Name: sdkaws.String("listed-name")}
@@ -658,6 +677,7 @@ func TestScanCognitoUserPools_NoBodyKeptAndWarned(t *testing.T) {
 // transient ListUserPoolClients error beside a hard error is warned under
 // cognito-idp:ListUserPoolClients, not under the pool listing.
 func TestScanCognitoUserPools_ClientTransientWarnedUnderItsOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := recordWarnings(st)
 	f := newCogFake()

@@ -25,6 +25,7 @@ func amFrameworkARN() string {
 // TestResolveAuditManagerAssessmentTargets exercises every assessment
 // outbound edge: framework, IAM role, S3 reports bucket.
 func TestResolveAuditManagerAssessmentTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -55,6 +56,7 @@ func TestResolveAuditManagerAssessmentTargets(t *testing.T) {
 // TestResolveAuditManagerAssessmentTargets_MissingMetadata verifies
 // assessments missing Metadata or Framework skip cleanly.
 func TestResolveAuditManagerAssessmentTargets_MissingMetadata(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

@@ -229,6 +229,7 @@ func wkAttrs(t *testing.T, r store.Resource) map[string]any {
 }
 
 func TestScanWickr_StoresNetworkChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := map[string]*parentCalls{}
 	total, err := scanWickrTopLevel(t, st, wkHandlers(calls))
@@ -289,6 +290,7 @@ func TestScanWickr_StoresNetworkChildren(t *testing.T) {
 }
 
 func TestScanWickr_NoChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := wkHandlers(map[string]*parentCalls{})
 	h["ListSecurityGroups"] = func(any) (any, error) { return &wickr.ListSecurityGroupsOutput{}, nil }
@@ -316,6 +318,7 @@ func TestScanWickr_NoChildren(t *testing.T) {
 // phase and is returned. Either way the networks and every other phase's rows
 // are stored.
 func TestScanWickr_FailedChildNetwork(t *testing.T) {
+	t.Parallel()
 	for _, c := range wkChildren {
 		for _, tc := range []struct {
 			name      string
@@ -381,6 +384,7 @@ func TestScanWickr_FailedChildNetwork(t *testing.T) {
 // A list op that keeps answering with the token it was sent stops after that
 // page instead of paging forever; the handler fails a third call.
 func TestScanWickr_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	again := sdkaws.String("again")
 	tooMany := apiErr("ValidationError", "called a third time")
 	for _, op := range []string{"ListNetworks", "ListSecurityGroups", "ListBots", "ListUsers"} {
@@ -429,6 +433,7 @@ func TestScanWickr_RepeatedTokenStops(t *testing.T) {
 
 // Hard errors from two child phases both reach the caller.
 func TestScanWickr_ChildPhaseErrorsJoined(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := wkHandlers(map[string]*parentCalls{})
 	h["ListBots"] = func(any) (any, error) { return nil, wkValidation }
@@ -455,6 +460,7 @@ func TestScanWickr_ChildPhaseErrorsJoined(t *testing.T) {
 // a RateLimitError still failing after the retries included, is returned, also
 // when only the second page fails.
 func TestScanWickr_NetworkListErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -507,6 +513,7 @@ func TestScanWickr_NetworkListErrors(t *testing.T) {
 // scanner builds does, and only that code, while keeping the retryer and
 // attempt budget the account config sets.
 func TestWickrClientOptions_RetriesRateLimitError(t *testing.T) {
+	t.Parallel()
 	rateLimited := &wickrtypes.RateLimitError{Message: sdkaws.String("slow down")}
 	if retry.NewStandard().IsErrorRetryable(rateLimited) {
 		t.Fatal("the SDK's standard retryer retries RateLimitError; wickrClientOptions' retryer wrap is redundant")

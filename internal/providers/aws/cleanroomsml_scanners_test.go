@@ -244,6 +244,7 @@ func crmlRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, 
 // error or warning. Each row keeps the base scan's Name, Status and verbatim
 // element, and its CreatedAt is the element's CreateTime.
 func TestScanCleanRoomsML_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newCRMLCalls()
@@ -308,6 +309,7 @@ func TestScanCleanRoomsML_StoresTagsOfEveryType(t *testing.T) {
 // An aws-us-gov account scanned in us-gov-west-1 sends the gov ARNs its
 // listings return to the tag op unchanged and stores their tags.
 func TestScanCleanRoomsML_GovCloudARNsReachTagOp(t *testing.T) {
+	t.Parallel()
 	const govRegion = "us-gov-west-1"
 	dataset := arnFor("aws-us-gov", "cleanrooms-ml", govRegion, testAccountID, "training-dataset/td-gov")
 	model := arnFor("aws-us-gov", "cleanrooms-ml", govRegion, testAccountID, "membership/m-gov/trained-model/tm-gov")
@@ -356,6 +358,7 @@ func TestScanCleanRoomsML_GovCloudARNsReachTagOp(t *testing.T) {
 // Every listing returning nothing stores nothing, reads no tags and reports
 // nothing.
 func TestScanCleanRoomsML_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newCRMLCalls()
@@ -372,6 +375,7 @@ func TestScanCleanRoomsML_EmptyListings(t *testing.T) {
 // A membership whose ML listings return an empty page stores nothing for it,
 // reads no tags and reports nothing.
 func TestScanCleanRoomsML_EmptyMembershipListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newCRMLCalls()
@@ -392,6 +396,7 @@ func TestScanCleanRoomsML_EmptyMembershipListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanCleanRoomsML_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCRMLCalls()
 	if _, _, err := crmlScan(context.Background(), t, st, crmlHandlers(calls)); err != nil {
@@ -412,6 +417,7 @@ func TestScanCleanRoomsML_RescanInsertsNone(t *testing.T) {
 // not-found drops the row. The same holds for an account-wide and a
 // per-membership listing.
 func TestScanCleanRoomsML_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct{ typ, arn string }{
 		{TypeCleanRoomsMLTrainingDataset, crmlARN("training-dataset/td-t")},
 		{TypeCleanRoomsMLConfiguredModelAlgorithmAssociation, crmlChild("m-t", "configured-model-algorithm-association")},
@@ -475,6 +481,7 @@ func TestScanCleanRoomsML_TagReadFailures(t *testing.T) {
 
 // Denied tag reads in several listings are one warning for the scan.
 func TestScanCleanRoomsML_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, crmlTagsOp)
 	calls := newCRMLCalls()
@@ -500,6 +507,7 @@ func TestScanCleanRoomsML_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanCleanRoomsML_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, crmlTagsOp)
 	calls := newCRMLCalls()
@@ -518,6 +526,7 @@ func TestScanCleanRoomsML_TagThrottleDemotedBesideHardError(t *testing.T) {
 // rows; a denied membership listing leaves the per-membership listings no
 // membership to read.
 func TestScanCleanRoomsML_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	// 15 rows, less the denied listing's: an account-wide listing stores 2
 	// (audience models 3), the memberships' children 6, a per-membership
 	// listing 2.
@@ -555,6 +564,7 @@ func TestScanCleanRoomsML_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanCleanRoomsML_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeCleanRoomsMLTrainingDataset)
@@ -578,6 +588,7 @@ func TestScanCleanRoomsML_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A failed write of a per-membership listing sends no warning about the
 // membership it skipped.
 func TestScanCleanRoomsML_FailedMembershipWriteSendsNoSkipWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeCleanRoomsMLTrainedModel)
@@ -605,6 +616,7 @@ func TestScanCleanRoomsML_FailedMembershipWriteSendsNoSkipWarning(t *testing.T) 
 // stored; any other code, ResourceNotFoundException included (the
 // per-membership listings model none), is returned.
 func TestScanCleanRoomsML_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	skips := bacWarnings(st, "cleanrooms-ml:ListTrainedModels")
@@ -666,6 +678,7 @@ func TestScanCleanRoomsML_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // crmlMembershipsOp: throttled beside a hard error of another listing, it is
 // demoted to one warning under that op.
 func TestScanCleanRoomsML_MembershipListFailureKeepsPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	opWarns := countOpWarnings(st, crmlMembershipsOp)
 	h := crmlHandlers(newCRMLCalls())
@@ -690,6 +703,7 @@ func TestScanCleanRoomsML_MembershipListFailureKeepsPage(t *testing.T) {
 // stored or read and are warned about once per listing, under a key that is
 // never empty.
 func TestScanCleanRoomsML_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, key string
 		out     any
@@ -717,6 +731,7 @@ func TestScanCleanRoomsML_UnstorableItemsWarn(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanCleanRoomsML_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListAudienceModels", "ListTrainedModels"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -748,6 +763,7 @@ func TestScanCleanRoomsML_RepeatedTokenKeepsPages(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is reported once,
 // naming the phases not run.
 func TestScanCleanRoomsML_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCRMLCalls()
 	h := crmlHandlers(calls)
@@ -790,6 +806,7 @@ func TestScanCleanRoomsML_ContextEndStopsOnce(t *testing.T) {
 // nothing else and is not an error. An NXDOMAIN after rows were stored is a
 // failure of this scan: the counts are kept.
 func TestScanCleanRoomsML_Unreachable(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "ml.cleanrooms.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("ML endpoint absent", func(t *testing.T) {
 		st := newTestStore(t)

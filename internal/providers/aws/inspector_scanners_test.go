@@ -179,6 +179,7 @@ func runInspector2Plain(t *testing.T, st *store.Store, handlers map[string]func(
 }
 
 func TestScanInspector2_StoresFiltersAndCisConfigsWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	r := runInspector2Plain(t, st, i2Handlers(t))
 	if r.err != nil {
@@ -226,6 +227,7 @@ func TestScanInspector2_StoresFiltersAndCisConfigsWithTags(t *testing.T) {
 
 // A denied later page keeps the pages read before it and is warned about.
 func TestScanInspector2_DeniedOnSecondPageKeepsFirst(t *testing.T) {
+	t.Parallel()
 	denied := apiErr("AccessDeniedException", "User is not authorized to perform: inspector2:List")
 	for _, o := range i2TagOps {
 		t.Run(o.op, func(t *testing.T) {
@@ -253,6 +255,7 @@ func TestScanInspector2_DeniedOnSecondPageKeepsFirst(t *testing.T) {
 // A later page's error is returned after the pages read before it are
 // stored, and every later phase still runs.
 func TestScanInspector2_ErrorOnSecondPageKeepsFirstAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name    string
 		err     error
@@ -288,6 +291,7 @@ func TestScanInspector2_ErrorOnSecondPageKeepsFirstAndLaterPhases(t *testing.T) 
 // A first-page error of either listing is returned, and every other phase
 // still stores its rows.
 func TestScanInspector2_FirstPageErrorRunsOtherPhases(t *testing.T) {
+	t.Parallel()
 	boom := apiErr("ValidationException", "boom")
 	for _, o := range i2TagOps {
 		t.Run(o.op, func(t *testing.T) {
@@ -312,6 +316,7 @@ func TestScanInspector2_FirstPageErrorRunsOtherPhases(t *testing.T) {
 // the delegated-admin phase still runs and the other phases' rows keep their
 // counts.
 func TestScanInspector2_CisNotEnabledSkipsEnabledOnlyPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := i2Handlers(t)
 	h["ListCisScanConfigurations"] = func(any) (any, error) {
@@ -336,6 +341,7 @@ func TestScanInspector2_CisNotEnabledSkipsEnabledOnlyPhases(t *testing.T) {
 // The not-enabled denial on a later CIS page is a denial: the first page is
 // kept, it is warned about, and no phase is skipped.
 func TestScanInspector2_CisNotEnabledOnSecondPageIsDenial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := i2Handlers(t)
 	failPage2(h, "ListCisScanConfigurations", apiErr("AccessDeniedException", "Invoking account is not enabled"))
@@ -357,6 +363,7 @@ func TestScanInspector2_CisNotEnabledOnSecondPageIsDenial(t *testing.T) {
 // Another phase's failure is returned rather than hidden behind the
 // not-enabled sentinel, even when no row was stored.
 func TestScanInspector2_SentinelDoesNotHidePhaseError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	boom := apiErr("ValidationException", "boom")
 	h := i2Handlers(t)
@@ -378,6 +385,7 @@ func TestScanInspector2_SentinelDoesNotHidePhaseError(t *testing.T) {
 // A rescan whose rows are all already stored inserts none, but they were still
 // listed: the not-enabled sentinel must not discard that real total.
 func TestScanInspector2_SentinelDroppedOnRescanOfStoredRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := i2Handlers(t)
 	h["ListMembers"] = func(any) (any, error) { return &inspector2.ListMembersOutput{}, nil }
@@ -400,6 +408,7 @@ func TestScanInspector2_SentinelDroppedOnRescanOfStoredRows(t *testing.T) {
 // A failed write stops the scan: no later phase runs, and no warning claims
 // rows the write lost.
 func TestScanInspector2_StoreWriteStops(t *testing.T) {
+	t.Parallel()
 	for _, o := range i2TagOps {
 		t.Run(o.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -422,6 +431,7 @@ func TestScanInspector2_StoreWriteStops(t *testing.T) {
 // A ctx that ends mid-listing stops it: the stop is returned and the page read
 // before it is stored.
 func TestScanInspector2_ContextStopReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

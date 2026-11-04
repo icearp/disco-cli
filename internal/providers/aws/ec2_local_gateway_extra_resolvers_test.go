@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveCoipPoolRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -24,6 +25,7 @@ func TestResolveCoipPoolRelationships(t *testing.T) {
 }
 
 func TestResolveCoipPoolRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -38,6 +40,7 @@ func TestResolveCoipPoolRelationships_NoAttrs(t *testing.T) {
 }
 
 func TestResolveOutpostLagRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -55,6 +58,7 @@ func TestResolveOutpostLagRelationships(t *testing.T) {
 }
 
 func TestResolveOutpostLagRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

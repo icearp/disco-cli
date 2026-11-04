@@ -296,6 +296,7 @@ func trsJSONValue(t *testing.T, v any) map[string]any {
 // sent exactly the ARNs of the rows of the four other types; every listing
 // call is sent MaxResults 100. No error, no warning.
 func TestScanTranscribe_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newTRSTestCalls()
@@ -361,6 +362,7 @@ func trsStoredWithTags(st *store.Store, arn string) bool {
 // Every listing whose tags are read writes its first page, with its tags,
 // before it reads the second.
 func TestScanTranscribe_PagesWrittenAsRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := trsTestHandlers(newTRSTestCalls())
 	var (
@@ -391,6 +393,7 @@ func TestScanTranscribe_PagesWrittenAsRead(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanTranscribe_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := trsTestScan(context.Background(), st, trsTestHandlers(newTRSTestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -407,6 +410,7 @@ func TestScanTranscribe_RescanInsertsNone(t *testing.T) {
 // Empty listings: each listed once, nothing stored, no tag read, no error,
 // no warning.
 func TestScanTranscribe_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newTRSTestCalls()
@@ -440,6 +444,7 @@ func TestScanTranscribe_Empty(t *testing.T) {
 // and warns once under the tag op with the scan's scope; a throttle keeps it
 // and is transient; any other error keeps it and is an error.
 func TestScanTranscribe_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagFailure struct {
 		name      string
 		op        string
@@ -510,6 +515,7 @@ func TestScanTranscribe_TagReadFailures(t *testing.T) {
 // Denied tag reads in three phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanTranscribe_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newTRSTestCalls()
@@ -532,6 +538,7 @@ func TestScanTranscribe_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanTranscribe_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "transcribe:ListTagsForResource")
 	calls := newTRSTestCalls()
@@ -550,6 +557,7 @@ func TestScanTranscribe_TagThrottleDemotedBesideHardError(t *testing.T) {
 // one warning under the throttled listing's op, so the hard error decides
 // the outcome.
 func TestScanTranscribe_ListThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "transcribe:ListCallAnalyticsCategories")
 	calls := newTRSTestCalls()
@@ -570,6 +578,7 @@ func TestScanTranscribe_ListThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanTranscribe_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeTranscribeVocabulary)
@@ -601,6 +610,7 @@ func TestScanTranscribe_FailedWriteStopsScan(t *testing.T) {
 // A denied tag read is still warned about when a later phase fails: its row
 // was stored, so the scan's error does not hide why it has no tags.
 func TestScanTranscribe_TagDenialWarnedBesideLaterFailure(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newTRSTestCalls()
@@ -626,6 +636,7 @@ func TestScanTranscribe_TagDenialWarnedBesideLaterFailure(t *testing.T) {
 // does not stop the other phases. Every listing's first page denied is
 // warned about under its op, and the other phases run too.
 func TestScanTranscribe_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	type listFailure struct {
 		name     string
 		op       string
@@ -695,6 +706,7 @@ func TestScanTranscribe_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // A repeated NextToken ends the listing as an error, keeping its pages, and
 // the later phases run.
 func TestScanTranscribe_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListCallAnalyticsCategories", "ListVocabularies"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -733,6 +745,7 @@ func TestScanTranscribe_RepeatedTokenKeepsPages(t *testing.T) {
 // about once under its listing with the scan's scope, keyed noIdentifier;
 // the rest of the listing is stored.
 func TestScanTranscribe_ElementWithoutName(t *testing.T) {
+	t.Parallel()
 	for _, k := range trsTestKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -776,6 +789,7 @@ func TestScanTranscribe_ElementWithoutName(t *testing.T) {
 // In GovCloud and China every row is stored under its partition's ARN, and
 // that ARN reaches the tag op unchanged.
 func TestScanTranscribe_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -814,6 +828,7 @@ func TestScanTranscribe_TagReadsKeepPartitionARNs(t *testing.T) {
 // run, although the phase in flight saw it in its listing; the later phases
 // are not run, and the rows written before the stop stay stored.
 func TestScanTranscribe_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newTRSTestCalls()
 	handlers := trsTestHandlers(calls)
@@ -861,6 +876,7 @@ func TestScanTranscribe_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later phase runs.
 func TestScanTranscribe_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "transcribe.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -904,6 +920,7 @@ func TestScanTranscribe_NXDOMAIN(t *testing.T) {
 // is an empty listing: no error, no warning, and the other listings stored.
 // The same answer on a later page is an error, the first page kept.
 func TestScanTranscribe_FeatureGap(t *testing.T) {
+	t.Parallel()
 	categories := trsTestKindOf(t, "ListCallAnalyticsCategories")
 	t.Run("first page", func(t *testing.T) {
 		st := newTestStore(t)
@@ -948,6 +965,7 @@ func TestScanTranscribe_FeatureGap(t *testing.T) {
 // Answered after a listing listed items or failed other than by a denial, it
 // is an error of its listing, and the rows and later phases are kept.
 func TestScanTranscribe_NotOffered(t *testing.T) {
+	t.Parallel()
 	t.Run("first listing", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := rhWarnRecorder(st)

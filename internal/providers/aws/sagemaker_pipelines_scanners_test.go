@@ -46,6 +46,7 @@ func (s *stubSageMakerPipelines) DescribePartnerApp(_ context.Context, in *sagem
 }
 
 func TestScanSageMakerPipelines(t *testing.T) {
+	t.Parallel()
 	for _, mode := range smTagModes {
 		t.Run(mode.String(), func(t *testing.T) { testScanSageMakerPipelines(t, mode) })
 	}
@@ -99,6 +100,7 @@ func testScanSageMakerPipelines(t *testing.T, mode smTagMode) {
 }
 
 func TestScanSageMakerPipelinesEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubSageMakerPipelines{}

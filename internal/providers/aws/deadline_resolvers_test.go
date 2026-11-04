@@ -29,6 +29,7 @@ func dlMemberAttrs(typ, identityStoreID, principalID string, pt dltypes.Deadline
 // and to nothing else: not to the same id in another store, nor to the other
 // principal kind sharing the id.
 func TestResolveDeadlineMemberPrincipals_LinksPrincipal(t *testing.T) {
+	t.Parallel()
 	user, group := dltypes.DeadlinePrincipalTypeUser, dltypes.DeadlinePrincipalTypeGroup
 	for _, typ := range []string{TypeDeadlineFarmMember, TypeDeadlineFleetMember, TypeDeadlineQueueMember} {
 		for _, pt := range []dltypes.DeadlinePrincipalType{user, group} {
@@ -64,6 +65,7 @@ func TestResolveDeadlineMemberPrincipals_LinksPrincipal(t *testing.T) {
 // A member without attributes, or whose principal is not stored, links to
 // nothing.
 func TestResolveDeadlineMemberPrincipals_NoAttrsOrUnstoredPrincipal(t *testing.T) {
+	t.Parallel()
 	for _, typ := range []string{TypeDeadlineFarmMember, TypeDeadlineFleetMember, TypeDeadlineQueueMember} {
 		t.Run(typ, func(t *testing.T) {
 			st := newTestStore(t)
@@ -84,6 +86,7 @@ func TestResolveDeadlineMemberPrincipals_NoAttrsOrUnstoredPrincipal(t *testing.T
 // A member whose attributes do not decode is reported and costs no other
 // member its edge.
 func TestResolveDeadlineMemberPrincipals_DecodeErrorKeepsOtherEdges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	userID := upsertTestResource(t, st, "aws", acct.ID, TypeIdentityStoreUser, identityStoreUserNativeID(acct.ID, dlTestStore, "p-1"), "", "{}")
@@ -99,6 +102,7 @@ func TestResolveDeadlineMemberPrincipals_DecodeErrorKeepsOtherEdges(t *testing.T
 }
 
 func TestDeadlineFarmARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:deadline:us-east-1:123:farm/farm-1/queue/q-1", "arn:aws:deadline:us-east-1:123:farm/farm-1"},
 		{"arn:aws:deadline:us-east-1:123:farm/farm-1/queue/q-1/fleet/f-1/association", "arn:aws:deadline:us-east-1:123:farm/farm-1"},
@@ -112,6 +116,7 @@ func TestDeadlineFarmARNFromChild(t *testing.T) {
 }
 
 func TestResolveDeadlineFarmChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	farmARN := fmt.Sprintf("arn:aws:deadline:%s:%s:farm/%s", testRegion, acct.ID, "farm-1")
@@ -131,6 +136,7 @@ func TestResolveDeadlineFarmChildren(t *testing.T) {
 }
 
 func TestResolveDeadlineVolumeFleet(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	farmARN := fmt.Sprintf("arn:aws:deadline:%s:%s:farm/farm-1", testRegion, acct.ID)
@@ -147,6 +153,7 @@ func TestResolveDeadlineVolumeFleet(t *testing.T) {
 }
 
 func TestResolveDeadlineVolumeFleet_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	farmARN := fmt.Sprintf("arn:aws:deadline:%s:%s:farm/farm-1", testRegion, acct.ID)
@@ -160,6 +167,7 @@ func TestResolveDeadlineVolumeFleet_NoAttrs(t *testing.T) {
 }
 
 func TestResolveDeadlineQueueEnvParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	farmARN := fmt.Sprintf("arn:aws:deadline:%s:%s:farm/%s", testRegion, acct.ID, "farm-1")
@@ -175,6 +183,7 @@ func TestResolveDeadlineQueueEnvParent(t *testing.T) {
 }
 
 func TestResolveDeadlineQueueFleetAssoc(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	farmARN := fmt.Sprintf("arn:aws:deadline:%s:%s:farm/%s", testRegion, acct.ID, "farm-1")
@@ -193,6 +202,7 @@ func TestResolveDeadlineQueueFleetAssoc(t *testing.T) {
 }
 
 func TestResolveDeadlineMeteredProductParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	leARN := fmt.Sprintf("arn:aws:deadline:%s:%s:license-endpoint/le-1", testRegion, acct.ID)
@@ -207,6 +217,7 @@ func TestResolveDeadlineMeteredProductParent(t *testing.T) {
 }
 
 func TestResolveDeadlineFarmKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	keyARN := fmt.Sprintf("arn:aws:kms:%s:%s:key/k-1", testRegion, acct.ID)
@@ -222,6 +233,7 @@ func TestResolveDeadlineFarmKMS(t *testing.T) {
 }
 
 func TestResolveDeadlineLicenseEndpointVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
@@ -237,6 +249,7 @@ func TestResolveDeadlineLicenseEndpointVPC(t *testing.T) {
 }
 
 func TestResolveDeadlineMonitorRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/dl-role", acct.ID)

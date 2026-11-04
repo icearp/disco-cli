@@ -101,6 +101,7 @@ func scanRepostspaceTopLevel(t *testing.T, st *store.Store, handlers map[string]
 }
 
 func TestScanRepostspace_StoresChannels(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &parentCalls{}
 	total, err := scanRepostspaceTopLevel(t, st, rpsHandlers(calls))
@@ -142,6 +143,7 @@ func TestScanRepostspace_StoresChannels(t *testing.T) {
 }
 
 func TestScanRepostspace_NoChannels(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := rpsHandlers(&parentCalls{})
 	h["ListChannels"] = func(any) (any, error) { return &repostspace.ListChannelsOutput{}, nil }
@@ -164,6 +166,7 @@ func TestScanRepostspace_NoChannels(t *testing.T) {
 // fails the channel phase (none of its rows stored) and is returned; the
 // spaces stay stored either way.
 func TestScanRepostspace_FailedChannelSpace(t *testing.T) {
+	t.Parallel()
 	throttled := apiErr("ThrottlingException", "slow down")
 	for _, tc := range []struct {
 		name      string
@@ -217,6 +220,7 @@ func TestScanRepostspace_FailedChannelSpace(t *testing.T) {
 // A failed space listing stores nothing and lists no channels; a denial warns
 // and returns nil, anything else is returned.
 func TestScanRepostspace_SpaceListErrors(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error

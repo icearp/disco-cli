@@ -14,6 +14,7 @@ import (
 // TestScanPipes_ReadsTags pins that a pipe row carries the Tags DescribePipe
 // returned (ListPipes' element has none), and that an untagged pipe stores none.
 func TestScanPipes_ReadsTags(t *testing.T) {
+	t.Parallel()
 	const (
 		tagged   = "arn:aws:pipes:us-east-1:123456789012:pipe/p1"
 		untagged = "arn:aws:pipes:us-east-1:123456789012:pipe/p2"
@@ -58,6 +59,7 @@ func TestScanPipes_ReadsTags(t *testing.T) {
 // warning; any other error keeps them and is returned; NotFoundException skips
 // them silently.
 func TestScanPipes_DescribeFails(t *testing.T) {
+	t.Parallel()
 	const (
 		okARN  = "arn:aws:pipes:us-east-1:123456789012:pipe/ok"
 		badARN = "arn:aws:pipes:us-east-1:123456789012:pipe/bad1"
@@ -125,6 +127,7 @@ func TestScanPipes_DescribeFails(t *testing.T) {
 // A denied DescribePipe warns that the pipe was stored as its list element
 // only once it was: a failed write returns the store error and no warning.
 func TestScanPipes_KeptPipeWarnsOnlyOnceStored(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	warns := countOpWarnings(st, pipesDescribeOp)
 	handlers := map[string]func(in any) (any, error){
@@ -153,6 +156,7 @@ func TestScanPipes_KeptPipeWarnsOnlyOnceStored(t *testing.T) {
 // that fails keeps the pipes read before it: a denial warns once and returns
 // nil, any other error, or a repeated NextToken, is returned.
 func TestScanPipes_LaterListPageFails(t *testing.T) {
+	t.Parallel()
 	const page1 = "arn:aws:pipes:us-east-1:123456789012:pipe/p1"
 	cases := []struct {
 		name      string
@@ -218,6 +222,7 @@ func TestScanPipes_LaterListPageFails(t *testing.T) {
 // TestScanPipes_EmptyARNWarns pins that a listed pipe with no ARN is not
 // stored and is reported once, beside a keyed pipe stored normally.
 func TestScanPipes_EmptyARNWarns(t *testing.T) {
+	t.Parallel()
 	const keyed = "arn:aws:pipes:us-east-1:123456789012:pipe/p1"
 	handlers := map[string]func(in any) (any, error){
 		"ListPipes": func(any) (any, error) {

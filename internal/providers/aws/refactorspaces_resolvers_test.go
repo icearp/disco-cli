@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveRefactorSpacesHierarchy(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	envARN := fmt.Sprintf("arn:aws:refactor-spaces:%s:%s:environment/env-1", testRegion, acct.ID)

@@ -206,6 +206,7 @@ func crtRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, b
 // stored, every listing asks for the model's page cap of 100, and the scan
 // reports no error or warning.
 func TestScanCleanRooms_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newCRTCalls()
@@ -292,6 +293,7 @@ func TestScanCleanRooms_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanCleanRooms_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCRTCalls()
 	if _, _, err := crtScan(context.Background(), t, st, crtHandlers(calls)); err != nil {
@@ -312,6 +314,7 @@ func TestScanCleanRooms_RescanInsertsNone(t *testing.T) {
 // tag read no longer finds is dropped, and its children are never listed; an
 // analysis template, from a per-membership listing, likewise.
 func TestScanCleanRooms_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []crtRow{
 		{TypeCleanRoomsMembership, crtARN("membership/m-t")},
 		{TypeCleanRoomsAnalysisTemplate, crtChild("m-t", "analysistemplate")},
@@ -376,6 +379,7 @@ func TestScanCleanRooms_TagReadFailures(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanCleanRooms_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, crListTagsOp)
 	calls := newCRTCalls()
@@ -393,6 +397,7 @@ func TestScanCleanRooms_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A denied listing warns once under its own op and costs no other phase its
 // rows.
 func TestScanCleanRooms_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	ops := []string{"ListCollaborations", "ListConfiguredTables", "ListMemberships", "ListMembers"}
 	for _, k := range crtKinds {
 		ops = append(ops, k.op)
@@ -422,6 +427,7 @@ func TestScanCleanRooms_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanCleanRooms_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeCleanRoomsMembership)
@@ -446,6 +452,7 @@ func TestScanCleanRooms_FailedWriteStopsWithoutWarning(t *testing.T) {
 // failure stops the phases after it. A membership a child listing no longer
 // finds is skipped silently, its sibling's children stored.
 func TestScanCleanRooms_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newCRTCalls()
@@ -493,6 +500,7 @@ func TestScanCleanRooms_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // stored and are warned about once per listing, under a key that is never
 // empty.
 func TestScanCleanRooms_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, key string }{
 		{"ListConfiguredTables", "(a configured table with no name)"},
 		{"ListPrivacyBudgetTemplates", "(a privacy budget template with no id) of membership m-"},
@@ -525,6 +533,7 @@ func TestScanCleanRooms_UnstorableItemsWarn(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanCleanRooms_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := crtHandlers(newCRTCalls())
 	h["ListConfiguredTables"] = func(any) (any, error) {
@@ -544,6 +553,7 @@ func TestScanCleanRooms_RepeatedTokenKeepsPages(t *testing.T) {
 // naming the phases not run, although the phase in flight saw it in its
 // listing and its tag reads.
 func TestScanCleanRooms_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCRTCalls()
 	h := crtHandlers(calls)
@@ -585,6 +595,7 @@ func TestScanCleanRooms_ContextEndStopsOnce(t *testing.T) {
 // stops the scan; on that listing's tag reads it does not, since the listing
 // reached the endpoint.
 func TestScanCleanRooms_Unreachable(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "cleanrooms.us-east-1.amazonaws.com", IsNotFound: true}
 	refused := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
 	t.Run("tag read after rows were listed", func(t *testing.T) {
@@ -651,6 +662,7 @@ func TestScanCleanRooms_Unreachable(t *testing.T) {
 // about: the resource is its owner's. The same on the account's own
 // resources, in any partition, still warns once, or drops the row when gone.
 func TestScanCleanRooms_OtherAccountsCollaboration(t *testing.T) {
+	t.Parallel()
 	ownCollab := crtARN("collaboration/c-t")
 	denyMembers := func(collab string) func(*crtCalls, map[string]func(any) (any, error)) {
 		return func(_ *crtCalls, h map[string]func(any) (any, error)) {

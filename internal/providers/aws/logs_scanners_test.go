@@ -97,6 +97,7 @@ func accountIndexPolicy() logsTypes.IndexPolicy {
 }
 
 func TestScanLogsIndexPolicies_StoresOnlyGroupLevelPolicies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	groups := seedLogGroups(t, st, "a", "b", "c")
 	calls := &parentCalls{}
@@ -145,6 +146,7 @@ func TestScanLogsIndexPolicies_StoresOnlyGroupLevelPolicies(t *testing.T) {
 }
 
 func TestScanLogsIndexPolicies_NoPoliciesStoresNothing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	groups := seedLogGroups(t, st, "a")
 	client := logsTestClient(map[string]func(any) (any, error){
@@ -157,6 +159,7 @@ func TestScanLogsIndexPolicies_NoPoliciesStoresNothing(t *testing.T) {
 }
 
 func TestScanLogsIndexPolicies_DeniedWarnsOnceAndKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	groups := seedLogGroups(t, st, "a", "b", "c")
 	warnings := countOpWarnings(st, "logs:DescribeIndexPolicies")
@@ -179,6 +182,7 @@ func TestScanLogsIndexPolicies_DeniedWarnsOnceAndKeepsSiblings(t *testing.T) {
 }
 
 func TestScanLogsIndexPolicies_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	groups := seedLogGroups(t, st, "a")
 	client := logsTestClient(map[string]func(any) (any, error){
@@ -193,6 +197,7 @@ func TestScanLogsIndexPolicies_OtherErrorPropagates(t *testing.T) {
 // A repeated token fails the group's listing with errRepeatedNextToken, and
 // the policy already listed is stored.
 func TestScanLogsIndexPolicies_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	groups := seedLogGroups(t, st, "a")
 	calls := &parentCalls{}
@@ -218,6 +223,7 @@ func TestScanLogsIndexPolicies_RepeatedTokenFails(t *testing.T) {
 }
 
 func TestScanLogsIndexPolicies_QueriesOnlyStandardGroups(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	groups := seedLogGroupClasses(t, st, map[string]logsTypes.LogGroupClass{
 		"std": logsTypes.LogGroupClassStandard, "legacy": "",
@@ -239,6 +245,7 @@ func TestScanLogsIndexPolicies_QueriesOnlyStandardGroups(t *testing.T) {
 }
 
 func TestScanLogsIndexPolicies_ThrottledGroupWarnsAndKeepsOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	groups := seedLogGroups(t, st, "a", "b", "c", "d")
 	warnings := countOpWarnings(st, "logs:DescribeIndexPolicies")
@@ -261,6 +268,7 @@ func TestScanLogsIndexPolicies_ThrottledGroupWarnsAndKeepsOthers(t *testing.T) {
 }
 
 func TestScanLogsIndexPolicies_UndecodableGroupFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &parentCalls{}
 	client := logsTestClient(map[string]func(any) (any, error){
@@ -287,6 +295,7 @@ func syslogConfig(groupARN, vpce string) logsTypes.SyslogConfiguration {
 }
 
 func TestScanLogsSyslogConfigurations_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	groups := seedLogGroups(t, st, "a")
 	var (
@@ -355,6 +364,7 @@ func TestScanLogsSyslogConfigurations_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanLogsSyslogConfigurations_Errors(t *testing.T) {
+	t.Parallel()
 	onePage := func(in any) (any, error) {
 		if in.(*cwlogs.ListSyslogConfigurationsInput).NextToken == nil {
 			return &cwlogs.ListSyslogConfigurationsOutput{
@@ -459,6 +469,7 @@ func runS3TSources(t *testing.T, st *store.Store, acct *account, handlers map[st
 }
 
 func TestScanLogsS3TableSources_StoresEveryIntegrationsSources(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &parentCalls{}
 	var (
@@ -509,6 +520,7 @@ func TestScanLogsS3TableSources_StoresEveryIntegrationsSources(t *testing.T) {
 }
 
 func TestScanLogsS3TableSources_NoIntegrationsListsNoSources(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := &parentCalls{}
 	total, err := runS3TSources(t, st, newTestAccount(testAccountID), s3tHandlers(calls, map[string]func(any) (any, error){
@@ -520,6 +532,7 @@ func TestScanLogsS3TableSources_NoIntegrationsListsNoSources(t *testing.T) {
 }
 
 func TestScanLogsS3TableSources_Errors(t *testing.T) {
+	t.Parallel()
 	const (
 		obsOp = "observabilityadmin:ListS3TableIntegrations"
 		srcOp = "logs:ListSourcesForS3TableIntegration"
@@ -584,6 +597,7 @@ func TestScanLogsS3TableSources_Errors(t *testing.T) {
 }
 
 func TestScanLogsS3TableSources_ThrottledIntegrationsWarnOnceAndKeepOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, "logs:ListSourcesForS3TableIntegration")
 	handlers := s3tHandlers(&parentCalls{}, nil)
@@ -609,6 +623,7 @@ func TestScanLogsS3TableSources_ThrottledIntegrationsWarnOnceAndKeepOthers(t *te
 }
 
 func TestScanLogsS3TableSources_SkipsRegionWithoutObservabilityAdmin(t *testing.T) {
+	t.Parallel()
 	const region = "xx-nowhere-1"
 	for _, tc := range []struct {
 		name         string
@@ -665,6 +680,7 @@ func logsTopLevelHandlers(override map[string]func(any) (any, error)) map[string
 }
 
 func TestScanLogs_StoresNewChildTypes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(logsTopLevelHandlers(nil), logsDenied)
@@ -688,6 +704,7 @@ func TestScanLogs_StoresNewChildTypes(t *testing.T) {
 // code: the existing phases still store their rows, every new phase still runs,
 // and each failure is returned.
 func TestScanLogs_NewPhaseErrorsDoNotStopOtherScans(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fail := func(code string) func(any) (any, error) {
@@ -722,6 +739,7 @@ func joinCarriesAPIErrorCode(err error, code string) bool {
 // fails another: the throttle is a warning, and the returned error classifies
 // as the hard error it carries.
 func TestScanLogs_TransientPhaseErrorDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	throttled := func(any) (any, error) {
 		return nil, &smithy.GenericAPIError{Code: "ThrottlingException", Message: "rate exceeded"}
 	}
@@ -754,6 +772,7 @@ func TestScanLogs_TransientPhaseErrorDoesNotMaskHardError(t *testing.T) {
 // A throttle on one phase, with no other phase failing, is returned as
 // transient, so the scan is partial rather than complete; it is not demoted.
 func TestScanLogs_LoneTransientPhaseMarksPartial(t *testing.T) {
+	t.Parallel()
 	throttled := func(any) (any, error) {
 		return nil, &smithy.GenericAPIError{Code: "ThrottlingException", Message: "rate exceeded"}
 	}
@@ -781,6 +800,7 @@ func TestScanLogs_LoneTransientPhaseMarksPartial(t *testing.T) {
 // plain error, not observabilityadmin's region gap, so the listing is reported
 // incomplete instead of read as finished.
 func TestScanLogsS3TableSources_IntegrationsNXDOMAINAfterPageIsAnError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := s3tHandlers(&parentCalls{}, nil)
 	first := handlers["ListS3TableIntegrations"]
@@ -1028,6 +1048,7 @@ func logsTagReadARNs(c *logsCalls) []string {
 // delivery types; nil for a resource without tags. Log streams are stored
 // untagged and never sent to the tag op. Every listing sends its page cap.
 func TestScanLogs_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newLogsCalls("aws", testRegion)
@@ -1095,6 +1116,7 @@ func TestScanLogs_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanLogs_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := logsScan(context.Background(), st, logsTagHandlers(newLogsCalls("aws", testRegion))); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -1114,6 +1136,7 @@ func TestScanLogs_RescanInsertsNone(t *testing.T) {
 // logs:ListTagsForResource; a throttle keeps it and is transient; any other
 // error keeps it and is an error.
 func TestScanLogs_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagCase struct {
 		name      string
 		k         logsKind
@@ -1184,6 +1207,7 @@ func TestScanLogs_TagReadFailures(t *testing.T) {
 // stored: not one an earlier scan stored and this one did not list, nor one
 // whose tag read found it deleted.
 func TestScanLogs_PerGroupPhaseReadsGroupsStoredThisScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedOldLogGroup(t, st)
 	calls := newLogsCalls("aws", testRegion)
@@ -1218,6 +1242,7 @@ func seedOldLogGroup(t *testing.T, st *store.Store) {
 // an earlier scan stored still has its stream listed and stored, beside the
 // group of a page read before the denial.
 func TestScanLogs_DeniedLogGroupsReadsStoredGroups(t *testing.T) {
+	t.Parallel()
 	k := logsKindOf(t, "DescribeLogGroups")
 	for call, want := range map[int][]string{1: {"old"}, 2: {k.name("tagged"), "old"}} {
 		t.Run(fmt.Sprintf("page%d", call), func(t *testing.T) {
@@ -1245,6 +1270,7 @@ func TestScanLogs_DeniedLogGroupsReadsStoredGroups(t *testing.T) {
 // other DescribeLogGroups error the phase still reads only the groups this
 // scan stored, so an earlier scan's group gets no stream listing.
 func TestScanLogs_FailedLogGroupsReadsGroupsStoredThisScan(t *testing.T) {
+	t.Parallel()
 	k := logsKindOf(t, "DescribeLogGroups")
 	for call, want := range map[int][]string{1: nil, 2: {k.name("tagged")}} {
 		t.Run(fmt.Sprintf("page%d", call), func(t *testing.T) {
@@ -1271,6 +1297,7 @@ func TestScanLogs_FailedLogGroupsReadsGroupsStoredThisScan(t *testing.T) {
 // as a store failure, not as a transient one a rescan fixes: no per-group
 // listing and no later phase runs.
 func TestScanLogs_LogGroupLoadFailureStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newLogsCalls("aws", testRegion)
 	handlers := logsTagHandlers(calls)
@@ -1297,6 +1324,7 @@ func TestScanLogs_LogGroupLoadFailureStopsScan(t *testing.T) {
 // A delivery without an ARN is warned about under its Id, not under its
 // source's name, which many deliveries share.
 func TestScanLogs_DeliveryWithoutARNWarnsByID(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	handlers := logsTagHandlers(newLogsCalls("aws", testRegion))
@@ -1316,6 +1344,7 @@ func TestScanLogs_DeliveryWithoutARNWarnsByID(t *testing.T) {
 // Denied tag reads in two listings send one warning for the whole scan,
 // under the tag op, naming the first denied row; the rows are kept untagged.
 func TestScanLogs_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, logsTagsOp)
 	calls := newLogsCalls("aws", testRegion)
@@ -1350,6 +1379,7 @@ func TestScanLogs_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanLogs_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, logsTagsOp)
 	calls := newLogsCalls("aws", testRegion)
@@ -1368,6 +1398,7 @@ func TestScanLogs_TagThrottleDemotedBesideHardError(t *testing.T) {
 // about rows the write lost; the phases before it keep their rows. That
 // holds for a failed write in the per-group phase too.
 func TestScanLogs_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	t.Run("destinations", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := rhWarnRecorder(st)
@@ -1417,6 +1448,7 @@ func TestScanLogs_FailedWriteStopsScan(t *testing.T) {
 // not stop the later listings: the log group of the first page still has its
 // stream listed, and the last phase-1 listing stores its rows.
 func TestScanLogs_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeLogGroups", "DescribeDeliveries", "ListScheduledQueries"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1451,6 +1483,7 @@ func TestScanLogs_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // A denied listing warns once under its op; a denial on a later page keeps
 // the page read before it. Every later listing still runs.
 func TestScanLogs_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeDestinations", "DescribeDeliverySources"} {
 		for _, call := range []int{1, 2} {
 			t.Run(fmt.Sprintf("%s/page%d", op, call), func(t *testing.T) {
@@ -1480,6 +1513,7 @@ func TestScanLogs_DeniedListingWarnsUnderItsOp(t *testing.T) {
 
 // A repeated token ends a listing as an error, keeping its pages.
 func TestScanLogs_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, k := range logsKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1511,6 +1545,7 @@ func TestScanLogs_RepeatedTokenKeepsPages(t *testing.T) {
 // warned about once under its listing, named by its name or by the fallback
 // text when it has none.
 func TestScanLogs_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, k := range logsKinds() {
 		for _, name := range []string{"x-1", ""} {
 			t.Run(k.op+"/"+cmp.Or(name, "unnamed"), func(t *testing.T) {
@@ -1550,6 +1585,7 @@ func TestScanLogs_ElementWithoutARNWarns(t *testing.T) {
 // Rows of the aws-us-gov and aws-cn partitions reach the tag op under their
 // listed ARNs unchanged.
 func TestScanLogs_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, partition := range []string{"aws-us-gov", "aws-cn"} {
 		t.Run(partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1572,6 +1608,7 @@ func TestScanLogs_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it in its listing.
 func TestScanLogs_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newLogsCalls("aws", testRegion)
 	handlers := logsTagHandlers(calls)
@@ -1610,6 +1647,7 @@ func TestScanLogs_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanLogs_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "logs.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

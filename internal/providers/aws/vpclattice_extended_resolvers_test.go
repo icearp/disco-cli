@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveVpcLatticeALSRefs_Service_LogGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	svcARN := fmt.Sprintf("arn:aws:vpc-lattice:%s:%s:service/svc-1", testRegion, acct.ID)
@@ -26,6 +27,7 @@ func TestResolveVpcLatticeALSRefs_Service_LogGroup(t *testing.T) {
 }
 
 func TestResolveVpcLatticeALSRefs_ServiceNetwork_S3(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	snARN := fmt.Sprintf("arn:aws:vpc-lattice:%s:%s:servicenetwork/sn-1", testRegion, acct.ID)
@@ -44,6 +46,7 @@ func TestResolveVpcLatticeALSRefs_ServiceNetwork_S3(t *testing.T) {
 }
 
 func TestResolveVpcLatticeREARefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rcARN := fmt.Sprintf("arn:aws:vpc-lattice:%s:%s:resourceconfiguration/rc-1", testRegion, acct.ID)
@@ -59,6 +62,7 @@ func TestResolveVpcLatticeREARefs(t *testing.T) {
 }
 
 func TestResolveVpcLatticeREARefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	reaARN := fmt.Sprintf("arn:aws:vpc-lattice:%s:%s:resourceendpointassociation/rea-1", testRegion, acct.ID)

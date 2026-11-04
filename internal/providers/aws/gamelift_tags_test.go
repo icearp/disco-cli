@@ -260,6 +260,7 @@ func gltRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, b
 // location (no ARN) is not, and the scan reports no error or warning. The
 // listings whose model caps the page size send that cap, the others none.
 func TestScanGameLift_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newGLTCalls()
@@ -336,6 +337,7 @@ func TestScanGameLift_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanGameLift_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGLTCalls()
 	if _, _, err := gltScan(context.Background(), st, gltHandlers(calls)); err != nil {
@@ -369,6 +371,7 @@ func gltFleetChildCalls(c *gltCalls) []string {
 // container group definition is kept on a not-found answer, as a hard error:
 // its ARN carries a version, which the tag op is not verified to accept.
 func TestScanGameLift_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []gltRow{
 		{TypeGameLiftBuild, gltARN("build", "t")},
 		{TypeGameLiftFleet, gltARN("fleet", "t")},
@@ -443,6 +446,7 @@ func TestScanGameLift_TagReadFailures(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanGameLift_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, glListTagsOp)
 	calls := newGLTCalls()
@@ -461,6 +465,7 @@ func TestScanGameLift_TagThrottleDemotedBesideHardError(t *testing.T) {
 // rows, whether denied with AccessDeniedException or UnauthorizedException,
 // the matchmaking ops included, whose models do not list the latter.
 func TestScanGameLift_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	ops := []string{"DescribeFleetAttributes"}
 	for _, k := range gltKinds {
 		ops = append(ops, k.op)
@@ -499,6 +504,7 @@ func gltDeniedListing(t *testing.T, op string, denial error) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanGameLift_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeGameLiftFleet)
@@ -524,6 +530,7 @@ func TestScanGameLift_FailedWriteStopsWithoutWarning(t *testing.T) {
 // fleets named before it, and only those are described and their children
 // listed.
 func TestScanGameLift_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newGLTCalls()
@@ -568,6 +575,7 @@ func TestScanGameLift_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // op: throttled beside another phase's hard error, it is demoted to one
 // warning under gamelift:DescribeFleetAttributes.
 func TestScanGameLift_DescribesFleetsInBatches(t *testing.T) {
+	t.Parallel()
 	var ids []string
 	for i := range 51 {
 		ids = append(ids, fmt.Sprintf("fleet-%02d", i))
@@ -617,6 +625,7 @@ func TestScanGameLift_DescribesFleetsInBatches(t *testing.T) {
 // warning. After a page was read it is an error, and that page is kept. Only
 // the ops that model the code skip it.
 func TestScanGameLift_RegionGap(t *testing.T) {
+	t.Parallel()
 	unsupported := glNewError("UnsupportedRegionException")
 	for _, op := range []string{"ListContainerFleets", "ListContainerGroupDefinitions", "DescribeMatchmakingConfigurations", "DescribeMatchmakingRuleSets"} {
 		t.Run(op+"/first page", func(t *testing.T) {
@@ -655,6 +664,7 @@ func TestScanGameLift_RegionGap(t *testing.T) {
 // Items listed without an ARN are not stored and are warned about once per
 // listing, under a key that is never empty.
 func TestScanGameLift_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, warnOp, key string }{
 		{"ListBuilds", "gamelift:ListBuilds", "(a build with no name)"},
 		{"DescribeFleetAttributes", "gamelift:DescribeFleetAttributes", "(a fleet with no name)"},
@@ -687,6 +697,7 @@ func TestScanGameLift_UnstorableItemsWarn(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanGameLift_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := gltHandlers(newGLTCalls())
 	h["ListScripts"] = func(any) (any, error) {
@@ -706,6 +717,7 @@ func TestScanGameLift_RepeatedTokenKeepsPages(t *testing.T) {
 // although the phase in flight saw it in its
 // listing.
 func TestScanGameLift_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newGLTCalls()
 	h := gltHandlers(calls)
@@ -746,6 +758,7 @@ func TestScanGameLift_ContextEndStopsOnce(t *testing.T) {
 // listing that stored nothing, after the alias listing answered, is a
 // failure of this scan, not a region gap.
 func TestScanGameLift_Unreachable(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "gamelift.us-east-1.amazonaws.com", IsNotFound: true}
 	refused := &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connection refused")}
 	t.Run("alias tag read", func(t *testing.T) {

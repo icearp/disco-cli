@@ -29,6 +29,7 @@ import (
 // scanner and the resolvers of each shape call the same helper, so this is
 // also the producer/consumer agreement for them.
 func TestMultiSiteARNHelpers_Partition(t *testing.T) {
+	t.Parallel()
 	const a = "123456789012"
 	cfn := func(rtype, physID string) func(string, string) string {
 		return func(p, r string) string { return cfnTypeMap[rtype].toNativeID(physID, p, r, a) }
@@ -169,6 +170,7 @@ func TestMultiSiteARNHelpers_Partition(t *testing.T) {
 // The identity pool resolver rebuilds the user pool and app client NativeIDs
 // from the provider name; they must land on the rows the pool scanner wrote.
 func TestCognitoIdentityPool_ResolverFindsScannedUserPool(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -208,6 +210,7 @@ func TestCognitoIdentityPool_ResolverFindsScannedUserPool(t *testing.T) {
 // and traffic policies from ids and parse DNSSEC and KSK NativeIDs back to
 // their parents, all of which must keep the account's partition.
 func TestRoute53_ResolversKeepAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -237,6 +240,7 @@ func TestRoute53_ResolversKeepAccountPartition(t *testing.T) {
 }
 
 func TestRoute53ZoneParsers_AnyPartition(t *testing.T) {
+	t.Parallel()
 	for _, p := range []string{"aws", "aws-cn", "aws-us-gov"} {
 		zone := "arn:" + p + ":route53:::hostedzone/Z9"
 		if got := recordSetZoneARN(zone + "/A/www.example.com"); got != zone {
@@ -268,6 +272,7 @@ func TestRoute53ZoneParsers_AnyPartition(t *testing.T) {
 // its name, and the LAG resolver the LAG from its id. Each target is keyed by
 // the helper its scanner uses.
 func TestNameRebuiltTargets_UseAccountPartition(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		srcType   string
@@ -333,6 +338,7 @@ func TestNameRebuiltTargets_UseAccountPartition(t *testing.T) {
 // A foreign volume owner's placeholder must share identity with the row
 // scanIAMAccount writes when that account is scanned, in every partition.
 func TestIAMAccount_ScannerAndOwnerResolverAgreeOnPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -364,6 +370,7 @@ func TestIAMAccount_ScannerAndOwnerResolverAgreeOnPartition(t *testing.T) {
 // The stack resolver turns a CloudFormation physical id into the NativeID the
 // target's scanner stores; the targets here carry the ARNs AWS returns.
 func TestResolveCloudFormationStackResources_UsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -405,6 +412,7 @@ func TestResolveCloudFormationStackResources_UsesAccountPartition(t *testing.T) 
 // key id; both must land on the ARN AWS returned for the key in the account's
 // partition, whether a topic names the key by id or by alias.
 func TestKMSKeyRebuiltFromBareID_UsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)

@@ -11,6 +11,7 @@ import (
 )
 
 func TestResolveIpamPolicyRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -28,6 +29,7 @@ func TestResolveIpamPolicyRelationships(t *testing.T) {
 }
 
 func TestResolveIpamPolicyRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -42,6 +44,7 @@ func TestResolveIpamPolicyRelationships_NoAttrs(t *testing.T) {
 }
 
 func TestResolveIpamVerificationTokenRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -62,6 +65,7 @@ func TestResolveIpamVerificationTokenRelationships(t *testing.T) {
 // and after it are still wired. Names a, b, c fix the listing order
 // (ListResources orders by type, then name).
 func TestResolveIpamChildRelationships_BadAttrsReportedOthersWired(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		typ     string
@@ -103,6 +107,7 @@ func TestResolveIpamChildRelationships_BadAttrsReportedOthersWired(t *testing.T)
 }
 
 func TestResolveIpamVerificationTokenRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"

@@ -206,6 +206,7 @@ func svRowOf(t *testing.T, st *store.Store, typ, arn string) (store.Resource, bo
 // keep their Status and CreatedAt, and every row its element as attributes.
 // No error or warning.
 func TestScanSMSVoice_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newSVCalls()
@@ -275,6 +276,7 @@ func TestScanSMSVoice_StoresTagsOfEveryType(t *testing.T) {
 
 // An element with an empty status enum stores no Status.
 func TestScanSMSVoice_EmptyStatusStoresNil(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribeNotifyConfigurations", "DescribeRcsAgents"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -308,6 +310,7 @@ func TestScanSMSVoice_EmptyStatusStoresNil(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanSMSVoice_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSVCalls()
 	if _, _, err := svScan(context.Background(), st, svHandlers(calls)); err != nil {
@@ -329,6 +332,7 @@ func TestScanSMSVoice_RescanInsertsNone(t *testing.T) {
 // it and is a hard error. Each holds for a type whose listing can return
 // shared rows and for one whose cannot.
 func TestScanSMSVoice_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"DescribePools", "DescribeRegistrations"} {
 		k := svKindOf(t, op)
 		arn := svARN(k, "tagged")
@@ -393,6 +397,7 @@ func TestScanSMSVoice_TagReadFailures(t *testing.T) {
 // A denial or a not-found answer keeps it untagged without a warning; any
 // other error keeps it and is returned.
 func TestScanSMSVoice_SharedRowTagRead(t *testing.T) {
+	t.Parallel()
 	for _, k := range svKinds() {
 		if !k.shared {
 			continue
@@ -443,6 +448,7 @@ func TestScanSMSVoice_SharedRowTagRead(t *testing.T) {
 // A row of a type whose Describe op takes no Owner filter keeps the usual
 // rules even under another account's ARN: a not-found tag read drops it.
 func TestScanSMSVoice_UnsharedTypeForeignRowNotFoundDropped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newSVCalls()
@@ -470,6 +476,7 @@ func TestScanSMSVoice_UnsharedTypeForeignRowNotFoundDropped(t *testing.T) {
 // the ARN, or the id for phone numbers, verified destination numbers and
 // notify configurations.
 func TestScanSMSVoice_NameFallbacks(t *testing.T) {
+	t.Parallel()
 	for _, k := range svKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -510,6 +517,7 @@ func TestScanSMSVoice_NameFallbacks(t *testing.T) {
 // An element with neither an ARN nor an id is warned about under a key that
 // is never empty.
 func TestScanSMSVoice_ElementWithoutIdentifierWarnsWithKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := bacWarnings(st, "sms-voice:DescribePools")
 	handlers := svHandlers(newSVCalls())
@@ -531,6 +539,7 @@ func TestScanSMSVoice_ElementWithoutIdentifierWarnsWithKey(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanSMSVoice_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, svTagsOp)
 	calls := newSVCalls()
@@ -548,6 +557,7 @@ func TestScanSMSVoice_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A denied listing warns once under its own op and stores nothing of its
 // type; every other listing still runs.
 func TestScanSMSVoice_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, k := range svKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -576,6 +586,7 @@ func TestScanSMSVoice_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanSMSVoice_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeSMSVoiceConfigurationSet)
@@ -597,6 +608,7 @@ func TestScanSMSVoice_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the listings after it.
 func TestScanSMSVoice_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := svHandlers(newSVCalls())
 	k := svKindOf(t, "DescribePhoneNumbers")
@@ -618,6 +630,7 @@ func TestScanSMSVoice_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanSMSVoice_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := svHandlers(newSVCalls())
 	k := svKindOf(t, "DescribeRegistrationAttachments")
@@ -645,6 +658,7 @@ func TestScanSMSVoice_RepeatedTokenKeepsPages(t *testing.T) {
 
 // An element without an ARN is warned about under its listing, not stored.
 func TestScanSMSVoice_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, k := range svKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -673,6 +687,7 @@ func TestScanSMSVoice_ElementWithoutARNWarns(t *testing.T) {
 // Rows of an own account in another partition are sent to the tag op under
 // the ARNs their listings return, and keep the usual own-account rules.
 func TestScanSMSVoice_TagReadInAccountPartition(t *testing.T) {
+	t.Parallel()
 	acct := partitionAccount("aws-us-gov")
 	region := acct.Regions[0]
 	k := svKindOf(t, "DescribePools")
@@ -713,6 +728,7 @@ func TestScanSMSVoice_TagReadInAccountPartition(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it too.
 func TestScanSMSVoice_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newSVCalls()
 	handlers := svHandlers(calls)
@@ -750,6 +766,7 @@ func TestScanSMSVoice_ContextEndStopsOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanSMSVoice_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "sms-voice.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)

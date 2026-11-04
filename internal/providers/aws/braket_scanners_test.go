@@ -19,6 +19,7 @@ func (s *stubBraket) SearchSpendingLimits(_ context.Context, _ *braket.SearchSpe
 }
 
 func TestScanBraketSpendingLimits(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -54,6 +55,7 @@ func TestScanBraketSpendingLimits(t *testing.T) {
 }
 
 func TestScanBraketSpendingLimitsEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubBraket{}

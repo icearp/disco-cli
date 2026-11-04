@@ -368,6 +368,7 @@ func chimeRowOf(t *testing.T, st *store.Store, typ, nativeID string) (store.Reso
 // channel flow its app instance, a voice profile domain its Get body. No
 // error or warning.
 func TestScanChime_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newChimeCalls(t)
@@ -474,6 +475,7 @@ func chimeSipRuleID(id string) string {
 }
 
 func TestScanChime_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newChimeCalls(t)
 	if _, _, err := chimeScan(context.Background(), st, chimeFixture(calls)); err != nil {
@@ -496,6 +498,7 @@ func TestScanChime_RescanInsertsNone(t *testing.T) {
 // retries keeps the row and is a transient error; BadRequestException keeps it
 // and is a hard error.
 func TestScanChime_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		sdk, typ       string
 		arn            func(t *testing.T) string
@@ -583,6 +586,7 @@ func TestScanChime_TagReadFailures(t *testing.T) {
 
 // Tag reads of two rows of one phase both denied warn once.
 func TestScanChime_TagDenialsOfOnePhaseWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, chimeTagsOp)
 	calls := newChimeCalls(t)
@@ -601,6 +605,7 @@ func TestScanChime_TagDenialsOfOnePhaseWarnOnce(t *testing.T) {
 // A tag read's throttle is demoted to a warning beside another phase's hard
 // error, so the scan reports the hard error.
 func TestScanChime_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, chimeTagsOp)
 	calls := newChimeCalls(t)
@@ -620,6 +625,7 @@ func TestScanChime_TagThrottleDemotedBesideHardError(t *testing.T) {
 // error, and stores nothing of its type, nor of its children; every other
 // listing still runs.
 func TestScanChime_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	children := map[string]int{"ListAppInstances": 6, "ListVoiceProfileDomains": 2}
 	for _, denial := range []error{chimeDenied, chimeUnauth} {
 		for _, k := range chimeKinds() {
@@ -652,6 +658,7 @@ func TestScanChime_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // included, keeps that page's rows, warns once under the op and is not a scan
 // error.
 func TestScanChime_LaterPageDenialKeepsPage(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListAppInstances", "ListVoiceConnectors", "ListVoiceProfileDomains", "ListSipRules"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -683,6 +690,7 @@ func TestScanChime_LaterPageDenialKeepsPage(t *testing.T) {
 // ForbiddenException and UnauthorizedClientException parents tallied
 // together; every other listing still stores its rows.
 func TestScanChime_DeniedChildListingWarnsOnce(t *testing.T) {
+	t.Parallel()
 	for _, k := range chimeChildKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -716,6 +724,7 @@ func TestScanChime_DeniedChildListingWarnsOnce(t *testing.T) {
 // NotFoundException, which the op models) is skipped silently; its sibling's
 // profiles are stored.
 func TestScanChime_VoiceProfilesOfDeletedDomainSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newChimeCalls(t)
@@ -748,6 +757,7 @@ func TestScanChime_VoiceProfilesOfDeletedDomainSkipped(t *testing.T) {
 // element and is returned. A domain listed without an id is stored as its
 // list element, not read, and warned about as stored without its profiles.
 func TestScanChime_VoiceProfileDomainDetail(t *testing.T) {
+	t.Parallel()
 	vpd := chimeKindOf(t, "ListVoiceProfileDomains")
 	id, arn := chimeID(vpd, "tagged"), chimeARN(vpd, "tagged")
 	for _, c := range []struct {
@@ -825,6 +835,7 @@ func TestScanChime_VoiceProfileDomainDetail(t *testing.T) {
 // isChimeHostGap accepts the availability answers of a Chime SDK endpoint and
 // refuses an IAM denial.
 func TestIsChimeHostGap(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		err  error
 		want bool
@@ -848,6 +859,7 @@ func TestIsChimeHostGap(t *testing.T) {
 // Channel flows, the messaging host's first call, read each parent's first
 // page alike.
 func TestScanChime_HostGap(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListAppInstances", "ListMediaPipelines", "ListVoiceConnectors", "ListSipRules", "ListChannelFlows"} {
 		for _, onPage2 := range []bool{false, true} {
 			if op == "ListChannelFlows" && onPage2 {
@@ -893,6 +905,7 @@ func TestScanChime_HostGap(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the listings after it.
 func TestScanChime_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := chimeFixture(newChimeCalls(t))
 	k := chimeKindOf(t, "ListMediaInsightsPipelineConfigurations")
@@ -914,6 +927,7 @@ func TestScanChime_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanChime_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := chimeFixture(newChimeCalls(t))
 	k := chimeKindOf(t, "ListVoiceConnectorGroups")
@@ -937,6 +951,7 @@ func TestScanChime_RepeatedTokenKeepsPages(t *testing.T) {
 // Elements without an identifier, two in one listing, are warned about once
 // under the listing's op, not stored.
 func TestScanChime_ElementWithoutIdentifierWarnsOnce(t *testing.T) {
+	t.Parallel()
 	children := map[string]int{"ListAppInstances": 6, "ListVoiceProfileDomains": 2}
 	for _, k := range chimeKinds() {
 		t.Run(k.op, func(t *testing.T) {
@@ -971,6 +986,7 @@ func TestScanChime_ElementWithoutIdentifierWarnsOnce(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanChime_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeChimeAppInstance)
@@ -993,6 +1009,7 @@ func TestScanChime_FailedWriteStopsWithoutWarning(t *testing.T) {
 // the ARNs their listings return, keep the usual own-account rules, and a SIP
 // rule's NativeID takes the account's partition.
 func TestScanChime_TagReadInAccountPartition(t *testing.T) {
+	t.Parallel()
 	acct := partitionAccount("aws-cn")
 	region := acct.Regions[0]
 	tagged := chimeARNIn("aws-cn", region, testAccountID, "vc/vc-cn")
@@ -1037,6 +1054,7 @@ func TestScanChime_TagReadInAccountPartition(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it too.
 func TestScanChime_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newChimeCalls(t)
 	handlers := chimeFixture(calls)
@@ -1077,6 +1095,7 @@ func TestScanChime_ContextEndStopsOnce(t *testing.T) {
 // absent the scan stores nothing without an error. An NXDOMAIN after a host
 // answered is a failure of this scan, returned with the stored rows' counts.
 func TestScanChime_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	t.Run("one host absent", func(t *testing.T) {
 		for _, ops := range [][]string{
 			{"ListAppInstances"},
@@ -1132,6 +1151,7 @@ func TestScanChime_NXDOMAIN(t *testing.T) {
 }
 
 func TestChimeSipRuleNativeID(t *testing.T) {
+	t.Parallel()
 	got := chimeSipRuleNativeID("aws", "eu-west-2", "123456789012", "abc-123")
 	if want := "arn:aws:chime:eu-west-2:123456789012:sip-rule/abc-123"; got != want {
 		t.Errorf("chimeSipRuleNativeID = %q, want %q", got, want)
@@ -1142,6 +1162,7 @@ func TestChimeSipRuleNativeID(t *testing.T) {
 // which the SDK retryer does not retry by itself: a single throttle costs no
 // rows and no error.
 func TestScanChime_ThrottledClientExceptionIsRetried(t *testing.T) {
+	t.Parallel()
 	const aiARN = "arn:aws:chime:us-east-1:123456789012:app-instance/ai-1"
 	appInstances := func(any) (any, error) {
 		return &ci.ListAppInstancesOutput{AppInstances: []citypes.AppInstanceSummary{{AppInstanceArn: sdkaws.String(aiARN)}}}, nil

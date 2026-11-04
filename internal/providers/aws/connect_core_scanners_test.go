@@ -50,6 +50,7 @@ func (s *stubConnectCore) SearchEmailAddresses(_ context.Context, in *connect.Se
 }
 
 func TestScanConnectCore(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	now := time.Unix(1700000000, 0).UTC()
@@ -105,6 +106,7 @@ func TestScanConnectCore(t *testing.T) {
 }
 
 func TestScanConnectCoreEmpty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubConnectCore{}

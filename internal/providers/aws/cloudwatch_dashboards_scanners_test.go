@@ -17,6 +17,7 @@ import (
 // fail cannot overwrite the rows: each keeps its body and tags, under the
 // global region.
 func TestScanAccount_CloudWatchDashboardsReadOnce(t *testing.T) {
+	t.Parallel()
 	const second = "eu-west-1"
 	st := newTestStore(t)
 	calls := newCWCalls()

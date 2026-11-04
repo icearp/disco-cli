@@ -31,6 +31,7 @@ func (s stubDAX) DescribeSubnetGroups(context.Context, *dax.DescribeSubnetGroups
 // as a hard scan error (3 of the 4 errors in the all-region scan). All three
 // phases must now silent-skip: zero rows, no warning, no error.
 func TestScanDAXPhases_SilentSkipOnDAXV3Gap(t *testing.T) {
+	t.Parallel()
 	daxV3 := apiErr("InvalidParameterValueException", "Access Denied to API Version: DAX_V3")
 
 	phases := map[string]func(context.Context, daxAPI, *account, string, *store.Store, string) (int, int, error){
@@ -64,6 +65,7 @@ func TestScanDAXPhases_SilentSkipOnDAXV3Gap(t *testing.T) {
 // InvalidParameterValueException is a real failure and must still abort the
 // phase, or a genuine malformed-input bug would be silently swallowed.
 func TestScanDAXPhases_UnrelatedInvalidParameterStillErrors(t *testing.T) {
+	t.Parallel()
 	other := apiErr("InvalidParameterValueException", "Invalid subnet group name")
 
 	phases := map[string]func(context.Context, daxAPI, *account, string, *store.Store, string) (int, int, error){

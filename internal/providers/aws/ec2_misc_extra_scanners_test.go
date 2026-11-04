@@ -132,6 +132,7 @@ func mexHandler(ph mexPhase, calls *int, fail2 error) func(any) (any, error) {
 // verbatim and its tags (none for the untagged element), and the element
 // without its key is warned about once, by that key, instead of stored.
 func TestScanEC2RegionListings_StoresTaggedRows(t *testing.T) {
+	t.Parallel()
 	for _, ph := range mexPhases {
 		t.Run(ph.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -200,6 +201,7 @@ func mexAssertRows(t *testing.T, st *store.Store, typ string, want map[string]me
 // returned. A region feature gap on the first page is an empty listing where
 // the phase treats it so, and is returned otherwise.
 func TestScanEC2RegionListings_Errors(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name          string
 		first, second error
@@ -259,6 +261,7 @@ func TestScanEC2RegionListings_Errors(t *testing.T) {
 // An empty listing stores nothing; a repeated NextToken ends the listing with
 // errRepeatedNextToken and the page read kept.
 func TestScanEC2RegionListings_EmptyAndRepeatedToken(t *testing.T) {
+	t.Parallel()
 	for _, ph := range mexPhases {
 		t.Run(ph.name+"/empty", func(t *testing.T) {
 			st := newTestStore(t)

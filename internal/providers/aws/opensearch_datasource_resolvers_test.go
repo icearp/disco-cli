@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveOpenSearchDataSourceRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	domainARN := fmt.Sprintf("arn:aws:es:%s:%s:domain/my-dom", testRegion, testAccountID)
@@ -21,6 +22,7 @@ func TestResolveOpenSearchDataSourceRelationships(t *testing.T) {
 }
 
 func TestResolveOpenSearchDataSourceRelationships_NoParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	domainARN := fmt.Sprintf("arn:aws:es:%s:%s:domain/absent", testRegion, testAccountID)

@@ -158,6 +158,7 @@ func tgxRefsHandler(calls *parentCalls) func(in any) (any, error) {
 func ptrBool(b bool) *bool { return &b }
 
 func TestEC2TGWExtendedNativeIDShapes(t *testing.T) {
+	t.Parallel()
 	if got, want := tgxEntryID(tgxPT1, "100"), "arn:aws:ec2:us-east-1:123456789012:transit-gateway-policy-table/tgw-ptb-0001/entry/100"; got != want {
 		t.Errorf("policy table entry NativeID = %q, want %q", got, want)
 	}
@@ -167,6 +168,7 @@ func TestEC2TGWExtendedNativeIDShapes(t *testing.T) {
 }
 
 func TestScanEC2TGWPolicyTableEntries_StoresEntriesUnderTables(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tgxSeedPolicyTables(t, st)
 	var calls parentCalls
@@ -208,6 +210,7 @@ func TestScanEC2TGWPolicyTableEntries_StoresEntriesUnderTables(t *testing.T) {
 }
 
 func TestScanEC2TGWPrefixListReferences_StoresReferencesUnderTables(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tgxSeedRouteTables(t, st)
 	var calls parentCalls
@@ -294,6 +297,7 @@ var tgxPhases = []tgxPhase{
 // With no stored parent nothing is called; a parent with no children stores
 // nothing.
 func TestScanEC2TGWExtended_Empty(t *testing.T) {
+	t.Parallel()
 	for _, ph := range tgxPhases {
 		t.Run(ph.name+"/no parents", func(t *testing.T) {
 			st := newTestStore(t)
@@ -329,6 +333,7 @@ func TestScanEC2TGWExtended_Empty(t *testing.T) {
 // failure are skipped with one warning each, keeping the other parent's rows;
 // a denial warns once for every parent; anything else fails the phase.
 func TestScanEC2TGWExtended_PerParentErrors(t *testing.T) {
+	t.Parallel()
 	for _, ph := range tgxPhases {
 		cases := []struct {
 			name     string
@@ -403,6 +408,7 @@ func tgxFailAfterKept(ph tgxPhase, calls *parentCalls, failErr error) func(any) 
 // Each skip code warns once, naming its own code: one parent gone and one
 // in an incorrect state give two warnings.
 func TestScanEC2TGWExtended_OneWarningPerCode(t *testing.T) {
+	t.Parallel()
 	for _, ph := range tgxPhases {
 		t.Run(ph.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -433,6 +439,7 @@ func TestScanEC2TGWExtended_OneWarningPerCode(t *testing.T) {
 
 // A repeated NextToken ends a parent's loop instead of spinning.
 func TestScanEC2TGWExtended_RepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	for _, ph := range tgxPhases {
 		t.Run(ph.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -464,6 +471,7 @@ func TestScanEC2TGWExtended_RepeatedTokenStops(t *testing.T) {
 // A stored parent whose NativeID is not its scanner's ec2ARN shape fails the
 // phase rather than being queried with a wrong id.
 func TestEC2StoredParents_BadNativeID(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tgxSeedParent(t, st, TypeEC2TransitGatewayRouteTable, "tgw-rtb-bare", testRegion, "available", testScanID)
 	_, err := ec2StoredParents(st, newTestAccount(testAccountID), testRegion, testScanID, TypeEC2TransitGatewayRouteTable, "transit-gateway-route-table", ec2TGWParentDeleted)
@@ -539,6 +547,7 @@ func tgxScanEC2(st *store.Store, handlers map[string]func(in any) (any, error)) 
 // scanEC2 lists the child rows of the live policy tables and route tables its
 // own categories stored this scan.
 func TestScanEC2_StoresTGWExtendedRows(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var entryCalls, refCalls parentCalls
 	if err := tgxScanEC2(st, tgxTopLevelHandlers(&entryCalls, &refCalls)); err != nil {
@@ -563,6 +572,7 @@ func TestScanEC2_StoresTGWExtendedRows(t *testing.T) {
 // leaves an older category's slow call uncancelled and does not stop the
 // other phase, and the error reaches the caller.
 func TestScanEC2_TGWExtendedPhasesAfterOlderCategories(t *testing.T) {
+	t.Parallel()
 	snapshotID := ec2ARN(testRegion, testAccountID, "snapshot", tgxOlderSnapshot)
 	for _, failed := range tgxPhases {
 		t.Run(failed.name+" fails", func(t *testing.T) {
@@ -606,6 +616,7 @@ func TestScanEC2_TGWExtendedPhasesAfterOlderCategories(t *testing.T) {
 // buried in a new phase's hard error, and a transient new phase does not mask
 // an older category's hard error.
 func TestScanEC2_TGWExtendedTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	type tc struct{ name, transientOp, hardOp, warnOp string }
 	var cases []tc
 	for _, ph := range tgxPhases {

@@ -135,6 +135,7 @@ func restoreValues(t *testing.T, r store.Resource) []string {
 // kinds, after every older phase, and stores each named attribute under its
 // snapshot.
 func TestScanRDS_StoresSnapshotAttributesLast(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls, clusterCalls parentCalls
 	var log opLog
@@ -193,6 +194,7 @@ func TestScanRDS_StoresSnapshotAttributesLast(t *testing.T) {
 // stored its rows, reaches the dispatcher as a hard error, and costs the
 // cluster-snapshot attribute phase none of its rows.
 func TestScanRDS_SnapshotAttributeErrorKeepsOtherPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls, clusterCalls parentCalls
 	var log opLog
@@ -220,6 +222,7 @@ func TestScanRDS_SnapshotAttributeErrorKeepsOtherPhases(t *testing.T) {
 // and the snapshots that phase stored before the throttle are still
 // described.
 func TestScanRDS_ThrottledOlderPhaseKeepsAttributeHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "rds:DescribeDBSnapshots")
 	var calls, clusterCalls parentCalls
@@ -249,6 +252,7 @@ func TestScanRDS_ThrottledOlderPhaseKeepsAttributeHardError(t *testing.T) {
 // phases, which would only fail the same write, and the write failure reaches
 // the dispatcher.
 func TestScanRDS_FailedWriteRunsNoAttributePhase(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closing.db"))
 	if err != nil {
@@ -287,6 +291,7 @@ func TestScanRDS_FailedWriteRunsNoAttributePhase(t *testing.T) {
 // A failed write of the DB snapshot attributes stops the scan before the
 // cluster snapshot attributes are described.
 func TestScanRDS_FailedAttributeWriteStopsClusterAttributes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeRDSDBSnapshotAttribute)
 	var calls, clusterCalls parentCalls
@@ -346,6 +351,7 @@ func (k rdsAttrKind) scan(t *testing.T, st *store.Store, fail func(string) error
 // Each per-snapshot failure is dropped or returned per its kind, and a
 // dropped snapshot costs its sibling none of its rows.
 func TestScanRDSSnapshotAttributes_ErrorLadder(t *testing.T) {
+	t.Parallel()
 	for _, k := range rdsAttrKinds {
 		first, second := k.ids[0], k.ids[1]
 		for _, tc := range []struct {
@@ -398,6 +404,7 @@ func TestScanRDSSnapshotAttributes_ErrorLadder(t *testing.T) {
 // No manual snapshot means no call and no row; a result without attributes
 // stores nothing.
 func TestScanRDSSnapshotAttributes_Empty(t *testing.T) {
+	t.Parallel()
 	for _, k := range rdsAttrKinds {
 		t.Run(k.name+"/no snapshots", func(t *testing.T) {
 			st := newTestStore(t)

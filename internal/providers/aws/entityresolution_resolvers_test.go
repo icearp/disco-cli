@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveEntityResolutionPolicyStatementToParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	mwARN := fmt.Sprintf("arn:aws:entityresolution:%s:%s:matchingworkflow/mw-1", testRegion, acct.ID)
@@ -28,6 +29,7 @@ func TestResolveEntityResolutionPolicyStatementToParent(t *testing.T) {
 }
 
 func TestResolveEntityResolutionMatchingWorkflowRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

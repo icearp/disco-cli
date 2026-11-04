@@ -13,6 +13,7 @@ func iotTestARN(kind, name string) string {
 }
 
 func TestResolveIoTThingRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	thingARN := iotTestARN("thing", "th1")
@@ -36,6 +37,7 @@ func TestResolveIoTThingRefs(t *testing.T) {
 }
 
 func TestResolveIoTThingRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	thingID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTThing, iotTestARN("thing", "bare"), testRegion, "{}")
@@ -49,6 +51,7 @@ func TestResolveIoTThingRefs_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveIoTThingRefs_UnscannedTargetsSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	thingID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTThing, iotTestARN("thing", "th1"), testRegion,
@@ -63,6 +66,7 @@ func TestResolveIoTThingRefs_UnscannedTargetsSkipped(t *testing.T) {
 }
 
 func TestResolveIoTThingGroupParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	parentARN := iotTestARN("thinggroup", "parent")
@@ -83,6 +87,7 @@ func TestResolveIoTThingGroupParent(t *testing.T) {
 }
 
 func TestResolveIoTThingGroupParent_RootGroupNoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	groupID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTThingGroup, iotTestARN("thinggroup", "root"), testRegion, "{}")
@@ -96,6 +101,7 @@ func TestResolveIoTThingGroupParent_RootGroupNoEdge(t *testing.T) {
 }
 
 func TestResolveIoTAuthorizerLambda(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fnARN := fmt.Sprintf("arn:aws:lambda:%s:%s:function:auth-fn", testRegion, testAccountID)
@@ -115,6 +121,7 @@ func TestResolveIoTAuthorizerLambda(t *testing.T) {
 }
 
 func TestResolveIoTAuthorizerLambda_QualifiedARNStripped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fnARN := fmt.Sprintf("arn:aws:lambda:%s:%s:function:auth-fn", testRegion, testAccountID)
@@ -135,6 +142,7 @@ func TestResolveIoTAuthorizerLambda_QualifiedARNStripped(t *testing.T) {
 }
 
 func TestResolveIoTAuthorizerLambda_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	authID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTAuthorizer, iotTestARN("authorizer", "bare"), testRegion, "{}")
@@ -148,6 +156,7 @@ func TestResolveIoTAuthorizerLambda_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveIoTRoleAliasRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/iot-creds", testAccountID)
@@ -167,6 +176,7 @@ func TestResolveIoTRoleAliasRole(t *testing.T) {
 }
 
 func TestResolveIoTRoleAliasRole_UnscannedRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	aliasARN := iotTestARN("rolealias", "myalias")
@@ -183,6 +193,7 @@ func TestResolveIoTRoleAliasRole_UnscannedRole(t *testing.T) {
 }
 
 func TestResolveIoTProvisioningTemplateRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/prov-role", testAccountID)
@@ -202,6 +213,7 @@ func TestResolveIoTProvisioningTemplateRole(t *testing.T) {
 }
 
 func TestResolveIoTProvisioningTemplateRole_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tmplID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTProvisioningTemplate, iotTestARN("provisioningtemplate", "bare"), testRegion, "{}")
@@ -215,6 +227,7 @@ func TestResolveIoTProvisioningTemplateRole_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveIoTDomainConfigAuthorizer(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	authARN := iotTestARN("authorizer", "myauth")
@@ -234,6 +247,7 @@ func TestResolveIoTDomainConfigAuthorizer(t *testing.T) {
 }
 
 func TestResolveIoTDomainConfigAuthorizer_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cfgID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTDomainConfiguration, iotTestARN("domainconfiguration", "bare"), testRegion, "{}")
@@ -247,6 +261,7 @@ func TestResolveIoTDomainConfigAuthorizer_Empty(t *testing.T) {
 }
 
 func TestResolveIoTPolicyPrincipalAttachmentRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	polARN := iotTestARN("policy", "mypol")
@@ -269,6 +284,7 @@ func TestResolveIoTPolicyPrincipalAttachmentRefs(t *testing.T) {
 }
 
 func TestResolveIoTPolicyPrincipalAttachmentRefs_CognitoPrincipalSkipsCert(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	polARN := iotTestARN("policy", "mypol")
@@ -289,6 +305,7 @@ func TestResolveIoTPolicyPrincipalAttachmentRefs_CognitoPrincipalSkipsCert(t *te
 }
 
 func TestResolveIoTPolicyPrincipalAttachmentRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTPolicyPrincipalAttachment,
@@ -303,6 +320,7 @@ func TestResolveIoTPolicyPrincipalAttachmentRefs_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveIoTThingPrincipalAttachmentRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	thingARN := iotTestARN("thing", "th1")
@@ -325,6 +343,7 @@ func TestResolveIoTThingPrincipalAttachmentRefs(t *testing.T) {
 }
 
 func TestResolveIoTThingPrincipalAttachmentRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTThingPrincipalAttachment,
@@ -339,6 +358,7 @@ func TestResolveIoTThingPrincipalAttachmentRefs_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveIoTCertificateCA(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

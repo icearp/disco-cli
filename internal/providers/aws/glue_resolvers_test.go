@@ -16,6 +16,7 @@ const (
 // TestResolveGlueTableS3Location_HappyPath verifies the table→bucket edge
 // lands when both are scanned and Location uses the s3:// scheme.
 func TestResolveGlueTableS3Location_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -40,6 +41,7 @@ func TestResolveGlueTableS3Location_HappyPath(t *testing.T) {
 // TestResolveGlueTableS3Location_FKSafe verifies cross-account / unscanned
 // buckets emit no edge.
 func TestResolveGlueTableS3Location_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -66,6 +68,7 @@ func TestResolveGlueTableS3Location_FKSafe(t *testing.T) {
 // TestResolveGlueTableS3Location_NonS3 verifies non-s3:// locations (HDFS,
 // JDBC, federated catalogs, empty) skip silently.
 func TestResolveGlueTableS3Location_NonS3(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -86,6 +89,7 @@ func TestResolveGlueTableS3Location_NonS3(t *testing.T) {
 }
 
 func TestResolveGlueTableDatabase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dbARN := fmt.Sprintf("arn:aws:glue:%s:%s:database/sales", testRegion, acct.ID)
@@ -107,6 +111,7 @@ func TestResolveGlueTableDatabase(t *testing.T) {
 }
 
 func TestResolveGlueJobRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/glue-svc", acct.ID)
@@ -131,6 +136,7 @@ func TestResolveGlueJobRefs(t *testing.T) {
 }
 
 func TestResolveGlueJobRefs_BareRoleName(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/glue-svc", acct.ID)
@@ -146,6 +152,7 @@ func TestResolveGlueJobRefs_BareRoleName(t *testing.T) {
 }
 
 func TestResolveGlueCrawlerRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/crawl-svc", acct.ID)
@@ -178,6 +185,7 @@ func TestResolveGlueCrawlerRefs(t *testing.T) {
 }
 
 func TestS3BucketARNFromS3URL(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in, want string
 	}{

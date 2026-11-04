@@ -82,6 +82,7 @@ func one(typ, nativeID string) []edgeTarget { return []edgeTarget{{typ, nativeID
 // aws, aws-cn and aws-us-gov. A matcher that tests for the "arn:aws:" prefix
 // emits no edge outside aws.
 func TestARNPrefixMatchers_EveryPartition(t *testing.T) {
+	t.Parallel()
 	cases := []arnMatcherCase{
 		{
 			name: "aiops→sns", resolve: resolveAIOpsRelationships, srcType: TypeAIOpsInvestigationGroup,
@@ -345,6 +346,7 @@ func TestARNPrefixMatchers_EveryPartition(t *testing.T) {
 // eip-allocation/, the EC2 scanner elastic-ip/; the rewrite must apply to an
 // EC2 ARN in every partition.
 func TestFMSMemberEIPRewrite_EveryPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range matcherPartitions {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -368,6 +370,7 @@ func TestFMSMemberEIPRewrite_EveryPartition(t *testing.T) {
 // every resource kind classifyPolicyResource recognises, in aws, aws-cn and
 // aws-us-gov, and expects an edge to each.
 func TestIAMPolicyResourceClassifiers_EveryPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range matcherPartitions {
 		t.Run(pf.partition, func(t *testing.T) {
 			p, r := pf.partition, pf.region
@@ -412,6 +415,7 @@ func TestIAMPolicyResourceClassifiers_EveryPartition(t *testing.T) {
 // one whose IAM ARN has the account segment "aws", in every partition; a
 // customer policy in the same partition is not managed.
 func TestScanIAMAuthDetails_ManagedFlagEveryPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range matcherPartitions {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -458,6 +462,7 @@ func ecrImage(ecr, region, suffix, repo string) string {
 // names nothing the account can reference: the partition's own suffix with a
 // region of another partition (foreignRegion).
 func TestDNSNameParsers_EveryPartition(t *testing.T) {
+	t.Parallel()
 	suffix := func(p string) string {
 		s, ok := dnsSuffix(p)
 		if !ok {

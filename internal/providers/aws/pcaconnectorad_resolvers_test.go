@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolvePCACAdConnectorRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	caARN := fmt.Sprintf("arn:aws:acm-pca:%s:%s:certificate-authority/ca-1", testRegion, acct.ID)
@@ -29,6 +30,7 @@ func TestResolvePCACAdConnectorRefs(t *testing.T) {
 }
 
 func TestResolvePCACAdDirRegRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := fmt.Sprintf("arn:aws:ds:%s:%s:directory/d-abc", testRegion, acct.ID)

@@ -65,6 +65,7 @@ func i2Connector(id string) i2types.Connector {
 }
 
 func TestScanInspector2Connectors_PaginatesAndStores(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	fake := fakeInspector2{connectors: map[string]*inspector2.ListConnectorsOutput{
 		"":   {Items: []i2types.Connector{i2Connector("c1"), {Name: sdkaws.String("no-arn")}}, NextToken: sdkaws.String("p2")},
@@ -113,6 +114,7 @@ func TestScanInspector2Connectors_PaginatesAndStores(t *testing.T) {
 }
 
 func TestScanInspector2Connectors_ErrorShapes(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		token     string
@@ -158,6 +160,7 @@ func TestScanInspector2Connectors_ErrorShapes(t *testing.T) {
 }
 
 func TestScanInspector2Connectors_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, _, err := scanInspector2Connectors(context.Background(), fakeInspector2{}, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 {
@@ -197,6 +200,7 @@ func inspector2ServiceStub(t *testing.T, override map[string][]stubCall) sdkaws.
 }
 
 func TestScanInspector2_StoresConnectorsAndDelegatedAdmins(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = inspector2ServiceStub(t, nil)
@@ -219,6 +223,7 @@ func TestScanInspector2_StoresConnectorsAndDelegatedAdmins(t *testing.T) {
 // phase runs after every existing phase, that its hard error reaches the
 // service result, and that the delegated-admin phase still runs.
 func TestScanInspector2_ConnectorErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = inspector2ServiceStub(t, map[string][]stubCall{
@@ -247,6 +252,7 @@ func TestScanInspector2_ConnectorErrorAfterExistingPhases(t *testing.T) {
 // phases succeeded, is one visible warning and not a service-disabled sentinel
 // that would report the region as disabled with 0 resources.
 func TestScanInspector2_ConnectorNotEnabledWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warned []string
 	st.OnWarn = func(w store.ScanWarning) { warned = append(warned, w.Service) }
@@ -277,6 +283,7 @@ func i2DelegatedAdmin(adminID string) i2types.DelegatedAdminAccount {
 }
 
 func TestScanInspector2DelegatedAdmins_PaginatesAndStores(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var pageSizes []int32
 	fake := fakeInspector2{
@@ -338,6 +345,7 @@ func TestScanInspector2DelegatedAdmins_PaginatesAndStores(t *testing.T) {
 }
 
 func TestScanInspector2DelegatedAdmins_ErrorShapes(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -387,6 +395,7 @@ func TestScanInspector2DelegatedAdmins_ErrorShapes(t *testing.T) {
 }
 
 func TestScanInspector2DelegatedAdmins_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, inserted, err := scanInspector2DelegatedAdmins(context.Background(), fakeInspector2{}, newTestAccount(testAccountID), testRegion, st, testScanID)
 	if err != nil || total != 0 || inserted != 0 {
@@ -398,6 +407,7 @@ func TestScanInspector2DelegatedAdmins_Empty(t *testing.T) {
 // delegated-admin phase's hard error reaches the service result with every
 // other phase's rows and counts kept.
 func TestScanInspector2_DelegatedAdminErrorAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = inspector2ServiceStub(t, map[string][]stubCall{
@@ -436,6 +446,7 @@ func notEnabledInspector2Stub(t *testing.T, filters []i2types.Filter, admins []s
 }
 
 func TestScanInspector2_NotEnabledSentinel(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name         string
 		filters      []i2types.Filter
@@ -497,6 +508,7 @@ func TestScanInspector2_NotEnabledSentinel(t *testing.T) {
 // on either side of the join is demoted to one warning, so the other side's
 // hard error still classifies as a hard error.
 func TestScanInspector2_TransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "slow down")
 	hard := apiErr("ValidationException", "boom")
 	cases := []struct {

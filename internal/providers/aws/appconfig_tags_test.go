@@ -272,6 +272,7 @@ func acWarningOps(w []store.ScanWarning) []string {
 // predefined prefix is neither. Every listing is sent the model's page cap
 // of 50. No error, no warning.
 func TestScanAppConfig_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newACCalls()
@@ -335,6 +336,7 @@ func TestScanAppConfig_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanAppConfig_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := acScan(context.Background(), st, acHandlers(newACCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -353,6 +355,7 @@ func TestScanAppConfig_RescanInsertsNone(t *testing.T) {
 // denial keeps the row untagged and warns once under the tag op; a throttle
 // keeps it and is transient; any other error keeps it and is an error.
 func TestScanAppConfig_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagCase struct {
 		name     string
 		arn, typ string
@@ -426,6 +429,7 @@ func TestScanAppConfig_TagReadFailures(t *testing.T) {
 // Denied tag reads in several phases send one warning for the whole scan;
 // the rows are kept.
 func TestScanAppConfig_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newACCalls()
@@ -450,6 +454,7 @@ func TestScanAppConfig_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanAppConfig_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, acTagsOp)
 	calls := newACCalls()
@@ -468,6 +473,7 @@ func TestScanAppConfig_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored. A failed environment write lists no deployments.
 func TestScanAppConfig_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	t.Run("deployment strategies", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := rhWarnRecorder(st)
@@ -512,6 +518,7 @@ func TestScanAppConfig_FailedWriteStopsScan(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the later phases. An application not stored has no children read.
 func TestScanAppConfig_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, typ, kept string
 		lost          int
@@ -543,6 +550,7 @@ func TestScanAppConfig_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanAppConfig_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := acHandlers(newACCalls())
 	handlers["ListExtensionAssociations"] = func(in any) (any, error) {
@@ -563,6 +571,7 @@ func TestScanAppConfig_RepeatedTokenKeepsPages(t *testing.T) {
 // rows: a parent deleted since it was listed is skipped silently, a denial
 // warns once under the op, and any other error is returned.
 func TestScanAppConfig_PerParentListingFailures(t *testing.T) {
+	t.Parallel()
 	a1 := acTestAppARN("a1")
 	for _, p := range []struct {
 		op, typ string
@@ -637,6 +646,7 @@ func TestScanAppConfig_PerParentListingFailures(t *testing.T) {
 // its id or name, or by the fallback text when it has neither. An
 // application not stored has no children read.
 func TestScanAppConfig_ElementWithoutID(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		answer        any
@@ -703,6 +713,7 @@ func TestScanAppConfig_ElementWithoutID(t *testing.T) {
 // A GovCloud or China account's built ARNs, and an ARN a listing returns,
 // reach the tag op unchanged.
 func TestScanAppConfig_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -736,6 +747,7 @@ func TestScanAppConfig_TagReadsKeepPartitionARNs(t *testing.T) {
 // flight saw it in its listing and its tag reads, and the later phases are
 // not run.
 func TestScanAppConfig_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newACCalls()
 	handlers := acHandlers(calls)
@@ -771,6 +783,7 @@ func TestScanAppConfig_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanAppConfig_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "appconfig.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -805,6 +818,7 @@ func TestScanAppConfig_NXDOMAIN(t *testing.T) {
 // The experiment definition phase runs last: when ListExperimentDefinitions
 // is called, every other listing has already been called.
 func TestScanAppConfig_ExperimentDefinitionPhaseRunsLast(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newACCalls()
 	handlers := acHandlers(calls)

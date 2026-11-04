@@ -22,6 +22,7 @@ func sesDecode(t *testing.T, v any) map[string]any {
 // Each SigningScheme member is stored under its own name, so the default
 // scheme and an S/MIME scheme stay distinguishable.
 func TestFlattenSESConfigurationSet_SigningSchemeMembers(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name   string
 		scheme sesv2types.SigningScheme
@@ -56,6 +57,7 @@ func TestFlattenSESConfigurationSet_SigningSchemeMembers(t *testing.T) {
 
 // The configuration-set phase stores the shadow, not the raw SDK body.
 func TestScanSESConfigurationSets_StoresKeyedSigningScheme(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := sesv2.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
 		"ListConfigurationSets": func(any) (any, error) {
@@ -93,6 +95,7 @@ func TestScanSESConfigurationSets_StoresKeyedSigningScheme(t *testing.T) {
 // shape stored before the sesv2 module had the field, so the bump gives it no
 // new version; every other key is the SDK's.
 func TestFlattenSESConfigurationSet_NoMessageSecurityOptionsOmitted(t *testing.T) {
+	t.Parallel()
 	out := &sesv2.GetConfigurationSetOutput{ConfigurationSetName: ptrStr("cs")}
 	got := sesDecode(t, flattenSESConfigurationSet(out))
 	if v, ok := got["MessageSecurityOptions"]; ok {
@@ -108,6 +111,7 @@ func TestFlattenSESConfigurationSet_NoMessageSecurityOptionsOmitted(t *testing.T
 // MessageSecurityOptions without a SigningScheme stores what the embedded SDK
 // struct does.
 func TestFlattenSESConfigurationSet_NoSigningSchemeMatchesSDK(t *testing.T) {
+	t.Parallel()
 	out := &sesv2.GetConfigurationSetOutput{ConfigurationSetName: ptrStr("cs"), MessageSecurityOptions: &sesv2types.MessageSecurityOptions{}}
 	if got, want := sesDecode(t, flattenSESConfigurationSet(out)), sesDecode(t, out); !reflect.DeepEqual(got, want) {
 		t.Errorf("flattened = %v, want SDK shape %v", got, want)

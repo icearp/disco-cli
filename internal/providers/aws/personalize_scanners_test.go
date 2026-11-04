@@ -320,6 +320,7 @@ func pzWarningOps(w []store.ScanWarning) []string {
 // Only recipes are provider-managed. Every listing page is sent MaxResults
 // 100. No error, no warning.
 func TestScanPersonalize_StoresTagsOfEveryTaggableType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newPZCalls()
@@ -386,6 +387,7 @@ func TestScanPersonalize_StoresTagsOfEveryTaggableType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanPersonalize_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := pzScan(context.Background(), st, pzHandlers(newPZCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -404,6 +406,7 @@ func TestScanPersonalize_RescanInsertsNone(t *testing.T) {
 // the tag op; a throttle keeps it and is transient; any other error keeps it
 // and is an error.
 func TestScanPersonalize_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, x := range []struct{ kind, typ string }{
 		{"dataset-group", TypePersonalizeDatasetGroup},
 		{"event-tracker", TypePersonalizeEventTracker},
@@ -469,6 +472,7 @@ func TestScanPersonalize_TagReadFailures(t *testing.T) {
 // Denied tag reads in several phases send one warning for the whole scan;
 // the rows are kept.
 func TestScanPersonalize_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newPZCalls()
@@ -491,6 +495,7 @@ func TestScanPersonalize_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanPersonalize_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, pzTagsOp)
 	calls := newPZCalls()
@@ -509,6 +514,7 @@ func TestScanPersonalize_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanPersonalize_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypePersonalizeSolution)
@@ -536,6 +542,7 @@ func TestScanPersonalize_FailedWriteStopsScan(t *testing.T) {
 // A listing's failed later page keeps the page read before it, and its
 // error does not stop the later phases.
 func TestScanPersonalize_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListDatasetGroups", "ListSchemas", "ListRecipes"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -562,6 +569,7 @@ func TestScanPersonalize_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanPersonalize_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListEventTrackers", "ListMetricAttributions"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -587,6 +595,7 @@ func TestScanPersonalize_RepeatedTokenKeepsPages(t *testing.T) {
 // is warned about once under its listing, keyed by its name or by the
 // fallback text when it has none.
 func TestScanPersonalize_ElementWithoutARN(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ op, key string }{
 		{"ListFilters", "name-orphan"},
 		{"ListMetricAttributions", "name-orphan"},
@@ -638,6 +647,7 @@ func pzTaggedARNsExcept(c *pzCalls, op string) []string {
 // nothing to the tag op, without an error or a warning; every other listing
 // is stored whole.
 func TestScanPersonalize_EmptyListing(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListSolutionVersions", "ListRecipes"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -678,6 +688,7 @@ func TestScanPersonalize_EmptyListing(t *testing.T) {
 
 // A GovCloud or China account's listed ARNs reach the tag op unchanged.
 func TestScanPersonalize_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -709,6 +720,7 @@ func TestScanPersonalize_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanPersonalize_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newPZCalls()
 	handlers := pzHandlers(calls)
@@ -744,6 +756,7 @@ func TestScanPersonalize_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanPersonalize_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "personalize.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -778,6 +791,7 @@ func TestScanPersonalize_NXDOMAIN(t *testing.T) {
 // A listing denied on its first page warns once under its op and stores
 // nothing; every other listing is stored.
 func TestScanPersonalize_FirstPageDenial(t *testing.T) {
+	t.Parallel()
 	for _, l := range pzListings {
 		t.Run(l.op, func(t *testing.T) {
 			st := newTestStore(t)

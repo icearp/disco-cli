@@ -391,6 +391,7 @@ func bacWarnings(st *store.Store, op string) *[]store.ScanWarning {
 // are stored, each listing asks for its model's page cap, and the scan
 // reports no error or warning.
 func TestScanBedrockAgentCore_StoresTagsOfEveryTaggedType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newBACCalls()
@@ -473,6 +474,7 @@ func TestScanBedrockAgentCore_StoresTagsOfEveryTaggedType(t *testing.T) {
 // A gateway's list element carries no ARN; the NativeID built from its id is
 // the GatewayArn GetGateway returns, and the tag read is sent it.
 func TestScanBedrockAgentCore_GatewayARNMatchesGetGateway(t *testing.T) {
+	t.Parallel()
 	got := bac.GetGatewayOutput{GatewayArn: sdkaws.String("arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/gw-abc123")}
 	st := newTestStore(t)
 	calls := newBACCalls()
@@ -495,6 +497,7 @@ func TestScanBedrockAgentCore_GatewayARNMatchesGetGateway(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanBedrockAgentCore_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	bacTaggedARNs(calls)
@@ -516,6 +519,7 @@ func TestScanBedrockAgentCore_RescanInsertsNone(t *testing.T) {
 // longer finds is dropped with its endpoints never listed; the same holds
 // for an endpoint, read in the child phase.
 func TestScanBedrockAgentCore_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct{ typ, arn string }{
 		{TypeBedrockAgentCoreRuntime, bacTestARN("runtime", "tagged")},
 		{TypeBedrockAgentCoreRuntimeEndpoint, bacTestARN("runtime/bare/runtime-endpoint", "tagged")},
@@ -589,6 +593,7 @@ func bacTagReadFailures(t *testing.T, typ, arn string) {
 // A throttled tag read beside a hard tag-read failure is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanBedrockAgentCore_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, bacListTagsOp)
 	calls := newBACCalls()
@@ -610,6 +615,7 @@ func TestScanBedrockAgentCore_TagThrottleDemotedBesideHardError(t *testing.T) {
 // the same op included, and sends no warning about the rows it lost: not
 // the tag denial, and not a child listing's denial.
 func TestScanBedrockAgentCore_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	tagDenied := apiErr("AccessDeniedException", "User: x is not authorized to perform: bedrock-agentcore:ListTagsForResource")
 	for _, tc := range []struct {
 		typ, deniedARN, childOp, parentField string
@@ -660,6 +666,7 @@ func TestScanBedrockAgentCore_FailedWriteStopsWithoutWarning(t *testing.T) {
 // An UnauthorizedException after a page is not warned about when the write
 // of that page fails.
 func TestScanBedrockAgentCore_FailedWriteSendsNoUnauthorizedWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeBedrockAgentCoreWorkloadIdentity)
@@ -680,6 +687,7 @@ func TestScanBedrockAgentCore_FailedWriteSendsNoUnauthorizedWarning(t *testing.T
 // A listing's failed page keeps the pages read before it, and neither a list
 // failure nor a gateway failure stops the phases after it.
 func TestScanBedrockAgentCore_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	bacTaggedARNs(calls)
@@ -742,6 +750,7 @@ func failOnCall(n int, err error, next func(any) (any, error)) func(any) (any, e
 // stored; the gateway's "Unable to determine" denial included, which a
 // denial path would otherwise drop.
 func TestScanBedrockAgentCore_RegionGapOnlyOnFirstPage(t *testing.T) {
+	t.Parallel()
 	unknownOp := apiErr("UnknownOperationException", "gap")
 	authorizer := apiErr("AuthorizerConfigurationException", "Internal server error")
 	deniedGap := apiErr("AccessDeniedException", "Unable to determine service/operation name to be authorized")
@@ -808,6 +817,7 @@ func TestScanBedrockAgentCore_RegionGapOnlyOnFirstPage(t *testing.T) {
 // invalid) treat it as a denial: the listing ends with the pages read before
 // it stored, it is warned about under the op, and it is not an error.
 func TestScanBedrockAgentCore_UnauthorizedIsDenial(t *testing.T) {
+	t.Parallel()
 	unauthorized := apiErr("UnauthorizedException", "JWT bearer token invalid or not found")
 	for _, l := range []struct{ op, typ, kind string }{
 		{"ListApiKeyCredentialProviders", TypeBedrockAgentCoreAPIKeyCredentialProvider, "token-vault/default/apikeycredentialprovider"},
@@ -854,6 +864,7 @@ func TestScanBedrockAgentCore_UnauthorizedIsDenial(t *testing.T) {
 // region-gap code is silent only for the ops that are not deployed
 // everywhere.
 func TestScanBedrockAgentCore_ChildListingFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range bacChildren() {
 		gapSilent := c.op == "ListGatewayRules" || c.op == "ListGatewayRateLimits"
 		for _, tc := range []struct {
@@ -902,6 +913,7 @@ func TestScanBedrockAgentCore_ChildListingFailures(t *testing.T) {
 // Items that cannot be stored are warned about in one warning per op that
 // names the first, or says it has no id; their siblings are stored.
 func TestScanBedrockAgentCore_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	gatewayOnly := func(out any) func(in any) (any, error) {
 		return func(in any) (any, error) {
 			if sv(bacField[*string](in, "GatewayIdentifier")) != "tagged" {
@@ -970,6 +982,7 @@ func TestScanBedrockAgentCore_UnstorableItemsWarn(t *testing.T) {
 
 // A repeated NextToken ends the listing as an error, keeping its pages.
 func TestScanBedrockAgentCore_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, typ, arn string
 		out          any
@@ -1023,6 +1036,7 @@ func bacTopMembers(err error) []error {
 // naming the phases not run, although the phase in flight saw it in its
 // listing and its tag reads; a hard error beside the stop is kept.
 func TestScanBedrockAgentCore_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newBACCalls()
 	bacTaggedARNs(calls)
@@ -1073,6 +1087,7 @@ func TestScanBedrockAgentCore_ContextEndStopsOnce(t *testing.T) {
 // A runtime whose endpoint listing is denied is warned about once; the other
 // runtime's endpoints are stored with their tags.
 func TestScanBedrockAgentCore_RuntimeEndpointDenialKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "bedrockagentcore:ListAgentRuntimeEndpoints")
 	calls := newBACCalls()
@@ -1107,6 +1122,7 @@ func TestScanBedrockAgentCore_RuntimeEndpointDenialKeepsSiblings(t *testing.T) {
 // stored, and its rows keep a control-plane NXDOMAIN from reporting the
 // region unavailable.
 func TestScanBedrockAgentCore_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "bedrock-agentcore-control.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)

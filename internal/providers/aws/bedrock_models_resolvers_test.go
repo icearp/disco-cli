@@ -19,6 +19,7 @@ func bedrockAttrs(t *testing.T, v any) string {
 }
 
 func TestResolveBedrockModelServes(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -45,6 +46,7 @@ func TestResolveBedrockModelServes(t *testing.T) {
 // A deployment/throughput serving a base foundation model (not a scanned custom
 // model), and one with empty attrs, emit no edge.
 func TestResolveBedrockModelServes_NoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

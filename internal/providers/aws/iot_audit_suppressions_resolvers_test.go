@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveIoTAuditSuppressionTargets(t *testing.T) {
+	t.Parallel()
 	roleARN := "arn:aws:iam::123456789012:role/r1"
 	cases := []struct {
 		name       string
@@ -63,6 +64,7 @@ func TestResolveIoTAuditSuppressionTargets(t *testing.T) {
 }
 
 func TestResolveIoTAuditSuppressionTargets_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fromID := upsertTestResource(t, st, "aws", acct.ID, TypeIoTAuditSuppression, iotTestARN("audit-suppression", "CHECK/x"), testRegion, "{}")
@@ -79,6 +81,7 @@ func TestResolveIoTAuditSuppressionTargets_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveIoTAuditSuppressionTargets_DecodeErrorReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeIoTAuditSuppression, iotTestARN("audit-suppression", "CHECK/x"), testRegion, `{"ResourceIdentifier":"not-an-object"}`)

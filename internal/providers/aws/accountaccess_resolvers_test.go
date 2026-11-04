@@ -35,6 +35,7 @@ func aaEntAttrs(roleARN string) string {
 // its identity source names. An application whose refs are not scanned, or
 // that has no attributes, has no edge.
 func TestResolveAccountAccessApplicationSSO_Edges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	instID := upsertTestResource(t, st, "aws", acct.ID, TypeSSOInstance, aaInstanceARN, "", "{}")
@@ -64,6 +65,7 @@ func TestResolveAccountAccessApplicationSSO_Edges(t *testing.T) {
 // An entitlement uses the role it grants when that role is scanned in the
 // same account; a role in another account gets no edge.
 func TestResolveAccountAccessEntitlementRole_Edges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleID := upsertTestResource(t, st, "aws", acct.ID, TypeIAMRole, aaRoleARN, "", "{}")
@@ -90,6 +92,7 @@ func TestResolveAccountAccessEntitlementRole_Edges(t *testing.T) {
 // A row whose attributes do not decode is reported, and costs the other rows
 // none of their edges.
 func TestResolveAccountAccess_DecodeError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		resolve func(*account, *store.Store) error

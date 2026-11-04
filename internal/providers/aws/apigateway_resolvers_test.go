@@ -10,6 +10,7 @@ import (
 // TestResolveAPIGatewayStageToDeployment verifies that a stage's DeploymentId
 // produces a stage→deployment attaches-to relationship.
 func TestResolveAPIGatewayStageToDeployment(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -42,6 +43,7 @@ func TestResolveAPIGatewayStageToDeployment(t *testing.T) {
 // TestResolveAPIGatewayStageToWAFv2 verifies that a stage's WebAclArn
 // produces a stage→waf-web-acl uses relationship.
 func TestResolveAPIGatewayStageToWAFv2(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -69,6 +71,7 @@ func TestResolveAPIGatewayStageToWAFv2(t *testing.T) {
 // TestResolveAPIGatewayStageToDeployment_NoAttrs verifies that a stage with
 // empty attributes produces no error and no deployment relationship.
 func TestResolveAPIGatewayStageToDeployment_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -97,6 +100,7 @@ func TestResolveAPIGatewayStageToDeployment_NoAttrs(t *testing.T) {
 // TestResolveAPIGatewayStageToClientCert verifies that a stage's
 // ClientCertificateId produces a stage→client-certificate uses relationship.
 func TestResolveAPIGatewayStageToClientCert(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -129,6 +133,7 @@ func TestResolveAPIGatewayStageToClientCert(t *testing.T) {
 // TestResolveAPIGatewayBasePathMappingToRestAPI verifies that a base-path
 // mapping's RestApiId produces a mapping→rest-api routes-to relationship.
 func TestResolveAPIGatewayBasePathMappingToRestAPI(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -161,6 +166,7 @@ func TestResolveAPIGatewayBasePathMappingToRestAPI(t *testing.T) {
 // V2 (private) variants of base-path mapping + domain name wire to each other
 // via attached-to and to the rest API via routes-to.
 func TestResolveAPIGatewayPrivateBasePathMappingToPrivateDomain(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -193,6 +199,7 @@ func TestResolveAPIGatewayPrivateBasePathMappingToPrivateDomain(t *testing.T) {
 // custom domain name is linked to its ACM certificate via the V1-shape
 // CertificateArn / RegionalCertificateArn fields shared with public domains.
 func TestResolveAPIGatewayPrivateDomainToCert(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -219,6 +226,7 @@ func TestResolveAPIGatewayPrivateDomainToCert(t *testing.T) {
 // TestResolveAPIGatewayBasePathMappingToRestAPI_NoAttrs verifies that a mapping
 // without a RestApiId produces no routes-to relationship and no error.
 func TestResolveAPIGatewayBasePathMappingToRestAPI_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -248,6 +256,7 @@ func TestResolveAPIGatewayBasePathMappingToRestAPI_NoAttrs(t *testing.T) {
 // TestResolveAPIGatewayUsagePlanKeyToUsagePlan verifies that a usage-plan key
 // ARN is parsed to produce a key→usage-plan attached-to relationship.
 func TestResolveAPIGatewayUsagePlanKeyToUsagePlan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -275,6 +284,7 @@ func TestResolveAPIGatewayUsagePlanKeyToUsagePlan(t *testing.T) {
 // TestResolveAPIGatewayUsagePlanKeyToUsagePlan_Empty verifies that the resolver
 // produces no error when there are no usage plan keys.
 func TestResolveAPIGatewayUsagePlanKeyToUsagePlan_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveAPIGatewayUsagePlanKeyRelationships(acct, st); err != nil {
@@ -285,6 +295,7 @@ func TestResolveAPIGatewayUsagePlanKeyToUsagePlan_Empty(t *testing.T) {
 // TestResolveAPIGatewayUsagePlanStages verifies that each ApiStages[] entry
 // on a usage plan produces an attached-to edge to the REST API stage.
 func TestResolveAPIGatewayUsagePlanStages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -314,6 +325,7 @@ func TestResolveAPIGatewayUsagePlanStages(t *testing.T) {
 // TestResolveAPIGatewayUsagePlanStages_NoAttrs verifies that a usage plan
 // with no ApiStages emits no edges and does not panic.
 func TestResolveAPIGatewayUsagePlanStages_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	planARN := fmt.Sprintf("arn:aws:apigateway:%s::/usageplans/plan-bare", testRegion)
@@ -332,6 +344,7 @@ func TestResolveAPIGatewayUsagePlanStages_NoAttrs(t *testing.T) {
 // of type COGNITO_USER_POOLS produces a uses edge to each user pool in
 // ProviderARNs.
 func TestResolveAPIGatewayAuthorizerCognito(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -352,6 +365,7 @@ func TestResolveAPIGatewayAuthorizerCognito(t *testing.T) {
 // TestResolveAPIGatewayAuthorizerCognito_TokenSkipped verifies that non-Cognito
 // authorizer types produce no edge.
 func TestResolveAPIGatewayAuthorizerCognito_TokenSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -376,6 +390,7 @@ func v2AuthARN(region, apiID, authID string) string {
 // TestResolveAPIGWV2Authorizer_CognitoIssuer — JWT issuer with Cognito URL
 // emits authorizer→user-pool edge.
 func TestResolveAPIGWV2Authorizer_CognitoIssuer(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -400,6 +415,7 @@ func TestResolveAPIGWV2Authorizer_CognitoIssuer(t *testing.T) {
 
 // TestResolveAPIGWV2Authorizer_NonJWTType — REQUEST authorizers skipped.
 func TestResolveAPIGWV2Authorizer_NonJWTType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attrs := `{"AuthorizerType":"REQUEST","JwtConfiguration":{"Issuer":"https://cognito-idp.us-east-1.amazonaws.com/us-east-1_abc123"}}`
@@ -416,6 +432,7 @@ func TestResolveAPIGWV2Authorizer_NonJWTType(t *testing.T) {
 
 // TestResolveAPIGWV2Authorizer_NonCognitoIssuer — Auth0/Okta issuer skipped.
 func TestResolveAPIGWV2Authorizer_NonCognitoIssuer(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attrs := `{"AuthorizerType":"JWT","JwtConfiguration":{"Issuer":"https://example.auth0.com/"}}`
@@ -432,6 +449,7 @@ func TestResolveAPIGWV2Authorizer_NonCognitoIssuer(t *testing.T) {
 
 // TestResolveAPIGWV2Authorizer_EmptyIssuer — JWT type without issuer skipped.
 func TestResolveAPIGWV2Authorizer_EmptyIssuer(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attrs := `{"AuthorizerType":"JWT"}`
@@ -448,6 +466,7 @@ func TestResolveAPIGWV2Authorizer_EmptyIssuer(t *testing.T) {
 
 // TestResolveAPIGWV2Authorizer_MalformedIssuer — issuer with no path segment skipped.
 func TestResolveAPIGWV2Authorizer_MalformedIssuer(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attrs := `{"AuthorizerType":"JWT","JwtConfiguration":{"Issuer":"https://cognito-idp.us-east-1.amazonaws.com"}}`

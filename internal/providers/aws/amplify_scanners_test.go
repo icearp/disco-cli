@@ -340,6 +340,7 @@ func assertAmpChildren(t *testing.T, st *store.Store, appARN string, children ..
 }
 
 func TestScanAmplify_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAmpCalls()
 	run := ampScan(context.Background(), st, nil, calls, nil)
@@ -390,6 +391,7 @@ func TestScanAmplify_StoresEveryTypeWithTags(t *testing.T) {
 // A failed page two keeps the rows read before it, the error is returned, and
 // every later phase still runs over the apps stored.
 func TestScanAmplify_FailedPageKeepsRowsAndRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, parent string
 		want       map[string][]string
@@ -420,6 +422,7 @@ func TestScanAmplify_FailedPageKeepsRowsAndRunsLaterPhases(t *testing.T) {
 // UnauthorizedException, the denial every op models, and the codes
 // isAccessDenied matches count as one denial.
 func TestScanAmplify_DeniedOpWarnsOnce(t *testing.T) {
+	t.Parallel()
 	both := func(a, b error) map[string]error { return map[string]error{"a/": a, "b/": b} }
 	for _, tc := range []struct {
 		name, op string
@@ -468,6 +471,7 @@ func TestScanAmplify_DeniedOpWarnsOnce(t *testing.T) {
 // per-app op models) included, is returned after the other rows are stored:
 // the lost children have no listed row to keep in their place.
 func TestScanAmplify_OtherErrorsAreReturned(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name, op, key string
 		err           error
@@ -497,6 +501,7 @@ func TestScanAmplify_OtherErrorsAreReturned(t *testing.T) {
 // A webhook listing whose service repeats the token it was sent ends with
 // errRepeatedNextToken after the rows read are stored.
 func TestScanAmplify_RepeatedWebhookTokenIsReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	run := ampScan(context.Background(), st, nil, newAmpCalls(), func(op string, h func(in any) (any, error)) func(in any) (any, error) {
 		return func(in any) (any, error) {
@@ -516,6 +521,7 @@ func TestScanAmplify_RepeatedWebhookTokenIsReturned(t *testing.T) {
 // A throttled phase alone leaves the scan transient; beside another phase's
 // hard error it is warned about once and the scan reads as an error.
 func TestScanAmplify_TransientPhaseBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		hard      bool
@@ -551,6 +557,7 @@ func TestScanAmplify_TransientPhaseBesideHardError(t *testing.T) {
 // A failed write stops the scan with no warning claiming the lost rows, and
 // no later phase runs; the rows of earlier phases stay stored.
 func TestScanAmplify_WriteFailureStops(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		typ, op string
 		ops     []string
@@ -597,6 +604,7 @@ func TestScanAmplify_WriteFailureStops(t *testing.T) {
 // A context ended after the branches were read stops the later phases, and
 // the scan returns that stop.
 func TestScanAmplify_ContextEndStopsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

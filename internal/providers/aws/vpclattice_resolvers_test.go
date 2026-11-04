@@ -25,6 +25,7 @@ func vlRuleARN(region, acctID, svcID, lstID, ruleID string) string {
 }
 
 func TestResolveVPCLatticeSNVA(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	netARN := vlARN(testRegion, acct.ID, "servicenetwork", "sn-001")
@@ -50,6 +51,7 @@ func TestResolveVPCLatticeSNVA(t *testing.T) {
 }
 
 func TestResolveVPCLatticeSNVA_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeServiceNetworkVpcAssociation,
@@ -64,6 +66,7 @@ func TestResolveVPCLatticeSNVA_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveVPCLatticeSNVA_UnscannedTargetSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	missingNetARN := vlARN(testRegion, acct.ID, "servicenetwork", "sn-missing")
@@ -80,6 +83,7 @@ func TestResolveVPCLatticeSNVA_UnscannedTargetSkipped(t *testing.T) {
 }
 
 func TestResolveVPCLatticeSNSA(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	netARN := vlARN(testRegion, acct.ID, "servicenetwork", "sn-001")
@@ -102,6 +106,7 @@ func TestResolveVPCLatticeSNSA(t *testing.T) {
 }
 
 func TestResolveVPCLatticeSNSA_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeServiceNetworkServiceAssociation,
@@ -116,6 +121,7 @@ func TestResolveVPCLatticeSNSA_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveVPCLatticeSNSA_UnscannedTargetSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	missingNet := vlARN(testRegion, acct.ID, "servicenetwork", "missing")
@@ -133,6 +139,7 @@ func TestResolveVPCLatticeSNSA_UnscannedTargetSkipped(t *testing.T) {
 }
 
 func TestResolveVPCLatticeSNRA(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	netARN := vlARN(testRegion, acct.ID, "servicenetwork", "sn-001")
@@ -155,6 +162,7 @@ func TestResolveVPCLatticeSNRA(t *testing.T) {
 }
 
 func TestResolveVPCLatticeSNRA_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeServiceNetworkResourceAssociation,
@@ -169,6 +177,7 @@ func TestResolveVPCLatticeSNRA_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveVPCLatticeSNRA_UnscannedTargetSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	missingNet := vlARN(testRegion, acct.ID, "servicenetwork", "missing")
@@ -186,6 +195,7 @@ func TestResolveVPCLatticeSNRA_UnscannedTargetSkipped(t *testing.T) {
 }
 
 func TestResolveVPCLatticeTargetGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC,
@@ -208,6 +218,7 @@ func TestResolveVPCLatticeTargetGroup(t *testing.T) {
 }
 
 func TestResolveVPCLatticeTargetGroup_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tgID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeTargetGroup,
@@ -222,6 +233,7 @@ func TestResolveVPCLatticeTargetGroup_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveVPCLatticeTargetGroup_UnscannedTargetSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	missingSvc := vlARN(testRegion, acct.ID, "service", "missing")
@@ -238,6 +250,7 @@ func TestResolveVPCLatticeTargetGroup_UnscannedTargetSkipped(t *testing.T) {
 }
 
 func TestResolveVPCLatticeListenerService(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	svcARN := vlARN(testRegion, acct.ID, "service", "svc-001")
@@ -256,6 +269,7 @@ func TestResolveVPCLatticeListenerService(t *testing.T) {
 }
 
 func TestResolveVPCLatticeListenerService_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	// Listener with malformed ARN (no `/listener/` segment) → no edge.
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
@@ -271,6 +285,7 @@ func TestResolveVPCLatticeListenerService_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveVPCLatticeListenerService_UnscannedTargetSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	lstID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeListener,
@@ -285,6 +300,7 @@ func TestResolveVPCLatticeListenerService_UnscannedTargetSkipped(t *testing.T) {
 }
 
 func TestResolveVPCLatticeRuleListener(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	lstARN := vlListenerARN(testRegion, acct.ID, "svc-001", "lst-001")
@@ -303,6 +319,7 @@ func TestResolveVPCLatticeRuleListener(t *testing.T) {
 }
 
 func TestResolveVPCLatticeRuleListener_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeRule,
@@ -317,6 +334,7 @@ func TestResolveVPCLatticeRuleListener_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveVPCLatticeRuleListener_UnscannedTargetSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ruleID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeRule,
@@ -331,6 +349,7 @@ func TestResolveVPCLatticeRuleListener_UnscannedTargetSkipped(t *testing.T) {
 }
 
 func TestResolveVPCLatticeAuthPolicyParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	svcARN := vlARN(testRegion, acct.ID, "service", "svc-001")
@@ -359,6 +378,7 @@ func TestResolveVPCLatticeAuthPolicyParent(t *testing.T) {
 }
 
 func TestResolveVPCLatticeAuthPolicyParent_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	// Empty attrs don't matter — resolver reads NativeID. ARN lacks a
 	// recognizable `/service/` or `/servicenetwork/` segment to hit the
 	// default-skip branch.
@@ -376,6 +396,7 @@ func TestResolveVPCLatticeAuthPolicyParent_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveVPCLatticeAuthPolicyParent_UnscannedTargetSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	missingSvc := vlARN(testRegion, acct.ID, "service", "missing")
@@ -391,6 +412,7 @@ func TestResolveVPCLatticeAuthPolicyParent_UnscannedTargetSkipped(t *testing.T) 
 }
 
 func TestResolveVPCLatticeResourcePolicyParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	netARN := vlARN(testRegion, acct.ID, "servicenetwork", "sn-001")
@@ -409,6 +431,7 @@ func TestResolveVPCLatticeResourcePolicyParent(t *testing.T) {
 }
 
 func TestResolveVPCLatticeResourcePolicyParent_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rpID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeResourcePolicy,
@@ -423,6 +446,7 @@ func TestResolveVPCLatticeResourcePolicyParent_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveVPCLatticeResourcePolicyParent_UnscannedTargetSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	missingSvc := vlARN(testRegion, acct.ID, "service", "missing")
@@ -438,6 +462,7 @@ func TestResolveVPCLatticeResourcePolicyParent_UnscannedTargetSkipped(t *testing
 }
 
 func TestResolveVPCLatticeResourceGateway(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpcID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPC,
@@ -463,6 +488,7 @@ func TestResolveVPCLatticeResourceGateway(t *testing.T) {
 }
 
 func TestResolveVPCLatticeResourceGateway_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gwID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeResourceGateway,
@@ -477,6 +503,7 @@ func TestResolveVPCLatticeResourceGateway_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveVPCLatticeResourceGateway_UnscannedTargetSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gwID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeResourceGateway,
@@ -492,6 +519,7 @@ func TestResolveVPCLatticeResourceGateway_UnscannedTargetSkipped(t *testing.T) {
 }
 
 func TestResolveVPCLatticeResourceConfigurationGateway(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gwARN := vlARN(testRegion, acct.ID, "resourcegateway", "rgw-001")
@@ -511,6 +539,7 @@ func TestResolveVPCLatticeResourceConfigurationGateway(t *testing.T) {
 }
 
 func TestResolveVPCLatticeResourceConfigurationGateway_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rcID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeResourceConfiguration,
@@ -525,6 +554,7 @@ func TestResolveVPCLatticeResourceConfigurationGateway_EmptyAttrs(t *testing.T) 
 }
 
 func TestResolveVPCLatticeResourceConfigurationGateway_UnscannedTargetSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	rcID := upsertTestResource(t, st, "aws", acct.ID, TypeVpcLatticeResourceConfiguration,
@@ -540,6 +570,7 @@ func TestResolveVPCLatticeResourceConfigurationGateway_UnscannedTargetSkipped(t 
 }
 
 func TestResolveVPCLatticeServiceCert(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

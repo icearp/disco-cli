@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveR53RResolverConfigVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cfgARN := r53rARN("aws", testRegion, acct.ID, "resolver-config", "vpc-001")
@@ -27,6 +28,7 @@ func TestResolveR53RResolverConfigVPC(t *testing.T) {
 }
 
 func TestResolveR53RResolverConfigVPC_UnscannedVPCSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cfgARN := r53rARN("aws", testRegion, acct.ID, "resolver-config", "vpc-missing")
@@ -41,6 +43,7 @@ func TestResolveR53RResolverConfigVPC_UnscannedVPCSkipped(t *testing.T) {
 }
 
 func TestResolveR53RResolverRuleAssoc(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	assocARN := r53rARN("aws", testRegion, acct.ID, "resolver-rule-association", "rslvr-assoc-001")
@@ -64,6 +67,7 @@ func TestResolveR53RResolverRuleAssoc(t *testing.T) {
 }
 
 func TestResolveR53RResolverRuleAssoc_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverRuleAssociation,
@@ -78,6 +82,7 @@ func TestResolveR53RResolverRuleAssoc_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveR53RFirewallRuleGroupAssoc(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	assocARN := r53rARN("aws", testRegion, acct.ID, "firewall-rule-group-association", "rslvr-frgassoc-001")
@@ -98,6 +103,7 @@ func TestResolveR53RFirewallRuleGroupAssoc(t *testing.T) {
 }
 
 func TestResolveR53RResolverRuleEndpoint(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	epARN := r53rARN("aws", testRegion, acct.ID, "resolver-endpoint", "rslvr-out-1")
@@ -119,6 +125,7 @@ func TestResolveR53RResolverRuleEndpoint(t *testing.T) {
 }
 
 func TestResolveR53RQueryLogConfigDestination_S3LogsFirehose(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	bucketARN := "arn:aws:s3:::log-dump"
@@ -144,6 +151,7 @@ func TestResolveR53RQueryLogConfigDestination_S3LogsFirehose(t *testing.T) {
 }
 
 func TestResolveR53RQueryLogConfigDestination_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeRoute53ResolverResolverQueryLoggingConfig, r53rARN("aws", testRegion, acct.ID, "resolver-query-log-config", "bare"), testRegion, `{}`)
@@ -153,6 +161,7 @@ func TestResolveR53RQueryLogConfigDestination_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveR53RFirewallConfigVPC(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cfgARN := r53rARN("aws", testRegion, acct.ID, "firewall-config", "rslvr-fc-001")
@@ -166,6 +175,7 @@ func TestResolveR53RFirewallConfigVPC(t *testing.T) {
 }
 
 func TestResolveR53RFirewallConfigVPC_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cfgARN := r53rARN("aws", testRegion, acct.ID, "firewall-config", "rslvr-fc-001")

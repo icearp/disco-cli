@@ -84,6 +84,7 @@ func scanXRayTopLevel(t *testing.T, st *store.Store, handlers map[string]func(in
 }
 
 func TestScanXRayIndexingRules_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanXRayIndexingRulesWith(t, st, map[string]func(in any) (any, error){"GetIndexingRules": xrayIndexingRulePages})
 	if err != nil {
@@ -130,6 +131,7 @@ func xrayRuleAttrs(t *testing.T, r store.Resource) xrayTestRuleAttrs {
 
 // A rule kind newer than the pinned SDK is stored under UnknownMember with its tag.
 func TestScanXRayIndexingRules_UnknownRuleKind(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, err := scanXRayIndexingRulesWith(t, st, map[string]func(in any) (any, error){
 		"GetIndexingRules": func(any) (any, error) {
@@ -150,6 +152,7 @@ func TestScanXRayIndexingRules_UnknownRuleKind(t *testing.T) {
 
 // A rule the API returns without a Rule value is stored with Rule null, not {}.
 func TestScanXRayIndexingRules_NoRuleValue(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, err := scanXRayIndexingRulesWith(t, st, map[string]func(in any) (any, error){
 		"GetIndexingRules": func(any) (any, error) {
@@ -170,6 +173,7 @@ func TestScanXRayIndexingRules_NoRuleValue(t *testing.T) {
 }
 
 func TestScanXRayIndexingRules_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanXRayIndexingRulesWith(t, st, map[string]func(in any) (any, error){
 		"GetIndexingRules": func(any) (any, error) { return &xray.GetIndexingRulesOutput{}, nil },
@@ -181,6 +185,7 @@ func TestScanXRayIndexingRules_Empty(t *testing.T) {
 
 // A repeated token fails the listing; both pages' rules are stored.
 func TestScanXRayIndexingRules_RepeatedTokenFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := 0
 	total, err := scanXRayIndexingRulesWith(t, st, map[string]func(in any) (any, error){
@@ -209,6 +214,7 @@ func TestScanXRayIndexingRules_RepeatedTokenFails(t *testing.T) {
 
 // A denial warns once; one after a page keeps the rules already listed.
 func TestScanXRayIndexingRules_AccessDenied(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		deny func(in *xray.GetIndexingRulesInput) bool
@@ -243,6 +249,7 @@ func TestScanXRayIndexingRules_AccessDenied(t *testing.T) {
 }
 
 func TestScanXRayIndexingRules_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, err := scanXRayIndexingRulesWith(t, st, map[string]func(in any) (any, error){
 		"GetIndexingRules": func(any) (any, error) { return nil, apiErr("SomeOtherException", "bad") },
@@ -257,6 +264,7 @@ func TestScanXRayIndexingRules_OtherErrorPropagates(t *testing.T) {
 
 // InvalidRequestException on the first page warns once and stores nothing.
 func TestScanXRayIndexingRules_FirstPageInvalidRequestWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, xrayGetIndexingRulesOp)
 	total, err := scanXRayIndexingRulesWith(t, st, map[string]func(in any) (any, error){
@@ -273,6 +281,7 @@ func TestScanXRayIndexingRules_FirstPageInvalidRequestWarns(t *testing.T) {
 // InvalidRequestException on a later page answers disco's echoed NextToken,
 // so it fails the phase like any other mid-pagination error.
 func TestScanXRayIndexingRules_LaterPageInvalidRequestFails(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, xrayGetIndexingRulesOp)
 	_, err := scanXRayIndexingRulesWith(t, st, map[string]func(in any) (any, error){
@@ -295,6 +304,7 @@ func TestScanXRayIndexingRules_LaterPageInvalidRequestFails(t *testing.T) {
 }
 
 func TestScanXRay_StoresIndexingRules(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanXRayTopLevel(t, st, xrayHandlers())
 	if err != nil {
@@ -312,6 +322,7 @@ func TestScanXRay_StoresIndexingRules(t *testing.T) {
 // An older phase's failure does not skip the indexing-rule phase, and the
 // indexing-rule phase's failure keeps the older phases' rows.
 func TestScanXRay_PhasesIndependent(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		failOp    string
 		wantTotal int
@@ -343,6 +354,7 @@ func TestScanXRay_PhasesIndependent(t *testing.T) {
 // A phase's transient error is demoted to one warning under its op instead of
 // buried in the other phase's hard error.
 func TestScanXRay_TransientPhaseDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, transientOp, hardOp, warnOp string
 	}{

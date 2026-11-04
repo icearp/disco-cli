@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveDSQLClusterKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -25,6 +26,7 @@ func TestResolveDSQLClusterKMS(t *testing.T) {
 }
 
 func TestResolveDSQLClusterKMS_NoEncryption(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeDSQLCluster,
@@ -35,6 +37,7 @@ func TestResolveDSQLClusterKMS_NoEncryption(t *testing.T) {
 }
 
 func TestResolveDSQLStreamCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -51,6 +54,7 @@ func TestResolveDSQLStreamCluster(t *testing.T) {
 }
 
 func TestResolveDSQLStreamCluster_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	streamARN := "arn:aws:dsql:us-east-1:" + testAccountID + ":cluster/abc123/stream/s-1"

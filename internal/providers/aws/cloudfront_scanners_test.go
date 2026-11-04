@@ -298,6 +298,7 @@ func cfMonitoringARN(suffix string) string { return cfDistARN(suffix) + "/monito
 // distributions are listed once, and the monitoring subscription of each
 // stored one is read. No error or warning.
 func TestScanCloudFront_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newCFCalls()
@@ -377,6 +378,7 @@ func TestScanCloudFront_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanCloudFront_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCFCalls()
 	if _, _, err := cfScan(context.Background(), st, cfHandlers(calls)); err != nil {
@@ -398,6 +400,7 @@ func TestScanCloudFront_RescanInsertsNone(t *testing.T) {
 // retries keeps it and is a transient error; InvalidArgument keeps it and is
 // a hard error. Each outcome holds for a row of every tagged kind.
 func TestScanCloudFront_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, k := range cfKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			arn := cfARN(k, "tagged")
@@ -463,6 +466,7 @@ func TestScanCloudFront_TagReadFailures(t *testing.T) {
 // Denied tag reads in two listings, which run as separate families, send one
 // warning for the whole scan, counting every denied row; the rows are kept.
 func TestScanCloudFront_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, cfTagsOp)
 	calls := newCFCalls()
@@ -524,6 +528,7 @@ func (g *cfGatedTags) listTags(any) (any, error) {
 // The tag reads of every family share one bound of fanoutMed, though each
 // family's readRowTags alone would allow fanoutMed.
 func TestScanCloudFront_TagReadsShareOneBound(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	gate := &cfGatedTags{over: make(chan struct{})}
 	handlers := cfHandlers(newCFCalls())
@@ -544,6 +549,7 @@ func TestScanCloudFront_TagReadsShareOneBound(t *testing.T) {
 // is kept untagged without a warning or an error. The same failures for this
 // account's VPC origin still warn or drop the row.
 func TestScanCloudFront_OtherAccountVpcOriginKeptUntagged(t *testing.T) {
+	t.Parallel()
 	const other = "210987654321"
 	shared := cfARNIn("aws", other, "vpcorigin/shared")
 	for _, c := range []struct {
@@ -594,6 +600,7 @@ func TestScanCloudFront_OtherAccountVpcOriginKeptUntagged(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op in another
 // family is demoted to one warning, so the hard error decides the outcome.
 func TestScanCloudFront_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, cfTagsOp)
 	calls := newCFCalls()
@@ -612,6 +619,7 @@ func TestScanCloudFront_TagThrottleDemotedBesideHardError(t *testing.T) {
 // type; every other listing still runs. Denied distributions leave no parent
 // for the monitoring subscriptions.
 func TestScanCloudFront_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, k := range cfKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -651,6 +659,7 @@ func TestScanCloudFront_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // it silently; a denial warns once under the op; any other error is returned
 // with every row kept.
 func TestScanCloudFront_MonitoringSubscriptionFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -699,6 +708,7 @@ func TestScanCloudFront_MonitoringSubscriptionFailures(t *testing.T) {
 // A distribution the tag read drops as deleted is not a parent: its
 // monitoring subscription is not read.
 func TestScanCloudFront_DroppedDistributionHasNoMonitoringRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCFCalls()
 	calls.errs[cfDistARN("tagged")] = cfNotFound
@@ -715,6 +725,7 @@ func TestScanCloudFront_DroppedDistributionHasNoMonitoringRead(t *testing.T) {
 // its family stops, so the lost distributions' subscriptions are not read,
 // while every other family's rows are stored.
 func TestScanCloudFront_FailedWriteKeepsOtherFamilies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeCloudFrontDistribution)
@@ -742,6 +753,7 @@ func TestScanCloudFront_FailedWriteKeepsOtherFamilies(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the other listings.
 func TestScanCloudFront_ListFailureKeepsPagesAndOtherFamilies(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := cfHandlers(newCFCalls())
 	k := cfKindOf(t, "ListDistributionTenants")
@@ -766,6 +778,7 @@ func TestScanCloudFront_ListFailureKeepsPagesAndOtherFamilies(t *testing.T) {
 
 // A repeated marker ends the listing as an error, keeping its pages.
 func TestScanCloudFront_RepeatedMarkerKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := cfHandlers(newCFCalls())
 	k := cfKindOf(t, "ListKeyValueStores")
@@ -797,6 +810,7 @@ func TestScanCloudFront_RepeatedMarkerKeepsPages(t *testing.T) {
 // sent to the tag op, and a distribution without one is no monitoring
 // parent.
 func TestScanCloudFront_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, k := range cfKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -832,6 +846,7 @@ func TestScanCloudFront_ElementWithoutARNWarns(t *testing.T) {
 // A function without FunctionMetadata has no ARN, and an element with
 // neither ARN nor name is named by a fixed text.
 func TestScanCloudFront_ElementWithoutIdentifiers(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, key string
 		out     any
@@ -914,6 +929,7 @@ func cfJSON(t *testing.T, doc string) any {
 // stage only is stored as its summary alone. An ARN listed twice in
 // DEVELOPMENT, which the API does not do, is stored as its first entry.
 func TestScanCloudFront_FunctionStagesStoredOnce(t *testing.T) {
+	t.Parallel()
 	for _, c := range cfStageCases() {
 		for _, liveFirst := range []bool{true, false} {
 			t.Run(fmt.Sprintf("%s/live first %v", c.op, liveFirst), func(t *testing.T) {
@@ -974,6 +990,7 @@ func TestScanCloudFront_FunctionStagesStoredOnce(t *testing.T) {
 // Listed functions without an ARN are not stored and are warned about once
 // under their op, scoped to the account's global region.
 func TestScanCloudFront_FunctionsWithoutARNWarned(t *testing.T) {
+	t.Parallel()
 	for _, c := range cfStageCases() {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -1011,6 +1028,7 @@ func cfPairArnStage(e cfPairEntry) (string, cftypes.FunctionStage) { return e.ar
 // stage silently, records every other further entry of an ARN as not
 // stored, keyed by the ARN, and makes each entry without an ARN its own row.
 func TestCFOneRowPerARN_Entries(t *testing.T) {
+	t.Parallel()
 	const live, dev = cftypes.FunctionStageLive, cftypes.FunctionStageDevelopment
 	for _, c := range []struct {
 		name      string
@@ -1058,6 +1076,7 @@ func TestCFOneRowPerARN_Entries(t *testing.T) {
 // An aws-cn account's rows are sent to the tag op under the ARNs the
 // listings return, in the aws-cn partition.
 func TestScanCloudFront_TagReadInAccountPartition(t *testing.T) {
+	t.Parallel()
 	acct := partitionAccount("aws-cn")
 	st := newTestStore(t)
 	calls := newCFCalls()
@@ -1096,6 +1115,7 @@ func TestScanCloudFront_TagReadInAccountPartition(t *testing.T) {
 
 // ctx's end is one member of the error, though several families saw it.
 func TestScanCloudFront_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := cfHandlers(newCFCalls())
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1129,6 +1149,7 @@ func TestScanCloudFront_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanCloudFront_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "cloudfront.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

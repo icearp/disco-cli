@@ -8,6 +8,7 @@ import (
 )
 
 func TestSFNStateMachineARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:states:us-east-1:123:stateMachine:my-sm:PROD", "arn:aws:states:us-east-1:123:stateMachine:my-sm"},
 		{"arn:aws:states:us-east-1:123:stateMachine:my-sm:3", "arn:aws:states:us-east-1:123:stateMachine:my-sm"},
@@ -22,6 +23,7 @@ func TestSFNStateMachineARNFromChild(t *testing.T) {
 }
 
 func TestResolveSFNChildrenToStateMachine(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	smARN := fmt.Sprintf("arn:aws:states:%s:%s:stateMachine:my-sm", testRegion, acct.ID)

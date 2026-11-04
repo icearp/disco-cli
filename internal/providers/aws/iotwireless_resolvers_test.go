@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveIoTWirelessDestinationRole(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/iotw-role", acct.ID)
@@ -23,6 +24,7 @@ func TestResolveIoTWirelessDestinationRole(t *testing.T) {
 }
 
 func TestResolveIoTWirelessDeviceToDestination(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := fmt.Sprintf("arn:aws:iotwireless:%s:%s:Destination/myDest", testRegion, acct.ID)

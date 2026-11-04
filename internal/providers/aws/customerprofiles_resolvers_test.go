@@ -9,6 +9,7 @@ import (
 )
 
 func TestCPDomainARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:profile:us-east-1:123:domains/d1/object-types/ot1", "arn:aws:profile:us-east-1:123:domains/d1"},
 		{"arn:aws:profile:us-east-1:123:domains/d1", ""},
@@ -22,6 +23,7 @@ func TestCPDomainARNFromChild(t *testing.T) {
 }
 
 func TestResolveCustomerProfilesChildrenToDomain(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := fmt.Sprintf("arn:aws:profile:%s:%s:domains/d1", testRegion, acct.ID)
@@ -36,6 +38,7 @@ func TestResolveCustomerProfilesChildrenToDomain(t *testing.T) {
 }
 
 func TestResolveCustomerProfilesPluralChildrenToDomain(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dARN := fmt.Sprintf("arn:aws:profile:%s:%s:domains/d1", testRegion, acct.ID)
@@ -65,6 +68,7 @@ func TestResolveCustomerProfilesPluralChildrenToDomain(t *testing.T) {
 }
 
 func TestResolveCPDomainRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -90,6 +94,7 @@ func TestResolveCPDomainRefs(t *testing.T) {
 // ListDomains element (GetDomain denied or throttled) resolves without error
 // and gets no edges, though a key and queue exist to point at.
 func TestResolveCPDomainRefs_ListDomainsElement(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attrs := mustJSON(cptypes.ListDomainItem{DomainName: ptrStr("dom1"), Tags: map[string]string{"team": "crm"}})

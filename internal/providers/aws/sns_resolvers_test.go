@@ -9,6 +9,7 @@ import (
 
 // TestResolveSNSTopicRelationships_KMSAndDLQ verifies KMS and SQS DLQ edges.
 func TestResolveSNSTopicRelationships_KMSAndDLQ(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -42,6 +43,7 @@ func TestResolveSNSTopicRelationships_KMSAndDLQ(t *testing.T) {
 // TestResolveSNSTopicRelationships_AWSManagedKey verifies the AWS-managed SNS
 // default key (alias/aws/sns) is skipped.
 func TestResolveSNSTopicRelationships_AWSManagedKey(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -62,6 +64,7 @@ func TestResolveSNSTopicRelationships_AWSManagedKey(t *testing.T) {
 
 // TestRedrivePolicyDLQ verifies the RedrivePolicy JSON parser.
 func TestRedrivePolicyDLQ(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		in, want string
 	}{

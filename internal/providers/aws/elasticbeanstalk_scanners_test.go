@@ -120,6 +120,7 @@ func ebScan(st *store.Store, h map[string]func(in any) (any, error)) (int, int, 
 // and version listings are sent MaxRecords 1000; the platform listing is
 // sent none, and filters on PlatformOwner = self.
 func TestScanElasticBeanstalk_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tagWarns := bacWarnings(st, beanstalkTagsOp)
 	c := newEBTagCalls()
@@ -181,6 +182,7 @@ func TestScanElasticBeanstalk_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanElasticBeanstalk_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := ebScan(st, newEBTagCalls().handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -196,6 +198,7 @@ func TestScanElasticBeanstalk_RescanInsertsNone(t *testing.T) {
 
 // Empty listings store nothing, read no tags and describe no template.
 func TestScanElasticBeanstalk_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	c := newEBTagCalls()
 	h := c.handlers()
@@ -219,6 +222,7 @@ func TestScanElasticBeanstalk_EmptyListings(t *testing.T) {
 // and warns once under the tag op naming it; a throttle keeps it and is
 // transient; any other error keeps it and is an error.
 func TestScanElasticBeanstalk_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	const noErr serviceOutcome = -1
 	type tagCase struct {
 		name      string
@@ -285,6 +289,7 @@ func TestScanElasticBeanstalk_TagReadFailures(t *testing.T) {
 // Denied tag reads in three phases send one warning for the whole scan,
 // naming the first denied row; the rows are kept untagged.
 func TestScanElasticBeanstalk_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := bacWarnings(st, beanstalkTagsOp)
 	c := newEBTagCalls()
@@ -310,6 +315,7 @@ func TestScanElasticBeanstalk_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanElasticBeanstalk_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, beanstalkTagsOp)
 	c := newEBTagCalls()
@@ -327,6 +333,7 @@ func TestScanElasticBeanstalk_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the scan: no later phase runs and no warning is sent
 // about rows the write lost; the applications stored before it stay.
 func TestScanElasticBeanstalk_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeBeanstalkEnvironment)
@@ -380,6 +387,7 @@ var ebPagedTypes = map[string]string{
 // A listing's failed second page keeps the first page, tagged, and its
 // error does not stop the later phases.
 func TestScanElasticBeanstalk_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for op, page := range ebPages {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -408,6 +416,7 @@ func TestScanElasticBeanstalk_ListFailureKeepsPagesAndLaterPhases(t *testing.T) 
 
 // A repeated token ends a listing as an error, keeping its pages.
 func TestScanElasticBeanstalk_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for op, page := range ebPages {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -431,6 +440,7 @@ func TestScanElasticBeanstalk_RepeatedTokenKeepsPages(t *testing.T) {
 // warned about once under its listing, named by its name or by the fallback
 // text when it has none; its siblings are stored.
 func TestScanElasticBeanstalk_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, typ, key string
 		answer       any
@@ -483,6 +493,7 @@ func TestScanElasticBeanstalk_ElementWithoutARNWarns(t *testing.T) {
 // An application stored without a name is warned about once, as stored
 // without its templates, and its templates are not described.
 func TestScanElasticBeanstalk_ApplicationWithoutNameWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := bacWarnings(st, "elasticbeanstalk:DescribeApplications")
 	c := newEBTagCalls()
@@ -509,6 +520,7 @@ func TestScanElasticBeanstalk_ApplicationWithoutNameWarns(t *testing.T) {
 // A terminated environment and a deleted platform version are stored
 // untagged and never sent to the tag op; their live siblings are read.
 func TestScanElasticBeanstalk_DeletedRowsNotRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	c := newEBTagCalls()
 	h := c.handlers()
@@ -546,6 +558,7 @@ func TestScanElasticBeanstalk_DeletedRowsNotRead(t *testing.T) {
 // Reference format configurationtemplate/${ApplicationName}/${TemplateName}
 // in the account's partition and region.
 func TestScanElasticBeanstalk_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -590,6 +603,7 @@ func TestScanElasticBeanstalk_TagReadsKeepPartitionARNs(t *testing.T) {
 // is a denial: no error, one warning under the op, no platform row, and the
 // phase after it still runs.
 func TestScanElasticBeanstalk_PlatformListingInsufficientPrivileges(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := bacWarnings(st, "elasticbeanstalk:ListPlatformVersions")
 	h := newEBTagCalls().handlers()
@@ -617,6 +631,7 @@ func TestScanElasticBeanstalk_PlatformListingInsufficientPrivileges(t *testing.T
 // read's of a template row. The throttled template's error joins the
 // write's instead of being demoted to a warning beside it.
 func TestScanElasticBeanstalk_FailedTemplateWriteSendsNoWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeBeanstalkConfigurationTemplate)
@@ -651,6 +666,7 @@ func TestScanElasticBeanstalk_FailedTemplateWriteSendsNoWarning(t *testing.T) {
 // applications are stored, an NXDOMAIN from a later listing or a tag read
 // fails the scan and keeps the stored rows' counts.
 func TestScanElasticBeanstalk_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "elasticbeanstalk.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("nothing stored", func(t *testing.T) {
 		st := newTestStore(t)
@@ -696,6 +712,7 @@ func TestScanElasticBeanstalk_NXDOMAIN(t *testing.T) {
 // once, so the template listed last, whose ARN is the smallest, is described
 // only after an earlier describe returned and was tallied.
 func TestScanElasticBeanstalk_TemplateTalliesNameSmallestARN(t *testing.T) {
+	t.Parallel()
 	const smallest = "arn:aws:elasticbeanstalk:us-east-1:123456789012:configurationtemplate/app/base"
 	web := make([]string, fanoutMed)
 	for i := range web {

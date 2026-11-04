@@ -67,6 +67,7 @@ func runECRRepos(t *testing.T, st *store.Store, repos []ecrtypes.Repository, tag
 // Each repository is stored with the tags ListTagsForResource returns for its
 // own ARN, or none.
 func TestScanECRRepositories_StoresTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	tags := &ecrTagCalls{tags: map[string][]ecrtypes.Tag{
 		ecrRepoARN("tagged"): {{Key: ptrStr("env"), Value: ptrStr("prod")}},
@@ -99,6 +100,7 @@ func TestScanECRRepositories_StoresTags(t *testing.T) {
 // longer finds, which is not stored and not handed on; a denial warns once,
 // a transient error and any other error are returned.
 func TestScanECRRepositories_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		err      error
@@ -161,6 +163,7 @@ func TestScanECRRepositories_TagReadFailures(t *testing.T) {
 // A repository without an ARN is warned about and not stored, rather than
 // stored under an empty NativeID.
 func TestScanECRRepositories_EmptyARNNotStored(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnText := recordWarnings(st)
 	warns := countOpWarnings(st, ecrRepositoriesOp)
@@ -184,6 +187,7 @@ func TestScanECRRepositories_EmptyARNNotStored(t *testing.T) {
 // A failed DescribeRepositories page keeps the repositories read before it,
 // counted, and returns its error.
 func TestScanECRRepositories_FailedPageKeepsEarlierPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	client := ecr.NewFromConfig(opStubConfig(map[string]func(in any) (any, error){
 		"DescribeRepositories": func(in any) (any, error) {
@@ -207,6 +211,7 @@ func TestScanECRRepositories_FailedPageKeepsEarlierPages(t *testing.T) {
 // A phase's hard error does not stop the phases after it: the scanning
 // configurations are still read after the pull-through-cache rules fail.
 func TestScanECR_PhaseErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(map[string]func(in any) (any, error){
@@ -227,6 +232,7 @@ func TestScanECR_PhaseErrorRunsLaterPhases(t *testing.T) {
 
 // A failed repository write stops the scan: no later phase is called.
 func TestScanECR_FailedRepositoryWriteStops(t *testing.T) {
+	t.Parallel()
 	st, closeStore := openClosingStore(t)
 	acct := newTestAccount(testAccountID)
 	called := false
@@ -252,6 +258,7 @@ func TestScanECR_FailedRepositoryWriteStops(t *testing.T) {
 // A tag read error in the repository phase does not stop the later phases:
 // the pull-through-cache rules are still stored and the error is returned.
 func TestScanECR_TagReadErrorRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tags := &ecrTagCalls{errs: map[string]error{ecrRepoARN("a"): apiErr("InvalidParameterException", "bad")}}
@@ -301,6 +308,7 @@ func (c *ecrPhaseCalls) called(op string) bool {
 // called. closeStore runs inside the failing phase's call, after the earlier
 // phases stored their rows.
 func TestScanECR_FailedLaterWriteStops(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name, failingOp string
 		later           []string
@@ -351,6 +359,7 @@ func TestScanECR_FailedLaterWriteStops(t *testing.T) {
 // from that op, beside another phase's hard error, is demoted to one warning
 // under exactly that label.
 func TestScanECR_PhaseLabelsNameTheirCalls(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	for _, label := range []string{
 		ecrRepositoriesOp, ecrListTagsOp,
@@ -402,6 +411,7 @@ func TestScanECR_PhaseLabelsNameTheirCalls(t *testing.T) {
 // attributes, keeps the rows read before a failed page, warns once about an
 // item without its identifier, and asks for the model's page cap.
 func TestScanECRPrivateLists_FailedPageAndEmptyIDs(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		op, typ                   string
 		wantID, wantName, attrKey string

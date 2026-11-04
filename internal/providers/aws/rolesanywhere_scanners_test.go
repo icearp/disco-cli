@@ -254,6 +254,7 @@ func raJSONValue(t *testing.T, v any) map[string]any {
 // none). ListTagsForResource is sent exactly the ARNs of every row; no
 // listing is sent a PageSize. No error, no warning.
 func TestScanRolesAnywhere_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newRATestCalls()
@@ -312,6 +313,7 @@ func TestScanRolesAnywhere_StoresTagsOfEveryType(t *testing.T) {
 // A subject listed without a SubjectId is named by its ARN, the only other
 // identifier SubjectSummary carries, so the row keeps a non-empty Name.
 func TestScanRolesAnywhere_SubjectWithoutIDNamedByARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newRATestCalls()
 	handlers := raTestHandlers(calls)
@@ -346,6 +348,7 @@ func raStoredWithTags(st *store.Store, arn string) bool {
 // Every listing writes its first page, with its tags, before it reads the
 // second.
 func TestScanRolesAnywhere_PagesWrittenAsRead(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := raTestHandlers(newRATestCalls())
 	var (
@@ -376,6 +379,7 @@ func TestScanRolesAnywhere_PagesWrittenAsRead(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanRolesAnywhere_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := raTestScan(context.Background(), st, raTestHandlers(newRATestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -392,6 +396,7 @@ func TestScanRolesAnywhere_RescanInsertsNone(t *testing.T) {
 // Empty listings: each listed once, nothing stored, no tag read, no error,
 // no warning.
 func TestScanRolesAnywhere_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newRATestCalls()
@@ -431,6 +436,7 @@ func TestScanRolesAnywhere_Empty(t *testing.T) {
 // untagged and warns once under the tag op with the scan's scope; a throttle
 // keeps it and is transient; any other error keeps it and is an error.
 func TestScanRolesAnywhere_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagFailure struct {
 		name      string
 		op        string
@@ -501,6 +507,7 @@ func TestScanRolesAnywhere_TagReadFailures(t *testing.T) {
 // Denied tag reads in three phases send one warning for the whole scan; the
 // rows are kept.
 func TestScanRolesAnywhere_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newRATestCalls()
@@ -523,6 +530,7 @@ func TestScanRolesAnywhere_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanRolesAnywhere_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "rolesanywhere:ListTagsForResource")
 	calls := newRATestCalls()
@@ -541,6 +549,7 @@ func TestScanRolesAnywhere_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanRolesAnywhere_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeRolesAnywhereProfile)
@@ -570,6 +579,7 @@ func TestScanRolesAnywhere_FailedWriteStopsScan(t *testing.T) {
 // A denied tag read is still warned about when a later phase fails: its row
 // was stored, so the scan's error does not hide why it has no tags.
 func TestScanRolesAnywhere_TagDenialWarnedBesideLaterFailure(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name string
 		fail func(t *testing.T, st *store.Store, calls *raTestCalls, handlers map[string]func(any) (any, error))
@@ -635,6 +645,7 @@ func TestScanRolesAnywhere_TagDenialWarnedBesideLaterFailure(t *testing.T) {
 // does not stop the other phases. Every listing's first page denied is
 // warned about under its op, and the other phases run too.
 func TestScanRolesAnywhere_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	type listFailure struct {
 		name      string
 		op        string
@@ -705,6 +716,7 @@ func TestScanRolesAnywhere_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // A repeated NextToken ends the listing as an error, keeping its pages, and
 // the later phases run.
 func TestScanRolesAnywhere_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newRATestCalls()
 	handlers := raTestHandlers(calls)
@@ -735,6 +747,7 @@ func TestScanRolesAnywhere_RepeatedTokenKeepsPages(t *testing.T) {
 // by its SubjectId); the rest of the listing is stored. raRow's own test pins
 // the noun the warning names the listing's elements by.
 func TestScanRolesAnywhere_ElementWithoutARN(t *testing.T) {
+	t.Parallel()
 	for _, k := range raTestKinds() {
 		t.Run(k.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -778,6 +791,7 @@ func TestScanRolesAnywhere_ElementWithoutARN(t *testing.T) {
 // In GovCloud and China the listed ARN of every row is its NativeID and
 // reaches the tag op unchanged.
 func TestScanRolesAnywhere_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -810,6 +824,7 @@ func TestScanRolesAnywhere_TagReadsKeepPartitionARNs(t *testing.T) {
 // run, although the phase in flight saw it in its listing; the later phases
 // are not run, and the rows written before the stop stay stored.
 func TestScanRolesAnywhere_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newRATestCalls()
 	handlers := raTestHandlers(calls)
@@ -858,6 +873,7 @@ func TestScanRolesAnywhere_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later phase runs.
 func TestScanRolesAnywhere_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "rolesanywhere.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -904,6 +920,7 @@ func TestScanRolesAnywhere_NXDOMAIN(t *testing.T) {
 // as its attributes. One without an ARN is no row; its warning names the
 // type's elements and keys it by name, or by noIdentifier without one.
 func TestRARow(t *testing.T) {
+	t.Parallel()
 	acct := newTestAccount(testAccountID)
 	for _, k := range raTestKinds() {
 		arn := k.arn("x")

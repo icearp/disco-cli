@@ -13,6 +13,7 @@ import (
 // rows carry their listed element's Tags, and that an untagged element stores
 // none.
 func TestScanSnowDeviceManagement_ReadsTags(t *testing.T) {
+	t.Parallel()
 	const (
 		devTagged    = "arn:aws:snow-device-management:us-east-1:123456789012:managed-device/smd-1"
 		devUntagged  = "arn:aws:snow-device-management:us-east-1:123456789012:managed-device/smd-2"

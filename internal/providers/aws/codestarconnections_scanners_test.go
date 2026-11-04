@@ -253,6 +253,7 @@ func cscSyncStored(t *testing.T, st *store.Store) []string {
 // ListSyncConfigurations is sent each link id with CFN_STACK_SYNC. No error,
 // no warning.
 func TestScanCodeStarConnections_StoresEveryRow(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls cscCalls
@@ -372,6 +373,7 @@ func TestScanCodeStarConnections_StoresEveryRow(t *testing.T) {
 
 // A rescan stores the same rows and inserts none: the tags read are the same.
 func TestScanCodeStarConnections_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls cscCalls
 	if _, _, err := cscScan(context.Background(), st, cscHandlers(&calls)); err != nil {
@@ -389,6 +391,7 @@ func TestScanCodeStarConnections_RescanInsertsNone(t *testing.T) {
 // A region with no connection, host or repository link stores nothing, reads
 // no tags and lists no sync configuration.
 func TestScanCodeStarConnections_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls cscCalls
@@ -420,6 +423,7 @@ func TestScanCodeStarConnections_Empty(t *testing.T) {
 // warns once under the tag op with the scan's scope; a throttle keeps it and
 // is transient; any other error keeps it and is an error.
 func TestScanCodeStarConnections_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		arn, typ  string
@@ -484,6 +488,7 @@ func TestScanCodeStarConnections_TagReadFailures(t *testing.T) {
 // Denied tag reads in every phase send one warning for the whole scan; the
 // rows are kept.
 func TestScanCodeStarConnections_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := cscCalls{tagErrs: map[string]error{cscTestConnB: cscDenied, cscTestHostA: cscDenied, cscTestLinkC: cscDenied}}
@@ -502,6 +507,7 @@ func TestScanCodeStarConnections_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanCodeStarConnections_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, cscListTagsForResourceOp)
 	calls := cscCalls{tagErrs: map[string]error{cscTestConnA: cscThrottle, cscTestLinkC: cscBadInput}}
@@ -516,6 +522,7 @@ func TestScanCodeStarConnections_TagThrottleDemotedBesideHardError(t *testing.T)
 // A throttled sync configuration listing beside a hard tag error is demoted
 // to one warning keyed by its own op, so the hard error decides the outcome.
 func TestScanCodeStarConnections_SyncThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := cscCalls{
@@ -534,6 +541,7 @@ func TestScanCodeStarConnections_SyncThrottleDemotedBesideHardError(t *testing.T
 // phases still run; a repository link on the lost page has no sync
 // configuration read.
 func TestScanCodeStarConnections_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op        string
 		kept      []string // every connection, host and link stored
@@ -573,6 +581,7 @@ func TestScanCodeStarConnections_ListFailureKeepsPagesAndLaterPhases(t *testing.
 // A denied listing warns once under its op and is not an error; its first
 // page, when it was read, is kept, and the later phases still run.
 func TestScanCodeStarConnections_ListDeniedWarnsAndContinues(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op        string
 		page      int // the page denied
@@ -617,6 +626,7 @@ func TestScanCodeStarConnections_ListDeniedWarnsAndContinues(t *testing.T) {
 // unmodeled ValidationException are errors. Every other link's rows are
 // stored, the earlier pages of a link that fails mid-listing included.
 func TestScanCodeStarConnections_SyncListingErrors(t *testing.T) {
+	t.Parallel()
 	validation := apiErr("ValidationException", "bad")
 	for _, c := range []struct {
 		name      string
@@ -683,6 +693,7 @@ func TestScanCodeStarConnections_SyncListingErrors(t *testing.T) {
 // lost (a denied tag read, or for sync configurations a denied link, among
 // them), no later phase runs, and the earlier phases' rows stay counted.
 func TestScanCodeStarConnections_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		typ        string
 		tagErrs    map[string]error
@@ -722,6 +733,7 @@ func TestScanCodeStarConnections_FailedWriteStopsScan(t *testing.T) {
 // Each listing writes a page before it reads the next: the first page's row
 // is stored when the second page is requested.
 func TestScanCodeStarConnections_WritesEachPageBeforeTheNext(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls cscCalls
 	h := cscHandlers(&calls)
@@ -754,6 +766,7 @@ func TestScanCodeStarConnections_WritesEachPageBeforeTheNext(t *testing.T) {
 // A repeated NextToken ends each listing as an error, keeping its pages; the
 // later phases still run.
 func TestScanCodeStarConnections_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListConnections", "ListHosts", "ListRepositoryLinks", "ListSyncConfigurations"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -801,6 +814,7 @@ func TestScanCodeStarConnections_RepeatedTokenKeepsPages(t *testing.T) {
 // their tags read. A repository link without a RepositoryLinkId is stored,
 // warned about once, and has no sync configuration read.
 func TestScanCodeStarConnections_ElementWithoutIdentifier(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	var calls cscCalls
@@ -854,6 +868,7 @@ func TestScanCodeStarConnections_ElementWithoutIdentifier(t *testing.T) {
 // A GovCloud or China ARN reaches the tag op unchanged, and a sync
 // configuration's NativeID is built in the account's partition.
 func TestScanCodeStarConnections_PartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			arns := map[string]string{
@@ -905,6 +920,7 @@ func TestScanCodeStarConnections_PartitionARNs(t *testing.T) {
 // Once ctx ends, the stop is one member of the error, although the phase in
 // flight saw it in its listing, and the later phases are not run.
 func TestScanCodeStarConnections_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls cscCalls
 	h := cscHandlers(&calls)
@@ -941,6 +957,7 @@ func TestScanCodeStarConnections_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanCodeStarConnections_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "codestar-connections.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

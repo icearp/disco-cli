@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveComprehendDocumentClassifierRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/comp", acct.ID)
@@ -34,6 +35,7 @@ func TestResolveComprehendDocumentClassifierRefs(t *testing.T) {
 }
 
 func TestResolveComprehendEntityRecognizerRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/comp", acct.ID)
@@ -70,6 +72,7 @@ func TestResolveComprehendEntityRecognizerRefs(t *testing.T) {
 }
 
 func TestResolveComprehendEntityRecognizerRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	erARN := fmt.Sprintf("arn:aws:comprehend:%s:%s:entity-recognizer/er1", testRegion, acct.ID)
@@ -83,6 +86,7 @@ func TestResolveComprehendEntityRecognizerRefs_NoAttrs(t *testing.T) {
 }
 
 func TestResolveComprehendEndpointRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dcARN := fmt.Sprintf("arn:aws:comprehend:%s:%s:document-classifier/dc1", testRegion, acct.ID)
@@ -112,6 +116,7 @@ func TestResolveComprehendEndpointRefs(t *testing.T) {
 }
 
 func TestResolveComprehendEndpointRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	epARN := fmt.Sprintf("arn:aws:comprehend:%s:%s:document-classifier-endpoint/ep1", testRegion, acct.ID)
@@ -125,6 +130,7 @@ func TestResolveComprehendEndpointRefs_NoAttrs(t *testing.T) {
 }
 
 func TestResolveComprehendFlywheelRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dcARN := fmt.Sprintf("arn:aws:comprehend:%s:%s:document-classifier/dc1", testRegion, acct.ID)

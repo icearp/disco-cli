@@ -225,6 +225,7 @@ func assertRSRow(t *testing.T, row store.Resource, name *string, attrs any, want
 }
 
 func TestScanRefactorSpaces_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newRSCalls()
 	total, warns, err := scanRSTopLevel(t, st, nil, calls)
@@ -271,6 +272,7 @@ func TestScanRefactorSpaces_StoresEveryTypeWithTags(t *testing.T) {
 // A failed page two keeps the rows read before it, the error is returned, and
 // every later phase still runs over the parents stored.
 func TestScanRefactorSpaces_FailedPageKeepsRowsAndRunsLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, parent string
 		want       map[string][]string
@@ -300,6 +302,7 @@ func TestScanRefactorSpaces_FailedPageKeepsRowsAndRunsLaterPhases(t *testing.T) 
 // parent gone since it was listed is skipped silently, and neither is an
 // error; the other phases keep their rows.
 func TestScanRefactorSpaces_DeniedOrGoneParents(t *testing.T) {
+	t.Parallel()
 	without := func(typs ...string) map[string][]string {
 		out := map[string][]string{}
 		for typ, ids := range rfsAllRows {
@@ -352,6 +355,7 @@ func TestScanRefactorSpaces_DeniedOrGoneParents(t *testing.T) {
 // ListEnvironments models ResourceNotFoundException, but with no parent to
 // vanish it is returned, not skipped.
 func TestScanRefactorSpaces_EnvironmentsNotFoundIsAnError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, _, err := scanRSTopLevel(t, st, map[string]map[string]error{"ListEnvironments": {"/": rfsGone}}, newRSCalls())
 	if !isAPIErrorCode(err, "ResourceNotFoundException") {
@@ -362,6 +366,7 @@ func TestScanRefactorSpaces_EnvironmentsNotFoundIsAnError(t *testing.T) {
 // A throttled phase alone leaves the scan transient; beside another phase's
 // hard error it is warned about once and the scan reads as an error.
 func TestScanRefactorSpaces_TransientPhaseBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		hard      bool
@@ -391,6 +396,7 @@ func TestScanRefactorSpaces_TransientPhaseBesideHardError(t *testing.T) {
 // A failed application write stops the scan with no warning claiming the
 // lost rows, and no service or route listing runs for the applications.
 func TestScanRefactorSpaces_ApplicationWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeRefactorSpacesApplication)
 	calls := newRSCalls()

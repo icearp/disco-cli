@@ -33,6 +33,7 @@ func sbUsesTargets(t *testing.T, st *store.Store, from string) []string {
 }
 
 func TestResolveSnowballClusterRelationships_LinksScannedTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	keyARN := "arn:aws:kms:" + testRegion + ":" + testAccountID + ":key/k-1"
 	roleARN := "arn:aws:iam::" + testAccountID + ":role/snow"
@@ -74,6 +75,7 @@ func TestResolveSnowballClusterRelationships_LinksScannedTargets(t *testing.T) {
 // A cluster with no refs gets no edge; a row whose attributes do not decode
 // is reported without costing the other rows their edges.
 func TestResolveSnowballClusterRelationships_NoAttrsAndBadAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	addrID := upsertTestResource(t, st, "aws", testAccountID, TypeSnowballAddress, sbAddressNative("1"), testRegion, "{}")
 	empty := upsertTestResource(t, st, "aws", testAccountID, TypeSnowballCluster, sbClusterNative(testRegion, "1"), testRegion, "{}")

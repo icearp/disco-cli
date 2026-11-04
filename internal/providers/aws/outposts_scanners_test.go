@@ -89,12 +89,14 @@ func opFailFor(h map[string]func(in any) (any, error), outpost string, err error
 }
 
 func TestOutpostsAssetNativeID(t *testing.T) {
+	t.Parallel()
 	if got := outpostsAssetNativeID(opTestOP1, "a1"); got != opTestA1 {
 		t.Errorf("outpostsAssetNativeID = %q, want %q", got, opTestA1)
 	}
 }
 
 func TestScanOutposts_StoresAssets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var assetCalls parentCalls
 	total, err := scanOPTopLevel(t, st, opHandlers(&assetCalls))
@@ -139,6 +141,7 @@ func TestScanOutposts_StoresAssets(t *testing.T) {
 }
 
 func TestScanOutposts_NoAssets(t *testing.T) {
+	t.Parallel()
 	t.Run("no outposts", func(t *testing.T) {
 		st := newTestStore(t)
 		var assetCalls parentCalls
@@ -184,6 +187,7 @@ func TestScanOutposts_NoAssets(t *testing.T) {
 // since it was listed is skipped silently, and a call still failing
 // transiently warns once in summary.
 func TestScanOutposts_AssetParentSkipped(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name     string
 		err      error
@@ -226,6 +230,7 @@ func TestScanOutposts_AssetParentSkipped(t *testing.T) {
 // Any other ListAssets error, a ValidationException included, fails the
 // scan without costing the site and outpost rows stored before it.
 func TestScanOutposts_AssetErrorPropagates(t *testing.T) {
+	t.Parallel()
 	for _, assetErr := range []error{errOPTest, apiErr("ValidationException", "A parameter is not valid.")} {
 		t.Run(assetErr.Error(), func(t *testing.T) {
 			st := newTestStore(t)
@@ -252,6 +257,7 @@ func TestScanOutposts_AssetErrorPropagates(t *testing.T) {
 // A RAM-shared outpost owned by another account is stored, but its assets are
 // the owner's inventory and are not listed.
 func TestScanOutposts_SharedOutpostAssetsNotListed(t *testing.T) {
+	t.Parallel()
 	const foreign = "arn:aws:outposts:us-east-1:210987654321:outpost/op-0123456789abcdef3"
 	st := newTestStore(t)
 	var assetCalls parentCalls
@@ -284,6 +290,7 @@ func TestScanOutposts_SharedOutpostAssetsNotListed(t *testing.T) {
 // A ListOutposts error, even after a page that listed an outpost, returns
 // before the asset phase: the site row is kept and no assets are listed.
 func TestScanOutposts_OutpostErrorStopsAssets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var assetCalls parentCalls
 	h := opHandlers(&assetCalls)
@@ -309,6 +316,7 @@ func TestScanOutposts_OutpostErrorStopsAssets(t *testing.T) {
 // Site and outpost rows carry their own listed element's Tags; an untagged
 // element stores none, and an asset does not inherit its outpost's tags.
 func TestScanOutposts_ReadsTags(t *testing.T) {
+	t.Parallel()
 	const untaggedSite = "arn:aws:outposts:us-east-1:123456789012:site/os-0123456789abcdef9"
 	st := newTestStore(t)
 	var assetCalls parentCalls

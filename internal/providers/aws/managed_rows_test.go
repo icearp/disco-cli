@@ -42,6 +42,7 @@ import (
 // out of default `disco check` input. Each case feeds the scanner the field
 // that marks the default (IsDefault, the name "default", ...).
 func TestDefaultRowsWithCustomerSettingsNotManaged(t *testing.T) {
+	t.Parallel()
 	const acctID = testAccountID
 	arn := func(svc, rest string) string { return "arn:aws:" + svc + ":" + testRegion + ":" + acctID + ":" + rest }
 	denied := &smithy.GenericAPIError{Code: "AccessDeniedException", Message: "not authorized"}

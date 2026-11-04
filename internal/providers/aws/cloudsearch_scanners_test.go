@@ -26,6 +26,7 @@ func (s *stubCloudSearch) DescribeDomains(_ context.Context, _ *cloudsearch.Desc
 // (progress line "(account: not entitled)") and record NO warning — the
 // account can't self-enable it.
 func TestScanCloudSearch_NotEntitled(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warnings int
 	st.OnWarn = func(store.ScanWarning) { warnings++ }

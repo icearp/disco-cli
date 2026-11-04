@@ -250,6 +250,7 @@ func dzRows(t *testing.T, st *store.Store, typ string) map[string]store.Resource
 }
 
 func TestScanDataZoneGovernance_PagesFieldsAndFanout(t *testing.T) {
+	t.Parallel()
 	for _, tc := range dzGovCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -313,6 +314,7 @@ func TestScanDataZoneGovernance_PagesFieldsAndFanout(t *testing.T) {
 }
 
 func TestScanDataZoneGovernance_Empty(t *testing.T) {
+	t.Parallel()
 	for _, tc := range dzGovCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -330,6 +332,7 @@ func TestScanDataZoneGovernance_Empty(t *testing.T) {
 // Denied on every parent: one warning per op, and the fan-out still visits
 // every sibling.
 func TestScanDataZoneGovernance_AccessDeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	for _, tc := range dzGovCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -351,6 +354,7 @@ func TestScanDataZoneGovernance_AccessDeniedWarnsOnce(t *testing.T) {
 }
 
 func TestScanDataZoneGovernance_OtherErrorPropagates(t *testing.T) {
+	t.Parallel()
 	for _, tc := range dzGovCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -366,6 +370,7 @@ func TestScanDataZoneGovernance_OtherErrorPropagates(t *testing.T) {
 // A hard error on one parent is recorded and the fan-out moves on: the rows
 // of the parent listed after it are stored and the error is returned.
 func TestScanDataZoneGovernance_OtherErrorKeepsSiblings(t *testing.T) {
+	t.Parallel()
 	for _, tc := range dzGovCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -387,6 +392,7 @@ func TestScanDataZoneGovernance_OtherErrorKeepsSiblings(t *testing.T) {
 // whose SDK error set models ResourceNotFoundException; elsewhere it is a real
 // error.
 func TestScanDataZoneGovernance_ParentNotFound(t *testing.T) {
+	t.Parallel()
 	for _, tc := range dzGovCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			st := newTestStore(t)
@@ -413,6 +419,7 @@ func TestScanDataZoneGovernance_ParentNotFound(t *testing.T) {
 
 // Denied mid-pagination keeps the rows already read for that parent.
 func TestDzCollect_DeniedMidPagesKeepsItems(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := &dzFanout{st: st, acct: newTestAccount(testAccountID), region: testRegion, op: "datazone:ListRules"}
 	calls := 0
@@ -429,6 +436,7 @@ func TestDzCollect_DeniedMidPagesKeepsItems(t *testing.T) {
 }
 
 func TestScanDataZoneEnvironmentBlueprints_ManagedFlag(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	stub := &stubDZGov{blueprints: map[string][][]dztypes.EnvironmentBlueprintSummary{
@@ -452,6 +460,7 @@ func TestScanDataZoneEnvironmentBlueprints_ManagedFlag(t *testing.T) {
 }
 
 func TestScanDataZoneEnvironmentBlueprints_BothPassesStoredOnceAsManaged(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	dup := []dztypes.EnvironmentBlueprintSummary{{Id: ptrStr("dup")}}
@@ -471,6 +480,7 @@ func TestScanDataZoneEnvironmentBlueprints_BothPassesStoredOnceAsManaged(t *test
 
 // A rule the server returns under two units (cascaded) is stored once.
 func TestScanDataZoneRules_SameRuleUnderTwoUnitsStoredOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	rule := []dztypes.RuleSummary{{Identifier: ptrStr("ru-1")}}
 	stub := &stubDZGov{rules: map[string][][]dztypes.RuleSummary{
@@ -488,6 +498,7 @@ func TestScanDataZoneRules_SameRuleUnderTwoUnitsStoredOnce(t *testing.T) {
 }
 
 func TestScanDataZoneRules_TargetsDomainUnits(t *testing.T) {
+	t.Parallel()
 	stub := &stubDZGov{}
 	if _, _, err := scanDataZoneRules(context.Background(), stub, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID, dzFixtureDomains()); err != nil {
 		t.Fatal(err)
@@ -523,6 +534,7 @@ func (s *stubDZUnits) ListDomainUnitsForParent(_ context.Context, in *datazone.L
 }
 
 func TestScanDataZoneDomainUnits_RecordsUnitIDsIncludingRoot(t *testing.T) {
+	t.Parallel()
 	stub := &stubDZUnits{children: map[string][]string{"root-1": {"du-a"}, "du-a": {"du-b"}}}
 	d := &dzDomain{id: "dom-1", rootUnitID: "root-1"}
 	if _, _, err := scanDataZoneDomainUnits(context.Background(), stub, newTestAccount(testAccountID), testRegion, newTestStore(t), testScanID, []*dzDomain{d}); err != nil {
@@ -550,6 +562,7 @@ func (s *stubDZDomains) GetDomain(context.Context, *datazone.GetDomainInput, ...
 // GetDomain denied: domains are still stored from the list body, the scan
 // continues, and one warning says the root unit (rules) was not walked.
 func TestScanDataZoneDomains_GetDomainDeniedWarnsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := 0
 	st.OnWarn = func(store.ScanWarning) { warnings++ }
@@ -618,6 +631,7 @@ func dzTopLevelResponses() map[string][]stubCall {
 // after rules, subscriptions and grants: an error in either still leaves every
 // earlier phase's rows stored.
 func TestScanDataZone_GovernancePhasesWiredAndOrdered(t *testing.T) {
+	t.Parallel()
 	type row struct{ typ, kind, id string }
 	rule := row{TypeDataZoneRule, "rule", "ru-1"}
 	sub := row{TypeDataZoneSubscription, "subscription", "sub-1"}

@@ -11,6 +11,7 @@ import (
 )
 
 func TestResolveDirectoryServiceVpcRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")
@@ -41,6 +42,7 @@ func dsRelsFrom(t *testing.T, st *store.Store, id string) []store.Relationship {
 }
 
 func TestResolveDSEventTopics_RoutesToScannedTopic(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	topicARN := "arn:aws:sns:" + testRegion + ":" + testAccountID + ":ds-status"
@@ -68,6 +70,7 @@ func TestResolveDSEventTopics_RoutesToScannedTopic(t *testing.T) {
 }
 
 func TestResolveDSLogSubscriptions_RoutesToScannedLogGroup(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	groupID := upsertTestResource(t, st, "aws", acct.ID, TypeLogsLogGroup, logGroupNativeIDFromName(acct.ID, testRegion, "/aws/ds/d-1"), testRegion, "{}")
@@ -90,6 +93,7 @@ func TestResolveDSLogSubscriptions_RoutesToScannedLogGroup(t *testing.T) {
 
 // Rows whose attributes do not decode are reported, not skipped silently.
 func TestResolveDS_UndecodableAttributesReturnError(t *testing.T) {
+	t.Parallel()
 	for name, c := range map[string]struct {
 		typ     string
 		resolve func(*account, *store.Store) error

@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveDAXClusterRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	pgARN := daxARN("aws", testRegion, acct.ID, "parameter-group", "pg1")
@@ -35,6 +36,7 @@ func TestResolveDAXClusterRefs(t *testing.T) {
 }
 
 func TestResolveDAXSubnetGroupRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpcARN := ec2ARN(testRegion, acct.ID, "vpc", "vpc-1")

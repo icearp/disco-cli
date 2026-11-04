@@ -229,6 +229,7 @@ func auibComponentARN(app, n string) string {
 // keeps the base scan's Name, Region and verbatim element, with no Status
 // or CreatedAt.
 func TestScanAmplifyUIBuilder_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newAUIBCalls()
@@ -299,6 +300,7 @@ func TestScanAmplifyUIBuilder_StoresTagsOfEveryType(t *testing.T) {
 // A cn or gov account scanned in its own region builds each ARN in its
 // partition, sends it to the tag op unchanged and stores its tags.
 func TestScanAmplifyUIBuilder_PartitionARNsReachTagOp(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -352,6 +354,7 @@ func TestScanAmplifyUIBuilder_PartitionARNsReachTagOp(t *testing.T) {
 // No apps, or apps whose environments list nothing, store nothing, read no
 // tags and report nothing.
 func TestScanAmplifyUIBuilder_EmptyListings(t *testing.T) {
+	t.Parallel()
 	t.Run("no apps", func(t *testing.T) {
 		st := newTestStore(t)
 		warns := countWarnings(st)
@@ -393,6 +396,7 @@ func TestScanAmplifyUIBuilder_EmptyListings(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanAmplifyUIBuilder_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAUIBCalls()
 	if _, _, err := auibScan(context.Background(), t, st, auibHandlers(calls)); err != nil {
@@ -413,6 +417,7 @@ func TestScanAmplifyUIBuilder_RescanInsertsNone(t *testing.T) {
 // transient error, any other code a hard one; ResourceNotFoundException
 // drops the row.
 func TestScanAmplifyUIBuilder_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	target := auibComponentARN("dt", "t")
 	for _, c := range []struct {
 		name      string
@@ -471,6 +476,7 @@ func TestScanAmplifyUIBuilder_TagReadFailures(t *testing.T) {
 
 // Denied tag reads in several listings are one warning for the scan.
 func TestScanAmplifyUIBuilder_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, auibTagsOp)
 	calls := newAUIBCalls()
@@ -497,6 +503,7 @@ func TestScanAmplifyUIBuilder_TagDenialsWarnOnce(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanAmplifyUIBuilder_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, auibTagsOp)
 	calls := newAUIBCalls()
@@ -516,6 +523,7 @@ func TestScanAmplifyUIBuilder_TagThrottleDemotedBesideHardError(t *testing.T) {
 // UnauthorizedException, which the Amplify ops model as their denial)
 // leaves the entity listings no environment to read.
 func TestScanAmplifyUIBuilder_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op   string
 		err  error
@@ -554,6 +562,7 @@ func TestScanAmplifyUIBuilder_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanAmplifyUIBuilder_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeAmplifyUIBuilderComponent)
@@ -579,6 +588,7 @@ func TestScanAmplifyUIBuilder_FailedWriteStopsWithoutWarning(t *testing.T) {
 // the phases after it. The entity listings model no not-found code, so
 // ResourceNotFoundException is returned like any other code.
 func TestScanAmplifyUIBuilder_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAUIBCalls()
 	h := auibHandlers(calls)
@@ -635,6 +645,7 @@ func TestScanAmplifyUIBuilder_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.
 // environment page, the op refusing an app it does not serve (Gen 2), reads
 // as an app with no environments; after a page it served, it is returned.
 func TestScanAmplifyUIBuilder_ParentListFailures(t *testing.T) {
+	t.Parallel()
 	t.Run("app page 2 throttled", func(t *testing.T) {
 		st := newTestStore(t)
 		opWarns := countOpWarnings(st, auibAppsOp)
@@ -721,6 +732,7 @@ func TestScanAmplifyUIBuilder_ParentListFailures(t *testing.T) {
 // without an EnvironmentName are not stored or read, and are warned about
 // once per listing, under a key that is never empty.
 func TestScanAmplifyUIBuilder_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	appARN := partitionARN("aws", "amplify", testRegion, "apps/x")
 	envARN := partitionARN("aws", "amplify", testRegion, "apps/dt/backendenvironments/staging")
 	for _, c := range []struct {
@@ -770,6 +782,7 @@ func TestScanAmplifyUIBuilder_UnstorableItemsWarn(t *testing.T) {
 // environments are listed once, and its resources are stored, tag-read and
 // counted once.
 func TestScanAmplifyUIBuilder_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op       string
 		page     func(in any) (any, error)
@@ -826,6 +839,7 @@ func TestScanAmplifyUIBuilder_RepeatedTokenKeepsPages(t *testing.T) {
 
 // Once ctx ends no further phase starts, and the stop is reported once.
 func TestScanAmplifyUIBuilder_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newAUIBCalls()
 	h := auibHandlers(calls)
@@ -864,6 +878,7 @@ func TestScanAmplifyUIBuilder_ContextEndStopsOnce(t *testing.T) {
 // and it is not an error. An NXDOMAIN once an endpoint resolved is a failure
 // of this scan, not a region gap: the counts of the rows stored are kept.
 func TestScanAmplifyUIBuilder_Unreachable(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "amplifyuibuilder.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("UI Builder endpoint absent", func(t *testing.T) {
 		st := newTestStore(t)

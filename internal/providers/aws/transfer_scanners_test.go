@@ -100,6 +100,7 @@ func runTransferAccesses(t *testing.T, st *store.Store, handlers map[string]func
 }
 
 func TestScanTransferAccesses_Fields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var calls parentCalls
 	handlers := transferAccessHandlers(&calls, map[string][][]string{
@@ -144,6 +145,7 @@ func TestScanTransferAccesses_Fields(t *testing.T) {
 }
 
 func TestScanTransferAccesses_Empty(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		servers []childParent
@@ -173,6 +175,7 @@ func TestScanTransferAccesses_Empty(t *testing.T) {
 // each case fails s-1 and expects s-2's access stored, with the given number
 // of warnings for the failing op, or the phase error.
 func TestScanTransferAccesses_PerServerErrors(t *testing.T) {
+	t.Parallel()
 	conflict := apiErr("ConflictException", "conflict")
 	cases := []struct {
 		name     string
@@ -234,6 +237,7 @@ func TestScanTransferAccesses_PerServerErrors(t *testing.T) {
 // TestScanTransferAccesses_DescribeErrorKeepsEarlierAccesses pins that a
 // describe error skipping a server keeps the accesses described before it.
 func TestScanTransferAccesses_DescribeErrorKeepsEarlierAccesses(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := countOpWarnings(st, transferListAccessesOp)
 	var calls parentCalls
@@ -257,6 +261,7 @@ func TestScanTransferAccesses_DescribeErrorKeepsEarlierAccesses(t *testing.T) {
 }
 
 func TestTransferDirectoryServers_DirectoryOrUnknown(t *testing.T) {
+	t.Parallel()
 	dir := transferServer{childParent{id: "s-1", arn: transferTestServerARN("s-1")}, transfertypes.IdentityProviderTypeAwsDirectoryService}
 	unknown := transferServer{childParent{id: "s-4", arn: transferTestServerARN("s-4")}, ""}
 	servers := []transferServer{

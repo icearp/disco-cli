@@ -9,6 +9,7 @@ import (
 )
 
 func TestLogGroupARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:logs:us-east-1:123:log-group:/svc/foo:*/stream/2024-01-01", "arn:aws:logs:us-east-1:123:log-group:/svc/foo:*"},
 		{"arn:aws:logs:us-east-1:123:log-group:/svc/foo/filter/my-filter", "arn:aws:logs:us-east-1:123:log-group:/svc/foo"},
@@ -23,6 +24,7 @@ func TestLogGroupARNFromChild(t *testing.T) {
 }
 
 func TestResolveLogsLogStreamParent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	lgARN := logGroupNativeIDFromName(acct.ID, testRegion, "/svc/foo")
@@ -37,6 +39,7 @@ func TestResolveLogsLogStreamParent(t *testing.T) {
 }
 
 func TestResolveLogsSubscriptionFilterRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	lgARN := logGroupNativeIDFromName(acct.ID, testRegion, "/svc/bar")
@@ -57,6 +60,7 @@ func TestResolveLogsSubscriptionFilterRefs(t *testing.T) {
 }
 
 func TestResolveLogsDestinationTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	streamARN := fmt.Sprintf("arn:aws:kinesis:%s:%s:stream/my-stream", testRegion, acct.ID)
@@ -75,6 +79,7 @@ func TestResolveLogsDestinationTargets(t *testing.T) {
 }
 
 func TestResolveLogsQueryDefinitionLogGroups(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	lgARN := logGroupNativeIDFromName(acct.ID, testRegion, "/svc/q")
@@ -88,6 +93,7 @@ func TestResolveLogsQueryDefinitionLogGroups(t *testing.T) {
 }
 
 func TestResolveLogsSyslogVPCEndpoints_LinksOnlyScannedEndpoints(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	vpceID := upsertTestResource(t, st, "aws", acct.ID, TypeEC2VPCEndpoint, ec2ARN(testRegion, acct.ID, "vpc-endpoint", "vpce-1"), testRegion, "{}")
@@ -113,6 +119,7 @@ func TestResolveLogsSyslogVPCEndpoints_LinksOnlyScannedEndpoints(t *testing.T) {
 }
 
 func TestResolveLogsSyslogVPCEndpoints_UndecodableAttrsFail(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	upsertTestResource(t, st, "aws", acct.ID, TypeLogsSyslogConfig, lgTestARN("a")+":syslog-configuration:vpce-1", testRegion, `{"VpcEndpointId":7}`)
@@ -122,6 +129,7 @@ func TestResolveLogsSyslogVPCEndpoints_UndecodableAttrsFail(t *testing.T) {
 }
 
 func TestResolveLogsSourceIntegrations_ContainsUnderScannedIntegration(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	intARN := s3tIntegrationARN("int-1")
@@ -146,6 +154,7 @@ func TestResolveLogsSourceIntegrations_ContainsUnderScannedIntegration(t *testin
 }
 
 func TestLogsSourceIntegrationARN_RoundTrips(t *testing.T) {
+	t.Parallel()
 	intARN := s3tIntegrationARN("int-1")
 	if got := logsSourceIntegrationARN(logsSourceNativeID(intARN, "a/source/b")); got != intARN {
 		t.Errorf("logsSourceIntegrationARN(...) = %q, want %q", got, intARN)

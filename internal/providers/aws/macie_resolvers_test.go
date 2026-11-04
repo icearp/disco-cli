@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveMacieClassificationJobBuckets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -30,6 +31,7 @@ func TestResolveMacieClassificationJobBuckets(t *testing.T) {
 }
 
 func TestResolveMacieClassificationJobBuckets_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -42,6 +44,7 @@ func TestResolveMacieClassificationJobBuckets_NoAttrs(t *testing.T) {
 }
 
 func TestResolveMacieAllowListBucket(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -61,6 +64,7 @@ func TestResolveMacieAllowListBucket(t *testing.T) {
 }
 
 func TestResolveMacieMemberOrgAccount(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -81,6 +85,7 @@ func TestResolveMacieMemberOrgAccount(t *testing.T) {
 }
 
 func TestResolveMacieMemberOrgAccount_NoOrgTree(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -97,6 +102,7 @@ func TestResolveMacieMemberOrgAccount_NoOrgTree(t *testing.T) {
 }
 
 func TestResolveMacieAllowListBucket_RegexOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

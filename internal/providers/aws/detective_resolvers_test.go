@@ -19,6 +19,7 @@ func detectiveGraphARN() string {
 // TestResolveDetectiveMemberOrgAccount_HappyPath verifies that the member
 // row links to the Organizations account when both are scanned.
 func TestResolveDetectiveMemberOrgAccount_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -47,6 +48,7 @@ func TestResolveDetectiveMemberOrgAccount_HappyPath(t *testing.T) {
 // TestResolveDetectiveMemberOrgAccount_FKSafe verifies that members in a
 // partial-coverage scan (no Org tree) skip without erroring.
 func TestResolveDetectiveMemberOrgAccount_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -72,6 +74,7 @@ func TestResolveDetectiveMemberOrgAccount_FKSafe(t *testing.T) {
 // TestResolveDetectiveMemberOrgAccount_MalformedAttrs ensures invalid attrs
 // JSON skips the row rather than aborting the resolver.
 func TestResolveDetectiveMemberOrgAccount_MalformedAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -86,6 +89,7 @@ func TestResolveDetectiveMemberOrgAccount_MalformedAttrs(t *testing.T) {
 }
 
 func TestResolveDetectiveOrgAdminRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gARN := detectiveGraphARN()

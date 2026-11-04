@@ -270,6 +270,7 @@ func assertIBRow(t *testing.T, rows map[string]store.Resource, c ibType, e ibEle
 // listed element) and the tags: the element's own Tags, never ImageTags or
 // ResourceTags, and none for the types whose element carries no Tags.
 func TestScanImageBuilderAll_StoresRowsWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := ibScanAll(t, st, ibHandlers(t, false))
 	if err != nil {
@@ -297,6 +298,7 @@ func TestScanImageBuilderAll_StoresRowsWithTags(t *testing.T) {
 // warns once, under its own op and scoped to the account and region, for its
 // elements with no Arn, and stores the others.
 func TestScanImageBuilderAll_EmptyARNWarnsOncePerOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warns []string
 	st.OnWarn = func(w store.ScanWarning) { warns = append(warns, w.Service+" "+w.Scope) }
@@ -324,6 +326,7 @@ func TestScanImageBuilderAll_EmptyARNWarnsOncePerOp(t *testing.T) {
 // about once under the phase's op, scoped to the account and region, and not
 // returned.
 func TestScanImageBuilderAll_ListOutcomes(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("InvalidRequestException", "bad")
 	denied := apiErr("AccessDeniedException", "not authorized to perform this action")
 	for _, c := range ibTypes {
@@ -378,6 +381,7 @@ func TestScanImageBuilderAll_ListOutcomes(t *testing.T) {
 // served twice ends the listing with errRepeatedNextToken, keeping both
 // pages' rows.
 func TestScanImageBuilderAll_RepeatedTokenEndsListing(t *testing.T) {
+	t.Parallel()
 	c := ibTypes[0]
 	h := ibHandlers(t, false)
 	var call int
@@ -399,6 +403,7 @@ func TestScanImageBuilderAll_RepeatedTokenEndsListing(t *testing.T) {
 // TestScanImageBuilderAll_PhaseErrorRunsOtherPhases pins that a failed phase
 // stops no other phase: its error is returned and every other type stored.
 func TestScanImageBuilderAll_PhaseErrorRunsOtherPhases(t *testing.T) {
+	t.Parallel()
 	bad := apiErr("InvalidRequestException", "bad")
 	for _, failed := range ibTypes {
 		t.Run(failed.sdkOp, func(t *testing.T) {
@@ -420,6 +425,7 @@ func TestScanImageBuilderAll_PhaseErrorRunsOtherPhases(t *testing.T) {
 // TestScanImageBuilderAll_StoreWriteStops pins that a failed write stops the
 // scan: no phase after it calls AWS.
 func TestScanImageBuilderAll_StoreWriteStops(t *testing.T) {
+	t.Parallel()
 	calls := map[string]int{}
 	h := ibHandlers(t, false)
 	for op, f := range h {
@@ -448,6 +454,7 @@ func TestScanImageBuilderAll_StoreWriteStops(t *testing.T) {
 // phase beside a hard-failing one is demoted to one warning under the
 // throttled phase's own op, and the scan classified as an error.
 func TestScanImageBuilderAll_TransientBesideHardError(t *testing.T) {
+	t.Parallel()
 	for _, c := range ibTypes {
 		t.Run(c.sdkOp, func(t *testing.T) {
 			hardOp := "ListWorkflows"
@@ -475,6 +482,7 @@ func TestScanImageBuilderAll_TransientBesideHardError(t *testing.T) {
 // denied every listing gets one warning per op, scoped to the account and
 // region, and no error.
 func TestScanImageBuilderAll_DeniedEveryOpWarnsWithRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var scopes []string
 	st.OnWarn = func(w store.ScanWarning) { scopes = append(scopes, w.Service+" "+w.Scope) }

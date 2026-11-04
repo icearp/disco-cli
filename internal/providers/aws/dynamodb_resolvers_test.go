@@ -9,6 +9,7 @@ import (
 // TestResolveDynamoDBGlobalTableRelationships_HappyPath verifies a global
 // table links to its regional replica table via a "contains" relationship.
 func TestResolveDynamoDBGlobalTableRelationships_HappyPath(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -38,6 +39,7 @@ func TestResolveDynamoDBGlobalTableRelationships_HappyPath(t *testing.T) {
 // TestResolveDynamoDBGlobalTableRelationships_Empty verifies a global table
 // with no ReplicationGroup data produces no relationships and no panic.
 func TestResolveDynamoDBGlobalTableRelationships_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -52,6 +54,7 @@ func TestResolveDynamoDBGlobalTableRelationships_Empty(t *testing.T) {
 // TestResolveDynamoDBTableRelationships_KMS verifies KMS link for a table
 // configured with customer-managed SSE.
 func TestResolveDynamoDBTableRelationships_KMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -75,6 +78,7 @@ func TestResolveDynamoDBTableRelationships_KMS(t *testing.T) {
 // TestResolveDynamoDBStreamRelationships verifies a table with streaming
 // enabled emits a "contains" edge to its stream.
 func TestResolveDynamoDBStreamRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -98,6 +102,7 @@ func TestResolveDynamoDBStreamRelationships(t *testing.T) {
 // TestResolveDynamoDBStreamRelationships_NoStream verifies no edges when
 // streaming is not enabled.
 func TestResolveDynamoDBStreamRelationships_NoStream(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -117,6 +122,7 @@ func TestResolveDynamoDBStreamRelationships_NoStream(t *testing.T) {
 }
 
 func TestResolveDynamoDBBackupRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -133,6 +139,7 @@ func TestResolveDynamoDBBackupRelationships(t *testing.T) {
 }
 
 func TestResolveDynamoDBBackupRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	backupARN := "arn:aws:dynamodb:us-east-1:" + testAccountID + ":table/Orders/backup/01234567890123-abcdef12"

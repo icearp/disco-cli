@@ -259,6 +259,7 @@ func wswWants() []wswWant {
 // of every row is sent to the tag op; each portal's ARN is sent to
 // ListIdentityProviders; no op is sent MaxResults. No error or warning.
 func TestScanWorkSpacesWeb_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newWSWCalls()
@@ -313,6 +314,7 @@ func TestScanWorkSpacesWeb_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanWorkSpacesWeb_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newWSWCalls()
 	if _, _, err := wswScan(context.Background(), st, wswHandlers(t, calls)); err != nil {
@@ -334,6 +336,7 @@ func TestScanWorkSpacesWeb_RescanInsertsNone(t *testing.T) {
 // error. Each outcome holds for an account-wide listing's row and an
 // identity provider's row.
 func TestScanWorkSpacesWeb_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []struct{ typ, arn string }{
 		{TypeWSWUserSettings, wswARN(wswKindOf(t, "ListUserSettings"), "tagged")},
 		{TypeWSWIdentityProvider, wswIdentityProviderARN("bare", "tagged")},
@@ -396,6 +399,7 @@ func TestScanWorkSpacesWeb_TagReadFailures(t *testing.T) {
 
 // Two denied tag reads in one phase send one warning.
 func TestScanWorkSpacesWeb_TagDenialsWarnOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, wswTagsOp)
 	calls := newWSWCalls()
@@ -417,6 +421,7 @@ func TestScanWorkSpacesWeb_TagDenialsWarnOnce(t *testing.T) {
 // A portal the tag read finds deleted is dropped and is not a parent: its
 // identity providers are not listed.
 func TestScanWorkSpacesWeb_PortalGoneHasNoIdentityProviders(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newWSWCalls()
 	calls.errs[wswPortalARN(t, "bare")] = wswNotFound
@@ -437,6 +442,7 @@ func TestScanWorkSpacesWeb_PortalGoneHasNoIdentityProviders(t *testing.T) {
 // identity providers unlisted; the identity-provider listing denied for both
 // portals warns once.
 func TestScanWorkSpacesWeb_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	type deniedOp struct {
 		op, typ string
 		lost    int
@@ -479,6 +485,7 @@ func TestScanWorkSpacesWeb_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // write; any other error is returned, ResourceNotFoundException included,
 // since the op models no not-found code.
 func TestScanWorkSpacesWeb_IdentityProvidersPerPortal(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -528,6 +535,7 @@ func TestScanWorkSpacesWeb_IdentityProvidersPerPortal(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanWorkSpacesWeb_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, wswTagsOp)
 	calls := newWSWCalls()
@@ -545,6 +553,7 @@ func TestScanWorkSpacesWeb_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanWorkSpacesWeb_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeWSWPortal)
@@ -568,6 +577,7 @@ func TestScanWorkSpacesWeb_FailedWriteStopsWithoutWarning(t *testing.T) {
 // A listing's failed page keeps the pages read before it, and its error does
 // not stop the listings after it.
 func TestScanWorkSpacesWeb_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := wswHandlers(t, newWSWCalls())
 	k := wswKindOf(t, "ListPortals")
@@ -592,6 +602,7 @@ func TestScanWorkSpacesWeb_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) 
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanWorkSpacesWeb_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := wswHandlers(t, newWSWCalls())
 	k := wswKindOf(t, "ListBrowserSettings")
@@ -621,6 +632,7 @@ func TestScanWorkSpacesWeb_RepeatedTokenKeepsPages(t *testing.T) {
 // An element without an ARN is warned about under its listing, not stored;
 // one without a name is stored, named by its ARN.
 func TestScanWorkSpacesWeb_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	all := countWarnings(st)
 	warns := bacWarnings(st, "workspaces-web:ListSessionLoggers")
@@ -651,6 +663,7 @@ func TestScanWorkSpacesWeb_UnstorableItemsWarn(t *testing.T) {
 // An element with neither an ARN nor a name is not stored and is warned
 // about once under its listing.
 func TestScanWorkSpacesWeb_ElementWithNoIdentifierWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	all := countWarnings(st)
 	warns := bacWarnings(st, "workspaces-web:ListBrowserSettings")
@@ -684,6 +697,7 @@ func TestScanWorkSpacesWeb_ElementWithNoIdentifierWarns(t *testing.T) {
 // Rows of an account in another partition are sent to the tag op under the
 // ARNs their listings return, an identity provider's included.
 func TestScanWorkSpacesWeb_TagReadInAccountPartition(t *testing.T) {
+	t.Parallel()
 	acct := partitionAccount("aws-us-gov")
 	region := acct.Regions[0]
 	st := newTestStore(t)
@@ -724,6 +738,7 @@ func TestScanWorkSpacesWeb_TagReadInAccountPartition(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it too.
 func TestScanWorkSpacesWeb_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newWSWCalls()
 	handlers := wswHandlers(t, calls)
@@ -762,6 +777,7 @@ func TestScanWorkSpacesWeb_ContextEndStopsOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanWorkSpacesWeb_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "workspaces-web.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("later phase after rows were stored", func(t *testing.T) {
 		st := newTestStore(t)

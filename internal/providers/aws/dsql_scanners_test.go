@@ -82,6 +82,7 @@ func runDSQL(t *testing.T, st *store.Store, s *dsqlStub) (int, int, error) {
 // GetCluster body, tags included, beside an untagged cluster, and that each
 // stored cluster's streams are listed.
 func TestScanDSQL_ClusterRowFromGetCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	s := &dsqlStub{clusters: dsqlTwoClusters(), getCluster: func(id string) (any, error) {
 		out := &dsql.GetClusterOutput{
@@ -123,6 +124,7 @@ func TestScanDSQL_ClusterRowFromGetCluster(t *testing.T) {
 // returned; ResourceNotFoundException drops it silently. Streams are
 // listed for every stored cluster.
 func TestScanDSQL_GetClusterFails(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name         string
 		err          error
@@ -186,6 +188,7 @@ func TestScanDSQL_GetClusterFails(t *testing.T) {
 // A listed cluster with no Arn is not stored, warned about under its
 // Identifier, and its streams are not listed.
 func TestScanDSQL_EmptyArnWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var msgs []string
 	st.OnWarn = func(w store.ScanWarning) {
@@ -218,6 +221,7 @@ func TestScanDSQL_EmptyArnWarns(t *testing.T) {
 // ListClusters page are stored and their streams listed: a denial warns once
 // and is not returned, any other error is returned.
 func TestScanDSQL_LaterListPageFails(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name      string
 		err       error
@@ -266,6 +270,7 @@ func TestScanDSQL_LaterListPageFails(t *testing.T) {
 // One cluster's failed ListStreams does not stop the next cluster's, and its
 // error is returned with every stored row counted.
 func TestScanDSQL_StreamFailureDoesNotStopOthers(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	s := &dsqlStub{
 		clusters: dsqlTwoClusters(),
@@ -294,6 +299,7 @@ func TestScanDSQL_StreamFailureDoesNotStopOthers(t *testing.T) {
 // A failed cluster write stops the scan before any stream is listed, and the
 // GetCluster denial is not warned about: its row was never stored.
 func TestScanDSQL_ClusterWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeDSQLCluster)
 	getWarns := countOpWarnings(st, "dsql:GetCluster")
@@ -311,6 +317,7 @@ func TestScanDSQL_ClusterWriteFailureStops(t *testing.T) {
 
 // A failed stream write stops the scan: no later cluster's streams are listed.
 func TestScanDSQL_StreamWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeDSQLStream)
 	s := &dsqlStub{clusters: dsqlTwoClusters(), getCluster: func(id string) (any, error) {
@@ -332,6 +339,7 @@ func TestScanDSQL_StreamWriteFailureStops(t *testing.T) {
 // cluster is stored as its ListClusters element, no stream is listed, and the
 // stop is returned with the rows counted.
 func TestScanDSQL_ContextEndsAfterListing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -363,6 +371,7 @@ func TestScanDSQL_ContextEndsAfterListing(t *testing.T) {
 // scanDSQLClusters itself returns the stop when ctx ends before GetCluster,
 // rather than relying on the stream phase to report it.
 func TestScanDSQLClusters_ContextEndsAfterListing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -387,6 +396,7 @@ func TestScanDSQLClusters_ContextEndsAfterListing(t *testing.T) {
 // When ctx ends on the first of two ListClusters pages, page 2 is not
 // requested: its clusters are not stored and the stop is returned.
 func TestScanDSQLClusters_ContextEndsOnFirstOfTwoPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

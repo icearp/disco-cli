@@ -33,6 +33,7 @@ const wrappedS3ControlError = `<?xml version="1.0" encoding="UTF-8"?>` + "\n" +
 // today — turning a working error path into an unreadable one, which is the
 // exact failure it exists to fix.
 func TestWrapBareXMLError(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		name string
 		body string
@@ -98,6 +99,7 @@ func TestWrapBareXMLError(t *testing.T) {
 // generated deserializer looks for them (xml:"Error>Code"). Asserting on the
 // bytes alone would pass even if the envelope were subtly wrong.
 func TestWrapBareXMLError_OutputParsesAsWrapped(t *testing.T) {
+	t.Parallel()
 	var before, after struct {
 		Code    string `xml:"Error>Code"`
 		Message string `xml:"Error>Message"`
@@ -199,6 +201,7 @@ func readFailure(head string, err error) stubDeserializeHandler {
 // which responses it touches, and that it always leaves a readable body behind
 // for the deserializer that runs next.
 func TestRewrapBareXMLError_HandleDeserialize(t *testing.T) {
+	t.Parallel()
 	readBody := func(t *testing.T, out middleware.DeserializeOutput) string {
 		t.Helper()
 		resp, ok := out.RawResponse.(*smithyhttp.Response)
@@ -294,6 +297,7 @@ func TestRewrapBareXMLError_HandleDeserialize(t *testing.T) {
 // than silently leaving the middleware out of the chain and letting the
 // UnknownError regression return unnoticed.
 func TestNormalizeBareXMLError_Registers(t *testing.T) {
+	t.Parallel()
 	stack := middleware.NewStack("test", func() any { return nil })
 	if err := stack.Deserialize.Add(namedDeserializeNoop("OperationDeserializer"), middleware.After); err != nil {
 		t.Fatalf("seed OperationDeserializer: %v", err)

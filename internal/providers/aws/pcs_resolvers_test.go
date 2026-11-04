@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolvePCSChildrenToCluster(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cid := "abc123"

@@ -224,6 +224,7 @@ func omtListOps() []string {
 // account-wide listing are stored, each listing asks for its op's page cap,
 // and the scan reports no error or warning.
 func TestScanOmics_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newOMTCalls()
@@ -290,6 +291,7 @@ func TestScanOmics_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanOmics_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newOMTCalls()
 	if _, _, err := omtScan(context.Background(), st, omtHandlers(calls)); err != nil {
@@ -311,6 +313,7 @@ func TestScanOmics_RescanInsertsNone(t *testing.T) {
 // reference, from a per-store listing, and the account's own aws-us-gov run
 // cache behave alike.
 func TestScanOmics_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, target := range []omtRow{
 		{typ: TypeOmicsWorkflow, arn: omtItemARN("workflow", "t")},
 		{typ: TypeOmicsReference, arn: omtReference("t")},
@@ -377,6 +380,7 @@ func TestScanOmics_TagReadFailures(t *testing.T) {
 // or a not-found answer keeps it untagged without a warning or an error. Any
 // other error is still returned.
 func TestScanOmics_OtherAccountRowTagRead(t *testing.T) {
+	t.Parallel()
 	foreign := arnFor("aws", "omics", testRegion, omtOtherAccount, "runGroup/foreign")
 	for _, c := range []struct {
 		name    string
@@ -426,6 +430,7 @@ func TestScanOmics_OtherAccountRowTagRead(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanOmics_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, omicsListTagsOp)
 	calls := newOMTCalls()
@@ -443,6 +448,7 @@ func TestScanOmics_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A denied listing warns once under its own op and costs no other phase its
 // rows.
 func TestScanOmics_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	for _, op := range omtListOps() {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -472,6 +478,7 @@ func TestScanOmics_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // AccessDeniedException form is dropped silently and the NotFoundException
 // form is an error; the rows are kept either way.
 func TestScanOmics_RegionUnavailable(t *testing.T) {
+	t.Parallel()
 	notFoundForm := apiErr("NotFoundException", "Unable to determine service/operation name to be authorized")
 	for _, c := range []struct {
 		name, op     string
@@ -542,6 +549,7 @@ func TestScanOmics_RegionUnavailable(t *testing.T) {
 // gate, so the scan is not reported unavailable, and the AccessDeniedException
 // form is dropped silently while every other phase runs.
 func TestScanOmics_RegionUnavailableOnLaterPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newOMTCalls()
@@ -566,6 +574,7 @@ func TestScanOmics_RegionUnavailableOnLaterPage(t *testing.T) {
 // shared PRIVATE workflow another account owns that account as
 // WorkflowOwnerId and no Type, and an own PRIVATE workflow neither.
 func TestScanOmics_WorkflowVersionsOwnerContext(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := omtHandlers(newOMTCalls())
 	h["ListWorkflows"] = func(any) (any, error) {
@@ -684,6 +693,7 @@ func omtOtherOwnerHandlers(c omtOtherOwnerCase, partial bool) (map[string]func(a
 // the rows read before such an answer (partial) and the own parents'
 // children are stored, and the scan reports no error.
 func TestScanOmics_OtherOwnerChildNotFoundWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range omtOtherOwnerCases() {
 		for _, partial := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/partial=%v", c.op, partial), func(t *testing.T) {
@@ -712,6 +722,7 @@ func TestScanOmics_OtherOwnerChildNotFoundWarns(t *testing.T) {
 // When the child rows' write fails, the not-found parents another account
 // owns are not warned about, and the write error is returned.
 func TestScanOmics_OtherOwnerChildNotFoundFailedWrite(t *testing.T) {
+	t.Parallel()
 	for _, c := range omtOtherOwnerCases() {
 		t.Run(c.op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -733,6 +744,7 @@ func TestScanOmics_OtherOwnerChildNotFoundFailedWrite(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanOmics_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeOmicsConfiguration)
@@ -757,6 +769,7 @@ func TestScanOmics_FailedWriteStopsWithoutWarning(t *testing.T) {
 // failure stops the phases after it. A store a per-store listing no longer
 // finds is skipped silently, its sibling's rows stored.
 func TestScanOmics_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	calls := newOMTCalls()
@@ -809,6 +822,7 @@ func TestScanOmics_ListFailureKeepsPagesAndRunsEveryPhase(t *testing.T) {
 // skipped without an error or a warning, and its sibling's children are
 // stored.
 func TestScanOmics_ChildListingParentGone(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, typ        string
 		goneT, storedB string
@@ -862,6 +876,7 @@ func TestScanOmics_ChildListingParentGone(t *testing.T) {
 // are listed by, are not stored or not read, and are warned about once
 // under the listing's op.
 func TestScanOmics_UnstorableItemsWarn(t *testing.T) {
+	t.Parallel()
 	for _, op := range []string{"ListConfigurations", "ListAnnotationStores", "ListReferences", "ListWorkflowVersions", "ListAnnotationStoreVersions", "ListShares"} {
 		t.Run(op, func(t *testing.T) {
 			st := newTestStore(t)
@@ -898,6 +913,7 @@ func TestScanOmics_UnstorableItemsWarn(t *testing.T) {
 // Shares are listed for this account's own resources only; a DELETED share
 // is not stored, and no share's tags are read.
 func TestScanOmics_SharesOwnLiveOnly(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newOMTCalls()
 	h := omtHandlers(calls)
@@ -930,6 +946,7 @@ func TestScanOmics_SharesOwnLiveOnly(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanOmics_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := omtHandlers(newOMTCalls())
 	h["ListRunCaches"] = func(any) (any, error) {
@@ -948,6 +965,7 @@ func TestScanOmics_RepeatedTokenKeepsPages(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is reported once
 // although the phase in flight saw it in its listing.
 func TestScanOmics_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newOMTCalls()
 	h := omtHandlers(calls)
@@ -984,6 +1002,7 @@ func TestScanOmics_ContextEndStopsOnce(t *testing.T) {
 // on the first listing of the storage or the analytics host alone runs no
 // later listing of that host, is dropped, and costs the other hosts nothing.
 func TestScanOmics_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "workflows-omics.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("every host", func(t *testing.T) {
 		st := newTestStore(t)

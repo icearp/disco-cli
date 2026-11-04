@@ -300,6 +300,7 @@ func elbWarnOps(w []store.ScanWarning) []string {
 // DescribeTags is sent exactly the ARNs of every tagged row; every listing
 // is sent PageSize 400. No error, no warning.
 func TestScanELBv2_StoresEveryTypeWithTags(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newELBCalls(elbCommercial)
@@ -386,6 +387,7 @@ func assertELBTestChildParents(t *testing.T, calls *elbCalls, want map[string][]
 // balancer's Status is its state code, empty when the code is, and nil
 // when it has no State.
 func TestScanELBv2_RowFields(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	f := elbCommercial
 	handlers := elbHandlers(newELBCalls(f))
@@ -478,6 +480,7 @@ func TestScanELBv2_RowFields(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanELBv2_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := elbScanCommercial(st, elbHandlers(newELBCalls(elbCommercial))); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -493,6 +496,7 @@ func TestScanELBv2_RescanInsertsNone(t *testing.T) {
 
 // Empty listings store nothing and call no child listing or DescribeTags.
 func TestScanELBv2_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newELBCalls(elbCommercial)
@@ -530,6 +534,7 @@ func TestScanELBv2_EmptyListings(t *testing.T) {
 // A page of 45 load balancers has its tags read in three DescribeTags calls
 // of at most 20 ARNs, each ARN sent once.
 func TestScanELBv2_TagReadsBatchTwentyARNs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newELBCalls(elbCommercial)
 	handlers := elbHandlers(calls)
@@ -575,6 +580,7 @@ func TestScanELBv2_TagReadsBatchTwentyARNs(t *testing.T) {
 // concurrently, never have more than 10 calls in flight, and reach 10. The
 // listener calls wait until 10 calls are in flight.
 func TestScanELBv2_TagReadsShareOneBound(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newELBCalls(elbCommercial)
 	handlers := elbHandlers(calls)
@@ -635,6 +641,7 @@ func TestScanELBv2_TagReadsShareOneBound(t *testing.T) {
 // not-found code) is dropped silently, with no child listing read for it,
 // and every other row keeps its tags. No error, no warning.
 func TestScanELBv2_NotFoundInBatchReadsEachARN(t *testing.T) {
+	t.Parallel()
 	f := elbCommercial
 	rows := elbTestRows(f)
 	for _, c := range []struct {
@@ -751,6 +758,7 @@ func TestScanELBv2_NotFoundInBatchReadsEachARN(t *testing.T) {
 // any other error, and a response that leaves the resource out, keep it and
 // are errors; a rule DescribeTags reports deleted is dropped silently.
 func TestScanELBv2_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	rule := elbTestRule(elbTestListener(elbCommercial.lb("lb-bare"), "l-tagged"), "r-tagged")
 	for _, c := range []struct {
 		name      string
@@ -823,6 +831,7 @@ func TestScanELBv2_TagReadFailures(t *testing.T) {
 // Denied tag reads in several phases send one warning for the whole scan;
 // the rows are kept.
 func TestScanELBv2_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newELBCalls(elbCommercial)
@@ -845,6 +854,7 @@ func TestScanELBv2_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanELBv2_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, elbTagsOp)
 	calls := newELBCalls(elbCommercial)
@@ -864,6 +874,7 @@ func TestScanELBv2_TagThrottleDemotedBesideHardError(t *testing.T) {
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.
 func TestScanELBv2_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeELBv2TrustStore)
@@ -892,6 +903,7 @@ func TestScanELBv2_FailedWriteStopsScan(t *testing.T) {
 // error does not stop the later phases. A load balancer not stored has no
 // listeners read.
 func TestScanELBv2_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, typ, kept, lost string
 		wantTotal           int
@@ -934,6 +946,7 @@ func TestScanELBv2_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 
 // A repeated marker ends the listing as an error, keeping its pages.
 func TestScanELBv2_RepeatedMarkerKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newELBCalls(elbCommercial)
 	handlers := elbHandlers(calls)
@@ -957,6 +970,7 @@ func TestScanELBv2_RepeatedMarkerKeepsPages(t *testing.T) {
 // rows: a parent deleted since it was listed is skipped silently, a denial
 // warns once under the op, and any other error is returned.
 func TestScanELBv2_PerParentListingFailures(t *testing.T) {
+	t.Parallel()
 	f := elbCommercial
 	listener := elbTestListener(f.lb("lb-tagged"), "l-bare")
 	for _, c := range []struct {
@@ -1021,6 +1035,7 @@ func TestScanELBv2_PerParentListingFailures(t *testing.T) {
 // server error) stores it without targets and is transient; any other error
 // stores it without targets and is returned.
 func TestScanELBv2_TargetHealthFailures(t *testing.T) {
+	t.Parallel()
 	tg := elbCommercial.tg("tg-tagged")
 	for _, c := range []struct {
 		name     string
@@ -1092,6 +1107,7 @@ func TestScanELBv2_TargetHealthFailures(t *testing.T) {
 // An element without the id its NativeID is built from is not stored and
 // is warned about under its listing's op; its siblings are stored.
 func TestScanELBv2_ElementWithoutIDWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		op, typ string
 		blank   func(out any)
@@ -1159,6 +1175,7 @@ func TestScanELBv2_ElementWithoutIDWarns(t *testing.T) {
 // In GovCloud, every ARN reaches DescribeTags as listed and every row is
 // stored under it.
 func TestScanELBv2_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	f := elbFix{"aws-us-gov", "us-gov-west-1"}
 	st := newTestStore(t)
 	calls := newELBCalls(f)
@@ -1183,6 +1200,7 @@ func TestScanELBv2_TagReadsKeepPartitionARNs(t *testing.T) {
 // A context ended while the scan runs is reported once, and no later phase
 // starts.
 func TestScanELBv2_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newELBCalls(elbCommercial)
 	handlers := elbHandlers(calls)
@@ -1220,6 +1238,7 @@ func TestScanELBv2_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanELBv2_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "elasticloadbalancing.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("one listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)

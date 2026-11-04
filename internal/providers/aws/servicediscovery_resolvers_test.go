@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveServiceDiscoveryServiceNamespace(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -27,6 +28,7 @@ func TestResolveServiceDiscoveryServiceNamespace(t *testing.T) {
 }
 
 func TestResolveServiceDiscoveryNamespaceHostedZone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -45,6 +47,7 @@ func TestResolveServiceDiscoveryNamespaceHostedZone(t *testing.T) {
 }
 
 func TestResolveServiceDiscoveryInstanceService(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

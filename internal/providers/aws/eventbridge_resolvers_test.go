@@ -10,6 +10,7 @@ import (
 )
 
 func TestResolveEventBridgeRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -45,6 +46,7 @@ func TestResolveEventBridgeRelationships(t *testing.T) {
 }
 
 func TestResolveEventBridgeRelationships_SFNAndFirehoseTargets(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -76,6 +78,7 @@ func TestResolveEventBridgeRelationships_SFNAndFirehoseTargets(t *testing.T) {
 }
 
 func TestResolveEventBridgeRelationships_DefaultBus(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -99,6 +102,7 @@ func TestResolveEventBridgeRelationships_DefaultBus(t *testing.T) {
 }
 
 func TestResolveEventBridgeRelationships_APIDestinationTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -126,6 +130,7 @@ func TestResolveEventBridgeRelationships_APIDestinationTarget(t *testing.T) {
 }
 
 func TestResolveEventBridgeAPIDestinationConnection(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -147,6 +152,7 @@ func TestResolveEventBridgeAPIDestinationConnection(t *testing.T) {
 }
 
 func TestResolveEventBridgeAPIDestinationConnection_Missing(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -169,6 +175,7 @@ func TestResolveEventBridgeAPIDestinationConnection_Missing(t *testing.T) {
 }
 
 func TestResolveEventBridgeRelationships_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -189,6 +196,7 @@ func TestResolveEventBridgeRelationships_NoAttrs(t *testing.T) {
 }
 
 func TestResolveEventBridgeBusRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -210,6 +218,7 @@ func TestResolveEventBridgeBusRefs(t *testing.T) {
 }
 
 func TestResolveEventBridgeConnectionRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

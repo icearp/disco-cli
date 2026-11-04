@@ -3,6 +3,7 @@ package aws
 import "testing"
 
 func TestResolveBraketSpendingLimits(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	if err := resolveBraketSpendingLimits(acct, st); err != nil {
@@ -11,6 +12,7 @@ func TestResolveBraketSpendingLimits(t *testing.T) {
 }
 
 func TestBraketRegistrationCovered(t *testing.T) {
+	t.Parallel()
 	if !serviceRegistered("aws:braket") {
 		t.Fatalf("aws:braket service not registered")
 	}

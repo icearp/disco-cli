@@ -136,6 +136,7 @@ func listQuotaRows(t *testing.T, st *store.Store) []store.Quota {
 // the non-adjustable one is kept rather than dropped — a hard ceiling AWS moves
 // on its own is the signal this table exists to record.
 func TestScanServiceQuotas_PersistsAdjustableAndFixed(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -214,6 +215,7 @@ func TestScanServiceQuotas_PersistsAdjustableAndFixed(t *testing.T) {
 // adjustable quota a divergence is an increase the customer requested, and on a
 // non-adjustable one it means AWS moved a hard ceiling.
 func TestScanServiceQuotas_RecordsAWSDefault(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -268,6 +270,7 @@ func TestScanServiceQuotas_RecordsAWSDefault(t *testing.T) {
 // The defaults call is a convenience, not a precondition. Losing it must not
 // cost us the applied limit, which is the more important of the two.
 func TestScanServiceQuotas_DefaultsFailureDegrades(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -298,6 +301,7 @@ func TestScanServiceQuotas_DefaultsFailureDegrades(t *testing.T) {
 // NoSuchResourceException / IllegalArgumentException / AccessDenied is dropped
 // silently; sibling codes still persist and the scan succeeds.
 func TestScanServiceQuotas_UnsupportedCodeSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -325,6 +329,7 @@ func TestScanServiceQuotas_UnsupportedCodeSkipped(t *testing.T) {
 
 // TestScanServiceQuotas_EmptyService: a code with zero quotas yields no rows, no error.
 func TestScanServiceQuotas_EmptyService(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -346,6 +351,7 @@ func TestScanServiceQuotas_EmptyService(t *testing.T) {
 // missing either code cannot be addressed and is dropped. The ARN is no longer
 // the key — it survives in the attributes remainder.
 func TestScanServiceQuotas_CodelessQuotaDropped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -378,6 +384,7 @@ func TestScanServiceQuotas_CodelessQuotaDropped(t *testing.T) {
 // TestScanServiceQuotas_GenuineErrorContinues: a non-skippable per-code error is
 // reported (not propagated) and sibling codes still persist.
 func TestScanServiceQuotas_GenuineErrorContinues(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var reported store.ScanError
 	st.OnError = func(e store.ScanError) { reported = e }
@@ -407,6 +414,7 @@ func TestScanServiceQuotas_GenuineErrorContinues(t *testing.T) {
 // TestScanServiceQuotas_ListServicesAccessDenied: an AccessDenied on ListServices
 // warns and returns nil with no rows.
 func TestScanServiceQuotas_ListServicesAccessDenied(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var warned store.ScanWarning
 	st.OnWarn = func(w store.ScanWarning) { warned = w }
@@ -430,6 +438,7 @@ func TestScanServiceQuotas_ListServicesAccessDenied(t *testing.T) {
 // at the elected home region, under the region-less "global" sentinel — and dropped
 // in every other region. us-east-1 is preferred; otherwise the min scanned region.
 func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
+	t.Parallel()
 	mkStub := func() *stubServiceQuotas {
 		return &stubServiceQuotas{
 			services: []string{"route53"},
@@ -500,6 +509,7 @@ func TestScanServiceQuotas_GlobalHomeRegionElection(t *testing.T) {
 // catches a volatile field sneaking into the stored attributes — which is what
 // would make a catalogue of this size unscannable.
 func TestScanServiceQuotas_LimitOnlyChurnFree(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -562,6 +572,7 @@ func TestScanServiceQuotas_LimitOnlyChurnFree(t *testing.T) {
 // 107 MB appeared on a real tenant, presenting as genuine change in the "limits
 // that changed" view. The scan record is the only place the cause is findable.
 func TestScanServiceQuotas_ReportsDefaultsFailure(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -618,6 +629,7 @@ func TestScanServiceQuotas_ReportsDefaultsFailure(t *testing.T) {
 // It is a warning rather than an error because nothing is broken, but it must
 // not be silent.
 func TestScanServiceQuotas_DefaultsAccessDeniedWarnsNotErrors(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -648,6 +660,7 @@ func TestScanServiceQuotas_DefaultsAccessDeniedWarnsNotErrors(t *testing.T) {
 // and not a failure -- reporting it would put a row on the scan record for every
 // such service and train operators to ignore the ones that matter.
 func TestScanServiceQuotas_NoPublishedDefaultsIsSilent(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -707,6 +720,7 @@ func collectReports(st *store.Store) (*[]store.ScanError, *[]store.ScanWarning) 
 // identical entries in a single scan, which buries every other error and bloats
 // the stored payload. One entry that says how many is strictly more useful.
 func TestScanServiceQuotas_DefaultsFailuresAggregatePerRegion(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -753,6 +767,7 @@ func TestScanServiceQuotas_DefaultsFailuresAggregatePerRegion(t *testing.T) {
 // under one shared pacer the quotas limiter would carry the defaults calls too,
 // so the count would be the sum rather than the expected split.
 func TestScanServiceQuotas_PacesEachOperationSeparately(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	region := "us-east-1"
@@ -793,6 +808,7 @@ func TestScanServiceQuotas_PacesEachOperationSeparately(t *testing.T) {
 // no error is a scan that silently covered fewer services while reporting
 // success, which is worse than a scan that reports it was interrupted.
 func TestListQuotaServiceCodes_CancellationIsAnError(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -812,6 +828,7 @@ func TestListQuotaServiceCodes_CancellationIsAnError(t *testing.T) {
 // row is only actionable if it names a code: "1 service code(s)" with no code
 // told an operator a failure existed and nothing about which service it was.
 func TestDefaultsOutcomeNamesTheServiceCode(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var got []store.ScanError
 	st.OnError = func(e store.ScanError) { got = append(got, e) }
@@ -846,6 +863,7 @@ func TestDefaultsOutcomeNamesTheServiceCode(t *testing.T) {
 // re-key every context-carrying row and strand its predecessor as a current row
 // no later scan could reach — a silent, unrecoverable history break.
 func TestQuotaDimensionKey(t *testing.T) {
+	t.Parallel()
 	const instanceARN = "arn:aws:connect:us-east-1:123456789012:instance/abc"
 
 	for _, tc := range []struct {
@@ -869,6 +887,7 @@ func TestQuotaDimensionKey(t *testing.T) {
 // NULL rather than reach the database. A unit AWS adds later would otherwise
 // fail the whole batch.
 func TestQuotaPeriodUnit(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		in   sqtypes.PeriodUnit
 		want string
@@ -893,6 +912,7 @@ func TestQuotaPeriodUnit(t *testing.T) {
 // partition when the scanner runs there, and otherwise from the smallest
 // region it runs in.
 func TestGlobalQuotaRegion_PerPartition(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		partition string
 		regions   []string

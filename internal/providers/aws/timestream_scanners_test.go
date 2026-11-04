@@ -93,6 +93,7 @@ func scanTSIBackupsWith(st *store.Store, parents map[string]string, handler func
 // element without an ARN are skipped; each backup whose source the cluster or
 // instance phase stored is contained by it.
 func TestScanTSInfluxBackups_StoresEveryPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	seedParentRows(t, st, TypeTimestreamInfluxDBCluster, tsiClusterARN)
 	seedParentRows(t, st, TypeTimestreamInfluxDBInstance, tsiInstanceARN)
@@ -154,6 +155,7 @@ func TestScanTSInfluxBackups_StoresEveryPage(t *testing.T) {
 }
 
 func TestScanTSInfluxBackups_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := scanTSIBackupsWith(st, nil, func(any) (any, error) { return &timestreaminfluxdb.ListDbBackupsOutput{}, nil })
 	if err != nil || total != 0 {
@@ -164,6 +166,7 @@ func TestScanTSInfluxBackups_Empty(t *testing.T) {
 // On the first call, the unrouted-operation shapes are a silent feature gap
 // and a denial warns once; any other error, NXDOMAIN included, is returned.
 func TestScanTSInfluxBackups_FirstPageError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -205,6 +208,7 @@ func TestScanTSInfluxBackups_FirstPageError(t *testing.T) {
 // every other error, the not-deployed shapes included, is returned with page
 // one's row stored and contained by its cluster.
 func TestScanTSInfluxBackups_PageTwoError(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name      string
 		err       error
@@ -247,6 +251,7 @@ func TestScanTSInfluxBackups_PageTwoError(t *testing.T) {
 
 // A failed write of the rows listed before a list error reports both errors.
 func TestScanTSInfluxBackups_WriteAndListErrorsBothReported(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closed.db"))
 	if err != nil {
@@ -552,6 +557,7 @@ func sortedCopy(s []string) []string {
 // the base scan's Name, Status, Region, unset CreatedAt and attributes (the
 // Describe or Get body where one is read).
 func TestScanTimestream_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	c, h := tsFixture()
@@ -611,6 +617,7 @@ func TestScanTimestream_StoresTagsOfEveryType(t *testing.T) {
 }
 
 func TestScanTimestream_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	_, h := tsFixture()
 	if _, _, err := tsScan(context.Background(), st, h); err != nil {
@@ -626,6 +633,7 @@ func TestScanTimestream_RescanInsertsNone(t *testing.T) {
 // An aws-us-gov account scanned in us-gov-west-1 sends its gov ARNs to every
 // tag op unchanged and stores their tags.
 func TestScanTimestream_GovCloudARNsReachTagOps(t *testing.T) {
+	t.Parallel()
 	const govRegion = "us-gov-west-1"
 	st := newTestStore(t)
 	c := newTSCalls("aws-us-gov", govRegion)
@@ -666,6 +674,7 @@ func TestScanTimestream_GovCloudARNsReachTagOps(t *testing.T) {
 
 // No resource anywhere stores nothing, reads no tags and reports nothing.
 func TestScanTimestream_EmptyListings(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	c, h := tsFixture()
@@ -692,6 +701,7 @@ func TestScanTimestream_EmptyListings(t *testing.T) {
 // the not-found each op models, drops the row. A cluster dropped so is no
 // backup's parent, and no pair to it is attempted.
 func TestScanTimestream_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	c0 := newTSCalls("aws", testRegion)
 	for _, target := range []struct {
 		name, typ, arn, op string
@@ -771,6 +781,7 @@ func TestScanTimestream_TagReadFailures(t *testing.T) {
 // Denied tag reads across the listings of one product are one warning for
 // the scan, under that product's tag op.
 func TestScanTimestream_TagDenialsWarnOncePerOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	live := countOpWarnings(st, tsTagsOp)
 	influx := countOpWarnings(st, tsInfluxTagsOp)
@@ -790,6 +801,7 @@ func TestScanTimestream_TagDenialsWarnOncePerOp(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanTimestream_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, tsTagsOp)
 	c, h := tsFixture()
@@ -807,6 +819,7 @@ func TestScanTimestream_TagThrottleDemotedBesideHardError(t *testing.T) {
 // A scheduled query whose tag pages repeat a token is stored without tags,
 // and the scan reports the incomplete read.
 func TestScanTimestream_QueryTagPagesRepeatToken(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	c, h := tsFixture()
 	h["ListTagsForResource"] = func(in any) (any, error) {
@@ -835,6 +848,7 @@ func TestScanTimestream_QueryTagPagesRepeatToken(t *testing.T) {
 // attempted; one kept without its Id is not the parent of a backup listed
 // without a source.
 func TestScanTimestream_DetailReadFailures(t *testing.T) {
+	t.Parallel()
 	c0 := newTSCalls("aws", testRegion)
 	noID := c0.clusterSummary()
 	noID.Id = nil
@@ -1003,6 +1017,7 @@ func assertTagsMapOrNil(t *testing.T, got *string, want map[string]string) {
 // its rows, and a failed later page keeps the pages before it. A failed
 // cluster or instance listing leaves its backups stored without a parent.
 func TestScanTimestream_ListFailureKeepsOtherListings(t *testing.T) {
+	t.Parallel()
 	c0 := newTSCalls("aws", testRegion)
 	for _, tc := range []struct {
 		op             string
@@ -1045,6 +1060,7 @@ func TestScanTimestream_ListFailureKeepsOtherListings(t *testing.T) {
 
 // A repeated token ends the listing as an error, keeping its pages.
 func TestScanTimestream_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	c, h := tsFixture()
 	h["ListDatabases"] = func(any) (any, error) {
@@ -1069,6 +1085,7 @@ func TestScanTimestream_RepeatedTokenKeepsPages(t *testing.T) {
 // Elements listed without an ARN are not stored or read and are warned about
 // once per listing, naming the element.
 func TestScanTimestream_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		op, label, key string
 		out            any
@@ -1101,6 +1118,7 @@ func TestScanTimestream_ElementWithoutARNWarns(t *testing.T) {
 // A failed write stops the scan before any later listing and sends no
 // warning about the rows it lost.
 func TestScanTimestream_FailedWriteStopsWithoutWarning(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	refuseStoreWrites(t, st, TypeTimestreamTable)
@@ -1121,6 +1139,7 @@ func TestScanTimestream_FailedWriteStopsWithoutWarning(t *testing.T) {
 
 // Once ctx ends no further listing starts, and the stop is reported once.
 func TestScanTimestream_ContextEndStopsOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	c, h := tsFixture()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1153,6 +1172,7 @@ func TestScanTimestream_ContextEndStopsOnce(t *testing.T) {
 // still scan, with no error. With every host absent the region is reported
 // unavailable. An NXDOMAIN after rows were listed is a failure of this scan.
 func TestScanTimestream_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := func(any) (any, error) { return nil, tsNXDOMAIN }
 	t.Run("LiveAnalytics absent", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1208,6 +1228,7 @@ func TestScanTimestream_NXDOMAIN(t *testing.T) {
 // The backup phase runs in the scan's own region after the other InfluxDB
 // phases, and contains each backup under the cluster or instance they stored.
 func TestScanTimestream_StoresBackupsUnderSources(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	_, h := tsFixture()
@@ -1240,6 +1261,7 @@ func TestScanTimestream_StoresBackupsUnderSources(t *testing.T) {
 // InfluxDB found nothing and did not fail. A closure first met by a later
 // LiveAnalytics listing keeps the rows stored before it.
 func TestScanTimestream_LiveAnalyticsClosedStillScansInflux(t *testing.T) {
+	t.Parallel()
 	empty := map[string]func(any) (any, error){
 		"ListDbClusters":        func(any) (any, error) { return &timestreaminfluxdb.ListDbClustersOutput{}, nil },
 		"ListDbInstances":       func(any) (any, error) { return &timestreaminfluxdb.ListDbInstancesOutput{}, nil },
@@ -1303,6 +1325,7 @@ func TestScanTimestream_LiveAnalyticsClosedStillScansInflux(t *testing.T) {
 // A rescan of an account closed to LiveAnalytics reports the InfluxDB rows it
 // stored before, inserting none, and is not the not-entitled state.
 func TestScanTimestream_LiveAnalyticsClosedRescanCountsInflux(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	for scan, wantInserted := range []int{7, 0} {
 		_, h := tsFixture()
@@ -1318,6 +1341,7 @@ func TestScanTimestream_LiveAnalyticsClosedRescanCountsInflux(t *testing.T) {
 // page the listing served, so it is a denial of that page: the page before it
 // is kept, it warns once under the listing's op, and the later listings run.
 func TestScanTimestream_ClosureOnLaterPageWarns(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	opWarns := countOpWarnings(st, "timestream:ListDatabases")
@@ -1345,6 +1369,7 @@ func TestScanTimestream_ClosureOnLaterPageWarns(t *testing.T) {
 // A real IAM denial of a LiveAnalytics listing is not the closure: it warns
 // once under its op, and every other listing still runs.
 func TestScanTimestream_DeniedListingWarnsUnderItsOp(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countWarnings(st)
 	opWarns := countOpWarnings(st, "timestream:ListDatabases")
@@ -1366,6 +1391,7 @@ func TestScanTimestream_DeniedListingWarnsUnderItsOp(t *testing.T) {
 // An Id that both a cluster and an instance carry is ambiguous, so its backup
 // is stored without a parent; an unambiguous Id still gets its pair.
 func TestScanTimestream_AmbiguousSourceIDGetsNoPair(t *testing.T) {
+	t.Parallel()
 	const dupInstanceARN = "arn:aws:timestream-influxdb:us-east-1:123456789012:db-instance/c-1"
 	st := newTestStore(t)
 	c, h := tsFixture()

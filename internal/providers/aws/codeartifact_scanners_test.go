@@ -242,6 +242,7 @@ func caTagReadARNs() []string {
 // package's. A domain's Status is its status, none when it has none; no row
 // has a CreatedAt. The element without an ARN is warned about once.
 func TestScanCodeArtifact_StoresTagsOfEveryType(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	calls := newCACalls()
@@ -302,6 +303,7 @@ func TestScanCodeArtifact_StoresTagsOfEveryType(t *testing.T) {
 
 // A rescan stores the same rows without inserting any.
 func TestScanCodeArtifact_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := caScan(context.Background(), st, caHandlers(newCACalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
@@ -318,6 +320,7 @@ func TestScanCodeArtifact_RescanInsertsNone(t *testing.T) {
 // An account without domains or repositories stores nothing, reads no tags
 // and lists no package groups or packages.
 func TestScanCodeArtifact_NoDomains(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCACalls()
 	h := caHandlers(calls)
@@ -338,6 +341,7 @@ func TestScanCodeArtifact_NoDomains(t *testing.T) {
 }
 
 func TestScanCodeArtifact_StoresPackages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCACalls()
 	if _, _, err := caScan(context.Background(), st, caHandlers(calls)); err != nil {
@@ -387,6 +391,7 @@ func TestScanCodeArtifact_StoresPackages(t *testing.T) {
 }
 
 func TestScanCodeArtifact_NoPackages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := caHandlers(newCACalls())
 	h["ListPackages"] = func(any) (any, error) { return &codeartifact.ListPackagesOutput{}, nil }
@@ -408,6 +413,7 @@ func TestScanCodeArtifact_NoPackages(t *testing.T) {
 // throttle keeps it and is transient; any other error keeps it and is an
 // error.
 func TestScanCodeArtifact_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	type tagCase struct {
 		name      string
 		arn, typ  string
@@ -477,6 +483,7 @@ func TestScanCodeArtifact_TagReadFailures(t *testing.T) {
 // Denied tag reads in every phase send one warning for the whole scan,
 // under the tag op, naming the first denied row; the rows are kept untagged.
 func TestScanCodeArtifact_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warnings := bacWarnings(st, caTagsOp)
 	calls := newCACalls()
@@ -511,6 +518,7 @@ func TestScanCodeArtifact_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanCodeArtifact_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, caTagsOp)
 	calls := newCACalls()
@@ -531,6 +539,7 @@ func TestScanCodeArtifact_TagThrottleDemotedBesideHardError(t *testing.T) {
 // denial on a repository whose ARN names this account warns, also when its
 // element names another account as its administrator (rc).
 func TestScanCodeArtifact_OtherAccountRepository(t *testing.T) {
+	t.Parallel()
 	adminElsewhere := caTestPrefix + "repository/d1/rc"
 	for _, c := range []struct {
 		name, arn string
@@ -589,6 +598,7 @@ func TestScanCodeArtifact_OtherAccountRepository(t *testing.T) {
 // A failed write stops the scan: no later phase runs and no warning is sent
 // about rows the write lost; the phase before it keeps its rows.
 func TestScanCodeArtifact_FailedWriteStopsScan(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	refuseStoreWrites(t, st, TypeCodeArtifactRepository)
@@ -620,6 +630,7 @@ func caFirstPage(page any) func(any) (any, error) {
 // A listing's failed later page keeps the page read before it, and its error
 // does not stop the later phases, which read the parents it stored.
 func TestScanCodeArtifact_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	t.Run("domains", func(t *testing.T) {
 		st := newTestStore(t)
 		calls := newCACalls()
@@ -661,6 +672,7 @@ func TestScanCodeArtifact_ListFailureKeepsPagesAndLaterPhases(t *testing.T) {
 // every page, with its tags, before they request the next: ra and /* are
 // stored tagged when page 2 of their listing is requested.
 func TestScanCodeArtifact_WritesEachPageBeforeTheNext(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCACalls()
 	h := caHandlers(calls)
@@ -728,6 +740,7 @@ func TestScanCodeArtifact_WritesEachPageBeforeTheNext(t *testing.T) {
 // A repeated token ends a listing as an error after its second call, keeping
 // both pages, and the later phases still run.
 func TestScanCodeArtifact_RepeatedTokenKeepsPages(t *testing.T) {
+	t.Parallel()
 	same := sdkaws.String("same")
 	for _, c := range []struct {
 		op            string
@@ -788,6 +801,7 @@ func TestScanCodeArtifact_RepeatedTokenKeepsPages(t *testing.T) {
 // warned about once under its listing, named by its name or pattern, or by
 // the fallback text when it has none.
 func TestScanCodeArtifact_ElementWithoutARNWarns(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name, op, key string
 		answer        any
@@ -817,6 +831,7 @@ func TestScanCodeArtifact_ElementWithoutARNWarns(t *testing.T) {
 // A domain whose name is missing is stored with its tags but lists no
 // package groups, and is warned about under ListDomains.
 func TestScanCodeArtifact_DomainWithoutNameHasNoChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "codeartifact:ListDomains")
 	calls := newCACalls()
@@ -848,6 +863,7 @@ func TestScanCodeArtifact_DomainWithoutNameHasNoChildren(t *testing.T) {
 // any other error is returned; the other domain's groups are stored in every
 // case.
 func TestScanCodeArtifact_PackageGroupListingFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name      string
 		err       error
@@ -898,6 +914,7 @@ func TestScanCodeArtifact_PackageGroupListingFailures(t *testing.T) {
 
 // A denied domain listing warns under its op and the later phases still run.
 func TestScanCodeArtifact_DomainsDenied(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "codeartifact:ListDomains")
 	calls := newCACalls()
@@ -919,6 +936,7 @@ func TestScanCodeArtifact_DomainsDenied(t *testing.T) {
 // Rows of the aws-us-gov and aws-cn partitions reach the tag op under their
 // listed ARNs unchanged.
 func TestScanCodeArtifact_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct{ partition, region string }{
 		{"aws-us-gov", "us-gov-west-1"},
 		{"aws-cn", "cn-north-1"},
@@ -949,6 +967,7 @@ func TestScanCodeArtifact_TagReadsKeepPartitionARNs(t *testing.T) {
 // Once ctx ends no further phase starts, and the stop is one member of the
 // error, although the phase in flight saw it in its listing.
 func TestScanCodeArtifact_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCACalls()
 	h := caHandlers(calls)
@@ -985,6 +1004,7 @@ func TestScanCodeArtifact_ContextEndReportedOnce(t *testing.T) {
 // An NXDOMAIN after rows were stored is a failure of this scan, not a region
 // gap: the counts are kept. With nothing stored it stays region-unavailable.
 func TestScanCodeArtifact_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "codeartifact.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		st := newTestStore(t)
@@ -1019,6 +1039,7 @@ func TestScanCodeArtifact_NXDOMAIN(t *testing.T) {
 // AccessDenied on ListPackages warns once for the op, not once per repository,
 // and keeps every other row.
 func TestScanCodeArtifact_PackagesAccessDenied(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "codeartifact:ListPackages")
 	h := caHandlers(newCACalls())
@@ -1038,6 +1059,7 @@ func TestScanCodeArtifact_PackagesAccessDenied(t *testing.T) {
 // A repository deleted after ListRepositories is skipped silently; its
 // siblings' packages are stored.
 func TestScanCodeArtifact_RepositoryGone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "codeartifact:ListPackages")
 	h := caHandlers(newCACalls())
@@ -1062,6 +1084,7 @@ func TestScanCodeArtifact_RepositoryGone(t *testing.T) {
 // A repository whose listing still fails transiently after retries is skipped
 // with one warning; its siblings' packages are stored.
 func TestScanCodeArtifact_RepositoryTransientSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "codeartifact:ListPackages")
 	h := caHandlers(newCACalls())
@@ -1086,6 +1109,7 @@ func TestScanCodeArtifact_RepositoryTransientSkipped(t *testing.T) {
 // Any other ListPackages error is returned, and the rows of every earlier
 // phase stay stored: the package phase runs after all of them.
 func TestScanCodeArtifact_PackagesErrorKeepsParents(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := caHandlers(newCACalls())
 	h["ListPackages"] = func(any) (any, error) { return nil, caBadInput }
@@ -1100,6 +1124,7 @@ func TestScanCodeArtifact_PackagesErrorKeepsParents(t *testing.T) {
 // A hard error in an earlier phase is returned, and the package phase still
 // lists the repositories stored before it.
 func TestScanCodeArtifact_ParentErrorStillListsPackages(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := caHandlers(newCACalls())
 	h["ListPackageGroups"] = func(any) (any, error) { return nil, caBadInput }
@@ -1117,6 +1142,7 @@ func TestScanCodeArtifact_ParentErrorStillListsPackages(t *testing.T) {
 // so that the package phase's hard error still reaches the dispatcher as a
 // hard error.
 func TestScanCodeArtifact_ParentTransientDoesNotMaskHardError(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "codeartifact:ListPackageGroups")
 	h := caHandlers(newCACalls())
@@ -1132,6 +1158,7 @@ func TestScanCodeArtifact_ParentTransientDoesNotMaskHardError(t *testing.T) {
 
 // ListPackages stops when the service repeats the token it was sent.
 func TestScanCodeArtifact_PackagesRepeatedTokenStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	h := caHandlers(newCACalls())
 	var count atomic.Int32
@@ -1153,6 +1180,7 @@ func TestScanCodeArtifact_PackagesRepeatedTokenStops(t *testing.T) {
 // A repository ARN not of the form repository/<domain>/<name> fails the
 // package phase rather than listing packages of a guessed repository.
 func TestScanCodeArtifact_MalformedRepositoryARN(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	calls := newCACalls()
 	h := caHandlers(calls)
@@ -1170,6 +1198,7 @@ func TestScanCodeArtifact_MalformedRepositoryARN(t *testing.T) {
 }
 
 func TestCARepositoryPackageARN(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		repo string
 		pkg  catypes.PackageSummary
@@ -1194,6 +1223,7 @@ func TestCARepositoryPackageARN(t *testing.T) {
 }
 
 func TestParseCARepositoryARN_Rejects(t *testing.T) {
+	t.Parallel()
 	for _, in := range []string{
 		"not-an-arn",
 		caTestPrefix + "repository/d1",

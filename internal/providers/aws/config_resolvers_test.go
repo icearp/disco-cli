@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveConfigRelationships(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -51,6 +52,7 @@ func TestResolveConfigRelationships(t *testing.T) {
 }
 
 func TestResolveConfigRelationships_ManagedRuleNoEdge(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	ruleARN := fmt.Sprintf("arn:aws:config:%s:%s:config-rule/managed", testRegion, acct.ID)

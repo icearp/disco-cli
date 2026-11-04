@@ -47,6 +47,7 @@ import (
 // form byte for byte, and for aws-cn and aws-us-gov it changes the partition
 // segment and nothing else.
 func TestPerServiceARNHelpers_Partition(t *testing.T) {
+	t.Parallel()
 	const r, a = "us-east-1", "123456789012"
 	cases := []struct {
 		name       string
@@ -168,6 +169,7 @@ func TestPerServiceARNHelpers_Partition(t *testing.T) {
 }
 
 func TestScanDLM_UsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -191,6 +193,7 @@ func TestScanDLM_UsesAccountPartition(t *testing.T) {
 // The key resolver rebuilds the custom key store's NativeID from the key's
 // bare store id, so it must land on the row the store scanner wrote.
 func TestKMSCustomKeyStore_ScannerAndResolverAgreeOnPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -216,6 +219,7 @@ func TestKMSCustomKeyStore_ScannerAndResolverAgreeOnPartition(t *testing.T) {
 }
 
 func TestResolveCloudTrail_BucketUsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -233,6 +237,7 @@ func TestResolveCloudTrail_BucketUsesAccountPartition(t *testing.T) {
 }
 
 func TestResolveEMRClusterRefs_RoleUsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -250,6 +255,7 @@ func TestResolveEMRClusterRefs_RoleUsesAccountPartition(t *testing.T) {
 }
 
 func TestResolveEventBridge_DefaultBusUsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -282,6 +288,7 @@ func storedRowID(t *testing.T, st *store.Store, typ, want string) string {
 // The deployment-group resolver rebuilds the application and deployment-config
 // NativeIDs from names; they must land on the rows the scanners wrote.
 func TestCodeDeploy_ScannerAndResolverAgreeOnPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -317,6 +324,7 @@ func TestCodeDeploy_ScannerAndResolverAgreeOnPartition(t *testing.T) {
 }
 
 func TestDAX_ScannerAndResolverAgreeOnPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -346,6 +354,7 @@ func TestDAX_ScannerAndResolverAgreeOnPartition(t *testing.T) {
 }
 
 func TestDMSSubnetGroup_ScannerAndResolverAgreeOnPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -376,6 +385,7 @@ func TestDMSSubnetGroup_ScannerAndResolverAgreeOnPartition(t *testing.T) {
 // The scanner keys memberships in the account's partition; the resolver must
 // parse that NativeID in any partition to reach the group and the user.
 func TestIdentityStoreMembership_ScannerAndResolverAgreeOnPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -413,6 +423,7 @@ func TestIdentityStoreMembership_ScannerAndResolverAgreeOnPartition(t *testing.T
 }
 
 func TestResolveS3_BucketTargetsUseAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -437,6 +448,7 @@ func TestResolveS3_BucketTargetsUseAccountPartition(t *testing.T) {
 }
 
 func TestResolveImageBuilderInfraInstanceProfile_UsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -455,6 +467,7 @@ func TestResolveImageBuilderInfraInstanceProfile_UsesAccountPartition(t *testing
 }
 
 func TestResolveSSOPermissionSetInstance_UsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -473,6 +486,7 @@ func TestResolveSSOPermissionSetInstance_UsesAccountPartition(t *testing.T) {
 }
 
 func TestResolveFSxSnapshotToVolume_UsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -490,6 +504,7 @@ func TestResolveFSxSnapshotToVolume_UsesAccountPartition(t *testing.T) {
 }
 
 func TestResolveMachineLearningRefs_UsesAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -510,6 +525,7 @@ func TestResolveMachineLearningRefs_UsesAccountPartition(t *testing.T) {
 // The datasource and model ids are rebuilt with mlNativeID; they must match
 // the rows keyed in the account's partition.
 func TestResolveMachineLearningRefs_ObjectTargetsUseAccountPartition(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			st := newTestStore(t)
@@ -532,6 +548,7 @@ func TestResolveMachineLearningRefs_ObjectTargetsUseAccountPartition(t *testing.
 // SES receipt rules, IoT topic rules and Glue jobs name their S3 bucket; each
 // resolver rebuilds the bucket ARN, which must be in the account's partition.
 func TestResolveBucketActions_UseAccountPartition(t *testing.T) {
+	t.Parallel()
 	bucketName := ptrStr("b1")
 	cases := []struct {
 		name    string
@@ -574,6 +591,7 @@ func TestResolveBucketActions_UseAccountPartition(t *testing.T) {
 // Route 53 finds a website bucket by the name in its NativeID, which the S3
 // scanner writes in the account's partition.
 func TestRoute53AliasToS3Website_ScannerAndResolverAgreeOnPartition(t *testing.T) {
+	t.Parallel()
 	const site = "www.example.com"
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {

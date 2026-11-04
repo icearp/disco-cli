@@ -73,6 +73,7 @@ func runScanOpenSearch(t *testing.T, st *store.Store, handlers map[string]func(a
 }
 
 func TestScanOpenSearch_RunsEveryPhase(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	total, err := runScanOpenSearch(t, st, osTopLevelHandlers())
 	if err != nil {
@@ -103,6 +104,7 @@ func TestScanOpenSearch_RunsEveryPhase(t *testing.T) {
 // domain and application rows survive every new op failing, and each failure
 // is reported.
 func TestScanOpenSearch_NewPhaseErrorsJoinedAfterExistingPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := osTopLevelHandlers()
 	var (
@@ -133,6 +135,7 @@ func TestScanOpenSearch_NewPhaseErrorsJoinedAfterExistingPhases(t *testing.T) {
 
 // A failed domain phase does not stop the phases after it.
 func TestScanOpenSearch_DomainErrorDoesNotStopLaterPhases(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := osTopLevelHandlers()
 	handlers["ListDomainNames"] = func(any) (any, error) { return nil, osBadInput }
@@ -148,6 +151,7 @@ func TestScanOpenSearch_DomainErrorDoesNotStopLaterPhases(t *testing.T) {
 // Beside a hard error, a later phase's transient network error warns instead of joining, so the
 // service keeps its counts and its hard errors are still classified as errors.
 func TestScanOpenSearch_LaterTransientErrorWarnsAndKeepsHardErrors(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "opensearch:ListApplications")
 	handlers := osTopLevelHandlers()
@@ -171,6 +175,7 @@ func TestScanOpenSearch_LaterTransientErrorWarnsAndKeepsHardErrors(t *testing.T)
 // of the rows listed before it stays a hard store-write error, not a warning.
 // Only the direct-query phase lists rows, so its write is the only one made.
 func TestScanOpenSearch_StoreWriteBesideTransientStaysHardError(t *testing.T) {
+	t.Parallel()
 	// Not newTestStore: its cleanup queries the DB, which a closed store can't serve.
 	st, err := store.Open(filepath.Join(t.TempDir(), "closed.db"))
 	if err != nil {
@@ -209,6 +214,7 @@ func TestScanOpenSearch_StoreWriteBesideTransientStaysHardError(t *testing.T) {
 // A domain phase that cannot reach the endpoint returns that error alone and
 // no later phase calls it.
 func TestScanOpenSearch_DomainEndpointUnreachableStopsTheScan(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		err     error
@@ -245,6 +251,7 @@ func TestScanOpenSearch_DomainEndpointUnreachableStopsTheScan(t *testing.T) {
 // An API-coded throttle from the domain phase is that phase's error: the
 // later phases still run, the data-source phase over the listed names.
 func TestScanOpenSearch_DomainThrottleJoinedAndLaterPhasesRun(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	var dsDomains parentCalls
 	handlers := osTopLevelHandlers()
@@ -290,6 +297,7 @@ func (s osDomainStub) DescribeDomain(ctx context.Context, in *opensearch.Describ
 // More domains than fan-out slots, one failing: the returned error is that
 // describe's, not the Canceled the blocked launch loop sees.
 func TestScanOpenSearchDomains_FirstDescribeErrorWins(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	stub := osDomainStub{}
 	for i := range fanoutMed + 5 {
@@ -307,6 +315,7 @@ func TestScanOpenSearchDomains_FirstDescribeErrorWins(t *testing.T) {
 // A caller cancellation that stops the launch loop is returned, not read as a
 // complete listing.
 func TestScanOpenSearchDomains_CallerCancelReturned(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -320,6 +329,7 @@ func TestScanOpenSearchDomains_CallerCancelReturned(t *testing.T) {
 // A later phase's lone transient error reaches the dispatcher as transient,
 // with the other phases' counts, so the scan is marked partial.
 func TestScanOpenSearch_LoneTransientPhaseMarksPartial(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := osTopLevelHandlers()
 	handlers["ListApplications"] = func(any) (any, error) {
@@ -338,6 +348,7 @@ func TestScanOpenSearch_LoneTransientPhaseMarksPartial(t *testing.T) {
 // stored rows, is a failure of this scan, not a region gap: it is returned as
 // an error with the stored rows' counts.
 func TestScanOpenSearch_LatePhaseNXDOMAINKeepsCounts(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	handlers := osTopLevelHandlers()
 	handlers["ListApplications"] = func(any) (any, error) {

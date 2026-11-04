@@ -249,6 +249,7 @@ func batchTestARN(kind, name string) string {
 // name, status, the element verbatim and its tags; an element without an
 // ARN is warned about once and not stored.
 func TestScanBatchListedTypes_StoresPagesWithTags(t *testing.T) {
+	t.Parallel()
 	for _, c := range batchListCases() {
 		t.Run(c.typ, func(t *testing.T) {
 			st := newTestStore(t)
@@ -303,6 +304,7 @@ func TestScanBatchListedTypes_StoresPagesWithTags(t *testing.T) {
 // A failed page keeps the rows read before it. A denial is warned about once
 // and not returned; any other error is returned after the rows are stored.
 func TestScanBatchListedTypes_ListErrors(t *testing.T) {
+	t.Parallel()
 	isClientErr := func(err error) bool { return isAPIErrorCode(err, "ClientException") }
 	for _, c := range batchListCases() {
 		for _, tc := range []struct {
@@ -349,6 +351,7 @@ func TestScanBatchListedTypes_ListErrors(t *testing.T) {
 // The job-queue phase returns the ARNs of the queues it stored, and none
 // when the write failed.
 func TestScanBatchJobQueues_ReturnsStoredARNs(t *testing.T) {
+	t.Parallel()
 	c := batchListCases()[1]
 	stub := &stubBatch{}
 	c.install(stub, map[string]batchPage{"": {items: []any{
@@ -416,6 +419,7 @@ func batchSchedStub(n int, listErr error, descErr map[string]error) *stubBatch {
 }
 
 func TestScanBatchSchedulingPolicies_StoresEveryChunk(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	listWarns := countOpWarnings(st, "batch:ListSchedulingPolicies")
 	stub := batchSchedStub(101, nil, nil)
@@ -462,6 +466,7 @@ func TestScanBatchSchedulingPolicies_StoresEveryChunk(t *testing.T) {
 // about once and stops the describes; the policies listed before a failed
 // listing page are still described and stored.
 func TestScanBatchSchedulingPolicies_Errors(t *testing.T) {
+	t.Parallel()
 	isClientErr := func(err error) bool { return isAPIErrorCode(err, "ClientException") }
 	firstChunk := batchTestARN("scheduling-policy", "p000")
 	for _, tc := range []struct {
@@ -541,6 +546,7 @@ func batchQuotaStub(pages map[string]map[string]batchPage) func(*batch.ListQuota
 // only that queue, a denial is warned about once, a share without an ARN is
 // warned about once.
 func TestScanBatchQuotaShares(t *testing.T) {
+	t.Parallel()
 	q1, q2, q3 := batchTestARN("job-queue", "q1"), batchTestARN("job-queue", "q2"), batchTestARN("job-queue", "q3")
 	tagged := batchtypes.QuotaShareDetail{
 		QuotaShareArn: sdkaws.String(q1 + "/quota-share/s1"), QuotaShareName: sdkaws.String("s1"), JobQueueArn: &q1,
@@ -655,6 +661,7 @@ func batchAllTypes() []string {
 // quota shares are read for the queues the job-queue phase stored, without
 // listing the queues again.
 func TestScanBatchAll_PhaseErrorsAreIndependent(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		sdkOp string
 		lost  []string // the types the failure leaves with no rows
@@ -699,6 +706,7 @@ func TestScanBatchAll_PhaseErrorsAreIndependent(t *testing.T) {
 // phase's hard error still reaches the dispatcher as a hard error; alone it
 // is returned, so the scan is marked partial.
 func TestScanBatchAll_TransientDemoted(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := countOpWarnings(st, "batch:DescribeComputeEnvironments")
 	stub := batchAllStub("DescribeComputeEnvironments", batchThrottled)
@@ -728,6 +736,7 @@ func TestScanBatchAll_TransientDemoted(t *testing.T) {
 
 // A failed store write stops the scan: every later write would fail too.
 func TestScanBatchAll_StoreWriteFailureStops(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	refuseStoreWrites(t, st, TypeBatchComputeEnvironment)
 	_, _, err := scanBatchAll(context.Background(), batchAllStub("", nil), newTestAccount(testAccountID), testRegion, st, testScanID)
@@ -742,6 +751,7 @@ func TestScanBatchAll_StoreWriteFailureStops(t *testing.T) {
 // A job-queue listing that fails on a later page still hands the queues of
 // the pages before it to the quota-share phase.
 func TestScanBatchAll_QuotaSharesOfQueuesBeforeFailedPage(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	qARN := batchTestARN("job-queue", "q1")
 	stub := batchAllStub("", nil)

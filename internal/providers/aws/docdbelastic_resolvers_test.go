@@ -7,6 +7,7 @@ import (
 )
 
 func TestResolveDocDBElasticClusterRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -31,6 +32,7 @@ func TestResolveDocDBElasticClusterRefs(t *testing.T) {
 }
 
 func TestResolveDocDBElasticSnapshotRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -52,6 +54,7 @@ func TestResolveDocDBElasticSnapshotRefs(t *testing.T) {
 }
 
 func TestResolveDocDBElasticSnapshotRefs_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	snapARN := "arn:aws:docdb-elastic:us-east-1:" + testAccountID + ":cluster-snapshot/s1"

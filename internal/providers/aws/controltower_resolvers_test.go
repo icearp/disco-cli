@@ -20,6 +20,7 @@ func ctBaselineARN() string {
 // TestResolveControlTowerBaselineTarget_OUTarget verifies baseline
 // → org-OU edge.
 func TestResolveControlTowerBaselineTarget_OUTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -44,6 +45,7 @@ func TestResolveControlTowerBaselineTarget_OUTarget(t *testing.T) {
 // TestResolveControlTowerBaselineTarget_AccountTarget verifies baseline
 // → org-account edge.
 func TestResolveControlTowerBaselineTarget_AccountTarget(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
@@ -67,6 +69,7 @@ func TestResolveControlTowerBaselineTarget_AccountTarget(t *testing.T) {
 // TestResolveControlTowerBaselineTarget_FKSafe verifies missing target
 // (org tree not scanned) skips without erroring.
 func TestResolveControlTowerBaselineTarget_FKSafe(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

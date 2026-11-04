@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveFISExperimentTemplateRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	roleARN := fmt.Sprintf("arn:aws:iam::%s:role/fis-role", acct.ID)
@@ -23,6 +24,7 @@ func TestResolveFISExperimentTemplateRefs(t *testing.T) {
 }
 
 func TestResolveFISTargetAccountConfigRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	tplARN := fmt.Sprintf("arn:aws:fis:%s:%s:experiment-template/EXT123", testRegion, acct.ID)

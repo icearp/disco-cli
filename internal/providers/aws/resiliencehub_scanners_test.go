@@ -20,6 +20,7 @@ import (
 )
 
 func TestRHInputSourceKey(t *testing.T) {
+	t.Parallel()
 	const (
 		clusterARN = "arn:aws:eks:us-east-1:123456789012:cluster/c1"
 		stateURL   = "s3://bucket/path/terraform.tfstate"
@@ -75,6 +76,7 @@ func TestRHInputSourceKey(t *testing.T) {
 // App input sources are listed for the app's draft version at the model's
 // page cap; service functions and service input sources at theirs.
 func TestRHFanOuts_RequestDraftAtPageCap(t *testing.T) {
+	t.Parallel()
 	appARN, serviceARN := rhARN(testAccountID, "app", "a1"), rhARN(testAccountID, "service", "s1")
 	stub := &rhV2Stub{}
 	acct := newTestAccount(testAccountID)
@@ -140,6 +142,7 @@ func rhClosingStoreAccount(t *testing.T) (*store.Store, *account, *atomic.Int32)
 // for it, and reports the failed write. Its tag read was denied (the stub
 // answers no ListTagsForResource), but no warning claims the lost row.
 func TestScanRHApps_NoParentsWhenUpsertFails(t *testing.T) {
+	t.Parallel()
 	st, acct, _ := rhClosingStoreAccount(t)
 	warns := rhWarnRecorder(st)
 	client := resiliencehub.NewFromConfig(acct.cfg, func(o *resiliencehub.Options) { o.Region = testRegion })
@@ -160,6 +163,7 @@ func TestScanRHApps_NoParentsWhenUpsertFails(t *testing.T) {
 // The top-level scan never fans out over unstored apps, and the write
 // failure reaches the dispatcher as one.
 func TestScanResilienceHub_NoInputSourcesWhenAppUpsertFails(t *testing.T) {
+	t.Parallel()
 	st, acct, inputSourceCalls := rhClosingStoreAccount(t)
 	_, _, err := scanResilienceHub(context.Background(), acct, testRegion, st, testScanID)
 	if !errors.Is(err, store.ErrStoreWrite) {
@@ -369,6 +373,7 @@ func rhWantID(t *testing.T, want map[string]rhWant, typ string) string {
 // assessment listed without a Status has none. Every listing of a tagged type is sent MaxResults 100,
 // and the recommendation templates are listed for the stored assessment.
 func TestScanResilienceHub_StoresEveryPhaseWithTags(t *testing.T) {
+	t.Parallel()
 	for _, bare := range []bool{false, true} {
 		t.Run(map[bool]string{false: "tagged", true: "bare"}[bare], func(t *testing.T) {
 			queues, want := rhFixture(rhCommercial, bare)
@@ -425,6 +430,7 @@ func TestScanResilienceHub_StoresEveryPhaseWithTags(t *testing.T) {
 
 // A rescan stores the same rows, tags included, without inserting any.
 func TestScanResilienceHub_RescanInsertsNone(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	queues, want := rhFixture(rhCommercial, false)
 	if _, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers()); err != nil {
@@ -456,6 +462,7 @@ func emptyRHQueues() map[string][]stubCall {
 // Empty listings: nothing stored, no child listing or tag read (rhCalls
 // fails the test on an unqueued listing), no error, no warning.
 func TestScanResilienceHub_Empty(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	warns := rhWarnRecorder(st)
 	c := newRHCalls(t, emptyRHQueues(), false)
@@ -493,6 +500,7 @@ func rhWarnServices(w []store.ScanWarning) []string {
 // and warns once under the tag op with the scan's scope; a throttle keeps it
 // and is transient; any other error keeps it and is an error.
 func TestScanResilienceHub_TagReadFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name     string
 		typ      string
@@ -572,6 +580,7 @@ func TestScanResilienceHub_TagReadFailures(t *testing.T) {
 // Denied tag reads of both clients send one warning for the whole scan; the
 // rows are kept.
 func TestScanResilienceHub_TagDenialsWarnOncePerScan(t *testing.T) {
+	t.Parallel()
 	queues, want := rhFixture(rhCommercial, false)
 	calls := newRHCalls(t, queues, false)
 	calls.tagErrs[rhWantID(t, want, TypeResilienceHubApp)] = rhTestDenied
@@ -595,6 +604,7 @@ func TestScanResilienceHub_TagDenialsWarnOncePerScan(t *testing.T) {
 // A throttled tag read beside a hard failure of the same op, on the other
 // client, is demoted to one warning, so the hard error decides the outcome.
 func TestScanResilienceHub_TagThrottleDemotedBesideHardError(t *testing.T) {
+	t.Parallel()
 	queues, want := rhFixture(rhCommercial, false)
 	calls := newRHCalls(t, queues, false)
 	calls.tagErrs[rhWantID(t, want, TypeResilienceHubApp)] = rhTestThrottle
@@ -620,6 +630,7 @@ func rhWithToken(out any, token string) any {
 // page's NextToken, keeps the first page's row and sends the token it got;
 // its error does not stop the later phases, whose rows are all stored.
 func TestScanResilienceHub_ListingEndKeepsPagesAndLaterPhases(t *testing.T) {
+	t.Parallel()
 	for typ, op := range rhTaggedOps {
 		for _, end := range []struct {
 			name     string
@@ -695,6 +706,7 @@ func rhAddARNless(t *testing.T, queues map[string][]stubCall) {
 // An element listed without its ARN is not stored and not sent to the tag
 // op; each listing warns once about its own.
 func TestScanResilienceHub_ElementsWithoutARNWarn(t *testing.T) {
+	t.Parallel()
 	queues, want := rhFixture(rhCommercial, false)
 	rhAddARNless(t, queues)
 	calls := newRHCalls(t, queues, false)
@@ -723,6 +735,7 @@ func TestScanResilienceHub_ElementsWithoutARNWarn(t *testing.T) {
 // A GovCloud or China ARN reaches each client's tag op unchanged, and the v2
 // rows homed in that partition's region are stored.
 func TestScanResilienceHub_TagReadsKeepPartitionARNs(t *testing.T) {
+	t.Parallel()
 	for _, pf := range partitionFixtures {
 		t.Run(pf.partition, func(t *testing.T) {
 			arnOf := func(kind, id string) string {
@@ -764,6 +777,7 @@ func TestScanResilienceHub_TagReadsKeepPartitionARNs(t *testing.T) {
 // assessment's failure costs the other none of its rows. A denial warns once
 // under the op; any other error, a not-found included, is returned.
 func TestScanResilienceHub_PerAssessmentTemplateFailures(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		name string
 		err  error
@@ -828,6 +842,7 @@ func TestScanResilienceHub_PerAssessmentTemplateFailures(t *testing.T) {
 // the first page's row was written with its tags before the second page was
 // asked for, and no later phase runs.
 func TestScanResilienceHub_ContextEndReportedOnce(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct{ typ, op, next string }{
 		{typ: TypeResilienceHubApp, op: "ListApps", next: "ListResiliencyPolicies"},
 		{typ: TypeResilienceHubAppAssessment, op: "ListAppAssessments", next: "ListRecommendationTemplates"},
@@ -882,6 +897,7 @@ func TestScanResilienceHub_ContextEndReportedOnce(t *testing.T) {
 // gap: the counts are kept. With nothing stored it stays region-unavailable
 // and no later phase runs.
 func TestScanResilienceHub_NXDOMAIN(t *testing.T) {
+	t.Parallel()
 	nx := &net.DNSError{Err: "no such host", Name: "resiliencehub.us-east-1.amazonaws.com", IsNotFound: true}
 	t.Run("a listing after others stored rows", func(t *testing.T) {
 		queues, want := rhFixture(rhCommercial, false)
@@ -920,6 +936,7 @@ func TestScanResilienceHub_NXDOMAIN(t *testing.T) {
 // phase's error reaches the dispatcher under its own op: a transient one
 // demoted to one warning instead of buried in another phase's hard error.
 func TestScanResilienceHub_PhaseErrors(t *testing.T) {
+	t.Parallel()
 	throttle := apiErr("ThrottlingException", "Rate exceeded")
 	hard := apiErr("ConflictException", "bad")
 	app, svc, test := TypeResilienceHubApp, TypeResilienceHubService, TypeResilienceHubTest
@@ -1018,6 +1035,7 @@ func assertV1RHRows(t *testing.T, st *store.Store, want map[string]rhWant) {
 // A hard v2 failure costs the v1 phases none of their rows, and the later v2
 // phases still run.
 func TestScanResilienceHub_V2ErrorKeepsOtherRows(t *testing.T) {
+	t.Parallel()
 	queues, want := rhFixture(rhCommercial, false)
 	boom := errors.New("boom")
 	queues["ListPolicies"] = []stubCall{{Err: boom}}
@@ -1037,6 +1055,7 @@ func TestScanResilienceHub_V2ErrorKeepsOtherRows(t *testing.T) {
 // makes no v2 call after ListPolicies (rhCalls fails the test on a call with
 // nothing queued), whichever not-deployed shape ListPolicies answers.
 func TestScanResilienceHub_V2NotDeployedKeepsV1Rows(t *testing.T) {
+	t.Parallel()
 	for name, gap := range map[string]error{
 		"UnknownOperationException": apiErr("UnknownOperationException", ""),
 		"NotFoundException":         apiErr("NotFoundException", "Unable to determine service/operation name to be authorized"),

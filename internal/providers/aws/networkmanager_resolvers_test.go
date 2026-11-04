@@ -12,6 +12,7 @@ import (
 const nmRegion = "us-west-2"
 
 func TestResolveNMSiteRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnNID := nmGlobalNetworkID("aws", acct.ID, "global-network-1")
@@ -33,6 +34,7 @@ func TestResolveNMSiteRefs(t *testing.T) {
 }
 
 func TestResolveNMSiteRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	siteID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerSite,
@@ -47,6 +49,7 @@ func TestResolveNMSiteRefs_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNMSiteRefs_UnscannedGlobalNetworkSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	siteID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerSite,
@@ -61,6 +64,7 @@ func TestResolveNMSiteRefs_UnscannedGlobalNetworkSkipped(t *testing.T) {
 }
 
 func TestResolveNMDeviceRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
@@ -83,6 +87,7 @@ func TestResolveNMDeviceRefs(t *testing.T) {
 }
 
 func TestResolveNMDeviceRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	devID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerDevice,
@@ -97,6 +102,7 @@ func TestResolveNMDeviceRefs_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNMLinkRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
@@ -119,6 +125,7 @@ func TestResolveNMLinkRefs(t *testing.T) {
 }
 
 func TestResolveNMLinkRefs_UnscannedSiteSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
@@ -138,6 +145,7 @@ func TestResolveNMLinkRefs_UnscannedSiteSkipped(t *testing.T) {
 }
 
 func TestResolveNMLinkAssociationRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	devID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerDevice,
@@ -160,6 +168,7 @@ func TestResolveNMLinkAssociationRefs(t *testing.T) {
 }
 
 func TestResolveNMLinkAssociationRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerLinkAssociation,
@@ -175,6 +184,7 @@ func TestResolveNMLinkAssociationRefs_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNMCoreNetworkRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
@@ -193,6 +203,7 @@ func TestResolveNMCoreNetworkRefs(t *testing.T) {
 }
 
 func TestResolveNMCoreNetworkRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetwork,
@@ -207,6 +218,7 @@ func TestResolveNMCoreNetworkRefs_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNMTGWRegistrationRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
@@ -229,6 +241,7 @@ func TestResolveNMTGWRegistrationRefs(t *testing.T) {
 }
 
 func TestResolveNMTGWRegistrationRefs_UnscannedTGWSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
@@ -249,6 +262,7 @@ func TestResolveNMTGWRegistrationRefs_UnscannedTGWSkipped(t *testing.T) {
 }
 
 func TestResolveNMCGWAssociationRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	gnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerGlobalNetwork,
@@ -271,6 +285,7 @@ func TestResolveNMCGWAssociationRefs(t *testing.T) {
 }
 
 func TestResolveNMCGWAssociationRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	assocID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCustomerGatewayAssociation,
@@ -285,6 +300,7 @@ func TestResolveNMCGWAssociationRefs_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNMVpcAttachmentRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetwork,
@@ -310,6 +326,7 @@ func TestResolveNMVpcAttachmentRefs(t *testing.T) {
 }
 
 func TestResolveNMVpcAttachmentRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerVpcAttachment,
@@ -324,6 +341,7 @@ func TestResolveNMVpcAttachmentRefs_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNMVpcAttachmentRefs_UnscannedTargetsSkipped(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerVpcAttachment,
@@ -340,6 +358,7 @@ func TestResolveNMVpcAttachmentRefs_UnscannedTargetsSkipped(t *testing.T) {
 }
 
 func TestResolveNMSimpleAttachments(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetwork,
@@ -373,6 +392,7 @@ func TestResolveNMSimpleAttachments(t *testing.T) {
 }
 
 func TestResolveNMSimpleAttachments_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerConnectAttachment,
@@ -387,6 +407,7 @@ func TestResolveNMSimpleAttachments_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNMTransitGatewayPeeringRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetwork,
@@ -409,6 +430,7 @@ func TestResolveNMTransitGatewayPeeringRefs(t *testing.T) {
 }
 
 func TestResolveNMTransitGatewayPeeringRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	peerID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerTransitGatewayPeering,
@@ -423,6 +445,7 @@ func TestResolveNMTransitGatewayPeeringRefs_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNMConnectPeerRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cnID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerCoreNetwork,
@@ -442,6 +465,7 @@ func TestResolveNMConnectPeerRefs(t *testing.T) {
 }
 
 func TestResolveNMConnectPeerRefs_EmptyAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cpID := upsertTestResource(t, st, "aws", acct.ID, TypeNetworkManagerConnectPeer,
@@ -456,6 +480,7 @@ func TestResolveNMConnectPeerRefs_EmptyAttrs(t *testing.T) {
 }
 
 func TestResolveNMCorePLAssocRefs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	cnARN := fmt.Sprintf("arn:aws:networkmanager::%s:core-network/core-1", acct.ID)

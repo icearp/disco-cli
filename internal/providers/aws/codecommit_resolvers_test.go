@@ -8,6 +8,7 @@ import (
 )
 
 func TestResolveCodeCommitTemplateRepos_LinksScannedRepositories(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	attrs := mustJSON(codeCommitTemplateAttrs{
@@ -37,6 +38,7 @@ func TestResolveCodeCommitTemplateRepos_LinksScannedRepositories(t *testing.T) {
 }
 
 func TestResolveCodeCommitTemplateRepos_NoAssociations(t *testing.T) {
+	t.Parallel()
 	for name, attrs := range map[string]string{
 		"no attrs":          "{}",
 		"denied (null)":     mustJSON(codeCommitTemplateAttrs{ApprovalRuleTemplate: *ccTemplate("t-1", "id-t-1")}),
@@ -58,6 +60,7 @@ func TestResolveCodeCommitTemplateRepos_NoAssociations(t *testing.T) {
 }
 
 func TestCodeCommitTriggerTarget(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		in, wantID, wantType string
 		wantOK               bool
@@ -78,6 +81,7 @@ func TestCodeCommitTriggerTarget(t *testing.T) {
 }
 
 func TestResolveCodeCommitTriggerDestinations_LinksScannedDestinations(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	topicARN := "arn:aws:sns:us-east-1:" + testAccountID + ":builds"
@@ -108,6 +112,7 @@ func TestResolveCodeCommitTriggerDestinations_LinksScannedDestinations(t *testin
 }
 
 func TestResolveCodeCommitTriggerDestinations_NoAttrs(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	trID := upsertTestResource(t, st, "aws", acct.ID, TypeCodeCommitRepositoryTrigger, ccRepoARN("r")+"/trigger/t", testRegion, "{}")
@@ -121,6 +126,7 @@ func TestResolveCodeCommitTriggerDestinations_NoAttrs(t *testing.T) {
 }
 
 func TestResolveCodeCommitRepoKMS(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 

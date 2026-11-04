@@ -8,6 +8,7 @@ import (
 )
 
 func TestMcBridgeARNFromChild(t *testing.T) {
+	t.Parallel()
 	cases := []struct{ in, want string }{
 		{"arn:aws:mediaconnect:us-east-1:123:bridge:1:b1/output/o1", "arn:aws:mediaconnect:us-east-1:123:bridge:1:b1"},
 		{"arn:aws:mediaconnect:us-east-1:123:bridge:1:b1/source/s1", "arn:aws:mediaconnect:us-east-1:123:bridge:1:b1"},
@@ -21,6 +22,7 @@ func TestMcBridgeARNFromChild(t *testing.T) {
 }
 
 func TestResolveMediaConnectBridgeChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	bARN := fmt.Sprintf("arn:aws:mediaconnect:%s:%s:bridge:1:b1", testRegion, acct.ID)
@@ -35,6 +37,7 @@ func TestResolveMediaConnectBridgeChildren(t *testing.T) {
 }
 
 func TestResolveMediaConnectFlowVpcInterface(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fARN := fmt.Sprintf("arn:aws:mediaconnect:%s:%s:flow:1:f1", testRegion, acct.ID)
@@ -49,6 +52,7 @@ func TestResolveMediaConnectFlowVpcInterface(t *testing.T) {
 }
 
 func TestResolveMediaConnectFlowChildren(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	fARN := fmt.Sprintf("arn:aws:mediaconnect:%s:%s:flow:1:f1", testRegion, acct.ID)
@@ -73,6 +77,7 @@ func TestResolveMediaConnectFlowChildren(t *testing.T) {
 }
 
 func TestResolveMediaConnectBridgePlacement(t *testing.T) {
+	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 
