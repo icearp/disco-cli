@@ -1047,6 +1047,7 @@ func TestClassifyServiceError_Rungs(t *testing.T) {
 		{"EC2 throttle", apiErr("RequestLimitExceeded", "Request limit exceeded."), outcomeTransient},
 		{"Wickr throttle", apiErr("RateLimitError", "too many requests"), outcomeTransient},
 		{"Elemental Inference throttle", apiErr("TooManyRequestException", "too many requests"), outcomeTransient},
+		{"Kinesis Video throttle", apiErr("ClientLimitExceededException", "exceeded the limit of allowed client calls"), outcomeTransient},
 		{"EC2 throttled exception", apiErr("EC2ThrottledException", "slow down"), outcomeTransient},
 		{"EC2 internal error", apiErr("InternalError", "An internal error has occurred"), outcomeTransient},
 		{"EC2 overloaded", apiErr("Unavailable", "The server is overloaded"), outcomeTransient},

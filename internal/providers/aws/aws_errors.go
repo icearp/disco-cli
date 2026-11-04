@@ -543,6 +543,11 @@ func isTransientCause(err error) bool {
 		// does not retry it; scanElementalInference's client adds it, so it
 		// reaches us only once those retries are spent.
 		"TooManyRequestException",
+		// Kinesis Video Streams' HTTP 400 throttle (only the Kinesis Video
+		// models have it). The SDK retryer does not retry it;
+		// scanKinesisVideo's client adds it, so it reaches us only once those
+		// retries are spent.
+		"ClientLimitExceededException",
 		// Step Functions' error for KMS throttling a call it makes for the
 		// caller (the only model with it; DescribeStateMachine's). The SDK
 		// retryer does not retry it; scanSFN's client adds it, so it reaches us
