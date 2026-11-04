@@ -1803,6 +1803,42 @@ func TestStoreParentListTags_ThrottleUnderTagOpAndFailedWrite(t *testing.T) {
 	})
 }
 
+// A phase's errors read as an absent host only when every error, and every
+// member of a join among them, is an NXDOMAIN.
+func TestOnlyDNSNotFound(t *testing.T) {
+	t.Parallel()
+	nx := &net.DNSError{Err: "no such host", Name: "svc.us-east-1.amazonaws.com", IsNotFound: true}
+	timeout := &net.DNSError{Err: "i/o timeout", Name: "svc.us-east-1.amazonaws.com", IsTimeout: true}
+	bad := apiErr("ValidationException", "bad")
+	for _, c := range []struct {
+		name string
+		errs []error
+		want bool
+	}{
+		{"none", nil, false},
+		{"one NXDOMAIN", []error{nx}, true},
+		{"wrapped NXDOMAIN", []error{fmt.Errorf("svc:List: %w", nx)}, true},
+		{"DNS timeout", []error{timeout}, false},
+		{"NXDOMAIN and a hard error", []error{nx, bad}, false},
+		{"join of NXDOMAINs", []error{errors.Join(nx, fmt.Errorf("b: %w", nx))}, true},
+		{"join with a hard error", []error{errors.Join(nx, bad)}, false},
+		{"wrapped join with a hard error", []error{fmt.Errorf("svc:List: %w", errors.Join(nx, bad))}, false},
+		{"nested join with a hard error", []error{errors.Join(nx, errors.Join(nx, bad))}, false},
+		{"multi-%w with a hard error", []error{fmt.Errorf("%w; %w", nx, bad)}, false},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			var errs phaseErrs
+			for _, err := range c.errs {
+				errs.add("svc:List", err)
+			}
+			if got := onlyDNSNotFound(errs); got != c.want {
+				t.Errorf("onlyDNSNotFound = %v; want %v", got, c.want)
+			}
+		})
+	}
+}
+
 // resultLateNXDOMAIN flattens an NXDOMAIN once rows were stored, so the
 // dispatcher keeps their counts; with nothing stored the region stays
 // unavailable, and a failed write is left for the dispatcher to see.

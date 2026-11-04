@@ -22,7 +22,7 @@ func init() {
 }
 
 // noopHealthLakeHierarchy only declares the profile→version contains edge,
-// which scanHealthLakeProfileVersions records at scan time via childFanOut.
+// which scanHealthLakeProfileVersions records at scan time.
 func noopHealthLakeHierarchy(_ *account, _ *store.Store) error {
 	return nil
 }

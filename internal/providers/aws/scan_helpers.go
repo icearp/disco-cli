@@ -2778,11 +2778,15 @@ func hostAbsentAfter(p *phaseTotals, total, errs int) bool {
 	return p.total == total && onlyDNSNotFound(p.errs[errs:])
 }
 
-// onlyDNSNotFound reports whether errs is not empty and every one is an
-// NXDOMAIN.
+// onlyDNSNotFound reports whether errs is not empty and every one, and every
+// member of a join among them (everyMember), is an NXDOMAIN. A phase that
+// lists concurrently joins its listings' errors, and isDNSNotFound alone
+// matches a join when any member is an NXDOMAIN: the host would read as
+// absent, its later phases would not run, and on a host that is not the
+// primary the joined hard error would be dropped.
 func onlyDNSNotFound(errs phaseErrs) bool {
 	for _, f := range errs {
-		if !isDNSNotFound(f.err) {
+		if !everyMember(f.err, isDNSNotFound) {
 			return false
 		}
 	}
