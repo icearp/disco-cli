@@ -141,7 +141,7 @@ func TestCustomerPostureTypesNotManaged(t *testing.T) {
 func TestUntaggableTypesDeclared(t *testing.T) {
 	t.Parallel()
 	for _, ty := range []string{
-		TypeACMAccount, TypeAPIGatewayAccount, TypeARCZonalShiftObserverStatus,
+		TypeACMAccount, TypeACMAcmeAccount, TypeAPIGatewayAccount, TypeARCZonalShiftObserverStatus,
 		TypeCloudWatchOTelEnrichment, TypeConnectAttachedFilesConfiguration,
 		TypeEC2AllowedImagesSetting, TypeEC2SnapshotBlockPublicAccess,
 		TypeEC2VerifiedAccessInstanceLoggingConfiguration, TypeEC2VPCBlockPublicAccessOptions, TypeFMSNotificationChannel,

@@ -154,9 +154,9 @@ func pageScan[Page any, Item any](
 // item (e.g. on per-item AccessDenied — mirrors existing scanner behavior).
 // A non-nil error from enrich aborts the page via errgroup.
 //
-// concurrency caps in-flight enrich goroutines per page; 0 means unbounded
-// (matches sns/acm/eks). Use a positive bound where unbounded fan-out has
-// tripped throttling in practice.
+// concurrency caps in-flight enrich goroutines per page; 0 means unbounded.
+// Use a positive bound where unbounded fan-out has tripped throttling in
+// practice.
 func pageScanConcurrent[Page any, Item any](
 	ctx context.Context,
 	iamAction string,
