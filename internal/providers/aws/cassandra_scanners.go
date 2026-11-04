@@ -2,17 +2,15 @@ package aws
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"sync"
 
+	sdkaws "github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/keyspaces"
 	keyspacestypes "github.com/aws/aws-sdk-go-v2/service/keyspaces/types"
 	"github.com/aws/aws-sdk-go-v2/service/keyspacesstreams"
+	kstypes "github.com/aws/aws-sdk-go-v2/service/keyspacesstreams/types"
 	"github.com/icearp/disco-cli/internal/restype"
 	"github.com/icearp/disco-cli/store"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 )
 
 func init() {
@@ -38,11 +36,27 @@ var cassandraSystemKeyspaces = map[string]bool{
 	"system_multiregion_info": true,
 }
 
+const (
+	cassandraTagsOp     = "cassandra:ListTagsForResource"
+	cassandraGetTableOp = "cassandra:GetTable"
+	// cassandraPageCap is the maxResults maximum of ListKeyspaces, ListTables
+	// and ListTagsForResource.
+	cassandraPageCap = 1000
+	// cassandraStreamsPageCap is the maxResults maximum of ListStreams.
+	cassandraStreamsPageCap = 100
+)
+
+// cassandraGone is the not-found code ListTables, GetTable and
+// ListTagsForResource model: a keyspace, table or stream deleted since it
+// was listed.
+var cassandraGone = []string{"ResourceNotFoundException"}
+
 type cassandraAPI interface {
 	ListKeyspaces(context.Context, *keyspaces.ListKeyspacesInput, ...func(*keyspaces.Options)) (*keyspaces.ListKeyspacesOutput, error)
 	ListTables(context.Context, *keyspaces.ListTablesInput, ...func(*keyspaces.Options)) (*keyspaces.ListTablesOutput, error)
 	ListTypes(context.Context, *keyspaces.ListTypesInput, ...func(*keyspaces.Options)) (*keyspaces.ListTypesOutput, error)
 	GetTable(context.Context, *keyspaces.GetTableInput, ...func(*keyspaces.Options)) (*keyspaces.GetTableOutput, error)
+	ListTagsForResource(context.Context, *keyspaces.ListTagsForResourceInput, ...func(*keyspaces.Options)) (*keyspaces.ListTagsForResourceOutput, error)
 }
 
 // cassandraStreamsAPI is the narrow set of Keyspaces CDC stream operations,
@@ -65,164 +79,173 @@ func scanCassandra(ctx context.Context, acct *account, region string, st *store.
 	return scanCassandraAll(ctx, client, streamsClient, acct, region, st, scanID)
 }
 
-// scanCassandraAll runs every phase even when an earlier one fails, so one
-// phase's error costs no other phase its rows. Tables and types fan out over
-// the keyspaces listed first (none when that listing failed); streams list
-// the whole region and use the tables only for their contains pairs. The
-// phases' errors are joined by phaseErrs.
-func scanCassandraAll(ctx context.Context, client cassandraAPI, streamsClient cassandraStreamsAPI, acct *account, region string, st *store.Store, scanID string) (total, inserted int, err error) {
-	var errs phaseErrs
-	keyspaceNames, kt, ki, kerr := scanCassandraKeyspaces(ctx, client, acct, region, st, scanID)
-	errs.add("cassandra keyspaces", kerr)
-	tableARNs, tt, ti, terr := scanCassandraTables(ctx, client, keyspaceNames, acct, region, st, scanID)
-	errs.add("cassandra tables", lateNXDOMAIN("cassandra tables", terr))
-	yt, yi, yerr := scanCassandraTypes(ctx, client, keyspaceNames, acct, region, st, scanID)
-	errs.add("cassandra types", lateNXDOMAIN("cassandra types", yerr))
-	// Keyspaces itself not resolving means the region has no Keyspaces;
-	// probing the streams endpoint would only add a warning every scan.
-	var stt, sti int
-	if !isDNSNotFound(kerr) {
-		var serr error
-		stt, sti, serr = scanCassandraStreams(ctx, streamsClient, tableARNs, acct, region, st, scanID)
-		errs.add("cassandra streams", serr)
-	}
-	return kt + tt + yt + stt, ki + ti + yi + sti, errs.join(st, acct, region)
+// scanCassandraAll runs the phases one at a time (runHostPhases): a phase's
+// error does not stop the later ones; a failed write and ctx's end do. Tables
+// and types fan out over the keyspaces stored first; streams list the whole
+// region and use the stored tables only for their contains pairs. Keyspaces,
+// tables and streams have their tags read per row (cassandraTags), whose
+// denials are one warning for the whole scan.
+func scanCassandraAll(ctx context.Context, client cassandraAPI, streamsClient cassandraStreamsAPI, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+	const keyspacesHost, streamsHost = 0, 1
+	tags := cassandraTags(client).sharingDenials()
+	var (
+		keyspaceParents []childParent
+		tableARNs       map[cassandraTableKey]string
+		noKeyspaces     bool
+	)
+	total, inserted, err := runHostPhases(ctx, st, acct, region, "cassandra", keyspacesHost, []hostPhase{
+		{op: "cassandra:ListKeyspaces", host: keyspacesHost, run: func(p *phaseTotals) (failed bool) {
+			total, errs := p.total, len(p.errs)
+			keyspaceParents, failed = scanCassandraKeyspaces(ctx, client, acct, region, st, scanID, tags, p)
+			noKeyspaces = hostAbsentAfter(p, total, errs)
+			return failed
+		}},
+		{op: "cassandra:ListTables", host: keyspacesHost, run: func(p *phaseTotals) (failed bool) {
+			tableARNs, failed = scanCassandraTables(ctx, client, keyspaceParents, acct, region, st, scanID, tags, p)
+			return failed
+		}},
+		countedPhase(keyspacesHost, "cassandra:ListTypes", func() (int, int, error) {
+			return scanCassandraTypes(ctx, client, childParentIDs(keyspaceParents), acct, region, st, scanID)
+		}),
+		{op: "cassandra:ListStreams", host: streamsHost, run: func(p *phaseTotals) bool {
+			// Keyspaces itself not resolving means the region has no
+			// Keyspaces; probing the streams endpoint would only add a
+			// warning every scan.
+			if noKeyspaces {
+				return false
+			}
+			return scanCassandraStreams(ctx, streamsClient, tableARNs, acct, region, st, scanID, tags, p)
+		}},
+	})
+	tags.warnDenials(st, acct, region)
+	return total, inserted, err
 }
 
-func scanCassandraKeyspaces(ctx context.Context, client cassandraAPI, acct *account, region string, st *store.Store, scanID string) ([]string, int, int, error) {
-	var batch []*store.Resource
-	var names []string
-	var nextToken *string
-	for {
-		out, err := client.ListKeyspaces(ctx, &keyspaces.ListKeyspacesInput{NextToken: nextToken})
-		if err != nil {
-			if isAccessDenied(err) {
-				return nil, 0, 0, skipIfAccessDenied(st, "cassandra:ListKeyspaces", acct.ID, region, err)
+// cassandraTags reads a row's tags with keyspaces ListTagsForResource, sent
+// the row's NativeID: the ARN its listing returned. The Service Reference
+// gives keyspace, table and stream the aws:ResourceTag condition key and
+// lists all three under TagResource; the op's model takes any cassandra ARN.
+// That it answers for a stream's ARN is unverified live: no response read
+// here carries a stream's tags, and keyspacesstreams has no tag op.
+// The op pages its tags; every page is read, and a repeated nextToken fails
+// the read. ResourceNotFoundException, its modeled not-found, drops a
+// resource deleted since it was listed.
+//
+// A ManagedByProvider row (a system keyspace or one of its tables) is not
+// read and keeps no tags: AWS creates them, and whether the op accepts them
+// is unverified live.
+func cassandraTags(client cassandraAPI) rowTagReader {
+	return rowTagReader{
+		op:       cassandraTagsOp,
+		notFound: cassandraGone,
+		read: func(ctx context.Context, r *store.Resource) (*string, error) {
+			if r.ManagedByProvider {
+				return nil, nil
 			}
-			return nil, 0, 0, fmt.Errorf("cassandra:ListKeyspaces: %w", err)
-		}
-		for _, k := range out.Keyspaces {
-			arn := sv(k.ResourceArn)
-			name := sv(k.KeyspaceName)
-			if arn == "" || name == "" {
-				continue
-			}
-			names = append(names, name)
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeCassandraKeyspace, NativeID: arn,
-				Name: &name, Region: &region,
-				AttributesJSON:    mustJSON(k),
-				ManagedByProvider: cassandraSystemKeyspaces[name],
-				DiscoveredBy:      scanID,
-			})
-		}
-		if out.NextToken == nil || *out.NextToken == "" {
-			break
-		}
-		nextToken = out.NextToken
-	}
-	t, i, err := upsertBatch(st, batch, "cassandra keyspaces")
-	return names, t, i, err
-}
-
-// scanCassandraTables returns the stored tables' ARNs by keyspace and table
-// name, or nil with its error.
-func scanCassandraTables(ctx context.Context, client cassandraAPI, ksNames []string, acct *account, region string, st *store.Store, scanID string) (map[cassandraTableKey]string, int, int, error) {
-	// Phase 1: collect all (keyspace, table-summary) pairs from ListTables.
-	// AWS Keyspaces ships ~40+ system tables per region, so serial per-table
-	// GetTable enrichment dominates wall time.
-	type pair struct {
-		ks  string
-		tbl keyspacestypes.TableSummary
-	}
-	var pairs []pair
-	for _, ks := range ksNames {
-		ksName := ks
-		var nextToken *string
-		for {
-			out, err := client.ListTables(ctx, &keyspaces.ListTablesInput{
-				KeyspaceName: &ksName,
-				NextToken:    nextToken,
+			arn := r.NativeID
+			tags, err := readTokenPages(ctx, func(ctx context.Context, token *string) ([]keyspacestypes.Tag, *string, error) {
+				out, err := client.ListTagsForResource(ctx, &keyspaces.ListTagsForResourceInput{ResourceArn: &arn, NextToken: token, MaxResults: sdkaws.Int32(cassandraPageCap)})
+				if err != nil {
+					return nil, nil, err
+				}
+				return out.Tags, out.NextToken, nil
 			})
 			if err != nil {
-				if isAccessDenied(err) {
-					_ = skipIfAccessDenied(st, "cassandra:ListTables", acct.ID, region, err)
-					break
-				}
-				return nil, 0, 0, fmt.Errorf("cassandra:ListTables ks=%s: %w", ksName, err)
+				return nil, err
 			}
-			for _, t := range out.Tables {
-				if sv(t.ResourceArn) == "" {
-					continue
-				}
-				pairs = append(pairs, pair{ks: ksName, tbl: t})
-			}
-			if out.NextToken == nil || *out.NextToken == "" {
-				break
-			}
-			nextToken = out.NextToken
-		}
+			return kvTagsJSON(tags, func(t keyspacestypes.Tag) (*string, *string) { return t.Key, t.Value }), nil
+		},
 	}
+}
 
-	// Phase 2: parallel GetTable enrichment. EncryptionSpecification.KmsKeyIdentifier
-	// is only on the GetTable body. Fan-out at fanoutMed; fall back to summary
-	// attrs on per-row failure.
-	sem := semaphore.NewWeighted(fanoutMed)
-	var (
-		mu    sync.Mutex
-		batch []*store.Resource
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	for _, p := range pairs {
-		if err := sem.Acquire(gctx, 1); err != nil {
-			return nil, 0, 0, err
-		}
-		g.Go(func() error {
-			defer sem.Release(1)
-			arn := sv(p.tbl.ResourceArn)
-			attrs := mustJSON(p.tbl)
-			managed := cassandraSystemKeyspaces[p.ks]
-			ksn := p.ks
-			tn := sv(p.tbl.TableName)
-			// Skip GetTable on AWS-managed system keyspaces — they use
-			// AWS-managed encryption and yield no useful edges.
-			if !managed && tn != "" {
-				gout, gerr := client.GetTable(gctx, &keyspaces.GetTableInput{KeyspaceName: &ksn, TableName: &tn})
-				if gerr != nil {
-					if isAccessDenied(gerr) {
-						_ = skipIfAccessDenied(st, "cassandra:GetTable", acct.ID, region, gerr)
-					}
-				} else if gout != nil {
-					attrs = mustJSON(gout)
-				}
+// cassandraRow is the row of a listed element stored under its ARN; what
+// names the elements in the warning about one without an ARN.
+func cassandraRow(acct *account, region, scanID, typ, what string, arn, name *string, managed bool, element any) (*store.Resource, string, string) {
+	return arnRow(what, arn, name, &store.Resource{
+		Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
+		Type: typ, NativeID: sv(arn),
+		Name: nonEmptyPtr(sv(name)), Region: &region,
+		AttributesJSON:    mustJSON(element),
+		ManagedByProvider: managed,
+		DiscoveredBy:      scanID,
+	})
+}
+
+// scanCassandraKeyspaces stores the keyspaces with their tags, a page at a
+// time, and returns the stored ones keyed by KeyspaceName, the parents of the
+// table and type phases.
+func scanCassandraKeyspaces(ctx context.Context, client cassandraAPI, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) ([]childParent, bool) {
+	return storeParentPagesTags(ctx, st, acct, region, "cassandra:ListKeyspaces", "keyspace(s)", "KeyspaceName",
+		func(ctx context.Context, token *string) ([]keyspacestypes.KeyspaceSummary, *string, error) {
+			out, err := client.ListKeyspaces(ctx, &keyspaces.ListKeyspacesInput{NextToken: token, MaxResults: sdkaws.Int32(cassandraPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			r := &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeCassandraTable, NativeID: arn,
-				Name: p.tbl.TableName, Region: &region,
-				AttributesJSON:    attrs,
-				ManagedByProvider: managed,
-				DiscoveredBy:      scanID,
+			return out.Keyspaces, out.NextToken, nil
+		},
+		func(k keyspacestypes.KeyspaceSummary) (*store.Resource, string, string) {
+			return cassandraRow(acct, region, scanID, TypeCassandraKeyspace, "keyspaces", k.ResourceArn, k.KeyspaceName, cassandraSystemKeyspaces[sv(k.KeyspaceName)], k)
+		},
+		func(k keyspacestypes.KeyspaceSummary) string { return sv(k.KeyspaceName) },
+		tags, p)
+}
+
+// scanCassandraTables lists the tables of each stored keyspace, the keyspaces
+// concurrently (readEachKey), and stores each table as its GetTable body,
+// which adds the encryption key and schema to the summary, then with its
+// tags. A keyspace ListTables no longer finds was deleted since it was
+// listed and is skipped. A table GetTable no longer finds is not stored; any
+// other GetTable failure stores the summary (readRowDetails). A system
+// keyspace's table gets no GetTable. It returns the stored tables' ARNs by
+// keyspace and table name, or storeWriteFailed (and none) when the write
+// failed.
+func scanCassandraTables(ctx context.Context, client cassandraAPI, keyspaceParents []childParent, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (map[cassandraTableKey]string, bool) {
+	const op = "cassandra:ListTables"
+	names := childParentIDs(keyspaceParents)
+	reads, stopped := readEachKey(ctx, names, func(ctx context.Context, ks string) parentItems[keyspacestypes.TableSummary] {
+		return readParentPages(ctx, ks, func(ctx context.Context, ks string, token *string) ([]keyspacestypes.TableSummary, *string, error) {
+			out, err := client.ListTables(ctx, &keyspaces.ListTablesInput{KeyspaceName: &ks, NextToken: token, MaxResults: sdkaws.Int32(cassandraPageCap)})
+			if err != nil {
+				return nil, nil, err
 			}
-			mu.Lock()
-			batch = append(batch, r)
-			mu.Unlock()
-			return nil
+			return out.Tables, out.NextToken, nil
+		})
+	})
+	out := parentOutcomes{op: op, notFound: cassandraGone}
+	keys := map[*store.Resource]cassandraTableKey{}
+	for i, read := range reads {
+		addParentRows(&out, names[i], read, func(ks string, t keyspacestypes.TableSummary) (*store.Resource, string, string) {
+			r, why, key := cassandraRow(acct, region, scanID, TypeCassandraTable, "tables", t.ResourceArn, t.TableName, cassandraSystemKeyspaces[ks], t)
+			if r != nil {
+				keys[r] = cassandraTableKey{ks, sv(t.TableName)}
+			}
+			return r, why, key
 		})
 	}
-	if err := g.Wait(); err != nil {
-		return nil, 0, 0, err
+	out.stopped(stopped)
+	d := &detailedRows{getOp: cassandraGetTableOp, what: "table(s)", notFound: cassandraGone, tags: tags}
+	var warn func()
+	out.rows, warn = d.before(ctx, st, acct, region, func(ctx context.Context, r *store.Resource) (any, error) {
+		k := keys[r]
+		if r.ManagedByProvider || k.table == "" {
+			return nil, nil
+		}
+		got, err := client.GetTable(ctx, &keyspaces.GetTableInput{KeyspaceName: &k.keyspace, TableName: &k.table})
+		if err != nil {
+			return nil, err
+		}
+		return got, nil
+	})(out.rows)
+	total, inserted, err := out.store(st, acct, region)
+	if d.addPhase(p, op, total, inserted, err) {
+		return nil, true
 	}
-	t, i, err := upsertBatch(st, batch, "cassandra tables")
-	if err != nil {
-		return nil, 0, 0, err
+	warn()
+	arns := make(map[cassandraTableKey]string, len(out.rows))
+	for _, r := range out.rows {
+		arns[keys[r]] = r.NativeID
 	}
-	arns := make(map[cassandraTableKey]string, len(pairs))
-	for _, p := range pairs {
-		arns[cassandraTableKey{p.ks, sv(p.tbl.TableName)}] = sv(p.tbl.ResourceArn)
-	}
-	return arns, t, i, nil
+	return arns, false
 }
 
 func scanCassandraTypes(ctx context.Context, client cassandraAPI, ksNames []string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
@@ -266,75 +289,65 @@ func scanCassandraTypes(ctx context.Context, client cassandraAPI, ksNames []stri
 	return upsertBatch(st, batch, "cassandra types")
 }
 
-// scanCassandraStreams discovers the region's CDC streams with one unfiltered
-// ListStreams, and records each under the table it captures when the tables
-// phase stored that table. The summary carries no status, so every listed
-// stream is stored. On the first call, the shapes of an endpoint that does not
-// serve the op (isOpNotDeployed) are a silent feature gap. None has been
-// observed for this endpoint; the SDK builds it for every region with no
-// per-region list, so a region that does not serve it would show only on the
-// first call.
+// scanCassandraStreams stores the region's CDC streams with their tags, from
+// one unfiltered ListStreams written a page at a time, and records each under
+// the table it captures when the tables phase stored that table. The summary
+// carries no status, so every listed stream with an ARN is stored unless its
+// tag read finds it deleted (cassandraTags). On the first call,
+// the shapes of an endpoint that does not serve the op (isOpNotDeployed) are
+// a silent feature gap. None has been observed for this endpoint; the SDK
+// builds it for every region with no per-region list, so a region that does
+// not serve it would show only on the first call.
 // An endpoint that does not resolve on the first call warns and stores nothing:
 // unlike every other Keyspaces call it is on the dual-stack domain (api.aws in
 // the aws partition), which egress filtering can block, so returning the
 // NXDOMAIN would report the whole service unavailable in this region and drop
 // the keyspace phases' rows. Any other error but a denial, a transient one
-// included, is returned after the rows listed so far are stored.
-func scanCassandraStreams(ctx context.Context, client cassandraStreamsAPI, tableARNs map[cassandraTableKey]string, acct *account, region string, st *store.Store, scanID string) (int, int, error) {
+// included, is returned after the rows listed so far are stored. Counts and
+// errors go to p; it reports whether a write failed.
+func scanCassandraStreams(ctx context.Context, client cassandraStreamsAPI, tableARNs map[cassandraTableKey]string, acct *account, region string, st *store.Store, scanID string, tags rowTagReader, p *phaseTotals) (storeWriteFailed bool) {
 	const op = "cassandra:ListStreams"
-	pager := keyspacesstreams.NewListStreamsPaginator(client, &keyspacesstreams.ListStreamsInput{},
-		func(o *keyspacesstreams.ListStreamsPaginatorOptions) { o.Limit = 100 })
-	var batch []*store.Resource
-	var parentARNs []string
-	var listErr error
-	listed := false
-	for pager.HasMorePages() {
-		out, perr := pager.NextPage(ctx)
-		if perr != nil {
-			switch {
-			case !listed && isDNSNotFound(perr):
-				st.ReportWarning(store.ScanWarning{
-					Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
-					Message: fmt.Sprintf("CDC streams not scanned: the dual-stack endpoint cassandra-streams.%s does not resolve; DNS or egress filtering may block it, or the region may not offer it: %v", region, perr),
-				})
-			case isDNSNotFound(perr):
-				listErr = lateNXDOMAIN(op, perr)
-			case !listed && isOpNotDeployed(perr):
-				return 0, 0, nil
-			case isAccessDenied(perr):
-				_ = skipIfAccessDenied(st, op, acct.ID, region, perr)
-			default:
-				listErr = fmt.Errorf("%s: %w", op, perr)
-			}
-			break
+	var unresolved error
+	page := func(ctx context.Context, token *string) ([]kstypes.Stream, *string, error) {
+		out, err := client.ListStreams(ctx, &keyspacesstreams.ListStreamsInput{NextToken: token, MaxResults: sdkaws.Int32(cassandraStreamsPageCap)})
+		switch {
+		case err == nil:
+			return out.Streams, out.NextToken, nil
+		case token == nil && isDNSNotFound(err):
+			unresolved = err
+			return nil, nil, nil
+		case token == nil && isOpNotDeployed(err):
+			return nil, nil, nil
+		case isDNSNotFound(err):
+			return nil, nil, lateNXDOMAIN("a later page", err)
 		}
-		listed = true
-		for _, s := range out.Streams {
-			arn := sv(s.StreamArn)
-			if arn == "" {
-				continue
-			}
-			batch = append(batch, &store.Resource{
-				Provider: "aws", AccountID: acct.ID, AccountName: &acct.Name,
-				Type: TypeCassandraStream, NativeID: arn,
-				Name: s.StreamLabel, Region: &region,
-				AttributesJSON: mustJSON(s), DiscoveredBy: scanID,
-			})
-			parentARNs = append(parentARNs, tableARNs[cassandraTableKey{sv(s.KeyspaceName), sv(s.TableName)}])
-		}
+		return nil, nil, err
 	}
-	t, i, uerr := upsertBatch(st, batch, "cassandra streams")
-	if uerr != nil {
-		return 0, 0, errors.Join(listErr, uerr)
-	}
+	tableOf := map[*store.Resource]string{}
 	var pairs [][2]string
-	for n, r := range batch {
-		if parentARNs[n] != "" {
-			pairs = append(pairs, [2]string{r.ID, store.ResourceID("aws", acct.ID, parentARNs[n])})
+	row := func(s kstypes.Stream) (*store.Resource, string, string) {
+		r, why, key := cassandraRow(acct, region, scanID, TypeCassandraStream, "streams", s.StreamArn, s.StreamLabel, false, s)
+		if r != nil {
+			tableOf[r] = tableARNs[cassandraTableKey{sv(s.KeyspaceName), sv(s.TableName)}]
 		}
+		return r, why, key
 	}
-	if herr := st.RecordHierarchyBatch(pairs); herr != nil {
-		return t, i, errors.Join(listErr, fmt.Errorf("closure cassandra streams: %w", herr))
+	stored := func(rows []*store.Resource) {
+		for _, r := range rows {
+			if t := tableOf[r]; t != "" {
+				pairs = append(pairs, [2]string{r.ID, store.ResourceID("aws", acct.ID, t)})
+			}
+		}
+		clear(tableOf)
 	}
-	return t, i, listErr
+	if storeTokenPagesTagsWith(ctx, st, acct, region, op, page, row, tokenPageSteps{stored: stored}, tags, p) {
+		return true
+	}
+	if unresolved != nil {
+		st.ReportWarning(store.ScanWarning{
+			Provider: "aws", Service: op, Scope: acct.ID + "/" + region,
+			Message: fmt.Sprintf("CDC streams not scanned: the dual-stack endpoint cassandra-streams.%s does not resolve; DNS or egress filtering may block it, or the region may not offer it: %v", region, unresolved),
+		})
+	}
+	return recordHierarchyPairs(st, op, pairs, p)
 }
