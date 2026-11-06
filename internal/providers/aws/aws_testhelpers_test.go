@@ -2,6 +2,8 @@ package aws
 
 import (
 	"context"
+	"errors"
+	"os"
 	"path/filepath"
 	"sort"
 	"sync"
@@ -24,11 +26,43 @@ const (
 	testRegion    = "us-east-1"
 )
 
+// migratedDB returns the bytes of an empty database with every migration
+// applied, built once per test binary. store.Open on a fresh file parses and
+// runs each migration's SQL, the bulk of a store-backed test's cost; on a copy
+// of this file it finds every version recorded and applies none.
+var migratedDB = sync.OnceValues(func() (template []byte, err error) {
+	dir, err := os.MkdirTemp("", "aws-test-template-")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { err = errors.Join(err, os.RemoveAll(dir)) }()
+	st, err := store.Open(filepath.Join(dir, "migrated.db"))
+	if err != nil {
+		return nil, err
+	}
+	// VACUUM INTO writes one self-contained file; the open DB's own file may
+	// still have committed pages in its WAL.
+	path := filepath.Join(dir, "template.db")
+	_, err = st.DB().Exec("VACUUM INTO ?", path)
+	if err = errors.Join(err, st.Close()); err != nil {
+		return nil, err
+	}
+	return os.ReadFile(path)
+})
+
 // newTestStore opens a temp SQLite DB for provider tests and inserts a scan
 // record so resources can satisfy the discovered_by FK.
 func newTestStore(t *testing.T) *store.Store {
 	t.Helper()
-	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	template, err := migratedDB()
+	if err != nil {
+		t.Fatalf("newTestStore: build migrated template: %v", err)
+	}
+	path := filepath.Join(t.TempDir(), "test.db")
+	if err := os.WriteFile(path, template, 0o600); err != nil {
+		t.Fatalf("newTestStore: %v", err)
+	}
+	st, err := store.Open(path)
 	if err != nil {
 		t.Fatalf("newTestStore: %v", err)
 	}

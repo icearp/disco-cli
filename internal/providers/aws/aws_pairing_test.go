@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/icearp/disco-cli/internal/coverage"
@@ -15,18 +16,35 @@ import (
 	"github.com/icearp/disco-cli/internal/sdkinv/pairing"
 )
 
+// The SDK universe extract and the package walk behind each of these take
+// seconds, and the tests only read the results, so each runs once per test binary.
+var (
+	scannerPairing = sync.OnceValues(func() (scannerPairingResult, error) {
+		res, unpaired, err := pairing.Scan(context.Background(), sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}, "aws", ".")
+		return scannerPairingResult{res, unpaired}, err
+	})
+	coverageInputs = sync.OnceValues(func() (coverage.Inputs, error) {
+		return coverage.InputsFromCache(context.Background(), sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}, coverageProvider{}, ".")
+	})
+)
+
+type scannerPairingResult struct {
+	res      *pairing.Result
+	unpaired map[string]string
+}
+
 // pairScanners pairs this package's scanner source against the pinned AWS
 // SDK inventory; skipped until `disco coverage sdk fetch` has populated the cache.
 func pairScanners(t *testing.T) (*pairing.Result, map[string]string) {
 	t.Helper()
-	res, unpaired, err := pairing.Scan(context.Background(), sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}, "aws", ".")
+	p, err := scannerPairing()
 	if errors.Is(err, sdkinv.ErrNotFetched) {
 		t.Skip(err)
 	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	return res, unpaired
+	return p.res, p.unpaired
 }
 
 // TestScannerOpLabelsResolve: every op label in a scanner names an operation
@@ -72,7 +90,7 @@ func TestEveryEmittedTypePaired(t *testing.T) {
 // says nothing about keeps whatever it declares.
 func TestUntaggableMatchesServiceReference(t *testing.T) {
 	t.Parallel()
-	in, err := coverage.InputsFromCache(context.Background(), sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}, coverageProvider{}, ".")
+	in, err := coverageInputs()
 	if errors.Is(err, sdkinv.ErrNotFetched) {
 		t.Skip(err)
 	}
@@ -122,7 +140,7 @@ func TestUntaggableMatchesServiceReference(t *testing.T) {
 // declared edges. A misspelled or unlisted op would credit nothing, silently.
 func TestMembershipEdgesCreditTheirListing(t *testing.T) {
 	t.Parallel()
-	in, err := coverage.InputsFromCache(context.Background(), sdkinv.Cache{Root: sdkinv.DefaultCacheRoot()}, coverageProvider{}, ".")
+	in, err := coverageInputs()
 	if errors.Is(err, sdkinv.ErrNotFetched) {
 		t.Skip(err)
 	}
