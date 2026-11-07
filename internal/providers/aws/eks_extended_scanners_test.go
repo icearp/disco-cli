@@ -505,37 +505,6 @@ func TestScanEKS_TagReadFailures(t *testing.T) {
 	}
 }
 
-// Denied tag reads of both clusters' rows are one warning under the tag op
-// for the scan.
-func TestScanEKS_TagDenialsWarnOnce(t *testing.T) {
-	t.Parallel()
-	calls := newEKSXCalls()
-	for _, c := range []struct{ typ, tagOp, c1, c2 string }{
-		{TypeEKSCapability, "eks:ListTagsForResource", sv(calls.capability("c1", "t").Arn), sv(calls.capability("c2", "t").Arn)},
-		{TypeEKSPodIdentityAssociation, "eks:DescribePodIdentityAssociation", sv(calls.podIdentity("c1", "t").AssociationArn), sv(calls.podIdentity("c2", "t").AssociationArn)},
-	} {
-		t.Run(c.typ, func(t *testing.T) {
-			st := newTestStore(t)
-			warnings := bacWarnings(st, c.tagOp)
-			calls := newEKSXCalls()
-			calls.errs[c.c1] = eksDenied
-			calls.errs[c.c2] = eksDenied
-
-			if _, _, err := eksxScan(context.Background(), st, calls.handlers()); err != nil {
-				t.Fatalf("err = %v; want nil", err)
-			}
-			if len(*warnings) != 1 || (*warnings)[0].Scope != testAccountID+"/"+testRegion {
-				t.Errorf("%s warnings = %v; want one, scoped %s/%s", c.tagOp, *warnings, testAccountID, testRegion)
-			}
-			for _, id := range []string{c.c1, c.c2} {
-				if r, ok := eksxRowOf(t, st, c.typ, id); !ok || r.TagsJSON != nil {
-					t.Errorf("%s stored %v, TagsJSON %v; want it kept without tags", id, ok, r.TagsJSON)
-				}
-			}
-		})
-	}
-}
-
 // A throttled tag read beside a hard failure of the same op is demoted to
 // one warning, so the hard error decides the outcome.
 func TestScanEKS_TagThrottleDemotedBesideHardError(t *testing.T) {

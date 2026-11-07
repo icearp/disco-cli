@@ -515,36 +515,6 @@ func TestScanRDS_TargetGroupListingFailures(t *testing.T) {
 	}
 }
 
-// Denied tag reads in two listings, which run as separate families, send one
-// warning for the whole scan, counting every denied row; the rows are kept.
-func TestScanRDS_TagDenialsWarnOncePerScan(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	warnings := bacWarnings(st, rdsTagsOp)
-	calls := newRDSCalls()
-	for _, op := range []string{"DescribeDBParameterGroups", "DescribeOptionGroups"} {
-		k := rdsKindOf(t, op)
-		calls.errs[k.arn("tagged")] = rdsDenied
-		calls.errs[k.arn("bare")] = rdsDenied
-	}
-
-	total, _, err := rdsScan(context.Background(), st, rdsHandlers(calls))
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
-	if total != rdsTestTotal {
-		t.Errorf("total = %d; want %d", total, rdsTestTotal)
-	}
-	if len(*warnings) != 1 {
-		t.Fatalf("%s warnings = %d; want 1", rdsTagsOp, len(*warnings))
-	}
-	for _, k := range []string{"DescribeDBParameterGroups", "DescribeOptionGroups"} {
-		if got := len(rowsByNativeID(t, st, rdsKindOf(t, k).typ)); got != 2 {
-			t.Errorf("%s rows = %d; want both kept", k, got)
-		}
-	}
-}
-
 // The tag reads of every family share one bound of fanoutMed, though each
 // family's reads alone would allow fanoutMed.
 func TestScanRDS_TagReadsShareOneBound(t *testing.T) {

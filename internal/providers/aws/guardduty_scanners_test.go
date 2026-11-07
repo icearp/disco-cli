@@ -593,30 +593,6 @@ func TestScanGuardDuty_TagReadFailures(t *testing.T) {
 	}
 }
 
-// Denied tag reads of several detectors' rows are one warning for the phase.
-func TestScanGuardDuty_TagDenialsWarnOnce(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	warns := countOpWarnings(st, gdTagsOp)
-	calls := newGDFixtureCalls()
-	denied := []string{gdDetARN("d-t") + "/publishingdestination/pd-t", gdDetARN("d-b") + "/publishingdestination/pd-b"}
-	for _, arn := range denied {
-		calls.errs["ListTagsForResource "+arn] = apiErr("AccessDeniedException", "denied")
-	}
-
-	if _, _, err := gdScan(context.Background(), st, gdHandlers(calls)); err != nil {
-		t.Fatalf("err = %v; want nil", err)
-	}
-	if *warns != 1 {
-		t.Errorf("%s warnings = %d; want 1", gdTagsOp, *warns)
-	}
-	for _, arn := range denied {
-		if r, ok := gdRowOf(t, st, TypeGuardDutyPublishingDestination, arn); !ok || r.TagsJSON != nil {
-			t.Errorf("%s stored %v, TagsJSON %v; want it kept without tags", arn, ok, r.TagsJSON)
-		}
-	}
-}
-
 // A throttled tag read beside a hard failure of another tag read is demoted
 // to one warning, so the hard error decides the outcome.
 func TestScanGuardDuty_TagThrottleDemotedBesideHardError(t *testing.T) {

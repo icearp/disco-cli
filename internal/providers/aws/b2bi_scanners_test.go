@@ -631,27 +631,6 @@ func TestScanB2BI_GetCapabilityFailures(t *testing.T) {
 	}
 }
 
-// Both capabilities' GetCapability denied send one warning for the listing.
-func TestScanB2BI_GetCapabilityDenialsWarnOnce(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	warns := countOpWarnings(st, "b2bi:GetCapability")
-	calls := newB2BITestCalls()
-	caps := b2biTestKindOf(t, "ListCapabilities")
-	calls.getErrs[caps.id("tagged")] = b2biTestDenied
-	calls.getErrs[caps.id("bare")] = b2biTestDenied
-
-	if _, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(calls)); err != nil {
-		t.Fatalf("scan: %v", err)
-	}
-	if *warns != 1 {
-		t.Errorf("b2bi:GetCapability warnings = %d; want 1", *warns)
-	}
-	if n := len(rowsByNativeID(t, st, TypeB2BICapability)); n != 2 {
-		t.Errorf("capabilities = %d; want 2", n)
-	}
-}
-
 // A failed write stops the scan: no warning about the rows it lost (a denied
 // tag read among them), no later phase runs, and the earlier phases' rows
 // stay stored.

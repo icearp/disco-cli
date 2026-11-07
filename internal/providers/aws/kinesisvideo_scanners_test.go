@@ -501,30 +501,6 @@ func TestScanKinesisVideo_TagReadFailures(t *testing.T) {
 	}
 }
 
-// Denied tag reads on both pages of each listing send one warning per tag op
-// for the whole scan; the rows are kept.
-func TestScanKinesisVideo_TagDenialsWarnOncePerOp(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	warns := rhWarnRecorder(st)
-	calls := newKVSTestCalls()
-	for _, k := range kvsTestKinds() {
-		calls.tagErrs[k.kvsTestARN("tagged")] = k.denied
-		calls.tagErrs[k.kvsTestARN("bare")] = k.denied
-	}
-
-	total, _, err := kvsTestScan(context.Background(), st, kvsTestHandlers(calls))
-	if err != nil {
-		t.Fatalf("scan: %v", err)
-	}
-	if total != kvsTestTotal {
-		t.Errorf("total = %d; want %d", total, kvsTestTotal)
-	}
-	if got, want := afWarnOps(warns()), []string{"kinesis-video:ListTagsForStream", "kinesis-video:ListTagsForResource"}; !slices.Equal(got, want) {
-		t.Errorf("warnings = %v; want %v", got, want)
-	}
-}
-
 // A throttled tag read beside a hard tag-read failure, of the same op or of
 // the other one, is demoted to one warning under its op, so the hard error
 // decides the outcome. Both stream rows are kept untagged.

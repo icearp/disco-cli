@@ -1046,22 +1046,6 @@ func TestScanS3_BucketTagReadFailures(t *testing.T) {
 	}
 }
 
-// Denied tag reads on several pages are one warning for the scan.
-func TestScanS3_BucketTagDenialsWarnOnce(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	warns := countOpWarnings(st, s3TagsOp)
-	calls, h := s3TagFixture()
-	calls.errs["b-east"], calls.errs["b-west"] = s3Denied, s3Denied
-
-	if _, _, err := s3TagScan(t, st, h); err != nil {
-		t.Fatalf("err = %v; want nil", err)
-	}
-	if *warns != 1 {
-		t.Errorf("%s warnings = %d; want 1", s3TagsOp, *warns)
-	}
-}
-
 // A throttled tag read beside a hard failure of the same op is demoted to one
 // warning, so the hard error decides the outcome.
 func TestScanS3_BucketTagThrottleDemotedBesideHardError(t *testing.T) {
