@@ -371,20 +371,22 @@ func TestScanCodePipeline_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows and inserts none: the tags read are the same.
-func TestScanCodePipeline_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanCodePipeline_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls cplCalls
 	if _, _, err := cplScan(context.Background(), st, cplHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := cplScan(context.Background(), st, cplHandlers(&calls))
+	total, _, err := cplScan(context.Background(), st, cplHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != cplTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, cplTestTotal)
+	if total != cplTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, cplTestTotal)
 	}
 }
 

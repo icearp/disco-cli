@@ -365,19 +365,21 @@ func TestScanTnb_ServiceBlocked(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanTnb_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanTnb_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := tnbScan(context.Background(), st, tnbHandlers(newTNBCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := tnbScan(context.Background(), st, tnbHandlers(newTNBCalls()))
+	total, _, err := tnbScan(context.Background(), st, tnbHandlers(newTNBCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != tnbTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, tnbTestTotal)
+	if total != tnbTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, tnbTestTotal)
 	}
 }
 

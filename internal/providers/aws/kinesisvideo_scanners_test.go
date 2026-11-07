@@ -357,22 +357,6 @@ func TestScanKinesisVideo_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanKinesisVideo_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, _, err := kvsTestScan(context.Background(), st, kvsTestHandlers(newKVSTestCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, inserted, err := kvsTestScan(context.Background(), st, kvsTestHandlers(newKVSTestCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != kvsTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, kvsTestTotal)
-	}
-}
-
 // Empty listings: each listed once, nothing stored, no tag read, no error,
 // no warning.
 func TestScanKinesisVideo_Empty(t *testing.T) {

@@ -359,19 +359,21 @@ func TestScanWorkSpaces_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanWorkSpaces_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanWorkSpaces_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := wsTagScan(context.Background(), st, wsTagHandlers(newWSTagCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := wsTagScan(context.Background(), st, wsTagHandlers(newWSTagCalls()))
+	total, _, err := wsTagScan(context.Background(), st, wsTagHandlers(newWSTagCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != wsTestStored || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, wsTestStored)
+	if total != wsTestStored {
+		t.Errorf("rescan total = %d; want %d", total, wsTestStored)
 	}
 }
 

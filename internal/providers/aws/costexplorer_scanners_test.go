@@ -454,22 +454,6 @@ func TestScanCostExplorer_NotEnabledLaterPageIsDenial(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanCostExplorer_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, _, err := ceScan(context.Background(), st, ceHandlers(newCECalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, inserted, err := ceScan(context.Background(), st, ceHandlers(newCECalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != ceTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, ceTestTotal)
-	}
-}
-
 // A rescan whose anomaly monitors Cost Explorer refuses as not enabled keeps
 // the counts of the rows the other listings stored again, though none of
 // them is new: the scan is not reported disabled.

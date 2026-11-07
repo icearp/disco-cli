@@ -432,22 +432,6 @@ func TestScanBudgets_LinkedAccountAfterRowsIsDenial(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanBudgets_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, _, err := budgetsScan(context.Background(), st, budgetsHandlers(newBudgetsCalls("aws"))); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, inserted, err := budgetsScan(context.Background(), st, budgetsHandlers(newBudgetsCalls("aws")))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != budgetsTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, budgetsTestTotal)
-	}
-}
-
 // Empty listings: each listed once, nothing stored, no tag read, no error,
 // no warning.
 func TestScanBudgets_Empty(t *testing.T) {

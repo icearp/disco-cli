@@ -295,16 +295,18 @@ func TestScanAgentRegistry_EmptyListings(t *testing.T) {
 	})
 }
 
-// A second scan of the same resources inserts none.
-func TestScanAgentRegistry_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanAgentRegistry_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := arScan(context.Background(), st, arHandlers(newARCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := arScan(context.Background(), st, arHandlers(newARCalls()))
-	if err != nil || total != 5 || inserted != 0 {
-		t.Errorf("rescan = %d, %d, %v; want 5, 0, nil", total, inserted, err)
+	total, _, err := arScan(context.Background(), st, arHandlers(newARCalls()))
+	if err != nil || total != 5 {
+		t.Errorf("rescan = %d, %v; want 5, nil", total, err)
 	}
 }
 

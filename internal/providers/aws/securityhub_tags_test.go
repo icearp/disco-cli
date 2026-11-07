@@ -369,19 +369,21 @@ func TestScanSecurityHub_NameFallbacks(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanSecurityHub_TaggedRescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanSecurityHub_TaggedRescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := shTagScan(context.Background(), st, shTagHandlers(newSHTagCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := shTagScan(context.Background(), st, shTagHandlers(newSHTagCalls()))
+	total, _, err := shTagScan(context.Background(), st, shTagHandlers(newSHTagCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != shTagTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, shTagTestTotal)
+	if total != shTagTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, shTagTestTotal)
 	}
 }
 

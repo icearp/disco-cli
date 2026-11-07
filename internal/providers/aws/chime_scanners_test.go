@@ -474,19 +474,22 @@ func chimeSipRuleID(id string) string {
 	return chimeSipRuleNativeID("aws", testRegion, testAccountID, id)
 }
 
-func TestScanChime_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanChime_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newChimeCalls(t)
 	if _, _, err := chimeScan(context.Background(), st, chimeFixture(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := chimeScan(context.Background(), st, chimeFixture(calls))
+	total, _, err := chimeScan(context.Background(), st, chimeFixture(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != chimeTotalCount || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, chimeTotalCount)
+	if total != chimeTotalCount {
+		t.Errorf("rescan total = %d; want %d", total, chimeTotalCount)
 	}
 }
 

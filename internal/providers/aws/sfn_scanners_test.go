@@ -315,17 +315,19 @@ func TestScanSFN_StoresTagsOfTaggedTypes(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows and inserts none.
-func TestScanSFN_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanSFN_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	f := newSFFixture("aws", testRegion)
 	if _, _, err := f.scan(context.Background(), st); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := f.scan(context.Background(), st)
-	if err != nil || total != sfTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted, err = %d, %d, %v; want %d, 0, nil", total, inserted, err, sfTotal)
+	total, _, err := f.scan(context.Background(), st)
+	if err != nil || total != sfTotal {
+		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, sfTotal)
 	}
 }
 

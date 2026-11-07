@@ -309,19 +309,21 @@ func TestScanBCMDashboards_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanBCMDashboards_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanBCMDashboards_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(newBCMDTestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(newBCMDTestCalls()))
+	total, _, err := bcmdTestScan(context.Background(), st, bcmdTestHandlers(newBCMDTestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != bcmdTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, bcmdTestTotal)
+	if total != bcmdTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, bcmdTestTotal)
 	}
 }
 

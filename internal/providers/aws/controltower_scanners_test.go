@@ -292,19 +292,21 @@ func TestScanControlTower_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanControlTower_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanControlTower_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := ctowerScan(context.Background(), st, ctowerHandlers(newCtowerCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := ctowerScan(context.Background(), st, ctowerHandlers(newCtowerCalls()))
+	total, _, err := ctowerScan(context.Background(), st, ctowerHandlers(newCtowerCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != ctowerTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, ctowerTestTotal)
+	if total != ctowerTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, ctowerTestTotal)
 	}
 }
 

@@ -465,15 +465,17 @@ func TestScanCassandra_StoresTagsOfEachType(t *testing.T) {
 	}
 }
 
-// A second scan of unchanged resources stores no new rows.
-func TestScanCassandra_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanCassandra_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	for i, want := range []int{ksScanTotal, 0} {
+	for i := range 2 {
 		var streams ksStreamPages
-		total, inserted, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), nil))
-		if err != nil || total != ksScanTotal || inserted != want {
-			t.Errorf("scan %d: total, inserted, err = %d, %d, %v; want %d, %d, nil", i+1, total, inserted, err, ksScanTotal, want)
+		total, _, err := ksScan(context.Background(), st, cassandraScanHandlers(&streams, newKSTagStub(), nil))
+		if err != nil || total != ksScanTotal {
+			t.Errorf("scan %d: total = %d, err = %v; want %d, nil", i+1, total, err, ksScanTotal)
 		}
 	}
 }

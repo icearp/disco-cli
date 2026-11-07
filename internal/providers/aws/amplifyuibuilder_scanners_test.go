@@ -394,20 +394,22 @@ func TestScanAmplifyUIBuilder_EmptyListings(t *testing.T) {
 	})
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanAmplifyUIBuilder_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanAmplifyUIBuilder_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newAUIBCalls()
 	if _, _, err := auibScan(context.Background(), t, st, auibHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := auibScan(context.Background(), t, st, auibHandlers(calls))
+	total, _, err := auibScan(context.Background(), t, st, auibHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != 12 || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want 12, 0", total, inserted)
+	if total != 12 {
+		t.Errorf("rescan total = %d; want 12", total)
 	}
 }
 

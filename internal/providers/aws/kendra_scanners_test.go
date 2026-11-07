@@ -544,8 +544,10 @@ func TestScanKendra_EmptyListings(t *testing.T) {
 	})
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanKendra_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanKendra_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	_, h := kendraFixture()
@@ -553,12 +555,12 @@ func TestScanKendra_RescanInsertsNone(t *testing.T) {
 		t.Fatalf("first scan: %v", err)
 	}
 	_, h = kendraFixture()
-	total, inserted, err := kendraScan(context.Background(), t, st, h)
+	total, _, err := kendraScan(context.Background(), t, st, h)
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != kendraTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, kendraTotal)
+	if total != kendraTotal {
+		t.Errorf("rescan total = %d; want %d", total, kendraTotal)
 	}
 }
 

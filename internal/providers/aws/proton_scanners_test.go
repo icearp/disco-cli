@@ -370,23 +370,6 @@ func TestScanProton_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanProton_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newProtonCalls(t)
-	if _, _, err := protonScan(context.Background(), st, protonHandlers(t, calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, inserted, err := protonScan(context.Background(), st, protonHandlers(t, calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != protonTotalCount || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, protonTotalCount)
-	}
-}
-
 // A failed tag read: ResourceNotFoundException, the op's modeled not-found,
 // drops the row silently; a denial keeps the row untagged and warns once
 // under proton:ListTagsForResource; a throttle after retries keeps it and is

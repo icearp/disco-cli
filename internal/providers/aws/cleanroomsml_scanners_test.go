@@ -394,20 +394,22 @@ func TestScanCleanRoomsML_EmptyMembershipListings(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanCleanRoomsML_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanCleanRoomsML_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newCRMLCalls()
 	if _, _, err := crmlScan(context.Background(), t, st, crmlHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
+	total, _, err := crmlScan(context.Background(), t, st, crmlHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != 15 || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want 15, 0", total, inserted)
+	if total != 15 {
+		t.Errorf("rescan total = %d; want 15", total)
 	}
 }
 

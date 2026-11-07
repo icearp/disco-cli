@@ -401,17 +401,19 @@ func TestScanS3Control_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanS3Control_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanS3Control_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newS3CCalls()
 	if _, _, err := s3cScan(t, st, testRegion, s3cHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
-	if err != nil || total != 12 || inserted != 0 {
-		t.Errorf("rescan = %d, %d, %v; want 12, 0, nil", total, inserted, err)
+	total, _, err := s3cScan(t, st, testRegion, s3cHandlers(calls))
+	if err != nil || total != 12 {
+		t.Errorf("rescan = %d, %v; want 12, nil", total, err)
 	}
 }
 

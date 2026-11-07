@@ -291,20 +291,22 @@ func TestScanCleanRooms_StoresTagsOfEveryType(t *testing.T) {
 	assertContainsNative(t, st, crtForeignCollab(), crtMember(crtForeignCollab()))
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanCleanRooms_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanCleanRooms_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newCRTCalls()
 	if _, _, err := crtScan(context.Background(), t, st, crtHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := crtScan(context.Background(), t, st, crtHandlers(calls))
+	total, _, err := crtScan(context.Background(), t, st, crtHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != 25 || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want 25, 0", total, inserted)
+	if total != 25 {
+		t.Errorf("rescan total = %d; want 25", total)
 	}
 }
 

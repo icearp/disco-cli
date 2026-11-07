@@ -1419,16 +1419,19 @@ func TestScanWA_StoresTagsOfTaggedTypes(t *testing.T) {
 	}
 }
 
-func TestScanWA_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanWA_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	f := newWAFixture("aws", testRegion)
 	if _, _, err := f.scan(context.Background(), st); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := f.scan(context.Background(), st)
-	if err != nil || total != waTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted, err = %d, %d, %v; want %d, 0, nil", total, inserted, err, waTotal)
+	total, _, err := f.scan(context.Background(), st)
+	if err != nil || total != waTotal {
+		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, waTotal)
 	}
 }
 

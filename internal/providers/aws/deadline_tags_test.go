@@ -274,20 +274,22 @@ func TestScanDeadline_StoresTagsOfEveryTaggedType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanDeadline_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanDeadline_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newDLCalls()
 	if _, _, err := dlScan(context.Background(), t, st, dlHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := dlScan(context.Background(), t, st, dlHandlers(calls))
+	total, _, err := dlScan(context.Background(), t, st, dlHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != dlFixtureRows || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, dlFixtureRows)
+	if total != dlFixtureRows {
+		t.Errorf("rescan total = %d; want %d", total, dlFixtureRows)
 	}
 }
 

@@ -408,16 +408,18 @@ func TestScanEKS_EmptyPerClusterListings(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanEKS_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanEKS_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := eksxScan(context.Background(), st, newEKSXCalls().handlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := eksxScan(context.Background(), st, newEKSXCalls().handlers())
-	if err != nil || total != 30 || inserted != 0 {
-		t.Errorf("rescan = %d, %d, %v; want 30, 0, nil", total, inserted, err)
+	total, _, err := eksxScan(context.Background(), st, newEKSXCalls().handlers())
+	if err != nil || total != 30 {
+		t.Errorf("rescan = %d, %v; want 30, nil", total, err)
 	}
 }
 

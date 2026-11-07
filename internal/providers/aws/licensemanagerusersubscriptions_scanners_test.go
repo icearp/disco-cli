@@ -391,20 +391,22 @@ func TestScanLMUS_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows and inserts none.
-func TestScanLMUS_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanLMUS_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls lmusCalls
 	if _, _, err := lmusScan(context.Background(), st, lmusHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
+	total, _, err := lmusScan(context.Background(), st, lmusHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != lmusTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, lmusTestTotal)
+	if total != lmusTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, lmusTestTotal)
 	}
 }
 

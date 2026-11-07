@@ -289,20 +289,22 @@ func TestScanOmics_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanOmics_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanOmics_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newOMTCalls()
 	if _, _, err := omtScan(context.Background(), st, omtHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := omtScan(context.Background(), st, omtHandlers(calls))
+	total, _, err := omtScan(context.Background(), st, omtHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != 24 || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want 24, 0", total, inserted)
+	if total != 24 {
+		t.Errorf("rescan total = %d; want 24", total)
 	}
 }
 

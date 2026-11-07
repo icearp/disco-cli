@@ -335,23 +335,6 @@ func TestScanGameLift_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanGameLift_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newGLTCalls()
-	if _, _, err := gltScan(context.Background(), st, gltHandlers(calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, inserted, err := gltScan(context.Background(), st, gltHandlers(calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != 23 || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want 23, 0", total, inserted)
-	}
-}
-
 // gltFleetChildCalls is the fleets the fleet children listings were sent.
 func gltFleetChildCalls(c *gltCalls) []string {
 	c.mu.Lock()

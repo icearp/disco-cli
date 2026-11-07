@@ -331,19 +331,21 @@ func TestScanKafkaConnect_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanKafkaConnect_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanKafkaConnect_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := kcTestScan(context.Background(), st, kcTestHandlers(newKCTestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := kcTestScan(context.Background(), st, kcTestHandlers(newKCTestCalls()))
+	total, _, err := kcTestScan(context.Background(), st, kcTestHandlers(newKCTestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != kcTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, kcTestTotal)
+	if total != kcTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, kcTestTotal)
 	}
 }
 

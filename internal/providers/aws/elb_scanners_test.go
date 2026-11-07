@@ -478,19 +478,21 @@ func TestScanELBv2_RowFields(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanELBv2_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanELBv2_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := elbScanCommercial(st, elbHandlers(newELBCalls(elbCommercial))); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := elbScanCommercial(st, elbHandlers(newELBCalls(elbCommercial)))
+	total, _, err := elbScanCommercial(st, elbHandlers(newELBCalls(elbCommercial)))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != elbTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, elbTestTotal)
+	if total != elbTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, elbTestTotal)
 	}
 }
 

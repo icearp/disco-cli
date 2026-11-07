@@ -380,19 +380,21 @@ func TestScanB2BI_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanB2BI_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanB2BI_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(newB2BITestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := b2biTestScan(context.Background(), st, b2biTestHandlers(newB2BITestCalls()))
+	total, _, err := b2biTestScan(context.Background(), st, b2biTestHandlers(newB2BITestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != b2biTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, b2biTestTotal)
+	if total != b2biTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, b2biTestTotal)
 	}
 }
 

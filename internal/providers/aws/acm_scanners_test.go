@@ -396,19 +396,21 @@ func TestScanACM_StoresTags(t *testing.T) {
 	}
 }
 
-// A rescan of the same resources inserts nothing new.
-func TestScanACM_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanACM_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := acmChildCalls{tags: map[string]map[string]string{acmTestEP1: {"team": "pki"}}}
 	acct := newTestAccount(testAccountID)
 	acct.cfg = opStubConfig(acmTopLevelHandlers(&calls), acmDenied)
-	if _, inserted, err := scanACM(context.Background(), acct, testRegion, st, testScanID); err != nil || inserted != acmTestTotal {
-		t.Fatalf("first scan inserted = %d, err = %v; want %d, nil", inserted, err, acmTestTotal)
+	if _, _, err := scanACM(context.Background(), acct, testRegion, st, testScanID); err != nil {
+		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := scanACM(context.Background(), acct, testRegion, st, testScanID)
-	if err != nil || total != acmTestTotal || inserted != 0 {
-		t.Errorf("rescan total/inserted = %d/%d, err = %v; want %d/0, nil", total, inserted, err, acmTestTotal)
+	total, _, err := scanACM(context.Background(), acct, testRegion, st, testScanID)
+	if err != nil || total != acmTestTotal {
+		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, acmTestTotal)
 	}
 }
 

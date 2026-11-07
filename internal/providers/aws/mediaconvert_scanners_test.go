@@ -321,20 +321,22 @@ func TestScanMediaConvert_TagResponseWithoutResourceTags(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows and inserts none: the tags read are the same.
-func TestScanMediaConvert_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanMediaConvert_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls mcvCalls
 	if _, _, err := mcvScan(context.Background(), st, mcvHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
+	total, _, err := mcvScan(context.Background(), st, mcvHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != mcvTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, mcvTestTotal)
+	if total != mcvTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, mcvTestTotal)
 	}
 }
 

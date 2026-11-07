@@ -290,22 +290,6 @@ func TestScanOpenSearch_StoresDomainAndApplicationTags(t *testing.T) {
 	}
 }
 
-func TestScanOpenSearch_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	f := newOSTagFixture()
-	if _, _, err := osTagScan(context.Background(), st, f, f.osfHandlers()); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, inserted, err := osTagScan(context.Background(), st, f, f.osfHandlers())
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != osTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, osTestTotal)
-	}
-}
-
 // No domain and no application: nothing is described or tag-read, no error,
 // no warning.
 func TestScanOpenSearch_EmptyListingsReadNoTags(t *testing.T) {

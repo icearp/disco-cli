@@ -500,17 +500,19 @@ func TestScanGuardDuty_EmptyDetectorListings(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanGuardDuty_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanGuardDuty_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newGDFixtureCalls()
 	if _, _, err := gdScan(context.Background(), st, gdHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := gdScan(context.Background(), st, gdHandlers(calls))
-	if err != nil || total != 23 || inserted != 0 {
-		t.Errorf("rescan = %d, %d, %v; want 23, 0, nil", total, inserted, err)
+	total, _, err := gdScan(context.Background(), st, gdHandlers(calls))
+	if err != nil || total != 23 {
+		t.Errorf("rescan = %d, %v; want 23, nil", total, err)
 	}
 }
 

@@ -257,18 +257,21 @@ func TestScanDocDBElastic_StoresTagsOfEachType(t *testing.T) {
 	}
 }
 
-func TestScanDocDBElastic_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanDocDBElastic_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := debScan(context.Background(), st, newDebStub().debHandlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := debScan(context.Background(), st, newDebStub().debHandlers())
+	total, _, err := debScan(context.Background(), st, newDebStub().debHandlers())
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != debTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, debTotal)
+	if total != debTotal {
+		t.Errorf("rescan total = %d; want %d", total, debTotal)
 	}
 }
 

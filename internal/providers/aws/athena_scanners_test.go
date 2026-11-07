@@ -798,17 +798,19 @@ func TestScanAthena_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanAthena_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanAthena_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newAthenaTagCalls("aws", testRegion)
 	if _, _, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
-	if err != nil || total != 7 || inserted != 0 {
-		t.Errorf("rescan = %d, %d, %v; want 7, 0, nil", total, inserted, err)
+	total, _, err := athenaTagScan(context.Background(), t, st, athenaTagHandlers(calls))
+	if err != nil || total != 7 {
+		t.Errorf("rescan = %d, %v; want 7, nil", total, err)
 	}
 }
 

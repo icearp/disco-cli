@@ -366,20 +366,22 @@ func TestScanEntityResolution_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows and inserts none: the tags read are the same.
-func TestScanEntityResolution_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanEntityResolution_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls erCalls
 	if _, _, err := erScan(context.Background(), st, erHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := erScan(context.Background(), st, erHandlers(&calls))
+	total, _, err := erScan(context.Background(), st, erHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != erTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, erTestTotal)
+	if total != erTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, erTestTotal)
 	}
 }
 

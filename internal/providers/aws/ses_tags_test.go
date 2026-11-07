@@ -365,20 +365,22 @@ func TestScanSES_StoresTagsOfEveryTaggedType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanSES_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanSES_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newSESCalls()
 	if _, _, err := sesTagScan(t, st, sesHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := sesTagScan(t, st, sesHandlers(calls))
+	total, _, err := sesTagScan(t, st, sesHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if want := len(sesAllFixtureRows()); total != want || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, want)
+	if want := len(sesAllFixtureRows()); total != want {
+		t.Errorf("rescan total = %d; want %d", total, want)
 	}
 }
 

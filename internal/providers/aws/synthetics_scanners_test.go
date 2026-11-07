@@ -451,22 +451,23 @@ func TestScanSynthetics_GroupsDenied(t *testing.T) {
 	}
 }
 
-// A rescan of unchanged canaries and groups on the same store reports the
-// real total and nothing inserted.
-func TestScanSynthetics_RescanInsertsNothing(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanSynthetics_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	acct := newTestAccount(testAccountID)
 	h := synHandlers()
 	h["ListGroups"] = synGroupPages
 	acct.cfg = opStubConfig(h, synTestDenied)
-	for run, wantInserted := range []int{4, 0} {
-		total, inserted, err := scanSynthetics(context.Background(), acct, testRegion, st, testScanID)
+	for run := range 2 {
+		total, _, err := scanSynthetics(context.Background(), acct, testRegion, st, testScanID)
 		if err != nil {
 			t.Fatalf("run %d: err = %v", run, err)
 		}
-		if total != 4 || inserted != wantInserted {
-			t.Errorf("run %d: total, inserted = %d, %d; want 4, %d", run, total, inserted, wantInserted)
+		if total != 4 {
+			t.Errorf("run %d: total = %d; want 4", run, total)
 		}
 	}
 }

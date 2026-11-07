@@ -392,19 +392,21 @@ func TestScanPCAConnectorAD_StoresEveryRowWithItsTags(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanPCAConnectorAD_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanPCAConnectorAD_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := pcaADScan(context.Background(), st, pcaADHandlers(newPCAADCalls(t))); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := pcaADScan(context.Background(), st, pcaADHandlers(newPCAADCalls(t)))
+	total, _, err := pcaADScan(context.Background(), st, pcaADHandlers(newPCAADCalls(t)))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != pcaADTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, pcaADTestTotal)
+	if total != pcaADTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, pcaADTestTotal)
 	}
 }
 

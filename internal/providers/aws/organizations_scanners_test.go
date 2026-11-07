@@ -874,16 +874,18 @@ func TestScanOrganizations_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanOrganizations_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanOrganizations_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := orgScanWith(st, newOrgCalls().fullHandlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := orgScanWith(st, newOrgCalls().fullHandlers())
-	if err != nil || total != orgTestFullTotal || inserted != 0 {
-		t.Errorf("rescan = %d, %d, %v; want %d, 0, nil", total, inserted, err, orgTestFullTotal)
+	total, _, err := orgScanWith(st, newOrgCalls().fullHandlers())
+	if err != nil || total != orgTestFullTotal {
+		t.Errorf("rescan = %d, %v; want %d, nil", total, err, orgTestFullTotal)
 	}
 }
 

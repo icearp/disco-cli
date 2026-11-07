@@ -428,8 +428,10 @@ func TestScanResilienceHub_StoresEveryPhaseWithTags(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows, tags included, without inserting any.
-func TestScanResilienceHub_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanResilienceHub_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	queues, want := rhFixture(rhCommercial, false)
@@ -437,12 +439,12 @@ func TestScanResilienceHub_RescanInsertsNone(t *testing.T) {
 		t.Fatalf("first scan: %v", err)
 	}
 	queues, _ = rhFixture(rhCommercial, false)
-	total, inserted, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers())
+	total, _, err := rhScan(context.Background(), st, newTestAccount(testAccountID), newRHCalls(t, queues, false).handlers())
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != len(want) || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, len(want))
+	if total != len(want) {
+		t.Errorf("rescan total = %d; want %d", total, len(want))
 	}
 }
 

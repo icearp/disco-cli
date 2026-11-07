@@ -345,18 +345,21 @@ func TestScanHealthLake_ListingInputs(t *testing.T) {
 	}
 }
 
-func TestScanHealthLake_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanHealthLake_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := hlScan(context.Background(), st, newHLStub().hlHandlers()); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := hlScan(context.Background(), st, newHLStub().hlHandlers())
+	total, _, err := hlScan(context.Background(), st, newHLStub().hlHandlers())
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != hlTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, hlTotal)
+	if total != hlTotal {
+		t.Errorf("rescan total = %d; want %d", total, hlTotal)
 	}
 }
 

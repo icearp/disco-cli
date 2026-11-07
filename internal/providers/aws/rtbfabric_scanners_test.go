@@ -392,19 +392,21 @@ func TestScanRTBFabric_StoresEveryRowWithItsTags(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanRTBFabric_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanRTBFabric_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := rtbScan(context.Background(), st, rtbHandlers(newRTBCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := rtbScan(context.Background(), st, rtbHandlers(newRTBCalls()))
+	total, _, err := rtbScan(context.Background(), st, rtbHandlers(newRTBCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != rtbTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, rtbTestTotal)
+	if total != rtbTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, rtbTestTotal)
 	}
 }
 

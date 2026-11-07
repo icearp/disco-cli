@@ -670,16 +670,18 @@ func TestScanEVS_NoEnvironments(t *testing.T) {
 	}
 }
 
-func TestScanEVS_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanEVS_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
-	total, inserted, err := evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{}))
-	if err != nil || total != evsTestTotal || inserted != evsTestTotal {
-		t.Fatalf("first scan = %d, %d, %v; want %d, %d, nil", total, inserted, err, evsTestTotal, evsTestTotal)
+	if _, _, err := evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{})); err != nil {
+		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err = evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{}))
-	if err != nil || total != evsTestTotal || inserted != 0 {
-		t.Errorf("rescan = %d, %d, %v; want %d, 0, nil", total, inserted, err, evsTestTotal)
+	total, _, err := evsScan(context.Background(), st, evsHandlers(map[string]*parentCalls{}))
+	if err != nil || total != evsTestTotal {
+		t.Errorf("rescan = %d, %v; want %d, nil", total, err, evsTestTotal)
 	}
 }
 

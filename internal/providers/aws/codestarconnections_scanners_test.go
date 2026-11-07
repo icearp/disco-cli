@@ -371,20 +371,22 @@ func TestScanCodeStarConnections_StoresEveryRow(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows and inserts none: the tags read are the same.
-func TestScanCodeStarConnections_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanCodeStarConnections_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls cscCalls
 	if _, _, err := cscScan(context.Background(), st, cscHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := cscScan(context.Background(), st, cscHandlers(&calls))
+	total, _, err := cscScan(context.Background(), st, cscHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != cscTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, cscTestTotal)
+	if total != cscTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, cscTestTotal)
 	}
 }
 

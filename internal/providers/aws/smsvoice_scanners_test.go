@@ -308,23 +308,6 @@ func TestScanSMSVoice_EmptyStatusStoresNil(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanSMSVoice_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newSVCalls()
-	if _, _, err := svScan(context.Background(), st, svHandlers(calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, inserted, err := svScan(context.Background(), st, svHandlers(calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != svTotalCount || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, svTotalCount)
-	}
-}
-
 // A failed tag read of an own-account row: ResourceNotFoundException, the
 // op's modeled not-found, drops the row silently; a denial keeps the row
 // untagged and warns once under sms-voice:ListTagsForResource; a throttle

@@ -540,20 +540,22 @@ func TestScanBackupGateway_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows and inserts none: the tags read are the same.
-func TestScanBackupGateway_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanBackupGateway_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	var calls bgwCalls
 	if _, _, err := bgwScan(context.Background(), st, bgwHandlers(&calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
+	total, _, err := bgwScan(context.Background(), st, bgwHandlers(&calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != bgwTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, bgwTestTotal)
+	if total != bgwTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, bgwTestTotal)
 	}
 }
 

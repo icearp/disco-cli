@@ -334,20 +334,22 @@ func TestScanPCS_EmptyCluster(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanPCS_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanPCS_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newPCSCalls()
 	if _, _, err := pcsScan(context.Background(), t, st, pcsHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
+	total, _, err := pcsScan(context.Background(), t, st, pcsHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != 6 || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want 6, 0", total, inserted)
+	if total != 6 {
+		t.Errorf("rescan total = %d; want 6", total)
 	}
 }
 

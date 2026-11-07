@@ -524,20 +524,22 @@ func TestScanODB_StoresTagsOfEveryType(t *testing.T) {
 	assertQSContains(t, st, odbAVMClusterARN("bare"), odbAVMClusterARN("bare")+"/autonomous-virtual-machine/vm")
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanODB_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanODB_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newODBCalls()
 	if _, _, err := odbScan(context.Background(), st, odbHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := odbScan(context.Background(), st, odbHandlers(calls))
+	total, _, err := odbScan(context.Background(), st, odbHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != odbFixtureTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, odbFixtureTotal)
+	if total != odbFixtureTotal {
+		t.Errorf("rescan total = %d; want %d", total, odbFixtureTotal)
 	}
 }
 

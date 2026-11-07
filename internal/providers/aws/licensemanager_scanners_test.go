@@ -1062,15 +1062,18 @@ func TestScanLicenseManager_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-func TestScanLicenseManager_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanLicenseManager_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(newLMCalls("aws", testRegion), "aws", testRegion)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(newLMCalls("aws", testRegion), "aws", testRegion))
-	if err != nil || total != lmTestTagTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted, err = %d, %d, %v; want %d, 0, nil", total, inserted, err, lmTestTagTotal)
+	total, _, err := lmTagScan(context.Background(), st, "aws", lmTagHandlers(newLMCalls("aws", testRegion), "aws", testRegion))
+	if err != nil || total != lmTestTagTotal {
+		t.Errorf("rescan total = %d, err = %v; want %d, nil", total, err, lmTestTagTotal)
 	}
 }
 

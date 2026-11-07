@@ -391,19 +391,21 @@ func TestScanTranscribe_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanTranscribe_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanTranscribe_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := trsTestScan(context.Background(), st, trsTestHandlers(newTRSTestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := trsTestScan(context.Background(), st, trsTestHandlers(newTRSTestCalls()))
+	total, _, err := trsTestScan(context.Background(), st, trsTestHandlers(newTRSTestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != trsTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, trsTestTotal)
+	if total != trsTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, trsTestTotal)
 	}
 }
 

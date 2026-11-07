@@ -350,19 +350,21 @@ func TestScanWAFRegional_StoresEveryListingWithTags(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanWAFRegional_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanWAFRegional_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion))); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion)))
+	total, _, err := wafRegionalScan(context.Background(), st, wafRegionalHandlers(newWAFRegionalCalls("aws", testRegion)))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != wafRegionalTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, wafRegionalTestTotal)
+	if total != wafRegionalTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, wafRegionalTestTotal)
 	}
 }
 

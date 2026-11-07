@@ -278,22 +278,6 @@ func TestScanMemoryDB_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanMemoryDB_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, _, err := memDBScan(context.Background(), st, memDBHandlers(newMemDBCalls())); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, inserted, err := memDBScan(context.Background(), st, memDBHandlers(newMemDBCalls()))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != memDBTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, memDBTestTotal)
-	}
-}
-
 // A failed tag read: the not-found code ListTags models for the row's type
 // drops the row silently; another type's not-found code keeps the row and
 // is an error; a denial

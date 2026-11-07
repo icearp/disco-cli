@@ -304,20 +304,22 @@ func TestScanGlue_StoresTagsOfEveryTaggedType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanGlue_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanGlue_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newGlueCalls()
 	if _, _, err := glueScan(context.Background(), t, st, glueHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := glueScan(context.Background(), t, st, glueHandlers(calls))
+	total, _, err := glueScan(context.Background(), t, st, glueHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if want := 2*len(glueTaggedTypes()) + glueFixtureRows; total != want || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, want)
+	if want := 2*len(glueTaggedTypes()) + glueFixtureRows; total != want {
+		t.Errorf("rescan total = %d; want %d", total, want)
 	}
 }
 

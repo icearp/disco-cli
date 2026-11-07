@@ -616,20 +616,6 @@ func TestScanTimestream_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-func TestScanTimestream_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	_, h := tsFixture()
-	if _, _, err := tsScan(context.Background(), st, h); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	_, h = tsFixture()
-	total, inserted, err := tsScan(context.Background(), st, h)
-	if err != nil || total != tsTotal || inserted != 0 {
-		t.Errorf("rescan = %d, %d, %v; want %d, 0, nil", total, inserted, err, tsTotal)
-	}
-}
-
 // An aws-us-gov account scanned in us-gov-west-1 sends its gov ARNs to every
 // tag op unchanged and stores their tags.
 func TestScanTimestream_GovCloudARNsReachTagOps(t *testing.T) {

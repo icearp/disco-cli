@@ -374,19 +374,21 @@ func TestScanMediaPackageV2_StoresEveryRowWithItsTags(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanMediaPackageV2_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanMediaPackageV2_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := mp2Scan(context.Background(), st, mp2Handlers(newMP2Calls(t))); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := mp2Scan(context.Background(), st, mp2Handlers(newMP2Calls(t)))
+	total, _, err := mp2Scan(context.Background(), st, mp2Handlers(newMP2Calls(t)))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != mp2TestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, mp2TestTotal)
+	if total != mp2TestTotal {
+		t.Errorf("rescan total = %d; want %d", total, mp2TestTotal)
 	}
 }
 

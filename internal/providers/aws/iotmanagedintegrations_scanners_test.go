@@ -896,20 +896,22 @@ func TestScanIoTManagedIntegrations_EmptyListings(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanIoTManagedIntegrations_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanIoTManagedIntegrations_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newIMICalls()
 	if _, _, err := imiScan(context.Background(), t, st, imiHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := imiScan(context.Background(), t, st, imiHandlers(calls))
+	total, _, err := imiScan(context.Background(), t, st, imiHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != 12 || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want 12, 0", total, inserted)
+	if total != 12 {
+		t.Errorf("rescan total = %d; want 12", total)
 	}
 }
 

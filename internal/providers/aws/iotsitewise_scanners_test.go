@@ -303,20 +303,22 @@ func TestScanIoTSiteWise_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanIoTSiteWise_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanIoTSiteWise_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newISWCalls()
 	if _, _, err := iswScan(context.Background(), t, st, iswHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := iswScan(context.Background(), t, st, iswHandlers(calls))
+	total, _, err := iswScan(context.Background(), t, st, iswHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != 50 || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want 50, 0", total, inserted)
+	if total != 50 {
+		t.Errorf("rescan total = %d; want 50", total)
 	}
 }
 

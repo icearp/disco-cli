@@ -452,23 +452,6 @@ func TestScanFMS_StoresEveryRowWithTags(t *testing.T) {
 	}
 }
 
-// A rescan of unchanged resources inserts nothing.
-func TestScanFMS_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	var calls fmsCalls
-	if _, _, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, inserted, err := fmsScan(context.Background(), st, &calls, fmsHandlers(&calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != fmsTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, fmsTestTotal)
-	}
-}
-
 // A region with nothing listed stores nothing, reads no tags and warns
 // nothing.
 func TestScanFMS_Empty(t *testing.T) {

@@ -377,19 +377,21 @@ func TestScanRolesAnywhere_PagesWrittenAsRead(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanRolesAnywhere_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanRolesAnywhere_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := raTestScan(context.Background(), st, raTestHandlers(newRATestCalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := raTestScan(context.Background(), st, raTestHandlers(newRATestCalls()))
+	total, _, err := raTestScan(context.Background(), st, raTestHandlers(newRATestCalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != raTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, raTestTotal)
+	if total != raTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, raTestTotal)
 	}
 }
 

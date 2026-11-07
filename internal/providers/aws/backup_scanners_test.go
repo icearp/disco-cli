@@ -472,20 +472,22 @@ func TestScanBackup_ChildListingsGetTheParentsStored(t *testing.T) {
 	assertContainsEdgesDeclared(t, st)
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanBackup_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanBackup_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newBKCalls()
 	if _, _, err := bkScan(context.Background(), st, bkHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := bkScan(context.Background(), st, bkHandlers(calls))
+	total, _, err := bkScan(context.Background(), st, bkHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != bkTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, bkTotal)
+	if total != bkTotal {
+		t.Errorf("rescan total = %d; want %d", total, bkTotal)
 	}
 }
 

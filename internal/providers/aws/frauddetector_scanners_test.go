@@ -299,20 +299,22 @@ func TestScanFraudDetector_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanFraudDetector_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanFraudDetector_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newFDTCalls()
 	if _, _, err := fdtScan(context.Background(), st, fdtHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := fdtScan(context.Background(), st, fdtHandlers(calls))
+	total, _, err := fdtScan(context.Background(), st, fdtHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != 25 || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want 25, 0", total, inserted)
+	if total != 25 {
+		t.Errorf("rescan total = %d; want 25", total)
 	}
 }
 

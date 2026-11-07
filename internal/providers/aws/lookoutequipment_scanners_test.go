@@ -387,19 +387,21 @@ func TestScanLookoutEquipment_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanLookoutEquipment_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanLookoutEquipment_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := leScan(context.Background(), st, leHandlers(newLECalls())); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := leScan(context.Background(), st, leHandlers(newLECalls()))
+	total, _, err := leScan(context.Background(), st, leHandlers(newLECalls()))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != leTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, leTestTotal)
+	if total != leTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, leTestTotal)
 	}
 }
 

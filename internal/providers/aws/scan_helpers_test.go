@@ -1091,6 +1091,21 @@ func TestStoreTokenListTags_ReadOutcomes(t *testing.T) {
 	}
 }
 
+// A rescan of unchanged rows still counts every row stored in total, apart
+// from the rows it inserted, which are none.
+func TestStoreTokenListTags_RescanKeepsTotal(t *testing.T) {
+	t.Parallel()
+	st := newTestStore(t)
+	ids := []string{"x1", "x2", "s"}
+	reads := map[string]rowTagRead{"x1": {}, "x2": {}, "s": {}}
+	for _, want := range []struct{ total, inserted int }{{3, 3}, {3, 0}} {
+		p, stop := storeTaggedThings(context.Background(), st, ids, reads)
+		if stop || p.total != want.total || p.inserted != want.inserted {
+			t.Fatalf("stop, total, inserted = %v, %d, %d; want false, %d, %d", stop, p.total, p.inserted, want.total, want.inserted)
+		}
+	}
+}
+
 // A transient tag read error stays an error alone, and is demoted to one
 // warning under the tag op beside another phase's hard error.
 func TestStoreTokenListTags_TransientDemotedBesideHardError(t *testing.T) {
@@ -1266,6 +1281,19 @@ func TestStoreTokenPagesTags_PageByPage(t *testing.T) {
 				t.Errorf("warnings = %d; want 0", *warns)
 			}
 		})
+	}
+}
+
+// A rescan of unchanged pages still counts every row stored in total, apart
+// from the rows it inserted, which are none.
+func TestStoreTokenPagesTags_RescanKeepsTotal(t *testing.T) {
+	t.Parallel()
+	st := newTestStore(t)
+	for _, want := range []struct{ total, inserted int }{{6, 6}, {6, 0}} {
+		p, stop, err := runTokenPagesTest(context.Background(), st, &tokenPagesTest{}, pagesTestTags(nil))
+		if stop || err != nil || p.total != want.total || p.inserted != want.inserted {
+			t.Fatalf("stop, err, total, inserted = %v, %v, %d, %d; want false, nil, %d, %d", stop, err, p.total, p.inserted, want.total, want.inserted)
+		}
 	}
 }
 
@@ -2236,6 +2264,21 @@ func TestPhaseAndCountedFamily_KeepOps(t *testing.T) {
 	}
 	if len(p.errs) != 3 || !errors.Is(got["svc:List"], listErr) || !errors.Is(got["svc:ListTags"], tagErr) || !errors.Is(got["svc:Describe"], countedErr) {
 		t.Errorf("errors by op = %v; want svc:List: %v, svc:ListTags: %v, svc:Describe: %v", got, listErr, tagErr, countedErr)
+	}
+}
+
+// runHostPhases returns a countedPhase's total and inserted counts each as
+// its own count, as a rescan of unchanged rows reports them (total 3, none
+// inserted), never one in place of the other.
+func TestCountedPhase_KeepsTotalApartFromInserted(t *testing.T) {
+	t.Parallel()
+	st := newTestStore(t)
+	total, inserted, err := runHostPhases(context.Background(), st, newTestAccount(testAccountID), testRegion, "svc", 0, []hostPhase{
+		countedPhase(0, "svc:List", func() (int, int, error) { return 3, 0, nil }),
+		countedPhase(0, "svc:Get", func() (int, int, error) { return 2, 1, nil }),
+	})
+	if err != nil || total != 5 || inserted != 1 {
+		t.Errorf("total, inserted, err = %d, %d, %v; want 5, 1, nil", total, inserted, err)
 	}
 }
 

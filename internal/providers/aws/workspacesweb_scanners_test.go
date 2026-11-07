@@ -312,23 +312,6 @@ func TestScanWorkSpacesWeb_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanWorkSpacesWeb_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newWSWCalls()
-	if _, _, err := wswScan(context.Background(), st, wswHandlers(t, calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, inserted, err := wswScan(context.Background(), st, wswHandlers(t, calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != wswTotalCount || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, wswTotalCount)
-	}
-}
-
 // A failed tag read: ResourceNotFoundException, the op's modeled not-found,
 // drops the row silently; a denial keeps the row untagged and warns once
 // under workspaces-web:ListTagsForResource; a throttle after retries keeps

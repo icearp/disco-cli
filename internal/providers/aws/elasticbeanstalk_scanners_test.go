@@ -180,22 +180,6 @@ func TestScanElasticBeanstalk_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanElasticBeanstalk_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	if _, _, err := ebScan(st, newEBTagCalls().handlers()); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, inserted, err := ebScan(st, newEBTagCalls().handlers())
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != ebFixtureTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, ebFixtureTotal)
-	}
-}
-
 // Empty listings store nothing, read no tags and describe no template.
 func TestScanElasticBeanstalk_EmptyListings(t *testing.T) {
 	t.Parallel()

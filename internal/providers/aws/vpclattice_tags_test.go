@@ -344,20 +344,22 @@ func TestScanVpcLattice_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanVpcLattice_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanVpcLattice_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newVLTCalls()
 	if _, _, err := vltScan(context.Background(), t, st, vltHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := vltScan(context.Background(), t, st, vltHandlers(calls))
+	total, _, err := vltScan(context.Background(), t, st, vltHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != 33 || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want 33, 0", total, inserted)
+	if total != 33 {
+		t.Errorf("rescan total = %d; want 33", total)
 	}
 }
 

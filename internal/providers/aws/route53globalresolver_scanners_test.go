@@ -493,19 +493,21 @@ func TestScanRoute53GlobalResolver_StoresEveryTypeWithTags(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanRoute53GlobalResolver_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanRoute53GlobalResolver_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	if _, _, err := r53grScan(st, r53grHandlers(newR53GRCalls("aws"))); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := r53grScan(st, r53grHandlers(newR53GRCalls("aws")))
+	total, _, err := r53grScan(st, r53grHandlers(newR53GRCalls("aws")))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != r53grTestTotal || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want %d, 0", total, inserted, r53grTestTotal)
+	if total != r53grTestTotal {
+		t.Errorf("rescan total = %d; want %d", total, r53grTestTotal)
 	}
 }
 

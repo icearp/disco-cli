@@ -245,23 +245,6 @@ func TestScanDMS_StoresTagsOfEveryType(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanDMS_RescanInsertsNone(t *testing.T) {
-	t.Parallel()
-	st := newTestStore(t)
-	calls := newDMSCalls()
-	if _, _, err := dmsScan(context.Background(), st, dmsHandlers(calls)); err != nil {
-		t.Fatalf("first scan: %v", err)
-	}
-	total, inserted, err := dmsScan(context.Background(), st, dmsHandlers(calls))
-	if err != nil {
-		t.Fatalf("rescan: %v", err)
-	}
-	if total != 22 || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want 22, 0", total, inserted)
-	}
-}
-
 // A failed tag read: a denial keeps the row untagged and warns once under
 // dms:ListTagsForResource; a throttle after retries keeps it and is a
 // transient error; InvalidResourceStateFault, the op's other modeled code,

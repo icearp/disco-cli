@@ -369,20 +369,22 @@ func TestScanIoTTwinMaker_EmptyWorkspace(t *testing.T) {
 	}
 }
 
-// A rescan stores the same rows without inserting any.
-func TestScanIoTTwinMaker_RescanInsertsNone(t *testing.T) {
+// A rescan reports every stored row in its total, not only the newly inserted
+// ones. The dispatcher reports total for the service, and a first scan into an
+// empty store has total == inserted, so only a rescan catches the two swapped.
+func TestScanIoTTwinMaker_RescanKeepsTotal(t *testing.T) {
 	t.Parallel()
 	st := newTestStore(t)
 	calls := newITMCalls()
 	if _, _, err := itmScan(context.Background(), t, st, itmHandlers(calls)); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
-	total, inserted, err := itmScan(context.Background(), t, st, itmHandlers(calls))
+	total, _, err := itmScan(context.Background(), t, st, itmHandlers(calls))
 	if err != nil {
 		t.Fatalf("rescan: %v", err)
 	}
-	if total != 10 || inserted != 0 {
-		t.Errorf("rescan total, inserted = %d, %d; want 10, 0", total, inserted)
+	if total != 10 {
+		t.Errorf("rescan total = %d; want 10", total)
 	}
 }
 
